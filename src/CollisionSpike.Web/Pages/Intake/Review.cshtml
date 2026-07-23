@@ -1,0 +1,86 @@
+@page "{id:guid}"
+@model CollisionSpike.Web.Pages.Intake.ReviewModel
+@{
+    ViewData["Title"] = "Intake review";
+}
+
+<header class="page-heading">
+    <div>
+        <p class="eyebrow">Intake review</p>
+        <h1>@ReviewModel.DecisionLabel(Model.Receipt.Decision)</h1>
+        <p class="lede">@Model.Receipt.DecisionReason</p>
+    </div>
+    <a class="secondary-action" asp-page="/Intake/Qdos">Upload another</a>
+</header>
+
+@if (Model.IsDuplicate)
+{
+    <div class="notice" role="status">This source was already received. The existing intake record and reference are shown.</div>
+}
+
+<div class="review-grid">
+    <section class="panel" aria-labelledby="result-title">
+        <h2 id="result-title" class="section-label">Result</h2>
+        <dl class="detail-list">
+            <div><dt>Decision</dt><dd>@ReviewModel.DecisionLabel(Model.Receipt.Decision)</dd></div>
+            <div><dt>Case reference</dt><dd>@(Model.Receipt.CaseReference ?? "Not allocated")</dd></div>
+            <div><dt>Source</dt><dd>@Model.Receipt.SourceFileName</dd></div>
+            <div><dt>Received</dt><dd>@Model.Receipt.ReceivedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd></div>
+        </dl>
+        @if (Model.Receipt.FailureReason is not null)
+        {
+            <div class="failure-detail"><strong>@Model.Receipt.FailureCode</strong><span>@Model.Receipt.FailureReason</span></div>
+        }
+    </section>
+
+    <section class="panel" aria-labelledby="missing-title">
+        <h2 id="missing-title" class="section-label">Missing fields</h2>
+        @if (Model.Receipt.MissingFields.Count == 0)
+        {
+            <p class="empty-state">No missing field suggestions were identified.</p>
+        }
+        else
+        {
+            <ul class="plain-list">
+                @foreach (var field in Model.Receipt.MissingFields)
+                {
+                    <li>@field</li>
+                }
+            </ul>
+        }
+    </section>
+</div>
+
+@if (Model.Receipt.Fields.Count > 0)
+{
+    <section class="panel section-gap" aria-labelledby="fields-title">
+        <h2 id="fields-title" class="section-label">Suggested fields</h2>
+        <div class="field-grid">
+            @foreach (var field in Model.Receipt.Fields)
+            {
+                <article class="field-card @(field.HasConflict ? "field-card--conflict" : string.Empty)">
+                    <h3>@field.Name</h3>
+                    <strong>@(field.SuggestedValue ?? (field.HasConflict ? "Conflicting suggestions" : "Not found"))</strong>
+                    @if (field.IsDefaulted)
+                    {
+                        <small>Defaulted from processing date</small>
+                    }
+                    @foreach (var candidate in field.Candidates)
+                    {
+                        <small>@candidate.SourceLabel: @candidate.Value</small>
+                    }
+                </article>
+            }
+        </div>
+    </section>
+}
+
+<section class="panel section-gap" aria-labelledby="evidence-title">
+    <h2 id="evidence-title" class="section-label">Decision evidence</h2>
+    <ul class="evidence-list">
+        @foreach (var item in Model.Receipt.Evidence)
+        {
+            <li><strong>@item.Source</strong><span>@item.Detail</span></li>
+        }
+    </ul>
+</section>

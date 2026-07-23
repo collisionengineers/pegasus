@@ -211,7 +211,9 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = {
           value: environmentName == 'prod' ? 'Production' : 'Development'
         }
         {
-          name: 'AZURE_SQL_CONNECTION_STRING'
+          // ASP.NET Core maps the Linux-safe double underscore to
+          // ConnectionStrings:CollisionSpike for GetConnectionString().
+          name: 'ConnectionStrings__CollisionSpike'
           value: sqlConnectionString
         }
         {

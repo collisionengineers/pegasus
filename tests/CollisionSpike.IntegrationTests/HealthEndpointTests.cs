@@ -2,11 +2,11 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace CollisionSpike.IntegrationTests;
 
-public sealed class HealthEndpointTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class HealthEndpointTests : IClassFixture<QdosWebApplicationFactory>
 {
-    private readonly WebApplicationFactory<Program> factory;
+    private readonly QdosWebApplicationFactory factory;
 
-    public HealthEndpointTests(WebApplicationFactory<Program> factory)
+    public HealthEndpointTests(QdosWebApplicationFactory factory)
     {
         this.factory = factory;
     }
