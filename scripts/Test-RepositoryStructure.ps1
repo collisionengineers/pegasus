@@ -34,7 +34,9 @@ if ($trackedCorpus.Count -gt 0) {
     throw 'The local corpus must not contain tracked files.'
 }
 
-& git -C $root check-ignore --quiet corpus
+# CI deliberately has no local corpus directory. Probe a nonexistent descendant
+# against the ignore rules so the guard proves the boundary in both environments.
+& git -C $root check-ignore --quiet --no-index -- 'corpus/.collisionspike-ignore-probe'
 if ($LASTEXITCODE -ne 0) {
     throw 'The local corpus must be ignored by Git.'
 }
