@@ -82,7 +82,7 @@ public sealed class QdosModel(ProcessQdosIntake processQdosIntake, TimeProvider 
                 "This upload receipt was already used for different content. Refresh the page and try again.");
             return Page();
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (Exception exception) when (QdosIntakeExceptionPolicy.IsRecoverable(exception))
         {
             ModelState.AddModelError(string.Empty, "The intake receipt could not be stored because of a technical failure.");
             return Page();

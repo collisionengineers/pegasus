@@ -28,7 +28,7 @@ public sealed class QdosIntakeWebTests
         var html = await review.Content.ReadAsStringAsync();
         var receipt = await GetReceiptAsync(factory, receiptId);
 
-        Assert.Equal(QdosIntakeDecision.ConfirmedQdos, receipt.Decision);
+        Assert.Equal(QdosIntakeDecision.DraftReady, receipt.Decision);
         Assert.NotNull(receipt.TypedDraft);
         Assert.Equal(ForwardedEmailHash, receipt.SourceHash);
         Assert.Contains(receipt.Evidence, item =>
@@ -41,7 +41,7 @@ public sealed class QdosIntakeWebTests
         var instructionDate = Assert.Single(receipt.Fields, field => field.Name == "Instruction date");
         Assert.True(instructionDate.IsDefaulted);
         Assert.Equal("2031-05-06", instructionDate.SuggestedValue);
-        Assert.Contains("Confirmed QDOS", html, StringComparison.Ordinal);
+        Assert.Contains("QDOS draft", html, StringComparison.Ordinal);
         Assert.Contains("Typed review draft", html, StringComparison.Ordinal);
     }
 
@@ -126,8 +126,8 @@ public sealed class QdosIntakeWebTests
             "Genuine corpus integration test",
             new(IntakeSourceChannel.ManualUpload, "66666666666666666666666666666666")));
 
-        Assert.Equal(QdosIntakeDecision.ConfirmedQdos, unauthorized.Decision);
-        Assert.Equal(QdosIntakeDecision.ConfirmedQdos, authorized.Decision);
+        Assert.Equal(QdosIntakeDecision.DraftReady, unauthorized.Decision);
+        Assert.Equal(QdosIntakeDecision.DraftReady, authorized.Decision);
     }
 
     [GenuineQdosCorpusFact]
@@ -158,7 +158,7 @@ public sealed class QdosIntakeWebTests
 
         await using var scope = factory.Services.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IQdosIntakeQueries>();
-        var receipts = await queries.ListAsync(QdosIntakeDecision.ConfirmedQdos, CancellationToken.None);
+        var receipts = await queries.ListAsync(QdosIntakeDecision.DraftReady, CancellationToken.None);
         Assert.Equal(5, receipts.Count);
     }
 
@@ -178,7 +178,8 @@ public sealed class QdosIntakeWebTests
         var sortingQueue = await client.GetStringAsync("/Intake/Queue?decision=NeedsSorting");
 
         Assert.Equal(new QdosQueueCounts(1, 1), counts);
-        Assert.Contains("<strong>1</strong><span>Review</span>", dashboard, StringComparison.Ordinal);
+        Assert.Contains("<strong>0</strong><span>Review</span>", dashboard, StringComparison.Ordinal);
+        Assert.Contains("<strong>1</strong><small>QDOS drafts</small>", dashboard, StringComparison.Ordinal);
         Assert.Contains("<strong>1</strong><small>Needs sorting</small>", dashboard, StringComparison.Ordinal);
         Assert.Contains("Needs sorting", sortingQueue, StringComparison.Ordinal);
         Assert.Contains(NeedsSortingEmailHash[..12], sortingQueue, StringComparison.Ordinal);

@@ -46,17 +46,30 @@ container.
    are not sent to OCR. Automated vehicle-registration OCR/VLM is later scope.
 8. The local Web proof retains immutable content-addressed bytes under ignored
    `artifacts/` and stores only asset metadata and opaque storage keys in SQL.
-   Production Worker staging must use private Blob storage with managed identity;
-   long-term case custody remains Box and is not proved by this local store.
+   Production staging must use private Blob storage through the Infrastructure
+   adapter: Web's managed identity stages manual/provider uploads, while the
+   Worker's managed identity stages Graph sources and reads queued work. Long-term
+   case custody remains Box and is not proved by this local store.
 9. Never fetch DOCX external relationships. A corrupt top-level DOCX is a visible
    terminal unsupported outcome; attachment failures retain the surrounding
    email for review.
 10. Preflight DOCX packages at 512 entries, 50 MB aggregate uncompressed bytes,
-    10 MB per XML/relationship part, 25 MB aggregate extracted images, and 512
-    visited related parts. Open XML also enforces the per-part character limit;
-    part traversal is iterative and cycle-safe.
+    10 MB per XML/relationship part, and 25 MB aggregate extracted images. Open
+    XML also enforces the per-part character limit; URI-deduplicated part traversal
+    is iterative and already bounded by the package-entry ceiling.
 11. Verify content hashes when reusing or reading local content-addressed files.
     Refuse to serve a retained asset whose bytes no longer match its key.
+12. Read every page of each PDF; do not truncate an otherwise processable file at
+    an arbitrary page count. Apply one aggregate PDF budget across a complete
+    intake, including PDF attachments: 5 Mi characters of extracted text, 512
+    discrete image occurrences, 100 million decoded image sample pixels, and
+    25 MiB of retained extracted-image bytes. Apply one 30-second processing
+    deadline across those PDFs and check it plus caller cancellation before and
+    after page work and between images. If any budget is exceeded, retain the
+    source, mark the intake incomplete, and allocate no case/reference; never
+    accept the partial extraction as complete. These initial limits are adapter
+    safety bounds, not business completeness rules, and may change only with
+    representative PDF evidence and the target host resource envelope.
 
 ## Evidence and limits
 
@@ -65,6 +78,12 @@ coverage for DOCX, deferred DOC/MSG, direct JPEG/PNG, mixed and nested EML,
 exact duplicate occurrences, malformed/resource-heavy DOCX, MIME limits even
 when earlier content confirms QDOS, and local artifact integrity. This proves
 format routing and visible retention, not field accuracy on the genuine corpus.
+
+PDF processing is all-pages-or-incomplete: the adapter has no page-count cut-off,
+and aggregate expansion/time limits cannot be reset by placing PDFs in separate
+email attachments. In-process deadline and cancellation checks are cooperative
+between PdfPig page/image operations; hard CPU and memory isolation for a
+pathological single-page decode remains a production Worker hosting concern.
 
 PdfPig image extraction is implemented through `Page.GetImages()`, using a raw
 JPEG stream where present or PdfPig's PNG conversion. Unsupported image encodings

@@ -52,7 +52,7 @@ public sealed partial class ProcessQdosIntake(
         {
             readResult = await sourceReader.ReadAsync(source with { FileName = safeFileName }, cancellationToken);
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (Exception exception) when (QdosIntakeExceptionPolicy.IsRecoverable(exception))
         {
             readResult = new(
                 IntakeSourceReadStatus.TechnicalFailure,
@@ -78,7 +78,7 @@ public sealed partial class ProcessQdosIntake(
                     artifactStore,
                     cancellationToken);
             }
-            catch (Exception exception) when (exception is not OperationCanceledException)
+            catch (Exception exception) when (QdosIntakeExceptionPolicy.IsRecoverable(exception))
             {
                 assessment = FailureAssessment(
                     QdosIntakeDecision.TechnicalFailure,
@@ -119,7 +119,7 @@ public sealed partial class ProcessQdosIntake(
 
     private static QdosTypedDraft? CreateTypedDraft(Assessment assessment)
     {
-        if (assessment.Decision != QdosIntakeDecision.ConfirmedQdos)
+        if (assessment.Decision != QdosIntakeDecision.DraftReady)
         {
             return null;
         }
@@ -336,12 +336,12 @@ public sealed partial class ProcessQdosIntake(
                     QdosEvidenceStrength.Strong,
                     QdosEvidenceFinding.Information,
                     "additional-scanned-content",
-                    "QDOS is confirmed from readable content; additional scanned PDF content still requires review."));
+                    "A QDOS-shaped draft was extracted from readable content; additional scanned PDF content still requires review."));
             }
 
             return new(
-                QdosIntakeDecision.ConfirmedQdos,
-                "QDOS is confirmed from instruction content.",
+                QdosIntakeDecision.DraftReady,
+                "A reviewable QDOS-shaped draft was extracted. This does not classify the item as definitive work instructions.",
                 evidence,
                 fields,
                 missingFields,
@@ -499,7 +499,12 @@ public sealed partial class ProcessQdosIntake(
                 var value = match.Groups["value"].Value.Trim(' ', ':', '-', '|');
                 if (string.IsNullOrWhiteSpace(value))
                 {
-                    value = lines.Skip(index + 1).FirstOrDefault(candidate => !string.IsNullOrWhiteSpace(candidate)) ?? string.Empty;
+                    var nextLine = lines
+                        .Skip(index + 1)
+                        .FirstOrDefault(candidate => !string.IsNullOrWhiteSpace(candidate));
+                    value = nextLine is not null && !StartsWithKnownFieldLabel(nextLine)
+                        ? nextLine
+                        : string.Empty;
                 }
 
                 value = NormalizeValue(definition, value);
@@ -518,6 +523,14 @@ public sealed partial class ProcessQdosIntake(
         value = WhitespaceRegex().Replace(value, " ").Trim();
         return value;
     }
+
+    private static bool StartsWithKnownFieldLabel(string line) =>
+        FieldDefinitions.Any(definition => definition.Labels.Any(label =>
+            Regex.IsMatch(
+                line,
+                $@"(?i)^{Regex.Escape(label)}(?:\s*(?::|-|\|)\s*|\s+|$)",
+                RegexOptions.CultureInvariant,
+                TimeSpan.FromMilliseconds(100))));
 
     private static bool ContainsLabel(string text, string label) =>
         Regex.IsMatch(

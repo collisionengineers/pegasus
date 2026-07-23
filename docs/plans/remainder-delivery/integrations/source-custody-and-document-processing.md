@@ -8,9 +8,9 @@ Replace local ignored artifact retention with durable, reviewable original-sourc
 
 - **Authority:** [remaining requirements](../../remaining-requirements.md#2-reviewable-extraction-and-source-custody), [ADR-0005](../../../architecture/decisions/ADR-0005-multiformat-intake-assets.md), and [ADR-0002](../../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md#files-box-and-document-processing).
 - **Policy owner:** the named Core receive/process/accept intake operations; Core retains format, provenance and failure outcomes, not vendor types.
-- **Current implementation:** `ProcessQdosIntake`, `MimeKitPdfPigQdosSourceReader`, and `FileSystemIntakeArtifactStore` support only the Development `/Intake/Qdos` caller and ignored local retention.
-- **Real callers:** `/Intake/Qdos` is called only in Development when its feature flag is enabled. Worker receipt handling, Blob staging, Box custody and OCR are planned.
-- **Persistence/adapters:** current receipt/asset metadata is SQL-backed; private Blob, one Box adapter and Document Intelligence are absent.
+- **Current implementation:** `ProcessQdosIntake`, `MimeKitPdfPigQdosSourceReader`, and `FileSystemIntakeArtifactStore` support only the Development `/Intake/Qdos` caller and ignored local retention. The reader processes every PDF page or marks the intake incomplete when its shared text/image expansion budget is breached; it does not silently truncate by page count.
+- **Real callers:** `/Intake/Qdos` is called only in Development when its feature flag is enabled. In the planned production path, Web is the first byte receiver for manual/provider HTTP submissions; Worker is the first byte receiver for Graph and consumes queued staged-source identifiers. Blob staging, Box custody and OCR adapters are not implemented.
+- **Persistence/adapters:** current receipt/asset metadata is SQL-backed. Bicep declares private `intake-temporary` Blob storage, but the Web identity receives no data-plane role or container configuration until the Blob adapter and real caller are delivered together. No application Blob adapter/caller evidence, Box adapter or Document Intelligence adapter exists.
 - **Dependencies:** the single Core receipt/draft spine and staff actor contracts. Box consumes the later custody outbox; it is not a prerequisite for durable staging.
 - **Replaces/consolidates:** replace local artifact storage only after durable staging and confirmed Box custody; retain one engine-neutral source-reader contract.
 
@@ -30,18 +30,18 @@ An unreadable, incomplete, encrypted, corrupt, unsupported, bounded-out or pre-a
 
 ### Owner and dependencies
 
-- **Policy/implementation owner:** Core intake owner; Infrastructure owns Blob/OCR translations and the Box owner owns its adapter.
+- **Policy/implementation owner:** Core intake owns receipt/custody policy; Infrastructure owns the single Blob translation; the targeted OCR task below owns its separate adapter; the Box owner owns its adapter.
 - **Independent evaluator:** test engineer, then a separate reviewer.
 - **Prerequisites:** relational source-identity receipt for staging. Authenticated case acceptance is required only for creating the later custody outbox item.
 - **Consumers/unlocks:** Graph, provider submissions, manual uploads, document actions and EVA export.
 
 ### Caller, contract and change boundary
 
-- **Real or intended caller:** planned Web/Worker/provider receive operations call one Core receive/process use case, then one custody outbox operation; no direct SDK call from a page, trigger or endpoint.
+- **Real or intended caller:** planned Web manual/provider receive operations stage request bytes and atomically record the source receipt plus processing-outbox row before acknowledging receipt. A Worker-hosted SQL outbox dispatcher sends only the source ID to `intake-work`; Worker stages Graph bytes through the same receive operation and processes queued IDs. Both call one Core receive/process use case and one Infrastructure storage port; no page, trigger or endpoint calls the Blob SDK directly, and queues never carry source bytes.
 - **Input/output:** immutable source/attachment identity and bytes yield stored provenance, typed processing result and either confirmed custody or a visible blocked outcome.
-- **Ordered decisions and failure behavior:** retain receipt and stage bytes first; reject scope violations before acceptance; write case/reference, audit and one custody outbox item atomically; block progression and Blob removal until folder/file/version/hash/root confirmation. Replay must not create another reference or file.
+- **Ordered decisions and failure behavior:** idempotently stage bytes under the immutable occurrence key; atomically record the source receipt and processing outbox; acknowledge only after both commit; let the Worker dispatcher publish the source ID. A queue failure leaves the outbox pending for one-time later dispatch. A Blob staged before a failed SQL commit is recovered by retrying the same key; unresolved unreferenced objects are alerted/quarantined and may be removed only after the retention rule proves no receipt/outbox owns them. Reject scope violations before acceptance. Later, write case/reference, audit and one custody outbox item atomically; block progression and Blob removal until folder/file/version/hash/root confirmation. Replay must not duplicate processing, reference or file.
 - **Persistence/migration:** evolve the existing receipt/evidence authority in one migration for immutable source identity, adapter result, Blob/Box confirmation and retry state; do not introduce a parallel editable document authority.
-- **Adapters/side effects:** managed-identity private Blob buffer, targeted `prebuilt-read` only for persisted scan-like PDF candidates, and the scoped Box adapter. Blob removal follows confirmed custody plus seven-day completed-item retention.
+- **Adapters/side effects:** managed-identity private Blob buffer and the scoped Box adapter. Web uses its system-assigned identity only on `intake-temporary`; Worker uses its own identity for Graph staging and background processing. The current single-account Functions design requires broader Worker host/deployment storage roles, so it does not provide container isolation from intake data. Blob removal follows confirmed custody plus seven-day completed-item retention.
 - **Operator surface and observability:** show custody state, format outcome and retryable/permanent reason; audit actor/outcome and emit content-free correlation, duration and adapter-result telemetry.
 - **Documentation affected:** architecture/requirements evidence only; operator notes remain read-only.
 - **Replaces/consolidates:** remove the local-file path and its registration only after equivalent real-caller evidence; no second source-reader or retention path.
@@ -49,12 +49,12 @@ An unreadable, incomplete, encrypted, corrupt, unsupported, bounded-out or pre-a
 ### Scope
 
 - **Included:** durable original staging and every retained asset occurrence, bounded extraction/provenance, custody outbox state and recovery.
-- **Excluded:** targeted OCR (a separate billed-adapter task), automated VRM OCR/VLM, malware scanning, OCR of ordinary images, cloud evaluation uploads, and any live Box call not explicitly approved.
+- **Excluded:** the separately owned targeted OCR task below, automated VRM OCR/VLM, malware scanning, OCR of ordinary images, cloud evaluation uploads, and any live Box call not explicitly approved.
 
 ### Implementation checklist
 
-- [ ] Split the current flow into durable receive, process and accept operations with immutable source identities and correlated outbox records.
-- [ ] Add Blob staging and typed reader outcomes through the existing Core contract; preserve existing DOCX/EML/PDF bounds. Add targeted OCR only as its own approved caller-backed task.
+- [ ] Split the current flow into durable receive, process and accept operations with immutable source identities and correlated processing/custody outbox records. The Worker-hosted SQL dispatcher, not Web, owns queue publication.
+- [ ] Replace `FileSystemIntakeArtifactStore` in production composition with one Blob adapter reached through the existing Core port. Web stages manual/provider sources with its container-scoped identity; Worker stages Graph sources and consumes identifiers. Preserve the existing DOCX/EML bounds and all-pages-or-incomplete PDF budget across every caller.
 - [ ] Hand custody to the single guarded Box use case and remove local artifact registration only after parity.
 
 ### Validation checklist
@@ -62,6 +62,8 @@ An unreadable, incomplete, encrypted, corrupt, unsupported, bounded-out or pre-a
 - [ ] Prove a source and each asset occurrence persist provenance and remain reviewable through the actual caller.
 - [ ] Prove a transient custody retry, permanent/unknown failure, duplicate replay and reference-allocation concurrency do not duplicate business effects.
 - [ ] Prove incomplete/unsupported/corrupt content remains `Needs sorting` with no case/reference.
+- [ ] Through the real Web upload, prove managed-identity create/read in `intake-temporary`, denial against `app-package` and other containers, and no acknowledgement when durable staging fails.
+- [ ] Prove a post-stage SQL failure is recovered through the same object key, and a post-receipt queue failure remains pending then dispatches once without lost or duplicate processing. Exercise unreferenced-object quarantine/retention without deleting an owned source.
 - [ ] Use a run-scoped genuine local corpus cohort and hidden holdout with Box and every cloud/vendor upload disabled; record hashes, manifest, machine/toolchain and drift.
 - [ ] Run `pwsh ./scripts/Invoke-RepoCheck.ps1`; record its exact exit result and concurrent-tree limitation.
 
@@ -70,9 +72,10 @@ An unreadable, incomplete, encrypted, corrupt, unsupported, bounded-out or pre-a
 | Scenario/input/boundary | Expected observable result | Evidence | Does not prove |
 |---|---|---|---|
 | Confirmed source then custody replay | One receipt/case effect and one confirmed Box version | focused persistence/integration tests and approved scope smoke | production reliability |
-| Scan-like PDF candidate | only recorded candidate pages call OCR | adapter test | accuracy of OCR fields |
 | Pre-acceptance staging/scope failure | source remains visible; no case/reference | actual caller negative test | a live vendor repair |
 | Post-commit Box failure | issued case/reference remains; progression and Blob removal are blocked for idempotent retry | outbox integration test | live Box recovery |
+| Manual/provider Web receipt | Blob, receipt and processing outbox are durable before acknowledgement; Worker dispatcher later queues only the source ID | actual Web plus outbox-dispatch integration test | live Azure RBAC until approved smoke |
+| Queue unavailable after receipt commit | outbox stays pending and later dispatches one source ID; Web still has no queue permission | persistence/dispatcher retry test | live queue availability |
 
 ### Approval, rollout and rollback
 
@@ -94,6 +97,80 @@ An unreadable, incomplete, encrypted, corrupt, unsupported, bounded-out or pre-a
 | State/command/input | Result | Boundary exercised | Proves | Does not prove / skipped |
 |---|---|---|---|---|
 | Planned | Not run | planning review | caller, recovery and approvals are specified | implementation, deployment, live custody and acceptance |
+
+## Targeted scanned-PDF OCR
+
+**Evidence state:** Planned
+
+### Authority and decision gate
+
+- **Requirement/decision:** [remaining requirements](../../remaining-requirements.md#4-continuous-ingestion-and-integration) and [ADR-0005](../../../architecture/decisions/ADR-0005-multiformat-intake-assets.md) require OCR only for persisted PDF pages with fewer than 80 non-whitespace embedded-text characters and a dominant raster covering at least 80 percent of the page.
+- **Confirmed facts:** the Core contract records scan-like page candidates and Bicep conditionally declares Document Intelligence plus Worker `Cognitive Services User`; no OCR adapter, caller or result persistence exists.
+- **Decision required before implementation:** none for the local adapter/contract work. Any billed call, Azure enablement or deployment requires a direct approval naming account, region/SKU, non-corpus input/page limit and spending cap. Repository corpus is immutable local evidence and is never eligible for upload.
+
+### Owner and dependencies
+
+- **Policy/implementation owner:** Core document-processing policy owns candidate eligibility and typed outcomes; one Infrastructure Document Intelligence adapter owns `prebuilt-read` translation. Worker composition is the sole production OCR caller.
+- **Independent evaluator:** a test engineer authors negative routing/retry cases; a different Azure/domain reviewer gives the verdict.
+- **Prerequisites:** durable source/page-candidate persistence, Worker identity, bounded processing contract and approved non-production service target.
+- **Consumers/unlocks:** Worker intake completion and operator review of scanned PDF text/provenance.
+
+### Caller, contract and change boundary
+
+- **Real or intended caller:** a named Worker handler claims a persisted scan-like page candidate and calls the same Core document-processing use case; Web records/displays status but never invokes Document Intelligence in an HTTP request.
+- **Input/output:** persisted source identity, PDF identity and candidate page number yield page-scoped text/provenance plus success, retryable, permanent, bounded or unknown outcome; vendor response types do not enter Core.
+- **Ordered decisions and failure behavior:** embedded extraction records the candidate first; Worker submits only eligible persisted pages; bounded transient retry ends visibly; incomplete/unknown/permanent results remain `Needs sorting` and allocate no case/reference. Replay cannot duplicate page results or downstream acceptance.
+- **Persistence/migration:** extend the existing source/page evidence authority with attempt/result/provenance fields and an idempotent work key; do not create a second document or OCR authority.
+- **Adapters/side effects:** Document Intelligence Read uses managed identity with local authentication disabled. No ordinary image, DOCX image, PDF embedded object, VRM crop or unpersisted byte stream is submitted.
+- **Operator surface and observability:** show OCR-required/running/failed/completed status and page provenance; emit content-free correlation, page count, duration, attempt, outcome and billed-call metrics.
+- **Documentation affected:** this task, ADR evidence and current Azure inventory only when live state changes; operator notes remain read-only.
+- **Replaces/consolidates:** completes the existing `OcrRequired` branch through one adapter/caller; no second PDF parser, generic OCR service or image-recognition route.
+
+### Scope
+
+- **Included:** candidate-page dispatch, `prebuilt-read` adapter, result persistence, bounded retry/idempotency, managed-identity configuration, content-safe telemetry and actual Worker caller evidence.
+- **Excluded:** automated VRM OCR/VLM, ordinary-image OCR, handwriting/semantic extraction promises, legacy DOC/MSG conversion, malware scanning, general rendering and every corpus/cloud upload.
+
+### Implementation checklist
+
+- [ ] Add the engine-neutral OCR request/result contract to the existing Core document-processing owner and persist page-level work/result provenance in the existing migration stream.
+- [ ] Implement one Infrastructure Document Intelligence `prebuilt-read` adapter and register it only in Worker production composition; preserve page identity and existing intake-wide bounds.
+- [ ] Add one idempotent Worker handler for persisted eligible page candidates with bounded retry and visible terminal/unknown outcomes; do not add a Web OCR caller.
+
+### Validation and acceptance
+
+- [ ] Prove eligible scan-like pages route once, while ordinary images, text-bearing pages, low-text pages without a dominant raster and deferred formats never call the adapter.
+- [ ] Prove retry, timeout, malformed/partial response, cancellation and replay preserve the source and create no case/reference or duplicate result.
+- [ ] Prove the Worker identity can call only the approved Document Intelligence resource and local auth is disabled; record page/cost telemetry without content.
+- [ ] Prove genuine-corpus evaluation remains offline with the cloud adapter disabled and a spy adapter recording zero external calls.
+- [ ] Run `pwsh ./scripts/Invoke-RepoCheck.ps1`; any approved live smoke uses a named non-corpus input and separately records target, pages, cost cap and result.
+
+| Scenario/input/boundary | Expected observable result | Evidence | Does not prove |
+|---|---|---|---|
+| Persisted eligible PDF page | Worker records one page-scoped OCR result and processing resumes through Core | adapter/Worker integration test | extraction accuracy on genuine work |
+| Ordinary image or ineligible PDF page | no vendor call; visible manual-review/current extraction outcome remains | negative spy-adapter test | future VRM OCR/VLM |
+| Retry/replay or partial vendor result | bounded attempts, one durable outcome, no case/reference from incomplete input | persistence/handler integration test | live service reliability |
+
+### Approval, rollout and rollback
+
+- **Approval-triggering action and exact scope:** enabling/deploying Document Intelligence or sending any page requires exact subscription, tenant, UK South resource/SKU, named non-corpus input, page ceiling and hard spending cap. Repository corpus cannot be approved for upload.
+- **Rollout/activation:** ship disabled, prove negative routing locally, obtain approval, enable one development Worker caller, run a bounded non-corpus smoke, then review cost/accuracy before wider use.
+- **Rollback/recovery:** stop claims/disable the adapter and redeploy the prior artifact; retain source, candidates and attempts for manual review/replay.
+- **Irreversible risk:** document content leaves the application boundary and incurs a billed vendor call; fail before submission when scope or approval is missing.
+
+### Deferred-capability impact
+
+- **Named capabilities:** automated VRM OCR/VLM, AI/vision assistance, legacy DOC/MSG, malware scanning, broader mailbox coverage and later OCR/provider replacement.
+- **Stable seam retained:** engine-neutral page candidate/result contracts, immutable source/page identity and provider-neutral provenance/outcomes.
+- **Future migration/replacement:** another approved OCR provider replaces the Infrastructure adapter and may require result-version migration; candidate policy remains in Core.
+- **Activation boundary:** representative accuracy, licence/service, privacy, cost and operator approval for each widened input class.
+- **Deliberately absent:** no generic rule engine, OCR microservice, image pipeline, dormant alternate provider, general page renderer or widened input route.
+
+### Completion evidence
+
+| State/command/input | Result | Boundary exercised | Proves | Does not prove / skipped |
+|---|---|---|---|---|
+| Planned | Not run | planning review | owner, caller, billing gate, failures and negative scope are explicit | adapter, live OCR, deployment or operator acceptance |
 
 ## Deferred legacy containers
 

@@ -20,12 +20,12 @@ public sealed class RemoveRetiredQdosCaseAllocation : Migration
                 SELECT
                     NEWID(),
                     receipt.[Id],
-                    N'RetiredLocalCaseAllocationPreserved',
+                    N'RetiredDevelopmentAllocationRecorded',
                     N'schema-migration',
                     allocatedCase.[CreatedAtUtc],
                     (
                         SELECT
-                            CAST(1 AS bit) AS [retiredLocalProof],
+                            CAST(1 AS bit) AS [retiredDevelopmentTestProof],
                             allocatedCase.[PrincipalCode] AS [principalCode],
                             allocatedCase.[CaseReference] AS [caseReference],
                             allocatedCase.[CreatedAtUtc] AS [createdAtUtc],
@@ -38,6 +38,10 @@ public sealed class RemoveRetiredQdosCaseAllocation : Migration
                 LEFT JOIN [PrincipalYearCounters] AS counter
                     ON counter.[PrincipalCode] = allocatedCase.[PrincipalCode]
                     AND counter.[Year] = DATEPART(year, allocatedCase.[CreatedAtUtc]);
+
+                UPDATE [QdosIntakeReceipts]
+                SET [Decision] = N'DraftReady'
+                WHERE [Decision] = N'ConfirmedQdos';
                 """);
         }
         else if (ActiveProvider == "Microsoft.EntityFrameworkCore.Sqlite")
@@ -48,11 +52,11 @@ public sealed class RemoveRetiredQdosCaseAllocation : Migration
                 SELECT
                     lower(hex(randomblob(16))),
                     receipt."Id",
-                    'RetiredLocalCaseAllocationPreserved',
+                    'RetiredDevelopmentAllocationRecorded',
                     'schema-migration',
                     allocatedCase."CreatedAtUtc",
                     json_object(
-                        'retiredLocalProof', 1,
+                        'retiredDevelopmentTestProof', 1,
                         'principalCode', allocatedCase."PrincipalCode",
                         'caseReference', allocatedCase."CaseReference",
                         'createdAtUtc', allocatedCase."CreatedAtUtc",
@@ -63,6 +67,10 @@ public sealed class RemoveRetiredQdosCaseAllocation : Migration
                 LEFT JOIN "PrincipalYearCounters" AS counter
                     ON counter."PrincipalCode" = allocatedCase."PrincipalCode"
                     AND counter."Year" = CAST(strftime('%Y', allocatedCase."CreatedAtUtc") AS INTEGER);
+
+                UPDATE "QdosIntakeReceipts"
+                SET "Decision" = 'DraftReady'
+                WHERE "Decision" = 'ConfirmedQdos';
                 """);
         }
         else
@@ -176,6 +184,6 @@ public sealed class RemoveRetiredQdosCaseAllocation : Migration
     {
         throw new NotSupportedException(
             "The retired Development allocation schema cannot be restored without inventing deleted ownership links. " +
-            "Use the preserved audit evidence and a forward migration.");
+            "Its non-business test values were recorded for migration diagnostics only; use a forward migration.");
     }
 }

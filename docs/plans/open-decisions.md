@@ -39,7 +39,9 @@ This blocks a Triage state model and mutable caller. It does not block reserving
 
 The first release must categorise every ingested mailbox item as Receiving work, Queries, Other, Needs sorting or the real Triage flow. Authority does not define complete category predicates, correction/reversal actions or ambiguity rules beyond conservative `Needs sorting` behavior.
 
-This blocks automatic category policy and its acceptance cohort. It does not block exact-scope durable Outlook receipt with every item initially visible and unclassified.
+Direct decision on 2026-07-23: the long-term categorisation rules are a major architectural scope and must be extensible and modifiable through one Core-owned policy rather than transport-specific classifiers. Still unsettled are who authors and approves changes; whether approved rules are code-versioned or Administrator-managed at runtime; precedence and ambiguity handling; effective dates and policy versions; audit and rollback; correction/reversal behavior; and how the application retains the policy version and evidence behind each decision. A runtime-configured evaluator or new architectural boundary requires a reviewed ADR before implementation.
+
+This blocks automatic category policy, its persistence contract, its acceptance cohort, and enabling Worker automatic case creation because the Worker cannot yet prove that an item is `Receiving work`. It does not defer automatic case creation from the first MVP, block the channel-neutral Core acceptance transaction, block an accepted principal-scoped provider instruction, or block exact-scope durable Outlook receipt with every item initially visible and unclassified. Until the decisions are settled, do not add a generic rule engine, expression language, rule table, configuration screen, dormant service, or second classifier.
 
 ## Principal code after first issuance
 

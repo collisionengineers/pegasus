@@ -2,7 +2,7 @@ namespace CollisionSpike.Core.Intake.Qdos;
 
 public enum QdosIntakeDecision
 {
-    ConfirmedQdos,
+    DraftReady,
     NeedsSorting,
     Unsupported,
     OcrRequired,
@@ -236,7 +236,7 @@ public sealed record QdosIntakeDraft(
     public IReadOnlyList<ScannedPdfOcrCandidate> ScannedPdfPages => OcrCandidates ?? [];
 }
 
-public sealed record QdosQueueCounts(int Review, int NeedsSorting);
+public sealed record QdosQueueCounts(int DraftReady, int NeedsSorting);
 
 public sealed record QdosIntakeSummary(
     Guid Id,
@@ -248,6 +248,14 @@ public sealed record QdosIntakeSummary(
 public interface IQdosIntakeSourceReader
 {
     Task<IntakeSourceReadResult> ReadAsync(QdosIntakeSource source, CancellationToken cancellationToken);
+}
+
+public static class QdosIntakeExceptionPolicy
+{
+    public static bool IsRecoverable(Exception exception) =>
+        exception is not OperationCanceledException
+            and not OutOfMemoryException
+            and not AccessViolationException;
 }
 
 public interface IIntakeArtifactStore

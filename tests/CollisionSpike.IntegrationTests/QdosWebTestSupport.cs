@@ -16,6 +16,7 @@ public sealed class QdosWebApplicationFactory : WebApplicationFactory<Program>
     private static readonly DateTimeOffset FixedUtcNow = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
     private readonly string environment;
     private readonly bool? localQdosIntakeEnabled;
+    private readonly TimeProvider timeProvider;
     private readonly string workingDirectory = Path.Combine(
         Path.GetTempPath(), "CollisionSpike.IntegrationTests", Guid.NewGuid().ToString("N"));
 
@@ -24,12 +25,19 @@ public sealed class QdosWebApplicationFactory : WebApplicationFactory<Program>
     {
     }
 
+    internal QdosWebApplicationFactory(TimeProvider timeProvider)
+        : this("Development", true, timeProvider)
+    {
+    }
+
     internal QdosWebApplicationFactory(
         string environment,
-        bool? localQdosIntakeEnabled)
+        bool? localQdosIntakeEnabled,
+        TimeProvider? timeProvider = null)
     {
         this.environment = environment;
         this.localQdosIntakeEnabled = localQdosIntakeEnabled;
+        this.timeProvider = timeProvider ?? new TestTimeProvider(FixedUtcNow);
     }
 
     internal string DatabasePath => Path.Combine(workingDirectory, "qdos-tests.db");
@@ -57,7 +65,7 @@ public sealed class QdosWebApplicationFactory : WebApplicationFactory<Program>
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<TimeProvider>();
-            services.AddSingleton<TimeProvider>(new TestTimeProvider(FixedUtcNow));
+            services.AddSingleton(timeProvider);
         });
     }
 

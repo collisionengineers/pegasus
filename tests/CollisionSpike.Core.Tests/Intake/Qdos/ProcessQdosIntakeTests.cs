@@ -74,6 +74,29 @@ public sealed class ProcessQdosIntakeTests
         Assert.Empty(store.Drafts);
     }
 
+#pragma warning disable CA2201 // These tests verify that runtime-reserved terminal exceptions are never swallowed.
+    [Fact]
+    public void ExceptionPolicyRejectsTerminalExceptionsAndAcceptsRecoverableExceptions()
+    {
+        Assert.False(QdosIntakeExceptionPolicy.IsRecoverable(new OperationCanceledException()));
+        Assert.False(QdosIntakeExceptionPolicy.IsRecoverable(new OutOfMemoryException()));
+        Assert.False(QdosIntakeExceptionPolicy.IsRecoverable(new AccessViolationException()));
+        Assert.True(QdosIntakeExceptionPolicy.IsRecoverable(new InvalidOperationException()));
+    }
+
+    [Fact]
+    public async Task ReaderOutOfMemoryIsPropagatedWithoutPersistence()
+    {
+        var reader = new StubReader((_, _) => throw new OutOfMemoryException());
+        var store = new RecordingStore();
+        var sut = CreateSut(reader, store);
+
+        await Assert.ThrowsAsync<OutOfMemoryException>(() => sut.ExecuteAsync(CreateSource()));
+
+        Assert.Empty(store.Drafts);
+    }
+#pragma warning restore CA2201
+
     [Fact]
     public async Task StoreCancellationIsPropagatedWithoutRetry()
     {
@@ -179,7 +202,7 @@ public sealed class ProcessQdosIntakeTests
 
         var draft = Assert.Single(store.Drafts);
         var typed = Assert.IsType<QdosTypedDraft>(draft.TypedDraft);
-        Assert.Equal(QdosIntakeDecision.ConfirmedQdos, result.Decision);
+        Assert.Equal(QdosIntakeDecision.DraftReady, result.Decision);
         Assert.Equal("QDOS", typed.PrincipalCode);
         Assert.Equal("Review Claimant", typed.ClaimantName);
         Assert.Equal("PROTOCOL-001", typed.ClaimNumber);
@@ -200,6 +223,58 @@ public sealed class ProcessQdosIntakeTests
         Assert.Equal(
             "04/03/2031",
             Assert.Single(draft.Fields, field => field.Name == "Date of incident").SuggestedValue);
+    }
+
+    [Theory]
+    [InlineData("Claim Number | PROTOCOL-BLANK-001")]
+    [InlineData("Claim Number PROTOCOL-BLANK-001")]
+    public async Task BlankFieldDoesNotConsumeTheNextFieldLabel(string claimNumberLine)
+    {
+        var content = new IntakeContentFragment(
+            QdosEvidenceSource.DocumentContent,
+            "controlled blank-field fixture",
+            $$"""
+            QDOS instruction
+            Claimant Name:
+            {{claimNumberLine}}
+            Vehicle Registration: AB12 CDE
+            """);
+        var store = new RecordingStore();
+        var sut = CreateSut(new StubReader(Readable(content: [content])), store);
+
+        var result = await sut.ExecuteAsync(CreateSource());
+
+        Assert.Equal(QdosIntakeDecision.DraftReady, result.Decision);
+        Assert.Contains("Claimant name", result.MissingFields);
+        var claimantName = Assert.Single(result.Fields, field => field.Name == "Claimant name");
+        Assert.Null(claimantName.SuggestedValue);
+        Assert.Empty(claimantName.Candidates);
+        Assert.False(claimantName.HasConflict);
+        Assert.Null(Assert.IsType<QdosTypedDraft>(result.TypedDraft).ClaimantName);
+        Assert.Equal(
+            "PROTOCOL-BLANK-001",
+            Assert.Single(result.Fields, field => field.Name == "Claim number").SuggestedValue);
+    }
+
+    [Fact]
+    public async Task FieldValueMayRemainOnTheNextLine()
+    {
+        var content = new IntakeContentFragment(
+            QdosEvidenceSource.DocumentContent,
+            "controlled next-line fixture",
+            """
+            QDOS instruction
+            Claimant Name:
+            Review Claimant
+            Claim Number: PROTOCOL-NEXT-LINE-001
+            Vehicle Registration: AB12 CDE
+            """);
+        var sut = CreateSut(new StubReader(Readable(content: [content])), new RecordingStore());
+
+        var result = await sut.ExecuteAsync(CreateSource());
+
+        Assert.Equal("Review Claimant", Assert.IsType<QdosTypedDraft>(result.TypedDraft).ClaimantName);
+        Assert.DoesNotContain("Claimant name", result.MissingFields);
     }
 
     [Fact]

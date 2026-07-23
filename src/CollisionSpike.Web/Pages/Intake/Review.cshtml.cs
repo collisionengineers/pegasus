@@ -75,7 +75,7 @@ public sealed class ReviewModel(
 
     public static string DecisionLabel(QdosIntakeDecision decision) => decision switch
     {
-        QdosIntakeDecision.ConfirmedQdos => "Confirmed QDOS",
+        QdosIntakeDecision.DraftReady => "QDOS draft",
         QdosIntakeDecision.NeedsSorting => "Needs sorting",
         QdosIntakeDecision.OcrRequired => "Document text required",
         QdosIntakeDecision.TechnicalFailure => "Technical failure",

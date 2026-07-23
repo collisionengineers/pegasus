@@ -125,7 +125,7 @@ public sealed class QdosTypedDraftWebTests
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
         var receipt = await GetReceiptAsync(factory, QdosWebDriver.ReceiptId(upload));
 
-        Assert.Equal(QdosIntakeDecision.ConfirmedQdos, receipt.Decision);
+        Assert.Equal(QdosIntakeDecision.DraftReady, receipt.Decision);
         var typed = Assert.IsType<QdosTypedDraft>(receipt.TypedDraft);
         Assert.Equal("QDOS", typed.PrincipalCode);
         Assert.Equal("Controlled Claimant", typed.ClaimantName);
@@ -178,7 +178,7 @@ public sealed class QdosTypedDraftWebTests
             "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
         var receipt = await GetReceiptAsync(factory, QdosWebDriver.ReceiptId(upload));
 
-        Assert.Equal(QdosIntakeDecision.ConfirmedQdos, receipt.Decision);
+        Assert.Equal(QdosIntakeDecision.DraftReady, receipt.Decision);
         var typed = Assert.IsType<QdosTypedDraft>(receipt.TypedDraft);
         Assert.Null(typed.VehicleMileage);
         Assert.Null(typed.DateOfIncident);

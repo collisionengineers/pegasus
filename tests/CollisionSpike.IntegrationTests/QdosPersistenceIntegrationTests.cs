@@ -98,6 +98,8 @@ public sealed class QdosPersistenceIntegrationTests
             "AND [InstructionDate] IS NULL AND [InspectionAddress] IS NULL"));
         Assert.Equal(sourceHash, await database.ScalarAsync<string>(
             $"SELECT [SourceHash] FROM [QdosIntakeReceipts] WHERE [Id] = '{receiptId:D}'"));
+        Assert.Equal("DraftReady", await database.ScalarAsync<string>(
+            $"SELECT [Decision] FROM [QdosIntakeReceipts] WHERE [Id] = '{receiptId:D}'"));
         Assert.Equal(legacyEvidence, await database.ScalarAsync<string>(
             $"SELECT [EvidenceJson] FROM [QdosIntakeReceipts] WHERE [Id] = '{receiptId:D}'"));
         Assert.Equal(legacyFields, await database.ScalarAsync<string>(
@@ -112,15 +114,15 @@ public sealed class QdosPersistenceIntegrationTests
             "SELECT COUNT(*) FROM [AuditEvents] WHERE [EventType] = N'LegacyReceiptRecorded' " +
             "AND [DetailsJson] = N'{\"legacy\":\"history\"}'"));
 
-        var preservedJson = await database.ScalarAsync<string>(
+        var recordedJson = await database.ScalarAsync<string>(
             "SELECT [DetailsJson] FROM [AuditEvents] " +
-            "WHERE [EventType] = N'RetiredLocalCaseAllocationPreserved'");
-        using var preserved = JsonDocument.Parse(preservedJson);
-        Assert.True(preserved.RootElement.GetProperty("retiredLocalProof").GetBoolean());
-        Assert.Equal("QDOS", preserved.RootElement.GetProperty("principalCode").GetString());
-        Assert.Equal("QDOS31042", preserved.RootElement.GetProperty("caseReference").GetString());
-        Assert.Equal(2031, preserved.RootElement.GetProperty("counterYear").GetInt32());
-        Assert.Equal(42, preserved.RootElement.GetProperty("counterCurrentSequence").GetInt32());
+            "WHERE [EventType] = N'RetiredDevelopmentAllocationRecorded'");
+        using var recorded = JsonDocument.Parse(recordedJson);
+        Assert.True(recorded.RootElement.GetProperty("retiredDevelopmentTestProof").GetBoolean());
+        Assert.Equal("QDOS", recorded.RootElement.GetProperty("principalCode").GetString());
+        Assert.Equal("QDOS31042", recorded.RootElement.GetProperty("caseReference").GetString());
+        Assert.Equal(2031, recorded.RootElement.GetProperty("counterYear").GetInt32());
+        Assert.Equal(42, recorded.RootElement.GetProperty("counterCurrentSequence").GetInt32());
         Assert.Equal(0, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name IN (N'Cases', N'PrincipalYearCounters')"));
         Assert.Equal(0, await database.ScalarAsync<int>(
@@ -134,7 +136,7 @@ public sealed class QdosPersistenceIntegrationTests
         await using var database = await LocalDbTestDatabase.CreateAsync();
 
         var records = await Task.WhenAll(Enumerable.Range(1, 8).Select(index =>
-            database.StoreAsync(CreateDraft(index, QdosIntakeDecision.ConfirmedQdos))));
+            database.StoreAsync(CreateDraft(index, QdosIntakeDecision.DraftReady))));
 
         Assert.Equal(8, records.Select(record => record.Id).Distinct().Count());
         Assert.All(records, record =>
@@ -150,7 +152,7 @@ public sealed class QdosPersistenceIntegrationTests
     public async Task EightConcurrentSameSourceIdentityCallsCreateOneReceiptAndDraft()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
-        var draft = CreateDraft(1, QdosIntakeDecision.ConfirmedQdos);
+        var draft = CreateDraft(1, QdosIntakeDecision.DraftReady);
 
         var records = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => database.StoreAsync(draft)));
 
@@ -171,7 +173,7 @@ public sealed class QdosPersistenceIntegrationTests
         await database.ExecuteAsync(
             "CREATE TRIGGER [FailAuditInsert] ON [dbo].[AuditEvents] INSTEAD OF INSERT AS " +
             "BEGIN THROW 51000, 'Deliberate integration-test audit failure.', 1; END");
-        var draft = CreateDraft(1, QdosIntakeDecision.ConfirmedQdos);
+        var draft = CreateDraft(1, QdosIntakeDecision.DraftReady);
 
         await Assert.ThrowsAsync<DbUpdateException>(() => database.StoreAsync(draft));
 
@@ -193,7 +195,7 @@ public sealed class QdosPersistenceIntegrationTests
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
 
-        var record = await database.StoreAsync(CreateDraft(1, QdosIntakeDecision.ConfirmedQdos));
+        var record = await database.StoreAsync(CreateDraft(1, QdosIntakeDecision.DraftReady));
 
         Assert.NotNull(record.TypedDraft);
         Assert.Equal(1, await database.CountAsync("QdosIntakeReceipts"));
@@ -206,7 +208,7 @@ public sealed class QdosPersistenceIntegrationTests
     public async Task ConfirmedReceiptPersistsCompleteBusinessAuditContents()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
-        var draft = CreateDraft(1, QdosIntakeDecision.ConfirmedQdos);
+        var draft = CreateDraft(1, QdosIntakeDecision.DraftReady);
 
         var record = await database.StoreAsync(draft);
         var audit = await database.ReadSingleAuditAsync();
@@ -216,7 +218,7 @@ public sealed class QdosPersistenceIntegrationTests
         Assert.Equal("LocalDB integration test", audit.Actor);
         Assert.Equal(FixedTime, audit.OccurredAtUtc);
         using var details = JsonDocument.Parse(audit.DetailsJson);
-        Assert.Equal("ConfirmedQdos", details.RootElement.GetProperty("decision").GetString());
+        Assert.Equal("DraftReady", details.RootElement.GetProperty("decision").GetString());
         Assert.Equal("ManualUpload", details.RootElement.GetProperty("sourceChannel").GetString());
         Assert.Equal(draft.SourceIdentity.ExternalReceiptToken,
             details.RootElement.GetProperty("externalReceiptToken").GetString());
@@ -258,7 +260,7 @@ public sealed class QdosPersistenceIntegrationTests
         [new(QdosEvidenceSource.SystemDefault, QdosEvidenceStrength.Weak, QdosEvidenceFinding.Information,
             "integration-test", "Persistence boundary evidence")],
         [new("Instruction date", "2031-05-06", [], true, false)],
-        decision == QdosIntakeDecision.ConfirmedQdos
+        decision == QdosIntakeDecision.DraftReady
             ? new("QDOS", null, null, null, null, null, null, null, null, new DateOnly(2031, 5, 6), null)
             : null,
         [],

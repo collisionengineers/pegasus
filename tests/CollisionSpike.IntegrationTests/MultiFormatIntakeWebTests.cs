@@ -31,7 +31,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
-        Assert.Equal(QdosIntakeDecision.ConfirmedQdos, receipt.Decision);
+        Assert.Equal(QdosIntakeDecision.DraftReady, receipt.Decision);
         Assert.Equal(
             "SYN-DOCX-001",
             Assert.Single(receipt.Fields, field => field.Name == "Claim number").SuggestedValue);
@@ -40,7 +40,7 @@ public sealed partial class MultiFormatIntakeWebTests
             Assert.Single(receipt.Fields, field => field.Name == "Vehicle registration").SuggestedValue);
         Assert.Equal("AB12CDE", Assert.IsType<QdosTypedDraft>(receipt.TypedDraft).VehicleRegistration);
         Assert.Contains("synthetic-instruction.docx", reviewHtml, StringComparison.Ordinal);
-        Assert.Contains("Confirmed QDOS", reviewHtml, StringComparison.Ordinal);
+        Assert.Contains("QDOS draft", reviewHtml, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -117,7 +117,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
-        Assert.Equal(QdosIntakeDecision.ConfirmedQdos, receipt.Decision);
+        Assert.Equal(QdosIntakeDecision.DraftReady, receipt.Decision);
         Assert.Contains(receipt.AssetRecords, asset => asset.FileName == "instruction.docx");
         Assert.Contains(receipt.AssetRecords, asset => asset.FileName == "supporting.pdf");
         Assert.Contains(receipt.AssetRecords, asset => asset.FileName == "vehicle.jpg");
@@ -146,7 +146,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
-        Assert.Equal(QdosIntakeDecision.ConfirmedQdos, receipt.Decision);
+        Assert.Equal(QdosIntakeDecision.DraftReady, receipt.Decision);
         var original = Assert.Single(
             receipt.AssetRecords,
             asset => asset.FileName == "vehicle-front-original.jpg");
@@ -274,6 +274,180 @@ public sealed partial class MultiFormatIntakeWebTests
     }
 
     [Fact]
+    public async Task ThirtyPagePdfWithConfirmingContentOnFinalPageIsClassified()
+    {
+        using var factory = new QdosWebApplicationFactory();
+        using var client = CreateClient(factory);
+        var pageTexts = Enumerable.Range(1, 30)
+            .Select(pageNumber => pageNumber == 30 ? ConfirmingQdosBody : string.Empty)
+            .ToArray();
+        var pdf = CreateTextPdf(pageTexts);
+
+        var result = await UploadAsync(client, "thirty-page-instruction.pdf", "application/pdf", pdf);
+        var receipt = await GetReceiptAsync(factory, ReceiptId(result));
+
+        Assert.Equal(QdosIntakeDecision.DraftReady, receipt.Decision);
+        Assert.Equal(
+            "SYN-GUARD-001",
+            Assert.Single(receipt.Fields, field => field.Name == "Claim number").SuggestedValue);
+        Assert.Contains(receipt.Evidence, evidence =>
+            evidence.Signal == "instruction-structure"
+            && evidence.Detail.Contains("page 30", StringComparison.Ordinal));
+        Assert.DoesNotContain(receipt.Evidence, evidence => evidence.Signal == "intake_limit_exceeded");
+    }
+
+    [Fact]
+    public async Task PdfAggregateProcessingDeadlineFailsClosedWithoutWaiting()
+    {
+        using var factory = new QdosWebApplicationFactory(new SteppingTimeProvider(TimeSpan.FromSeconds(1)));
+        using var client = CreateClient(factory);
+        var pdf = CreateTextPdf(Enumerable.Repeat(string.Empty, 40).ToArray());
+        Assert.InRange(pdf.LongLength, 1, 10L * 1024 * 1024);
+
+        var result = await UploadAsync(client, "many-blank-pages.pdf", "application/pdf", pdf);
+        var receipt = await GetReceiptAsync(factory, ReceiptId(result));
+
+        Assert.Equal(QdosIntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Null(receipt.TypedDraft);
+        Assert.Contains(
+            receipt.Evidence,
+            evidence => evidence.Signal == "intake_limit_exceeded"
+                && evidence.Detail.Contains(
+                    "exceeds the safe PDF processing time limit.",
+                    StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task MoreThan512DiscretePdfImagesStopsBeforeAssetExtraction()
+    {
+        using var factory = new QdosWebApplicationFactory();
+        using var client = CreateClient(factory);
+        var images = Enumerable.Range(0, 513)
+            .Select(index => new PdfImagePlacement(
+                index % 600,
+                index % 780,
+                1,
+                1,
+                (byte)(index % 256),
+                (byte)((index + 1) % 256),
+                (byte)((index + 2) % 256)))
+            .ToArray();
+        var pdf = CreateImagePdf(images);
+        Assert.InRange(pdf.LongLength, 1, 10L * 1024 * 1024);
+
+        var result = await UploadAsync(client, "too-many-pdf-images.pdf", "application/pdf", pdf);
+        var receipt = await GetReceiptAsync(factory, ReceiptId(result));
+
+        Assert.Equal(QdosIntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "intake_limit_exceeded");
+        Assert.DoesNotContain(receipt.AssetRecords, asset => asset.Kind == IntakeAssetKind.EmbeddedImage);
+    }
+
+    [Fact]
+    public async Task PdfImageSampleDimensionsOverAggregatePixelLimitStopBeforeRasterDecoding()
+    {
+        using var factory = new QdosWebApplicationFactory();
+        using var client = CreateClient(factory);
+        var pdf = CreateImagePdf(new PdfImagePlacement(
+            20,
+            20,
+            100,
+            100,
+            0xff,
+            0xff,
+            0xff,
+            SampleWidth: 10_001,
+            SampleHeight: 10_000));
+
+        var result = await UploadAsync(client, "oversized-pdf-raster.pdf", "application/pdf", pdf);
+        var receipt = await GetReceiptAsync(factory, ReceiptId(result));
+
+        Assert.Equal(QdosIntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "intake_limit_exceeded");
+        Assert.DoesNotContain(receipt.AssetRecords, asset => asset.Kind == IntakeAssetKind.EmbeddedImage);
+    }
+
+    [Fact]
+    public async Task PdfExtractedTextOverFiveMillionCharactersStopsIntake()
+    {
+        using var factory = new QdosWebApplicationFactory();
+        using var client = CreateClient(factory);
+        var text = new string('A', (5 * 1024 * 1024) + 1);
+        var pdf = CreatePdf(text);
+        Assert.InRange(pdf.LongLength, 1, 10L * 1024 * 1024);
+
+        var result = await UploadAsync(client, "excessive-pdf-text.pdf", "application/pdf", pdf);
+        var receipt = await GetReceiptAsync(factory, ReceiptId(result));
+
+        Assert.Equal(QdosIntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "intake_limit_exceeded");
+        Assert.Null(receipt.TypedDraft);
+    }
+
+    [Fact]
+    public async Task PdfImageObjectBudgetIsSharedAcrossEmailAttachmentsAndConfirmingBodyFailsClosed()
+    {
+        using var factory = new QdosWebApplicationFactory();
+        using var client = CreateClient(factory);
+        var images = Enumerable.Range(0, 300)
+            .Select(index => new PdfImagePlacement(
+                index % 600,
+                index % 780,
+                1,
+                1,
+                (byte)(index % 256),
+                (byte)((index + 1) % 256),
+                (byte)((index + 2) % 256)))
+            .ToArray();
+        var firstPdf = CreateImagePdf(images);
+        var secondPdf = CreateImagePdf(images);
+        var message = CreateMessage(
+            "Synthetic shared PDF image budget",
+            ConfirmingQdosBody,
+            ("first-300-images.pdf", "application/pdf", firstPdf),
+            ("second-300-images.pdf", "application/pdf", secondPdf));
+        var source = Serialize(message);
+        Assert.InRange(source.LongLength, 1, 10L * 1024 * 1024);
+
+        var result = await UploadAsync(client, "shared-pdf-budget.eml", "message/rfc822", source);
+        var receipt = await GetReceiptAsync(factory, ReceiptId(result));
+
+        Assert.Equal(QdosIntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Contains(
+            receipt.Evidence,
+            evidence => evidence.Signal == "intake_limit_exceeded"
+                && evidence.Detail.Contains("second-300-images.pdf", StringComparison.Ordinal));
+        Assert.Null(receipt.TypedDraft);
+        Assert.Equal(
+            300,
+            receipt.AssetRecords.Count(asset => asset.Kind == IntakeAssetKind.EmbeddedImage));
+    }
+
+    [Fact]
+    public async Task ReusedJpegWhoseRetainedBytesExceedTwentyFiveMegabytesFailsClosed()
+    {
+        using var factory = new QdosWebApplicationFactory();
+        using var client = CreateClient(factory);
+        const int placementCount = 13;
+        var jpeg = CreatePaddedJpeg((2 * 1024 * 1024) + 1);
+        var pdf = CreateRepeatedJpegImagePdf(jpeg, placementCount);
+        Assert.InRange(pdf.LongLength, jpeg.LongLength, 10L * 1024 * 1024);
+
+        var result = await UploadAsync(client, "reused-large-jpeg.pdf", "application/pdf", pdf);
+        var receipt = await GetReceiptAsync(factory, ReceiptId(result));
+
+        Assert.Equal(QdosIntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Contains(
+            receipt.Evidence,
+            evidence => evidence.Signal == "intake_limit_exceeded"
+                && evidence.Detail.Contains("extracted-image processing limit", StringComparison.Ordinal));
+        Assert.Null(receipt.TypedDraft);
+        Assert.Equal(
+            placementCount - 1,
+            receipt.AssetRecords.Count(asset => asset.Kind == IntakeAssetKind.EmbeddedImage));
+    }
+
+    [Fact]
     public async Task MoreThan128MimeEntitiesStopsRemainingPartsAndSurfacesLimitGuard()
     {
         using var factory = new QdosWebApplicationFactory();
@@ -391,6 +565,64 @@ public sealed partial class MultiFormatIntakeWebTests
     }
 
     [Fact]
+    public async Task DocxWithXmlPartOverTenMbIsVisiblyResourceLimited()
+    {
+        using var factory = new QdosWebApplicationFactory();
+        using var client = CreateClient(factory);
+        var docx = CreateResourceHeavyDocx(
+            additionalEntryCount: 0,
+            additionalUncompressedBytes: (11L * 1024 * 1024));
+        Assert.InRange(docx.LongLength, 1, 10L * 1024 * 1024);
+
+        var result = await UploadAsync(
+            client,
+            "oversized-xml-part.docx",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            docx);
+        var receipt = await GetReceiptAsync(factory, ReceiptId(result));
+
+        Assert.Equal(QdosIntakeDecision.Unsupported, receipt.Decision);
+        Assert.Equal("docx_limit_exceeded", receipt.FailureCode);
+        Assert.Null(receipt.TypedDraft);
+        Assert.Equal(
+            "The DOCX exceeds the safe package, part, or extracted-image processing limits.",
+            receipt.FailureReason);
+    }
+
+    [Fact]
+    public async Task ConfirmingEmailWithDocxExtractedImagesOverTwentyFiveMbFailsClosedAndRetainsAttachment()
+    {
+        using var factory = new QdosWebApplicationFactory();
+        using var client = CreateClient(factory);
+        const string attachmentName = "oversized-extracted-image.docx";
+        var docx = CreateDocxWithLargeImage((26L * 1024 * 1024));
+        var message = CreateMessage(
+            "Synthetic oversized DOCX image attachment",
+            ConfirmingQdosBody,
+            (attachmentName, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", docx));
+        var source = Serialize(message);
+        Assert.InRange(source.LongLength, 1, 10L * 1024 * 1024);
+
+        var result = await UploadAsync(
+            client,
+            "oversized-docx-image-attachment.eml",
+            "message/rfc822",
+            source);
+        var receipt = await GetReceiptAsync(factory, ReceiptId(result));
+
+        Assert.Equal(QdosIntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Null(receipt.TypedDraft);
+        Assert.Contains(
+            receipt.Evidence,
+            evidence => evidence.Signal == "intake_limit_exceeded"
+                && evidence.Detail.Contains(attachmentName, StringComparison.Ordinal));
+        Assert.Contains(
+            receipt.AssetRecords,
+            asset => asset.FileName == attachmentName
+                && asset.Kind == IntakeAssetKind.Attachment);
+    }
+
+    [Fact]
     public async Task ConfirmingEmailKeepsBodyDecisionAndSurfacesCorruptDocumentAttachments()
     {
         using var factory = new QdosWebApplicationFactory();
@@ -405,7 +637,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
-        Assert.Equal(QdosIntakeDecision.ConfirmedQdos, receipt.Decision);
+        Assert.Equal(QdosIntakeDecision.DraftReady, receipt.Decision);
         Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "unreadable-pdf-attachment");
         Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "unreadable-docx-attachment");
         Assert.Contains("corrupt.pdf", reviewHtml, StringComparison.Ordinal);
@@ -669,6 +901,57 @@ public sealed partial class MultiFormatIntakeWebTests
         return output.ToArray();
     }
 
+    private static byte[] CreateDocxWithLargeImage(long imageBytes)
+    {
+        var baseDocx = CreateDocx(
+            "QDOS instruction",
+            "Claim Number: SYN-DOCX-IMAGE-LIMIT",
+            "Vehicle Registration: AB12 CDE");
+        using var output = new MemoryStream();
+        output.Write(baseDocx);
+        output.Position = 0;
+        using (var archive = new ZipArchive(output, ZipArchiveMode.Update, leaveOpen: true))
+        {
+            var contentTypesEntry = Assert.IsType<ZipArchiveEntry>(archive.GetEntry("[Content_Types].xml"));
+            string contentTypes;
+            using (var reader = new StreamReader(contentTypesEntry.Open(), Encoding.UTF8))
+            {
+                contentTypes = reader.ReadToEnd();
+            }
+
+            contentTypesEntry.Delete();
+            WriteZipEntry(
+                archive,
+                "[Content_Types].xml",
+                contentTypes.Replace(
+                    "</Types>",
+                    "<Default Extension=\"png\" ContentType=\"image/png\" /></Types>",
+                    StringComparison.Ordinal));
+            WriteZipEntry(
+                archive,
+                "word/_rels/document.xml.rels",
+                """
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/large.png" />
+                </Relationships>
+                """);
+
+            var imageEntry = archive.CreateEntry("word/media/large.png", CompressionLevel.SmallestSize);
+            using var imageStream = imageEntry.Open();
+            var buffer = new byte[64 * 1024];
+            long written = 0;
+            while (written < imageBytes)
+            {
+                var count = (int)Math.Min(buffer.Length, imageBytes - written);
+                imageStream.Write(buffer, 0, count);
+                written += count;
+            }
+        }
+
+        return output.ToArray();
+    }
+
     private static MimeMessage CreateMessage(
         string subject,
         string body,
@@ -759,38 +1042,65 @@ public sealed partial class MultiFormatIntakeWebTests
         return bytes;
     }
 
-    private static byte[] CreatePdf(string text)
+    private static byte[] CreatePdf(string text) => CreateTextPdf([text]);
+
+    private static byte[] CreateTextPdf(string[] pageTexts)
     {
-        var objects = new[]
+        ArgumentOutOfRangeException.ThrowIfZero(pageTexts.Length);
+        var firstPageObject = 3;
+        var fontObject = firstPageObject + pageTexts.Length;
+        var firstContentObject = fontObject + 1;
+        var kids = string.Join(
+            " ",
+            Enumerable.Range(firstPageObject, pageTexts.Length).Select(objectNumber => $"{objectNumber} 0 R"));
+        var objectBodies = new List<byte[]>
         {
-            "<< /Type /Catalog /Pages 2 0 R >>",
-            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
-            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-            $"<< /Length {text.Length + 34} >>\nstream\nBT /F1 12 Tf 72 720 Td ({EscapePdfText(text)}) Tj ET\nendstream"
+            Encoding.ASCII.GetBytes("<< /Type /Catalog /Pages 2 0 R >>"),
+            Encoding.ASCII.GetBytes($"<< /Type /Pages /Kids [{kids}] /Count {pageTexts.Length} >>")
         };
 
-        using var output = new MemoryStream();
-        WriteAscii(output, "%PDF-1.4\n");
-        var offsets = new List<long> { 0 };
-        for (var index = 0; index < objects.Length; index++)
+        for (var index = 0; index < pageTexts.Length; index++)
         {
-            offsets.Add(output.Position);
-            WriteAscii(output, $"{index + 1} 0 obj\n{objects[index]}\nendobj\n");
+            objectBodies.Add(Encoding.ASCII.GetBytes(
+                $"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+                + $"/Resources << /Font << /F1 {fontObject} 0 R >> >> "
+                + $"/Contents {firstContentObject + index} 0 R >>"));
         }
 
-        var xref = output.Position;
-        WriteAscii(output, $"xref\n0 {objects.Length + 1}\n");
-        WriteAscii(output, "0000000000 65535 f \n");
-        foreach (var offset in offsets.Skip(1))
+        objectBodies.Add(Encoding.ASCII.GetBytes("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"));
+        foreach (var text in pageTexts)
         {
-            WriteAscii(output, $"{offset:0000000000} 00000 n \n");
+            var operators = CreatePdfTextOperators(text);
+            objectBodies.Add(Encoding.ASCII.GetBytes($"<< /Length {operators.Length} >>\nstream\n")
+                .Concat(operators)
+                .Concat(Encoding.ASCII.GetBytes("\nendstream"))
+                .ToArray());
         }
 
-        WriteAscii(
-            output,
-            $"trailer\n<< /Size {objects.Length + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n");
-        return output.ToArray();
+        return WritePdfObjects(objectBodies);
+    }
+
+    private static byte[] CreatePdfTextOperators(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return [];
+        }
+
+        var lines = text
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Split('\n');
+        var operators = new StringBuilder("BT /F1 12 Tf 72 720 Td\n");
+        foreach (var line in lines)
+        {
+            operators.Append('(')
+                .Append(EscapePdfText(line))
+                .Append(") Tj\n0 -14 Td\n");
+        }
+
+        operators.Append("ET");
+        return Encoding.ASCII.GetBytes(operators.ToString());
     }
 
     private static string FindRepositoryRoot()
@@ -830,7 +1140,7 @@ public sealed partial class MultiFormatIntakeWebTests
             using var imageObject = new MemoryStream();
             WriteAscii(
                 imageObject,
-                "<< /Type /XObject /Subtype /Image /Width 1 /Height 1 "
+                $"<< /Type /XObject /Subtype /Image /Width {image.SampleWidth} /Height {image.SampleHeight} "
                 + "/ColorSpace /DeviceRGB /BitsPerComponent 8 /Length 3 >>\nstream\n");
             imageObject.WriteByte(image.Red);
             imageObject.WriteByte(image.Green);
@@ -851,6 +1161,69 @@ public sealed partial class MultiFormatIntakeWebTests
             .ToArray());
 
         return WritePdfObjects(objectBodies);
+    }
+
+    private static byte[] CreateRepeatedJpegImagePdf(byte[] jpeg, int placementCount)
+    {
+        ArgumentOutOfRangeException.ThrowIfZero(placementCount);
+        var objectBodies = new List<byte[]>
+        {
+            Encoding.ASCII.GetBytes("<< /Type /Catalog /Pages 2 0 R >>"),
+            Encoding.ASCII.GetBytes("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+            Encoding.ASCII.GetBytes(
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+                + "/Resources << /XObject << /Im1 4 0 R >> >> /Contents 5 0 R >>")
+        };
+
+        using (var imageObject = new MemoryStream())
+        {
+            WriteAscii(
+                imageObject,
+                $"<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB "
+                + $"/BitsPerComponent 8 /Filter /DCTDecode /Length {jpeg.Length} >>\nstream\n");
+            imageObject.Write(jpeg);
+            WriteAscii(imageObject, "\nendstream");
+            objectBodies.Add(imageObject.ToArray());
+        }
+
+        var operators = string.Concat(
+            Enumerable.Range(0, placementCount).Select(
+                index => $"q\n100 0 0 100 {20 + index} {20 + index} cm\n/Im1 Do\nQ\n"));
+        var operatorBytes = Encoding.ASCII.GetBytes(operators);
+        objectBodies.Add(Encoding.ASCII.GetBytes($"<< /Length {operatorBytes.Length} >>\nstream\n")
+            .Concat(operatorBytes)
+            .Concat(Encoding.ASCII.GetBytes("endstream"))
+            .ToArray());
+
+        return WritePdfObjects(objectBodies);
+    }
+
+    private static byte[] CreatePaddedJpeg(int minimumLength)
+    {
+        var original = Convert.FromBase64String(TinyJpegBase64);
+        Assert.True(original is [0xff, 0xd8, ..], "The compact JPEG fixture must begin with an SOI marker.");
+        if (original.Length >= minimumLength)
+        {
+            return original;
+        }
+
+        using var output = new MemoryStream(minimumLength + 256);
+        output.Write(original.AsSpan(0, 2));
+        var remainingPayload = minimumLength - original.Length;
+        while (remainingPayload > 0)
+        {
+            var payloadLength = Math.Min(remainingPayload, ushort.MaxValue - 2);
+            var segmentLength = payloadLength + 2;
+            output.WriteByte(0xff);
+            output.WriteByte(0xef);
+            output.WriteByte((byte)(segmentLength >> 8));
+            output.WriteByte((byte)segmentLength);
+            output.Write(new byte[payloadLength]);
+            remainingPayload -= payloadLength;
+        }
+
+        output.Write(original.AsSpan(2));
+        return output.ToArray();
     }
 
     private static byte[] WritePdfObjects(List<byte[]> objectBodies)
@@ -909,5 +1282,19 @@ public sealed partial class MultiFormatIntakeWebTests
         int Height,
         byte Red,
         byte Green,
-        byte Blue);
+        byte Blue,
+        int SampleWidth = 1,
+        int SampleHeight = 1);
+
+    private sealed class SteppingTimeProvider(TimeSpan step) : TimeProvider
+    {
+        private long timestamp;
+
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+        public override DateTimeOffset GetUtcNow() => new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
+
+        public override long GetTimestamp() =>
+            Interlocked.Add(ref timestamp, step.Ticks);
+    }
 }
