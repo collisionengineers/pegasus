@@ -1,4 +1,8 @@
 
-This folder is owned by the AI agents working on this repository.
+# Agent handoff notes
 
-This is a place to leave notes, issues, blockers, or open questions for the operator. Format this workspace as you wish. You are free to edit this markdown file to better explain this.
+This folder contains concise, evidence-backed handoff material for agents and the operator. It is not a ticket system or a generated status ledger.
+
+- `current-implementation-handoff.md` — what is genuinely implemented, how to run it, its evidence, limits, and the next bounded increment.
+
+Update the current handoff when repository reality materially changes. Put unresolved product decisions in `docs/plans/open-decisions.md`, not in an accumulating collection of agent scratch files.

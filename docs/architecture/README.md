@@ -8,11 +8,14 @@ must not be edited from here.
 
 | Decision | Status | Summary |
 | --- | --- | --- |
-| [ADR-0001: Hybrid PDF extraction](decisions/ADR-0001-hybrid-pdf-extraction.md) | Accepted; PDF engine selection pending | Use a proven PDF engine, custom deterministic provider rules, and Azure Read OCR only when required. |
+| [ADR-0001: Hybrid PDF extraction](decisions/ADR-0001-hybrid-pdf-extraction.md) | Accepted | Use an embedded-text engine, custom deterministic provider rules, and Azure Read OCR only when required. |
 | [ADR-0002: .NET modular monolith on Azure App Service](decisions/ADR-0002-dotnet-modular-monolith-on-azure.md) | Accepted | Build one .NET application core with Razor Pages, Azure SQL, F1/B1 App Service, and a Functions worker. |
+| [ADR-0003: PdfPig for the first QDOS embedded-text slice](decisions/ADR-0003-pdfpig-for-first-qdos-slice.md) | Accepted for the local slice | PdfPig won the genuine-QDOS embedded-text comparison; production still requires a human-reviewed field cohort and untouched holdout. |
 
 ## Open architecture work
 
-1. Select the embedded PDF engine through a benchmark using genuine QDOS documents.
-2. Scaffold the accepted solution boundaries, validation harness, and Bicep/`azd` infrastructure skeleton.
-3. Define and build the first end-to-end QDOS vertical slice from genuine repository-provided examples.
+1. Prove PdfPig and the deterministic field rules against a frozen human-reviewed expected-value cohort and untouched holdout; reopen ADR-0003 if another engine materially reduces silent errors.
+2. Prove migrations and reference allocation against SQL Server/Azure SQL, including real concurrency and duplicate delivery.
+3. Add authenticated staff operation and durable original-source custody before enabling intake in a deployed environment.
+
+The complete product gap is maintained in `docs/plans/remaining-requirements.md`.

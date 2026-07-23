@@ -69,7 +69,7 @@ Immediately before provisioning, recheck:
 ## Deployment blockers
 
 - User approval to create chargeable Azure resources has not been given.
-- Current old data has not been exported or reconciled.
+- The predecessor is pre-release and its test application data is not migrated into v2. Retirement remains a separately approved operation, not a deployment prerequisite.
 - Document Intelligence F0 ownership/reuse has not been decided.
 - SQL Entra administrator name/object ID must be confirmed at deployment time.
 - GitHub OIDC environment and release workflow are not created in this scaffold.
