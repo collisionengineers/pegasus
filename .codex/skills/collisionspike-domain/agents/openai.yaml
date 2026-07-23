@@ -1,0 +1,4 @@
+interface:
+  display_name: "CollisionSpike domain"
+  short_description: "Apply Collision Engineers domain rules"
+  default_prompt: "Use $collisionspike-domain to apply the authoritative Collision Engineers rules to this task."

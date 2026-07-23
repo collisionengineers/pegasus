@@ -7,7 +7,10 @@
 !.env.example
 secrets.json
 appsettings.*.local.json
-/.azure/
+/.azure/*
+!/.azure/deployment-plan.md
+**/local.settings.json
+*.user
 
 # .NET build and test output
 **/bin/
@@ -15,6 +18,7 @@ appsettings.*.local.json
 **/TestResults/
 **/coverage/
 **/artifacts/
+/artifacts/
 
 # Tool and editor working state
 /.vs/
@@ -24,6 +28,7 @@ appsettings.*.local.json
 /temp/
 node_modules/
 .bicep/
+/src/CollisionSpike.Web/wwwroot/lib/
 
 # Operating-system files
 .DS_Store

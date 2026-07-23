@@ -6,3 +6,9 @@ args = ["-y", "@azure/mcp@3.0.0-beta.28", "server", "start"]
 env = { AZURE_MCP_COLLECT_TELEMETRY = "false" }
 startup_timeout_sec = 30.0
 tool_timeout_sec = 120.0
+
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 4
+default_subagent_model = "gpt-5.6-terra"
+default_subagent_reasoning_effort = "high"

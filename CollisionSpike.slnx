@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CollisionSpike.Core/CollisionSpike.Core.csproj" />
+    <Project Path="src/CollisionSpike.Infrastructure/CollisionSpike.Infrastructure.csproj" />
+    <Project Path="src/CollisionSpike.Web/CollisionSpike.Web.csproj" />
+    <Project Path="src/CollisionSpike.Worker/CollisionSpike.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CollisionSpike.ArchitectureTests/CollisionSpike.ArchitectureTests.csproj" />
+    <Project Path="tests/CollisionSpike.Core.Tests/CollisionSpike.Core.Tests.csproj" />
+    <Project Path="tests/CollisionSpike.IntegrationTests/CollisionSpike.IntegrationTests.csproj" />
+  </Folder>
+</Solution>

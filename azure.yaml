@@ -1,0 +1,16 @@
+name: collisionspike-v2
+metadata:
+  template: collisionspike-v2@0.1.0
+services:
+  web:
+    project: ./src/CollisionSpike.Web
+    host: appservice
+    language: csharp
+  worker:
+    project: ./src/CollisionSpike.Worker
+    host: function
+    language: csharp
+hooks:
+  postprovision:
+    shell: pwsh
+    run: ./infra/scripts/Grant-DatabaseAccess.ps1
