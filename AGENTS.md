@@ -15,6 +15,15 @@ This repository is the clean-room implementation of Collision Engineers' case-ma
 4. State the real caller and the evidence that will prove the change.
 5. Keep unrelated user changes intact.
 
+## Legacy operator-provided references
+
+- Everything under `docs/reference/operator-provided/` comes from the old project. It is reference material only and is not an implementation requirement, product authority, accepted architecture, or evidence that a feature belongs in v2.
+- Do not use those documents automatically when planning, designing, implementing, testing, or resolving ambiguity. Examine them only in collaboration with a human operator, who must confirm whether a concept is still correct and in scope.
+- Use the material to identify and explain possible concepts well in advance. Before promoting any concept into current requirements, architecture, plans, or code, reconcile it with the current source-of-truth order and record the operator decision in the appropriate authoritative document.
+- Treat contradictions, obsolete terminology, predecessor-specific design, and unclear business rules as review findings, not as instructions to reproduce the old system.
+- Keep the supplied legacy files intact during ordinary work. Put indexes, summaries, comparisons, and review notes in the adjacent `guide/` folder unless the user explicitly asks to change an original.
+- Guides and indexes stored alongside these references describe the legacy material for review. They do not raise its authority or approve any feature for implementation.
+
 ## Product language and invariants
 
 - A work provider is also called a principal. Each principal has a principal code.

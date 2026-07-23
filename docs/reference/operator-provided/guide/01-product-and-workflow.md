@@ -1,0 +1,29 @@
+# Product and workflow references
+
+These files describe what the predecessor believed the product should do. They contain useful prompts for operator discussion, but their rules are not current requirements.
+
+| File | Brief contents and features | Current v2 comparison | Caution |
+| --- | --- | --- | --- |
+| [`docs/README.md`](../docs/README.md) | Old documentation map and authority rules. | **Predecessor-specific.** v2 has its own source-of-truth order. | Its claim that old reviews and tickets are authoritative does not apply here. |
+| [`docs/product/README.md`](../docs/product/README.md) | Index for old product documents. | **Review only.** | Navigation, not product authority. |
+| [`docs/product/company-and-scope.md`](../docs/product/company-and-scope.md) | Staff-only intake, case assembly, review, EVA handoff, archive filing and audit. | **Mostly planned in v2.** Current scope continues through report and post-report work, not merely EVA handoff. | The stated product boundary is narrower than current v2. |
+| [`docs/product/case-and-evidence.md`](../docs/product/case-and-evidence.md) | Case identity, correlation ladder, immutable source evidence, image readiness and case types. | **Partly planned; intake source identity is partly implemented locally.** | Its hard two-image readiness rule and case-type list are not current v2 rules. Diminution is deferred. |
+| [`docs/product/intake-workflow.md`](../docs/product/intake-workflow.md) | Mail/manual intake, classification, deduplication, linking, parsing, provider matching, enrichment, review, chasers and EVA/archive handoff. | **Broadly overlaps planned v2.** The development-only QDOS route implements only part of receipt, extraction and review. | Retroactive reconstruction and automatic category rules are not approved current behavior. |
+| [`docs/product/provider-and-address-corpora.md`](../docs/product/provider-and-address-corpora.md) | Principal codes, sender domains, intermediaries, repairers, image sources and reusable inspection addresses. | **Some concepts are planned.** `Image Based Assessment`, principal identity and repairer relationships exist in current documents. | Named organisations, eight-character limits, corpus rules and address prediction require operator review. |
+| [`docs/product/roles-and-permissions.md`](../docs/product/roles-and-permissions.md) | Two old roles, Entra/data-service checks, PostgreSQL RLS and assistant confirmation. | **Conflicts with v2.** v2 has Administrator, Engineer and User roles with application-managed accounts. | Do not carry over old role names, Entra assumptions or RLS architecture. |
+| [`docs/product/staff-forwarding-guide.md`](../docs/product/staff-forwarding-guide.md) | QDOS trial instructions for forwarding provider mail into `instructions@`. | **Mailbox and QDOS scope overlap planned v2.** | The forwarding restrictions describe an old alpha workaround. Nested EML is now locally supported; the Worker is not implemented. |
+| [`docs/reference/README.md`](../docs/reference/README.md) | Index for old external reference material. | **Predecessor-specific.** | It does not approve the linked contract for v2. |
+| [`docs/reference/provider-api-intake-spec.md`](../docs/reference/provider-api-intake-spec.md) | Old provider API with API key, Base64 JSON, required fields, direct case creation and response codes. | **A provider API is planned, not implemented.** Current v2 calls for principal-scoped opaque credentials, idempotent submission and receipt/status/result retrieval. | Exact route, payload, field requirements, 50 MB limit and immediate case creation are not adopted. |
+| [`imp-docs/collision_engineers_admin_overview.md`](../imp-docs/collision_engineers_admin_overview.md) | Early description of Outlook, Excel, Box, EVA, Audatex, image-led work, missing-information chasing and manual Case/PO creation. | **Important historical business context.** Many concepts are reflected in current operator notes and questionnaire. | It contains stated unknowns, old mailbox counts and predecessor-tool assumptions; confirm each point with an operator. |
+| [`imp-docs/case-po-info.md`](../imp-docs/case-po-info.md) | Copy of the old marker and numbering ADR. | **Conflicts with v2.** | Independent sequences and `D.`/`C.` markers contradict the current shared three-digit sequence and deferred case types. |
+| [`imp-docs/eva_information/eva_information.md`](../imp-docs/eva_information/eva_information.md) | EVA purpose, fields, API claims and eventual replacement ambition. | **EVA remains an integration authority.** Manual JSON/image handoff is planned; direct API use and replacement are deferred. | API availability and endpoint scope must be freshly confirmed with the operator/vendor. |
+| [`imp-docs/eva_information/eva_screenshot_findings.md`](../imp-docs/eva_information/eva_screenshot_findings.md) | Field-by-field observations from the accompanying EVA screenshots. | **Useful field discovery.** Current v2 plans an EVA export but has no adapter or export caller. | A visible EVA field is not automatically required in v2; financial and estimating workflows are deferred. |
+| [`imp-docs/llms.txt`](../imp-docs/llms.txt) | Large scraped catalogue of Box developer documentation links and endpoints. | **Reference only.** Box is planned, but no Box adapter is implemented. | It is a broad external-doc dump, not a selected Box contract or approved operation allowlist. |
+
+## Points requiring operator confirmation before reuse
+
+- Whether any predecessor readiness checklist, image minimum or provider-specific field rule still applies.
+- Which party roles need first-class records rather than simple case contacts.
+- The exact provider API payload and whether a submission can create a case without staff acceptance.
+- Which EVA fields are required for the first QDOS handoff and which remain owned only by EVA.
+- Any mailbox-forwarding rules that still matter once the Graph Worker exists.

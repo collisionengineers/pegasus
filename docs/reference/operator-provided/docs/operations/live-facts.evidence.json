@@ -1,0 +1,68 @@
+{
+  "$comment": "Committed, secret-free machine-readable evidence snapshot + field map for the machine-governed LIVE_FACTS.json fields (TKT-273 / PLAN-012). Each entry maps a LIVE_FACTS JSON path to its evidenced value, the dated read-only evidence source, the read-only probe that reproduces it, and the comparison rule. Replace only from dated read-only evidence; never infer live state from source. LIVE_FACTS.json records this file's path and sha256 under authority.machineEvidence; scripts/checks/check-live-facts.mjs compares the two offline, and scripts/checks/live-facts-azure-compare.mjs re-mints it read-only against Azure when credentials are present. No secrets, tokens, connection strings, or private identifiers appear here.",
+  "capturedAt": "2026-07-21T21:32:00Z",
+  "evidenceBasis": "TKT-303 deploy re-attestation (2026-07-21 21:26-21:32Z). Re-probed live post-deploy: cespk-api-dev 146 raw endpoints -> 144 reconciled (unchanged) and cespk-orch-dev 109 (unchanged) via `az functionapp function list`, both apps properties.state Running. The TKT-303 republish is a code-only change to existing functions (terminal-failure classification in the boxFolderCreate activity and a terminal park on the provider-archive defer route) and registers no new function, which the unchanged counts confirm. database.baseTableCount 66 and the focused Python service counts were NOT re-probed this pass and carry forward unchanged from the 14:55Z basis below — no deploy touched them. Prior basis carried forward: PLAN-015 alpha-cutover re-attestation (TKT-302 evidence, 2026-07-21 ~14:00-15:00Z). Probed live this pass: cespk-api-dev 146 raw endpoints -> 144 reconciled (unchanged; TKT-257 host/admin over-count exclusion), cespk-orch-dev 109 (was 106 — the PLAN-015 Phase 0 deploy registered eva-shadow-submit-starter, evaShadowSubmitOrchestrator and intake-poll, all ship-dark), and database.baseTableCount 66 via the csadmin session immediately after the Phase 4 wipe/rebuild (65 baseline tables + the reseed-backup table 920_replace_suggested_addresses.sql creates on first run; the wipe dropped 14 historical remediation-backup tables that were never part of the baseline). Carried forward from the same-day 04:45Z TKT-296 re-attestation (not re-probed this pass, no deploy touched them): cespike-parser-dev-x7xt3d5ovhi7y 5, cespkbox-fn-v76a47 16, cespkeva-fn-ufa3ci 1, cespkeval-fn-6c6fxd 1. Prior basis carried forward: read-only ARM inventory (2026-07-19, TKT-257), the banked PLAN-009 dossier and docs/operations/cloud-inventory-2026-07-17.md.",
+  "resourceGroup": "rg-collisionspike-dev",
+  "fields": [
+    {
+      "path": "deployables.dataApi.functionCount",
+      "resource": "cespk-api-dev",
+      "value": 144,
+      "comparison": "exact",
+      "probe": "az functionapp function list -n cespk-api-dev -g rg-collisionspike-dev -o json",
+      "evidenceSource": "The 2026-07-17 inventory captured 146 raw function endpoints for cespk-api-dev; TKT-257 reconciled that to 144 registered application functions (the 146 markdown figure over-counts host/admin endpoints). live-environment.md's 2026-07-19 re-verification confirms 144. Re-probed live 2026-07-21 (TKT-296): still 146 raw endpoints -> 144 reconciled, unchanged."
+    },
+    {
+      "path": "deployables.orchestration.functionCount",
+      "resource": "cespk-orch-dev",
+      "value": 109,
+      "comparison": "exact",
+      "probe": "az functionapp function list -n cespk-orch-dev -g rg-collisionspike-dev -o json",
+      "evidenceSource": "106 -> 109 on 2026-07-21 (PLAN-015 Phase 0 deploy, TKT-298/TKT-299): +eva-shadow-submit-starter (queue trigger), +evaShadowSubmitOrchestrator (orchestration), +intake-poll (timer), all ship-dark behind EVA_SHADOW_AUTOSUBMIT_ENABLED/EVA_API_ENABLED/INTAKE_POLL_ENABLED which were confirmed absent in the same pass. Probed live post-deploy ~14:20Z (function list count + the two new entries listed by name). Prior 106 from the same-day TKT-296 re-attestation (triageUnified, 04:45Z)."
+    },
+    {
+      "path": "deployables.parser.functionCount",
+      "resource": "cespike-parser-dev-x7xt3d5ovhi7y",
+      "value": 5,
+      "comparison": "exact",
+      "probe": "az functionapp function list -n cespike-parser-dev-x7xt3d5ovhi7y -g rg-collisionspike-dev -o json",
+      "evidenceSource": "docs/operations/cloud-inventory-2026-07-17.md §6.1 lists five parser functions (classify, explode .eml, extract images, fingerprint, parse); services/functions/parser/function_app.py declares five @app.route handlers. Corrects the prior registry undercount of 4 (which no dated evidence supported). Re-probed live 2026-07-21 (TKT-296, post parse-fed redeploy): still 5, unchanged."
+    },
+    {
+      "path": "deployables.archiveEvents.functionCount",
+      "resource": "cespkbox-fn-v76a47",
+      "value": 16,
+      "comparison": "exact",
+      "probe": "az functionapp function list -n cespkbox-fn-v76a47 -g rg-collisionspike-dev -o json",
+      "evidenceSource": "docs/operations/cloud-inventory-2026-07-17.md §6.1. Re-probed live 2026-07-21 (TKT-296): unchanged."
+    },
+    {
+      "path": "deployables.evaSentry.functionCount",
+      "resource": "cespkeva-fn-ufa3ci",
+      "value": 1,
+      "comparison": "exact",
+      "probe": "az functionapp function list -n cespkeva-fn-ufa3ci -g rg-collisionspike-dev -o json",
+      "evidenceSource": "docs/operations/cloud-inventory-2026-07-17.md §6.1. Re-probed live 2026-07-21 (TKT-296): unchanged."
+    },
+    {
+      "path": "deployables.evaValidation.functionCount",
+      "resource": "cespkeval-fn-6c6fxd",
+      "value": 1,
+      "comparison": "exact",
+      "probe": "az functionapp function list -n cespkeval-fn-6c6fxd -g rg-collisionspike-dev -o json",
+      "evidenceSource": "docs/operations/cloud-inventory-2026-07-17.md; retained as the rollback guard (live retirement operator-gated, TKT-252). Re-probed live 2026-07-21 (TKT-296): still present, count 1, unchanged."
+    },
+    {
+      "path": "deployables.database.baseTableCount",
+      "resource": "cespk-pg-dev",
+      "value": 66,
+      "comparison": "exact",
+      "probe": "read-only SQL against collisionspike: SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'",
+      "evidenceSource": "78 -> 66 on 2026-07-21 (PLAN-015 Phase 4 full wipe + baseline rebuild, TKT-302): 65 baseline tables + the reseed-backup table 920_replace_suggested_addresses.sql creates on first run. The 12-14 removed tables were historical remediation-backup tables (backup_2026*, tkt081_backup_*, tkt129/tkt130 backups, inspection_address_reseed_backup) never defined in database/baseline; their contents are preserved in the pre-wipe pg_dump (--role=csadmin, RLS-complete, 79 TABLE DATA entries). Probed live immediately after the rebuild in the same csadmin session (probe output banked in TKT-302 evidence)."
+    }
+  ],
+  "docAuthority": {
+    "path": "docs/operations/live-environment.md",
+    "rule": "The human-readable view's 'last verified' date must equal the date part of LIVE_FACTS.lastVerified."
+  }
+}
