@@ -1,13 +1,5 @@
-# Domain decisions still open
+# Open domain decisions
 
-Before making any of these irreversible, obtain an operator decision:
+Read the live project register at `docs/plans/open-decisions.md` before committing a schema or state machine. Do not duplicate its current entries in this skill reference.
 
-- transition permissions and privileged overrides;
-- sequence behavior if a case changes principal after allocation;
-- standalone-audit identity before repairable/total-loss assessment;
-- required intake fields by principal and work type;
-- exact Review versus Held transition rules;
-- first-MVP scope for enrichment, location, or capture capabilities;
-- retention/export policy beyond `never delete` in the application.
-
-Keep code reversible and record the ambiguity in `docs/plans/open-decisions.md`.
+If the register is unavailable or the current task leaves material ambiguity in references, workflow, permissions, completeness, retention, or external-system behaviour, stop and obtain an operator decision. Keep the design reversible and add the unresolved point to the project register rather than inferring policy from predecessor code or corpus examples.

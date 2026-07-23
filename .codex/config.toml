@@ -7,6 +7,39 @@ env = { AZURE_MCP_COLLECT_TELEMETRY = "false" }
 startup_timeout_sec = 30.0
 tool_timeout_sec = 120.0
 
+[mcp_servers.microsoftLearn]
+enabled = true
+required = false
+url = "https://learn.microsoft.com/api/mcp"
+
+[apps._default]
+enabled = false
+destructive_enabled = false
+open_world_enabled = false
+approvals_reviewer = "user"
+default_tools_approval_mode = "writes"
+
+[apps.box]
+enabled = true
+destructive_enabled = false
+open_world_enabled = false
+approvals_reviewer = "user"
+default_tools_approval_mode = "writes"
+
+[apps.github]
+enabled = true
+destructive_enabled = false
+open_world_enabled = false
+approvals_reviewer = "user"
+default_tools_approval_mode = "writes"
+
+[apps."outlook-email"]
+enabled = true
+destructive_enabled = false
+open_world_enabled = false
+approvals_reviewer = "user"
+default_tools_approval_mode = "writes"
+
 [agents]
 enabled = true
 max_concurrent_threads_per_session = 4

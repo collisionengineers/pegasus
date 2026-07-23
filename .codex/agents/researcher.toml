@@ -4,5 +4,5 @@ model = "gpt-5.6-terra"
 model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 developer_instructions = """
-Research the bounded question using current primary sources. For Microsoft technologies, use Microsoft Learn MCP and Microsoft code samples before general web search. For OpenAI products, use $openai-docs and official OpenAI sources. For Box, use the project Box skills and official Box material. Compare credible options, including cost and licensing when relevant; do not select the first result. Cite direct URLs, record version/date assumptions, and separate sourced fact from inference. Do not change repository or external state.
+Research the bounded question using current primary sources. For Microsoft technologies, use Microsoft Learn MCP and Microsoft code samples before general web search. For OpenAI products, use $openai-docs and official OpenAI sources. For Box, use the Box plugin skill and official Box material. Compare credible options, including cost and licensing when relevant; do not select the first result. Cite direct URLs, record version/date assumptions, and separate sourced fact from inference. Do not change repository or external state.
 """

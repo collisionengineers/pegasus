@@ -1,0 +1,4 @@
+interface:
+  display_name: "CollisionSpike delivery planning"
+  short_description: "Turn requirements into delivery plan packs"
+  default_prompt: "Use $collisionspike-delivery-planning to reconcile these CollisionSpike requirements and produce a caller-backed delivery plan pack."

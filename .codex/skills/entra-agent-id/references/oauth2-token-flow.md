@@ -2,66 +2,75 @@
 
 Source: [Agent ID Setup Instructions](https://learn.microsoft.com/en-us/entra/agent-id/identity-platform/agent-id-setup-instructions)
 
-Agent Identities authenticate at runtime using credentials configured on the **Blueprint** (not on the Agent Identity — Agent Identities cannot hold credentials).
+Agent Identities authenticate at runtime using credentials configured on the **Blueprint** (not the Agent Identity itself). Two options are available:
 
 | Option | Use case | Credential type |
 |--------|----------|-----------------|
-| **Managed Identity + WIF** | Production (Azure-hosted) | Federated Identity Credential on Blueprint |
-| **Client secret** | Local dev / testing | Password credential on Blueprint |
-
-Both options feed the two-step `fmi_path` exchange in [runtime-token-exchange.md](runtime-token-exchange.md).
+| **Managed Identity + WIF** | Production (Azure-hosted) | Federated Identity Credential |
+| **Client secret** | Local development / testing | Password credential on Blueprint |
 
 ---
 
 ## Option A: Managed Identity + Workload Identity Federation (Production)
 
-### 1. Set the Application ID URI on the Blueprint
+### Architecture
+
+```
+Container App (user-assigned MI)
+  -> ManagedIdentityCredential.get_token("api://{blueprint-app-id}/.default")
+    -> Azure AD token exchange (MI token -> Agent ID token)
+      -> JWT with oid = MI principal, aud = api://{blueprint-app-id}
+        -> Backend validates JWT signature + claims
+```
+
+### 1. Set Application ID URI on Blueprint
+
+Required for OAuth2 scope resolution:
 
 ```python
 requests.patch(
     f"{GRAPH}/applications/{blueprint_obj_id}",
     headers=headers,
-    json={"identifierUris": [f"api://{blueprint_app_id}"]},
-).raise_for_status()
+    json={"identifierUris": [f"api://{app_id}"]},
+)
 ```
 
-### 2. Create a Federated Identity Credential on the Blueprint
+### 2. Create Federated Identity Credential
 
-Use the typed path — FICs go on the Blueprint, not on the Agent Identity SP:
+Create on the Blueprint (not the Agent Identity):
 
 ```python
 fic_body = {
     "name": "my-fic-name",
     "issuer": f"https://login.microsoftonline.com/{tenant_id}/v2.0",
-    "subject": mi_principal_id,   # The MI's object ID (principalId), NOT client ID
+    "subject": "{mi-principal-id}",  # The MI's object ID (principalId), NOT client ID
     "audiences": ["api://AzureADTokenExchange"],
 }
 requests.post(
-    f"{GRAPH}/applications/{blueprint_obj_id}"
-    f"/microsoft.graph.agentIdentityBlueprint/federatedIdentityCredentials",
-    headers=headers, json=fic_body,
-).raise_for_status()
+    f"{GRAPH}/applications/{blueprint_obj_id}/microsoft.graph.agentIdentityBlueprint/federatedIdentityCredentials",
+    headers=headers,
+    json=fic_body,
+)
 ```
 
-### 3. Acquire a token from the caller
+### 3. Acquire Token (Caller Side)
 
 ```python
 from azure.identity import ManagedIdentityCredential
 
-cred = ManagedIdentityCredential(client_id=MI_CLIENT_ID)
+cred = ManagedIdentityCredential(client_id=mi_client_id)
 token = cred.get_token(f"api://{blueprint_app_id}/.default")
-# Authorization: Bearer {token.token}
+# Include in requests: Authorization: Bearer {token.token}
 ```
 
-### 4. Validate on the backend
+### 4. Validate Token (Backend)
 
 ```python
 import jwt
 from jwt import PyJWKClient
 
-jwks_client = PyJWKClient(
-    f"https://login.microsoftonline.com/{tenant_id}/discovery/v2.0/keys"
-)
+jwks_uri = f"https://login.microsoftonline.com/{tenant_id}/discovery/v2.0/keys"
+jwks_client = PyJWKClient(jwks_uri)
 signing_key = jwks_client.get_signing_key_from_jwt(token_str)
 
 claims = jwt.decode(
@@ -75,22 +84,24 @@ claims = jwt.decode(
 
 ### Key Rules (WIF)
 
-- **FICs go on the Blueprint** using the typed path (`.../microsoft.graph.agentIdentityBlueprint/federatedIdentityCredentials`).
-- **`subject`** is the MI's `principalId` (object ID), not its client ID.
-- **`audiences`** must be `["api://AzureADTokenExchange"]` — not your API audience.
-- **FIC `issuer`**: `https://login.microsoftonline.com/{tenant}/v2.0`.
-- **Token `issuer`** for validation: `https://sts.windows.net/{tenant}/` (different domain, trailing slash).
+- **Federated credentials go on the Blueprint**, not the Agent Identity SP. Use the `.../microsoft.graph.agentIdentityBlueprint/federatedIdentityCredentials` path.
+- **`subject` is the MI's principalId (object ID)**, not its client ID.
+- **`audiences` must be `["api://AzureADTokenExchange"]`**, not your API audience.
+- **Issuer format**: `https://login.microsoftonline.com/{tenant}/v2.0`
+- **Token issuer** (for validation): `https://sts.windows.net/{tenant}/` (note the trailing slash and different domain)
 
 ---
 
-## Option B: Client Secret (Local Dev)
+## Option B: Client Secret (Local Development / Testing Only)
 
-### 1. Add a password credential to the Blueprint
+For local development where no Managed Identity is available.
 
-PowerShell:
+### 1. Add a Password Credential to the Blueprint
+
+Via PowerShell:
 
 ```powershell
-$body = @{
+$secretBody = @{
     "passwordCredential" = @{
         "displayName" = "Dev Secret"
         "endDateTime" = "2027-01-01T00:00:00Z"
@@ -98,37 +109,47 @@ $body = @{
 }
 
 $credential = Invoke-MgGraphRequest -Method POST `
-    -Uri "https://graph.microsoft.com/v1.0/applications/<BLUEPRINT_OBJECT_ID>/addPassword" `
-    -Headers @{ "OData-Version" = "4.0"; "Content-Type" = "application/json" } `
-    -Body ($body | ConvertTo-Json -Depth 5) -OutputType PSObject
+    -Uri "https://graph.microsoft.com/beta/applications/<BLUEPRINT_OBJECT_ID>/addPassword" `
+    -Headers @{"OData-Version"="4.0"; "Content-Type"="application/json"} `
+    -Body ($secretBody | ConvertTo-Json -Depth 5) -OutputType PSObject
 
-$credential.secretText   # Save NOW — not retrievable later
+$credential.secretText  # Save NOW — cannot be retrieved later
 ```
 
-Python:
+Or via Python (with an existing token):
 
 ```python
+secret_body = {
+    "passwordCredential": {
+        "displayName": "Dev Secret",
+        "endDateTime": "2027-01-01T00:00:00Z",
+    }
+}
 resp = requests.post(
     f"{GRAPH}/applications/{blueprint_obj_id}/addPassword",
     headers=headers,
-    json={"passwordCredential": {
-        "displayName": "Dev Secret",
-        "endDateTime": "2027-01-01T00:00:00Z",
-    }},
+    json=secret_body,
 )
-resp.raise_for_status()
-secret_text = resp.json()["secretText"]   # Save NOW
+secret_text = resp.json()["secretText"]  # Save NOW
 ```
 
-### 2. Drive the two-step exchange
+### 2. Acquire Token Locally
 
-Pass `blueprint_secret=secret_text` into `get_parent_token(...)` from
-[runtime-token-exchange.md](runtime-token-exchange.md), then call `exchange_autonomous` or `exchange_obo`.
+```python
+from azure.identity import ClientSecretCredential
+
+credential = ClientSecretCredential(
+    tenant_id=TENANT_ID,
+    client_id=BLUEPRINT_APP_ID,       # Blueprint's appId
+    client_secret=SECRET_TEXT,         # From step 1
+)
+token = credential.get_token(f"api://{BLUEPRINT_APP_ID}/.default")
+```
 
 ### Key Rules (Client Secret)
 
-- **Save `secretText` immediately** — it can't be retrieved later.
-- **Secrets belong on the Blueprint only** — Agent Identities can't have password credentials (`PropertyNotCompatibleWithAgentIdentity`).
-- **Not for production** — use MI + WIF.
-- **Respect org credential-lifetime policy** when setting `endDateTime`.
-- Don't use `DefaultAzureCredential` to acquire Blueprint tokens — Azure CLI tokens carry `Directory.AccessAsUser.All` and are rejected. Use `ClientSecretCredential` or the raw HTTP exchange.
+- **Save `secretText` immediately** — it cannot be retrieved after creation.
+- **Secrets belong on the Blueprint only** — agent identities cannot have password credentials (`PropertyNotCompatibleWithAgentIdentity`).
+- **NOT for production** — use Managed Identity + WIF in production.
+- **Respect org policy** — if `endDateTime` exceeds your tenant's credential lifetime policy, reduce it.
+- **Use `ClientSecretCredential`**, not `DefaultAzureCredential`. Azure CLI tokens contain `Directory.AccessAsUser.All` which is rejected by Agent ID APIs.
