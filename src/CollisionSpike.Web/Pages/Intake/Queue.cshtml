@@ -31,7 +31,7 @@
             {
                 <a asp-page="/Intake/Review" asp-route-id="@item.Id">
                     <span><strong>@item.SourceFileName</strong><small>@item.ReceivedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</small></span>
-                    <span><strong>@(item.CaseReference ?? ReviewModel.DecisionLabel(item.Decision))</strong><small>@item.FailureReason</small></span>
+                    <span><strong>@ReviewModel.DecisionLabel(item.Decision)</strong><small>@item.FailureReason</small></span>
                 </a>
             }
         </div>

@@ -8,11 +8,19 @@ public sealed class DependencyDirectionTests
 {
     private static readonly string[] ForbiddenCoreDependencyPrefixes =
     [
-        "Azure.",
-        "Box.",
-        "Microsoft.AspNetCore.",
+        "Microsoft.AspNetCore",
         "Microsoft.EntityFrameworkCore",
-        "Microsoft.Graph"
+        "Azure",
+        "Microsoft.Graph",
+        "Box",
+        "MimeKit",
+        "UglyToad.PdfPig",
+        "Microsoft.Data.SqlClient",
+        "Microsoft.Data.Sqlite",
+        "System.Net.Http",
+        "CollisionSpike.Infrastructure",
+        "CollisionSpike.Web",
+        "CollisionSpike.Worker"
     ];
 
     [Fact]
@@ -25,11 +33,63 @@ public sealed class DependencyDirectionTests
 
     [Theory]
     [InlineData("Azure.Storage.Blobs", true)]
+    [InlineData("Microsoft.AspNetCore", true)]
+    [InlineData("Microsoft.AspNetCore.Mvc", true)]
     [InlineData("Microsoft.EntityFrameworkCore", true)]
+    [InlineData("Microsoft.Graph", true)]
+    [InlineData("Box.V2", true)]
+    [InlineData("MimeKit", true)]
+    [InlineData("UglyToad.PdfPig", true)]
+    [InlineData("Microsoft.Data.SqlClient", true)]
+    [InlineData("Microsoft.Data.Sqlite", true)]
+    [InlineData("System.Net.Http", true)]
+    [InlineData("CollisionSpike.Infrastructure", true)]
+    [InlineData("CollisionSpike.Web", true)]
+    [InlineData("CollisionSpike.Worker", true)]
+    [InlineData("Azureish.Storage", false)]
+    [InlineData("Microsoft.AspNetCorey", false)]
+    [InlineData("Microsoft.EntityFrameworkCoreExtensions", false)]
+    [InlineData("Microsoft.Graphical", false)]
+    [InlineData("Boxed", false)]
+    [InlineData("MimeKitten", false)]
+    [InlineData("UglyToad.PdfPigment", false)]
+    [InlineData("Microsoft.Data.SqlClientFactory", false)]
+    [InlineData("Microsoft.Data.SqlitePCL", false)]
+    [InlineData("System.Net.Httpish", false)]
     [InlineData("System.Collections", false)]
     public void CoreDependencyGuardDetectsForbiddenAndAllowedExamples(string assemblyName, bool expected)
     {
         Assert.Equal(expected, IsForbiddenCoreDependency(assemblyName));
+    }
+
+    [Fact]
+    public void CoreProjectHasNoForbiddenDirectDependencies()
+    {
+        var root = FindRepositoryRoot();
+        var document = XDocument.Load(Path.Combine(root, "src/CollisionSpike.Core/CollisionSpike.Core.csproj"));
+
+        Assert.Empty(ForbiddenDirectDependencies(document));
+    }
+
+    [Fact]
+    public void CoreDirectDependencyGuardDetectsForbiddenAndAllowedFixtures()
+    {
+        var document = XDocument.Parse(
+            """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <ItemGroup>
+                <PackageReference Include="Azure.Storage.Blobs" Version="1.0.0" />
+                <PackageReference Update="MimeKit" Version="1.0.0" />
+                <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="1.0.0" />
+                <FrameworkReference Include="Microsoft.AspNetCore.App" />
+                <Reference Include="System.Net.Http" />
+              </ItemGroup>
+            </Project>
+            """);
+
+        Assert.Equal(
+            ["Azure.Storage.Blobs", "Microsoft.AspNetCore.App", "MimeKit", "System.Net.Http"],
+            ForbiddenDirectDependencies(document));
     }
 
     [Fact]
@@ -50,7 +110,22 @@ public sealed class DependencyDirectionTests
     }
 
     private static bool IsForbiddenCoreDependency(string assemblyName) =>
-        ForbiddenCoreDependencyPrefixes.Any(prefix => assemblyName.StartsWith(prefix, StringComparison.Ordinal));
+        ForbiddenCoreDependencyPrefixes.Any(prefix =>
+            assemblyName.Equals(prefix, StringComparison.Ordinal) ||
+            assemblyName.StartsWith($"{prefix}.", StringComparison.Ordinal));
+
+    private static string[] ForbiddenDirectDependencies(XDocument document) =>
+        document
+            .Descendants()
+            .Where(element => element.Name.LocalName is
+                "PackageReference" or "FrameworkReference" or "Reference")
+            .Select(element =>
+                (string?)element.Attribute("Include") ??
+                (string?)element.Attribute("Update") ??
+                $"(unnamed {element.Name.LocalName})")
+            .Where(IsForbiddenCoreDependency)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
 
     private static string[] ProjectReferences(string root, string relativeProjectPath)
     {

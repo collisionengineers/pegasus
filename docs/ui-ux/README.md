@@ -14,7 +14,7 @@ The raster mockups were generated with the built-in image generation path and in
 
 1. Start users on the operations cockpit.
 2. Open `Needs sorting` into the three-column intake workbench.
-3. Create for review only after the operator confirms extracted suggestions and completeness separately for instructions and images.
+3. Give staff three explicit outcomes after reviewing extracted suggestions: block intake with a reason and create no case; accept an incomplete case into `Not ready`; or accept a complete case into `Review` after separately judging instructions and images complete. The configurable completeness gate controls later Engineer assignment, not case creation.
 4. Open an accepted reference in the case workspace.
 5. Keep audit history, reopened state, related audit references, Box folder, due date, and chaser visible without turning the screen into an all-at-once form.
 

@@ -33,8 +33,9 @@ The choice is deliberately narrow:
 
 - the package stays in `CollisionSpike.Infrastructure`;
 - Core receives an engine-neutral page/text result and never references PdfPig;
-- insufficient embedded text is an explicit `OCR required` outcome rather than
-  guessed content;
+- insufficient embedded text becomes `OCR required` only when the page also has
+  a dominant raster image; other low-text pages stay in manual review rather
+  than producing guessed content;
 - raw documents remain authoritative;
 - the adapter records its engine and version;
 - a later engine can replace it without changing QDOS field rules.
@@ -52,11 +53,13 @@ slice. It does not prove every extracted field against a human-approved expected
 value, scanned-document OCR accuracy, future QDOS layouts, Linux publication, or
 production acceptance.
 
-The manual upload path is development-only and does not retain the original
-uploaded bytes. It must not be enabled in a deployed environment until
-authenticated intake and approved durable source custody are implemented. Local
-SQLite concurrency evidence also does not establish the Azure SQL locking
-behaviour required for production reference allocation.
+The manual upload path is development-only and now retains the original and
+extracted assets in ignored local content-addressed storage. That is not
+production Blob staging, Box custody, backup, or retention. The route must not be
+enabled in a deployed environment until authenticated intake and approved
+durable source custody are implemented. Local SQLite concurrency evidence also
+does not establish the Azure SQL locking behaviour required for production
+reference allocation.
 
 Before production rollout, rerun the same adapter contract against a frozen,
 human-reviewed field-expectation cohort and an untouched holdout. Reopen this ADR
@@ -65,8 +68,9 @@ if another engine materially reduces silent field errors or unreadable outcomes.
 ## Consequences
 
 - The first actual Web caller can process genuine embedded-text QDOS PDFs now.
-- Twelve observed documents remain explicit OCR candidates; no cloud OCR call is
-  introduced by this decision.
+- Twelve observed documents had insufficient embedded text in the original
+  benchmark. ADR-0005 now requires page-level dominant-raster evidence before
+  any of them becomes an OCR candidate; no cloud OCR call is introduced here.
 - The application adds one PDF dependency rather than carrying the losing
   benchmark candidates.
 - Engine replacement remains an Infrastructure concern rather than a second

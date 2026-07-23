@@ -1,6 +1,6 @@
 # ADR-0002: .NET modular monolith on Azure App Service
 
-- Status: Accepted
+- Status: Accepted; provider API and MCP authentication boundary superseded by ADR-0004
 - Date: 2026-07-23
 - Owners: Alex and the CollisionSpike v2 development team
 
@@ -22,6 +22,10 @@ This decision selects the application stack, code boundaries, Azure runtime,
 data stores, integration patterns, deployment model, and initial cost envelope.
 PDF extraction remains governed by
 [ADR-0001](ADR-0001-hybrid-pdf-extraction.md).
+
+The runtime, project, data, and Azure decisions in this ADR remain accepted.
+[ADR-0004](ADR-0004-provider-api-and-staff-mcp-authentication.md) supersedes
+only the combined provider API/MCP client and authentication model shown here.
 
 ## Decision summary
 
@@ -74,7 +78,8 @@ be delivered cleanly with server-rendered pages and small client-side modules.
 ```mermaid
 flowchart LR
     Staff[Collision Engineers staff] -->|HTTPS and local app account| Web[ASP.NET Core web app<br/>Azure App Service]
-    Provider[Provider API or MCP client] -->|Scoped machine credential| Web
+    Provider[Provider API client] -->|Principal-scoped machine credential| Web
+    StaffMcp[Staff MCP client] -->|Per-staff OAuth token| Web
 
     Web --> Core[Shared application core]
     Worker[.NET isolated Functions worker] --> Core
@@ -215,8 +220,10 @@ The file path is:
 1. Receive the raw email MIME content, attachment, or manual upload into a private
    transient Blob container and calculate its content hash.
 2. Record its source, hash, processing status, and idempotency key in SQL.
-3. Extract embedded content or invoke OCR according to ADR-0001. Azure Document
-   Intelligence Read may also process supported images for the VRM OCR path.
+3. Extract embedded content or invoke OCR according to ADR-0001. ADR-0005 and
+   the later settled questionnaire supersede the earlier VRM-image wording:
+   Document Intelligence is limited to persisted scan-like PDF page candidates;
+   ordinary images and automated VRM OCR/VLM remain deferred.
 4. Run deterministic provider extraction and validation in Core.
 5. Create or locate the correct Box case folder and upload the original content.
 6. Record the Box file ID, version ID, hash, and folder association in SQL.
@@ -255,12 +262,13 @@ are not used for staff sign-in.
   the UI.
 - Application role/configuration changes are permanently audited.
 
-Provider APIs and MCP do not accept a staff username/password or staff cookie.
-They use separately issued principal-scoped client IDs and opaque secrets. Only a
-hash of each secret is stored, the clear value is displayed once, and credentials
-can be rotated or revoked. Each API or MCP operation passes through the same Core
-authorization and audit boundary as the staff UI. A later standards-based OAuth
-provider can replace this mechanism without changing business use cases.
+Provider APIs do not accept a staff username/password or staff cookie. They use
+separately issued principal-scoped client IDs and opaque secrets. Only a hash of
+each secret is stored, the clear value is displayed once, and credentials can be
+rotated or revoked. Internal staff MCP uses per-staff OAuth tokens and the staff
+member's current application role. Each provider API or MCP operation passes
+through the same Core authorization and audit boundary as the staff UI. ADR-0004
+defines the current contract and supersedes the earlier combined credential model.
 
 ## Secrets and Azure identities
 
@@ -490,8 +498,10 @@ Deferred by explicit product decision. Neither is provisioned for the first MVP.
   be upgraded to B1 if those limits obstruct testing.
 - Polling has up to approximately one minute of intentional ingestion latency.
 - Automated malware scanning is a known deferred security control.
-- Provider API and MCP credentials are application-managed and therefore require
-  careful issuance, hashing, rotation, revocation, rate limiting, and audit.
+- Provider API credentials require careful issuance, hashing, rotation,
+  revocation, rate limiting, and principal audit attribution.
+- Staff MCP OAuth clients and tokens require revocation, expiry, per-user role
+  enforcement, rate limiting, and audit attribution as defined by ADR-0004.
 
 ## Required follow-up
 

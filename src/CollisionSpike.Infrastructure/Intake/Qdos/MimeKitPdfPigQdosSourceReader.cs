@@ -1,143 +1,559 @@
 using System.Net;
+using System.IO.Compression;
 using System.Text.RegularExpressions;
 using CollisionSpike.Core.Intake.Qdos;
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Wordprocessing;
 using MimeKit;
 using UglyToad.PdfPig;
+using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.Core;
-using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
 using UglyToad.PdfPig.Exceptions;
+using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
 
 namespace CollisionSpike.Infrastructure.Intake.Qdos;
 
 internal sealed partial class MimeKitPdfPigQdosSourceReader : IQdosIntakeSourceReader
 {
     private const int MinimumReadablePdfCharacters = 80;
+    private const double ScannedPageImageCoverage = 0.8;
+    private const int MaximumNestedEmailDepth = 8;
+    private const int MaximumMimeEntities = 128;
+    private const long MaximumDecodedMimeBytes = 25L * 1024 * 1024;
+    private const int MaximumDocxPackageEntries = 512;
+    private const long MaximumDocxUncompressedBytes = 50L * 1024 * 1024;
+    private const long MaximumDocxXmlPartBytes = 10L * 1024 * 1024;
+    private const long MaximumDocxImageBytes = 25L * 1024 * 1024;
+    private const int MaximumDocxRelatedParts = 512;
 
     public async Task<IntakeSourceReadResult> ReadAsync(
         QdosIntakeSource source,
         CancellationToken cancellationToken)
     {
-        var extension = Path.GetExtension(source.FileName);
-        if (extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase))
-        {
-            return ReadPdf(source);
-        }
-
-        if (extension.Equals(".eml", StringComparison.OrdinalIgnoreCase))
-        {
-            return await ReadEmailAsync(source, cancellationToken);
-        }
-
-        return new(
-            IntakeSourceReadStatus.Unsupported,
-            [],
+        var result = new ReadAccumulator(
             [
                 new(QdosEvidenceSource.FileName, source.FileName),
                 new(QdosEvidenceSource.MimeType, source.MediaType)
-            ],
-            [],
-            false,
-            "unsupported_file_type",
-            "Only .eml and .pdf sources are supported by this intake path.");
-    }
+            ]);
 
-    private static IntakeSourceReadResult ReadPdf(QdosIntakeSource source)
-    {
-        var transport = new IntakeTransportEvidence[]
-        {
-            new(QdosEvidenceSource.FileName, source.FileName),
-            new(QdosEvidenceSource.MimeType, source.MediaType)
-        };
+        var outcome = await DispatchAsync(
+            source.Content,
+            source.FileName,
+            source.MediaType,
+            SourceLabel(source.FileName),
+            result,
+            cancellationToken,
+            isRoot: true);
 
-        var result = ExtractPdf(source.Content, "uploaded PDF");
-        if (!result.Opened)
+        return outcome switch
         {
-            return new(
+            ReadOutcome.Unsupported => result.ToResult(
                 IntakeSourceReadStatus.Unsupported,
-                [],
-                transport,
-                [],
-                false,
-                "unreadable_pdf",
-                "The PDF is corrupt, encrypted, or otherwise unreadable.");
-        }
-
-        var issues = new List<IntakeSourceIssue>
-        {
-            new("pdf-engine", "Embedded PDF text was read with PdfPig 0.1.15.", QdosEvidenceSource.PdfContent)
+                result.FailureCode ?? "unsupported_file_type",
+                result.FailureReason ?? "This file type is not supported by this intake path."),
+            ReadOutcome.TechnicalFailure => result.ToResult(
+                IntakeSourceReadStatus.TechnicalFailure,
+                result.FailureCode ?? "source_read_failure",
+                result.FailureReason ?? "The source could not be read because of a technical failure."),
+            _ => result.ToResult(IntakeSourceReadStatus.Readable)
         };
-        if (result.RequiresOcr)
-        {
-            issues.Add(new(
-                "insufficient-embedded-text",
-                "The PDF does not contain enough embedded text for a reliable decision.",
-                QdosEvidenceSource.PdfContent));
-        }
-
-        return new(
-            IntakeSourceReadStatus.Readable,
-            result.Pages
-                .Where(page => page.Text is not null)
-                .Select(page => new IntakeContentFragment(
-                    QdosEvidenceSource.PdfContent,
-                    $"uploaded PDF, page {page.Number}",
-                    page.Text!))
-                .ToArray(),
-            transport,
-            issues,
-            result.RequiresOcr);
     }
 
-    private static async Task<IntakeSourceReadResult> ReadEmailAsync(
-        QdosIntakeSource source,
+    private static async Task<ReadOutcome> DispatchAsync(
+        ReadOnlyMemory<byte> bytes,
+        string fileName,
+        string mediaType,
+        string sourceLabel,
+        ReadAccumulator result,
+        CancellationToken cancellationToken,
+        bool isRoot = false)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var format = DetectFormat(fileName, mediaType);
+        switch (format)
+        {
+            case SourceFormat.Pdf:
+                return ReadPdf(bytes, sourceLabel, result, isRoot);
+            case SourceFormat.Email:
+                return await ReadEmailAsync(bytes, sourceLabel, result, isRoot, cancellationToken);
+            case SourceFormat.Docx:
+                return ReadDocx(bytes, sourceLabel, result, isRoot);
+            case SourceFormat.Image:
+                if (isRoot)
+                {
+                    result.Issues.Add(new(
+                        "image-review-required",
+                        "The image is retained for operator review; ordinary images are not sent to OCR.",
+                        QdosEvidenceSource.ImageContent));
+                }
+
+                return ReadOutcome.Readable;
+            case SourceFormat.Deferred:
+                result.Issues.Add(new(
+                    "deferred_file_type",
+                    $"{Path.GetExtension(fileName).ToLowerInvariant()} extraction is deferred; the file is retained for operator review.",
+                    QdosEvidenceSource.DocumentContent));
+                return ReadOutcome.Readable;
+            default:
+                if (isRoot)
+                {
+                    result.FailureCode = "unsupported_file_type";
+                    result.FailureReason = "Supported sources are .eml, .pdf, .docx, .jpg, .jpeg, .png, with .doc and .msg retained for manual sorting.";
+                    return ReadOutcome.Unsupported;
+                }
+
+                return ReadOutcome.Readable;
+        }
+    }
+
+    private static ReadOutcome ReadPdf(
+        ReadOnlyMemory<byte> bytes,
+        string sourceLabel,
+        ReadAccumulator result,
+        bool isRoot)
+    {
+        PdfResult pdf;
+        try
+        {
+            pdf = ExtractPdf(bytes, sourceLabel, result);
+        }
+        catch (Exception exception) when (
+            exception is PdfDocumentFormatException
+                or PdfDocumentStackDepthException
+                or PdfDocumentEncryptedException)
+        {
+            if (isRoot)
+            {
+                result.FailureCode = "unreadable_pdf";
+                result.FailureReason = "The PDF is corrupt, encrypted, or otherwise unreadable.";
+                return ReadOutcome.Unsupported;
+            }
+
+            result.Issues.Add(new(
+                "unreadable-pdf-attachment",
+                $"{sourceLabel} is corrupt, encrypted, or otherwise unreadable.",
+                QdosEvidenceSource.PdfContent));
+            return ReadOutcome.Readable;
+        }
+
+        result.Issues.Add(new(
+            "pdf-engine",
+            $"{sourceLabel} embedded text and discrete images were read with PdfPig 0.1.15.",
+            QdosEvidenceSource.PdfContent));
+
+        foreach (var page in pdf.Pages)
+        {
+            if (!string.IsNullOrWhiteSpace(page.Text))
+            {
+                result.Content.Add(new(
+                    QdosEvidenceSource.PdfContent,
+                    $"{sourceLabel}, page {page.Number}",
+                    page.Text));
+            }
+
+            if (page.RequiresOcr)
+            {
+                result.OcrCandidates.Add(new(sourceLabel, page.Number));
+                result.Issues.Add(new(
+                    "scanned-pdf-page",
+                    $"{sourceLabel}, page {page.Number} has little embedded text and a dominant raster image, so only that page requires OCR.",
+                    QdosEvidenceSource.PdfContent));
+            }
+            else if (page.HasInsufficientText)
+            {
+                result.Issues.Add(new(
+                    "insufficient-embedded-text",
+                    $"{sourceLabel}, page {page.Number} has little embedded text but is not an image-led scanned page; it requires operator review, not OCR.",
+                    QdosEvidenceSource.PdfContent));
+            }
+        }
+
+        return ReadOutcome.Readable;
+    }
+
+    private static PdfResult ExtractPdf(
+        ReadOnlyMemory<byte> bytes,
+        string sourceLabel,
+        ReadAccumulator result)
+    {
+        using var document = PdfDocument.Open(bytes.ToArray());
+        var pages = new List<PdfPageResult>();
+        foreach (var page in document.GetPages())
+        {
+            var text = ContentOrderTextExtractor.GetText(page);
+            var readableCharacters = text.Count(character => !char.IsWhiteSpace(character));
+            IPdfImage[] images;
+            try
+            {
+                images = page.GetImages().ToArray();
+            }
+            catch (Exception)
+            {
+                images = [];
+                result.Issues.Add(new(
+                    "pdf-image-read-failure",
+                    $"{sourceLabel}, page {page.Number} contains an image stream that PdfPig could not enumerate.",
+                    QdosEvidenceSource.ImageContent));
+            }
+
+            var hasDominantRaster = images.Any(image => Coverage(image, page) >= ScannedPageImageCoverage);
+            var hasInsufficientText = readableCharacters < MinimumReadablePdfCharacters;
+
+            var imageNumber = 0;
+            foreach (var image in images)
+            {
+                imageNumber++;
+                var extracted = false;
+                ReadOnlyMemory<byte> imageBytes = default;
+                var mediaType = string.Empty;
+                var extension = string.Empty;
+                try
+                {
+                    extracted = TryReadPdfImage(image, out imageBytes, out mediaType, out extension);
+                }
+                catch (Exception)
+                {
+                    // Keep processing the page. The issue below makes the missing image explicit.
+                }
+
+                if (!extracted)
+                {
+                    result.Issues.Add(new(
+                        "pdf-image-decode-failure",
+                        $"{sourceLabel}, page {page.Number}, image {imageNumber} could not be converted to a reviewable image stream.",
+                        QdosEvidenceSource.ImageContent));
+                    continue;
+                }
+
+                result.Assets.Add(new(
+                    $"{sourceLabel}, page {page.Number}, image {imageNumber}",
+                    $"page-{page.Number}-image-{imageNumber}{extension}",
+                    mediaType,
+                    imageBytes,
+                    IntakeAssetKind.EmbeddedImage,
+                    IntakeAssetDisposition.Embedded,
+                    page.Number,
+                    new(
+                        image.BoundingBox.Left,
+                        image.BoundingBox.Bottom,
+                        image.BoundingBox.Right,
+                        image.BoundingBox.Top),
+                    image.WidthInSamples,
+                    image.HeightInSamples));
+            }
+
+            pages.Add(new(
+                page.Number,
+                readableCharacters == 0 ? null : text,
+                hasInsufficientText,
+                hasInsufficientText && hasDominantRaster));
+        }
+
+        return new(pages);
+    }
+
+    private static double Coverage(IPdfImage image, Page page)
+    {
+        var visiblePage = page.CropBox.Bounds;
+        var pageArea = Math.Abs(visiblePage.Width * visiblePage.Height);
+        if (pageArea <= 0)
+        {
+            return 0;
+        }
+
+        var left = Math.Max(image.BoundingBox.Left, visiblePage.Left);
+        var right = Math.Min(image.BoundingBox.Right, visiblePage.Right);
+        var bottom = Math.Max(image.BoundingBox.Bottom, visiblePage.Bottom);
+        var top = Math.Min(image.BoundingBox.Top, visiblePage.Top);
+        var imageArea = Math.Max(0, right - left) * Math.Max(0, top - bottom);
+        return imageArea / pageArea;
+    }
+
+    private static bool TryReadPdfImage(
+        IPdfImage image,
+        out ReadOnlyMemory<byte> bytes,
+        out string mediaType,
+        out string extension)
+    {
+        var raw = image.RawBytes.ToArray();
+        if (raw.Length >= 2 && raw[0] == 0xff && raw[1] == 0xd8)
+        {
+            bytes = raw;
+            mediaType = "image/jpeg";
+            extension = ".jpg";
+            return true;
+        }
+
+        if (image.TryGetPng(out var png))
+        {
+            bytes = png;
+            mediaType = "image/png";
+            extension = ".png";
+            return true;
+        }
+
+        bytes = ReadOnlyMemory<byte>.Empty;
+        mediaType = string.Empty;
+        extension = string.Empty;
+        return false;
+    }
+
+    private static ReadOutcome ReadDocx(
+        ReadOnlyMemory<byte> bytes,
+        string sourceLabel,
+        ReadAccumulator result,
+        bool isRoot)
+    {
+        try
+        {
+            using var stream = new MemoryStream(bytes.ToArray(), writable: false);
+            ValidateDocxPackage(stream);
+            using var document = WordprocessingDocument.Open(
+                stream,
+                false,
+                new OpenSettings
+                {
+                    AutoSave = false,
+                    MaxCharactersInPart = MaximumDocxXmlPartBytes
+                });
+            var mainPart = document.MainDocumentPart;
+            if (mainPart?.Document is null)
+            {
+                throw new FileFormatException("The DOCX does not contain a main document part.");
+            }
+
+            var textRoots = new List<DocumentFormat.OpenXml.OpenXmlElement> { mainPart.Document };
+            textRoots.AddRange(mainPart.HeaderParts.Where(part => part.Header is not null).Select(part => part.Header!));
+            textRoots.AddRange(mainPart.FooterParts.Where(part => part.Footer is not null).Select(part => part.Footer!));
+            if (mainPart.FootnotesPart?.Footnotes is not null)
+            {
+                textRoots.Add(mainPart.FootnotesPart.Footnotes);
+            }
+
+            if (mainPart.EndnotesPart?.Endnotes is not null)
+            {
+                textRoots.Add(mainPart.EndnotesPart.Endnotes);
+            }
+
+            var text = string.Join(
+                Environment.NewLine,
+                textRoots
+                    .SelectMany(root => root
+                        .Descendants<Paragraph>()
+                        .Select(paragraph => string.Concat(paragraph.Descendants<Text>().Select(item => item.Text))))
+                    .Where(value => !string.IsNullOrWhiteSpace(value)));
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                result.Content.Add(new(QdosEvidenceSource.DocumentContent, sourceLabel, text));
+            }
+
+            var imageNumber = 0;
+            long totalImageBytes = 0;
+            foreach (var imagePart in EnumerateImageParts(mainPart))
+            {
+                imageNumber++;
+                using var imageStream = imagePart.GetStream(FileMode.Open, FileAccess.Read);
+                if (imageStream.CanSeek
+                    && imageStream.Length > MaximumDocxImageBytes - totalImageBytes)
+                {
+                    throw new DocxLimitExceededException();
+                }
+
+                using var imageBytes = new MemoryStream();
+                imageStream.CopyTo(imageBytes);
+                totalImageBytes += imageBytes.Length;
+                if (totalImageBytes > MaximumDocxImageBytes)
+                {
+                    throw new DocxLimitExceededException();
+                }
+
+                var fileName = Path.GetFileName(imagePart.Uri.OriginalString);
+                result.Assets.Add(new(
+                    $"{sourceLabel}, embedded image {imageNumber}",
+                    string.IsNullOrWhiteSpace(fileName) ? $"embedded-image-{imageNumber}" : fileName,
+                    imagePart.ContentType,
+                    imageBytes.ToArray(),
+                    IntakeAssetKind.EmbeddedImage,
+                    IntakeAssetDisposition.Embedded));
+            }
+
+            result.Issues.Add(new(
+                "openxml-engine",
+                $"{sourceLabel} text and internal images were read with Open XML SDK 3.5.1; external relationships were not fetched.",
+                QdosEvidenceSource.DocumentContent));
+            return ReadOutcome.Readable;
+        }
+        catch (DocxLimitExceededException)
+        {
+            if (isRoot)
+            {
+                result.FailureCode = "docx_limit_exceeded";
+                result.FailureReason = "The DOCX exceeds the safe package, part, or extracted-image processing limits.";
+                return ReadOutcome.Unsupported;
+            }
+
+            result.IsIncomplete = true;
+            result.Issues.Add(new(
+                "intake_limit_exceeded",
+                $"{sourceLabel} exceeds the safe DOCX package, part, or extracted-image processing limits.",
+                QdosEvidenceSource.DocumentContent));
+            return ReadOutcome.Readable;
+        }
+        catch (Exception exception) when (
+            exception is FileFormatException
+                or DocumentFormat.OpenXml.Packaging.OpenXmlPackageException
+                or InvalidDataException)
+        {
+            if (isRoot)
+            {
+                result.FailureCode = "unreadable_docx";
+                result.FailureReason = "The DOCX is corrupt or otherwise unreadable.";
+                return ReadOutcome.Unsupported;
+            }
+
+            result.Issues.Add(new(
+                "unreadable-docx-attachment",
+                $"{sourceLabel} is corrupt or otherwise unreadable.",
+                QdosEvidenceSource.DocumentContent));
+            return ReadOutcome.Readable;
+        }
+    }
+
+    private static void ValidateDocxPackage(MemoryStream stream)
+    {
+        try
+        {
+            using var archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: true);
+            if (archive.Entries.Count > MaximumDocxPackageEntries)
+            {
+                throw new DocxLimitExceededException();
+            }
+
+            long totalUncompressedBytes = 0;
+            foreach (var entry in archive.Entries)
+            {
+                if (entry.Length > MaximumDocxUncompressedBytes - totalUncompressedBytes)
+                {
+                    throw new DocxLimitExceededException();
+                }
+
+                totalUncompressedBytes += entry.Length;
+                if ((entry.FullName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)
+                     || entry.FullName.EndsWith(".rels", StringComparison.OrdinalIgnoreCase))
+                    && entry.Length > MaximumDocxXmlPartBytes)
+                {
+                    throw new DocxLimitExceededException();
+                }
+            }
+        }
+        finally
+        {
+            stream.Position = 0;
+        }
+    }
+
+    private static List<ImagePart> EnumerateImageParts(OpenXmlPartContainer container)
+    {
+        var images = new List<ImagePart>();
+        var pending = new Stack<OpenXmlPart>(container.Parts.Select(relationship => relationship.OpenXmlPart));
+        var visited = new HashSet<Uri>();
+
+        while (pending.TryPop(out var part))
+        {
+            if (!visited.Add(part.Uri))
+            {
+                continue;
+            }
+
+            if (visited.Count > MaximumDocxRelatedParts)
+            {
+                throw new DocxLimitExceededException();
+            }
+
+            if (part is ImagePart imagePart)
+            {
+                images.Add(imagePart);
+            }
+
+            foreach (var relationship in part.Parts)
+            {
+                pending.Push(relationship.OpenXmlPart);
+            }
+        }
+
+        return images;
+    }
+
+    private static async Task<ReadOutcome> ReadEmailAsync(
+        ReadOnlyMemory<byte> bytes,
+        string sourceLabel,
+        ReadAccumulator result,
+        bool isRoot,
         CancellationToken cancellationToken)
     {
         MimeMessage message;
         try
         {
-            await using var stream = new MemoryStream(source.Content.ToArray(), writable: false);
+            await using var stream = new MemoryStream(bytes.ToArray(), writable: false);
             message = await MimeMessage.LoadAsync(stream, cancellationToken);
         }
         catch (Exception exception) when (exception is FormatException or ParseException)
         {
-            return new(
-                IntakeSourceReadStatus.Unsupported,
-                [],
-                [new(QdosEvidenceSource.FileName, source.FileName)],
-                [],
-                false,
-                "unreadable_email",
-                "The email file is corrupt or is not a valid MIME message.");
+            if (isRoot)
+            {
+                result.FailureCode = "unreadable_email";
+                result.FailureReason = "The email file is corrupt or is not a valid MIME message.";
+                return ReadOutcome.Unsupported;
+            }
+
+            result.Issues.Add(new(
+                "unreadable-email-attachment",
+                $"{sourceLabel} is corrupt or is not a valid MIME message.",
+                QdosEvidenceSource.EmailBody));
+            return ReadOutcome.Readable;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            return new(
-                IntakeSourceReadStatus.TechnicalFailure,
-                [],
-                [new(QdosEvidenceSource.FileName, source.FileName)],
-                [],
-                false,
-                "email_read_failure",
-                "The email could not be read because of a technical failure.");
+            if (isRoot)
+            {
+                result.FailureCode = "email_read_failure";
+                result.FailureReason = "The email could not be read because of a technical failure.";
+                return ReadOutcome.TechnicalFailure;
+            }
+
+            result.Issues.Add(new(
+                "email-attachment-read-failure",
+                $"{sourceLabel} could not be read because of a technical failure.",
+                QdosEvidenceSource.EmailBody));
+            return ReadOutcome.Readable;
         }
 
-        var content = new List<IntakeContentFragment>();
-        var issues = new List<IntakeSourceIssue>();
-        var transport = new List<IntakeTransportEvidence>
-        {
-            new(QdosEvidenceSource.FileName, source.FileName),
-            new(QdosEvidenceSource.MimeType, source.MediaType)
-        };
+        var limits = result.MimeLimits ??= new MimeLimitState();
+        await ReadMessageAsync(message, sourceLabel, result, limits, 0, addTransport: isRoot, cancellationToken);
+        return ReadOutcome.Readable;
+    }
 
-        var sender = message.From.Mailboxes.FirstOrDefault()?.Address;
-        if (!string.IsNullOrWhiteSpace(sender))
+    private static async Task ReadMessageAsync(
+        MimeMessage message,
+        string sourceLabel,
+        ReadAccumulator result,
+        MimeLimitState limits,
+        int nestedDepth,
+        bool addTransport,
+        CancellationToken cancellationToken)
+    {
+        if (addTransport)
         {
-            transport.Add(new(QdosEvidenceSource.Sender, sender));
-        }
+            var sender = message.From.Mailboxes.FirstOrDefault()?.Address;
+            if (!string.IsNullOrWhiteSpace(sender))
+            {
+                result.Transport.Add(new(QdosEvidenceSource.Sender, sender));
+            }
 
-        if (!string.IsNullOrWhiteSpace(message.Subject))
-        {
-            transport.Add(new(QdosEvidenceSource.Subject, message.Subject));
+            if (!string.IsNullOrWhiteSpace(message.Subject))
+            {
+                result.Transport.Add(new(QdosEvidenceSource.Subject, message.Subject));
+            }
         }
 
         var body = message.TextBody;
@@ -148,121 +564,356 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader : IQdosIntakeSourceR
 
         if (!string.IsNullOrWhiteSpace(body))
         {
-            content.Add(new(QdosEvidenceSource.EmailBody, "email body", body));
+            result.Content.Add(new(QdosEvidenceSource.EmailBody, $"{sourceLabel}, email body", body));
         }
 
-        var requiresOcr = false;
-        var pdfNumber = 0;
-        foreach (var part in message.BodyParts.OfType<MimePart>())
+        if (message.Body is not null)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var fileName = part.FileName ?? string.Empty;
-            var isPdf = part.ContentType.MimeType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase)
-                || Path.GetExtension(fileName).Equals(".pdf", StringComparison.OrdinalIgnoreCase);
-            if (!isPdf)
+            await ReadMimeEntityAsync(
+                message.Body,
+                sourceLabel,
+                result,
+                limits,
+                nestedDepth,
+                cancellationToken);
+        }
+    }
+
+    private static async Task ReadMimeEntityAsync(
+        MimeEntity entity,
+        string sourceLabel,
+        ReadAccumulator result,
+        MimeLimitState limits,
+        int nestedDepth,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        limits.EntityCount++;
+        if (limits.EntityCount > MaximumMimeEntities)
+        {
+            limits.AddExceededIssueOnce(result, "The email contains more than 128 MIME entities; remaining parts were retained only where already decoded.");
+            return;
+        }
+
+        if (entity is Multipart multipart)
+        {
+            foreach (var child in multipart)
             {
-                continue;
+                await ReadMimeEntityAsync(child, sourceLabel, result, limits, nestedDepth, cancellationToken);
+                if (limits.EntityCount > MaximumMimeEntities || limits.DecodedBytes > MaximumDecodedMimeBytes)
+                {
+                    break;
+                }
             }
 
-            pdfNumber++;
-            if (part.Content is null)
+            return;
+        }
+
+        if (entity is MessagePart messagePart)
+        {
+            if (nestedDepth >= MaximumNestedEmailDepth)
             {
-                issues.Add(new(
-                    "pdf-attachment-read-failure",
-                    $"PDF attachment {pdfNumber} has no readable content.",
-                    QdosEvidenceSource.PdfContent));
-                continue;
+                limits.AddExceededIssueOnce(result, "The email nesting depth exceeds 8; deeper attached messages were not opened.");
+                return;
             }
 
-            await using var attachment = new MemoryStream();
+            if (messagePart.Message is null)
+            {
+                result.Issues.Add(new(
+                    "unreadable-email-attachment",
+                    $"{sourceLabel} contains an attached email with no readable message body.",
+                    QdosEvidenceSource.EmailBody));
+                return;
+            }
+
+            await using var nestedBytes = new MemoryStream();
+            await messagePart.Message.WriteToAsync(nestedBytes, cancellationToken);
+            var nestedPayload = nestedBytes.ToArray();
+            if (!limits.TryAddBytes(nestedPayload.Length, result))
+            {
+                return;
+            }
+
+            var nestedNumber = ++limits.NestedMessageCount;
+            var nestedLabel = $"{sourceLabel}, attached email {nestedNumber}";
+            var nestedFileName = messagePart.ContentDisposition?.FileName
+                ?? messagePart.ContentType.Name
+                ?? $"attached-email-{nestedNumber}.eml";
+            result.Assets.Add(new(
+                nestedLabel,
+                nestedFileName,
+                "message/rfc822",
+                nestedPayload,
+                IntakeAssetKind.Attachment,
+                IntakeAssetDisposition.Attachment));
             try
             {
-                await part.Content.DecodeToAsync(attachment, cancellationToken);
+                await ReadMessageAsync(
+                    messagePart.Message,
+                    nestedLabel,
+                    result,
+                    limits,
+                    nestedDepth + 1,
+                    addTransport: false,
+                    cancellationToken);
             }
-            catch (Exception exception) when (exception is FormatException or ParseException)
+            catch (Exception exception) when (exception is not OperationCanceledException)
             {
-                issues.Add(new(
-                    "pdf-attachment-read-failure",
-                    $"PDF attachment {pdfNumber} could not be decoded.",
-                    QdosEvidenceSource.PdfContent));
-                continue;
+                result.IsIncomplete = true;
+                result.Issues.Add(new(
+                    "attachment-processing-failure",
+                    $"{nestedLabel} could not be completely processed and requires manual sorting.",
+                    QdosEvidenceSource.EmailBody));
             }
-
-            var label = $"PDF attachment {pdfNumber}";
-            var pdf = ExtractPdf(attachment.ToArray(), label);
-            if (!pdf.Opened)
-            {
-                issues.Add(new(
-                    "unreadable-pdf-attachment",
-                    $"{label} is corrupt, encrypted, or otherwise unreadable.",
-                    QdosEvidenceSource.PdfContent));
-                continue;
-            }
-
-            issues.Add(new(
-                "pdf-engine",
-                $"{label} embedded text was read with PdfPig 0.1.15.",
-                QdosEvidenceSource.PdfContent));
-            requiresOcr |= pdf.RequiresOcr;
-            if (pdf.RequiresOcr)
-            {
-                issues.Add(new(
-                    "insufficient-embedded-text",
-                    $"{label} does not contain enough embedded text for a reliable decision.",
-                    QdosEvidenceSource.PdfContent));
-            }
-
-            foreach (var page in pdf.Pages.Where(page => page.Text is not null))
-            {
-                content.Add(new(
-                    QdosEvidenceSource.PdfContent,
-                    $"{label}, page {page.Number}",
-                    page.Text!));
-            }
+            return;
         }
 
-        return new(
-            IntakeSourceReadStatus.Readable,
-            content,
-            transport,
-            issues,
-            requiresOcr);
-    }
+        if (entity is not MimePart part || entity is TextPart)
+        {
+            return;
+        }
 
-    private static PdfResult ExtractPdf(ReadOnlyMemory<byte> bytes, string sourceLabel)
-    {
+        var fileName = part.FileName ?? InferFileName(part, limits);
+        var format = DetectFormat(fileName, part.ContentType.MimeType);
+        var isInlineImage = format == SourceFormat.Image
+            && (part.ContentDisposition?.Disposition.Equals("inline", StringComparison.OrdinalIgnoreCase) == true
+                || !string.IsNullOrWhiteSpace(part.ContentId));
+        var shouldRetain = format is SourceFormat.Pdf
+            or SourceFormat.Email
+            or SourceFormat.Docx
+            or SourceFormat.Image
+            or SourceFormat.Deferred;
+        if (!shouldRetain || part.Content is null)
+        {
+            return;
+        }
+
+        await using var decoded = new MemoryStream();
         try
         {
-            using var document = PdfDocument.Open(bytes.ToArray());
-            var pages = document.GetPages()
-                .Select(page =>
-                {
-                    var text = ContentOrderTextExtractor.GetText(page);
-                    var readableCharacters = text.Count(character => !char.IsWhiteSpace(character));
-                    return new PdfPageResult(
-                        page.Number,
-                        readableCharacters == 0 ? null : text,
-                        readableCharacters < MinimumReadablePdfCharacters);
-                })
-                .ToArray();
-            return new(true, pages, pages.Any(page => page.RequiresOcr));
+            await part.Content.DecodeToAsync(decoded, cancellationToken);
         }
-        catch (Exception exception) when (
-            exception is PdfDocumentFormatException
-                or PdfDocumentStackDepthException
-                or PdfDocumentEncryptedException)
+        catch (Exception exception) when (exception is FormatException or ParseException)
         {
-            return new(false, [], false);
+            result.Issues.Add(new(
+                "attachment-decode-failure",
+                $"{sourceLabel}, attachment {fileName} could not be decoded.",
+                QdosEvidenceSource.FileName));
+            return;
+        }
+
+        var payload = decoded.ToArray();
+        if (!limits.TryAddBytes(payload.Length, result))
+        {
+            return;
+        }
+
+        var attachmentNumber = ++limits.AttachmentCount;
+        var attachmentLabel = $"{sourceLabel}, attachment {attachmentNumber}: {fileName}";
+        result.Assets.Add(new(
+            attachmentLabel,
+            fileName,
+            format == SourceFormat.Image
+                ? NormalizeImageMediaType(fileName, part.ContentType.MimeType)
+                : part.ContentType.MimeType,
+            payload,
+            isInlineImage ? IntakeAssetKind.InlineImage : IntakeAssetKind.Attachment,
+            isInlineImage ? IntakeAssetDisposition.Inline : IntakeAssetDisposition.Attachment));
+
+        try
+        {
+            await DispatchAsync(
+                payload,
+                fileName,
+                part.ContentType.MimeType,
+                attachmentLabel,
+                result,
+                cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            result.IsIncomplete = true;
+            result.Issues.Add(new(
+                "attachment-processing-failure",
+                $"{attachmentLabel} could not be completely processed and requires manual sorting.",
+                QdosEvidenceSource.FileName));
         }
     }
+
+    private static string InferFileName(MimePart part, MimeLimitState limits)
+    {
+        var extension = part.ContentType.MimeType.ToLowerInvariant() switch
+        {
+            "application/pdf" => ".pdf",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => ".docx",
+            "message/rfc822" => ".eml",
+            "image/jpeg" => ".jpg",
+            "image/png" => ".png",
+            "application/msword" => ".doc",
+            "application/vnd.ms-outlook" => ".msg",
+            _ => string.Empty
+        };
+        return $"unnamed-part-{limits.EntityCount}{extension}";
+    }
+
+    private static SourceFormat DetectFormat(string fileName, string mediaType)
+    {
+        var extension = Path.GetExtension(fileName);
+        if (extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase)
+            || mediaType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            return SourceFormat.Pdf;
+        }
+
+        if (extension.Equals(".eml", StringComparison.OrdinalIgnoreCase)
+            || mediaType.Equals("message/rfc822", StringComparison.OrdinalIgnoreCase))
+        {
+            return SourceFormat.Email;
+        }
+
+        if (extension.Equals(".docx", StringComparison.OrdinalIgnoreCase)
+            || mediaType.Equals("application/vnd.openxmlformats-officedocument.wordprocessingml.document", StringComparison.OrdinalIgnoreCase))
+        {
+            return SourceFormat.Docx;
+        }
+
+        if (extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".png", StringComparison.OrdinalIgnoreCase)
+            || mediaType.Equals("image/jpeg", StringComparison.OrdinalIgnoreCase)
+            || mediaType.Equals("image/png", StringComparison.OrdinalIgnoreCase))
+        {
+            return SourceFormat.Image;
+        }
+
+        if (extension.Equals(".doc", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".msg", StringComparison.OrdinalIgnoreCase)
+            || mediaType.Equals("application/msword", StringComparison.OrdinalIgnoreCase)
+            || mediaType.Equals("application/vnd.ms-outlook", StringComparison.OrdinalIgnoreCase))
+        {
+            return SourceFormat.Deferred;
+        }
+
+        return SourceFormat.Unsupported;
+    }
+
+    private static string NormalizeImageMediaType(string fileName, string mediaType)
+    {
+        if (mediaType.Equals("image/jpeg", StringComparison.OrdinalIgnoreCase)
+            || Path.GetExtension(fileName).Equals(".jpg", StringComparison.OrdinalIgnoreCase)
+            || Path.GetExtension(fileName).Equals(".jpeg", StringComparison.OrdinalIgnoreCase))
+        {
+            return "image/jpeg";
+        }
+
+        return "image/png";
+    }
+
+    private static string SourceLabel(string fileName) => $"uploaded {Path.GetFileName(fileName)}";
 
     [GeneratedRegex("<[^>]+>", RegexOptions.CultureInvariant)]
     private static partial Regex HtmlTagRegex();
 
-    private sealed record PdfResult(
-        bool Opened,
-        IReadOnlyList<PdfPageResult> Pages,
+    private enum SourceFormat
+    {
+        Unsupported,
+        Pdf,
+        Email,
+        Docx,
+        Image,
+        Deferred
+    }
+
+    private enum ReadOutcome
+    {
+        Readable,
+        Unsupported,
+        TechnicalFailure
+    }
+
+    private sealed class ReadAccumulator(IReadOnlyList<IntakeTransportEvidence> transport)
+    {
+        public List<IntakeContentFragment> Content { get; } = [];
+
+        public List<IntakeTransportEvidence> Transport { get; } = [.. transport];
+
+        public List<IntakeSourceIssue> Issues { get; } = [];
+
+        public List<IntakeAssetCandidate> Assets { get; } = [];
+
+        public List<ScannedPdfOcrCandidate> OcrCandidates { get; } = [];
+
+        public MimeLimitState? MimeLimits { get; set; }
+
+        public string? FailureCode { get; set; }
+
+        public string? FailureReason { get; set; }
+
+        public bool IsIncomplete { get; set; }
+
+        public IntakeSourceReadResult ToResult(
+            IntakeSourceReadStatus status,
+            string? failureCode = null,
+            string? failureReason = null) => new(
+                status,
+                Content,
+                Transport,
+                Issues,
+                OcrCandidates.Count > 0,
+                failureCode,
+                failureReason,
+                Assets,
+                OcrCandidates,
+                IsIncomplete);
+    }
+
+    private sealed class MimeLimitState
+    {
+        private bool limitIssueAdded;
+
+        public int EntityCount { get; set; }
+
+        public long DecodedBytes { get; private set; }
+
+        public int AttachmentCount { get; set; }
+
+        public int NestedMessageCount { get; set; }
+
+        public bool TryAddBytes(long count, ReadAccumulator result)
+        {
+            if (DecodedBytes + count > MaximumDecodedMimeBytes)
+            {
+                DecodedBytes = MaximumDecodedMimeBytes + 1;
+                AddExceededIssueOnce(result, "Decoded email attachments exceed 25 MB; remaining parts were not opened.");
+                return false;
+            }
+
+            DecodedBytes += count;
+            return true;
+        }
+
+        public void AddExceededIssueOnce(ReadAccumulator result, string reason)
+        {
+            result.IsIncomplete = true;
+            if (limitIssueAdded)
+            {
+                return;
+            }
+
+            limitIssueAdded = true;
+            result.Issues.Add(new("intake_limit_exceeded", reason, QdosEvidenceSource.FileName));
+        }
+    }
+
+    private sealed record PdfResult(IReadOnlyList<PdfPageResult> Pages);
+
+    private sealed record PdfPageResult(
+        int Number,
+        string? Text,
+        bool HasInsufficientText,
         bool RequiresOcr);
 
-    private sealed record PdfPageResult(int Number, string? Text, bool RequiresOcr);
+    private sealed class DocxLimitExceededException : Exception
+    {
+    }
 }
