@@ -13,6 +13,8 @@ public enum QdosEvidenceSource
 {
     EmailBody,
     PdfContent,
+    DocumentContent,
+    ImageContent,
     Sender,
     Subject,
     FileName,
@@ -43,13 +45,30 @@ public enum IntakeSourceReadStatus
     TechnicalFailure
 }
 
+public enum IntakeSourceChannel
+{
+    ManualUpload
+}
+
+public sealed record IntakeSourceIdentity(
+    IntakeSourceChannel Channel,
+    string ExternalReceiptToken);
+
+public sealed class IntakeSourceIdentityConflictException : Exception
+{
+    public IntakeSourceIdentityConflictException()
+        : base("The source identity is already associated with different content.")
+    {
+    }
+}
+
 public sealed record QdosIntakeSource(
     string FileName,
     string MediaType,
     ReadOnlyMemory<byte> Content,
     DateTimeOffset ReceivedAtUtc,
     string Actor,
-    bool CaseCreationAuthorized);
+    IntakeSourceIdentity SourceIdentity);
 
 public sealed record IntakeContentFragment(
     QdosEvidenceSource Source,
@@ -65,6 +84,44 @@ public sealed record IntakeSourceIssue(
     string Reason,
     QdosEvidenceSource Source);
 
+public enum IntakeAssetKind
+{
+    Source,
+    Attachment,
+    InlineImage,
+    EmbeddedImage
+}
+
+public enum IntakeAssetDisposition
+{
+    Source,
+    Attachment,
+    Inline,
+    Embedded
+}
+
+public sealed record IntakeAssetBounds(
+    double Left,
+    double Bottom,
+    double Right,
+    double Top);
+
+public sealed record IntakeAssetCandidate(
+    string SourceLabel,
+    string FileName,
+    string MediaType,
+    ReadOnlyMemory<byte> Content,
+    IntakeAssetKind Kind,
+    IntakeAssetDisposition Disposition,
+    int? PageNumber = null,
+    IntakeAssetBounds? Bounds = null,
+    int? WidthPixels = null,
+    int? HeightPixels = null);
+
+public sealed record ScannedPdfOcrCandidate(
+    string SourceLabel,
+    int PageNumber);
+
 public sealed record IntakeSourceReadResult(
     IntakeSourceReadStatus Status,
     IReadOnlyList<IntakeContentFragment> Content,
@@ -72,7 +129,30 @@ public sealed record IntakeSourceReadResult(
     IReadOnlyList<IntakeSourceIssue> Issues,
     bool RequiresOcr,
     string? FailureCode = null,
-    string? FailureReason = null);
+    string? FailureReason = null,
+    IReadOnlyList<IntakeAssetCandidate>? Assets = null,
+    IReadOnlyList<ScannedPdfOcrCandidate>? OcrCandidates = null,
+    bool IsIncomplete = false)
+{
+    public IReadOnlyList<IntakeAssetCandidate> AssetCandidates => Assets ?? [];
+
+    public IReadOnlyList<ScannedPdfOcrCandidate> ScannedPdfPages => OcrCandidates ?? [];
+}
+
+public sealed record IntakeAssetRecord(
+    Guid Id,
+    string SourceLabel,
+    string FileName,
+    string MediaType,
+    IntakeAssetKind Kind,
+    IntakeAssetDisposition Disposition,
+    long ContentLength,
+    string ContentHash,
+    string StorageKey,
+    int? PageNumber,
+    IntakeAssetBounds? Bounds,
+    int? WidthPixels,
+    int? HeightPixels);
 
 public sealed record QdosEvidence(
     QdosEvidenceSource Source,
@@ -93,41 +173,68 @@ public sealed record QdosReviewField(
     bool IsDefaulted,
     bool HasConflict);
 
+public sealed record QdosTypedDraft(
+    string PrincipalCode,
+    string? ClaimantName,
+    string? ClaimNumber,
+    string? VehicleRegistration,
+    string? VehicleMake,
+    string? VehicleModel,
+    long? VehicleMileage,
+    string? AccidentCircumstances,
+    DateOnly? DateOfIncident,
+    DateOnly? InstructionDate,
+    string? InspectionAddress);
+
 public sealed record QdosIntakeRecord(
     Guid Id,
     string SourceFileName,
     string MediaType,
     long SourceLength,
     string SourceHash,
+    IntakeSourceIdentity SourceIdentity,
     DateTimeOffset ReceivedAtUtc,
     QdosIntakeDecision Decision,
     string DecisionReason,
     IReadOnlyList<QdosEvidence> Evidence,
     IReadOnlyList<QdosReviewField> Fields,
+    QdosTypedDraft? TypedDraft,
     IReadOnlyList<string> MissingFields,
-    Guid? CaseId,
-    string? CaseReference,
     string? FailureCode,
     string? FailureReason,
-    bool IsDuplicate);
+    bool IsDuplicate,
+    IReadOnlyList<IntakeAssetRecord>? Assets = null,
+    IReadOnlyList<ScannedPdfOcrCandidate>? OcrCandidates = null)
+{
+    public IReadOnlyList<IntakeAssetRecord> AssetRecords => Assets ?? [];
+
+    public IReadOnlyList<ScannedPdfOcrCandidate> ScannedPdfPages => OcrCandidates ?? [];
+}
 
 public sealed record QdosIntakeDraft(
     string SourceFileName,
     string MediaType,
     long SourceLength,
     string SourceHash,
+    IntakeSourceIdentity SourceIdentity,
     DateTimeOffset ReceivedAtUtc,
     DateTimeOffset ProcessedAtUtc,
-    int ReferenceYear,
     string Actor,
-    bool CaseCreationAuthorized,
     QdosIntakeDecision Decision,
     string DecisionReason,
     IReadOnlyList<QdosEvidence> Evidence,
     IReadOnlyList<QdosReviewField> Fields,
+    QdosTypedDraft? TypedDraft,
     IReadOnlyList<string> MissingFields,
     string? FailureCode,
-    string? FailureReason);
+    string? FailureReason,
+    IReadOnlyList<IntakeAssetRecord>? Assets = null,
+    IReadOnlyList<ScannedPdfOcrCandidate>? OcrCandidates = null)
+{
+    public IReadOnlyList<IntakeAssetRecord> AssetRecords => Assets ?? [];
+
+    public IReadOnlyList<ScannedPdfOcrCandidate> ScannedPdfPages => OcrCandidates ?? [];
+}
 
 public sealed record QdosQueueCounts(int Review, int NeedsSorting);
 
@@ -136,7 +243,6 @@ public sealed record QdosIntakeSummary(
     string SourceFileName,
     DateTimeOffset ReceivedAtUtc,
     QdosIntakeDecision Decision,
-    string? CaseReference,
     string? FailureReason);
 
 public interface IQdosIntakeSourceReader
@@ -144,8 +250,29 @@ public interface IQdosIntakeSourceReader
     Task<IntakeSourceReadResult> ReadAsync(QdosIntakeSource source, CancellationToken cancellationToken);
 }
 
+public interface IIntakeArtifactStore
+{
+    Task<string> StoreAsync(
+        string contentHash,
+        ReadOnlyMemory<byte> content,
+        CancellationToken cancellationToken);
+
+    Task<ReadOnlyMemory<byte>?> ReadAsync(
+        string storageKey,
+        CancellationToken cancellationToken);
+}
+
+public sealed class IntakeArtifactIntegrityException()
+    : Exception("The retained intake artifact failed integrity validation.")
+{
+}
+
 public interface IQdosIntakeStore
 {
+    Task<QdosIntakeRecord?> FindBySourceIdentityAsync(
+        IntakeSourceIdentity sourceIdentity,
+        CancellationToken cancellationToken);
+
     Task<QdosIntakeRecord> StoreAsync(QdosIntakeDraft draft, CancellationToken cancellationToken);
 }
 
@@ -158,12 +285,9 @@ public interface IQdosIntakeQueries
         CancellationToken cancellationToken);
 
     Task<QdosIntakeRecord?> GetAsync(Guid id, CancellationToken cancellationToken);
-}
 
-public sealed class CaseReferenceSequenceExhaustedException(string principalCode, int year)
-    : Exception($"The {principalCode} reference sequence for {year} has reached 999.")
-{
-    public string PrincipalCode { get; } = principalCode;
-
-    public int Year { get; } = year;
+    Task<IntakeAssetRecord?> GetAssetAsync(
+        Guid receiptId,
+        Guid assetId,
+        CancellationToken cancellationToken);
 }

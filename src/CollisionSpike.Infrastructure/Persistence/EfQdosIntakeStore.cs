@@ -11,16 +11,7 @@ namespace CollisionSpike.Infrastructure.Persistence;
 internal sealed class EfQdosIntakeStore(IDbContextFactory<CollisionSpikeDbContext> contextFactory)
     : IQdosIntakeStore, IQdosIntakeQueries
 {
-    private const string PrincipalCode = "QDOS";
     private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
-    private static readonly string[] ActionableDecisionNames =
-    [
-        nameof(QdosIntakeDecision.NeedsSorting),
-        nameof(QdosIntakeDecision.OcrRequired),
-        nameof(QdosIntakeDecision.Unsupported),
-        nameof(QdosIntakeDecision.TechnicalFailure)
-    ];
-
     public async Task<QdosIntakeRecord> StoreAsync(
         QdosIntakeDraft draft,
         CancellationToken cancellationToken)
@@ -33,13 +24,15 @@ internal sealed class EfQdosIntakeStore(IDbContextFactory<CollisionSpikeDbContex
             }
             catch (Exception exception) when (
                 attempt < 3
-                && exception is not CaseReferenceSequenceExhaustedException
                 && IsRetryableConcurrencyFailure(exception))
             {
-                var duplicate = await FindByHashAsync(draft.SourceHash, true, cancellationToken);
+                var duplicate = await FindBySourceIdentityAsync(
+                    draft.SourceIdentity,
+                    cancellationToken);
                 if (duplicate is not null)
                 {
-                    return duplicate;
+                    EnsureMatchingContent(duplicate, draft.SourceHash);
+                    return duplicate with { IsDuplicate = true };
                 }
 
                 await Task.Delay(TimeSpan.FromMilliseconds(25 * attempt), cancellationToken);
@@ -56,7 +49,7 @@ internal sealed class EfQdosIntakeStore(IDbContextFactory<CollisionSpikeDbContex
             item => item.Decision == nameof(QdosIntakeDecision.ConfirmedQdos),
             cancellationToken);
         var needsSorting = await context.QdosIntakeReceipts.CountAsync(
-            item => ActionableDecisionNames.Contains(item.Decision),
+            item => item.Decision == nameof(QdosIntakeDecision.NeedsSorting),
             cancellationToken);
         return new(review, needsSorting);
     }
@@ -69,7 +62,8 @@ internal sealed class EfQdosIntakeStore(IDbContextFactory<CollisionSpikeDbContex
         var query = context.QdosIntakeReceipts.AsNoTracking();
         if (decision == QdosIntakeDecision.NeedsSorting)
         {
-            query = query.Where(item => ActionableDecisionNames.Contains(item.Decision));
+            var decisionName = decision.Value.ToString();
+            query = query.Where(item => item.Decision == decisionName);
         }
         else if (decision is not null)
         {
@@ -78,7 +72,6 @@ internal sealed class EfQdosIntakeStore(IDbContextFactory<CollisionSpikeDbContex
         }
 
         var entities = await query
-            .Include(item => item.Case)
             .ToListAsync(cancellationToken);
         return entities
             .OrderByDescending(item => item.ReceivedAtUtc)
@@ -88,7 +81,6 @@ internal sealed class EfQdosIntakeStore(IDbContextFactory<CollisionSpikeDbContex
                 item.SourceFileName,
                 item.ReceivedAtUtc,
                 Enum.Parse<QdosIntakeDecision>(item.Decision),
-                item.Case?.CaseReference,
                 item.FailureReason))
             .ToArray();
     }
@@ -98,9 +90,40 @@ internal sealed class EfQdosIntakeStore(IDbContextFactory<CollisionSpikeDbContex
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await context.QdosIntakeReceipts
             .AsNoTracking()
-            .Include(item => item.Case)
+            .Include(item => item.Assets)
+            .Include(item => item.TypedDraft)
             .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
         return entity is null ? null : Map(entity, false);
+    }
+
+    public async Task<QdosIntakeRecord?> FindBySourceIdentityAsync(
+        IntakeSourceIdentity sourceIdentity,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.QdosIntakeReceipts
+            .AsNoTracking()
+            .Include(item => item.Assets)
+            .Include(item => item.TypedDraft)
+            .SingleOrDefaultAsync(
+                item => item.SourceChannel == sourceIdentity.Channel.ToString()
+                    && item.ExternalReceiptToken == sourceIdentity.ExternalReceiptToken,
+                cancellationToken);
+        return entity is null ? null : Map(entity, false);
+    }
+
+    public async Task<IntakeAssetRecord?> GetAssetAsync(
+        Guid receiptId,
+        Guid assetId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.QdosIntakeAssets
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                item => item.IntakeReceiptId == receiptId && item.Id == assetId,
+                cancellationToken);
+        return entity is null ? null : MapAsset(entity);
     }
 
     private async Task<QdosIntakeRecord> StoreOnceAsync(
@@ -112,48 +135,33 @@ internal sealed class EfQdosIntakeStore(IDbContextFactory<CollisionSpikeDbContex
             IsolationLevel.Serializable,
             cancellationToken);
 
-        var existing = await context.QdosIntakeReceipts
+        var existingQuery = context.QdosIntakeReceipts
             .AsNoTracking()
-            .Include(item => item.Case)
-            .SingleOrDefaultAsync(item => item.SourceHash == draft.SourceHash, cancellationToken);
-        if (existing is not null)
+            .Include(item => item.Assets)
+            .Include(item => item.TypedDraft);
+        if (context.Database.IsSqlServer())
         {
-            return Map(existing, true);
+            existingQuery = context.QdosIntakeReceipts
+                .FromSqlInterpolated($"""
+                    SELECT *
+                    FROM [QdosIntakeReceipts] WITH (UPDLOCK, HOLDLOCK)
+                    WHERE [SourceChannel] = {draft.SourceIdentity.Channel.ToString()}
+                      AND [ExternalReceiptToken] = {draft.SourceIdentity.ExternalReceiptToken}
+                """)
+                .AsNoTracking()
+                .Include(item => item.Assets)
+                .Include(item => item.TypedDraft);
         }
 
-        CaseEntity? qdosCase = null;
-        if (draft.Decision == QdosIntakeDecision.ConfirmedQdos
-            && draft.CaseCreationAuthorized)
-        {
-            var year = draft.ReferenceYear;
-            var counter = await context.PrincipalYearCounters.SingleOrDefaultAsync(
-                item => item.PrincipalCode == PrincipalCode && item.Year == year,
+        var existing = await existingQuery
+            .SingleOrDefaultAsync(
+                item => item.SourceChannel == draft.SourceIdentity.Channel.ToString()
+                    && item.ExternalReceiptToken == draft.SourceIdentity.ExternalReceiptToken,
                 cancellationToken);
-            if (counter is null)
-            {
-                counter = new()
-                {
-                    PrincipalCode = PrincipalCode,
-                    Year = year,
-                    CurrentSequence = 0
-                };
-                context.PrincipalYearCounters.Add(counter);
-            }
-
-            if (counter.CurrentSequence >= 999)
-            {
-                throw new CaseReferenceSequenceExhaustedException(PrincipalCode, year);
-            }
-
-            counter.CurrentSequence++;
-            qdosCase = new()
-            {
-                Id = Guid.NewGuid(),
-                PrincipalCode = PrincipalCode,
-                CaseReference = $"{PrincipalCode}{year % 100:00}{counter.CurrentSequence:000}",
-                CreatedAtUtc = draft.ProcessedAtUtc
-            };
-            context.Cases.Add(qdosCase);
+        if (existing is not null)
+        {
+            EnsureMatchingContent(existing.SourceHash, draft.SourceHash);
+            return Map(existing, true);
         }
 
         var receipt = new QdosIntakeReceiptEntity
@@ -163,30 +171,67 @@ internal sealed class EfQdosIntakeStore(IDbContextFactory<CollisionSpikeDbContex
             MediaType = draft.MediaType,
             SourceLength = draft.SourceLength,
             SourceHash = draft.SourceHash,
+            SourceChannel = draft.SourceIdentity.Channel.ToString(),
+            ExternalReceiptToken = draft.SourceIdentity.ExternalReceiptToken,
             ReceivedAtUtc = draft.ReceivedAtUtc,
             Decision = draft.Decision.ToString(),
             DecisionReason = draft.DecisionReason,
             EvidenceJson = JsonSerializer.Serialize(draft.Evidence, JsonOptions),
             FieldsJson = JsonSerializer.Serialize(draft.Fields, JsonOptions),
+            OcrCandidatesJson = JsonSerializer.Serialize(draft.ScannedPdfPages, JsonOptions),
             FailureCode = draft.FailureCode,
-            FailureReason = draft.FailureReason,
-            CaseId = qdosCase?.Id,
-            Case = qdosCase
+            FailureReason = draft.FailureReason
         };
+        if (draft.TypedDraft is not null)
+        {
+            receipt.TypedDraft = new()
+            {
+                IntakeReceiptId = receipt.Id,
+                IntakeReceipt = receipt,
+                PrincipalCode = draft.TypedDraft.PrincipalCode,
+                ClaimantName = draft.TypedDraft.ClaimantName,
+                ClaimNumber = draft.TypedDraft.ClaimNumber,
+                VehicleRegistration = draft.TypedDraft.VehicleRegistration,
+                VehicleMake = draft.TypedDraft.VehicleMake,
+                VehicleModel = draft.TypedDraft.VehicleModel,
+                VehicleMileage = draft.TypedDraft.VehicleMileage,
+                AccidentCircumstances = draft.TypedDraft.AccidentCircumstances,
+                DateOfIncident = draft.TypedDraft.DateOfIncident,
+                InstructionDate = draft.TypedDraft.InstructionDate,
+                InspectionAddress = draft.TypedDraft.InspectionAddress
+            };
+        }
+        receipt.Assets.AddRange(draft.AssetRecords.Select(asset => new QdosIntakeAssetEntity
+        {
+            Id = asset.Id,
+            IntakeReceiptId = receipt.Id,
+            IntakeReceipt = receipt,
+            SourceLabel = asset.SourceLabel,
+            FileName = asset.FileName,
+            MediaType = asset.MediaType,
+            Kind = asset.Kind.ToString(),
+            Disposition = asset.Disposition.ToString(),
+            ContentLength = asset.ContentLength,
+            ContentHash = asset.ContentHash,
+            StorageKey = asset.StorageKey,
+            PageNumber = asset.PageNumber,
+            BoundsJson = asset.Bounds is null ? null : JsonSerializer.Serialize(asset.Bounds, JsonOptions),
+            WidthPixels = asset.WidthPixels,
+            HeightPixels = asset.HeightPixels
+        }));
         context.QdosIntakeReceipts.Add(receipt);
         context.AuditEvents.Add(new()
         {
             Id = Guid.NewGuid(),
             IntakeReceiptId = receipt.Id,
-            CaseId = qdosCase?.Id,
             EventType = "QdosIntakeReceived",
             Actor = draft.Actor,
             OccurredAtUtc = draft.ProcessedAtUtc,
             DetailsJson = JsonSerializer.Serialize(new
             {
                 decision = draft.Decision.ToString(),
-                caseReference = qdosCase?.CaseReference,
-                caseCreationAuthorized = draft.CaseCreationAuthorized,
+                sourceChannel = draft.SourceIdentity.Channel.ToString(),
+                externalReceiptToken = draft.SourceIdentity.ExternalReceiptToken,
                 sourceHash = draft.SourceHash
             }, JsonOptions)
         });
@@ -196,17 +241,15 @@ internal sealed class EfQdosIntakeStore(IDbContextFactory<CollisionSpikeDbContex
         return Map(receipt, false);
     }
 
-    private async Task<QdosIntakeRecord?> FindByHashAsync(
-        string sourceHash,
-        bool isDuplicate,
-        CancellationToken cancellationToken)
+    private static void EnsureMatchingContent(QdosIntakeRecord existing, string sourceHash) =>
+        EnsureMatchingContent(existing.SourceHash, sourceHash);
+
+    private static void EnsureMatchingContent(string existingSourceHash, string sourceHash)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.QdosIntakeReceipts
-            .AsNoTracking()
-            .Include(item => item.Case)
-            .SingleOrDefaultAsync(item => item.SourceHash == sourceHash, cancellationToken);
-        return entity is null ? null : Map(entity, isDuplicate);
+        if (!string.Equals(existingSourceHash, sourceHash, StringComparison.Ordinal))
+        {
+            throw new IntakeSourceIdentityConflictException();
+        }
     }
 
     private static QdosIntakeRecord Map(QdosIntakeReceiptEntity entity, bool isDuplicate)
@@ -223,18 +266,57 @@ internal sealed class EfQdosIntakeStore(IDbContextFactory<CollisionSpikeDbContex
             entity.MediaType,
             entity.SourceLength,
             entity.SourceHash,
+            new(
+                Enum.Parse<IntakeSourceChannel>(entity.SourceChannel),
+                entity.ExternalReceiptToken),
             entity.ReceivedAtUtc,
             Enum.Parse<QdosIntakeDecision>(entity.Decision),
             entity.DecisionReason,
             JsonSerializer.Deserialize<IReadOnlyList<QdosEvidence>>(entity.EvidenceJson, JsonOptions) ?? [],
             fields,
+            entity.TypedDraft is null ? null : MapTypedDraft(entity.TypedDraft),
             missingFields,
-            entity.CaseId,
-            entity.Case?.CaseReference,
             entity.FailureCode,
             entity.FailureReason,
-            isDuplicate);
+            isDuplicate,
+            entity.Assets
+                .OrderBy(asset => asset.Id)
+                .Select(MapAsset)
+                .ToArray(),
+            JsonSerializer.Deserialize<IReadOnlyList<ScannedPdfOcrCandidate>>(
+                entity.OcrCandidatesJson,
+                JsonOptions) ?? []);
     }
+
+    private static QdosTypedDraft MapTypedDraft(QdosTypedDraftEntity entity) => new(
+        entity.PrincipalCode,
+        entity.ClaimantName,
+        entity.ClaimNumber,
+        entity.VehicleRegistration,
+        entity.VehicleMake,
+        entity.VehicleModel,
+        entity.VehicleMileage,
+        entity.AccidentCircumstances,
+        entity.DateOfIncident,
+        entity.InstructionDate,
+        entity.InspectionAddress);
+
+    private static IntakeAssetRecord MapAsset(QdosIntakeAssetEntity entity) => new(
+        entity.Id,
+        entity.SourceLabel,
+        entity.FileName,
+        entity.MediaType,
+        Enum.Parse<IntakeAssetKind>(entity.Kind),
+        Enum.Parse<IntakeAssetDisposition>(entity.Disposition),
+        entity.ContentLength,
+        entity.ContentHash,
+        entity.StorageKey,
+        entity.PageNumber,
+        entity.BoundsJson is null
+            ? null
+            : JsonSerializer.Deserialize<IntakeAssetBounds>(entity.BoundsJson, JsonOptions),
+        entity.WidthPixels,
+        entity.HeightPixels);
 
     private static bool IsRetryableConcurrencyFailure(Exception exception) => exception switch
     {

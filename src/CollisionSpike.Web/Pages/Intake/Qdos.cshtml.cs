@@ -12,28 +12,36 @@ public sealed class QdosModel(ProcessQdosIntake processQdosIntake, TimeProvider 
     public IFormFile? Upload { get; set; }
 
     [BindProperty]
-    public bool CaseCreationAuthorized { get; set; }
+    public string ExternalReceiptToken { get; set; } = string.Empty;
+
+    public void OnGet()
+    {
+        ExternalReceiptToken = CreateExternalReceiptToken();
+    }
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
-        if (!CaseCreationAuthorized)
+        if (string.IsNullOrWhiteSpace(ExternalReceiptToken))
         {
-            ModelState.AddModelError(
-                nameof(CaseCreationAuthorized),
-                "Confirm that this is a new QDOS instruction and that you are authorised to create its case and reference.");
+            ExternalReceiptToken = CreateExternalReceiptToken();
+        }
+        else if (!Guid.TryParseExact(ExternalReceiptToken, "N", out _))
+        {
+            ModelState.AddModelError(string.Empty, "The upload receipt is invalid. Refresh the page and try again.");
         }
 
         if (Upload is null)
         {
-            ModelState.AddModelError(nameof(Upload), "Choose an email or PDF to upload.");
+            ModelState.AddModelError(nameof(Upload), "Choose an email, document, PDF or image to upload.");
             return Page();
         }
 
         var extension = Path.GetExtension(Upload.FileName);
-        if (!extension.Equals(".eml", StringComparison.OrdinalIgnoreCase)
-            && !extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase))
+        if (!SupportedExtensions.Contains(extension))
         {
-            ModelState.AddModelError(nameof(Upload), "Choose an .eml or .pdf file.");
+            ModelState.AddModelError(
+                nameof(Upload),
+                "Choose an .eml, .pdf, .docx, .doc, .msg, .jpg, .jpeg or .png file.");
         }
 
         if (Upload.Length == 0)
@@ -62,10 +70,17 @@ public sealed class QdosModel(ProcessQdosIntake processQdosIntake, TimeProvider 
                     memory.ToArray(),
                     timeProvider.GetUtcNow(),
                     "Web manual upload",
-                    CaseCreationAuthorized),
+                    new(IntakeSourceChannel.ManualUpload, ExternalReceiptToken)),
                 cancellationToken);
 
             return RedirectToPage("/Intake/Review", new { id = result.Id, duplicate = result.IsDuplicate });
+        }
+        catch (IntakeSourceIdentityConflictException)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "This upload receipt was already used for different content. Refresh the page and try again.");
+            return Page();
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -73,4 +88,18 @@ public sealed class QdosModel(ProcessQdosIntake processQdosIntake, TimeProvider 
             return Page();
         }
     }
+
+    private static string CreateExternalReceiptToken() => Guid.NewGuid().ToString("N");
+
+    private static readonly HashSet<string> SupportedExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".eml",
+        ".pdf",
+        ".docx",
+        ".doc",
+        ".msg",
+        ".jpg",
+        ".jpeg",
+        ".png"
+    };
 }

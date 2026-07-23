@@ -12,7 +12,7 @@ Put incoming transport evidence, document/image evidence, and operator confirmat
 - Attachment and document preview next to evidence found.
 - Suggested values are visually distinct from confirmed values.
 - Separate instruction and image completeness decisions.
-- Hold and Create for review are explicit actions.
+- Block intake, Create incomplete, and Create for review are explicit actions. Block intake requires a reason and leaves the source in the inbox without a case/reference. Create incomplete accepts a case into `Not ready`; Create for review accepts a case into `Review` after the operator separately judges instructions and images complete. The configurable completeness gate is applied later at Engineer assignment, not at case creation.
 
 ## Change before implementation
 

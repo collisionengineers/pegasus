@@ -15,6 +15,7 @@ $requiredCommands = [ordered]@{
     'Python' = 'python'
     'Infisical CLI' = 'infisical'
     'Box CLI' = 'box'
+    'SQL Server Express LocalDB' = 'sqllocaldb'
 }
 
 $missing = @()
@@ -47,6 +48,14 @@ if (Get-Command az -ErrorAction SilentlyContinue) {
     }
 
     az bicep version | Out-Host
+}
+
+if (Get-Command sqllocaldb -ErrorAction SilentlyContinue) {
+    sqllocaldb versions | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host '[missing] SQL Server Express LocalDB runtime is unavailable.' -ForegroundColor Red
+        $missing += 'sqllocaldb-runtime'
+    }
 }
 
 if ($missing.Count -gt 0) {

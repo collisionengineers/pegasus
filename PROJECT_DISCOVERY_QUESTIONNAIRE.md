@@ -60,7 +60,7 @@ Complete this document before the application architecture and Azure deployment 
 
 **Should multi-factor authentication be mandatory?**  no
 
-**Who creates, disables, and reviews user access?**  me or anyone whos account i scope for that
+**Who creates, disables, and reviews user access?**  An Administrator may create, disable, and review staff accounts and assign their roles. Public registration is disabled.
 
 ### Proposed roles
 
@@ -68,21 +68,21 @@ Add or remove rows as needed.
 
 | Role            | What this role may view     | What this role may create or change | What this role must never access |
 | --------------- | --------------------------- | ----------------------------------- | -------------------------------- |
-| Administrator   | Anything                    | Anything                            | Nothing                          |
-| Engineer        | Cases and details           | Cases and details                   | Application settings             |
-| User            | Cases and details           | Cases and details                   | Application settings             |
+| Administrator   | All application data and settings | All case actions plus accounts, principals, and configuration | Nothing                          |
+| Engineer        | Cases, inbox items, documents, and details | All case actions and review gates | Accounts, principals, and application settings |
+| User            | Cases, inbox items, documents, and details | All case actions and review gates | Accounts, principals, and application settings |
 | External client | Nothing. This isn't a role. | Nothing                             | Everything                       |
 | Other           |                             |                                     |                                  |
 
 ## 4. The case lifecycle
 
-**What event creates a case?**  Receiving instructions, or receiving images
+**What event creates a case?**  Accepting definitive work instructions or usable image-led intake creates a case. An inbox item marked `Blocked intake` remains pre-case and consumes no reference until staff resolve and retry it.
 
 **List the case stages in order, from initial instruction to final closure:**
 
 Triage is an optional pre-case stage and does not itself create a case.
 
-1. Receiving instructions and/or images (case created)
+1. Receiving and accepting instructions and/or images (case created)
 2. Chasing missing details, images, or documents when the case is incomplete
 3. Ready to be passed or assigned to an Engineer after pre-assignment review
 4. Inspection and report preparation
@@ -94,21 +94,23 @@ A case reaches a terminal closed state through one of three outcomes:
 2. The provider cancels the case
 3. Collision Engineers rejects or refuses the case
 
-**Who is allowed to move a case between each stage?**  Anyone, but it will be mostly automatic.;
+**Who is allowed to move a case between each stage?**  Administrator, Engineer, and User roles may perform every case transition and both review gates. Only Administrators manage accounts, principals, and application configuration. Automated transitions use the same rules, and every user or automated action records its actor, timestamp, prior/new state, and reason or context.
 
 **Which stage changes require review or approval?**  Prior to being passed/assigned to an engineer (submission to EVA currently), and prior to the Engineer sending a report (as this goes to our work provider)
 
 **Can a case be reopened after closure? If so, by whom and under what conditions?**  Yes. An authorised staff user may reopen any closed case. The reopening reason must be recorded in the permanent audit history.
 
-**Can cases be merged, split, reassigned, cancelled, or deleted? Describe the rules.**  Instruction-initiated and image-initiated records may be merged automatically or manually when there is a definitive match. Authorised staff may reverse a mistaken merge, reassign a case, or cancel a case; the action and reason must be audited. Cases must never be permanently deleted and may only be archived.
+**Can cases be merged, split, reassigned, cancelled, or deleted? Describe the rules.**  Instruction-initiated and image-initiated records may be merged automatically or manually when there is a definitive match. Administrator, Engineer, and User roles may reverse a mistaken merge, reassign a case before an Engineer report is sent, or cancel a case; every action and reason is audited.
+
+For a principal correction before Collision Engineers sends its first report for the case, retain the same case, allocate the next reference for the corrected principal using the calendar year in which the correction occurs, retain the prior reference permanently as a searchable alias, and never reuse either sequence number. The application does not reconcile external records automatically. If a Box folder already uses the former reference, show its link and require a separate audited confirmation of the manual Box update. If EVA contains the former reference, require a separate audited confirmation of the manual EVA update. Block work only until every applicable confirmation is complete; never require confirmation for an artefact that does not exist. If the error is discovered after Collision Engineers sends any report for the case, keep the original principal/reference and add a permanent audit note only. Cases must never be permanently deleted and may only be archived.
 
 **Which actions must be recorded in a permanent audit history?**  any user actions or automated actions
 
 **What case, job, purchase-order, invoice, or report numbering rules must be preserved?**  Every work provider (also called a principal) has a principal code. The standard Case/PO format is `<principal-code><two-digit-current-year><three-digit-sequence>`, for example `QDOS26001`. The sequence is shared by all case types for that principal and year and increments once per case, so the next cases would be `QDOS26002`, `QDOS26003`, and so on.
 
-For an Audit of a report assessed as repairable, prefix the standard reference with `a.`, for example `a.QDOS26004`. For an Audit of a report assessed as a total loss, prefix it with `ap.`, for example `ap.QDOS26004`.
+For a standalone Audit, use the assessment in the original Engineer's report: prefix a repairable report with `a.`, for example `a.QDOS26004`, and a total-loss report with `ap.`, for example `ap.QDOS26004`. If that original report is missing or its assessment is ambiguous, do not create the case or allocate a reference; retain the source in the inbox with a blocking warning so staff can resolve and retry it.
 
-An Inspection + Audit initially uses the standard Inspection reference, such as `QDOS26001`. After the Engineer completes the Inspection report, a second Audit reference is created with `a.` or `ap.` according to the Engineer's repairable or total-loss finding. The Audit is stored in a subfolder beneath the original Inspection folder in Box.
+An Inspection + Audit initially uses the standard Inspection reference, such as `QDOS26001`. After Collision Engineers' assigned Engineer completes the Inspection report, a second Audit reference is created with `a.` or `ap.` according to that Engineer's repairable or total-loss finding. The Audit is stored in a subfolder beneath the original Inspection folder in Box.
 
 These references are entered into EVA and used as the corresponding Box folder names.
 
@@ -119,7 +121,7 @@ These references are entered into EVA and used as the corresponding Box folder n
 
 ## 5. Case information
 
-**What information is required to create a case?**  A case may be initiated by receiving work instructions or a set of vehicle images. An instruction-initiated case must retain the source email/instruction and capture the available provider, claimant, claim, vehicle, accident, instruction-date, and inspection-address details. Missing details do not prevent intake; the case remains incomplete and enters the chasing stage. For an image-initiated case, a readable vehicle registration is guaranteed and is used as its identifier until the images are matched with the related instructions. A formal Case/PO is assigned once the principal is known.
+**What information is required to create a case?**  A case may be initiated by receiving work instructions or a set of vehicle images. An instruction-initiated case must retain the source email/instruction and capture the available provider, claimant, claim, vehicle, accident, instruction-date, and inspection-address details. Missing details do not automatically prevent intake; staff decide whether the item can create an incomplete case or should remain in the manual `Blocked intake` filter. The filter requires a reason, retains the source with a warning, and allocates no case/reference until staff resolve and retry it. Missing vehicle registration and a standalone Audit without a clear original-report assessment are examples of blockers. For an image-initiated case, a readable vehicle registration is guaranteed and is used as its identifier until the images are matched with the related instructions. A formal Case/PO is assigned once the principal is known.
 
 **What people and organisations can be connected to a case?**  The work provider/principal, claimant, Collision Engineers staff and assigned Engineer, repairer/garage/bodyshop, third-party insurer, and relevant email or operational contacts.
 
@@ -129,25 +131,27 @@ These references are entered into EVA and used as the corresponding Box folder n
 
 **What financial information is required?**  The architecture must accommodate repair estimate, vehicle valuation, and invoice amount. These values and their workflows are out of scope for the first MVP but must not require a redesign when introduced later.
 
-**Which fields are mandatory, optional, calculated, or restricted?**  Cases may exist with incomplete information during intake and chasing. The backend must provide a configurable on/off completeness gate that, when enabled, prevents assignment to an Engineer until the required instruction fields are present. The gate must be changeable without a code deployment. Instruction date defaults to the current date when absent; Case/PO and audit references are calculated; inspection address may validly be `Image Based Assessment`; DVLA/DVSA and MOT-derived values are enriched or calculated when available. Financial fields planned for later are not required in the first MVP.
+**Which fields are mandatory, optional, calculated, or restricted?**  Cases may exist with incomplete information during intake and chasing. Instruction completeness and image completeness are separate staff judgements. The backend provides a configurable on/off gate that, when enabled, prevents Engineer assignment until staff have confirmed both `Instruction complete` and `Images complete`; the gate must be changeable without a code deployment. The application still shows missing and contradictory values, but the first MVP does not enforce a hard-coded universal or principal-specific field matrix. Principal identity before reference allocation and a clear original-report assessment for a standalone Audit remain separate identity rules. Instruction date defaults to the current date when absent; Case/PO and audit references are calculated; inspection address may validly be `Image Based Assessment`; DVLA/DVSA and MOT-derived values are enriched or calculated when available. Financial fields planned for later are not required in the first MVP.
 
-**Do different case types require different fields or workflows?**  Yes. The active case types are Inspection, Audit, and Inspection + Audit. Audit cases include the original Engineer's report and use the `a.` or `ap.` reference variant. Inspection + Audit begins as an Inspection and creates its Audit reference and Box subfolder after the Engineer's assessment. Diminution and Commercial must be represented in the architecture but are deferred beyond the first build.
+**Do different case types require different fields or workflows?**  Yes. The active case types are Inspection, Audit, and Inspection + Audit. A standalone Audit includes the other firm's original Engineer report and derives its `a.` or `ap.` reference from that report's repairable/total-loss assessment. Inspection + Audit begins as an Inspection and creates its Audit reference and Box subfolder after Collision Engineers' own Engineer assessment. Diminution and Commercial must be represented in the architecture but are deferred beyond the first build.
 
 **What searches and filters must users have?**  Search and filter by Case/PO, vehicle registration, claimant, claim number, provider/principal, case stage/status, assigned Engineer, received date, instruction date, and date range. Users must also be able to filter by intake origin: image-initiated or instruction-initiated. The original intake source must remain available after related records are matched or merged.
 
 **What dashboards, reports, exports, or management information are required?**  The first MVP requires a case-intake dashboard modelled on the supplied mockup. It should provide operational tiles rather than a general analytics dashboard:
 
 - Case queues: `Not ready`, `Review`, and `Held`
-- Inbox queues: `Receiving work`, `Queries`, `Other`, and `Needs sorting`
+- Inbox queues: `Receiving work`, `Queries`, `Other`, `Needs sorting`, and the manual `Blocked intake` filter
 - Today/this-week activity: `In today`, `Submitted today`, and `Cleared this week`
 - A visible last-updated time and manual refresh action
 
-Each tile shows its current count and opens the corresponding filtered work queue. The first MVP must also export the case's structured JSON together with its stored images for transfer into EVA. This is an interim integration until EVA's API becomes usable.
+`Not ready` contains incomplete cases being chased. `Review` contains complete cases awaiting a required pre-assignment or pre-report approval. `Held` is a manual case pause with a required reason; it blocks progression and recurring chasers while due dates remain visible. `Blocked intake` is pre-case and manually chosen by staff, creates no case/reference, and retains the source, reason, warning, and retry action. `Needs sorting` remains for uncertain classification or association rather than a known blocker.
+
+Each tile or filter shows its current count and opens the corresponding work view. The first MVP must also export the case's structured JSON together with its stored images for transfer into EVA. This is an interim integration until EVA's API becomes usable.
 
 
 ## 6. Documents, photographs, and evidence
 
-**What file types will be uploaded or generated?**  Inbound Outlook email and email-body content, WhatsApp content, PDF, DOC/DOCX, and vehicle images. Generated or assembled outputs include structured case JSON for EVA, downloaded image bundles, Engineer reports, and related case correspondence. Instruction emails/documents, vehicle images, and final Engineer reports are stored in the case's Box folder.
+**What file types will be uploaded or generated?**  Inbound Outlook email and email-body content, WhatsApp content, PDF, DOC/DOCX, MSG, and vehicle images. The first MVP extracts EML, PDF, DOCX, JPEG, and PNG content. Legacy DOC and MSG sources are retained with provenance and sent to `Needs sorting`; automated extraction of those two containers is deferred. Generated or assembled outputs include structured case JSON for EVA, downloaded image bundles, Engineer reports, and related case correspondence. Instruction emails/documents, vehicle images, and final Engineer reports are stored in the case's Box folder.
 
 **Expected typical and maximum file size:**  maybe 5-10mb maximum
 
@@ -161,7 +165,7 @@ Each tile shows its current count and opens the corresponding filtered work queu
 
 **Who may view, upload, download, replace, or delete evidence?**  Authenticated Administrator, Engineer, and User roles may view, upload, and download case evidence. They may revise or remove evidence only while the case is open or has been reopened. Revisions retain previous versions, removals are logical rather than permanent, and all actions are audited. External clients have no access.
 
-**Are virus scanning, OCR, image processing, redaction, or AI classification required?**  Automated malware scanning is deferred beyond the first MVP. The first MVP requires OCR for vehicle registrations and scanned PDFs, cloud-based extraction of case details from documents and email content, and categorisation of inbound email. Redaction is not required. In-app AI, guided image capture, image/vision-AI assistance, and automated malware scanning are planned beyond the first MVP.
+**Are virus scanning, OCR, image processing, redaction, or AI classification required?**  Automated malware scanning is deferred beyond the first MVP. The first MVP uses deterministic local extraction first and OCR only for scan-like PDF pages that lack usable embedded text. Ordinary email image attachments, inline images, DOCX images, and discrete PDF images are retained as separate review candidates and are not sent to OCR. Automated vehicle-registration OCR/VLM, in-app AI, guided image capture, image/vision-AI assistance, and automated malware scanning are planned beyond the first MVP. Redaction is not required.
 
 **Are digital signatures or evidential chain-of-custody records required?**  No. The permanent action audit and retained file-version history are sufficient.
 
@@ -192,7 +196,7 @@ Complete the required integrations and identify the system that remains authorit
 | Accounting or invoicing | No; plan for later | Invoice amount and future accounting data | To be defined | Future accounting system to be selected | To be defined |
 | DVLA / DVSA | Yes | Vehicle and MOT details, including mileage information when available | Inbound lookup | DVLA/DVSA source data; application stores the case snapshot | Collision Engineers / Alex |
 | Mapping or location | No; plan for later | Inspection-address suggestions and location signals | Inbound lookup | To be defined | To be defined |
-| OCR / document processing | Yes | PDF/email/image content converted into structured case fields and VRM readings | Inbound processing | Original source files remain authoritative; extracted fields are reviewable application data | Collision Engineers / Alex |
+| OCR / document processing | Yes, scanned PDF pages only in the first MVP | PDF/email/DOCX content converted into reviewable case fields; OCR is limited to scan-like PDF pages without usable embedded text. Automated VRM reading is later scope | Inbound processing | Original source files remain authoritative; extracted fields and retained images are reviewable application data | Collision Engineers / Alex |
 | AI services | No; plan for later | In-app assistance, vision/image assistance, and classification enhancements | To be defined | Application remains authoritative for approved case data | To be defined |
 | EVA | Yes | Structured case JSON and image bundle for manual transfer; future API integration | Outbound in first MVP; bidirectional later if EVA API permits | EVA remains authoritative for Engineer assignment, estimating, valuation, and report generation until replaced | Collision Engineers / EVA vendor |
 | WhatsApp | Manual only; automate later | Instructions, chaser messages, and vehicle images | Manual in first MVP | WhatsApp retains channel history; staff add relevant content to the application/Box | Collision Engineers |
@@ -200,6 +204,10 @@ Complete the required integrations and identify the system that remains authorit
 | Audatex and valuation services | No; plan for later | Estimate and valuation data | To be defined | External service remains authoritative until replacement strategy is agreed | Collision Engineers / vendor |
 
 **Are test accounts, API specifications, credentials, or vendor contacts available for these integrations?**  Working access is available for the required first-MVP integrations except EVA. EVA API documentation is available under `docs/reference/EVA/EVA_API_SCHEMA`, but its usable API access depends on the EVA vendor. Until that is resolved, the system exports JSON and images for manual transfer. Integration secrets must never be committed to the repository; use Infisical or Azure Key Vault for secret custody.
+
+**What are the provider API and MCP boundaries?**  The provider HTTP API uses separately issued principal-scoped client IDs and opaque secrets. It accepts idempotent instruction and attachment submissions and lets a principal retrieve only its own submission receipt, processing status, and resulting Case/PO. It does not expose general case reads or workflow mutation in the first MVP.
+
+MCP is a separate internal staff surface, primarily for Claude Desktop. Each staff member authorises the remote connector through CollisionSpike using OAuth, and every call uses that person's current application role and permanent audit identity. MCP may expose the full case, inbox, and document actions that the signed-in role can perform through the staff UI, but it does not expose account/role administration, principal configuration, credential management, cloud operations, or permanent deletion. Both surfaces call the same Core use cases and authorization policies as the staff Web application.
 
 
 ## 9. Existing data and migration
@@ -277,7 +285,7 @@ Use one shared Azure development/test environment for unfinished cloud integrati
 
 **Should production and non-production use separate Azure subscriptions?**  Not for the first MVP. Use the same approved Azure subscription with separate development and production resource groups, identities, configuration, data stores, budgets, and access boundaries.
 
-**Will the application be public on the internet, restricted by organisation/network, or accessed through a private connection?**  The application is reachable over the public internet so Collision Engineers staff can use it from anywhere. Every application page and API operation requires authentication with a self-managed CollisionSpike username and password, except narrowly defined technical endpoints such as health checks. Access is not limited to the office network.
+**Will the application be public on the internet, restricted by organisation/network, or accessed through a private connection?**  The application is reachable over the public internet so Collision Engineers staff can use it from anywhere. Staff pages use self-managed CollisionSpike usernames and passwords; the provider API uses principal-scoped machine credentials; and MCP uses staff-authorised OAuth tokens. Only narrowly defined technical endpoints such as health checks are anonymous. Access is not limited to the office network.
 
 **Is a custom domain already owned? If so, what is it?**  No custom application domain is planned for the first MVP. Use the stable Azure App Service hostname and have staff bookmark it. Preserve support for adding a Collision Engineers subdomain later without changing application behaviour or authentication.
 
@@ -325,30 +333,30 @@ Use one shared Azure development/test environment for unfinished cloud integrati
 - Active support for Triage requests, Inspection, Audit, and Inspection + Audit; Diminution and Commercial remain deferred
 - Automatic ingestion from the `instructions@collisionengineers.co.uk` shared Outlook mailbox
 - Identification and categorisation of every ingested mailbox item into receiving work, queries, other, needs sorting, or the applicable business Triage flow
-- Extraction of required case details from PDF, DOC/DOCX, and freehand email instructions
-- OCR for scanned PDFs and vehicle registrations
+- Extraction of required case details from PDF, DOCX, and freehand EML instructions; retain legacy DOC and MSG sources in `Needs sorting` without allocating a reference
+- OCR only for scan-like PDF pages without usable embedded text; automated vehicle-registration OCR/VLM is deferred
 - Automatic case creation when new instructions are received
-- Image-initiated case creation using the readable vehicle registration as the provisional identifier
+- Manual review and linking of image-led intake using the vehicle registration when staff can establish it; automated vehicle-registration reading is deferred
 - Manual case creation and manual upload of instructions, correspondence, documents, and images
 - Automatic linking of image-initiated and instruction-initiated records when there is a definitive match
-- Manual linking, mistaken-merge reversal, reassignment, cancellation, closure, reopening, and archive workflows with permanent audit history
+- Manual linking, mistaken-merge reversal, principal reassignment before Collision Engineers' first report with correction-year references and retained aliases, cancellation, closure, reopening, and archive workflows with permanent audit history
 - Automatic association of related emails and attachments with the correct case, with uncertain matches routed to `Needs sorting`
 - Full staff case management and editing across intake, chasing, ready/review, inspection, post-report query/dispute, and terminal states
-- Configurable backend completeness enforcement before Engineer assignment
+- Configurable backend enforcement of staff-confirmed `Instruction complete` and `Images complete` before Engineer assignment, without a hard-coded field matrix
 - Review/approval gates before Engineer assignment and before an Engineer report is sent to the provider
 - Inspection-address capture using either the physical vehicle/repairer address or `Image Based Assessment`
 - Case due-by dates extracted from instructions and recurring seven-day chase reminders while information is missing
 - Automatic Box case-folder creation and long-term storage of instruction emails/documents, images, correspondence, and Engineer reports
 - Retained document versions, closed-case file locking, and reopen-before-edit behaviour
 - Automatic Box file-request creation and copyable chaser messages for staff to send manually
-- Case-intake dashboard with the agreed case queues, inbox queues, today/this-week activity, counts, links, last-updated time, and refresh
+- Case-intake dashboard with the agreed case queues, inbox queues, manual `Blocked intake` filter, today/this-week activity, counts, links, last-updated time, and refresh
 - Search/filter by Case/PO, VRM, claimant, claim number, principal, stage/status, Engineer, dates, and image- versus instruction-initiated origin
 - DVLA/DVSA lookup when vehicle details are absent
 - Mileage estimation from MOT data when available
 - Structured case JSON plus stored-image download for manual transfer into EVA until its API becomes usable
 - In-app email management for the first-MVP mailbox scope
-- Provider-facing API functionality, including the future API instruction-ingestion route
-- MCP functionality
+- Principal-scoped provider API for idempotent instruction/attachment submission and own-submission receipt, status, and resulting Case/PO retrieval
+- OAuth-authorised internal staff MCP for Claude Desktop, exposing role-authorised case/inbox/document actions through the same Core use cases while excluding security, configuration, cloud, and permanent-delete operations
 - Application and integration health monitoring, operational alerts, recovery controls, and the agreed audit trail
 
 ### Should have
@@ -386,7 +394,7 @@ Use one shared Azure development/test environment for unfinished cloud integrati
 - A dedicated DPIA, legal-hold, retention, subject-request, or other data-governance workflow as part of first-MVP development
 - Multi-region, zone-redundant, or private-network infrastructure in the first MVP
 
-**What is the single most important end-to-end workflow the first release must prove?**  Full QDOS case handling: receive QDOS instructions and/or images; classify and extract the content; OCR the VRM/scanned material; create and definitively match the records; assign the correct QDOS Case/PO; create/store the Box case folder and files; chase missing information with due dates, reminders, and file-request links; enrich vehicle/MOT data; complete staff review and readiness gates; export structured JSON and images to EVA; track the case through Engineer/report and post-report activity; and close, reopen, or archive it with a complete audit history.
+**What is the single most important end-to-end workflow the first release must prove?**  Full QDOS case handling: receive QDOS instructions and/or images; classify and extract EML, PDF, and DOCX content; retain legacy DOC/MSG and separate image evidence for review; OCR only scan-like PDF pages; create and definitively match the records; assign the correct QDOS Case/PO; create/store the Box case folder and files; chase missing information with due dates, reminders, and file-request links; enrich vehicle/MOT data; complete staff review and readiness gates; export structured JSON and images to EVA; track the case through Engineer/report and post-report activity; and close, reopen, or archive it with a complete audit history. Automated VRM OCR/VLM is a later enhancement, not a first-release dependency.
 
 **Who will perform acceptance testing and approve that workflow?**  Alex performs technical and operational acceptance testing with relevant Collision Engineers staff. Collision Engineers management provides final business approval for production release.
 

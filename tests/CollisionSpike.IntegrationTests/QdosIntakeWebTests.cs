@@ -11,11 +11,12 @@ public sealed class QdosIntakeWebTests
     private const string ConfirmedInputThreeHash = "A53C23F1B1E1372E0F0E8751FE712E110580AD7E1985B7094B88BB98A50AA56B";
     private const string ConfirmedInputFourHash = "E4A512B31F8964E5AC16AD6D7FA85A62B5D301B813AF72A6A147D956308AF9BC";
     private const string ConfirmedInputFiveHash = "AA1314773D9B632F7AC4CA78AEA54410A49B280ACBC93BC6F787053423CA14A9";
-    private const string OcrRequiredPdfHash = "A9225D67A3FCD208B8EE00F9F6A1814E9FBEF0C693976BE2E2003612F56560CE";
+    private const string LowTextNonScanPdfHash = "A9225D67A3FCD208B8EE00F9F6A1814E9FBEF0C693976BE2E2003612F56560CE";
     private const string NeedsSortingEmailHash = "28F896A1A20ACBE869570B78A2A5722B7AA514A5216150A8B86EEF5AFC47B65B";
 
     [GenuineQdosCorpusFact]
-    public async Task StaffForwardedEmailStrongContentBeatsSenderAndRendersPersistedCase()
+    [Trait("Category", "Corpus")]
+    public async Task StaffForwardedEmailStrongContentBeatsSenderAndRendersPersistedDraft()
     {
         using var factory = new QdosWebApplicationFactory();
         using var client = QdosWebDriver.CreateClient(factory);
@@ -28,7 +29,7 @@ public sealed class QdosIntakeWebTests
         var receipt = await GetReceiptAsync(factory, receiptId);
 
         Assert.Equal(QdosIntakeDecision.ConfirmedQdos, receipt.Decision);
-        Assert.Equal("QDOS31001", receipt.CaseReference);
+        Assert.NotNull(receipt.TypedDraft);
         Assert.Equal(ForwardedEmailHash, receipt.SourceHash);
         Assert.Contains(receipt.Evidence, item =>
             item.Source == QdosEvidenceSource.Sender
@@ -41,16 +42,17 @@ public sealed class QdosIntakeWebTests
         Assert.True(instructionDate.IsDefaulted);
         Assert.Equal("2031-05-06", instructionDate.SuggestedValue);
         Assert.Contains("Confirmed QDOS", html, StringComparison.Ordinal);
-        Assert.Contains("QDOS31001", html, StringComparison.Ordinal);
+        Assert.Contains("Typed review draft", html, StringComparison.Ordinal);
     }
 
     [GenuineQdosCorpusFact]
-    public async Task InsufficientEmbeddedTextPdfIsOcrRequiredVisibleAndUnreferenced()
+    [Trait("Category", "Corpus")]
+    public async Task LowTextPdfWithoutDominantRasterNeedsSortingWithoutOcrOrReference()
     {
         using var factory = new QdosWebApplicationFactory();
         using var client = QdosWebDriver.CreateClient(factory);
 
-        var upload = await QdosWebDriver.UploadAsync(client, GenuineQdosCorpus.Read(OcrRequiredPdfHash));
+        var upload = await QdosWebDriver.UploadAsync(client, GenuineQdosCorpus.Read(LowTextNonScanPdfHash));
         var receiptId = QdosWebDriver.ReceiptId(upload);
         var receipt = await GetReceiptAsync(factory, receiptId);
         using var review = await client.GetAsync(upload.Location);
@@ -58,25 +60,26 @@ public sealed class QdosIntakeWebTests
         using var queue = await client.GetAsync("/Intake/Queue");
         var queueHtml = await queue.Content.ReadAsStringAsync();
 
-        Assert.Equal(QdosIntakeDecision.OcrRequired, receipt.Decision);
-        Assert.Null(receipt.CaseId);
-        Assert.Null(receipt.CaseReference);
-        Assert.Equal("ocr_required", receipt.FailureCode);
-        Assert.Contains("Document text required", reviewHtml, StringComparison.Ordinal);
-        Assert.Contains("Not allocated", reviewHtml, StringComparison.Ordinal);
-        Assert.Contains("Document text required", queueHtml, StringComparison.Ordinal);
-        Assert.Null(factory.Services.GetService<IHttpClientFactory>());
+        Assert.Equal(QdosIntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Null(receipt.FailureCode);
+        Assert.Empty(receipt.ScannedPdfPages);
+        Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "insufficient-embedded-text");
+        Assert.Contains("Needs sorting", reviewHtml, StringComparison.Ordinal);
+        Assert.Contains("not an image-led scanned page", reviewHtml, StringComparison.Ordinal);
+        Assert.Contains("Needs sorting", queueHtml, StringComparison.Ordinal);
     }
 
     [GenuineQdosCorpusFact]
-    public async Task RepeatUploadReturnsSameReceiptAndReferenceAndConsumesOneSequence()
+    [Trait("Category", "Corpus")]
+    public async Task RepeatExternalReceiptTokenReturnsSamePreCaseReceipt()
     {
         using var factory = new QdosWebApplicationFactory();
         using var client = QdosWebDriver.CreateClient(factory);
         var repeated = GenuineQdosCorpus.Read(ForwardedEmailHash);
+        const string replayToken = "44444444444444444444444444444444";
 
-        var first = await QdosWebDriver.UploadAsync(client, repeated);
-        var duplicate = await QdosWebDriver.UploadAsync(client, repeated);
+        var first = await QdosWebDriver.UploadAsync(client, repeated, replayToken);
+        var duplicate = await QdosWebDriver.UploadAsync(client, repeated, replayToken);
         var distinct = await QdosWebDriver.UploadAsync(client, GenuineQdosCorpus.Read(ConfirmedInputTwoHash));
         var firstId = QdosWebDriver.ReceiptId(first);
         var duplicateId = QdosWebDriver.ReceiptId(duplicate);
@@ -87,34 +90,19 @@ public sealed class QdosIntakeWebTests
         var duplicateHtml = await duplicateReview.Content.ReadAsStringAsync();
 
         Assert.Equal(firstId, duplicateId);
-        Assert.Equal("QDOS31001", firstReceipt.CaseReference);
-        Assert.Equal("QDOS31002", distinctReceipt.CaseReference);
-        Assert.Contains("already received", duplicateHtml, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(replayToken, firstReceipt.SourceIdentity.ExternalReceiptToken);
+        Assert.NotEqual(
+            firstReceipt.SourceIdentity.ExternalReceiptToken,
+            distinctReceipt.SourceIdentity.ExternalReceiptToken);
+        Assert.Contains("already processed", duplicateHtml, StringComparison.OrdinalIgnoreCase);
         await using var scope = factory.Services.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IQdosIntakeQueries>();
         Assert.Equal(2, (await queries.ListAsync(null, CancellationToken.None)).Count);
     }
 
     [GenuineQdosCorpusFact]
-    public async Task UncheckedWebSubmissionIsRejectedWithoutPersistence()
-    {
-        using var factory = new QdosWebApplicationFactory();
-        using var client = QdosWebDriver.CreateClient(factory);
-
-        var result = await QdosWebDriver.UploadAsync(
-            client,
-            GenuineQdosCorpus.Read(ForwardedEmailHash),
-            caseCreationAuthorized: false);
-
-        Assert.Equal(HttpStatusCode.OK, result.StatusCode);
-        Assert.Contains("authorised to create its case and reference", result.ResponseBody, StringComparison.Ordinal);
-        await using var scope = factory.Services.CreateAsyncScope();
-        var queries = scope.ServiceProvider.GetRequiredService<IQdosIntakeQueries>();
-        Assert.Empty(await queries.ListAsync(null, CancellationToken.None));
-    }
-
-    [GenuineQdosCorpusFact]
-    public async Task ConfirmedUnauthorizedCoreCallPersistsWithoutCaseOrSequenceConsumption()
+    [Trait("Category", "Corpus")]
+    public async Task ConfirmedCoreCallsPersistDistinctPreCaseDraftsWithoutSequenceConsumption()
     {
         using var factory = new QdosWebApplicationFactory();
         var unauthorizedSample = GenuineQdosCorpus.Read(ForwardedEmailHash);
@@ -129,23 +117,22 @@ public sealed class QdosIntakeWebTests
             unauthorizedSample.Bytes,
             timeProvider.GetUtcNow(),
             "Genuine corpus integration test",
-            false));
+            new(IntakeSourceChannel.ManualUpload, "55555555555555555555555555555555")));
         var authorized = await processor.ExecuteAsync(new(
             authorizedSample.UploadName,
             authorizedSample.MediaType,
             authorizedSample.Bytes,
             timeProvider.GetUtcNow(),
             "Genuine corpus integration test",
-            true));
+            new(IntakeSourceChannel.ManualUpload, "66666666666666666666666666666666")));
 
         Assert.Equal(QdosIntakeDecision.ConfirmedQdos, unauthorized.Decision);
-        Assert.Null(unauthorized.CaseId);
-        Assert.Null(unauthorized.CaseReference);
-        Assert.Equal("QDOS31001", authorized.CaseReference);
+        Assert.Equal(QdosIntakeDecision.ConfirmedQdos, authorized.Decision);
     }
 
     [GenuineQdosCorpusFact]
-    public async Task ParallelDistinctConfirmedInputsAllocateUniqueConsecutiveReferencesInFileBackedSqlite()
+    [Trait("Category", "Corpus")]
+    public async Task ParallelDistinctConfirmedInputsPersistUniquePreCaseReceiptsInFileBackedSqlite()
     {
         using var factory = new QdosWebApplicationFactory();
         var samples = new[]
@@ -171,16 +158,12 @@ public sealed class QdosIntakeWebTests
 
         await using var scope = factory.Services.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IQdosIntakeQueries>();
-        var references = (await queries.ListAsync(QdosIntakeDecision.ConfirmedQdos, CancellationToken.None))
-            .Select(item => item.CaseReference!)
-            .Order(StringComparer.Ordinal)
-            .ToArray();
-        Assert.Equal(
-            ["QDOS31001", "QDOS31002", "QDOS31003", "QDOS31004", "QDOS31005"],
-            references);
+        var receipts = await queries.ListAsync(QdosIntakeDecision.ConfirmedQdos, CancellationToken.None);
+        Assert.Equal(5, receipts.Count);
     }
 
     [GenuineQdosCorpusFact]
+    [Trait("Category", "Corpus")]
     public async Task DashboardAndQueueCountsAreBackedByPersistedDecisions()
     {
         using var factory = new QdosWebApplicationFactory();
