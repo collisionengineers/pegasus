@@ -1,0 +1,2 @@
+
+Whatsapp is primarily used for chasing for Images from garages. We very frequently receive images via this method, which are then stored on a network drive until they are matched with the relevant instructions.

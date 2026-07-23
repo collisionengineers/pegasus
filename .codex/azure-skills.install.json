@@ -1,0 +1,12 @@
+{
+  "source": "https://github.com/microsoft/azure-skills",
+  "ref": "v1.2.0",
+  "installedAt": "2026-07-23",
+  "destination": ".codex/skills",
+  "scope": "project",
+  "includes": "skills/*",
+  "mcpConfigurationInstalled": true,
+  "mcpPackage": "@azure/mcp@3.0.0-beta.28",
+  "mcpConfig": ".codex/config.toml",
+  "skillCount": 26
+}

@@ -1,0 +1,30 @@
+# Genuine local evaluation corpus. Never commit operational emails or case files.
+/corpus/
+
+# Local secrets and environment state
+.env
+.env.*
+!.env.example
+secrets.json
+appsettings.*.local.json
+/.azure/
+
+# .NET build and test output
+**/bin/
+**/obj/
+**/TestResults/
+**/coverage/
+**/artifacts/
+
+# Tool and editor working state
+/.vs/
+/.obsidian/workspace.json
+/.obsidian/workspace-mobile.json
+/tmp/
+/temp/
+node_modules/
+.bicep/
+
+# Operating-system files
+.DS_Store
+Thumbs.db
