@@ -8,7 +8,7 @@ Give each accepted case one durable identity and the correct non-reusable princi
 
 - **Authority:** [source order](../../../agent-guidance/source-of-truth.md), [questionnaire §§4–5](../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md), [remaining requirements §4](../../remaining-requirements.md), and [open decisions](../../open-decisions.md).
 - **Policy owner:** planned Core `CaseIdentity` policy/use case.
-- **Current implementation:** there is no active case/reference allocator. The retired Development proof is preserved as migration audit evidence but its `CaseEntity`, counter, receipt links and allocation caller have been removed.
+- **Current implementation:** there is no active case/reference allocator and v2 has not been deployed. The retired Development proof produced non-business test references only; its migration records those values for migration diagnostics, then deliberately removes the `CaseEntity`, counter, receipt links and allocation caller. Those test values are not issued case identities, do not reserve sequence numbers, and must not seed or constrain the future allocator.
 - **Real callers:** `/Intake/Qdos` is a development-only pre-case intake caller and creates no case/reference. Accepted-case UI, allocator, Worker/API/MCP and principal correction are **planned**; correction has no task/caller until the sent-report decision is settled.
 - **Persistence/adapters:** the future accepted-case, principal/year counter, case type and original-report assessment model is planned relational data. Alias/correction confirmation schema is withheld with the correction command.
 - **Dependencies:** [intake and acceptance](intake-and-case-acceptance.md), staff audit, Box/EVA plans; lifecycle supplies authorised transitions.

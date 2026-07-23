@@ -45,13 +45,13 @@ internal sealed class EfQdosIntakeStore(IDbContextFactory<CollisionSpikeDbContex
     public async Task<QdosQueueCounts> GetCountsAsync(CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var review = await context.QdosIntakeReceipts.CountAsync(
-            item => item.Decision == nameof(QdosIntakeDecision.ConfirmedQdos),
+        var draftReady = await context.QdosIntakeReceipts.CountAsync(
+            item => item.Decision == nameof(QdosIntakeDecision.DraftReady),
             cancellationToken);
         var needsSorting = await context.QdosIntakeReceipts.CountAsync(
             item => item.Decision == nameof(QdosIntakeDecision.NeedsSorting),
             cancellationToken);
-        return new(review, needsSorting);
+        return new(draftReady, needsSorting);
     }
 
     public async Task<IReadOnlyList<QdosIntakeSummary>> ListAsync(

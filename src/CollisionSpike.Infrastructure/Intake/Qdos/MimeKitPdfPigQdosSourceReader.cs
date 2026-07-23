@@ -13,10 +13,15 @@ using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
 
 namespace CollisionSpike.Infrastructure.Intake.Qdos;
 
-internal sealed partial class MimeKitPdfPigQdosSourceReader : IQdosIntakeSourceReader
+internal sealed partial class MimeKitPdfPigQdosSourceReader(TimeProvider timeProvider) : IQdosIntakeSourceReader
 {
     private const int MinimumReadablePdfCharacters = 80;
     private const double ScannedPageImageCoverage = 0.8;
+    private const int MaximumPdfTextCharacters = 5 * 1024 * 1024;
+    private const int MaximumPdfImageObjects = 512;
+    private const long MaximumPdfImageSamplePixels = 100_000_000;
+    private const long MaximumPdfExtractedImageBytes = 25L * 1024 * 1024;
+    private static readonly TimeSpan MaximumPdfProcessingDuration = TimeSpan.FromSeconds(30);
     private const int MaximumNestedEmailDepth = 8;
     private const int MaximumMimeEntities = 128;
     private const long MaximumDecodedMimeBytes = 25L * 1024 * 1024;
@@ -24,7 +29,6 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader : IQdosIntakeSourceR
     private const long MaximumDocxUncompressedBytes = 50L * 1024 * 1024;
     private const long MaximumDocxXmlPartBytes = 10L * 1024 * 1024;
     private const long MaximumDocxImageBytes = 25L * 1024 * 1024;
-    private const int MaximumDocxRelatedParts = 512;
 
     public async Task<IntakeSourceReadResult> ReadAsync(
         QdosIntakeSource source,
@@ -34,7 +38,8 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader : IQdosIntakeSourceR
             [
                 new(QdosEvidenceSource.FileName, source.FileName),
                 new(QdosEvidenceSource.MimeType, source.MediaType)
-            ]);
+            ],
+            timeProvider);
 
         var outcome = await DispatchAsync(
             source.Content,
@@ -73,7 +78,7 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader : IQdosIntakeSourceR
         switch (format)
         {
             case SourceFormat.Pdf:
-                return ReadPdf(bytes, sourceLabel, result, isRoot);
+                return ReadPdf(bytes, sourceLabel, result, isRoot, cancellationToken);
             case SourceFormat.Email:
                 return await ReadEmailAsync(bytes, sourceLabel, result, isRoot, cancellationToken);
             case SourceFormat.Docx:
@@ -110,12 +115,22 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader : IQdosIntakeSourceR
         ReadOnlyMemory<byte> bytes,
         string sourceLabel,
         ReadAccumulator result,
-        bool isRoot)
+        bool isRoot,
+        CancellationToken cancellationToken)
     {
         PdfResult pdf;
         try
         {
-            pdf = ExtractPdf(bytes, sourceLabel, result);
+            pdf = ExtractPdf(bytes, sourceLabel, result, result.PdfLimits, cancellationToken);
+        }
+        catch (PdfLimitExceededException exception)
+        {
+            result.IsIncomplete = true;
+            result.Issues.Add(new(
+                "intake_limit_exceeded",
+                $"{sourceLabel} {exception.Message}",
+                QdosEvidenceSource.PdfContent));
+            return ReadOutcome.Readable;
         }
         catch (Exception exception) when (
             exception is PdfDocumentFormatException
@@ -174,20 +189,30 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader : IQdosIntakeSourceR
     private static PdfResult ExtractPdf(
         ReadOnlyMemory<byte> bytes,
         string sourceLabel,
-        ReadAccumulator result)
+        ReadAccumulator result,
+        PdfLimitState limits,
+        CancellationToken cancellationToken)
     {
+        limits.ThrowIfProcessingDeadlineExceeded();
+        cancellationToken.ThrowIfCancellationRequested();
         using var document = PdfDocument.Open(bytes.ToArray());
         var pages = new List<PdfPageResult>();
-        foreach (var page in document.GetPages())
+        for (var pageNumber = 1; pageNumber <= document.NumberOfPages; pageNumber++)
         {
+            limits.ThrowIfProcessingDeadlineExceeded();
+            cancellationToken.ThrowIfCancellationRequested();
+            var page = document.GetPage(pageNumber);
+            limits.ThrowIfProcessingDeadlineExceeded();
             var text = ContentOrderTextExtractor.GetText(page);
+            limits.ThrowIfProcessingDeadlineExceeded();
+            limits.AddTextCharacters(text.Length);
             var readableCharacters = text.Count(character => !char.IsWhiteSpace(character));
             IPdfImage[] images;
             try
             {
-                images = page.GetImages().ToArray();
+                images = page.GetImages().Take(limits.RemainingImageObjects + 1).ToArray();
             }
-            catch (Exception)
+            catch (Exception exception) when (QdosIntakeExceptionPolicy.IsRecoverable(exception))
             {
                 images = [];
                 result.Issues.Add(new(
@@ -196,13 +221,18 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader : IQdosIntakeSourceR
                     QdosEvidenceSource.ImageContent));
             }
 
+            limits.AddImageObjects(images.Length);
+
             var hasDominantRaster = images.Any(image => Coverage(image, page) >= ScannedPageImageCoverage);
             var hasInsufficientText = readableCharacters < MinimumReadablePdfCharacters;
 
             var imageNumber = 0;
             foreach (var image in images)
             {
+                limits.ThrowIfProcessingDeadlineExceeded();
+                cancellationToken.ThrowIfCancellationRequested();
                 imageNumber++;
+                limits.AddImageSamplePixels(image.WidthInSamples, image.HeightInSamples);
                 var extracted = false;
                 ReadOnlyMemory<byte> imageBytes = default;
                 var mediaType = string.Empty;
@@ -211,7 +241,7 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader : IQdosIntakeSourceR
                 {
                     extracted = TryReadPdfImage(image, out imageBytes, out mediaType, out extension);
                 }
-                catch (Exception)
+                catch (Exception exception) when (QdosIntakeExceptionPolicy.IsRecoverable(exception))
                 {
                     // Keep processing the page. The issue below makes the missing image explicit.
                 }
@@ -224,6 +254,8 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader : IQdosIntakeSourceR
                         QdosEvidenceSource.ImageContent));
                     continue;
                 }
+
+                limits.AddExtractedImageBytes(imageBytes.Length);
 
                 result.Assets.Add(new(
                     $"{sourceLabel}, page {page.Number}, image {imageNumber}",
@@ -247,6 +279,7 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader : IQdosIntakeSourceR
                 readableCharacters == 0 ? null : text,
                 hasInsufficientText,
                 hasInsufficientText && hasDominantRaster));
+            limits.ThrowIfProcessingDeadlineExceeded();
         }
 
         return new(pages);
@@ -465,11 +498,6 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader : IQdosIntakeSourceR
                 continue;
             }
 
-            if (visited.Count > MaximumDocxRelatedParts)
-            {
-                throw new DocxLimitExceededException();
-            }
-
             if (part is ImagePart imagePart)
             {
                 images.Add(imagePart);
@@ -512,7 +540,7 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader : IQdosIntakeSourceR
                 QdosEvidenceSource.EmailBody));
             return ReadOutcome.Readable;
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (Exception exception) when (QdosIntakeExceptionPolicy.IsRecoverable(exception))
         {
             if (isRoot)
             {
@@ -657,7 +685,7 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader : IQdosIntakeSourceR
                     addTransport: false,
                     cancellationToken);
             }
-            catch (Exception exception) when (exception is not OperationCanceledException)
+            catch (Exception exception) when (QdosIntakeExceptionPolicy.IsRecoverable(exception))
             {
                 result.IsIncomplete = true;
                 result.Issues.Add(new(
@@ -730,7 +758,7 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader : IQdosIntakeSourceR
                 result,
                 cancellationToken);
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (Exception exception) when (QdosIntakeExceptionPolicy.IsRecoverable(exception))
         {
             result.IsIncomplete = true;
             result.Issues.Add(new(
@@ -831,7 +859,9 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader : IQdosIntakeSourceR
         TechnicalFailure
     }
 
-    private sealed class ReadAccumulator(IReadOnlyList<IntakeTransportEvidence> transport)
+    private sealed class ReadAccumulator(
+        IReadOnlyList<IntakeTransportEvidence> transport,
+        TimeProvider timeProvider)
     {
         public List<IntakeContentFragment> Content { get; } = [];
 
@@ -844,6 +874,8 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader : IQdosIntakeSourceR
         public List<ScannedPdfOcrCandidate> OcrCandidates { get; } = [];
 
         public MimeLimitState? MimeLimits { get; set; }
+
+        public PdfLimitState PdfLimits { get; } = new(timeProvider);
 
         public string? FailureCode { get; set; }
 
@@ -913,7 +945,83 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader : IQdosIntakeSourceR
         bool HasInsufficientText,
         bool RequiresOcr);
 
+    private sealed class PdfLimitState(TimeProvider timeProvider)
+    {
+        private long extractedTextCharacters;
+        private int imageObjects;
+        private long imageSamplePixels;
+        private long extractedImageBytes;
+        private long? processingStartedTimestamp;
+
+        public int RemainingImageObjects => MaximumPdfImageObjects - imageObjects;
+
+        public void ThrowIfProcessingDeadlineExceeded()
+        {
+            var now = timeProvider.GetTimestamp();
+            if (processingStartedTimestamp is null)
+            {
+                processingStartedTimestamp = now;
+                return;
+            }
+
+            if (timeProvider.GetElapsedTime(processingStartedTimestamp.Value, now) > MaximumPdfProcessingDuration)
+            {
+                throw new PdfLimitExceededException(
+                    "exceeds the safe PDF processing time limit.");
+            }
+        }
+
+        public void AddTextCharacters(int count)
+        {
+            if (count > MaximumPdfTextCharacters - extractedTextCharacters)
+            {
+                throw new PdfLimitExceededException(
+                    "expands beyond the safe extracted-text processing limit.");
+            }
+
+            extractedTextCharacters += count;
+        }
+
+        public void AddImageObjects(int count)
+        {
+            if (count > MaximumPdfImageObjects - imageObjects)
+            {
+                throw new PdfLimitExceededException(
+                    "contains more than 512 discrete image objects.");
+            }
+
+            imageObjects += count;
+        }
+
+        public void AddImageSamplePixels(int width, int height)
+        {
+            var count = (long)width * height;
+            if (count > MaximumPdfImageSamplePixels - imageSamplePixels)
+            {
+                throw new PdfLimitExceededException(
+                    "expands beyond the safe decoded-image pixel limit.");
+            }
+
+            imageSamplePixels += count;
+        }
+
+        public void AddExtractedImageBytes(int count)
+        {
+            if (count > MaximumPdfExtractedImageBytes - extractedImageBytes)
+            {
+                throw new PdfLimitExceededException(
+                    "expands beyond the safe extracted-image processing limit.");
+            }
+
+            extractedImageBytes += count;
+        }
+    }
+
     private sealed class DocxLimitExceededException : Exception
+    {
+    }
+
+    private sealed class PdfLimitExceededException(string message) : Exception(message)
     {
     }
 }

@@ -49,6 +49,7 @@ public sealed class QdosSqliteMigrationAdoptionTests
         var receipt = Assert.IsType<QdosIntakeRecord>(
             await queries.GetAsync(receiptId, CancellationToken.None));
         Assert.Equal(sourceHash, receipt.SourceHash);
+        Assert.Equal(QdosIntakeDecision.DraftReady, receipt.Decision);
         Assert.Equal(IntakeSourceChannel.ManualUpload, receipt.SourceIdentity.Channel);
         Assert.Equal(32, receipt.SourceIdentity.ExternalReceiptToken.Length);
         Assert.Equal("legacy-evidence", Assert.Single(receipt.Evidence).Signal);
@@ -67,15 +68,15 @@ public sealed class QdosSqliteMigrationAdoptionTests
         Assert.Equal(1, await ScalarAsync<long>(context,
             "SELECT COUNT(*) FROM \"AuditEvents\" WHERE \"EventType\" = 'LegacyReceiptRecorded' " +
             "AND \"DetailsJson\" = '{\"legacy\":\"history\"}'"));
-        var preservedJson = await ScalarAsync<string>(context,
+        var recordedJson = await ScalarAsync<string>(context,
             "SELECT \"DetailsJson\" FROM \"AuditEvents\" " +
-            "WHERE \"EventType\" = 'RetiredLocalCaseAllocationPreserved'");
-        using var preserved = JsonDocument.Parse(preservedJson);
-        Assert.Equal(1, preserved.RootElement.GetProperty("retiredLocalProof").GetInt32());
-        Assert.Equal("QDOS", preserved.RootElement.GetProperty("principalCode").GetString());
-        Assert.Equal("QDOS31043", preserved.RootElement.GetProperty("caseReference").GetString());
-        Assert.Equal(2031, preserved.RootElement.GetProperty("counterYear").GetInt32());
-        Assert.Equal(43, preserved.RootElement.GetProperty("counterCurrentSequence").GetInt32());
+            "WHERE \"EventType\" = 'RetiredDevelopmentAllocationRecorded'");
+        using var recorded = JsonDocument.Parse(recordedJson);
+        Assert.Equal(1, recorded.RootElement.GetProperty("retiredDevelopmentTestProof").GetInt32());
+        Assert.Equal("QDOS", recorded.RootElement.GetProperty("principalCode").GetString());
+        Assert.Equal("QDOS31043", recorded.RootElement.GetProperty("caseReference").GetString());
+        Assert.Equal(2031, recorded.RootElement.GetProperty("counterYear").GetInt32());
+        Assert.Equal(43, recorded.RootElement.GetProperty("counterCurrentSequence").GetInt32());
         Assert.Equal(0, await ScalarAsync<long>(context,
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' " +
             "AND name IN ('Cases', 'PrincipalYearCounters')"));

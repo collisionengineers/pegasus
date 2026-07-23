@@ -8,8 +8,8 @@ Host the caller-backed modular monolith in separate UK South development and pro
 
 - **Authority:** [ADR-0002](../../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md), [remaining requirements](../../remaining-requirements.md#7-azure-and-release-readiness), [current inventory](../../../azure/current-inventory.md), and [replacement/retirement plan](../../../azure/replacement-and-retirement-plan.md).
 - **Policy owner:** Infrastructure definitions and Web/Worker composition own Azure translation; Core remains free of Azure dependencies.
-- **Current implementation:** `infra/main.bicep`, `infra/modules/platform.bicep`, and `.github/workflows/ci.yml` are source only. There is no `azure.yaml`, no dedicated migrator identity, and the current Function setting `SCM_DO_BUILD_DURING_DEPLOYMENT=true` conflicts with the accepted immutable-artifact path. They do not establish a deployed or verified v2 environment.
-- **Real callers:** Local Web health endpoints exist. `azd`, Azure-hosted Web/Worker and release paths remain planned until their configuration exists and is exercised.
+- **Current implementation:** `infra/main.bicep`, `infra/modules/platform.bicep`, `azure.yaml`, and `.github/workflows/ci.yml` are source only. The tracked `azure.yaml` names Web/Worker services and a post-provision database script, but neither it nor Bicep supplies the accepted dedicated migrator/immutable-artifact release path. The Web App still sets `SCM_DO_BUILD_DURING_DEPLOYMENT=true`. These files do not establish a deployed or verified v2 environment.
+- **Real callers:** Local Web health endpoints exist. `azd` has a tracked but unexercised service manifest; Azure-hosted Web/Worker and release paths remain planned until the manifest is reconciled and exercised.
 - **Persistence/adapters:** One Azure SQL database and migration stream; LRS Storage for queues/transient files; managed identity/RBAC; Key Vault for unavoidable third-party secrets; Application Insights/Log Analytics for content-safe telemetry.
 - **Dependencies:** Caller-backed application areas, stable configuration contracts and [exact external boundaries](../README.md#approval-boundaries).
 - **Replaces/consolidates:** Local `EnsureCreated` startup and any remote-build or credential-based deployment path are removed when ordered migrations and immutable artifacts take ownership.
@@ -18,7 +18,7 @@ Host the caller-backed modular monolith in separate UK South development and pro
 
 Azure adapters expose permanent, transient and unknown failures without turning them into business states. Queue attempts, poison outcomes, Web/Worker correlation, health, heartbeat, queue age, authentication failures, integration failures and unexpected cost are observable without extracted content or secret values. `/health/live` remains process-only; `/health/ready` proves only SQL/schema readiness selected for safe Web traffic. App Service Health Check provides monitoring but no rerouting benefit on F1 or a single B1 instance; Worker readiness instead uses host heartbeat, queue-age and poison telemetry.
 
-Current Microsoft guidance was refreshed read-only on 2026-07-23: [.NET isolated Functions](https://learn.microsoft.com/azure/azure-functions/dotnet-isolated-process-guide), [Flex Consumption](https://learn.microsoft.com/azure/azure-functions/flex-consumption-plan), [App Service Health Check](https://learn.microsoft.com/azure/app-service/monitor-instances-health-check), [managed identity with Azure SQL](https://learn.microsoft.com/azure/app-service/tutorial-connect-msi-sql-database), and [Functions telemetry export](https://learn.microsoft.com/azure/azure-functions/functions-monitoring#telemetry-export-options).
+Current Microsoft guidance was refreshed read-only on 2026-07-23: [.NET isolated Functions](https://learn.microsoft.com/azure/azure-functions/dotnet-isolated-process-guide), [Flex Consumption](https://learn.microsoft.com/azure/azure-functions/flex-consumption-plan), [App Service Health Check](https://learn.microsoft.com/azure/app-service/monitor-instances-health-check), [managed identity with Azure SQL](https://learn.microsoft.com/azure/app-service/tutorial-connect-msi-sql-database), [Functions telemetry export](https://learn.microsoft.com/azure/azure-functions/functions-monitoring#telemetry-export-options), and [container-scoped Blob data roles](https://learn.microsoft.com/azure/storage/blobs/assign-azure-role-data-access#assign-an-azure-role).
 
 ## Reconcile infrastructure and identity boundaries
 
@@ -39,11 +39,11 @@ Current Microsoft guidance was refreshed read-only on 2026-07-23: [.NET isolated
 
 ### Caller, contract and change boundary
 
-- **Real or intended caller:** Bicep and GitHub OIDC are planned deployment callers. `azd` is not a caller until an accepted `azure.yaml` exists; no source file proves a deployment.
+- **Real or intended caller:** Bicep, the tracked `azure.yaml`, and GitHub OIDC are planned deployment callers. `azd` is not a proven caller until that existing manifest is reconciled with immutable artifacts/migrations and exercised; source files alone prove no deployment.
 - **Input/output:** Environment name and approved subscription/region produce deterministic, separately scoped resources and identities.
 - **Ordered decisions and failure behavior:** Refresh inventory and Microsoft guidance, build/lint locally, check policy/quota with approval, preview exact targets, then provision only after separate approval; fail before writes on ambiguity.
 - **Persistence/migration:** Bicep owns infrastructure only; a post-provision migrator identity applies application migrations and runtime identities have no DDL.
-- **Adapters/side effects:** Managed identity and narrow data-plane RBAC replace keys wherever supported; secret names, never values, enter configuration.
+- **Adapters/side effects:** Managed identity and narrow data-plane RBAC replace keys wherever supported; secret names, never values, enter configuration. In the caller-backed staging slice, Web will receive `Storage Blob Data Contributor` only on `intake-temporary`, delivered with the Blob adapter, composition and actual Web proof; current Bicep grants Web no Blob data-plane role or container configuration. Worker retains account-scoped Blob Owner plus queue/table data roles because identity-based Functions host/deployment storage uses those services as well as application intake; sharing that account is an explicit residual isolation boundary until an accepted separate-host-storage change.
 - **Operator surface and observability:** Deployment output names resources and non-secret endpoints; alerts route initially to Alex.
 - **Documentation affected:** ADRs or Azure inventory change only when accepted architecture or verified live state changes.
 - **Replaces/consolidates:** Remove remote build and FTP/SCM basic credentials when immutable artifact deployment is proven.
@@ -55,8 +55,8 @@ Current Microsoft guidance was refreshed read-only on 2026-07-23: [.NET isolated
 
 ### Implementation checklist
 
-- [ ] Reconcile Bicep with the accepted four-project runtime and deterministic environment naming; add the bounded `azure.yaml` before treating `azd` as a caller.
-- [ ] Define least-privilege Web, Worker, migrator and deployment identities without shared keys or secret values.
+- [ ] Reconcile the existing `azure.yaml` and Bicep with the accepted four-project runtime, deterministic environment naming, immutable artifacts and explicit migrations before treating `azd` as a proven caller; do not create a second manifest.
+- [ ] Define least-privilege Web, Worker, migrator and deployment identities without shared keys or secret values. Keep Web Blob data access container-scoped and prove it cannot reach `app-package`, queues or other containers. Retain/document the Worker host-storage account scope separately from its business responsibilities rather than claiming container isolation.
 - [ ] Make immutable artifact deployment, explicit migrations, health configuration, budgets and alerts first-class outputs.
 - [ ] Remove replaced credential and remote-build paths in the same slice.
 
@@ -73,7 +73,9 @@ Current Microsoft guidance was refreshed read-only on 2026-07-23: [.NET isolated
 |---|---|---|---|
 | Local development/production Bicep build | Both parameter sets compile with intended resources, identities and exclusions | Bicep output and lint result | SKU availability, permission or deployment success |
 | Exact approved `what-if` | Only intended new v2 resources/role assignments are proposed | Dated preview and target scope | Provisioning or runtime behavior |
-| Secret/shared-key inspection | No password, connection string or storage key is required in source | Scoped static review | External secret existence or live RBAC |
+| Secret/shared-key inspection | No password, connection string or storage key is required in source; Shared Key is disabled | Scoped static review and approved negative probe | External secret existence or all live RBAC behavior |
+| Web manual upload identity | Web can stage/read one source in `intake-temporary` and is denied Blob data access outside it | actual Web integration smoke plus negative RBAC probe | Worker processing or Box custody |
+| Web system identity recreation | role-assignment name changes deterministically with the new principal ID instead of mutating the old binding | compiled template comparison/test | Azure propagation or successful live redeployment |
 
 ### Approval, rollout and rollback
 
@@ -95,6 +97,7 @@ Current Microsoft guidance was refreshed read-only on 2026-07-23: [.NET isolated
 | State/command/input | Result | Boundary exercised | Proves | Does not prove / skipped |
 |---|---|---|---|---|
 | Planned | Not run | Planning review | Sequence and criteria exist | Current Azure facts, deployment and acceptance |
+| Existing scaffold locally compiled 2026-07-23: `az bicep build --file infra/main.bicep` | Exit 0 | current source IaC, explicitly excluding uncalled Web Blob RBAC/configuration | Existing Bicep syntax/emission is locally valid and no dormant Web Blob privilege was added | Future caller-backed role design, Azure preview, deployment, live RBAC, storage operations or acceptance |
 
 ## Prove persistence, observability and recovery in shared development
 

@@ -33,12 +33,12 @@ Queue messages carry identifiers only. Store attempts, mailbox/folder identity, 
 - **Policy/implementation owner:** Core intake owner; Infrastructure owns one Graph adapter; Worker owner owns thin trigger/queue translation.
 - **Independent evaluator:** test engineer then reviewer.
 - **Prerequisites:** durable source identity/custody, outbox, migration stream and approved least-privilege Graph configuration.
-- **Consumers/unlocks:** inbox workbench, case association and manual follow-up.
+- **Consumers/unlocks:** inbox workbench, automatic definitive case creation through the shared Core acceptance transaction, case association and manual follow-up.
 
 ### Caller, contract and change boundary
 
-- **Real or intended caller:** planned one-minute Worker delta-poller for the authorised Inbox and receipt handler calling `ProcessQdosIntake`.
-- **Input/output:** the environment's verified exact mailbox/Inbox pair plus immutable message/attachment identity yields one durable intake receipt, processing status and operator-visible inbox item.
+- **Real or intended caller:** planned one-minute Worker delta-poller for the authorised Inbox and receipt handler calling `ProcessQdosIntake`; once the category and acceptance dependencies are present, that Core flow automatically hands definitive `Receiving work` to `AcceptCaseDraft` rather than stopping at a draft.
+- **Input/output:** the environment's verified exact mailbox/Inbox pair plus immutable message/attachment identity yields one durable intake receipt, processing status and operator-visible inbox item; a definitive authorised new instruction additionally yields exactly one case/reference outcome from the shared Core transaction.
 - **Ordered decisions and failure behavior:** verify the environment-specific Exchange RBAC mailbox scope and absence of an unscoped Entra Graph application mail grant; reject any mailbox/folder/message outside the configured pair before a Graph call; enforce that environment's exact Inbox in the adapter because Exchange RBAC scopes mailboxes, not folders; request immutable IDs; persist cursor only after every returned page commits; replay by mailbox+immutable item identity; uncertain association goes to `Needs sorting`.
 - **Persistence/migration:** one cursor/receipt/attempt authority and outbox linkage; one database claim/version prevents overlapping timer instances from advancing the same delta cursor, and abandoned claims expire visibly for recovery. No mailbox data appears in queue payloads or a second delivery ledger.
 - **Adapters/side effects:** Graph delta polling through the Exchange RBAC `Application Mail.Read` assignment scoped to the one mailbox, with no parallel Entra Graph application mail consent; the adapter separately confines operations to Inbox. Attachment bytes follow the custody plan.
@@ -48,18 +48,28 @@ Queue messages carry identifiers only. Store attempts, mailbox/folder identity, 
 
 ### Scope
 
-- **Included:** one explicitly configured mailbox/Inbox pair per environment, inbound delta polling, immutable identity, bounded idempotent receipt and recovery. Items remain visibly unclassified until the category policy is accepted.
-- **Excluded:** automatic categorisation/acceptance, in-app mail management/association, other mailboxes/folders, Sent Items, `Mail.Send`, `Mail.ReadWrite`, webhooks, mail moves/categories, automated outbound messages and WhatsApp ingestion.
+- **Included:** one explicitly configured mailbox/Inbox pair per environment, inbound delta polling, immutable identity, bounded idempotent receipt and recovery. Items remain visibly unclassified until the category policy is accepted. The category policy and acceptance transaction are implemented in their owning Core tasks, but this Worker caller must integrate them before first-MVP completion.
+- **Excluded:** implementing the category policy or acceptance transaction inside this transport task, in-app mail management/association, other mailboxes/folders, Sent Items, `Mail.Send`, `Mail.ReadWrite`, webhooks, mail moves/categories, automated outbound messages and WhatsApp ingestion. Automatic case creation itself is not excluded from the first MVP.
+
+### Withheld categorisation architecture
+
+The direct decision is that long-term mailbox categorisation is a major architectural scope whose approved rules must be extensible and modifiable. It remains one Core-owned policy consumed by Web, Worker, provider API and MCP; Graph and other channel adapters only supply source identity and evidence. An accepted design must make each decision auditable by policy version and evidence, support correction without rewriting source history, and fall back conservatively to `Needs sorting` when no unambiguous rule applies.
+
+The [category predicates and governance](../../open-decisions.md#mailbox-categorisation-and-correction) are not yet settled, so no categorisation implementation task is emitted. Deliberately absent are a generic rule engine, expression language, rule/configuration table, authoring UI, dynamic compiler, dormant evaluator, feature flag, and second classifier. Choosing runtime-managed rules or another new architectural boundary requires an accepted ADR; the current `ProcessQdosIntake` heuristic remains a provisional development-slice classifier, not the approved long-term mailbox policy.
+
+Once that mandatory first-MVP decision is settled, `Receiving work` invokes the same Core definitive predicate and atomic acceptance transaction as other authorised channels. Known principal/code, VRM, unambiguous case type, safe complete processing and no identity/association conflict are required; standalone Audit also requires the original report's unambiguous assessment. Missing non-identity details create a `Not ready` case. Queries, Other, Triage, uncertain items and staff-selected `Blocked intake` never call the allocator. The Worker records an automation actor and policy evidence; it does not impose a manual approval gate on every definitive instruction.
 
 ### Implementation checklist
 
 - [ ] Add a typed Graph adapter and durable cursor/receipt/outbox contracts after Core stabilises.
 - [ ] Add thin Worker triggers that pass only identifiers to Core receipt processing.
+- [ ] After the accepted category policy and case transaction land, wire the Worker through the combined Core receive/process/automatic-acceptance flow; do not stop definitive `Receiving work` at a draft or add a Worker-specific allocator.
 - [ ] Configure a separate identity and Exchange Application RBAC assignment for each enabled environment as the sole mail grant, verify no unscoped Entra Graph application mail permission remains, and enforce its exact mailbox/Inbox pair before Graph calls.
 
 ### Validation checklist
 
 - [ ] Test paging, duplicate/replay, cursor loss, 429/transient retry, poison handling and permanent failure with no duplicate case/reference.
+- [ ] Prove a definitive `Receiving work` item automatically creates exactly one `Not ready` case/reference, while Query/Other/Triage/uncertain/blocked items make zero allocator calls; replay and concurrent delivery return the original result.
 - [ ] Test overlapping timer claims and abandoned-owner recovery; only one committed page may advance a cursor version.
 - [ ] Prove arbitrary mailbox/folder/message IDs are denied with zero Graph-client call; verify the service principal cannot access a second mailbox and the adapter refuses a non-Inbox folder in the authorised mailbox.
 - [ ] Exercise the actual Worker caller against the explicitly approved environment mailbox/Inbox pair using approved non-corpus input. If no non-production shared-development pair exists, keep live Graph disabled until an exact production-Inbox smoke is separately approved; never use production as a negative test.
@@ -70,6 +80,8 @@ Queue messages carry identifiers only. Store attempts, mailbox/folder identity, 
 | Scenario/input/boundary | Expected observable result | Evidence | Does not prove |
 |---|---|---|---|
 | Same immutable item redelivered | one receipt/business outcome | worker/persistence integration test | live Exchange reliability |
+| Definitive authorised new instruction | one automatic `Not ready` case/reference through Core | Worker caller and transaction test | operator acceptance of extraction accuracy |
+| Non-instruction or uncertain item | visible inbox outcome and zero reference allocation | negative Worker caller test | future correction policy |
 | Cursor/page failure | cursor does not skip uncommitted item; visible retry/poison state | fault-injection test | vendor recovery |
 | Unauthorised mailbox or non-Inbox folder | scoped denial before Graph call; live permission test denies a second mailbox | adapter negative fixture plus approved RBAC test | future Exchange policy/cache behavior |
 

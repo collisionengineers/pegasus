@@ -88,6 +88,7 @@ flowchart LR
 
     Outlook[Microsoft 365 shared mailbox] -->|Graph delta query| Worker
     Queue --> Worker
+    Web -->|manual and provider source staging| Blob[(Transient Blob Storage)]
     Worker --> Blob[(Transient Blob Storage)]
     Worker --> DocIntel[Azure Document Intelligence Read]
     Worker --> Box[Box]
@@ -217,9 +218,15 @@ approved examples.
 
 The file path is:
 
-1. Receive the raw email MIME content, attachment, or manual upload into a private
-   transient Blob container and calculate its content hash.
+1. Receive the raw email MIME content, attachment, or manual/provider upload into
+   a private transient Blob container and calculate its content hash. The Web
+   process stages bytes received by its manual and provider HTTP callers through
+   the Infrastructure storage adapter; the Worker stages Graph-received bytes.
+   Queue messages contain identifiers, never source bytes.
 2. Record its source, hash, processing status, and idempotency key in SQL.
+   The receiving caller also commits a processing-outbox row before acknowledging
+   receipt; a Worker-hosted SQL outbox dispatcher places only that work-item ID
+   on the Storage queue.
 3. Extract embedded content or invoke OCR according to ADR-0001. ADR-0005 and
    the later settled questionnaire supersede the earlier VRM-image wording:
    Document Intelligence is limited to persisted scan-like PDF page candidates;

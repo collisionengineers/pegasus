@@ -26,17 +26,18 @@ The implementation-ready domain breakdown is maintained in [remainder-delivery/]
 The first thin slice has a real Web caller at `/Intake/Qdos`. In Development, with the explicit feature flag enabled, it can:
 
 - accept a manually selected `.eml`, `.pdf`, `.docx`, `.doc`, `.msg`, `.jpg`, `.jpeg`, or `.png` up to 10 MB;
-- read email bodies, bounded nested EML, PDF embedded text and discrete images through MimeKit/PdfPig, and DOCX text/internal images through Open XML SDK;
+- read email bodies, bounded nested EML, every page of each PDF plus its discrete images through MimeKit/PdfPig, and DOCX text/internal images through Open XML SDK; PDF processing is all-pages-or-incomplete under one aggregate per-intake expansion budget, never silently page-truncated;
 - retain each local source plus attachment, inline image, DOCX image, and discrete PDF image as a separate review occurrence in ignored content-addressed local storage, with SQL storing metadata only;
 - route legacy DOC and MSG sources to `Needs sorting` with an explicit deferred-format reason and no case/reference;
 - mark only low-text, dominant-raster PDF pages as OCR candidates; ordinary image evidence is not OCR input;
 - fail closed to `Needs sorting` without a reference when bounded EML processing is incomplete, even if earlier content looks confirming;
-- reject DOCX packages that exceed the accepted entry, expansion, XML-part, related-part, or extracted-image limits;
+- reject DOCX packages that exceed the accepted entry, expansion, XML-part, or extracted-image limits;
+- fail closed to `Needs sorting` when aggregate PDF text/image expansion exceeds the accepted limits, even if an earlier page or attachment looks confirming;
 - verify local content-addressed bytes before reuse or review and refuse to serve a hash mismatch;
 - let strong QDOS instruction content outrank the sender of a staff-forwarded email;
 - record evidence, missing fields, conflicts, and review candidates for the ten initial instruction fields;
 - default a missing instruction date from the injected clock;
-- produce explicit `Confirmed QDOS`, `Needs sorting`, `OCR required`, and technical-failure outcomes;
+- produce explicit `QDOS draft`, `Needs sorting`, `OCR required`, and technical-failure outcomes; `QDOS draft` means extraction succeeded, not that mailbox category or definitive acceptance has been decided;
 - identify each manual upload by a stable channel occurrence token while retaining the SHA-256 value as integrity and possible-duplicate evidence;
 - persist receipts, a relational read-only QDOS draft, assets, evidence, and field candidates through EF Core without creating a case or reference;
 - render persisted dashboard counts, queues, and a review page;
@@ -73,8 +74,8 @@ The development-only manual intake route must remain unavailable in a deployed e
 - Give every receipt a stable mailbox identity and make retries idempotent. Terminal failures must stop and become visible; transient failures may retry with a bound.
 - Process PDF, DOCX, bounded nested EML/freehand email instructions, and image-led intake. Retain DOC and MSG with provenance in `Needs sorting`; their automated extraction is deferred beyond the first MVP.
 - Use embedded PDF text first and targeted Document Intelligence OCR only for scan-like pages with insufficient text and a dominant raster image.
-- Keep ordinary email, DOCX, PDF-embedded, and direct image evidence reviewable without OCR. Automated vehicle-registration OCR/VLM is deferred beyond the first MVP; staff may record a readable registration as the provisional identifier until the principal is known.
-- Classify mailbox items into `Receiving work`, `Queries`, `Other`, `Needs sorting`, or the real business `Triage` flow. Also provide a manual `Blocked intake` filter for staff-decided blockers: retain the source and required reason/warning but create no case/reference until staff resolve and retry it. `Triage` must never be used as a generic inbox label.
+- Keep ordinary email, DOCX, PDF-embedded, and direct image evidence reviewable without OCR. By direct product decision on 2026-07-23, automated vehicle-registration OCR/VLM is deferred beyond the first MVP; this is separate from required scanned-PDF OCR. Staff may record a readable registration as the provisional identifier until the principal is known.
+- Classify mailbox items into `Receiving work`, `Queries`, `Other`, `Needs sorting`, or the real business `Triage` flow. The long-term categorisation policy is a major architectural scope: approved rules must be extensible and modifiable through one Core owner without transport-specific copies. Exact predicates and rule governance remain withheld by the open decision; do not introduce a generic engine, rule table, editor, or parallel classifier in advance. Also provide a manual `Blocked intake` filter for staff-decided blockers: retain the source and required reason/warning but create no case/reference until staff resolve and retry it. `Triage` must never be used as a generic inbox label.
 - Support manual case/instruction/image upload through the same Core use cases rather than a parallel rule engine.
 - Deliver a versioned provider API that uses separately issued principal-scoped client IDs and opaque secrets, stores only each secret's hash, and supports rotation/revocation. Its first-MVP operations are idempotent instruction/attachment submission plus own-submission receipt, processing status, and resulting Case/PO retrieval.
 - Deliver a separate remote MCP surface for internal staff, primarily through Claude Desktop. Use per-staff OAuth, current application roles, and permanent user attribution. Expose the signed-in role's case, inbox, and document actions through the same Core use cases as the UI; exclude account/role administration, principal configuration, credential management, cloud operations, and permanent deletion.
@@ -82,7 +83,7 @@ The development-only manual intake route must remain unavailable in a deployed e
 
 ### 4. Case model and lifecycle
 
-- Create the full QDOS case record from operator-confirmed intake data, including provider, claimant, claim, vehicle, accident, instruction date, inspection address, source, and associations.
+- Create the full QDOS case record from durably accepted definitive intake evidence, retaining the source and every available provider, claimant, claim, vehicle, accident, instruction-date, inspection-address and association value. Operator confirmation is required only to resolve material that was not already definitive or was manually blocked; it is not a universal creation gate.
 - Create the case automatically when a definitive authorised instruction is accepted; keep uncertain material out of case creation until a staff decision resolves it.
 - Support Inspection, Audit, and Inspection + Audit. Diminution and Commercial remain deferred.
 - Keep one shared QDOS/year sequence across all case types.
