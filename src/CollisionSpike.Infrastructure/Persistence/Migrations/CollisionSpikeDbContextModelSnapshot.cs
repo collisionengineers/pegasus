@@ -22,40 +22,58 @@ namespace CollisionSpike.Infrastructure.Persistence.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.AuditEventEntity", b =>
+            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.InstructionDraftEntity", b =>
                 {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Actor")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("DetailsJson")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("EventType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
                     b.Property<Guid>("IntakeReceiptId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTimeOffset>("OccurredAtUtc")
-                        .HasColumnType("datetimeoffset");
+                    b.Property<string>("AccidentCircumstances")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
 
-                    b.HasKey("Id");
+                    b.Property<string>("ClaimNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
-                    b.HasIndex("IntakeReceiptId");
+                    b.Property<string>("ClaimantName")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
 
-                    b.ToTable("AuditEvents", (string)null);
+                    b.Property<DateOnly?>("DateOfIncident")
+                        .HasColumnType("date");
+
+                    b.Property<string>("InspectionAddress")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateOnly?>("InstructionDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("SuggestedPrincipalCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("VehicleMake")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<long?>("VehicleMileage")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("VehicleModel")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("VehicleRegistration")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("IntakeReceiptId");
+
+                    b.ToTable("InstructionDrafts", (string)null);
                 });
 
-            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.QdosIntakeAssetEntity", b =>
+            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.IntakeAssetEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -118,10 +136,43 @@ namespace CollisionSpike.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("IntakeReceiptId", "ContentHash");
 
-                    b.ToTable("QdosIntakeAssets", (string)null);
+                    b.ToTable("IntakeAssets", (string)null);
                 });
 
-            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.QdosIntakeReceiptEntity", b =>
+            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.IntakeAuditEventEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Actor")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("DetailsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("IntakeReceiptId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("OccurredAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IntakeReceiptId");
+
+                    b.ToTable("IntakeAuditEvents", (string)null);
+                });
+
+            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.IntakeReceiptEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -146,6 +197,13 @@ namespace CollisionSpike.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<string>("ExtractionPolicyKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("ExtractionPolicyVersion")
+                        .HasColumnType("int");
+
                     b.Property<string>("FailureCode")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -167,8 +225,16 @@ namespace CollisionSpike.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTimeOffset>("ProcessedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<DateTimeOffset>("ReceivedAtUtc")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("SourceChannel")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
 
                     b.Property<string>("SourceFileName")
                         .IsRequired()
@@ -180,13 +246,18 @@ namespace CollisionSpike.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
 
-                    b.Property<string>("SourceChannel")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
                     b.Property<long>("SourceLength")
                         .HasColumnType("bigint");
+
+                    b.Property<string>("SourceReaderKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("SourceReaderVersion")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.HasKey("Id");
 
@@ -195,73 +266,23 @@ namespace CollisionSpike.Infrastructure.Persistence.Migrations
                     b.HasIndex("SourceChannel", "ExternalReceiptToken")
                         .IsUnique();
 
-                    b.ToTable("QdosIntakeReceipts", (string)null);
+                    b.ToTable("IntakeReceipts", (string)null);
                 });
 
-            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.QdosTypedDraftEntity", b =>
+            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.InstructionDraftEntity", b =>
                 {
-                    b.Property<Guid>("IntakeReceiptId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("AccidentCircumstances")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<string>("ClaimNumber")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("ClaimantName")
-                        .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
-
-                    b.Property<DateOnly?>("DateOfIncident")
-                        .HasColumnType("date");
-
-                    b.Property<string>("InspectionAddress")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<DateOnly?>("InstructionDate")
-                        .HasColumnType("date");
-
-                    b.Property<string>("PrincipalCode")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("VehicleMake")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<long?>("VehicleMileage")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("VehicleModel")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("VehicleRegistration")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.HasKey("IntakeReceiptId");
-
-                    b.ToTable("QdosTypedDrafts", (string)null);
-                });
-
-            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.AuditEventEntity", b =>
-                {
-                    b.HasOne("CollisionSpike.Infrastructure.Persistence.QdosIntakeReceiptEntity", null)
-                        .WithMany()
-                        .HasForeignKey("IntakeReceiptId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                    b.HasOne("CollisionSpike.Infrastructure.Persistence.IntakeReceiptEntity", "IntakeReceipt")
+                        .WithOne("InstructionDraft")
+                        .HasForeignKey("CollisionSpike.Infrastructure.Persistence.InstructionDraftEntity", "IntakeReceiptId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("IntakeReceipt");
                 });
 
-            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.QdosIntakeAssetEntity", b =>
+            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.IntakeAssetEntity", b =>
                 {
-                    b.HasOne("CollisionSpike.Infrastructure.Persistence.QdosIntakeReceiptEntity", "IntakeReceipt")
+                    b.HasOne("CollisionSpike.Infrastructure.Persistence.IntakeReceiptEntity", "IntakeReceipt")
                         .WithMany("Assets")
                         .HasForeignKey("IntakeReceiptId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -270,22 +291,20 @@ namespace CollisionSpike.Infrastructure.Persistence.Migrations
                     b.Navigation("IntakeReceipt");
                 });
 
-            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.QdosTypedDraftEntity", b =>
+            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.IntakeAuditEventEntity", b =>
                 {
-                    b.HasOne("CollisionSpike.Infrastructure.Persistence.QdosIntakeReceiptEntity", "IntakeReceipt")
-                        .WithOne("TypedDraft")
-                        .HasForeignKey("CollisionSpike.Infrastructure.Persistence.QdosTypedDraftEntity", "IntakeReceiptId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                    b.HasOne("CollisionSpike.Infrastructure.Persistence.IntakeReceiptEntity", null)
+                        .WithMany()
+                        .HasForeignKey("IntakeReceiptId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.Navigation("IntakeReceipt");
                 });
 
-            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.QdosIntakeReceiptEntity", b =>
+            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.IntakeReceiptEntity", b =>
                 {
                     b.Navigation("Assets");
 
-                    b.Navigation("TypedDraft");
+                    b.Navigation("InstructionDraft");
                 });
 #pragma warning restore 612, 618
         }

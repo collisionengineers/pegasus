@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Xml.Linq;
 using CollisionSpike.Core;
+using CollisionSpike.Core.Intake;
 
 namespace CollisionSpike.ArchitectureTests;
 
@@ -107,6 +108,24 @@ public sealed class DependencyDirectionTests
         Assert.Equal(
             ["CollisionSpike.Core", "CollisionSpike.Infrastructure"],
             ProjectReferences(root, "src/CollisionSpike.Worker/CollisionSpike.Worker.csproj"));
+    }
+
+    [Fact]
+    public void IntakeOrchestrationUsesOneExplicitExtractionPolicyBoundary()
+    {
+        var constructor = Assert.Single(typeof(ProcessIntake).GetConstructors());
+        var parameters = constructor.GetParameters().Select(parameter => parameter.ParameterType).ToArray();
+
+        Assert.Contains(typeof(IIntakeSourceReader), parameters);
+        Assert.Contains(typeof(IIntakeReceiptStore), parameters);
+        Assert.Contains(typeof(IIntakeArtifactStore), parameters);
+        Assert.Contains(typeof(IInstructionExtractionPolicy), parameters);
+        Assert.DoesNotContain(typeof(QdosInstructionExtractionPolicy), parameters);
+
+        var implementations = typeof(CoreAssembly).Assembly.GetTypes()
+            .Where(type => !type.IsAbstract && typeof(IInstructionExtractionPolicy).IsAssignableFrom(type))
+            .ToArray();
+        Assert.Equal([typeof(QdosInstructionExtractionPolicy)], implementations);
     }
 
     private static bool IsForbiddenCoreDependency(string assemblyName) =>

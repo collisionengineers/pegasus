@@ -6,8 +6,10 @@ Status: **Local caller evidence; not production or operator acceptance**
 
 ## Scope
 
-This evaluation covers the Development-only `POST /Intake/Qdos` caller and the
-single shared Core intake use case. Corpus material stayed local, ignored, and
+This evaluation records the Development-only `POST /Intake/Qdos` caller used on
+2026-07-23. ADR-0006 subsequently replaced that route with `/Intake/Upload` and
+contained the QDOS rules behind the provider-neutral `ProcessIntake` use case;
+the results remain historical QDOS-policy evidence. Corpus material stayed local, ignored, and
 immutable. Tests upload only sanitised, hash-derived names; test output and the
 inventory contain no source names or content.
 

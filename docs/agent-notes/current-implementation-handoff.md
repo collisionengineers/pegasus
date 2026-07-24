@@ -1,24 +1,25 @@
 # Current implementation handoff
 
-Handoff date: 2026-07-23, Europe/London
+Handoff date: 2026-07-24, Europe/London
 
-Implementation baseline: `9159f8b` (`feat: add local QDOS intake vertical slice`)
+Starting implementation baseline: `9159f8b` (`feat: add local QDOS intake vertical slice`)
 
 Repository state at handoff: pre-release, local-only, no v2 Azure deployment
 
 ## Outcome
 
-The repository now contains the first genuine-input QDOS vertical slice. It deliberately proves one thin path rather than claiming the full MVP:
+The repository now contains a provider-neutral local intake slice with one contained QDOS instruction-extraction policy. It deliberately proves one thin path rather than claiming the full MVP or a second provider:
 
 ```text
 Development-only Razor Page
-  -> ProcessQdosIntake in Core
+  -> ProcessIntake in Core
+  -> one IInstructionExtractionPolicy implementation for QDOS
   -> MimeKit/PdfPig/Open XML source reader in Infrastructure
   -> content-addressed ignored local artifact store plus EF Core metadata store
   -> persisted source/asset review, queue, and dashboard pages
 ```
 
-The browser is the real caller. Business classification, field-candidate extraction, source-occurrence idempotency, and relational typed-draft persistence live in Core/Infrastructure and are not duplicated in the PageModel. This development path creates no case or reference.
+The browser is the real caller. Source processing, QDOS field-candidate extraction, source-occurrence idempotency, and relational typed-draft persistence live in Core/Infrastructure and are not duplicated in the PageModel. QDOS is suggested only when the policy finds positive content evidence; it is not a fallback principal. This development path performs no mailbox categorisation and creates no case or reference.
 
 ## Run it locally
 
@@ -30,12 +31,12 @@ pwsh ./scripts/Invoke-RepoCheck.ps1
 dotnet run --project ./src/CollisionSpike.Web --launch-profile https
 ```
 
-Open `https://localhost:7139/Intake/Qdos` or use the dashboard link. The launch profile supplies:
+Open `https://localhost:7139/Intake/Upload` or use the dashboard link. The launch profile supplies:
 
 - `ASPNETCORE_ENVIRONMENT=Development`;
 - `Database__Provider=Sqlite`;
-- ignored local database `artifacts/local/collisionspike-v2.db`; and
-- `Features__LocalQdosIntake=true`.
+- ignored local database `artifacts/local/collisionspike-v2-dev.db`; and
+- `Features__LocalIntake=true`.
 
 The route is deny-by-default. It returns 404 if the flag is absent/false and also returns 404 in Production even if someone sets the flag to true.
 
@@ -47,13 +48,15 @@ The route is deny-by-default. It returns 404 if the flag is absent/false and als
 - Retain the uploaded source plus every supported attachment, inline image, DOCX image, and discrete PDF image as separate review occurrences under ignored `artifacts/`; SQL stores metadata and opaque keys rather than file bytes.
 - Route legacy DOC and MSG to `Needs sorting` with no reference; their automated extraction is deferred.
 - Mark only low-text PDF pages with a dominant raster as OCR candidates. Ordinary images are review evidence and are not sent to OCR.
-- Classify strong instruction content ahead of weak transport signals such as a staff-forwarding sender.
+- Apply the QDOS policy only to fully readable input. Strong QDOS instruction content outranks a weak transport signal such as a staff-forwarding sender; a QDOS-looking sender or filename alone creates no draft or principal suggestion.
 - Show classification evidence, ten field suggestions, missing values, conflicts, page-labelled extracted text, document/attachment-level OCR-required status, and failure details.
-- Show the ten typed QDOS draft values read-only when conversion is unambiguous, while retaining the original candidates and provenance.
+- Show the ten typed instruction-draft values read-only when QDOS applicability and conversion are unambiguous, while retaining the original candidates and provenance.
 - Default an absent instruction date from the receipt clock.
 - Create no case, counter, or reference during receipt and extraction.
 - Return the existing receipt for replay of the same source occurrence; retain equal source bytes under a different occurrence identity as separate evidence.
-- Show persisted Review and Needs sorting counts and filtered queues.
+- Show persisted Instruction draft and Needs sorting counts and filtered queues.
+- Retain the original source before recording a reviewable receipt. A retention failure is retryable and stores no receipt; a later SQL failure may leave reusable content-addressed bytes.
+- Persist stable decision/channel/evidence/asset codes and versioned JSON envelopes rather than CLR enum names.
 
 The test clock is fixed to 2031, so integration assertions use a 2031 instruction-date default. Receipt processing no longer allocates a year-based reference.
 
@@ -89,24 +92,44 @@ The full repository gate passed with required corpus evidence after the
 increment: 11 Core, 57 non-corpus integration, 29 architecture, and 11 corpus
 tests, all executed with no failures or skips.
 
+### Provider-neutral intake refactor on 2026-07-24
+
+`pwsh ./scripts/Invoke-RepoCheck.ps1 -RequireCorpusEvidence` passed on the final
+refactored tree. The Release build completed with no warnings or errors; 28/28
+Core, 82/82 non-corpus integration, 30/30 architecture, and 11/11 genuine-corpus
+tests executed with no failures or skips. Repository structure, Bicep compilation,
+ignored-boundary checks, and project-skill validation also passed.
+
+The disposable LocalDB cohort passed 11/11 with no skips. It applies the single
+provider-neutral initial migration explicitly and covers constraints,
+concurrency, audit-write rollback, and retry. Independent evaluation also reran
+the actual upload no-default path, unknown persisted-code failures, inconsistent
+policy-result guards, and case-variant receipt replay. These checks prove local
+caller and migration behavior only; they do not prove a live database upgrade,
+deployment, extraction accuracy, or operator acceptance.
+
 ## Key files
 
 | Responsibility | File |
 |---|---|
-| Business intake use case | `src/CollisionSpike.Core/Intake/Qdos/ProcessQdosIntake.cs` |
-| Core contracts and ports | `src/CollisionSpike.Core/Intake/Qdos/QdosIntakeContracts.cs` |
-| Multi-format adapter | `src/CollisionSpike.Infrastructure/Intake/Qdos/MimeKitPdfPigQdosSourceReader.cs` |
-| Local artifact adapter | `src/CollisionSpike.Infrastructure/Intake/Qdos/FileSystemIntakeArtifactStore.cs` |
-| EF receipt and typed-draft persistence | `src/CollisionSpike.Infrastructure/Persistence/EfQdosIntakeStore.cs` |
+| Business intake use case | `src/CollisionSpike.Core/Intake/ProcessIntake.cs` |
+| Core contracts and ports | `src/CollisionSpike.Core/Intake/IntakeContracts.cs` |
+| QDOS extraction policy | `src/CollisionSpike.Core/Intake/QdosInstructionExtractionPolicy.cs` |
+| Multi-format adapter | `src/CollisionSpike.Infrastructure/Intake/MimeKitPdfPigOpenXmlIntakeSourceReader.cs` |
+| Local artifact adapter | `src/CollisionSpike.Infrastructure/Intake/FileSystemIntakeArtifactStore.cs` |
+| EF receipt and typed-draft persistence | `src/CollisionSpike.Infrastructure/Persistence/EfIntakeReceiptStore.cs` |
 | Database model/migration | `src/CollisionSpike.Infrastructure/Persistence/CollisionSpikeDbContext.cs` and `Migrations/` |
 | Web composition and safety gate | `src/CollisionSpike.Web/Program.cs` |
-| Real manual caller | `src/CollisionSpike.Web/Pages/Intake/Qdos.cshtml.cs` |
+| Real manual caller | `src/CollisionSpike.Web/Pages/Intake/Upload.cshtml.cs` |
 | Review/queue/dashboard callers | `src/CollisionSpike.Web/Pages/Intake/` and `Pages/Index.cshtml.cs` |
 | Genuine-input Web evidence | `tests/CollisionSpike.IntegrationTests/QdosIntakeWebTests.cs` |
-| Route-denial evidence | `tests/CollisionSpike.IntegrationTests/LocalQdosIntakeAccessTests.cs` |
+| Route-denial evidence | `tests/CollisionSpike.IntegrationTests/LocalIntakeAccessTests.cs` |
+| Stable persistence and unsupported-source evidence | `tests/CollisionSpike.IntegrationTests/IntakeStablePersistenceTests.cs` |
+| SQLite baseline refusal evidence | `tests/CollisionSpike.IntegrationTests/IntakeSqliteBaselineGuardTests.cs` |
 | Architecture boundary evidence | `tests/CollisionSpike.ArchitectureTests/DependencyDirectionTests.cs` |
 | Embedded PDF decision | `docs/architecture/decisions/ADR-0003-pdfpig-for-first-qdos-slice.md` |
 | Multi-format/asset decision | `docs/architecture/decisions/ADR-0005-multiformat-intake-assets.md` |
+| Provider-neutral intake decision | `docs/architecture/decisions/ADR-0006-provider-neutral-intake-with-contained-qdos-policy.md` |
 
 ## Important limits
 
@@ -117,8 +140,8 @@ tests, all executed with no failures or skips.
 - DOCX and image review are implemented locally. Automated DOC/MSG extraction, vehicle-registration OCR/VLM, Graph mailbox intake, private Blob staging, Box, DVLA/DVSA, EVA export, and lifecycle management are not implemented.
 - The Worker has no trigger and does not yet call Core.
 - There is no application authentication, role enforcement, or authenticated audit actor.
-- Development SQLite now adopts recognised populated `EnsureCreated` schemas into migration history and applies the same provider-aware migration stream; unrecognised schemas fail closed without deleting the database. SQLite concurrency still does not prove SQL Server locking behavior.
-- Populated SQL Server and SQLite upgrade tests preserve retired local allocation evidence in audit JSON, backfill unresolved typed drafts without guessing, and remove the obsolete allocation schema. No migration has been applied to a live v2 database.
+- Development SQLite uses a fresh provider-neutral initial migration and strict baseline validation before migration. Empty databases and an exact current schema/history are accepted; old migration IDs, historyless or mismatched schemas, and unexpected tables fail closed without mutation. The former local database path remains untouched. SQLite behavior still does not prove SQL Server locking behavior.
+- Non-Development startup never applies migrations. Disposable SQL Server tests apply the provider-neutral initial migration explicitly. No migration has been applied to a live v2 database.
 - Bicep compilation proves syntax/type consistency only. No v2 Azure resources have been provisioned.
 - No production route should be enabled from this slice.
 
@@ -133,7 +156,7 @@ Add staff identity and trusted draft confirmation before any case-creation bound
 3. make draft confirmation a separate authenticated mutation with optimistic-concurrency evidence; and
 4. keep case/reference allocation absent until configured principal identity, durable custody, and the accepted allocation transaction are ready.
 
-Do not start mailbox automation by copying the current rules into the Worker. The future Graph trigger must call the same Core use case and add managed-identity Blob staging, Box custody, delivery identity, and bounded failure handling at the adapter boundary. The future OCR caller must submit only the persisted scan-like PDF page candidates to Document Intelligence; vehicle images are outside that first OCR slice.
+Do not start mailbox automation by copying the current rules into the Worker or treating the QDOS extraction policy as mailbox categorisation. The future Graph trigger must call `ProcessIntake` and add managed-identity Blob staging, Box custody, delivery identity, and bounded failure handling at the adapter boundary. The future OCR caller must submit only the persisted scan-like PDF page candidates to Document Intelligence; vehicle images are outside that first OCR slice.
 
 ## Cloud and predecessor boundary
 

@@ -6,13 +6,13 @@ Turn a durable, reviewable instruction or image intake into one accepted QDOS ca
 
 ## Authority and current boundary
 
-- **Authority:** [source order](../../../agent-guidance/source-of-truth.md), [questionnaire §§4–6](../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md), [remaining requirements §§1–4](../../remaining-requirements.md), and [ADR-0005](../../../architecture/decisions/ADR-0005-multiformat-intake-assets.md).
-- **Policy owner:** `ProcessQdosIntake` remains the single Core receive/extract/classify use case for Web and later Worker/provider callers; a planned `AcceptCaseDraft` command owns the one authorised case-creation transaction for both automatic definitive instructions and staff-resolved/manual intake.
-- **Current implementation:** `ProcessQdosIntake`, `EfQdosIntakeStore`, `QdosIntakeReceiptEntity`, and `QdosTypedDraftEntity` form one local pre-case QDOS proof. Channel occurrence identity is idempotent, equal bytes may remain separate occurrences, and this path has no case/reference allocator.
-- **Real callers:** `/Intake/Qdos` is the only current real intake caller, and only in Development with `Features:LocalQdosIntake`; Graph Worker, provider API, MCP and normal staff intake pages are **planned**.
+- **Authority:** [source order](../../../agent-guidance/source-of-truth.md), [questionnaire §§4–6](../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md), [remaining requirements §§1–4](../../remaining-requirements.md), [ADR-0005](../../../architecture/decisions/ADR-0005-multiformat-intake-assets.md), and [ADR-0006](../../../architecture/decisions/ADR-0006-provider-neutral-intake-with-contained-qdos-policy.md).
+- **Policy owner:** `ProcessIntake` is the single Core receive/process use case for Web and later Worker/provider callers. One contained `QdosInstructionExtractionPolicy` owns QDOS recognition and typed suggestions; a planned `AcceptCaseDraft` command owns the one authorised case-creation transaction.
+- **Current implementation:** `ProcessIntake`, the provider-neutral EF intake store, `IntakeReceiptEntity`, and `InstructionDraftEntity` form one local pre-case proof. Channel occurrence identity is idempotent, equal bytes may remain separate occurrences, and this path has no case/reference allocator.
+- **Real callers:** `/Intake/Upload` is the only current real intake caller, and only in Development with `Features:LocalIntake`; Graph Worker, provider API, MCP and authenticated staff intake pages are **planned**.
 - **Persistence/adapters:** current SQLite/SQL receipt, typed-draft, asset and audit tables. SHA-256 is integrity/possible-duplicate evidence rather than receipt identity; production custody remains later.
 - **Dependencies:** the current local caller and extraction/provenance contracts are sufficient for the read-only relational-draft slice. An audited staff or approved automation actor, durable custody, configured principal and [case identity](case-identity-and-references.md) are prerequisites for case creation.
-- **Replaces/consolidates:** replace the manual checkbox as the authority to create a case and global content-hash idempotency as receipt identity; extend rather than split or wrap `ProcessQdosIntake`, and retain hash as integrity and possible-duplicate evidence.
+- **Replaces/consolidates:** the provider-neutral use case replaces the former QDOS-shaped receipt/storage/route spine without adding a second intake engine. Content hash remains integrity and possible-duplicate evidence rather than receipt identity.
 
 ## Shared failure and observability rules
 
@@ -25,35 +25,35 @@ An uncertain classification, association, principal, vehicle registration, case 
 ### Authority and decision gate
 
 - **Requirement/decision:** questionnaire §§4–6 and remaining requirements §§2–4.
-- **Confirmed facts:** QDOS field candidates/provenance remain immutable JSON evidence, unambiguous values also persist in a relational read-only draft, and the original source is not durable first-MVP custody. Receipt processing creates no case/reference.
+- **Confirmed facts:** provider-neutral field candidates/provenance remain immutable versioned JSON evidence; an applicable QDOS policy result may persist unambiguous values in a relational read-only instruction draft and suggest QDOS. Non-QDOS or ambiguous input receives no principal suggestion. The original source is retained locally but is not durable first-MVP custody. Receipt processing creates no case/reference.
 - **Decision required before the next mutation:** actor/audit, durable custody, principal configuration and the case-acceptance transaction remain separate planned boundaries. Operator resolution is required only when the automatic predicate is not definitive; it is not a universal gate on new instructions. Worker/API source identity and Box custody are not a licence to call either system.
 
 ### Owner and dependencies
 
-- **Policy/implementation owner:** existing Core `ProcessQdosIntake`, extended with one typed-draft persistence model; it remains the single intake entry point.
+- **Policy/implementation owner:** Core `ProcessIntake` owns intake orchestration and the one typed-draft persistence model; `QdosInstructionExtractionPolicy` owns only QDOS evidence and field rules.
 - **Independent evaluator:** test engineer with a frozen operator-reviewed QDOS cohort and author-hidden holdout.
 - **Prerequisites:** current Development caller and typed extraction provenance. Authenticated actor/audit and durable production custody are required before confirmation or acceptance, not before a read-only local draft.
 - **Consumers/unlocks:** reviewed staff UI, later Worker/API/MCP callers, case acceptance and inbox work views.
 
 ### Caller, contract and change boundary
 
-- **Real or intended caller:** `/Intake/Qdos` is the current development-only caller of `ProcessQdosIntake` and remains so after refactoring. Later authorised Web/Worker/provider receipt paths call the same intake use case; Worker/provider definitive instructions automatically hand off to the single acceptance transaction, while staff review resolves only non-definitive or manual intake. Transports never reimplement classification or decide allocation.
+- **Real or intended caller:** `/Intake/Upload` is the current development-only caller of `ProcessIntake`. Later authorised Web/Worker/provider receipt paths call the same use case; transports never reimplement extraction, mailbox classification, acceptance, or allocation.
 - **Input/output:** channel plus immutable channel occurrence identity, extracted candidates/provenance and typed values produce either a read-only typed draft, `Needs sorting`, or another explicit pre-case outcome. Source identity is preserved after later matching.
-- **Ordered decisions and failure behavior:** validate source occurrence identity; retain and extract; surface conflicts/missing data; produce typed values only when conversion is unambiguous. `QDOS draft` is an extraction outcome, not a mailbox category or definitive acceptance decision; this slice records no operator confirmation, block, acceptance, case or reference.
+- **Ordered decisions and failure behavior:** validate occurrence identity; retain the original source; read it; stop on unsupported, incomplete, OCR-required, or technical outcomes; invoke the QDOS policy only for fully readable input; surface conflicts/missing data; and create typed values only for an applicable, unambiguous result. `Draft ready` is an extraction outcome, not a mailbox category or definitive acceptance decision. A filename or sender never defaults the principal to QDOS.
 - **Persistence/migration:** replace global content-hash identity with channel occurrence identity and relational typed draft values while retaining immutable candidate/provenance evidence. Replay of one occurrence is idempotent; equal bytes under different permitted identities remain separate evidence.
-- **Adapters/side effects:** source/custody adapter supplies a persisted receipt; no Box, Graph, OCR, EVA or outbound message operation is performed by this task.
+- **Adapters/side effects:** the local artifact adapter retains source bytes before any reviewable receipt is persisted. Retention failure is retryable and stores no receipt; a later SQL failure may leave reusable content-addressed bytes. No Box, Graph, OCR, EVA or outbound message operation is performed.
 - **Operator surface and observability:** show the source, typed values, missing values, conflicts and provenance read-only. `Blocked intake`, corrections and confirmation remain absent until authenticated mutation exists.
 - **Documentation affected:** keep operator notes read-only; amend implementation guidance only when the replacement is real.
-- **Replaces/consolidates:** do not restore the retired direct draft-plus-checkbox creation branch or global hash-as-business-identity; retain `ProcessQdosIntake` as the intake owner.
+- **Replaces/consolidates:** do not restore the retired direct draft-plus-checkbox creation branch, global hash-as-business-identity, former QDOS-shaped intake spine, or `/Intake/Qdos` compatibility route.
 
 ### Scope
 
-- **Included:** QDOS relational typed draft, read-only review, provenance and channel-source-identity idempotency through the existing Development caller.
+- **Included:** provider-neutral receipt/review/provenance, channel-source-identity idempotency, and a QDOS-derived relational typed instruction draft through the existing Development caller.
 - **Excluded:** editing, confirmation, `Blocked intake`, case/reference creation, authenticated audit, automated mailbox receipt, provider API, OCR, DOC/MSG extraction, WhatsApp automation and case matching.
 
 ### Implementation checklist
 
-- [x] Extend `ProcessQdosIntake` so the existing Development Web caller persists one source-identity receipt and relational typed read-only draft without a transport-specific alternative.
+- [x] Use one provider-neutral `ProcessIntake` entry point so the Development Web caller persists one source-identity receipt and, only for applicable QDOS evidence, one relational typed read-only draft.
 - [x] Retain immutable candidates/provenance and separate equal-content occurrences while making same-identity replay idempotent.
 - [x] Remove the manual case-creation checkbox and raw-processing allocator; acceptance remains a separate later task.
 
@@ -62,7 +62,7 @@ An uncertain classification, association, principal, vehicle registration, case 
 - [x] Readable QDOS-shaped content becomes a read-only typed draft with every extracted field/provenance visible and no case/reference; uncertain category remains unresolved.
 - [x] Missing registration, contradictory identity and ambiguous/unsupported content remain pre-case with no counter mutation.
 - [x] Same source occurrence identity replay is idempotent; equal content under different permitted source identities remains reviewable evidence, not silently deleted.
-- [ ] Exercise `/Intake/Qdos` against a frozen, operator-reviewed field-expectation cohort and untouched holdout. The genuine local smoke passed, but it does not establish field-level accuracy or business acceptance.
+- [ ] Exercise `/Intake/Upload` against a frozen, operator-reviewed field-expectation cohort and untouched holdout. The genuine local smoke passed, but it does not establish field-level accuracy or business acceptance.
 - [x] Run `pwsh ./scripts/Invoke-RepoCheck.ps1 -RequireCorpusEvidence`; record command, exit result and unrelated concurrent-tree limitations.
 
 ### Acceptance criteria
@@ -76,15 +76,15 @@ An uncertain classification, association, principal, vehicle registration, case 
 ### Approval, rollout and rollback
 
 - **Approval-triggering action and exact scope:** no external mutation and no case/reference creation occurs in this slice.
-- **Rollout/activation:** migrate data, enable only the refactored Development caller, prove it, then enable confirmation/acceptance and subsequent callers in their own approved slices.
-- **Rollback/recovery:** retain receipts/candidates and disable the new caller; return unresolved items to visible pre-case review. Never delete a source or case.
+- **Rollout/activation:** use the new `artifacts/local/collisionspike-v2-dev.db` provider-neutral baseline, enable only the refactored Development caller, prove it, then enable confirmation/acceptance and subsequent callers in their own approved slices. Old migration IDs or an unrecognised SQLite schema fail before mutation.
+- **Rollback/recovery:** disable the new caller and restore the previous binary with its prior database path. Do not delete or down-migrate either database or retained artifacts; new-path receipts remain retained but unavailable to the reverted binary.
 - **Irreversible risk:** accepting a false case/reference; mitigate with the definitive predicate, transactional acceptance and independent holdout evidence.
 - **Local-only residual:** two simultaneous first uses of one new token with different bytes are rejected at persistence, but the losing content-addressed local file may be unreferenced. Durable staging must reserve identity or reconcile orphan content before any production caller is enabled.
 
 ### Deferred-capability impact
 
 - **Named capabilities:** later full mailbox coverage, WhatsApp, provider API/MCP, OCR/vision, legacy DOC/MSG and external accounts.
-- **Stable seam retained:** source identity, original-source provenance, the single `ProcessQdosIntake` intake use case and the separate authorised acceptance transaction allow later transport adapters without another intake engine.
+- **Stable seam retained:** source identity, original-source provenance, the single `ProcessIntake` use case, contained extraction-policy contract, and separate authorised acceptance transaction allow later transports or approved providers without another intake engine.
 - **Future migration/replacement:** those adapters and credentials still require their own accepted slices and live evidence.
 - **Activation boundary:** cohort/holdout results plus explicit operator approval for a wider automated acceptance rule.
 - **Deliberately absent:** no dormant transport, queue, API endpoint, OCR client, WhatsApp integration or external-user account.
@@ -93,7 +93,8 @@ An uncertain classification, association, principal, vehicle registration, case 
 
 | State/command/input | Result | Boundary exercised | Proves | Does not prove / skipped |
 |---|---|---|---|---|
-| `pwsh ./scripts/Invoke-RepoCheck.ps1 -RequireCorpusEvidence` | Exit 0: Core 11/11, integration 57/57, architecture 29/29, genuine corpus 11/11; no failures/skips | Development Web caller, populated SQL Server/SQLite upgrades, EF persistence, source/asset retention, route guards, repository structure and Bicep compilation | Local caller persists/replays typed pre-case drafts without case/reference schema; altered-byte token reuse fails closed; legacy local proof identity survives as audit evidence; supported genuine formats still traverse the caller | Operator-reviewed field accuracy/holdout, production custody, authentication, Worker, external adapters, Azure deployment or business acceptance |
+| `pwsh ./scripts/Invoke-RepoCheck.ps1 -RequireCorpusEvidence` | Exit 0: Release build 0 warnings/errors; Core 28/28, non-corpus integration 82/82, architecture 30/30, genuine corpus 11/11; no failures/skips | Development `/Intake/Upload` caller, provider-neutral EF persistence, source/asset retention, strict SQLite baseline refusal, route guards, repository structure and Bicep compilation | Non-QDOS and transport-only QDOS evidence create no principal suggestion; local caller persists/replays typed pre-case drafts without case/reference schema; altered-byte token reuse and inconsistent policy results fail closed; supported genuine QDOS formats still traverse the caller | Operator-reviewed field accuracy/holdout, production custody, authentication, Worker, a live database upgrade, Azure deployment or business acceptance |
+| `dotnet test tests/CollisionSpike.IntegrationTests/CollisionSpike.IntegrationTests.csproj -c Release --no-build --no-restore --filter "Category=SqlServer"` | 11/11 passed; no failures/skips | Disposable LocalDB applies the single provider-neutral initial migration explicitly, including constraints, concurrency, audit-write rollback and retry | Fresh SQL Server schema and bounded transaction behavior for the test fixture | Azure SQL, a populated historical upgrade, production contention, release execution or restore |
 
 ## Accept a definitive case transaction
 
@@ -114,7 +115,7 @@ An uncertain classification, association, principal, vehicle registration, case 
 
 ### Caller, contract and change boundary
 
-- **Real or intended caller:** `ProcessQdosIntake` automatically hands a definitive authorised Worker/provider instruction to `AcceptCaseDraft`; authenticated Web submission/resolution calls the same transaction for staff-initiated work. `/Intake/Qdos` remains only the current development pre-case proof until those dependencies exist.
+- **Real or intended caller:** a future accepted-category flow from `ProcessIntake` may hand a definitive authorised Worker/provider instruction to `AcceptCaseDraft`; authenticated Web submission/resolution calls the same transaction for staff-initiated work. `/Intake/Upload` remains only the current development pre-case proof until those dependencies exist.
 - **Input/output:** a definitive instruction plus authorised source/actor yields exactly one QDOS case/reference in `Not ready`, unless an audited staff completeness confirmation already permits `Review`. Manual resolution/retry uses the same command. A definitive match to an existing image-led/case record associates the source and allocates no duplicate.
 - **Ordered decisions and failure behavior:** authorise the staff/service actor; re-read receipt, draft and acceptance evidence; require `Receiving work` or an authenticated principal-scoped provider instruction; require known principal/code, VRM, unambiguous case type, no identity-critical conflict and no unresolved association. A standalone Audit also requires an unambiguous original-report repairable/total-loss assessment. Idempotently return an existing acceptance/association, otherwise atomically create case, shared-sequence reference, source association, initial state, audit and custody outbox. Allocation exhaustion/concurrency/pre-commit failure is visible and leaves no partial case or counter movement. Post-commit custody failure retains the issued identity and retries without reallocation.
 - **Persistence/migration:** one Core transaction across case identity, typed data, intake association, audit and outbox; no parallel editable receipt/case authority.
@@ -141,7 +142,7 @@ An uncertain classification, association, principal, vehicle registration, case 
 - [ ] A definitive existing-case/image-led match associates without another reference; uncertain matching remains `Needs sorting`.
 - [ ] Parallel/replayed acceptance consumes one sequence; failed allocation/custody preparation leaves no partially visible accepted case.
 - [ ] Pre-case source never receives a reference; audit action has authenticated actor and required reason where applicable.
-- [ ] Exercise the refactored `/Intake/Qdos` caller first; independently test SQL Server concurrency before release.
+- [ ] Exercise the `/Intake/Upload` caller first; independently test SQL Server concurrency before release.
 - [ ] Run `pwsh ./scripts/Invoke-RepoCheck.ps1` and record its scoped result/limitations.
 
 ### Acceptance criteria

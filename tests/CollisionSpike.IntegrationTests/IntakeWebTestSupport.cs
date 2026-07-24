@@ -8,39 +8,43 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using CollisionSpike.Core.Intake;
 
 namespace CollisionSpike.IntegrationTests;
 
-public sealed class QdosWebApplicationFactory : WebApplicationFactory<Program>
+public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
 {
     private static readonly DateTimeOffset FixedUtcNow = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
     private readonly string environment;
-    private readonly bool? localQdosIntakeEnabled;
+    private readonly bool? localIntakeEnabled;
     private readonly TimeProvider timeProvider;
+    private readonly IIntakeArtifactStore? artifactStore;
     private readonly string workingDirectory = Path.Combine(
         Path.GetTempPath(), "CollisionSpike.IntegrationTests", Guid.NewGuid().ToString("N"));
 
-    public QdosWebApplicationFactory()
+    public IntakeWebApplicationFactory()
         : this("Development", true)
     {
     }
 
-    internal QdosWebApplicationFactory(TimeProvider timeProvider)
+    internal IntakeWebApplicationFactory(TimeProvider timeProvider)
         : this("Development", true, timeProvider)
     {
     }
 
-    internal QdosWebApplicationFactory(
+    internal IntakeWebApplicationFactory(
         string environment,
-        bool? localQdosIntakeEnabled,
-        TimeProvider? timeProvider = null)
+        bool? localIntakeEnabled,
+        TimeProvider? timeProvider = null,
+        IIntakeArtifactStore? artifactStore = null)
     {
         this.environment = environment;
-        this.localQdosIntakeEnabled = localQdosIntakeEnabled;
+        this.localIntakeEnabled = localIntakeEnabled;
         this.timeProvider = timeProvider ?? new TestTimeProvider(FixedUtcNow);
+        this.artifactStore = artifactStore;
     }
 
-    internal string DatabasePath => Path.Combine(workingDirectory, "qdos-tests.db");
+    internal string DatabasePath => Path.Combine(workingDirectory, "intake-tests.db");
 
     internal string ArtifactDirectory => Path.Combine(workingDirectory, "intake-artifacts");
 
@@ -55,9 +59,9 @@ public sealed class QdosWebApplicationFactory : WebApplicationFactory<Program>
                 ["Database:LocalPath"] = DatabasePath,
                 ["Intake:LocalArtifactPath"] = ArtifactDirectory
             };
-            if (localQdosIntakeEnabled is not null)
+            if (localIntakeEnabled is not null)
             {
-                values["Features:LocalQdosIntake"] = localQdosIntakeEnabled.Value.ToString();
+                values["Features:LocalIntake"] = localIntakeEnabled.Value.ToString();
             }
 
             configuration.AddInMemoryCollection(values);
@@ -66,6 +70,11 @@ public sealed class QdosWebApplicationFactory : WebApplicationFactory<Program>
         {
             services.RemoveAll<TimeProvider>();
             services.AddSingleton(timeProvider);
+            if (artifactStore is not null)
+            {
+                services.RemoveAll<IIntakeArtifactStore>();
+                services.AddSingleton(artifactStore);
+            }
         });
     }
 
@@ -85,9 +94,9 @@ public sealed class QdosWebApplicationFactory : WebApplicationFactory<Program>
     }
 }
 
-internal static partial class QdosWebDriver
+internal static partial class IntakeWebDriver
 {
-    public static HttpClient CreateClient(QdosWebApplicationFactory factory) => factory.CreateClient(
+    public static HttpClient CreateClient(IntakeWebApplicationFactory factory) => factory.CreateClient(
         new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
@@ -135,7 +144,7 @@ internal static partial class QdosWebDriver
         HttpClient client,
         CancellationToken cancellationToken = default)
     {
-        using var formPage = await client.GetAsync("/Intake/Qdos", cancellationToken);
+        using var formPage = await client.GetAsync("/Intake/Upload", cancellationToken);
         formPage.EnsureSuccessStatusCode();
         var html = await formPage.Content.ReadAsStringAsync(cancellationToken);
         var tokenTag = AntiforgeryTagRegex().Match(html);
@@ -179,7 +188,7 @@ internal static partial class QdosWebDriver
             multipart.Add(file, "Upload", uploadName);
         }
 
-        using var response = await client.PostAsync("/Intake/Qdos", multipart, cancellationToken);
+        using var response = await client.PostAsync("/Intake/Upload", multipart, cancellationToken);
         var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
         return new(response.StatusCode, response.Headers.Location, responseBody);
     }

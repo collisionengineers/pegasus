@@ -12,7 +12,8 @@ must not be edited from here.
 | [ADR-0002: .NET modular monolith on Azure App Service](decisions/ADR-0002-dotnet-modular-monolith-on-azure.md) | Accepted; API/MCP authentication partially superseded | Build one .NET application core with Razor Pages, Azure SQL, F1/B1 App Service, and a Functions worker. |
 | [ADR-0003: PdfPig for the first QDOS embedded-text slice](decisions/ADR-0003-pdfpig-for-first-qdos-slice.md) | Accepted for the local slice | PdfPig won the genuine-QDOS embedded-text comparison; production still requires a human-reviewed field cohort and untouched holdout. |
 | [ADR-0004: Provider API and staff MCP authentication](decisions/ADR-0004-provider-api-and-staff-mcp-authentication.md) | Accepted | Keep the principal-scoped provider API separate from a per-staff OAuth-authorised remote MCP surface. |
-| [ADR-0005: Multi-format intake and review assets](decisions/ADR-0005-multiformat-intake-assets.md) | Accepted for the local slice | Extract EML/PDF/DOCX and discrete images through one intake route, defer DOC/MSG parsing, and restrict OCR candidates to scan-like PDF pages. |
+| [ADR-0005: Multi-format intake and review assets](decisions/ADR-0005-multiformat-intake-assets.md) | Accepted for the local slice; decision 1 superseded by ADR-0006 | Extract EML/PDF/DOCX and discrete images through one intake route, defer DOC/MSG parsing, and restrict OCR candidates to scan-like PDF pages. |
+| [ADR-0006: Provider-neutral intake with a contained QDOS policy](decisions/ADR-0006-provider-neutral-intake-with-contained-qdos-policy.md) | Accepted for the pre-release local slice | Keep reusable intake contracts, persistence, and callers provider-neutral while retaining QDOS as the sole concrete extraction policy. |
 
 ## Open architecture work
 

@@ -1,4 +1,4 @@
-﻿@page
+@page
 @model IndexModel
 @{
     ViewData["Title"] = "Case intake";
@@ -8,7 +8,7 @@
     <div>
         <p class="eyebrow">Overview</p>
         <h1>Case intake</h1>
-        <p class="lede">The operator workspace is ready for the first QDOS workflow.</p>
+        <p class="lede">The operator workspace is ready for the first intake workflow.</p>
     </div>
     <div class="updated">Updated <time datetime="@Model.LoadedAtUtc.ToString("O")">@Model.LoadedAtUtc.ToLocalTime().ToString("HH:mm")</time></div>
 </header>
@@ -41,10 +41,10 @@
             <article class="metric-tile"><span>▣</span><div><strong>0</strong><small>Receiving work</small></div></article>
             <article class="metric-tile"><span>✉</span><div><strong>0</strong><small>Queries</small></div></article>
             <article class="metric-tile"><span>□</span><div><strong>0</strong><small>Other</small></div></article>
-            @if (Model.LocalQdosIntakeEnabled)
+            @if (Model.LocalIntakeEnabled)
             {
-                <a class="metric-tile" asp-page="/Intake/Queue" asp-route-decision="DraftReady"><span>▤</span><div><strong>@Model.Counts.DraftReady</strong><small>QDOS drafts</small></div></a>
-                <a class="metric-tile metric-tile--attention" asp-page="/Intake/Queue" asp-route-decision="NeedsSorting"><span>!</span><div><strong>@Model.Counts.NeedsSorting</strong><small>Needs sorting</small></div></a>
+                <a class="metric-tile" asp-page="/Intake/Queue" asp-route-decision="draft_ready"><span>▤</span><div><strong>@Model.Counts.DraftReady</strong><small>Instruction drafts</small></div></a>
+                <a class="metric-tile metric-tile--attention" asp-page="/Intake/Queue" asp-route-decision="needs_sorting"><span>!</span><div><strong>@Model.Counts.NeedsSorting</strong><small>Needs sorting</small></div></a>
             }
             else
             {

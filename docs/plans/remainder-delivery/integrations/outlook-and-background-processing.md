@@ -7,9 +7,9 @@ Receive first-MVP inbound instructions from the authorised mailbox through the W
 ## Authority and current boundary
 
 - **Authority:** [remaining requirements](../../remaining-requirements.md#3-complete-intake-formats-and-paths), [ADR-0002](../../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md#outlook-ingestion), and [open decision](../../open-decisions.md#authoritative-sent-report-evidence-and-time).
-- **Policy owner:** `ProcessQdosIntake` remains the single Core intake use case; Worker translates polling/queue delivery only.
+- **Policy owner:** `ProcessIntake` remains the single provider-neutral Core intake use case; Worker translates polling/queue delivery only, and the contained QDOS policy owns only QDOS instruction extraction.
 - **Current implementation:** Worker composition contains no intake trigger; Graph adapter, cursor, queue handler and mailbox caller are absent.
-- **Real callers:** Development `/Intake/Qdos` only. The intended caller is a thin isolated Functions timer/queue path.
+- **Real callers:** Development `/Intake/Upload` only. The intended caller is a thin isolated Functions timer/queue path.
 - **Persistence/adapters:** current SQL receipt store exists; Graph immutable IDs/cursor, outbox and queue processing are planned.
 - **Dependencies:** durable source staging/identity. Automatic categorisation/acceptance additionally requires the [mailbox categorisation decision](../../open-decisions.md#mailbox-categorisation-and-correction), authenticated actor policy and case acceptance.
 - **Replaces/consolidates:** no background service in Web and no parallel Graph classifier.
@@ -37,7 +37,7 @@ Queue messages carry identifiers only. Store attempts, mailbox/folder identity, 
 
 ### Caller, contract and change boundary
 
-- **Real or intended caller:** planned one-minute Worker delta-poller for the authorised Inbox and receipt handler calling `ProcessQdosIntake`; once the category and acceptance dependencies are present, that Core flow automatically hands definitive `Receiving work` to `AcceptCaseDraft` rather than stopping at a draft.
+- **Real or intended caller:** planned one-minute Worker delta-poller for the authorised Inbox and receipt handler calling `ProcessIntake`; once the separate category and acceptance dependencies are present, that Core flow may hand definitive `Receiving work` to `AcceptCaseDraft` rather than stopping at a draft.
 - **Input/output:** the environment's verified exact mailbox/Inbox pair plus immutable message/attachment identity yields one durable intake receipt, processing status and operator-visible inbox item; a definitive authorised new instruction additionally yields exactly one case/reference outcome from the shared Core transaction.
 - **Ordered decisions and failure behavior:** verify the environment-specific Exchange RBAC mailbox scope and absence of an unscoped Entra Graph application mail grant; reject any mailbox/folder/message outside the configured pair before a Graph call; enforce that environment's exact Inbox in the adapter because Exchange RBAC scopes mailboxes, not folders; request immutable IDs; persist cursor only after every returned page commits; replay by mailbox+immutable item identity; uncertain association goes to `Needs sorting`.
 - **Persistence/migration:** one cursor/receipt/attempt authority and outbox linkage; one database claim/version prevents overlapping timer instances from advancing the same delta cursor, and abandoned claims expire visibly for recovery. No mailbox data appears in queue payloads or a second delivery ledger.
@@ -55,7 +55,7 @@ Queue messages carry identifiers only. Store attempts, mailbox/folder identity, 
 
 The direct decision is that long-term mailbox categorisation is a major architectural scope whose approved rules must be extensible and modifiable. It remains one Core-owned policy consumed by Web, Worker, provider API and MCP; Graph and other channel adapters only supply source identity and evidence. An accepted design must make each decision auditable by policy version and evidence, support correction without rewriting source history, and fall back conservatively to `Needs sorting` when no unambiguous rule applies.
 
-The [category predicates and governance](../../open-decisions.md#mailbox-categorisation-and-correction) are not yet settled, so no categorisation implementation task is emitted. Deliberately absent are a generic rule engine, expression language, rule/configuration table, authoring UI, dynamic compiler, dormant evaluator, feature flag, and second classifier. Choosing runtime-managed rules or another new architectural boundary requires an accepted ADR; the current `ProcessQdosIntake` heuristic remains a provisional development-slice classifier, not the approved long-term mailbox policy.
+The [category predicates and governance](../../open-decisions.md#mailbox-categorisation-and-correction) are not yet settled, so no categorisation implementation task is emitted. Deliberately absent are a generic rule engine, expression language, rule/configuration table, authoring UI, dynamic compiler, dormant evaluator, feature flag, and second classifier. Choosing runtime-managed rules or another new architectural boundary requires an accepted ADR. `QdosInstructionExtractionPolicy` assesses QDOS instruction content only and must not be treated as the provisional mailbox classifier.
 
 Once that mandatory first-MVP decision is settled, `Receiving work` invokes the same Core definitive predicate and atomic acceptance transaction as other authorised channels. Known principal/code, VRM, unambiguous case type, safe complete processing and no identity/association conflict are required; standalone Audit also requires the original report's unambiguous assessment. Missing non-identity details create a `Not ready` case. Queries, Other, Triage, uncertain items and staff-selected `Blocked intake` never call the allocator. The Worker records an automation actor and policy evidence; it does not impose a manual approval gate on every definitive instruction.
 
@@ -95,7 +95,7 @@ Once that mandatory first-MVP decision is settled, `Receiving work` invokes the 
 ### Deferred-capability impact
 
 - **Named capabilities:** broader Outlook intake, Sent Items reconciliation, WhatsApp and automated outbound messages.
-- **Stable seam retained:** channel/source identity and the single `ProcessQdosIntake` use case; associations remain application-owned.
+- **Stable seam retained:** channel/source identity and the single `ProcessIntake` use case; extraction policy, mailbox category and associations remain separate application-owned decisions.
 - **Future migration/replacement:** each mailbox/folder and any webhook/sending workflow needs separate consent, policy and evidence.
 - **Activation boundary:** explicit exact-scope mailbox approval and live caller evidence.
 - **Deliberately absent:** tenant-wide scope, other mailbox adapter, webhook subscription, outbound sender, WhatsApp adapter, mailbox move/category feature.

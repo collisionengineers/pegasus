@@ -1,5 +1,5 @@
-using CollisionSpike.Core.Intake.Qdos;
-using CollisionSpike.Infrastructure.Intake.Qdos;
+using CollisionSpike.Core.Intake;
+using CollisionSpike.Infrastructure.Intake;
 using CollisionSpike.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,11 +20,12 @@ public static class DependencyInjection
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IIntakeArtifactStore>(new FileSystemIntakeArtifactStore(
             localArtifactRoot ?? Path.Combine(AppContext.BaseDirectory, "artifacts", "intake")));
-        services.AddScoped<IQdosIntakeSourceReader, MimeKitPdfPigQdosSourceReader>();
-        services.AddScoped<EfQdosIntakeStore>();
-        services.AddScoped<IQdosIntakeStore>(provider => provider.GetRequiredService<EfQdosIntakeStore>());
-        services.AddScoped<IQdosIntakeQueries>(provider => provider.GetRequiredService<EfQdosIntakeStore>());
-        services.AddScoped<ProcessQdosIntake>();
+        services.AddScoped<IIntakeSourceReader, MimeKitPdfPigOpenXmlIntakeSourceReader>();
+        services.AddScoped<EfIntakeReceiptStore>();
+        services.AddScoped<IIntakeReceiptStore>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
+        services.AddScoped<IIntakeReceiptQueries>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
+        services.AddSingleton<IInstructionExtractionPolicy, QdosInstructionExtractionPolicy>();
+        services.AddScoped<ProcessIntake>();
         return services;
     }
 }

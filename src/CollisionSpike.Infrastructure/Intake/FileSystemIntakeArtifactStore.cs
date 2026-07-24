@@ -1,8 +1,8 @@
 using System.Text.RegularExpressions;
 using System.Security.Cryptography;
-using CollisionSpike.Core.Intake.Qdos;
+using CollisionSpike.Core.Intake;
 
-namespace CollisionSpike.Infrastructure.Intake.Qdos;
+namespace CollisionSpike.Infrastructure.Intake;
 
 internal sealed partial class FileSystemIntakeArtifactStore(string rootPath) : IIntakeArtifactStore
 {

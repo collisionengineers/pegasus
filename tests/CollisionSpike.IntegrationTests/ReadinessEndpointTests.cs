@@ -51,7 +51,7 @@ public sealed class SqlServerReadinessEndpointTests
         await using var context = await database.CreateContextAsync();
         Assert.Empty(await context.Database.GetAppliedMigrationsAsync());
         Assert.Equal(0, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.tables WHERE name IN (N'QdosIntakeReceipts', N'AuditEvents')"));
+            "SELECT COUNT(*) FROM sys.tables WHERE name IN (N'IntakeReceipts', N'IntakeAuditEvents')"));
     }
 
     [Fact]
@@ -115,8 +115,8 @@ public sealed class SqliteReadinessEndpointTests
     [Fact]
     public async Task DevelopmentSqliteDatabaseMakesReadinessSuccessful()
     {
-        using var factory = new QdosWebApplicationFactory();
-        using var client = QdosWebDriver.CreateClient(factory);
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         using var response = await client.GetAsync("/health/ready");
 
