@@ -1,6 +1,6 @@
 # ADR-0001: Hybrid PDF extraction
 
-- Status: Accepted; embedded PDF engine selection pending
+- Status: Accepted; embedded engine selected by ADR-0003; scan qualification refined by ADR-0005
 - Date: 2026-07-23
 - Owners: Alex and the CollisionSpike v2 development team
 
@@ -18,7 +18,9 @@ interface, duplicating extraction logic, or silently accepting uncertain values.
 Azure Document Intelligence can process every document, but it introduces a
 per-page charge and its OCR/layout results are probabilistic. An embedded PDF
 engine can decode computer-generated PDFs without a per-page Azure charge, while
-Azure Read OCR remains useful for scanned or otherwise unreadable pages.
+Azure Read OCR remains useful for scanned pages. A corrupt, encrypted, or
+otherwise unreadable PDF is not valid OCR input merely because embedded text is
+unavailable; it must remain a visible terminal or manual-review outcome.
 
 ## Decision
 
@@ -29,8 +31,10 @@ CollisionSpike v2 will use a hybrid extraction pipeline:
    format or glyph decoder in CollisionSpike code.
 3. Extract text, page numbers, reading order, and coordinates from PDFs that
    contain usable embedded text.
-4. Send only scanned, unreadable, or demonstrably corrupt pages to Azure Document
-   Intelligence `prebuilt-read` OCR.
+4. Send only scan-like pages to Azure Document Intelligence `prebuilt-read` OCR:
+   the page must have insufficient embedded text and a dominant raster image.
+   Low-text pages without that scan evidence require operator review, not OCR.
+   Corrupt, encrypted, or structurally unreadable documents are not sent to OCR.
 5. Convert the resulting text and coordinates into case fields using one custom,
    deterministic provider-extraction module. Provider-specific rules are isolated
    behind a common contract and versioned independently.
@@ -47,13 +51,13 @@ Azure custom model.
 
 ## Embedded PDF engine selection
 
-No PDF engine has been selected yet. PdfPig was discussed as an example and is
-not an approved dependency. Licensing is not a selection constraint.
+PdfPig 0.1.15 was selected for the first local slice by ADR-0003 after the
+genuine-QDOS comparison. Licensing was not the deciding constraint.
 
-The leading embedded candidates are Apryse Server SDK, Aspose.PDF, and iText.
-PdfPig may be included as a lightweight baseline. The selected engine must be
-chosen by a repeatable benchmark using genuine QDOS documents rather than by
-feature lists or developer preference.
+The compared embedded candidates were PdfPig, iText, and Aspose.PDF; Apryse could
+not enter the run without a licence key. Any replacement must still be chosen by
+a repeatable benchmark using genuine QDOS documents rather than by feature lists
+or developer preference.
 
 The benchmark must cover, where genuine examples are available:
 
@@ -110,5 +114,5 @@ UK South Azure price and the measured proportion of pages requiring OCR.
    benchmark document.
 3. Build the engine-neutral extraction contract and benchmark harness.
 4. Run the shortlisted engines and record the results.
-5. Accept the winning engine in a separate architecture decision before adding it
-   as a production dependency.
+5. Re-evaluate ADR-0003 against the human-reviewed cohort and holdout before
+   production acceptance.

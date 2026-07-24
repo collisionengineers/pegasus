@@ -10,13 +10,16 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddCollisionSpikeInfrastructure(
         this IServiceCollection services,
-        Action<IServiceProvider, DbContextOptionsBuilder> configureDatabase)
+        Action<IServiceProvider, DbContextOptionsBuilder> configureDatabase,
+        string? localArtifactRoot = null)
     {
         ArgumentNullException.ThrowIfNull(configureDatabase);
 
         services.AddDbContextFactory<CollisionSpikeDbContext>(configureDatabase);
 
         services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<IIntakeArtifactStore>(new FileSystemIntakeArtifactStore(
+            localArtifactRoot ?? Path.Combine(AppContext.BaseDirectory, "artifacts", "intake")));
         services.AddScoped<IQdosIntakeSourceReader, MimeKitPdfPigQdosSourceReader>();
         services.AddScoped<EfQdosIntakeStore>();
         services.AddScoped<IQdosIntakeStore>(provider => provider.GetRequiredService<EfQdosIntakeStore>());

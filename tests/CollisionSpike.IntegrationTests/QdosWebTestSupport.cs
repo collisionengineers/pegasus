@@ -16,7 +16,8 @@ public sealed class QdosWebApplicationFactory : WebApplicationFactory<Program>
     private static readonly DateTimeOffset FixedUtcNow = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
     private readonly string environment;
     private readonly bool? localQdosIntakeEnabled;
-    private readonly string databaseDirectory = Path.Combine(
+    private readonly TimeProvider timeProvider;
+    private readonly string workingDirectory = Path.Combine(
         Path.GetTempPath(), "CollisionSpike.IntegrationTests", Guid.NewGuid().ToString("N"));
 
     public QdosWebApplicationFactory()
@@ -24,24 +25,35 @@ public sealed class QdosWebApplicationFactory : WebApplicationFactory<Program>
     {
     }
 
+    internal QdosWebApplicationFactory(TimeProvider timeProvider)
+        : this("Development", true, timeProvider)
+    {
+    }
+
     internal QdosWebApplicationFactory(
         string environment,
-        bool? localQdosIntakeEnabled)
+        bool? localQdosIntakeEnabled,
+        TimeProvider? timeProvider = null)
     {
         this.environment = environment;
         this.localQdosIntakeEnabled = localQdosIntakeEnabled;
+        this.timeProvider = timeProvider ?? new TestTimeProvider(FixedUtcNow);
     }
+
+    internal string DatabasePath => Path.Combine(workingDirectory, "qdos-tests.db");
+
+    internal string ArtifactDirectory => Path.Combine(workingDirectory, "intake-artifacts");
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        var databasePath = Path.Combine(databaseDirectory, "qdos-tests.db");
         builder.UseEnvironment(environment);
         builder.ConfigureAppConfiguration((_, configuration) =>
         {
             var values = new Dictionary<string, string?>
             {
                 ["Database:Provider"] = "Sqlite",
-                ["Database:LocalPath"] = databasePath
+                ["Database:LocalPath"] = DatabasePath,
+                ["Intake:LocalArtifactPath"] = ArtifactDirectory
             };
             if (localQdosIntakeEnabled is not null)
             {
@@ -53,17 +65,17 @@ public sealed class QdosWebApplicationFactory : WebApplicationFactory<Program>
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<TimeProvider>();
-            services.AddSingleton<TimeProvider>(new TestTimeProvider(FixedUtcNow));
+            services.AddSingleton(timeProvider);
         });
     }
 
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
-        if (disposing && Directory.Exists(databaseDirectory))
+        if (disposing && Directory.Exists(workingDirectory))
         {
             SqliteConnection.ClearAllPools();
-            Directory.Delete(databaseDirectory, recursive: true);
+            Directory.Delete(workingDirectory, recursive: true);
         }
     }
 
@@ -85,7 +97,42 @@ internal static partial class QdosWebDriver
     public static async Task<UploadResult> UploadAsync(
         HttpClient client,
         GenuineCorpusSample sample,
-        bool caseCreationAuthorized = true,
+        string? externalReceiptToken = null,
+        CancellationToken cancellationToken = default) =>
+        await UploadAsync(
+            client,
+            sample.UploadName,
+            sample.MediaType,
+            sample.Bytes,
+            externalReceiptToken,
+            cancellationToken);
+
+    public static async Task<UploadResult> UploadAsync(
+        HttpClient client,
+        string uploadName,
+        string mediaType,
+        byte[] bytes,
+        string? externalReceiptToken = null,
+        CancellationToken cancellationToken = default)
+    {
+        var form = await GetUploadFormTokensAsync(client, cancellationToken);
+        return await PostUploadAsync(
+            client,
+            form.AntiforgeryToken,
+            uploadName,
+            mediaType,
+            bytes,
+            externalReceiptToken ?? form.ExternalReceiptToken,
+            cancellationToken);
+    }
+
+    public static async Task<string> GetAntiforgeryTokenAsync(
+        HttpClient client,
+        CancellationToken cancellationToken = default) =>
+        (await GetUploadFormTokensAsync(client, cancellationToken)).AntiforgeryToken;
+
+    public static async Task<UploadFormTokens> GetUploadFormTokensAsync(
+        HttpClient client,
         CancellationToken cancellationToken = default)
     {
         using var formPage = await client.GetAsync("/Intake/Qdos", cancellationToken);
@@ -95,18 +142,42 @@ internal static partial class QdosWebDriver
         Assert.True(tokenTag.Success, "The real upload page must render an antiforgery token.");
         var tokenValue = AntiforgeryValueRegex().Match(tokenTag.Value);
         Assert.True(tokenValue.Success, "The antiforgery token must have a value.");
+        var receiptTokenTag = ExternalReceiptTokenTagRegex().Match(html);
+        Assert.True(receiptTokenTag.Success, "The real upload page must render an external receipt token.");
+        var receiptTokenValue = AntiforgeryValueRegex().Match(receiptTokenTag.Value);
+        Assert.True(receiptTokenValue.Success, "The external receipt token must have a value.");
+        return new(
+            WebUtility.HtmlDecode(tokenValue.Groups["value"].Value),
+            WebUtility.HtmlDecode(receiptTokenValue.Groups["value"].Value));
+    }
+
+    public static async Task<UploadResult> PostUploadAsync(
+        HttpClient client,
+        string? antiforgeryToken,
+        string? uploadName,
+        string mediaType,
+        byte[]? bytes,
+        string? externalReceiptToken = null,
+        CancellationToken cancellationToken = default)
+    {
 
         using var multipart = new MultipartFormDataContent();
-        multipart.Add(
-            new StringContent(WebUtility.HtmlDecode(tokenValue.Groups["value"].Value)),
-            "__RequestVerificationToken");
-        if (caseCreationAuthorized)
+        if (antiforgeryToken is not null)
         {
-            multipart.Add(new StringContent("true"), "CaseCreationAuthorized");
+            multipart.Add(new StringContent(antiforgeryToken), "__RequestVerificationToken");
         }
-        var file = new ByteArrayContent(sample.Bytes);
-        file.Headers.ContentType = MediaTypeHeaderValue.Parse(sample.MediaType);
-        multipart.Add(file, "Upload", sample.UploadName);
+
+        if (externalReceiptToken is not null)
+        {
+            multipart.Add(new StringContent(externalReceiptToken), "ExternalReceiptToken");
+        }
+
+        if (uploadName is not null && bytes is not null)
+        {
+            var file = new ByteArrayContent(bytes);
+            file.Headers.ContentType = MediaTypeHeaderValue.Parse(mediaType);
+            multipart.Add(file, "Upload", uploadName);
+        }
 
         using var response = await client.PostAsync("/Intake/Qdos", multipart, cancellationToken);
         var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -125,11 +196,16 @@ internal static partial class QdosWebDriver
     [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex AntiforgeryTagRegex();
 
+    [GeneratedRegex("<input[^>]*name=\"ExternalReceiptToken\"[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ExternalReceiptTokenTagRegex();
+
     [GeneratedRegex("value=\"(?<value>[^\"]+)\"", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex AntiforgeryValueRegex();
 }
 
 internal sealed record UploadResult(HttpStatusCode StatusCode, Uri? Location, string ResponseBody);
+
+internal sealed record UploadFormTokens(string AntiforgeryToken, string ExternalReceiptToken);
 
 internal sealed record GenuineCorpusSample(string Hash, string UploadName, string MediaType, byte[] Bytes);
 
@@ -168,7 +244,11 @@ internal static class GenuineQdosCorpus
         return paths;
     }
 
-    private static string CorpusRoot => Path.Combine(FindRepositoryRoot(), "corpus", "qdos-email-corpus");
+    private static string CorpusRoot => Path.Combine(
+        FindRepositoryRoot(),
+        "corpus",
+        "emailevals",
+        "qdos-email-corpus");
 
     private static string FindRepositoryRoot()
     {
@@ -188,7 +268,7 @@ internal sealed class GenuineQdosCorpusFactAttribute : FactAttribute
     {
         if (!GenuineQdosCorpus.IsPresent)
         {
-            Skip = "The ignored local corpus/qdos-email-corpus is absent; genuine-input evidence was not run.";
+            Skip = "The ignored local corpus/emailevals/qdos-email-corpus is absent; genuine-input evidence was not run.";
         }
     }
 }
