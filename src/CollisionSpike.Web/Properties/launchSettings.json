@@ -9,8 +9,8 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "Database__Provider": "Sqlite",
-        "Database__LocalPath": "../../../artifacts/local/collisionspike-v2.db",
-        "Features__LocalQdosIntake": "true"
+        "Database__LocalPath": "../../../artifacts/local/collisionspike-v2-dev.db",
+        "Features__LocalIntake": "true"
       }
     },
     "https": {
@@ -21,8 +21,8 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "Database__Provider": "Sqlite",
-        "Database__LocalPath": "../../../artifacts/local/collisionspike-v2.db",
-        "Features__LocalQdosIntake": "true"
+        "Database__LocalPath": "../../../artifacts/local/collisionspike-v2-dev.db",
+        "Features__LocalIntake": "true"
       }
     }
   }

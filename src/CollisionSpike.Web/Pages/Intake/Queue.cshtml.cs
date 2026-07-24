@@ -1,20 +1,25 @@
-using CollisionSpike.Core.Intake.Qdos;
+using CollisionSpike.Core.Intake;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace CollisionSpike.Web.Pages.Intake;
 
-public sealed class QueueModel(IQdosIntakeQueries queries) : PageModel
+public sealed class QueueModel(IIntakeReceiptQueries queries) : PageModel
 {
-    public IReadOnlyList<QdosIntakeSummary> Items { get; private set; } = [];
+    public IReadOnlyList<IntakeReceiptSummary> Items { get; private set; } = [];
 
-    public QdosIntakeDecision? Decision { get; private set; }
+    public IntakeDecision? Decision { get; private set; }
 
     public async Task OnGetAsync(string? decision, CancellationToken cancellationToken)
     {
-        if (Enum.TryParse<QdosIntakeDecision>(decision, ignoreCase: true, out var parsed))
+        Decision = decision switch
         {
-            Decision = parsed;
-        }
+            "draft_ready" => IntakeDecision.DraftReady,
+            "needs_sorting" => IntakeDecision.NeedsSorting,
+            "unsupported" => IntakeDecision.Unsupported,
+            "ocr_required" => IntakeDecision.OcrRequired,
+            "technical_failure" => IntakeDecision.TechnicalFailure,
+            _ => null
+        };
 
         Items = await queries.ListAsync(Decision, cancellationToken);
     }

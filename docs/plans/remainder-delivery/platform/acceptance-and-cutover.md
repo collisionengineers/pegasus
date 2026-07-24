@@ -8,7 +8,7 @@ Prove the complete QDOS workflow through its actual callers, keep corpus and liv
 
 - **Authority:** [First-release finish line](../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md#15-first-release-scope), [remaining requirements](../../remaining-requirements.md), [open decisions](../../open-decisions.md), and [evidence rules](../../../../AGENTS.md#evidence-and-validation).
 - **Policy owner:** Each feature owns its product proof; the release owner composes the integrated journey without duplicating rules.
-- **Current implementation:** The development-only `/Intake/Qdos` path has local integration evidence. No deployed Worker, Graph, Box, provider API or MCP path is currently proven.
+- **Current implementation:** The development-only `/Intake/Upload` path has local integration evidence. No deployed Worker, Graph, Box, provider API or MCP path is currently proven.
 - **Real callers:** Existing Web intake first; later Web/Worker/API/MCP callers only after their task evidence reaches `Called`.
 - **Persistence/adapters:** The acceptance record names input class, source hash/cohort, actor, database, external scope, artifact and result without publishing PII.
 - **Dependencies:** Every required area in the [programme order](../README.md#delivery-order); open decisions block only their affected journey steps.
@@ -37,7 +37,7 @@ A test failure, unsupported source, integration failure and business outcome rem
 
 ### Caller, contract and change boundary
 
-- **Real or intended caller:** Existing `POST /Intake/Qdos`, followed by authenticated Web journeys as delivered.
+- **Real or intended caller:** Existing `POST /Intake/Upload`, followed by authenticated Web journeys as delivered.
 - **Input/output:** Frozen genuine sources yield retained occurrences, reviewable candidates, explicit failures and no false case creation.
 - **Ordered decisions and failure behavior:** Hash inventory, disable external calls, run cohort, correct implementation only against cohort, then run untouched holdout once; never treat unreadable/partial input as confirmation.
 - **Persistence/migration:** Use the application store and exact test database provider named in results; preserve source hashes and evaluation lineage.

@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 @inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 @inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment Environment
 @{
-    var localQdosIntakeEnabled = Environment.IsDevelopment()
-        && Configuration.GetValue<bool>("Features:LocalQdosIntake");
+    var localIntakeEnabled = Environment.IsDevelopment()
+        && Configuration.GetValue<bool>("Features:LocalIntake");
 }
 <html lang="en">
 <head>
@@ -18,9 +18,9 @@
             <a class="navbar-brand" asp-area="" asp-page="/Index"><span class="brand-mark">CE</span><span>Collision Engineers</span></a>
             <nav class="nav-links" aria-label="Primary">
                 <a class="nav-link" asp-area="" asp-page="/Index">Case intake</a>
-                @if (localQdosIntakeEnabled)
+                @if (localIntakeEnabled)
                 {
-                    <a class="nav-link" asp-area="" asp-page="/Intake/Qdos">Upload QDOS</a>
+                    <a class="nav-link" asp-area="" asp-page="/Intake/Upload">Upload instruction</a>
                 }
                 <a class="nav-link" asp-area="" asp-page="/Privacy">Privacy</a>
             </nav>

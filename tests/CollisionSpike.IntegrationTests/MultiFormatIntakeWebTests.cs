@@ -4,7 +4,7 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
-using CollisionSpike.Core.Intake.Qdos;
+using CollisionSpike.Core.Intake;
 using Microsoft.Extensions.DependencyInjection;
 using MimeKit;
 
@@ -15,7 +15,7 @@ public sealed partial class MultiFormatIntakeWebTests
     [Fact]
     public async Task DirectDocxTextProducesReadableQdosDecisionThroughWebCaller()
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var docx = CreateDocx(
             "QDOS instruction",
@@ -31,16 +31,16 @@ public sealed partial class MultiFormatIntakeWebTests
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
-        Assert.Equal(QdosIntakeDecision.DraftReady, receipt.Decision);
+        Assert.Equal(IntakeDecision.DraftReady, receipt.Decision);
         Assert.Equal(
             "SYN-DOCX-001",
             Assert.Single(receipt.Fields, field => field.Name == "Claim number").SuggestedValue);
         Assert.Equal(
             "AB12 CDE",
             Assert.Single(receipt.Fields, field => field.Name == "Vehicle registration").SuggestedValue);
-        Assert.Equal("AB12CDE", Assert.IsType<QdosTypedDraft>(receipt.TypedDraft).VehicleRegistration);
+        Assert.Equal("AB12CDE", Assert.IsType<InstructionDraft>(receipt.InstructionDraft).VehicleRegistration);
         Assert.Contains("synthetic-instruction.docx", reviewHtml, StringComparison.Ordinal);
-        Assert.Contains("QDOS draft", reviewHtml, StringComparison.Ordinal);
+        Assert.Contains("Instruction draft", reviewHtml, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -50,14 +50,14 @@ public sealed partial class MultiFormatIntakeWebTests
         string fileName,
         string mediaType)
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
 
         var result = await UploadAsync(client, fileName, mediaType, CreateOleHeader());
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
-        Assert.Equal(QdosIntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Null(receipt.FailureCode);
         Assert.Contains(receipt.AssetRecords, asset => asset.FileName == fileName && asset.Kind == IntakeAssetKind.Source);
         Assert.Contains(fileName, reviewHtml, StringComparison.Ordinal);
@@ -72,14 +72,14 @@ public sealed partial class MultiFormatIntakeWebTests
         string mediaType,
         string base64)
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
 
         var result = await UploadAsync(client, fileName, mediaType, Convert.FromBase64String(base64));
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
-        Assert.Equal(QdosIntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Null(receipt.FailureCode);
         Assert.Empty(receipt.ScannedPdfPages);
         Assert.Contains(receipt.AssetRecords, asset => asset.FileName == fileName && asset.Kind == IntakeAssetKind.Source);
@@ -93,7 +93,7 @@ public sealed partial class MultiFormatIntakeWebTests
     [Fact]
     public async Task EmailAttachmentsAndNestedMessageRetainVisibleProvenance()
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var docx = CreateDocx(
             "QDOS instruction",
@@ -117,7 +117,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
-        Assert.Equal(QdosIntakeDecision.DraftReady, receipt.Decision);
+        Assert.Equal(IntakeDecision.DraftReady, receipt.Decision);
         Assert.Contains(receipt.AssetRecords, asset => asset.FileName == "instruction.docx");
         Assert.Contains(receipt.AssetRecords, asset => asset.FileName == "supporting.pdf");
         Assert.Contains(receipt.AssetRecords, asset => asset.FileName == "vehicle.jpg");
@@ -133,7 +133,7 @@ public sealed partial class MultiFormatIntakeWebTests
     [Fact]
     public async Task ExactDuplicateImageOccurrencesAreBothRetainedAndVisible()
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var image = Convert.FromBase64String(TinyJpegBase64);
         var message = CreateMessage(
@@ -146,7 +146,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
-        Assert.Equal(QdosIntakeDecision.DraftReady, receipt.Decision);
+        Assert.Equal(IntakeDecision.DraftReady, receipt.Decision);
         var original = Assert.Single(
             receipt.AssetRecords,
             asset => asset.FileName == "vehicle-front-original.jpg");
@@ -162,7 +162,7 @@ public sealed partial class MultiFormatIntakeWebTests
     [Fact]
     public async Task MalformedDocxProducesExplicitVisibleTerminalFailure()
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
 
         var result = await UploadAsync(
@@ -173,7 +173,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
-        Assert.Equal(QdosIntakeDecision.Unsupported, receipt.Decision);
+        Assert.Equal(IntakeDecision.Unsupported, receipt.Decision);
         Assert.Equal("unreadable_docx", receipt.FailureCode);
         Assert.Contains("unreadable_docx", reviewHtml, StringComparison.Ordinal);
         Assert.Contains("malformed.docx", reviewHtml, StringComparison.Ordinal);
@@ -182,7 +182,7 @@ public sealed partial class MultiFormatIntakeWebTests
     [Fact]
     public async Task NestedMimeBeyondEightLevelsStopsThatBranchAndSurfacesLimitGuard()
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var message = CreateNestedMessageChain(10);
 
@@ -190,7 +190,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
-        Assert.Equal(QdosIntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Contains(receipt.Evidence, item => item.Signal == "intake_limit_exceeded");
         Assert.Contains("nesting depth exceeds 8", reviewHtml, StringComparison.Ordinal);
     }
@@ -198,7 +198,7 @@ public sealed partial class MultiFormatIntakeWebTests
     [Fact]
     public async Task FullPageRasterWithLowTextProducesExactlyOneScannedPageOcrCandidate()
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var pdf = CreateImagePdf(new PdfImagePlacement(0, 0, 612, 792, 0xff, 0xff, 0xff));
 
@@ -206,7 +206,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
-        Assert.Equal(QdosIntakeDecision.OcrRequired, receipt.Decision);
+        Assert.Equal(IntakeDecision.OcrRequired, receipt.Decision);
         var candidate = Assert.Single(receipt.ScannedPdfPages);
         Assert.Equal(1, candidate.PageNumber);
         Assert.Equal("uploaded full-page-scan.pdf", candidate.SourceLabel);
@@ -221,7 +221,7 @@ public sealed partial class MultiFormatIntakeWebTests
     [Fact]
     public async Task LowTextPdfWithoutDominantRasterDoesNotSelectOcr()
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var pdf = CreateImagePdf(new PdfImagePlacement(20, 20, 100, 100, 0xff, 0xff, 0xff));
 
@@ -229,7 +229,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
-        Assert.Equal(QdosIntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Empty(receipt.ScannedPdfPages);
         Assert.DoesNotContain(receipt.Evidence, evidence => evidence.Signal == "scanned-pdf-page");
         Assert.Single(receipt.AssetRecords, asset => asset.Kind == IntakeAssetKind.EmbeddedImage);
@@ -240,7 +240,7 @@ public sealed partial class MultiFormatIntakeWebTests
     [Fact]
     public async Task TwoDiscretePdfImageObjectsRemainSeparateAndDownloadAsImages()
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var pdf = CreateImagePdf(
             new PdfImagePlacement(20, 20, 100, 100, 0xff, 0x00, 0x00),
@@ -253,7 +253,7 @@ public sealed partial class MultiFormatIntakeWebTests
             .OrderBy(asset => asset.FileName, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(QdosIntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Empty(receipt.ScannedPdfPages);
         Assert.Equal(2, images.Length);
         Assert.NotEqual(images[0].Id, images[1].Id);
@@ -276,7 +276,7 @@ public sealed partial class MultiFormatIntakeWebTests
     [Fact]
     public async Task ThirtyPagePdfWithConfirmingContentOnFinalPageIsClassified()
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var pageTexts = Enumerable.Range(1, 30)
             .Select(pageNumber => pageNumber == 30 ? ConfirmingQdosBody : string.Empty)
@@ -286,7 +286,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var result = await UploadAsync(client, "thirty-page-instruction.pdf", "application/pdf", pdf);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
-        Assert.Equal(QdosIntakeDecision.DraftReady, receipt.Decision);
+        Assert.Equal(IntakeDecision.DraftReady, receipt.Decision);
         Assert.Equal(
             "SYN-GUARD-001",
             Assert.Single(receipt.Fields, field => field.Name == "Claim number").SuggestedValue);
@@ -299,7 +299,7 @@ public sealed partial class MultiFormatIntakeWebTests
     [Fact]
     public async Task PdfAggregateProcessingDeadlineFailsClosedWithoutWaiting()
     {
-        using var factory = new QdosWebApplicationFactory(new SteppingTimeProvider(TimeSpan.FromSeconds(1)));
+        using var factory = new IntakeWebApplicationFactory(new SteppingTimeProvider(TimeSpan.FromSeconds(1)));
         using var client = CreateClient(factory);
         var pdf = CreateTextPdf(Enumerable.Repeat(string.Empty, 40).ToArray());
         Assert.InRange(pdf.LongLength, 1, 10L * 1024 * 1024);
@@ -307,8 +307,8 @@ public sealed partial class MultiFormatIntakeWebTests
         var result = await UploadAsync(client, "many-blank-pages.pdf", "application/pdf", pdf);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
-        Assert.Equal(QdosIntakeDecision.NeedsSorting, receipt.Decision);
-        Assert.Null(receipt.TypedDraft);
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Null(receipt.InstructionDraft);
         Assert.Contains(
             receipt.Evidence,
             evidence => evidence.Signal == "intake_limit_exceeded"
@@ -320,7 +320,7 @@ public sealed partial class MultiFormatIntakeWebTests
     [Fact]
     public async Task MoreThan512DiscretePdfImagesStopsBeforeAssetExtraction()
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var images = Enumerable.Range(0, 513)
             .Select(index => new PdfImagePlacement(
@@ -338,7 +338,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var result = await UploadAsync(client, "too-many-pdf-images.pdf", "application/pdf", pdf);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
-        Assert.Equal(QdosIntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "intake_limit_exceeded");
         Assert.DoesNotContain(receipt.AssetRecords, asset => asset.Kind == IntakeAssetKind.EmbeddedImage);
     }
@@ -346,7 +346,7 @@ public sealed partial class MultiFormatIntakeWebTests
     [Fact]
     public async Task PdfImageSampleDimensionsOverAggregatePixelLimitStopBeforeRasterDecoding()
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var pdf = CreateImagePdf(new PdfImagePlacement(
             20,
@@ -362,7 +362,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var result = await UploadAsync(client, "oversized-pdf-raster.pdf", "application/pdf", pdf);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
-        Assert.Equal(QdosIntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "intake_limit_exceeded");
         Assert.DoesNotContain(receipt.AssetRecords, asset => asset.Kind == IntakeAssetKind.EmbeddedImage);
     }
@@ -370,7 +370,7 @@ public sealed partial class MultiFormatIntakeWebTests
     [Fact]
     public async Task PdfExtractedTextOverFiveMillionCharactersStopsIntake()
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var text = new string('A', (5 * 1024 * 1024) + 1);
         var pdf = CreatePdf(text);
@@ -379,15 +379,15 @@ public sealed partial class MultiFormatIntakeWebTests
         var result = await UploadAsync(client, "excessive-pdf-text.pdf", "application/pdf", pdf);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
-        Assert.Equal(QdosIntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "intake_limit_exceeded");
-        Assert.Null(receipt.TypedDraft);
+        Assert.Null(receipt.InstructionDraft);
     }
 
     [Fact]
     public async Task PdfImageObjectBudgetIsSharedAcrossEmailAttachmentsAndConfirmingBodyFailsClosed()
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var images = Enumerable.Range(0, 300)
             .Select(index => new PdfImagePlacement(
@@ -412,12 +412,12 @@ public sealed partial class MultiFormatIntakeWebTests
         var result = await UploadAsync(client, "shared-pdf-budget.eml", "message/rfc822", source);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
-        Assert.Equal(QdosIntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Contains(
             receipt.Evidence,
             evidence => evidence.Signal == "intake_limit_exceeded"
                 && evidence.Detail.Contains("second-300-images.pdf", StringComparison.Ordinal));
-        Assert.Null(receipt.TypedDraft);
+        Assert.Null(receipt.InstructionDraft);
         Assert.Equal(
             300,
             receipt.AssetRecords.Count(asset => asset.Kind == IntakeAssetKind.EmbeddedImage));
@@ -426,7 +426,7 @@ public sealed partial class MultiFormatIntakeWebTests
     [Fact]
     public async Task ReusedJpegWhoseRetainedBytesExceedTwentyFiveMegabytesFailsClosed()
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         const int placementCount = 13;
         var jpeg = CreatePaddedJpeg((2 * 1024 * 1024) + 1);
@@ -436,12 +436,12 @@ public sealed partial class MultiFormatIntakeWebTests
         var result = await UploadAsync(client, "reused-large-jpeg.pdf", "application/pdf", pdf);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
-        Assert.Equal(QdosIntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Contains(
             receipt.Evidence,
             evidence => evidence.Signal == "intake_limit_exceeded"
                 && evidence.Detail.Contains("extracted-image processing limit", StringComparison.Ordinal));
-        Assert.Null(receipt.TypedDraft);
+        Assert.Null(receipt.InstructionDraft);
         Assert.Equal(
             placementCount - 1,
             receipt.AssetRecords.Count(asset => asset.Kind == IntakeAssetKind.EmbeddedImage));
@@ -450,7 +450,7 @@ public sealed partial class MultiFormatIntakeWebTests
     [Fact]
     public async Task MoreThan128MimeEntitiesStopsRemainingPartsAndSurfacesLimitGuard()
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var message = CreateMessage("Synthetic large MIME tree", "Initial body");
         var multipart = Assert.IsType<Multipart>(message.Body);
@@ -463,7 +463,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
-        Assert.Equal(QdosIntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "intake_limit_exceeded");
         Assert.Contains("more than 128 MIME entities", reviewHtml, StringComparison.Ordinal);
     }
@@ -471,7 +471,7 @@ public sealed partial class MultiFormatIntakeWebTests
     [Fact]
     public async Task ConfirmingBodyWithMoreThan128MimeEntitiesFailsClosedWithoutReference()
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var message = CreateMessage("Synthetic confirming large MIME tree", ConfirmingQdosBody);
         var multipart = Assert.IsType<Multipart>(message.Body);
@@ -483,14 +483,14 @@ public sealed partial class MultiFormatIntakeWebTests
         var result = await UploadAsync(client, "confirming-many-parts.eml", "message/rfc822", Serialize(message));
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
-        Assert.Equal(QdosIntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "intake_limit_exceeded");
     }
 
     [Fact]
     public async Task ConfirmingOuterBodyWithMoreThanEightNestedMessagesFailsClosedWithoutReference()
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var message = CreateNestedMessageChain(10);
         SetFirstTextBody(message, ConfirmingQdosBody);
@@ -498,14 +498,14 @@ public sealed partial class MultiFormatIntakeWebTests
         var result = await UploadAsync(client, "confirming-too-deep.eml", "message/rfc822", Serialize(message));
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
-        Assert.Equal(QdosIntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "intake_limit_exceeded");
     }
 
     [Fact]
     public async Task ConfirmingNestedEmailWhoseRepeatedDecodedPayloadExceeds25MbFailsClosed()
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var largeAttachment = new byte[3 * 1024 * 1024];
         var message = CreateNestedMessageChainWithAttachment(7, largeAttachment);
@@ -516,14 +516,14 @@ public sealed partial class MultiFormatIntakeWebTests
         var result = await UploadAsync(client, "confirming-decoded-limit.eml", "message/rfc822", source);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
-        Assert.Equal(QdosIntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "intake_limit_exceeded");
     }
 
     [Fact]
     public async Task DocxWithMoreThan512ZipEntriesIsVisiblyResourceLimited()
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var docx = CreateResourceHeavyDocx(additionalEntryCount: 513, additionalUncompressedBytes: 0);
         Assert.InRange(docx.LongLength, 1, 10L * 1024 * 1024);
@@ -536,7 +536,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
-        Assert.Equal(QdosIntakeDecision.Unsupported, receipt.Decision);
+        Assert.Equal(IntakeDecision.Unsupported, receipt.Decision);
         Assert.Equal("docx_limit_exceeded", receipt.FailureCode);
         Assert.Contains("docx_limit_exceeded", reviewHtml, StringComparison.Ordinal);
     }
@@ -544,7 +544,7 @@ public sealed partial class MultiFormatIntakeWebTests
     [Fact]
     public async Task DocxWithMoreThan50MbUncompressedIsVisiblyResourceLimited()
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var docx = CreateResourceHeavyDocx(
             additionalEntryCount: 0,
@@ -559,7 +559,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
-        Assert.Equal(QdosIntakeDecision.Unsupported, receipt.Decision);
+        Assert.Equal(IntakeDecision.Unsupported, receipt.Decision);
         Assert.Equal("docx_limit_exceeded", receipt.FailureCode);
         Assert.Contains("docx_limit_exceeded", reviewHtml, StringComparison.Ordinal);
     }
@@ -567,7 +567,7 @@ public sealed partial class MultiFormatIntakeWebTests
     [Fact]
     public async Task DocxWithXmlPartOverTenMbIsVisiblyResourceLimited()
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var docx = CreateResourceHeavyDocx(
             additionalEntryCount: 0,
@@ -581,9 +581,9 @@ public sealed partial class MultiFormatIntakeWebTests
             docx);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
-        Assert.Equal(QdosIntakeDecision.Unsupported, receipt.Decision);
+        Assert.Equal(IntakeDecision.Unsupported, receipt.Decision);
         Assert.Equal("docx_limit_exceeded", receipt.FailureCode);
-        Assert.Null(receipt.TypedDraft);
+        Assert.Null(receipt.InstructionDraft);
         Assert.Equal(
             "The DOCX exceeds the safe package, part, or extracted-image processing limits.",
             receipt.FailureReason);
@@ -592,7 +592,7 @@ public sealed partial class MultiFormatIntakeWebTests
     [Fact]
     public async Task ConfirmingEmailWithDocxExtractedImagesOverTwentyFiveMbFailsClosedAndRetainsAttachment()
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         const string attachmentName = "oversized-extracted-image.docx";
         var docx = CreateDocxWithLargeImage((26L * 1024 * 1024));
@@ -610,8 +610,8 @@ public sealed partial class MultiFormatIntakeWebTests
             source);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
-        Assert.Equal(QdosIntakeDecision.NeedsSorting, receipt.Decision);
-        Assert.Null(receipt.TypedDraft);
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Null(receipt.InstructionDraft);
         Assert.Contains(
             receipt.Evidence,
             evidence => evidence.Signal == "intake_limit_exceeded"
@@ -625,7 +625,7 @@ public sealed partial class MultiFormatIntakeWebTests
     [Fact]
     public async Task ConfirmingEmailKeepsBodyDecisionAndSurfacesCorruptDocumentAttachments()
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var message = CreateMessage(
             "Synthetic corrupt attachments",
@@ -637,7 +637,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
-        Assert.Equal(QdosIntakeDecision.DraftReady, receipt.Decision);
+        Assert.Equal(IntakeDecision.DraftReady, receipt.Decision);
         Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "unreadable-pdf-attachment");
         Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "unreadable-docx-attachment");
         Assert.Contains("corrupt.pdf", reviewHtml, StringComparison.Ordinal);
@@ -647,14 +647,14 @@ public sealed partial class MultiFormatIntakeWebTests
     [Fact]
     public async Task MostlyOffPageRasterUsesVisibleIntersectionAndDoesNotSelectOcr()
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var pdf = CreateImagePdf(new PdfImagePlacement(500, 0, 612, 792, 0xff, 0xff, 0xff));
 
         var result = await UploadAsync(client, "mostly-off-page.pdf", "application/pdf", pdf);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
-        Assert.Equal(QdosIntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Empty(receipt.ScannedPdfPages);
         Assert.Single(receipt.AssetRecords, asset => asset.Kind == IntakeAssetKind.EmbeddedImage);
     }
@@ -662,7 +662,7 @@ public sealed partial class MultiFormatIntakeWebTests
     [Fact]
     public async Task RasterCoveringExactly80PercentOfVisiblePageSelectsOcr()
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var pdf = CreateImagePdf(
             600,
@@ -672,14 +672,14 @@ public sealed partial class MultiFormatIntakeWebTests
         var result = await UploadAsync(client, "exact-boundary.pdf", "application/pdf", pdf);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
-        Assert.Equal(QdosIntakeDecision.OcrRequired, receipt.Decision);
+        Assert.Equal(IntakeDecision.OcrRequired, receipt.Decision);
         Assert.Single(receipt.ScannedPdfPages);
     }
 
     [Fact]
     public async Task TamperedStoredImageReturnsConflictWithoutIntegrityDetailLeakage()
     {
-        using var factory = new QdosWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var original = Convert.FromBase64String(TinyPngBase64)
             .Concat(Guid.NewGuid().ToByteArray())
@@ -743,7 +743,7 @@ public sealed partial class MultiFormatIntakeWebTests
     private const string ConfirmingQdosBody =
         "QDOS instruction\r\nClaim Number: SYN-GUARD-001\r\nVehicle Registration: AB12 CDE";
 
-    private static HttpClient CreateClient(QdosWebApplicationFactory factory) => factory.CreateClient(
+    private static HttpClient CreateClient(IntakeWebApplicationFactory factory) => factory.CreateClient(
         new()
         {
             AllowAutoRedirect = false,
@@ -756,7 +756,7 @@ public sealed partial class MultiFormatIntakeWebTests
         string mediaType,
         byte[] bytes)
     {
-        using var formPage = await client.GetAsync("/Intake/Qdos");
+        using var formPage = await client.GetAsync("/Intake/Upload");
         formPage.EnsureSuccessStatusCode();
         var formHtml = await formPage.Content.ReadAsStringAsync();
         var tokenTag = AntiforgeryTagRegex().Match(formHtml);
@@ -779,7 +779,7 @@ public sealed partial class MultiFormatIntakeWebTests
         file.Headers.ContentType = MediaTypeHeaderValue.Parse(mediaType);
         multipart.Add(file, "Upload", fileName);
 
-        using var response = await client.PostAsync("/Intake/Qdos", multipart);
+        using var response = await client.PostAsync("/Intake/Upload", multipart);
         return new(
             response.StatusCode,
             response.Headers.Location,
@@ -797,13 +797,13 @@ public sealed partial class MultiFormatIntakeWebTests
         return id;
     }
 
-    private static async Task<QdosIntakeRecord> GetReceiptAsync(
-        QdosWebApplicationFactory factory,
+    private static async Task<IntakeReceipt> GetReceiptAsync(
+        IntakeWebApplicationFactory factory,
         Guid id)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var queries = scope.ServiceProvider.GetRequiredService<IQdosIntakeQueries>();
-        return Assert.IsType<QdosIntakeRecord>(await queries.GetAsync(id, CancellationToken.None));
+        var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
+        return Assert.IsType<IntakeReceipt>(await queries.GetAsync(id, CancellationToken.None));
     }
 
     private static async Task<string> GetReviewHtmlAsync(

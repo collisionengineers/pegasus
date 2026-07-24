@@ -10,7 +10,7 @@
         <h1>@ReviewModel.DecisionLabel(Model.Receipt.Decision)</h1>
         <p class="lede">@Model.Receipt.DecisionReason</p>
     </div>
-    <a class="secondary-action" asp-page="/Intake/Qdos">Upload another</a>
+    <a class="secondary-action" asp-page="/Intake/Upload">Upload another</a>
 </header>
 
 @if (Model.IsDuplicate)
@@ -52,13 +52,13 @@
     </section>
 </div>
 
-@if (Model.Receipt.TypedDraft is not null)
+@if (Model.Receipt.InstructionDraft is not null)
 {
-    var draft = Model.Receipt.TypedDraft;
+    var draft = Model.Receipt.InstructionDraft;
     <section class="panel section-gap" aria-labelledby="typed-draft-title">
         <h2 id="typed-draft-title" class="section-label">Typed review draft</h2>
         <dl class="detail-list">
-            <div><dt>Principal</dt><dd>@draft.PrincipalCode</dd></div>
+            <div><dt>Suggested principal</dt><dd>@(draft.SuggestedPrincipalCode ?? "Not suggested")</dd></div>
             <div><dt>Claimant name</dt><dd>@(draft.ClaimantName ?? "Not resolved")</dd></div>
             <div><dt>Claim number</dt><dd>@(draft.ClaimNumber ?? "Not resolved")</dd></div>
             <div><dt>Vehicle registration</dt><dd>@(draft.VehicleRegistration ?? "Not resolved")</dd></div>
@@ -116,7 +116,7 @@
 {
     <section class="panel section-gap" aria-labelledby="ocr-title">
         <h2 id="ocr-title" class="section-label">Scanned PDF pages</h2>
-        <p>OCR is required only for these scan-like PDF pages:</p>
+        <p>Text review is required only for these scan-like PDF pages:</p>
         <ul class="plain-list">
             @foreach (var candidate in Model.Receipt.ScannedPdfPages)
             {

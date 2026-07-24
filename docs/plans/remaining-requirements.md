@@ -23,7 +23,7 @@ The implementation-ready domain breakdown is maintained in [remainder-delivery/]
 
 ## What is already proved locally
 
-The first thin slice has a real Web caller at `/Intake/Qdos`. In Development, with the explicit feature flag enabled, it can:
+The first thin slice has a real Web caller at `/Intake/Upload`. In Development, with the explicit provider-neutral feature flag enabled, it can:
 
 - accept a manually selected `.eml`, `.pdf`, `.docx`, `.doc`, `.msg`, `.jpg`, `.jpeg`, or `.png` up to 10 MB;
 - read email bodies, bounded nested EML, every page of each PDF plus its discrete images through MimeKit/PdfPig, and DOCX text/internal images through Open XML SDK; PDF processing is all-pages-or-incomplete under one aggregate per-intake expansion budget, never silently page-truncated;
@@ -34,17 +34,18 @@ The first thin slice has a real Web caller at `/Intake/Qdos`. In Development, wi
 - reject DOCX packages that exceed the accepted entry, expansion, XML-part, or extracted-image limits;
 - fail closed to `Needs sorting` when aggregate PDF text/image expansion exceeds the accepted limits, even if an earlier page or attachment looks confirming;
 - verify local content-addressed bytes before reuse or review and refuse to serve a hash mismatch;
-- let strong QDOS instruction content outrank the sender of a staff-forwarded email;
+- invoke one contained QDOS extraction policy only after a source is fully readable, let strong QDOS instruction content outrank the sender of a staff-forwarded email, and never use QDOS as the default principal;
 - record evidence, missing fields, conflicts, and review candidates for the ten initial instruction fields;
 - default a missing instruction date from the injected clock;
-- produce explicit `QDOS draft`, `Needs sorting`, `OCR required`, and technical-failure outcomes; `QDOS draft` means extraction succeeded, not that mailbox category or definitive acceptance has been decided;
+- produce explicit `Draft ready`, `Needs sorting`, `OCR required`, `Unsupported`, and retryable technical-failure outcomes; `Draft ready` means the QDOS extraction policy produced a reviewable instruction draft, not that mailbox category or definitive acceptance has been decided;
 - identify each manual upload by a stable channel occurrence token while retaining the SHA-256 value as integrity and possible-duplicate evidence;
-- persist receipts, a relational read-only QDOS draft, assets, evidence, and field candidates through EF Core without creating a case or reference;
+- persist provider-neutral receipts, a relational read-only instruction draft, assets, evidence, field candidates, and the extraction policy key/version through EF Core without creating a case or reference;
+- initialise a fresh provider-neutral SQLite schema at `artifacts/local/collisionspike-v2-dev.db`; refuse old or mismatched local migration/schema baselines before mutation and leave the former local database path untouched;
 - render persisted dashboard counts, queues, and a review page;
 - return the existing receipt for replay of the same occurrence while retaining equal bytes under different occurrence identities as separate review evidence; and
-- deny every `/Intake` route outside Development or when the feature flag is not enabled.
+- deny every `/Intake` route outside Development or when the feature flag is not enabled, and keep the retired `/Intake/Qdos` route unavailable even when local intake is enabled.
 
-This is local evidence only. Synthetic Web-caller checks prove the format routes, but genuine-corpus coverage remains incomplete. Local ignored artifact retention is not Box custody, a production Blob implementation, a deployed application, or business acceptance of extraction accuracy.
+This is local evidence only. A pinned genuine-corpus regression sample traverses the Web caller, but it is not a complete human-reviewed field-accuracy cohort or untouched holdout. Local ignored artifact retention is not Box custody, a production Blob implementation, a deployed application, or business acceptance of extraction accuracy.
 
 ## Required for the first QDOS release
 
@@ -154,7 +155,7 @@ Deferred features may have clean seams in the current architecture, but they mus
 
 ## Recommended delivery order
 
-1. Turn the current QDOS receipt into a human-approved, typed case draft backed by a field-expectation cohort and holdout.
+1. Turn the current provider-neutral receipt and QDOS-derived instruction draft into a human-approved, typed case draft backed by a field-expectation cohort and holdout.
 2. Add staff authentication, roles, and the permanent audit actor so subsequent case changes have real ownership.
 3. Replace local ignored artifact retention with durable original-source custody and the Box case-folder path; use private Blob staging with managed identity for Worker processing.
 4. Add targeted Document Intelligence OCR for the persisted scan-like PDF page candidates through the same intake use case.

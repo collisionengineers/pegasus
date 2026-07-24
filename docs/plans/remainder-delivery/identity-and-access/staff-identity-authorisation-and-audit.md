@@ -8,8 +8,8 @@ Establish authenticated CollisionSpike staff identities, role boundaries and per
 
 - **Authority:** [source order](../../../agent-guidance/source-of-truth.md), [questionnaire §§3–4 and 10–12](../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md), [remaining requirements §1](../../remaining-requirements.md), and [ADR-0004](../../../architecture/decisions/ADR-0004-provider-api-and-staff-mcp-authentication.md).
 - **Policy owner:** planned Core `StaffAccess` actor/authorisation contracts, with Web authentication composition; business transition authority stays in Casework.
-- **Current implementation:** Web calls `UseAuthorization` but registers no authentication/identity scheme; `AuditEvents.Actor` accepts the development intake string. There are no staff accounts, role enforcement or permanent trusted actor derivation.
-- **Real callers:** `/Intake/Qdos` is the only current real intake caller and is deliberately unavailable outside Development; all authenticated staff pages, bootstrap, administration and future MCP are **planned**.
+- **Current implementation:** Web calls `UseAuthorization` but registers no authentication/identity scheme; receipt-owned `IntakeAuditEvents.Actor` accepts the development intake string. There are no staff accounts, role enforcement or permanent trusted actor derivation.
+- **Real callers:** `/Intake/Upload` is the only current real intake caller and is deliberately unavailable outside Development; all authenticated staff pages, bootstrap, administration and future MCP are **planned**.
 - **Persistence/adapters:** one existing EF migration stream/DbContext; planned ASP.NET Core Identity data, staff status/roles, audit actor/event and correlated outbox records. No Entra application sign-in.
 - **Dependencies:** the application spine/explicit migrations, then every casework caller. Provider/API and MCP authentication are separate later boundaries.
 - **Replaces/consolidates:** replace request-supplied/free-text actor values and unauthenticated page access; do not add another account store or parallel role evaluator.
@@ -37,7 +37,7 @@ Deny by default except deliberately public technical health endpoints. Passwords
 
 ### Caller, contract and change boundary
 
-- **Real or intended caller:** planned sign-in/sign-out and authenticated pages; `/Intake/Qdos` stays development-only until the replacement authenticated custody caller exists.
+- **Real or intended caller:** planned sign-in/sign-out and authenticated pages; `/Intake/Upload` stays development-only until the replacement authenticated custody caller exists.
 - **Input/output:** username/password yields secure cookie/session and current role, or generic refusal/lockout outcome; disabled account invalidates active access.
 - **Ordered decisions and failure behavior:** authenticate; reject disabled/locked account; derive trusted actor/roles; authorise endpoint/action; refuse by default. Administrator-only account/principal/configuration routes are checked server-side.
 - **Persistence/migration:** add Identity/staff role/status records through the one ordered migration stream; no startup production migration or seed password.
@@ -114,10 +114,10 @@ Deny by default except deliberately public technical health endpoints. Passwords
 
 ### Caller, contract and change boundary
 
-- **Real or intended caller:** planned authenticated staff actions and automated Worker actions; `/Intake/Qdos` currently writes only a local-development audit string and must migrate.
+- **Real or intended caller:** planned authenticated staff actions and automated Worker actions; `/Intake/Upload` currently writes only receipt-owned local-development intake audit events and must migrate to the permanent actor-aware business audit catalogue when that boundary is decided.
 - **Input/output:** trusted actor, action type, prior/new context, required reason and correlation append one permanent event in the business transaction; automation has an explicit machine/system actor and source identity.
 - **Ordered decisions and failure behavior:** authorise business action first; validate required reason; commit state/audit/outbox together. Audit-write failure aborts the mutable operation; read/query failure is surfaced without fabricating history.
-- **Persistence/migration:** evolve `AuditEvents` into append-only typed events with actor kind/identifier, timestamp, correlation and safe structured context; no update/delete route.
+- **Persistence/migration:** add the append-only business-audit owner with actor kind/identifier, timestamp, correlation and safe structured context; do not misrepresent or directly expose receipt-owned `IntakeAuditEvents` as that catalogue, and add no update/delete route.
 - **Adapters/side effects:** outbox preserves event intent for post-commit work; audit does not invoke email, Box, Graph or telemetry directly.
 - **Operator surface and observability:** case/workspace history is readable to authorised staff; privileged/security audit failures alert content-safely.
 - **Documentation affected:** audit event catalogue/evidence record after implementation, not a duplicate product specification.
@@ -139,7 +139,7 @@ Deny by default except deliberately public technical health endpoints. Passwords
 - [ ] Test a staff transition/review, blocked-intake retry, identity correction attempt and Administrator role change each emit correct trusted actor/reason/prior-new context.
 - [ ] Test request-body actor spoofing, missing required reason and audit storage failure; state must not mutate on failure.
 - [ ] Test automation actor is distinguishable and replay/outbox correlation does not duplicate business effects.
-- [ ] Exercise the refactored `/Intake/Qdos` caller and later one planned authenticated action; run `pwsh ./scripts/Invoke-RepoCheck.ps1`.
+- [ ] Exercise the `/Intake/Upload` caller and later one planned authenticated action; run `pwsh ./scripts/Invoke-RepoCheck.ps1`.
 
 ### Acceptance criteria
 

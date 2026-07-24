@@ -4,37 +4,42 @@ namespace CollisionSpike.Infrastructure.Persistence;
 
 public sealed class CollisionSpikeDbContext(DbContextOptions<CollisionSpikeDbContext> options) : DbContext(options)
 {
-    internal DbSet<QdosIntakeReceiptEntity> QdosIntakeReceipts => Set<QdosIntakeReceiptEntity>();
+    internal DbSet<IntakeReceiptEntity> IntakeReceipts => Set<IntakeReceiptEntity>();
 
-    internal DbSet<QdosIntakeAssetEntity> QdosIntakeAssets => Set<QdosIntakeAssetEntity>();
+    internal DbSet<IntakeAssetEntity> IntakeAssets => Set<IntakeAssetEntity>();
 
-    internal DbSet<QdosTypedDraftEntity> QdosTypedDrafts => Set<QdosTypedDraftEntity>();
+    internal DbSet<InstructionDraftEntity> InstructionDrafts => Set<InstructionDraftEntity>();
 
-    internal DbSet<AuditEventEntity> AuditEvents => Set<AuditEventEntity>();
+    internal DbSet<IntakeAuditEventEntity> IntakeAuditEvents => Set<IntakeAuditEventEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<QdosIntakeReceiptEntity>(entity =>
+        modelBuilder.Entity<IntakeReceiptEntity>(entity =>
         {
-            entity.ToTable("QdosIntakeReceipts");
+            entity.ToTable("IntakeReceipts");
             entity.HasKey(item => item.Id);
             entity.Property(item => item.SourceFileName).HasMaxLength(260).IsRequired();
             entity.Property(item => item.MediaType).HasMaxLength(200).IsRequired();
             entity.Property(item => item.SourceHash).HasMaxLength(64).IsRequired();
             entity.Property(item => item.SourceChannel).HasMaxLength(40).IsRequired();
             entity.Property(item => item.ExternalReceiptToken).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.SourceReaderKey).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.SourceReaderVersion).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.ExtractionPolicyKey).HasMaxLength(100);
             entity.Property(item => item.Decision).HasMaxLength(40).IsRequired();
             entity.Property(item => item.DecisionReason).HasMaxLength(500).IsRequired();
             entity.Property(item => item.FailureCode).HasMaxLength(100);
             entity.Property(item => item.FailureReason).HasMaxLength(500);
+            entity.Property(item => item.EvidenceJson).IsRequired();
+            entity.Property(item => item.FieldsJson).IsRequired();
             entity.Property(item => item.OcrCandidatesJson).IsRequired();
             entity.HasIndex(item => item.SourceHash);
             entity.HasIndex(item => new { item.SourceChannel, item.ExternalReceiptToken }).IsUnique();
         });
 
-        modelBuilder.Entity<QdosIntakeAssetEntity>(entity =>
+        modelBuilder.Entity<IntakeAssetEntity>(entity =>
         {
-            entity.ToTable("QdosIntakeAssets");
+            entity.ToTable("IntakeAssets");
             entity.HasKey(item => item.Id);
             entity.Property(item => item.SourceLabel).HasMaxLength(500).IsRequired();
             entity.Property(item => item.FileName).HasMaxLength(260).IsRequired();
@@ -50,11 +55,11 @@ public sealed class CollisionSpikeDbContext(DbContextOptions<CollisionSpikeDbCon
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        modelBuilder.Entity<QdosTypedDraftEntity>(entity =>
+        modelBuilder.Entity<InstructionDraftEntity>(entity =>
         {
-            entity.ToTable("QdosTypedDrafts");
+            entity.ToTable("InstructionDrafts");
             entity.HasKey(item => item.IntakeReceiptId);
-            entity.Property(item => item.PrincipalCode).HasMaxLength(20).IsRequired();
+            entity.Property(item => item.SuggestedPrincipalCode).HasMaxLength(20);
             entity.Property(item => item.ClaimantName).HasMaxLength(300);
             entity.Property(item => item.ClaimNumber).HasMaxLength(100);
             entity.Property(item => item.VehicleRegistration).HasMaxLength(20);
@@ -65,18 +70,19 @@ public sealed class CollisionSpikeDbContext(DbContextOptions<CollisionSpikeDbCon
             entity.Property(item => item.InstructionDate).HasColumnType("date");
             entity.Property(item => item.InspectionAddress).HasMaxLength(1000);
             entity.HasOne(item => item.IntakeReceipt)
-                .WithOne(item => item.TypedDraft)
-                .HasForeignKey<QdosTypedDraftEntity>(item => item.IntakeReceiptId)
+                .WithOne(item => item.InstructionDraft)
+                .HasForeignKey<InstructionDraftEntity>(item => item.IntakeReceiptId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        modelBuilder.Entity<AuditEventEntity>(entity =>
+        modelBuilder.Entity<IntakeAuditEventEntity>(entity =>
         {
-            entity.ToTable("AuditEvents");
+            entity.ToTable("IntakeAuditEvents");
             entity.HasKey(item => item.Id);
             entity.Property(item => item.EventType).HasMaxLength(100).IsRequired();
             entity.Property(item => item.Actor).HasMaxLength(200).IsRequired();
-            entity.HasOne<QdosIntakeReceiptEntity>()
+            entity.Property(item => item.DetailsJson).IsRequired();
+            entity.HasOne<IntakeReceiptEntity>()
                 .WithMany()
                 .HasForeignKey(item => item.IntakeReceiptId)
                 .OnDelete(DeleteBehavior.Restrict);
@@ -84,116 +90,74 @@ public sealed class CollisionSpikeDbContext(DbContextOptions<CollisionSpikeDbCon
     }
 }
 
-internal sealed class QdosIntakeReceiptEntity
+internal sealed class IntakeReceiptEntity
 {
     public Guid Id { get; set; }
-
     public required string SourceFileName { get; set; }
-
     public required string MediaType { get; set; }
-
     public long SourceLength { get; set; }
-
     public required string SourceHash { get; set; }
-
     public required string SourceChannel { get; set; }
-
     public required string ExternalReceiptToken { get; set; }
-
     public DateTimeOffset ReceivedAtUtc { get; set; }
-
+    public DateTimeOffset ProcessedAtUtc { get; set; }
+    public required string SourceReaderKey { get; set; }
+    public required string SourceReaderVersion { get; set; }
+    public string? ExtractionPolicyKey { get; set; }
+    public int? ExtractionPolicyVersion { get; set; }
     public required string Decision { get; set; }
-
     public required string DecisionReason { get; set; }
-
     public required string EvidenceJson { get; set; }
-
     public required string FieldsJson { get; set; }
-
     public string? FailureCode { get; set; }
-
     public string? FailureReason { get; set; }
-
     public required string OcrCandidatesJson { get; set; }
-
-    public QdosTypedDraftEntity? TypedDraft { get; set; }
-
-    public List<QdosIntakeAssetEntity> Assets { get; set; } = [];
+    public InstructionDraftEntity? InstructionDraft { get; set; }
+    public List<IntakeAssetEntity> Assets { get; set; } = [];
 }
 
-internal sealed class QdosTypedDraftEntity
+internal sealed class InstructionDraftEntity
 {
     public Guid IntakeReceiptId { get; set; }
-
-    public QdosIntakeReceiptEntity IntakeReceipt { get; set; } = null!;
-
-    public required string PrincipalCode { get; set; }
-
+    public IntakeReceiptEntity IntakeReceipt { get; set; } = null!;
+    public string? SuggestedPrincipalCode { get; set; }
     public string? ClaimantName { get; set; }
-
     public string? ClaimNumber { get; set; }
-
     public string? VehicleRegistration { get; set; }
-
     public string? VehicleMake { get; set; }
-
     public string? VehicleModel { get; set; }
-
     public long? VehicleMileage { get; set; }
-
     public string? AccidentCircumstances { get; set; }
-
     public DateOnly? DateOfIncident { get; set; }
-
     public DateOnly? InstructionDate { get; set; }
-
     public string? InspectionAddress { get; set; }
 }
 
-internal sealed class QdosIntakeAssetEntity
+internal sealed class IntakeAssetEntity
 {
     public Guid Id { get; set; }
-
     public Guid IntakeReceiptId { get; set; }
-
-    public QdosIntakeReceiptEntity IntakeReceipt { get; set; } = null!;
-
+    public IntakeReceiptEntity IntakeReceipt { get; set; } = null!;
     public required string SourceLabel { get; set; }
-
     public required string FileName { get; set; }
-
     public required string MediaType { get; set; }
-
     public required string Kind { get; set; }
-
     public required string Disposition { get; set; }
-
     public long ContentLength { get; set; }
-
     public required string ContentHash { get; set; }
-
     public required string StorageKey { get; set; }
-
     public int? PageNumber { get; set; }
-
     public string? BoundsJson { get; set; }
-
     public int? WidthPixels { get; set; }
-
     public int? HeightPixels { get; set; }
 }
 
-internal sealed class AuditEventEntity
+internal sealed class IntakeAuditEventEntity
 {
     public Guid Id { get; set; }
-
     public Guid IntakeReceiptId { get; set; }
-
     public required string EventType { get; set; }
-
     public required string Actor { get; set; }
-
     public DateTimeOffset OccurredAtUtc { get; set; }
-
     public required string DetailsJson { get; set; }
 }

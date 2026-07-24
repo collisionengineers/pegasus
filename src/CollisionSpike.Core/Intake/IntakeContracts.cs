@@ -1,6 +1,6 @@
-namespace CollisionSpike.Core.Intake.Qdos;
+namespace CollisionSpike.Core.Intake;
 
-public enum QdosIntakeDecision
+public enum IntakeDecision
 {
     DraftReady,
     NeedsSorting,
@@ -9,7 +9,7 @@ public enum QdosIntakeDecision
     TechnicalFailure
 }
 
-public enum QdosEvidenceSource
+public enum IntakeEvidenceSource
 {
     EmailBody,
     PdfContent,
@@ -22,15 +22,15 @@ public enum QdosEvidenceSource
     SystemDefault
 }
 
-public enum QdosEvidenceStrength
+public enum IntakeEvidenceStrength
 {
     Strong,
     Weak
 }
 
-public enum QdosEvidenceFinding
+public enum IntakeEvidenceFinding
 {
-    SupportsQdos,
+    SupportsPrincipal,
     ContradictsTransport,
     ExtractedField,
     ConflictingField,
@@ -50,6 +50,13 @@ public enum IntakeSourceChannel
     ManualUpload
 }
 
+public enum InstructionPolicyApplicability
+{
+    Applicable,
+    NotApplicable,
+    Indeterminate
+}
+
 public sealed record IntakeSourceIdentity(
     IntakeSourceChannel Channel,
     string ExternalReceiptToken);
@@ -62,7 +69,15 @@ public sealed class IntakeSourceIdentityConflictException : Exception
     }
 }
 
-public sealed record QdosIntakeSource(
+public sealed class IntakeArtifactRetentionException : Exception
+{
+    public IntakeArtifactRetentionException(Exception innerException)
+        : base("The intake source could not be retained.", innerException)
+    {
+    }
+}
+
+public sealed record IntakeSource(
     string FileName,
     string MediaType,
     ReadOnlyMemory<byte> Content,
@@ -71,18 +86,18 @@ public sealed record QdosIntakeSource(
     IntakeSourceIdentity SourceIdentity);
 
 public sealed record IntakeContentFragment(
-    QdosEvidenceSource Source,
+    IntakeEvidenceSource Source,
     string SourceLabel,
     string Text);
 
 public sealed record IntakeTransportEvidence(
-    QdosEvidenceSource Source,
+    IntakeEvidenceSource Source,
     string Value);
 
 public sealed record IntakeSourceIssue(
     string Code,
     string Reason,
-    QdosEvidenceSource Source);
+    IntakeEvidenceSource Source);
 
 public enum IntakeAssetKind
 {
@@ -132,7 +147,9 @@ public sealed record IntakeSourceReadResult(
     string? FailureReason = null,
     IReadOnlyList<IntakeAssetCandidate>? Assets = null,
     IReadOnlyList<ScannedPdfOcrCandidate>? OcrCandidates = null,
-    bool IsIncomplete = false)
+    bool IsIncomplete = false,
+    string ReaderKey = "unspecified_reader",
+    string ReaderVersion = "1")
 {
     public IReadOnlyList<IntakeAssetCandidate> AssetCandidates => Assets ?? [];
 
@@ -154,27 +171,27 @@ public sealed record IntakeAssetRecord(
     int? WidthPixels,
     int? HeightPixels);
 
-public sealed record QdosEvidence(
-    QdosEvidenceSource Source,
-    QdosEvidenceStrength Strength,
-    QdosEvidenceFinding Finding,
+public sealed record IntakeEvidence(
+    IntakeEvidenceSource Source,
+    IntakeEvidenceStrength Strength,
+    IntakeEvidenceFinding Finding,
     string Signal,
     string Detail);
 
-public sealed record QdosFieldCandidate(
+public sealed record InstructionFieldCandidate(
     string Value,
-    QdosEvidenceSource Source,
+    IntakeEvidenceSource Source,
     string SourceLabel);
 
-public sealed record QdosReviewField(
+public sealed record InstructionReviewField(
     string Name,
     string? SuggestedValue,
-    IReadOnlyList<QdosFieldCandidate> Candidates,
+    IReadOnlyList<InstructionFieldCandidate> Candidates,
     bool IsDefaulted,
     bool HasConflict);
 
-public sealed record QdosTypedDraft(
-    string PrincipalCode,
+public sealed record InstructionDraft(
+    string? SuggestedPrincipalCode,
     string? ClaimantName,
     string? ClaimNumber,
     string? VehicleRegistration,
@@ -186,7 +203,7 @@ public sealed record QdosTypedDraft(
     DateOnly? InstructionDate,
     string? InspectionAddress);
 
-public sealed record QdosIntakeRecord(
+public sealed record IntakeReceipt(
     Guid Id,
     string SourceFileName,
     string MediaType,
@@ -194,15 +211,20 @@ public sealed record QdosIntakeRecord(
     string SourceHash,
     IntakeSourceIdentity SourceIdentity,
     DateTimeOffset ReceivedAtUtc,
-    QdosIntakeDecision Decision,
+    DateTimeOffset ProcessedAtUtc,
+    IntakeDecision Decision,
     string DecisionReason,
-    IReadOnlyList<QdosEvidence> Evidence,
-    IReadOnlyList<QdosReviewField> Fields,
-    QdosTypedDraft? TypedDraft,
+    IReadOnlyList<IntakeEvidence> Evidence,
+    IReadOnlyList<InstructionReviewField> Fields,
+    InstructionDraft? InstructionDraft,
     IReadOnlyList<string> MissingFields,
     string? FailureCode,
     string? FailureReason,
     bool IsDuplicate,
+    string SourceReaderKey,
+    string SourceReaderVersion,
+    string? ExtractionPolicyKey,
+    int? ExtractionPolicyVersion,
     IReadOnlyList<IntakeAssetRecord>? Assets = null,
     IReadOnlyList<ScannedPdfOcrCandidate>? OcrCandidates = null)
 {
@@ -211,7 +233,7 @@ public sealed record QdosIntakeRecord(
     public IReadOnlyList<ScannedPdfOcrCandidate> ScannedPdfPages => OcrCandidates ?? [];
 }
 
-public sealed record QdosIntakeDraft(
+public sealed record IntakeReceiptDraft(
     string SourceFileName,
     string MediaType,
     long SourceLength,
@@ -220,14 +242,18 @@ public sealed record QdosIntakeDraft(
     DateTimeOffset ReceivedAtUtc,
     DateTimeOffset ProcessedAtUtc,
     string Actor,
-    QdosIntakeDecision Decision,
+    IntakeDecision Decision,
     string DecisionReason,
-    IReadOnlyList<QdosEvidence> Evidence,
-    IReadOnlyList<QdosReviewField> Fields,
-    QdosTypedDraft? TypedDraft,
+    IReadOnlyList<IntakeEvidence> Evidence,
+    IReadOnlyList<InstructionReviewField> Fields,
+    InstructionDraft? InstructionDraft,
     IReadOnlyList<string> MissingFields,
     string? FailureCode,
     string? FailureReason,
+    string SourceReaderKey,
+    string SourceReaderVersion,
+    string? ExtractionPolicyKey,
+    int? ExtractionPolicyVersion,
     IReadOnlyList<IntakeAssetRecord>? Assets = null,
     IReadOnlyList<ScannedPdfOcrCandidate>? OcrCandidates = null)
 {
@@ -236,21 +262,37 @@ public sealed record QdosIntakeDraft(
     public IReadOnlyList<ScannedPdfOcrCandidate> ScannedPdfPages => OcrCandidates ?? [];
 }
 
-public sealed record QdosQueueCounts(int DraftReady, int NeedsSorting);
+public sealed record IntakeQueueCounts(int DraftReady, int NeedsSorting);
 
-public sealed record QdosIntakeSummary(
+public sealed record IntakeReceiptSummary(
     Guid Id,
     string SourceFileName,
     DateTimeOffset ReceivedAtUtc,
-    QdosIntakeDecision Decision,
+    IntakeDecision Decision,
     string? FailureReason);
 
-public interface IQdosIntakeSourceReader
+public sealed record InstructionExtractionResult(
+    InstructionPolicyApplicability Applicability,
+    IReadOnlyList<IntakeEvidence> Evidence,
+    IReadOnlyList<InstructionReviewField> Fields,
+    InstructionDraft? InstructionDraft,
+    IReadOnlyList<string> MissingFields,
+    string PolicyKey,
+    int PolicyVersion);
+
+public interface IInstructionExtractionPolicy
 {
-    Task<IntakeSourceReadResult> ReadAsync(QdosIntakeSource source, CancellationToken cancellationToken);
+    InstructionExtractionResult Extract(
+        IntakeSourceReadResult readResult,
+        DateTimeOffset processedAtUtc);
 }
 
-public static class QdosIntakeExceptionPolicy
+public interface IIntakeSourceReader
+{
+    Task<IntakeSourceReadResult> ReadAsync(IntakeSource source, CancellationToken cancellationToken);
+}
+
+public static class IntakeExceptionPolicy
 {
     public static bool IsRecoverable(Exception exception) =>
         exception is not OperationCanceledException
@@ -271,28 +313,26 @@ public interface IIntakeArtifactStore
 }
 
 public sealed class IntakeArtifactIntegrityException()
-    : Exception("The retained intake artifact failed integrity validation.")
-{
-}
+    : Exception("The retained intake artifact failed integrity validation.");
 
-public interface IQdosIntakeStore
+public interface IIntakeReceiptStore
 {
-    Task<QdosIntakeRecord?> FindBySourceIdentityAsync(
+    Task<IntakeReceipt?> FindBySourceIdentityAsync(
         IntakeSourceIdentity sourceIdentity,
         CancellationToken cancellationToken);
 
-    Task<QdosIntakeRecord> StoreAsync(QdosIntakeDraft draft, CancellationToken cancellationToken);
+    Task<IntakeReceipt> StoreAsync(IntakeReceiptDraft draft, CancellationToken cancellationToken);
 }
 
-public interface IQdosIntakeQueries
+public interface IIntakeReceiptQueries
 {
-    Task<QdosQueueCounts> GetCountsAsync(CancellationToken cancellationToken);
+    Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<QdosIntakeSummary>> ListAsync(
-        QdosIntakeDecision? decision,
+    Task<IReadOnlyList<IntakeReceiptSummary>> ListAsync(
+        IntakeDecision? decision,
         CancellationToken cancellationToken);
 
-    Task<QdosIntakeRecord?> GetAsync(Guid id, CancellationToken cancellationToken);
+    Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken);
 
     Task<IntakeAssetRecord?> GetAssetAsync(
         Guid receiptId,

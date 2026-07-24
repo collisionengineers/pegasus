@@ -8,7 +8,7 @@ Preserve the accepted principal-scoped provider boundary without inventing the v
 
 - **Authority:** [remaining requirements](../../remaining-requirements.md#3-complete-intake-formats-and-paths) and [ADR-0004](../../../architecture/decisions/ADR-0004-provider-api-and-staff-mcp-authentication.md#provider-http-api).
 - **Policy owner:** shared Core intake and principal-authorisation policy; Web will translate the accepted HTTP contract.
-- **Current implementation/callers:** no provider endpoint, credential store, caller or live client exists. The Development `/Intake/Qdos` caller is not a provider API.
+- **Current implementation/callers:** no provider endpoint, credential store, caller or live client exists. The Development `/Intake/Upload` caller is not a provider API.
 - **Accepted invariant:** separately issued principal-scoped client IDs and opaque secrets; store only secret hashes; support rotation/revocation; accept idempotent instruction/attachment submission; expose only that principal's submission receipt, status and resulting Case/PO.
 - **Not accepted:** HTTP authentication scheme, routes, headers, multipart schema, signature requirement, bounds, throttling policy, credential issuance workflow or live clients.
 

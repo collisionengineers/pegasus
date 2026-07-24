@@ -1,10 +1,10 @@
-using CollisionSpike.Core.Intake.Qdos;
+using CollisionSpike.Core.Intake;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace CollisionSpike.Web.Pages.Intake;
 
-public sealed class QdosModel(ProcessQdosIntake processQdosIntake, TimeProvider timeProvider) : PageModel
+public sealed class UploadModel(ProcessIntake processIntake, TimeProvider timeProvider) : PageModel
 {
     private const long MaximumFileLength = 10 * 1024 * 1024;
 
@@ -25,23 +25,19 @@ public sealed class QdosModel(ProcessQdosIntake processQdosIntake, TimeProvider 
         {
             ExternalReceiptToken = CreateExternalReceiptToken();
         }
-        else if (!Guid.TryParseExact(ExternalReceiptToken, "N", out _))
+        else if (!Guid.TryParseExact(ExternalReceiptToken, "N", out var receiptId))
         {
             ModelState.AddModelError(string.Empty, "The upload receipt is invalid. Refresh the page and try again.");
+        }
+        else
+        {
+            ExternalReceiptToken = receiptId.ToString("N");
         }
 
         if (Upload is null)
         {
             ModelState.AddModelError(nameof(Upload), "Choose an email, document, PDF or image to upload.");
             return Page();
-        }
-
-        var extension = Path.GetExtension(Upload.FileName);
-        if (!SupportedExtensions.Contains(extension))
-        {
-            ModelState.AddModelError(
-                nameof(Upload),
-                "Choose an .eml, .pdf, .docx, .doc, .msg, .jpg, .jpeg or .png file.");
         }
 
         if (Upload.Length == 0)
@@ -63,7 +59,7 @@ public sealed class QdosModel(ProcessQdosIntake processQdosIntake, TimeProvider 
 
         try
         {
-            var result = await processQdosIntake.ExecuteAsync(
+            var result = await processIntake.ExecuteAsync(
                 new(
                     Path.GetFileName(Upload.FileName),
                     string.IsNullOrWhiteSpace(Upload.ContentType) ? "application/octet-stream" : Upload.ContentType,
@@ -82,7 +78,14 @@ public sealed class QdosModel(ProcessQdosIntake processQdosIntake, TimeProvider 
                 "This upload receipt was already used for different content. Refresh the page and try again.");
             return Page();
         }
-        catch (Exception exception) when (QdosIntakeExceptionPolicy.IsRecoverable(exception))
+        catch (IntakeArtifactRetentionException)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "The instruction source could not be retained. Retry using the same upload receipt.");
+            return Page();
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
             ModelState.AddModelError(string.Empty, "The intake receipt could not be stored because of a technical failure.");
             return Page();
@@ -90,16 +93,4 @@ public sealed class QdosModel(ProcessQdosIntake processQdosIntake, TimeProvider 
     }
 
     private static string CreateExternalReceiptToken() => Guid.NewGuid().ToString("N");
-
-    private static readonly HashSet<string> SupportedExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".eml",
-        ".pdf",
-        ".docx",
-        ".doc",
-        ".msg",
-        ".jpg",
-        ".jpeg",
-        ".png"
-    };
 }

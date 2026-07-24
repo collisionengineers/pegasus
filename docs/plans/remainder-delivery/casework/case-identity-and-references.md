@@ -9,7 +9,7 @@ Give each accepted case one durable identity and the correct non-reusable princi
 - **Authority:** [source order](../../../agent-guidance/source-of-truth.md), [questionnaire §§4–5](../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md), [remaining requirements §4](../../remaining-requirements.md), and [open decisions](../../open-decisions.md).
 - **Policy owner:** planned Core `CaseIdentity` policy/use case.
 - **Current implementation:** there is no active case/reference allocator and v2 has not been deployed. The retired Development proof produced non-business test references only; its migration records those values for migration diagnostics, then deliberately removes the `CaseEntity`, counter, receipt links and allocation caller. Those test values are not issued case identities, do not reserve sequence numbers, and must not seed or constrain the future allocator.
-- **Real callers:** `/Intake/Qdos` is a development-only pre-case intake caller and creates no case/reference. Accepted-case UI, allocator, Worker/API/MCP and principal correction are **planned**; correction has no task/caller until the sent-report decision is settled.
+- **Real callers:** `/Intake/Upload` is a development-only pre-case intake caller and creates no case/reference. Accepted-case UI, allocator, Worker/API/MCP and principal correction are **planned**; correction has no task/caller until the sent-report decision is settled.
 - **Persistence/adapters:** the future accepted-case, principal/year counter, case type and original-report assessment model is planned relational data. Alias/correction confirmation schema is withheld with the correction command.
 - **Dependencies:** [intake and acceptance](intake-and-case-acceptance.md), staff audit, Box/EVA plans; lifecycle supplies authorised transitions.
 - **Replaces/consolidates:** the retired QDOS-specific receipt-store allocator has been removed. Add one shared allocator only with the accepted-case caller; do not restore the old path or create two counters/formatters.
@@ -38,14 +38,14 @@ No reference is allocated for a non-definitive intake, unknown principal, missin
 
 ### Caller, contract and change boundary
 
-- **Real or intended caller:** planned `AcceptCaseDraft`; current `/Intake/Qdos` stops at a pre-case typed draft and must not regain allocation behaviour.
+- **Real or intended caller:** planned `AcceptCaseDraft`; current `/Intake/Upload` stops at a pre-case typed draft and must not gain allocation behaviour.
 - **Input/output:** principal, allocation calendar year, active case type and required assessment result produce the base reference, optional audit display reference and identity audit record.
 - **Ordered decisions and failure behavior:** validate principal; allocate one shared sequence atomically; for standalone Audit require original report repairable/total-loss result; for Inspection + Audit allocate normal inspection first then later create its audit reference/subfolder. Missing/ambiguous evidence retains pre-case source or blocks the later Audit reference.
 - **Persistence/migration:** migrate minimal case/reference to stable case identity, principal code, type and allocation records; preserve unique constraints and serializable SQL behaviour.
 - **Adapters/side effects:** emit a post-commit named-folder/export work item only; no direct Box/EVA mutation.
 - **Operator surface and observability:** show base/reference type and allocation failure; no principal-correction or alias action is exposed while its decision is withheld.
 - **Documentation affected:** describe implementation evidence after replacement; operator notes remain read-only.
-- **Replaces/consolidates:** delete QDOS constant/formatting/counter decision from `EfQdosIntakeStore` in the same slice.
+- **Replaces/consolidates:** keep the provider-neutral intake store free of principal formatting, counters, or allocation decisions; `AcceptCaseDraft` becomes the sole allocation caller.
 
 ### Scope
 
@@ -56,14 +56,14 @@ No reference is allocated for a non-definitive intake, unknown principal, missin
 
 - [ ] Move reference rules to one Core identity owner and one persistence allocator shared by all accepted case types.
 - [ ] Persist assessment provenance; make API/UI contracts expose calculated values and never accept an arbitrary reference.
-- [ ] Migrate `/Intake/Qdos` through case acceptance and remove its private allocator/format logic.
+- [ ] Connect an accepted draft from `/Intake/Upload` to case acceptance without adding allocator/format logic to intake.
 
 ### Validation checklist
 
 - [ ] Allocate `QDOS26001`, then other active case types share the next QDOS/year number; validate year rollover and 999 exhaustion.
 - [ ] Repairable/total-loss standalone Audit emits `a.`/`ap.` only with unambiguous original-report finding; absent/ambiguous result allocates nothing.
 - [ ] Inspection + Audit keeps normal inspection reference, then creates the appropriate later Audit reference in the same case.
-- [ ] Prove duplicate delivery, rollback and concurrent allocation against SQL Server; execute the migrated `/Intake/Qdos` real caller.
+- [ ] Prove duplicate delivery, rollback and concurrent allocation against SQL Server; execute the `/Intake/Upload` real caller through the accepted transaction.
 - [ ] Run `pwsh ./scripts/Invoke-RepoCheck.ps1`, recording exact result and its non-production limitation.
 
 ### Acceptance criteria

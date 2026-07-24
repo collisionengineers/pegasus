@@ -1,14 +1,14 @@
-using CollisionSpike.Core.Intake.Qdos;
+using CollisionSpike.Core.Intake;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace CollisionSpike.Web.Pages.Intake;
 
 public sealed class ReviewModel(
-    IQdosIntakeQueries queries,
+    IIntakeReceiptQueries queries,
     IIntakeArtifactStore artifactStore) : PageModel
 {
-    public QdosIntakeRecord Receipt { get; private set; } = null!;
+    public IntakeReceipt Receipt { get; private set; } = null!;
 
     public bool IsDuplicate { get; private set; }
 
@@ -73,18 +73,18 @@ public sealed class ReviewModel(
     public int DuplicateOccurrenceCount(IntakeAssetRecord asset) =>
         Receipt.AssetRecords.Count(candidate => candidate.ContentHash == asset.ContentHash);
 
-    public static string DecisionLabel(QdosIntakeDecision decision) => decision switch
+    public static string DecisionLabel(IntakeDecision decision) => decision switch
     {
-        QdosIntakeDecision.DraftReady => "QDOS draft",
-        QdosIntakeDecision.NeedsSorting => "Needs sorting",
-        QdosIntakeDecision.OcrRequired => "Document text required",
-        QdosIntakeDecision.TechnicalFailure => "Technical failure",
+        IntakeDecision.DraftReady => "Instruction draft",
+        IntakeDecision.NeedsSorting => "Needs sorting",
+        IntakeDecision.OcrRequired => "Document text required",
+        IntakeDecision.TechnicalFailure => "Technical failure",
         _ => "Unsupported"
     };
 
     public static string SourceChannelLabel(IntakeSourceChannel channel) => channel switch
     {
         IntakeSourceChannel.ManualUpload => "Manual upload",
-        _ => channel.ToString()
+        _ => throw new InvalidOperationException($"Unknown intake source channel value '{(int)channel}'.")
     };
 }

@@ -1,19 +1,19 @@
 using System.Security.Cryptography;
-using CollisionSpike.Core.Intake.Qdos;
+using CollisionSpike.Core.Intake;
 
-namespace CollisionSpike.Core.Tests.Intake.Qdos;
+namespace CollisionSpike.Core.Tests.Intake;
 
-public sealed class ProcessQdosIntakeTests
+public sealed class ProcessIntakeTests
 {
     private static readonly DateTimeOffset ProcessedAtUtc = new(2031, 4, 5, 9, 30, 0, TimeSpan.Zero);
     private static readonly DateTimeOffset ReceivedAtUtc = new(2030, 12, 31, 16, 45, 0, TimeSpan.Zero);
 
     [Theory]
-    [InlineData(IntakeSourceReadStatus.Unsupported, QdosIntakeDecision.Unsupported, "unsupported_test", "The test source is unsupported.")]
-    [InlineData(IntakeSourceReadStatus.TechnicalFailure, QdosIntakeDecision.TechnicalFailure, "technical_test", "The test source could not be read.")]
+    [InlineData(IntakeSourceReadStatus.Unsupported, IntakeDecision.Unsupported, "unsupported_test", "The test source is unsupported.")]
+    [InlineData(IntakeSourceReadStatus.TechnicalFailure, IntakeDecision.TechnicalFailure, "technical_test", "The test source could not be read.")]
     public async Task UnreadableResultIsPersistedWithItsFailure(
         IntakeSourceReadStatus status,
-        QdosIntakeDecision expectedDecision,
+        IntakeDecision expectedDecision,
         string failureCode,
         string failureReason)
     {
@@ -21,7 +21,7 @@ public sealed class ProcessQdosIntakeTests
             status,
             [],
             [],
-            [new("reader_issue", "The reader supplied diagnostic context.", QdosEvidenceSource.FileName)],
+            [new("reader_issue", "The reader supplied diagnostic context.", IntakeEvidenceSource.FileName)],
             false,
             failureCode,
             failureReason);
@@ -36,7 +36,7 @@ public sealed class ProcessQdosIntakeTests
         Assert.Equal(failureReason, draft.FailureReason);
         Assert.Contains(draft.Evidence, evidence =>
             evidence.Signal == "reader_issue" &&
-            evidence.Finding == QdosEvidenceFinding.Information);
+            evidence.Finding == IntakeEvidenceFinding.Information);
         Assert.Equal(expectedDecision, result.Decision);
         Assert.Equal(failureCode, result.FailureCode);
     }
@@ -52,7 +52,7 @@ public sealed class ProcessQdosIntakeTests
         var result = await sut.ExecuteAsync(CreateSource());
 
         var draft = Assert.Single(store.Drafts);
-        Assert.Equal(QdosIntakeDecision.TechnicalFailure, draft.Decision);
+        Assert.Equal(IntakeDecision.TechnicalFailure, draft.Decision);
         Assert.Equal("source_reader_failure", draft.FailureCode);
         Assert.Equal("The uploaded source could not be read because of a technical failure.", draft.FailureReason);
         Assert.DoesNotContain(sensitiveDetail, draft.FailureReason, StringComparison.Ordinal);
@@ -78,10 +78,10 @@ public sealed class ProcessQdosIntakeTests
     [Fact]
     public void ExceptionPolicyRejectsTerminalExceptionsAndAcceptsRecoverableExceptions()
     {
-        Assert.False(QdosIntakeExceptionPolicy.IsRecoverable(new OperationCanceledException()));
-        Assert.False(QdosIntakeExceptionPolicy.IsRecoverable(new OutOfMemoryException()));
-        Assert.False(QdosIntakeExceptionPolicy.IsRecoverable(new AccessViolationException()));
-        Assert.True(QdosIntakeExceptionPolicy.IsRecoverable(new InvalidOperationException()));
+        Assert.False(IntakeExceptionPolicy.IsRecoverable(new OperationCanceledException()));
+        Assert.False(IntakeExceptionPolicy.IsRecoverable(new OutOfMemoryException()));
+        Assert.False(IntakeExceptionPolicy.IsRecoverable(new AccessViolationException()));
+        Assert.True(IntakeExceptionPolicy.IsRecoverable(new InvalidOperationException()));
     }
 
     [Fact]
@@ -112,6 +112,72 @@ public sealed class ProcessQdosIntakeTests
     }
 
     [Fact]
+    public async Task ArtifactFailureIsRetryableWithSameTokenAndCreatesNoReceipt()
+    {
+        var artifactStore = new RecordingArtifactStore(failuresBeforeSuccess: 1);
+        var reader = new StubReader(Readable());
+        var store = new RecordingStore();
+        var sut = CreateSut(reader, store, artifactStore);
+        var source = CreateSource();
+
+        await Assert.ThrowsAsync<IntakeArtifactRetentionException>(() => sut.ExecuteAsync(source));
+
+        Assert.Empty(reader.Sources);
+        Assert.Empty(store.Drafts);
+
+        var retried = await sut.ExecuteAsync(source);
+
+        Assert.Equal(source.SourceIdentity, retried.SourceIdentity);
+        Assert.Single(store.Drafts);
+        Assert.Equal(2, artifactStore.StoredHashes.Count);
+        Assert.Equal(artifactStore.StoredHashes[0], artifactStore.StoredHashes[1]);
+    }
+
+    [Fact]
+    public async Task PostArtifactPersistenceFailureLeavesReusableBytesForRetry()
+    {
+        var attempts = 0;
+        var store = new RecordingStore((draft, _) =>
+        {
+            attempts++;
+            return attempts == 1
+                ? Task.FromException<IntakeReceipt>(new InvalidOperationException("controlled database failure"))
+                : Task.FromResult(RecordingStore.RecordFrom(draft));
+        });
+        var artifactStore = new RecordingArtifactStore();
+        var sut = CreateSut(new StubReader(Readable()), store, artifactStore);
+        var source = CreateSource();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.ExecuteAsync(source));
+        var retried = await sut.ExecuteAsync(source);
+
+        Assert.Equal(source.SourceIdentity, retried.SourceIdentity);
+        Assert.Equal(2, store.Drafts.Count);
+        Assert.Equal(2, artifactStore.StoredHashes.Count);
+        Assert.Equal(artifactStore.StoredHashes[0], artifactStore.StoredHashes[1]);
+    }
+
+    [Fact]
+    public async Task IncompleteReaderResultOverridesConfirmingQdosContent()
+    {
+        var readResult = Readable(content:
+        [
+            new(
+                IntakeEvidenceSource.DocumentContent,
+                "controlled incomplete content",
+                "QDOS instruction\nClaimant Name: A\nClaim Number: B")
+        ]) with { IsIncomplete = true };
+        var store = new RecordingStore();
+        var sut = CreateSut(new StubReader(readResult), store);
+
+        var result = await sut.ExecuteAsync(CreateSource());
+
+        Assert.Equal(IntakeDecision.NeedsSorting, result.Decision);
+        Assert.Null(result.InstructionDraft);
+        Assert.Null(result.ExtractionPolicyKey);
+    }
+
+    [Fact]
     public async Task OcrRequirementWithoutConfirmingContentIsPersistedForReview()
     {
         var readResult = Readable(requiresOcr: true);
@@ -121,37 +187,102 @@ public sealed class ProcessQdosIntakeTests
         var result = await sut.ExecuteAsync(CreateSource());
 
         var draft = Assert.Single(store.Drafts);
-        Assert.Equal(QdosIntakeDecision.OcrRequired, draft.Decision);
+        Assert.Equal(IntakeDecision.OcrRequired, draft.Decision);
         Assert.Equal("ocr_required", draft.FailureCode);
         Assert.Empty(draft.Fields);
         Assert.Empty(draft.MissingFields);
-        Assert.Equal(QdosIntakeDecision.OcrRequired, result.Decision);
+        Assert.Equal(IntakeDecision.OcrRequired, result.Decision);
+    }
+
+    [Fact]
+    public async Task ApplicableQdosContentRemainsDraftReadyWhenAdditionalPagesRequireOcr()
+    {
+        var content = new IntakeContentFragment(
+            IntakeEvidenceSource.DocumentContent,
+            "controlled readable page",
+            "QDOS instruction\nClaimant Name: Review Claimant\nClaim Number: Q-2");
+        var sut = CreateSut(
+            new StubReader(Readable(requiresOcr: true, content: [content])),
+            new RecordingStore());
+
+        var result = await sut.ExecuteAsync(CreateSource());
+
+        Assert.Equal(IntakeDecision.DraftReady, result.Decision);
+        Assert.Equal("QDOS", Assert.IsType<InstructionDraft>(result.InstructionDraft).SuggestedPrincipalCode);
+        Assert.Contains(result.Evidence, item => item.Signal == "additional-scanned-content");
+    }
+
+    [Fact]
+    public async Task ApplicablePolicyResultWithoutDraftFailsBeforePersistence()
+    {
+        var store = new RecordingStore();
+        var policy = new StubPolicy(new(
+            InstructionPolicyApplicability.Applicable,
+            [],
+            [new("Claimant name", "Review Claimant", [], false, false)],
+            null,
+            ["Claim number"],
+            "adversarial_policy",
+            1));
+        var sut = CreateSut(new StubReader(Readable()), store, extractionPolicy: policy);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sut.ExecuteAsync(CreateSource()));
+
+        Assert.Contains("Applicable", error.Message, StringComparison.Ordinal);
+        Assert.Contains("draft", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(store.Drafts);
+    }
+
+    [Theory]
+    [InlineData(InstructionPolicyApplicability.NotApplicable)]
+    [InlineData(InstructionPolicyApplicability.Indeterminate)]
+    public async Task NonApplicablePolicyResultWithDraftFailsBeforePersistence(
+        InstructionPolicyApplicability applicability)
+    {
+        var store = new RecordingStore();
+        var policy = new StubPolicy(new(
+            applicability,
+            [],
+            [new("Claimant name", "Review Claimant", [], false, false)],
+            new("SHOULD_NOT_PERSIST", null, null, null, null, null, null, null, null, null, null),
+            ["Claim number"],
+            "adversarial_policy",
+            1));
+        var sut = CreateSut(new StubReader(Readable()), store, extractionPolicy: policy);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sut.ExecuteAsync(CreateSource()));
+
+        Assert.Contains(applicability.ToString(), error.Message, StringComparison.Ordinal);
+        Assert.Contains("draft", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(store.Drafts);
     }
 
     [Fact]
     public async Task WeakTransportMarkerAloneDoesNotConfirmInstructionContent()
     {
         var readResult = Readable(
-            transportEvidence: [new(QdosEvidenceSource.FileName, "QDOS-upload.pdf")]);
+            transportEvidence: [new(IntakeEvidenceSource.FileName, "QDOS-upload.pdf")]);
         var store = new RecordingStore();
         var sut = CreateSut(new StubReader(readResult), store);
 
         var result = await sut.ExecuteAsync(CreateSource());
 
         var draft = Assert.Single(store.Drafts);
-        Assert.Equal(QdosIntakeDecision.NeedsSorting, draft.Decision);
+        Assert.Equal(IntakeDecision.NeedsSorting, draft.Decision);
         var evidence = Assert.Single(draft.Evidence);
-        Assert.Equal(QdosEvidenceStrength.Weak, evidence.Strength);
-        Assert.Equal(QdosEvidenceFinding.SupportsQdos, evidence.Finding);
+        Assert.Equal(IntakeEvidenceStrength.Weak, evidence.Strength);
+        Assert.Equal(IntakeEvidenceFinding.SupportsPrincipal, evidence.Finding);
         Assert.Equal("qdos-transport-marker", evidence.Signal);
-        Assert.Equal(QdosIntakeDecision.NeedsSorting, result.Decision);
+        Assert.Equal(IntakeDecision.NeedsSorting, result.Decision);
     }
 
     [Fact]
     public async Task PersistenceDraftUsesSafeBasenameHashClockActorAndSourceIdentity()
     {
         byte[] content = [0x10, 0x20, 0x30, 0x40];
-        var source = new QdosIntakeSource(
+        var source = new IntakeSource(
             Path.Combine("untrusted", "nested", "selected.pdf"),
             "application/pdf",
             content,
@@ -180,7 +311,7 @@ public sealed class ProcessQdosIntakeTests
     public async Task ConfirmedContentCreatesTypedReviewDraftWithoutCaseSemantics()
     {
         var content = new IntakeContentFragment(
-            QdosEvidenceSource.DocumentContent,
+            IntakeEvidenceSource.DocumentContent,
             "controlled protocol fixture",
             """
             QDOS instruction
@@ -201,9 +332,9 @@ public sealed class ProcessQdosIntakeTests
         var result = await sut.ExecuteAsync(CreateSource());
 
         var draft = Assert.Single(store.Drafts);
-        var typed = Assert.IsType<QdosTypedDraft>(draft.TypedDraft);
-        Assert.Equal(QdosIntakeDecision.DraftReady, result.Decision);
-        Assert.Equal("QDOS", typed.PrincipalCode);
+        var typed = Assert.IsType<InstructionDraft>(draft.InstructionDraft);
+        Assert.Equal(IntakeDecision.DraftReady, result.Decision);
+        Assert.Equal("QDOS", typed.SuggestedPrincipalCode);
         Assert.Equal("Review Claimant", typed.ClaimantName);
         Assert.Equal("PROTOCOL-001", typed.ClaimNumber);
         Assert.Equal("AB12CDE", typed.VehicleRegistration);
@@ -231,7 +362,7 @@ public sealed class ProcessQdosIntakeTests
     public async Task BlankFieldDoesNotConsumeTheNextFieldLabel(string claimNumberLine)
     {
         var content = new IntakeContentFragment(
-            QdosEvidenceSource.DocumentContent,
+            IntakeEvidenceSource.DocumentContent,
             "controlled blank-field fixture",
             $$"""
             QDOS instruction
@@ -244,13 +375,13 @@ public sealed class ProcessQdosIntakeTests
 
         var result = await sut.ExecuteAsync(CreateSource());
 
-        Assert.Equal(QdosIntakeDecision.DraftReady, result.Decision);
+        Assert.Equal(IntakeDecision.DraftReady, result.Decision);
         Assert.Contains("Claimant name", result.MissingFields);
         var claimantName = Assert.Single(result.Fields, field => field.Name == "Claimant name");
         Assert.Null(claimantName.SuggestedValue);
         Assert.Empty(claimantName.Candidates);
         Assert.False(claimantName.HasConflict);
-        Assert.Null(Assert.IsType<QdosTypedDraft>(result.TypedDraft).ClaimantName);
+        Assert.Null(Assert.IsType<InstructionDraft>(result.InstructionDraft).ClaimantName);
         Assert.Equal(
             "PROTOCOL-BLANK-001",
             Assert.Single(result.Fields, field => field.Name == "Claim number").SuggestedValue);
@@ -260,7 +391,7 @@ public sealed class ProcessQdosIntakeTests
     public async Task FieldValueMayRemainOnTheNextLine()
     {
         var content = new IntakeContentFragment(
-            QdosEvidenceSource.DocumentContent,
+            IntakeEvidenceSource.DocumentContent,
             "controlled next-line fixture",
             """
             QDOS instruction
@@ -273,7 +404,7 @@ public sealed class ProcessQdosIntakeTests
 
         var result = await sut.ExecuteAsync(CreateSource());
 
-        Assert.Equal("Review Claimant", Assert.IsType<QdosTypedDraft>(result.TypedDraft).ClaimantName);
+        Assert.Equal("Review Claimant", Assert.IsType<InstructionDraft>(result.InstructionDraft).ClaimantName);
         Assert.DoesNotContain("Claimant name", result.MissingFields);
     }
 
@@ -281,7 +412,7 @@ public sealed class ProcessQdosIntakeTests
     public async Task InvalidAndConflictingTypedValuesRetainCandidatesWithNullTypedValues()
     {
         var content = new IntakeContentFragment(
-            QdosEvidenceSource.EmailBody,
+            IntakeEvidenceSource.EmailBody,
             "controlled email body",
             """
             QDOS instruction
@@ -296,7 +427,7 @@ public sealed class ProcessQdosIntakeTests
 
         var result = await sut.ExecuteAsync(CreateSource());
 
-        var typed = Assert.IsType<QdosTypedDraft>(result.TypedDraft);
+        var typed = Assert.IsType<InstructionDraft>(result.InstructionDraft);
         Assert.Null(typed.VehicleMileage);
         Assert.Null(typed.DateOfIncident);
         var mileage = Assert.Single(result.Fields, field => field.Name == "Vehicle mileage");
@@ -320,7 +451,7 @@ public sealed class ProcessQdosIntakeTests
         var address = new string('I', 1001);
         const string registration = "INVALID!* REGISTRATION";
         var content = new IntakeContentFragment(
-            QdosEvidenceSource.DocumentContent,
+            IntakeEvidenceSource.DocumentContent,
             "controlled overlong document",
             $"""
             QDOS instruction
@@ -337,7 +468,7 @@ public sealed class ProcessQdosIntakeTests
 
         var result = await sut.ExecuteAsync(CreateSource());
 
-        var typed = Assert.IsType<QdosTypedDraft>(result.TypedDraft);
+        var typed = Assert.IsType<InstructionDraft>(result.InstructionDraft);
         Assert.Null(typed.ClaimantName);
         Assert.Null(typed.ClaimNumber);
         Assert.Null(typed.VehicleRegistration);
@@ -360,15 +491,21 @@ public sealed class ProcessQdosIntakeTests
             Assert.Equal(expectedValue, field.SuggestedValue);
             var candidate = Assert.Single(field.Candidates);
             Assert.Equal(expectedValue, candidate.Value);
-            Assert.Equal(QdosEvidenceSource.DocumentContent, candidate.Source);
+            Assert.Equal(IntakeEvidenceSource.DocumentContent, candidate.Source);
             Assert.Equal("controlled overlong document", candidate.SourceLabel);
         }
     }
 
-    private static ProcessQdosIntake CreateSut(IQdosIntakeSourceReader reader, IQdosIntakeStore store) =>
-        new(reader, store, new FixedTimeProvider(ProcessedAtUtc));
+    private static ProcessIntake CreateSut(
+        IIntakeSourceReader reader,
+        IIntakeReceiptStore store,
+        IIntakeArtifactStore? artifactStore = null,
+        IInstructionExtractionPolicy? extractionPolicy = null) =>
+        new(reader, store, artifactStore ?? new RecordingArtifactStore(),
+            extractionPolicy ?? new QdosInstructionExtractionPolicy(),
+            new FixedTimeProvider(ProcessedAtUtc));
 
-    private static QdosIntakeSource CreateSource() =>
+    private static IntakeSource CreateSource() =>
         new(
             "selected.pdf",
             "application/pdf",
@@ -393,24 +530,24 @@ public sealed class ProcessQdosIntakeTests
         public override DateTimeOffset GetUtcNow() => utcNow;
     }
 
-    private sealed class StubReader : IQdosIntakeSourceReader
+    private sealed class StubReader : IIntakeSourceReader
     {
-        private readonly Func<QdosIntakeSource, CancellationToken, Task<IntakeSourceReadResult>> read;
+        private readonly Func<IntakeSource, CancellationToken, Task<IntakeSourceReadResult>> read;
 
         public StubReader(IntakeSourceReadResult result)
             : this((_, _) => Task.FromResult(result))
         {
         }
 
-        public StubReader(Func<QdosIntakeSource, CancellationToken, Task<IntakeSourceReadResult>> read)
+        public StubReader(Func<IntakeSource, CancellationToken, Task<IntakeSourceReadResult>> read)
         {
             this.read = read;
         }
 
-        public List<QdosIntakeSource> Sources { get; } = [];
+        public List<IntakeSource> Sources { get; } = [];
 
         public Task<IntakeSourceReadResult> ReadAsync(
-            QdosIntakeSource source,
+            IntakeSource source,
             CancellationToken cancellationToken)
         {
             Sources.Add(source);
@@ -418,25 +555,32 @@ public sealed class ProcessQdosIntakeTests
         }
     }
 
-    private sealed class RecordingStore : IQdosIntakeStore
+    private sealed class StubPolicy(InstructionExtractionResult result) : IInstructionExtractionPolicy
     {
-        private readonly Func<QdosIntakeDraft, CancellationToken, Task<QdosIntakeRecord>> store;
+        public InstructionExtractionResult Extract(
+            IntakeSourceReadResult readResult,
+            DateTimeOffset processedAtUtc) => result;
+    }
+
+    private sealed class RecordingStore : IIntakeReceiptStore
+    {
+        private readonly Func<IntakeReceiptDraft, CancellationToken, Task<IntakeReceipt>> store;
 
         public RecordingStore()
             : this((draft, _) => Task.FromResult(RecordFrom(draft)))
         {
         }
 
-        public RecordingStore(Func<QdosIntakeDraft, CancellationToken, Task<QdosIntakeRecord>> store)
+        public RecordingStore(Func<IntakeReceiptDraft, CancellationToken, Task<IntakeReceipt>> store)
         {
             this.store = store;
         }
 
-        public List<QdosIntakeDraft> Drafts { get; } = [];
+        public List<IntakeReceiptDraft> Drafts { get; } = [];
 
-        public QdosIntakeRecord? ExistingRecord { get; set; }
+        public IntakeReceipt? ExistingRecord { get; set; }
 
-        public Task<QdosIntakeRecord?> FindBySourceIdentityAsync(
+        public Task<IntakeReceipt?> FindBySourceIdentityAsync(
             IntakeSourceIdentity sourceIdentity,
             CancellationToken cancellationToken) =>
             Task.FromResult(
@@ -444,13 +588,13 @@ public sealed class ProcessQdosIntakeTests
                     ? ExistingRecord
                     : null);
 
-        public Task<QdosIntakeRecord> StoreAsync(QdosIntakeDraft draft, CancellationToken cancellationToken)
+        public Task<IntakeReceipt> StoreAsync(IntakeReceiptDraft draft, CancellationToken cancellationToken)
         {
             Drafts.Add(draft);
             return store(draft, cancellationToken);
         }
 
-        public static QdosIntakeRecord RecordFrom(QdosIntakeDraft draft) =>
+        public static IntakeReceipt RecordFrom(IntakeReceiptDraft draft) =>
             new(
                 new Guid("eb239fbc-cfd4-46c9-87dd-c784404ff3f6"),
                 draft.SourceFileName,
@@ -459,14 +603,46 @@ public sealed class ProcessQdosIntakeTests
                 draft.SourceHash,
                 draft.SourceIdentity,
                 draft.ReceivedAtUtc,
+                draft.ProcessedAtUtc,
                 draft.Decision,
                 draft.DecisionReason,
                 draft.Evidence,
                 draft.Fields,
-                draft.TypedDraft,
+                draft.InstructionDraft,
                 draft.MissingFields,
                 draft.FailureCode,
                 draft.FailureReason,
-                false);
+                false,
+                draft.SourceReaderKey,
+                draft.SourceReaderVersion,
+                draft.ExtractionPolicyKey,
+                draft.ExtractionPolicyVersion);
+    }
+
+    private sealed class RecordingArtifactStore(int failuresBeforeSuccess = 0) : IIntakeArtifactStore
+    {
+        private int remainingFailures = failuresBeforeSuccess;
+
+        public List<string> StoredHashes { get; } = [];
+
+        public Task<string> StoreAsync(
+            string contentHash,
+            ReadOnlyMemory<byte> content,
+            CancellationToken cancellationToken)
+        {
+            StoredHashes.Add(contentHash);
+            if (remainingFailures > 0)
+            {
+                remainingFailures--;
+                throw new IOException("controlled artifact failure");
+            }
+
+            return Task.FromResult($"sha256/{contentHash[..2]}/{contentHash}");
+        }
+
+        public Task<ReadOnlyMemory<byte>?> ReadAsync(
+            string storageKey,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<ReadOnlyMemory<byte>?>(null);
     }
 }

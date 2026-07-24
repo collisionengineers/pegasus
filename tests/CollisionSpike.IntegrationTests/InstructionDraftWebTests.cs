@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
-using CollisionSpike.Core.Intake.Qdos;
+using CollisionSpike.Core.Intake;
 using CollisionSpike.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,7 +9,7 @@ using MimeKit;
 
 namespace CollisionSpike.IntegrationTests;
 
-public sealed class QdosTypedDraftWebTests
+public sealed class InstructionDraftWebTests
 {
     private const string MediaType = "message/rfc822";
     private const string CompleteUploadName = "controlled-typed-intake.eml";
@@ -18,17 +18,17 @@ public sealed class QdosTypedDraftWebTests
     public async Task SameManualUploadTokenReplaysOneReceiptDraftAndAssetSet()
     {
         const string externalReceiptToken = "77777777777777777777777777777777";
-        using var factory = new QdosWebApplicationFactory();
-        using var client = QdosWebDriver.CreateClient(factory);
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
         var bytes = CreateEmail(CompleteBody());
 
-        var first = await QdosWebDriver.UploadAsync(
+        var first = await IntakeWebDriver.UploadAsync(
             client, CompleteUploadName, MediaType, bytes, externalReceiptToken);
-        var replay = await QdosWebDriver.UploadAsync(
+        var replay = await IntakeWebDriver.UploadAsync(
             client, CompleteUploadName, MediaType, bytes, externalReceiptToken);
 
-        var firstId = QdosWebDriver.ReceiptId(first);
-        Assert.Equal(firstId, QdosWebDriver.ReceiptId(replay));
+        var firstId = IntakeWebDriver.ReceiptId(first);
+        Assert.Equal(firstId, IntakeWebDriver.ReceiptId(replay));
         var receipt = await GetReceiptAsync(factory, firstId);
         Assert.Equal(IntakeSourceChannel.ManualUpload, receipt.SourceIdentity.Channel);
         Assert.Equal(externalReceiptToken, receipt.SourceIdentity.ExternalReceiptToken);
@@ -37,18 +37,18 @@ public sealed class QdosTypedDraftWebTests
         var replayHtml = await replayReview.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, replayReview.StatusCode);
         Assert.Contains("already processed", replayHtml, StringComparison.Ordinal);
-        Assert.Equal(1, await CountRowsAsync(factory, "QdosIntakeReceipts"));
-        Assert.Equal(1, await CountRowsAsync(factory, "QdosTypedDrafts"));
-        Assert.Equal(receipt.AssetRecords.Count, await CountRowsAsync(factory, "QdosIntakeAssets"));
-        Assert.Equal(1, await CountRowsAsync(factory, "AuditEvents"));
+        Assert.Equal(1, await CountRowsAsync(factory, "IntakeReceipts"));
+        Assert.Equal(1, await CountRowsAsync(factory, "InstructionDrafts"));
+        Assert.Equal(receipt.AssetRecords.Count, await CountRowsAsync(factory, "IntakeAssets"));
+        Assert.Equal(1, await CountRowsAsync(factory, "IntakeAuditEvents"));
     }
 
     [Fact]
     public async Task SameManualUploadTokenWithDifferentBytesShowsConflictWithoutSecondPersistenceOrArtifact()
     {
         const string externalReceiptToken = "cccccccccccccccccccccccccccccccc";
-        using var factory = new QdosWebApplicationFactory();
-        using var client = QdosWebDriver.CreateClient(factory);
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
         var firstBytes = CreateEmail(CompleteBody());
         var changedBytes = CreateEmail(
             CompleteBody().Replace(
@@ -58,10 +58,10 @@ public sealed class QdosTypedDraftWebTests
         var firstHash = Convert.ToHexString(SHA256.HashData(firstBytes));
         var changedHash = Convert.ToHexString(SHA256.HashData(changedBytes));
 
-        var first = await QdosWebDriver.UploadAsync(
+        var first = await IntakeWebDriver.UploadAsync(
             client, CompleteUploadName, MediaType, firstBytes, externalReceiptToken);
-        var firstReceipt = await GetReceiptAsync(factory, QdosWebDriver.ReceiptId(first));
-        var conflict = await QdosWebDriver.UploadAsync(
+        var firstReceipt = await GetReceiptAsync(factory, IntakeWebDriver.ReceiptId(first));
+        var conflict = await IntakeWebDriver.UploadAsync(
             client, CompleteUploadName, MediaType, changedBytes, externalReceiptToken);
 
         Assert.Equal(HttpStatusCode.OK, conflict.StatusCode);
@@ -72,10 +72,10 @@ public sealed class QdosTypedDraftWebTests
             StringComparison.Ordinal);
         Assert.Equal(firstHash, firstReceipt.SourceHash);
         Assert.NotEqual(firstHash, changedHash);
-        Assert.Equal(1, await CountRowsAsync(factory, "QdosIntakeReceipts"));
-        Assert.Equal(1, await CountRowsAsync(factory, "QdosTypedDrafts"));
-        Assert.Equal(firstReceipt.AssetRecords.Count, await CountRowsAsync(factory, "QdosIntakeAssets"));
-        Assert.Equal(1, await CountRowsAsync(factory, "AuditEvents"));
+        Assert.Equal(1, await CountRowsAsync(factory, "IntakeReceipts"));
+        Assert.Equal(1, await CountRowsAsync(factory, "InstructionDrafts"));
+        Assert.Equal(firstReceipt.AssetRecords.Count, await CountRowsAsync(factory, "IntakeAssets"));
+        Assert.Equal(1, await CountRowsAsync(factory, "IntakeAuditEvents"));
         await using var scope = factory.Services.CreateAsyncScope();
         var artifactStore = scope.ServiceProvider.GetRequiredService<IIntakeArtifactStore>();
         Assert.NotNull(await artifactStore.ReadAsync(StorageKey(firstHash), CancellationToken.None));
@@ -87,15 +87,15 @@ public sealed class QdosTypedDraftWebTests
     {
         const string firstToken = "88888888888888888888888888888888";
         const string secondToken = "99999999999999999999999999999999";
-        using var factory = new QdosWebApplicationFactory();
-        using var client = QdosWebDriver.CreateClient(factory);
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
         var bytes = CreateEmail(CompleteBody());
         var expectedHash = Convert.ToHexString(SHA256.HashData(bytes));
 
-        var first = await QdosWebDriver.UploadAsync(client, CompleteUploadName, MediaType, bytes, firstToken);
-        var second = await QdosWebDriver.UploadAsync(client, CompleteUploadName, MediaType, bytes, secondToken);
-        var firstId = QdosWebDriver.ReceiptId(first);
-        var secondId = QdosWebDriver.ReceiptId(second);
+        var first = await IntakeWebDriver.UploadAsync(client, CompleteUploadName, MediaType, bytes, firstToken);
+        var second = await IntakeWebDriver.UploadAsync(client, CompleteUploadName, MediaType, bytes, secondToken);
+        var firstId = IntakeWebDriver.ReceiptId(first);
+        var secondId = IntakeWebDriver.ReceiptId(second);
         var firstReceipt = await GetReceiptAsync(factory, firstId);
         var secondReceipt = await GetReceiptAsync(factory, secondId);
 
@@ -106,28 +106,28 @@ public sealed class QdosTypedDraftWebTests
         Assert.Equal(secondToken, secondReceipt.SourceIdentity.ExternalReceiptToken);
         Assert.NotEmpty(firstReceipt.AssetRecords);
         Assert.Equal(firstReceipt.AssetRecords.Count, secondReceipt.AssetRecords.Count);
-        Assert.Equal(2, await CountRowsAsync(factory, "QdosIntakeReceipts"));
-        Assert.Equal(2, await CountRowsAsync(factory, "QdosTypedDrafts"));
-        Assert.Equal(2 * firstReceipt.AssetRecords.Count, await CountRowsAsync(factory, "QdosIntakeAssets"));
-        Assert.Equal(2, await CountRowsAsync(factory, "AuditEvents"));
+        Assert.Equal(2, await CountRowsAsync(factory, "IntakeReceipts"));
+        Assert.Equal(2, await CountRowsAsync(factory, "InstructionDrafts"));
+        Assert.Equal(2 * firstReceipt.AssetRecords.Count, await CountRowsAsync(factory, "IntakeAssets"));
+        Assert.Equal(2, await CountRowsAsync(factory, "IntakeAuditEvents"));
     }
 
     [Fact]
     public async Task UploadAndReviewPersistAllTypedFieldsWithoutCaseOrCounterSchema()
     {
-        using var factory = new QdosWebApplicationFactory();
-        using var client = QdosWebDriver.CreateClient(factory);
-        var upload = await QdosWebDriver.UploadAsync(
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var upload = await IntakeWebDriver.UploadAsync(
             client,
             CompleteUploadName,
             MediaType,
             CreateEmail(CompleteBody()),
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-        var receipt = await GetReceiptAsync(factory, QdosWebDriver.ReceiptId(upload));
+        var receipt = await GetReceiptAsync(factory, IntakeWebDriver.ReceiptId(upload));
 
-        Assert.Equal(QdosIntakeDecision.DraftReady, receipt.Decision);
-        var typed = Assert.IsType<QdosTypedDraft>(receipt.TypedDraft);
-        Assert.Equal("QDOS", typed.PrincipalCode);
+        Assert.Equal(IntakeDecision.DraftReady, receipt.Decision);
+        var typed = Assert.IsType<InstructionDraft>(receipt.InstructionDraft);
+        Assert.Equal("QDOS", typed.SuggestedPrincipalCode);
         Assert.Equal("Controlled Claimant", typed.ClaimantName);
         Assert.Equal("PROTOCOL-2031-001", typed.ClaimNumber);
         Assert.Equal("AB12CDE", typed.VehicleRegistration);
@@ -160,9 +160,9 @@ public sealed class QdosTypedDraftWebTests
     [Fact]
     public async Task InvalidAndConflictingValuesRemainReviewableWithNullTypedValues()
     {
-        using var factory = new QdosWebApplicationFactory();
-        using var client = QdosWebDriver.CreateClient(factory);
-        var upload = await QdosWebDriver.UploadAsync(
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var upload = await IntakeWebDriver.UploadAsync(
             client,
             "controlled-invalid-values.eml",
             MediaType,
@@ -176,16 +176,16 @@ public sealed class QdosTypedDraftWebTests
                 Date of Incident: 05/03/2031
                 """),
             "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
-        var receipt = await GetReceiptAsync(factory, QdosWebDriver.ReceiptId(upload));
+        var receipt = await GetReceiptAsync(factory, IntakeWebDriver.ReceiptId(upload));
 
-        Assert.Equal(QdosIntakeDecision.DraftReady, receipt.Decision);
-        var typed = Assert.IsType<QdosTypedDraft>(receipt.TypedDraft);
+        Assert.Equal(IntakeDecision.DraftReady, receipt.Decision);
+        var typed = Assert.IsType<InstructionDraft>(receipt.InstructionDraft);
         Assert.Null(typed.VehicleMileage);
         Assert.Null(typed.DateOfIncident);
         var mileage = Assert.Single(receipt.Fields, field => field.Name == "Vehicle mileage");
         Assert.Equal("awaiting confirmation", mileage.SuggestedValue);
         var mileageCandidate = Assert.Single(mileage.Candidates);
-        Assert.Equal(QdosEvidenceSource.EmailBody, mileageCandidate.Source);
+        Assert.Equal(IntakeEvidenceSource.EmailBody, mileageCandidate.Source);
         Assert.Contains("email body", mileageCandidate.SourceLabel, StringComparison.Ordinal);
         var incidentDate = Assert.Single(receipt.Fields, field => field.Name == "Date of incident");
         Assert.True(incidentDate.HasConflict);
@@ -233,34 +233,34 @@ public sealed class QdosTypedDraftWebTests
 
     private static string StorageKey(string hash) => $"sha256/{hash[..2]}/{hash}";
 
-    private static async Task<QdosIntakeRecord> GetReceiptAsync(
-        QdosWebApplicationFactory factory,
+    private static async Task<IntakeReceipt> GetReceiptAsync(
+        IntakeWebApplicationFactory factory,
         Guid id)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        return Assert.IsType<QdosIntakeRecord>(await scope.ServiceProvider
-            .GetRequiredService<IQdosIntakeQueries>()
+        return Assert.IsType<IntakeReceipt>(await scope.ServiceProvider
+            .GetRequiredService<IIntakeReceiptQueries>()
             .GetAsync(id, CancellationToken.None));
     }
 
-    private static async Task<int> CountRowsAsync(QdosWebApplicationFactory factory, string tableName)
+    private static async Task<int> CountRowsAsync(IntakeWebApplicationFactory factory, string tableName)
     {
         var allowed = tableName switch
         {
-            "QdosIntakeReceipts" or "QdosTypedDrafts" or "QdosIntakeAssets" or "AuditEvents" => tableName,
+            "IntakeReceipts" or "InstructionDrafts" or "IntakeAssets" or "IntakeAuditEvents" => tableName,
             _ => throw new ArgumentOutOfRangeException(nameof(tableName))
         };
         return await ScalarAsync<int>(factory, $"SELECT COUNT(*) FROM [{allowed}]");
     }
 
-    private static async Task<bool> TableExistsAsync(QdosWebApplicationFactory factory, string tableName) =>
+    private static async Task<bool> TableExistsAsync(IntakeWebApplicationFactory factory, string tableName) =>
         1 == await ScalarAsync<long>(
             factory,
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = @tableName",
             tableName);
 
     private static async Task<T> ScalarAsync<T>(
-        QdosWebApplicationFactory factory,
+        IntakeWebApplicationFactory factory,
         string commandText,
         string? tableName = null)
     {

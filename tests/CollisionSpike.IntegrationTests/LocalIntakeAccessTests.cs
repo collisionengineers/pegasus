@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CollisionSpike.IntegrationTests;
 
-public sealed class LocalQdosIntakeAccessTests
+public sealed class LocalIntakeAccessTests
 {
     public static TheoryData<string, bool?> DeniedConfigurations => new()
     {
@@ -15,18 +15,32 @@ public sealed class LocalQdosIntakeAccessTests
         { "Production", true }
     };
 
+    [Fact]
+    public async Task RetiredQdosRouteAlwaysReturnsNotFoundWithoutPersistence()
+    {
+        using var factory = new IntakeWebApplicationFactory("Development", true);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var get = await client.GetAsync("/Intake/Qdos");
+
+        Assert.Equal(HttpStatusCode.NotFound, get.StatusCode);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<CollisionSpike.Core.Intake.IIntakeReceiptQueries>();
+        Assert.Empty(await queries.ListAsync(null, CancellationToken.None));
+    }
+
     [Theory]
     [MemberData(nameof(DeniedConfigurations))]
     public async Task DisabledLocalIntakeReturnsNotFoundWithoutPersistence(
         string environment,
         bool? featureEnabled)
     {
-        using var factory = new QdosWebApplicationFactory(environment, featureEnabled);
-        using var client = QdosWebDriver.CreateClient(factory);
+        using var factory = new IntakeWebApplicationFactory(environment, featureEnabled);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         foreach (var path in new[]
                  {
-                     "/Intake/Qdos",
+                     "/Intake/Upload",
                      "/Intake/Queue",
                      $"/Intake/Review/{Guid.NewGuid()}"
                  })
@@ -36,7 +50,7 @@ public sealed class LocalQdosIntakeAccessTests
         }
 
         using var multipart = new MultipartFormDataContent();
-        using var post = await client.PostAsync("/Intake/Qdos", multipart);
+        using var post = await client.PostAsync("/Intake/Upload", multipart);
         Assert.Equal(HttpStatusCode.NotFound, post.StatusCode);
 
         await using var scope = factory.Services.CreateAsyncScope();
@@ -63,7 +77,7 @@ public sealed class LocalQdosIntakeAccessTests
         parameter.ParameterName = "$name";
         parameter.Value = table switch
         {
-            DatabaseTable.IntakeReceipts => "QdosIntakeReceipts",
+            DatabaseTable.IntakeReceipts => "IntakeReceipts",
             DatabaseTable.PrincipalYearCounters => "PrincipalYearCounters",
             _ => throw new ArgumentOutOfRangeException(nameof(table))
         };
@@ -76,7 +90,7 @@ public sealed class LocalQdosIntakeAccessTests
         await using var countCommand = connection.CreateCommand();
         countCommand.CommandText = table switch
         {
-            DatabaseTable.IntakeReceipts => "SELECT COUNT(*) FROM QdosIntakeReceipts",
+            DatabaseTable.IntakeReceipts => "SELECT COUNT(*) FROM IntakeReceipts",
             DatabaseTable.PrincipalYearCounters => "SELECT COUNT(*) FROM PrincipalYearCounters",
             _ => throw new ArgumentOutOfRangeException(nameof(table))
         };

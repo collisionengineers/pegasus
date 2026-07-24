@@ -1,7 +1,7 @@
 using System.Net;
 using System.IO.Compression;
 using System.Text.RegularExpressions;
-using CollisionSpike.Core.Intake.Qdos;
+using CollisionSpike.Core.Intake;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using MimeKit;
@@ -11,10 +11,12 @@ using UglyToad.PdfPig.Core;
 using UglyToad.PdfPig.Exceptions;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
 
-namespace CollisionSpike.Infrastructure.Intake.Qdos;
+namespace CollisionSpike.Infrastructure.Intake;
 
-internal sealed partial class MimeKitPdfPigQdosSourceReader(TimeProvider timeProvider) : IQdosIntakeSourceReader
+internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider timeProvider) : IIntakeSourceReader
 {
+    private const string ReaderKey = "mimekit_pdfpig_openxml";
+    private const string ReaderVersion = "mimekit-4.17.0;pdfpig-0.1.15;openxml-3.5.1";
     private const int MinimumReadablePdfCharacters = 80;
     private const double ScannedPageImageCoverage = 0.8;
     private const int MaximumPdfTextCharacters = 5 * 1024 * 1024;
@@ -31,13 +33,13 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader(TimeProvider timePro
     private const long MaximumDocxImageBytes = 25L * 1024 * 1024;
 
     public async Task<IntakeSourceReadResult> ReadAsync(
-        QdosIntakeSource source,
+        IntakeSource source,
         CancellationToken cancellationToken)
     {
         var result = new ReadAccumulator(
             [
-                new(QdosEvidenceSource.FileName, source.FileName),
-                new(QdosEvidenceSource.MimeType, source.MediaType)
+                new(IntakeEvidenceSource.FileName, source.FileName),
+                new(IntakeEvidenceSource.MimeType, source.MediaType)
             ],
             timeProvider);
 
@@ -88,8 +90,8 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader(TimeProvider timePro
                 {
                     result.Issues.Add(new(
                         "image-review-required",
-                        "The image is retained for operator review; ordinary images are not sent to OCR.",
-                        QdosEvidenceSource.ImageContent));
+                        "The image is retained for operator review.",
+                        IntakeEvidenceSource.ImageContent));
                 }
 
                 return ReadOutcome.Readable;
@@ -97,7 +99,7 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader(TimeProvider timePro
                 result.Issues.Add(new(
                     "deferred_file_type",
                     $"{Path.GetExtension(fileName).ToLowerInvariant()} extraction is deferred; the file is retained for operator review.",
-                    QdosEvidenceSource.DocumentContent));
+                    IntakeEvidenceSource.DocumentContent));
                 return ReadOutcome.Readable;
             default:
                 if (isRoot)
@@ -129,7 +131,7 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader(TimeProvider timePro
             result.Issues.Add(new(
                 "intake_limit_exceeded",
                 $"{sourceLabel} {exception.Message}",
-                QdosEvidenceSource.PdfContent));
+                IntakeEvidenceSource.PdfContent));
             return ReadOutcome.Readable;
         }
         catch (Exception exception) when (
@@ -147,21 +149,21 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader(TimeProvider timePro
             result.Issues.Add(new(
                 "unreadable-pdf-attachment",
                 $"{sourceLabel} is corrupt, encrypted, or otherwise unreadable.",
-                QdosEvidenceSource.PdfContent));
+                IntakeEvidenceSource.PdfContent));
             return ReadOutcome.Readable;
         }
 
         result.Issues.Add(new(
             "pdf-engine",
-            $"{sourceLabel} embedded text and discrete images were read with PdfPig 0.1.15.",
-            QdosEvidenceSource.PdfContent));
+            $"{sourceLabel} embedded text and discrete images were read.",
+            IntakeEvidenceSource.PdfContent));
 
         foreach (var page in pdf.Pages)
         {
             if (!string.IsNullOrWhiteSpace(page.Text))
             {
                 result.Content.Add(new(
-                    QdosEvidenceSource.PdfContent,
+                    IntakeEvidenceSource.PdfContent,
                     $"{sourceLabel}, page {page.Number}",
                     page.Text));
             }
@@ -171,15 +173,15 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader(TimeProvider timePro
                 result.OcrCandidates.Add(new(sourceLabel, page.Number));
                 result.Issues.Add(new(
                     "scanned-pdf-page",
-                    $"{sourceLabel}, page {page.Number} has little embedded text and a dominant raster image, so only that page requires OCR.",
-                    QdosEvidenceSource.PdfContent));
+                    $"{sourceLabel}, page {page.Number} has little embedded text and a dominant raster image, so that page requires text review.",
+                    IntakeEvidenceSource.PdfContent));
             }
             else if (page.HasInsufficientText)
             {
                 result.Issues.Add(new(
                     "insufficient-embedded-text",
-                    $"{sourceLabel}, page {page.Number} has little embedded text but is not an image-led scanned page; it requires operator review, not OCR.",
-                    QdosEvidenceSource.PdfContent));
+                    $"{sourceLabel}, page {page.Number} has little embedded text but is not an image-led scanned page; it requires operator review.",
+                    IntakeEvidenceSource.PdfContent));
             }
         }
 
@@ -212,13 +214,13 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader(TimeProvider timePro
             {
                 images = page.GetImages().Take(limits.RemainingImageObjects + 1).ToArray();
             }
-            catch (Exception exception) when (QdosIntakeExceptionPolicy.IsRecoverable(exception))
+            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
             {
                 images = [];
                 result.Issues.Add(new(
                     "pdf-image-read-failure",
-                    $"{sourceLabel}, page {page.Number} contains an image stream that PdfPig could not enumerate.",
-                    QdosEvidenceSource.ImageContent));
+                    $"{sourceLabel}, page {page.Number} contains an image stream that could not be read.",
+                    IntakeEvidenceSource.ImageContent));
             }
 
             limits.AddImageObjects(images.Length);
@@ -241,7 +243,7 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader(TimeProvider timePro
                 {
                     extracted = TryReadPdfImage(image, out imageBytes, out mediaType, out extension);
                 }
-                catch (Exception exception) when (QdosIntakeExceptionPolicy.IsRecoverable(exception))
+                catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
                 {
                     // Keep processing the page. The issue below makes the missing image explicit.
                 }
@@ -251,7 +253,7 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader(TimeProvider timePro
                     result.Issues.Add(new(
                         "pdf-image-decode-failure",
                         $"{sourceLabel}, page {page.Number}, image {imageNumber} could not be converted to a reviewable image stream.",
-                        QdosEvidenceSource.ImageContent));
+                        IntakeEvidenceSource.ImageContent));
                     continue;
                 }
 
@@ -377,7 +379,7 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader(TimeProvider timePro
                     .Where(value => !string.IsNullOrWhiteSpace(value)));
             if (!string.IsNullOrWhiteSpace(text))
             {
-                result.Content.Add(new(QdosEvidenceSource.DocumentContent, sourceLabel, text));
+                result.Content.Add(new(IntakeEvidenceSource.DocumentContent, sourceLabel, text));
             }
 
             var imageNumber = 0;
@@ -412,8 +414,8 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader(TimeProvider timePro
 
             result.Issues.Add(new(
                 "openxml-engine",
-                $"{sourceLabel} text and internal images were read with Open XML SDK 3.5.1; external relationships were not fetched.",
-                QdosEvidenceSource.DocumentContent));
+                $"{sourceLabel} text and internal images were read; external links were not opened.",
+                IntakeEvidenceSource.DocumentContent));
             return ReadOutcome.Readable;
         }
         catch (DocxLimitExceededException)
@@ -429,7 +431,7 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader(TimeProvider timePro
             result.Issues.Add(new(
                 "intake_limit_exceeded",
                 $"{sourceLabel} exceeds the safe DOCX package, part, or extracted-image processing limits.",
-                QdosEvidenceSource.DocumentContent));
+                IntakeEvidenceSource.DocumentContent));
             return ReadOutcome.Readable;
         }
         catch (Exception exception) when (
@@ -447,7 +449,7 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader(TimeProvider timePro
             result.Issues.Add(new(
                 "unreadable-docx-attachment",
                 $"{sourceLabel} is corrupt or otherwise unreadable.",
-                QdosEvidenceSource.DocumentContent));
+                IntakeEvidenceSource.DocumentContent));
             return ReadOutcome.Readable;
         }
     }
@@ -537,10 +539,10 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader(TimeProvider timePro
             result.Issues.Add(new(
                 "unreadable-email-attachment",
                 $"{sourceLabel} is corrupt or is not a valid MIME message.",
-                QdosEvidenceSource.EmailBody));
+                IntakeEvidenceSource.EmailBody));
             return ReadOutcome.Readable;
         }
-        catch (Exception exception) when (QdosIntakeExceptionPolicy.IsRecoverable(exception))
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
             if (isRoot)
             {
@@ -552,7 +554,7 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader(TimeProvider timePro
             result.Issues.Add(new(
                 "email-attachment-read-failure",
                 $"{sourceLabel} could not be read because of a technical failure.",
-                QdosEvidenceSource.EmailBody));
+                IntakeEvidenceSource.EmailBody));
             return ReadOutcome.Readable;
         }
 
@@ -575,12 +577,12 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader(TimeProvider timePro
             var sender = message.From.Mailboxes.FirstOrDefault()?.Address;
             if (!string.IsNullOrWhiteSpace(sender))
             {
-                result.Transport.Add(new(QdosEvidenceSource.Sender, sender));
+                result.Transport.Add(new(IntakeEvidenceSource.Sender, sender));
             }
 
             if (!string.IsNullOrWhiteSpace(message.Subject))
             {
-                result.Transport.Add(new(QdosEvidenceSource.Subject, message.Subject));
+                result.Transport.Add(new(IntakeEvidenceSource.Subject, message.Subject));
             }
         }
 
@@ -592,7 +594,7 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader(TimeProvider timePro
 
         if (!string.IsNullOrWhiteSpace(body))
         {
-            result.Content.Add(new(QdosEvidenceSource.EmailBody, $"{sourceLabel}, email body", body));
+            result.Content.Add(new(IntakeEvidenceSource.EmailBody, $"{sourceLabel}, email body", body));
         }
 
         if (message.Body is not null)
@@ -650,7 +652,7 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader(TimeProvider timePro
                 result.Issues.Add(new(
                     "unreadable-email-attachment",
                     $"{sourceLabel} contains an attached email with no readable message body.",
-                    QdosEvidenceSource.EmailBody));
+                    IntakeEvidenceSource.EmailBody));
                 return;
             }
 
@@ -685,13 +687,13 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader(TimeProvider timePro
                     addTransport: false,
                     cancellationToken);
             }
-            catch (Exception exception) when (QdosIntakeExceptionPolicy.IsRecoverable(exception))
+            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
             {
                 result.IsIncomplete = true;
                 result.Issues.Add(new(
                     "attachment-processing-failure",
                     $"{nestedLabel} could not be completely processed and requires manual sorting.",
-                    QdosEvidenceSource.EmailBody));
+                    IntakeEvidenceSource.EmailBody));
             }
             return;
         }
@@ -726,7 +728,7 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader(TimeProvider timePro
             result.Issues.Add(new(
                 "attachment-decode-failure",
                 $"{sourceLabel}, attachment {fileName} could not be decoded.",
-                QdosEvidenceSource.FileName));
+                IntakeEvidenceSource.FileName));
             return;
         }
 
@@ -758,13 +760,13 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader(TimeProvider timePro
                 result,
                 cancellationToken);
         }
-        catch (Exception exception) when (QdosIntakeExceptionPolicy.IsRecoverable(exception))
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
             result.IsIncomplete = true;
             result.Issues.Add(new(
                 "attachment-processing-failure",
                 $"{attachmentLabel} could not be completely processed and requires manual sorting.",
-                QdosEvidenceSource.FileName));
+                IntakeEvidenceSource.FileName));
         }
     }
 
@@ -896,7 +898,9 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader(TimeProvider timePro
                 failureReason,
                 Assets,
                 OcrCandidates,
-                IsIncomplete);
+                IsIncomplete,
+                ReaderKey,
+                ReaderVersion);
     }
 
     private sealed class MimeLimitState
@@ -933,7 +937,7 @@ internal sealed partial class MimeKitPdfPigQdosSourceReader(TimeProvider timePro
             }
 
             limitIssueAdded = true;
-            result.Issues.Add(new("intake_limit_exceeded", reason, QdosEvidenceSource.FileName));
+            result.Issues.Add(new("intake_limit_exceeded", reason, IntakeEvidenceSource.FileName));
         }
     }
 

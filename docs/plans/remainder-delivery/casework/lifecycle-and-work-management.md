@@ -8,9 +8,9 @@ Own the case state, review gates, held/incomplete behaviour, terminal history, d
 
 - **Authority:** [source order](../../../agent-guidance/source-of-truth.md), [questionnaire §§4–7](../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md), [remaining requirements §§4–5](../../remaining-requirements.md), and [open decisions](../../open-decisions.md).
 - **Policy owner:** planned Core `CaseLifecycle` and `CaseWork` policies.
-- **Current implementation:** there is no lifecycle, transition, review gate, due date, chaser, merge or reopen policy. Existing QDOS receipt decisions are intake outcomes, not a case state machine.
-- **Real callers:** `/Intake/Qdos` currently creates only a pre-case receipt/draft. Accepted case detail, review actions, Worker reminders and workspace queues are **planned**.
-- **Persistence/adapters:** planned state/history, review, due date, completeness, held reason, association and reminder data; existing `AuditEvents` is an incomplete starting point.
+- **Current implementation:** there is no lifecycle, transition, review gate, due date, chaser, merge or reopen policy. Existing intake receipt decisions are pre-case processing outcomes, not a case state machine.
+- **Real callers:** `/Intake/Upload` currently creates only a pre-case receipt/draft. Accepted case detail, review actions, Worker reminders and workspace queues are **planned**.
+- **Persistence/adapters:** planned state/history, review, due date, completeness, held reason, association and reminder data. Existing `IntakeAuditEvents` is receipt-owned provenance, not the permanent business-audit catalogue.
 - **Dependencies:** accepted case/identity, staff authorisation/audit, source custody and the [exclusive case-edit guard](case-editing-concurrency.md) for every mutable caller. Domain policy can be defined independently, but no unguarded caller is emitted.
 - **Replaces/consolidates:** replace any route-specific state logic with one Core policy called by Web, Worker and future API/MCP.
 

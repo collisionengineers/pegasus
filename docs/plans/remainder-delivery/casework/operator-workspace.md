@@ -8,8 +8,8 @@ Provide the staff-facing intake dashboard, queues, case search and detail worksp
 
 - **Authority:** [source order](../../../agent-guidance/source-of-truth.md), [questionnaire §§4–7](../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md), and [remaining requirements §§4–5](../../remaining-requirements.md).
 - **Policy owner:** Core case/intake query and action use cases; Web owns request/view translation only.
-- **Current implementation:** an unauthenticated development-only `/Intake/Qdos` page plus receipt queue/review and two persisted counts. Its labels/models are not the first-MVP operational workspace.
-- **Real callers:** `/Intake/Qdos` is the only current real intake caller. Authenticated dashboard, inbox queues, case detail/search and manual refresh are **planned**.
+- **Current implementation:** an unauthenticated development-only `/Intake/Upload` page plus provider-neutral receipt queue/review and persisted counts. Its models are not the first-MVP operational workspace.
+- **Real callers:** `/Intake/Upload` is the only current real intake caller. Authenticated dashboard, inbox queues, case detail/search and manual refresh are **planned**.
 - **Persistence/adapters:** read models must query the authoritative intake/case/lifecycle records; no dashboard counter store. Box/EVA/document presentation depends on their own adapters.
 - **Dependencies:** staff identity, [intake acceptance](intake-and-case-acceptance.md), [identity](case-identity-and-references.md), [lifecycle/work](lifecycle-and-work-management.md) and [exclusive case editing](case-editing-concurrency.md).
 - **Replaces/consolidates:** replace local receipt count/queue semantics with shared query contracts and delete any view-local state/calculation after migration.
@@ -37,14 +37,14 @@ Every count opens the exact filtered query it represents. Counts, last-updated t
 
 ### Caller, contract and change boundary
 
-- **Real or intended caller:** planned authenticated dashboard and queue pages; current `/Intake/Qdos` must not be described as this caller.
+- **Real or intended caller:** planned authenticated dashboard and queue pages; current `/Intake/Upload` must not be described as this caller.
 - **Input/output:** signed-in role and one named queue/filter return a count, ordered items, last-updated time and page/action links; refresh re-queries authoritative records.
 - **Ordered decisions and failure behavior:** authorise; validate filter; use Core query; render state/reason/age/due details; surface failed read without fabricated zero count. `Blocked intake` retry calls the intake Core policy.
 - **Persistence/migration:** projection/indexes only where needed by the authoritative model; never persist independently editable dashboard counts.
 - **Adapters/side effects:** manual refresh has no external side effect; no background polling or sender is implied.
 - **Operator surface and observability:** business labels, accessible count/link relationship, empty/failure state and content-free query timing/outcome telemetry.
 - **Documentation affected:** testable UI guidance only after the live caller exists.
-- **Replaces/consolidates:** retire `QdosQueueCounts`/receipt-only queue pages after parity, rather than maintaining a second dashboard.
+- **Replaces/consolidates:** retire the current `IntakeQueueCounts` and receipt-only queue pages after parity, rather than maintaining a second dashboard.
 
 ### Scope
 

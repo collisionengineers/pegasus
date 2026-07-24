@@ -1,5 +1,5 @@
 using System.Security.Cryptography;
-using CollisionSpike.Core.Intake.Qdos;
+using CollisionSpike.Core.Intake;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit.Abstractions;
 
@@ -63,8 +63,8 @@ public sealed class MultiFormatGenuineCorpusWebTests(ITestOutputHelper output)
             receipt.Decision,
             new[]
             {
-                QdosIntakeDecision.DraftReady,
-                QdosIntakeDecision.NeedsSorting
+                IntakeDecision.DraftReady,
+                IntakeDecision.NeedsSorting
             });
         Assert.Contains(receipt.Evidence, item => item.Signal == "openxml-engine");
         Assert.NotEqual("source_reader_failure", receipt.FailureCode);
@@ -72,17 +72,17 @@ public sealed class MultiFormatGenuineCorpusWebTests(ITestOutputHelper output)
         WriteAggregate("DOCX", receipt.Decision);
     }
 
-    private static async Task<QdosIntakeRecord> UploadSelectedAsync(string extension, string? expectedHash)
+    private static async Task<IntakeReceipt> UploadSelectedAsync(string extension, string? expectedHash)
     {
         var sample = GenuineMultiFormatCorpus.ReadSelected(extension, expectedHash);
-        using var factory = new QdosWebApplicationFactory();
-        using var client = QdosWebDriver.CreateClient(factory);
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
 
-        var upload = await QdosWebDriver.UploadAsync(client, sample);
-        var receiptId = QdosWebDriver.ReceiptId(upload);
+        var upload = await IntakeWebDriver.UploadAsync(client, sample);
+        var receiptId = IntakeWebDriver.ReceiptId(upload);
         await using var scope = factory.Services.CreateAsyncScope();
-        var queries = scope.ServiceProvider.GetRequiredService<IQdosIntakeQueries>();
-        var receipt = Assert.IsType<QdosIntakeRecord>(
+        var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
+        var receipt = Assert.IsType<IntakeReceipt>(
             await queries.GetAsync(receiptId, CancellationToken.None));
 
         Assert.Equal(sample.Hash, receipt.SourceHash);
@@ -91,18 +91,18 @@ public sealed class MultiFormatGenuineCorpusWebTests(ITestOutputHelper output)
         return receipt;
     }
 
-    private static void AssertNeedsSortingWithoutReferenceOrOcr(QdosIntakeRecord receipt)
+    private static void AssertNeedsSortingWithoutReferenceOrOcr(IntakeReceipt receipt)
     {
-        Assert.Equal(QdosIntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Empty(receipt.ScannedPdfPages);
         Assert.DoesNotContain(
             receipt.Evidence,
             item => item.Signal.Contains("ocr", StringComparison.OrdinalIgnoreCase));
     }
 
-    private void WriteAggregate(string format, QdosIntakeDecision decision)
+    private void WriteAggregate(string format, IntakeDecision decision)
     {
-        var decisions = Enum.GetValues<QdosIntakeDecision>()
+        var decisions = Enum.GetValues<IntakeDecision>()
             .Select(candidate => $"{candidate}={(candidate == decision ? 1 : 0)}");
         output.WriteLine($"{format}: samples=1; {string.Join("; ", decisions)}");
     }

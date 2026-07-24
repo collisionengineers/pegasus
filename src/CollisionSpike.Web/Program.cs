@@ -59,8 +59,8 @@ builder.Services.AddCollisionSpikeInfrastructure((serviceProvider, options) =>
 }, localArtifactRoot);
 
 var app = builder.Build();
-var localQdosIntakeEnabled = app.Environment.IsDevelopment()
-    && builder.Configuration.GetValue<bool>("Features:LocalQdosIntake");
+var localIntakeEnabled = app.Environment.IsDevelopment()
+    && builder.Configuration.GetValue<bool>("Features:LocalIntake");
 
 if (app.Environment.IsDevelopment()
     && app.Configuration["Database:Provider"]?.Equals("Sqlite", StringComparison.OrdinalIgnoreCase) == true)
@@ -68,7 +68,7 @@ if (app.Environment.IsDevelopment()
     await using var scope = app.Services.CreateAsyncScope();
     var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<CollisionSpikeDbContext>>();
     await using var context = await contextFactory.CreateDbContextAsync();
-    await DevelopmentSqliteMigrationAdoption.AdoptEnsureCreatedSchemaAsync(context);
+    await DevelopmentSqliteBaselineGuard.ValidateAsync(context);
     await context.Database.MigrateAsync();
 }
 
@@ -78,7 +78,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-if (!localQdosIntakeEnabled)
+if (!localIntakeEnabled)
 {
     app.Use(async (context, next) =>
     {
