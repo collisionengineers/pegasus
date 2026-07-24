@@ -1,1 +1,0 @@
-Merge thinking is wrong - for cases that are merged together one wont have a provider, as it is only images and the main case (instructions) is potentially unknown.
