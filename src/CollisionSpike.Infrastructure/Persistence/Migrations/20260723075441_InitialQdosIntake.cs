@@ -11,6 +11,10 @@ namespace CollisionSpike.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            var textType = ActiveProvider == "Microsoft.EntityFrameworkCore.Sqlite"
+                ? "TEXT"
+                : "nvarchar(max)";
+
             migrationBuilder.CreateTable(
                 name: "Cases",
                 columns: table => new
@@ -50,8 +54,8 @@ namespace CollisionSpike.Infrastructure.Persistence.Migrations
                     ReceivedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
                     Decision = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
                     DecisionReason = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    EvidenceJson = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    FieldsJson = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    EvidenceJson = table.Column<string>(type: textType, nullable: false),
+                    FieldsJson = table.Column<string>(type: textType, nullable: false),
                     FailureCode = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     FailureReason = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     CaseId = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
@@ -77,7 +81,7 @@ namespace CollisionSpike.Infrastructure.Persistence.Migrations
                     EventType = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     Actor = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
                     OccurredAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
-                    DetailsJson = table.Column<string>(type: "nvarchar(max)", nullable: false)
+                    DetailsJson = table.Column<string>(type: textType, nullable: false)
                 },
                 constraints: table =>
                 {

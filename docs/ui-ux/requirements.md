@@ -12,10 +12,12 @@
 ### Case intake dashboard
 
 - Queue counts: Not ready, Review, Held.
-- Inbox categories: Receiving work, Queries, Other, Needs sorting.
+- Inbox categories: Receiving work, Queries, Other, Needs sorting, and a manual Blocked intake filter.
 - Time view: Due today, Submitted today, Cleared this week, and seven-day chasers.
 - Filters distinguish instructions from images.
 - Refresh age and failure state must be visible; zero and unavailable must not look identical.
+- Not ready is incomplete work being chased. Review is complete work awaiting a required approval. Held is a reasoned manual case pause that blocks progression and chasers while the due date remains visible.
+- Blocked intake is pre-case. Staff select it with a required reason; the view retains the source, warning, and retry action but shows no case/reference.
 
 ### Needs sorting workbench
 
@@ -23,8 +25,10 @@
 - Show transport metadata, attachments, PDF/document preview, image thumbnails, and evidence together.
 - Mark extracted values as suggestions until confirmed.
 - Keep instruction completeness and image completeness independently reviewable/filterable.
+- Make all three intake outcomes reachable from the real review surface: `Blocked intake` creates no case, accepting incomplete work creates a `Not ready` case, and accepting complete work creates a `Review` case. The configurable completeness gate applies to Engineer assignment, not case creation.
 - Use registration as the identifier for images before a principal reference exists.
 - Preserve unknown, contradictory, unsupported, and transient-failure outcomes instead of forcing a case classification.
+- Allow staff to place any inbox item in Blocked intake with a reason. Missing VRM and an unclear or absent original report for a standalone Audit are expected examples.
 
 ### Case workspace
 
@@ -37,7 +41,7 @@
 
 ## Required states
 
-Every production surface needs designed states for loading, empty, stale, partial data, transient integration failure, unauthorized action, validation conflict, duplicate/idempotent intake, held, terminal, reopened, and successful completion. Counts and status colours must never be the only accessible signal.
+Every production surface needs designed states for loading, empty, stale, partial data, transient integration failure, unauthorized action, validation conflict, duplicate/idempotent intake, blocked intake, held, terminal, reopened, and successful completion. Counts and status colours must never be the only accessible signal.
 
 ## Visual principles
 
