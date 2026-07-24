@@ -17,6 +17,7 @@ Answer the start-of-day question in a few seconds: where is work accumulating, w
 
 - Replace all invented sample references/providers with approved local fixtures.
 - Navigation must reflect actual first-MVP scope; remove Reports, Insights, or other items until a real caller exists.
-- Define the exact difference between Review and Held before implementing card drill-down.
+- Implement the settled queue split: Review is complete work awaiting approval; Held is a reasoned manual pause that blocks progression and chasers while keeping the due date visible.
+- Add the manual Blocked intake inbox filter with its reason, warning, and retry path; it must never look like a created case.
 - Design unavailable/stale counts and refresh failure, not just populated success.
 - Avoid a notification centre unless real in-product notifications are in scope.

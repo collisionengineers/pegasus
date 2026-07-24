@@ -7,7 +7,8 @@ namespace CollisionSpike.Core.Intake.Qdos;
 public sealed partial class ProcessQdosIntake(
     IQdosIntakeSourceReader sourceReader,
     IQdosIntakeStore store,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    IIntakeArtifactStore? artifactStore = null)
 {
     private const string PrincipalCode = "QDOS";
 
@@ -30,16 +31,28 @@ public sealed partial class ProcessQdosIntake(
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(source.FileName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(source.SourceIdentity.ExternalReceiptToken);
 
         var safeFileName = Path.GetFileName(source.FileName);
         var sourceHash = Convert.ToHexString(SHA256.HashData(source.Content.Span));
+        var existing = await store.FindBySourceIdentityAsync(source.SourceIdentity, cancellationToken);
+        if (existing is not null)
+        {
+            if (!string.Equals(existing.SourceHash, sourceHash, StringComparison.Ordinal))
+            {
+                throw new IntakeSourceIdentityConflictException();
+            }
+
+            return existing with { IsDuplicate = true };
+        }
+
         IntakeSourceReadResult readResult;
 
         try
         {
             readResult = await sourceReader.ReadAsync(source with { FileName = safeFileName }, cancellationToken);
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (Exception exception) when (QdosIntakeExceptionPolicy.IsRecoverable(exception))
         {
             readResult = new(
                 IntakeSourceReadStatus.TechnicalFailure,
@@ -53,40 +66,185 @@ public sealed partial class ProcessQdosIntake(
 
         var currentTime = timeProvider.GetUtcNow();
         var assessment = Assess(readResult, currentTime);
+        IReadOnlyList<IntakeAssetRecord> assets = [];
+
+        if (artifactStore is not null)
+        {
+            try
+            {
+                assets = await StoreAssetsAsync(
+                    source with { FileName = safeFileName },
+                    readResult.AssetCandidates,
+                    artifactStore,
+                    cancellationToken);
+            }
+            catch (Exception exception) when (QdosIntakeExceptionPolicy.IsRecoverable(exception))
+            {
+                assessment = FailureAssessment(
+                    QdosIntakeDecision.TechnicalFailure,
+                    "The uploaded source could not be retained for review.",
+                    "artifact_storage_failure",
+                    "The source and its extracted assets could not be stored at this time.",
+                    [.. assessment.Evidence, new(
+                        QdosEvidenceSource.SystemDefault,
+                        QdosEvidenceStrength.Strong,
+                        QdosEvidenceFinding.Information,
+                        "artifact-storage-failure",
+                        "Intake stopped because evidence retention failed.")]);
+            }
+        }
+
         var draft = new QdosIntakeDraft(
             safeFileName,
             source.MediaType,
             source.Content.Length,
             sourceHash,
+            source.SourceIdentity,
             source.ReceivedAtUtc,
             currentTime,
-            currentTime.Year,
             source.Actor,
-            source.CaseCreationAuthorized,
             assessment.Decision,
             assessment.DecisionReason,
             assessment.Evidence,
             assessment.Fields,
+            CreateTypedDraft(assessment),
             assessment.MissingFields,
             assessment.FailureCode,
-            assessment.FailureReason);
+            assessment.FailureReason,
+            assets,
+            readResult.ScannedPdfPages);
 
-        try
-        {
-            return await store.StoreAsync(draft, cancellationToken);
-        }
-        catch (CaseReferenceSequenceExhaustedException exception)
-        {
-            var failureDraft = draft with
-            {
-                Decision = QdosIntakeDecision.TechnicalFailure,
-                DecisionReason = "QDOS content was confirmed, but no case reference is available.",
-                FailureCode = "reference_sequence_exhausted",
-                FailureReason = $"The {exception.PrincipalCode} reference sequence for {exception.Year} has reached 999."
-            };
+        return await store.StoreAsync(draft, cancellationToken);
+    }
 
-            return await store.StoreAsync(failureDraft, cancellationToken);
+    private static QdosTypedDraft? CreateTypedDraft(Assessment assessment)
+    {
+        if (assessment.Decision != QdosIntakeDecision.DraftReady)
+        {
+            return null;
         }
+
+        var values = assessment.Fields.ToDictionary(
+            field => field.Name,
+            field => field.SuggestedValue,
+            StringComparer.Ordinal);
+
+        return new(
+            PrincipalCode,
+            TypedString(values["Claimant name"], 300),
+            TypedString(values["Claim number"], 100),
+            NormalizeRegistration(values["Vehicle registration"]),
+            TypedString(values["Vehicle make"], 100),
+            TypedString(values["Vehicle model"], 100),
+            ParseMileage(values["Vehicle mileage"]),
+            TypedString(values["Accident circumstances"], 2000),
+            ParseDate(values["Date of incident"]),
+            ParseDate(values["Instruction date"]),
+            TypedString(values["Inspection address"], 1000));
+    }
+
+    private static string? TypedString(string? value, int maximumLength) =>
+        !string.IsNullOrWhiteSpace(value) && value.Length <= maximumLength
+            ? value
+            : null;
+
+    private static string? NormalizeRegistration(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = Regex.Replace(value, @"[\s-]", string.Empty, RegexOptions.CultureInvariant)
+            .ToUpperInvariant();
+        return normalized.Length <= 20 && RegistrationRegex().IsMatch(normalized)
+            ? normalized
+            : null;
+    }
+
+    private static DateOnly? ParseDate(string? value)
+    {
+        if (DateOnly.TryParseExact(
+                value,
+                "yyyy-MM-dd",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var exactDate))
+        {
+            return exactDate;
+        }
+
+        return DateOnly.TryParse(
+            value,
+            CultureInfo.GetCultureInfo("en-GB"),
+            DateTimeStyles.AllowWhiteSpaces,
+            out var date)
+            ? date
+            : null;
+    }
+
+    private static long? ParseMileage(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)
+            || !MileageRegex().IsMatch(value))
+        {
+            return null;
+        }
+
+        var normalized = Regex.Replace(
+            value,
+            @"(?i)\s*(?:miles?|mi)\s*$",
+            string.Empty,
+            RegexOptions.CultureInvariant);
+        return long.TryParse(
+            normalized,
+            NumberStyles.AllowThousands,
+            CultureInfo.InvariantCulture,
+            out var mileage)
+            ? mileage
+            : null;
+    }
+
+    private static async Task<IReadOnlyList<IntakeAssetRecord>> StoreAssetsAsync(
+        QdosIntakeSource source,
+        IReadOnlyList<IntakeAssetCandidate> extractedAssets,
+        IIntakeArtifactStore artifactStore,
+        CancellationToken cancellationToken)
+    {
+        var sourceAsset = new IntakeAssetCandidate(
+            "uploaded source",
+            source.FileName,
+            source.MediaType,
+            source.Content,
+            IntakeAssetKind.Source,
+            IntakeAssetDisposition.Source);
+        var candidates = new[] { sourceAsset }
+            .Concat(extractedAssets)
+            .ToArray();
+        var stored = new List<IntakeAssetRecord>(candidates.Length);
+
+        foreach (var candidate in candidates)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var contentHash = Convert.ToHexString(SHA256.HashData(candidate.Content.Span));
+            var storageKey = await artifactStore.StoreAsync(contentHash, candidate.Content, cancellationToken);
+            stored.Add(new(
+                Guid.NewGuid(),
+                candidate.SourceLabel,
+                Path.GetFileName(candidate.FileName),
+                candidate.MediaType,
+                candidate.Kind,
+                candidate.Disposition,
+                candidate.Content.Length,
+                contentHash,
+                storageKey,
+                candidate.PageNumber,
+                candidate.Bounds,
+                candidate.WidthPixels,
+                candidate.HeightPixels));
+        }
+
+        return stored;
     }
 
     private static Assessment Assess(IntakeSourceReadResult readResult, DateTimeOffset receivedAtUtc)
@@ -107,7 +265,7 @@ public sealed partial class ProcessQdosIntake(
         {
             return FailureAssessment(
                 QdosIntakeDecision.Unsupported,
-                "The uploaded source is not readable as a supported email or PDF.",
+                "The uploaded source is not readable as a supported email, document, PDF or image.",
                 readResult.FailureCode ?? "unsupported_source",
                 readResult.FailureReason ?? "The file is unsupported or corrupt.",
                 evidence);
@@ -154,6 +312,18 @@ public sealed partial class ProcessQdosIntake(
 
         AddTransportEvidence(readResult.TransportEvidence, confirmingFragments.Count > 0, evidence);
 
+        if (readResult.IsIncomplete)
+        {
+            return new(
+                QdosIntakeDecision.NeedsSorting,
+                "The source was retained, but processing could not be completed safely and requires manual sorting.",
+                evidence,
+                [],
+                [],
+                null,
+                null);
+        }
+
         if (confirmingFragments.Count > 0)
         {
             var (fields, missingFields, fieldEvidence) = ExtractFields(readResult.Content, receivedAtUtc);
@@ -166,12 +336,12 @@ public sealed partial class ProcessQdosIntake(
                     QdosEvidenceStrength.Strong,
                     QdosEvidenceFinding.Information,
                     "additional-scanned-content",
-                    "QDOS is confirmed from readable content; additional scanned PDF content still requires review."));
+                    "A QDOS-shaped draft was extracted from readable content; additional scanned PDF content still requires review."));
             }
 
             return new(
-                QdosIntakeDecision.ConfirmedQdos,
-                "QDOS is confirmed from instruction content.",
+                QdosIntakeDecision.DraftReady,
+                "A reviewable QDOS-shaped draft was extracted. This does not classify the item as definitive work instructions.",
                 evidence,
                 fields,
                 missingFields,
@@ -329,7 +499,12 @@ public sealed partial class ProcessQdosIntake(
                 var value = match.Groups["value"].Value.Trim(' ', ':', '-', '|');
                 if (string.IsNullOrWhiteSpace(value))
                 {
-                    value = lines.Skip(index + 1).FirstOrDefault(candidate => !string.IsNullOrWhiteSpace(candidate)) ?? string.Empty;
+                    var nextLine = lines
+                        .Skip(index + 1)
+                        .FirstOrDefault(candidate => !string.IsNullOrWhiteSpace(candidate));
+                    value = nextLine is not null && !StartsWithKnownFieldLabel(nextLine)
+                        ? nextLine
+                        : string.Empty;
                 }
 
                 value = NormalizeValue(definition, value);
@@ -346,28 +521,16 @@ public sealed partial class ProcessQdosIntake(
     private static string NormalizeValue(FieldDefinition definition, string value)
     {
         value = WhitespaceRegex().Replace(value, " ").Trim();
-        if (value.Length > 500)
-        {
-            value = value[..500];
-        }
-
-        if (definition.IsDate && DateOnly.TryParse(
-                value,
-                CultureInfo.GetCultureInfo("en-GB"),
-                DateTimeStyles.AllowWhiteSpaces,
-                out var date))
-        {
-            return date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        }
-
-        if (definition.Name == "Vehicle registration")
-        {
-            return Regex.Replace(value, "[^A-Za-z0-9]", string.Empty, RegexOptions.CultureInvariant)
-                .ToUpperInvariant();
-        }
-
         return value;
     }
+
+    private static bool StartsWithKnownFieldLabel(string line) =>
+        FieldDefinitions.Any(definition => definition.Labels.Any(label =>
+            Regex.IsMatch(
+                line,
+                $@"(?i)^{Regex.Escape(label)}(?:\s*(?::|-|\|)\s*|\s+|$)",
+                RegexOptions.CultureInvariant,
+                TimeSpan.FromMilliseconds(100))));
 
     private static bool ContainsLabel(string text, string label) =>
         Regex.IsMatch(
@@ -390,6 +553,12 @@ public sealed partial class ProcessQdosIntake(
 
     [GeneratedRegex(@"\s+", RegexOptions.CultureInvariant)]
     private static partial Regex WhitespaceRegex();
+
+    [GeneratedRegex(@"^\s*(?:\d+|\d{1,3}(?:,\d{3})+)\s*(?:miles?|mi)?\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex MileageRegex();
+
+    [GeneratedRegex("^[A-Z0-9]+$", RegexOptions.CultureInvariant)]
+    private static partial Regex RegistrationRegex();
 
     private sealed record FieldDefinition(string Name, string[] Labels, bool IsDate = false);
 
