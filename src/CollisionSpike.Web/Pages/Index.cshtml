@@ -21,22 +21,11 @@
             <div><strong>0</strong><span>Not ready</span></div>
             <span class="arrow" aria-hidden="true">›</span>
         </article>
-        @if (Model.LocalQdosIntakeEnabled)
-        {
-            <a class="queue-card queue-card--blue" asp-page="/Intake/Queue" asp-route-decision="ConfirmedQdos">
-                <span class="queue-icon" aria-hidden="true">◉</span>
-                <div><strong>@Model.Counts.Review</strong><span>Review</span></div>
-                <span class="arrow" aria-hidden="true">›</span>
-            </a>
-        }
-        else
-        {
-            <article class="queue-card queue-card--blue">
-                <span class="queue-icon" aria-hidden="true">◉</span>
-                <div><strong>0</strong><span>Review</span></div>
-                <span class="arrow" aria-hidden="true">›</span>
-            </article>
-        }
+        <article class="queue-card queue-card--blue">
+            <span class="queue-icon" aria-hidden="true">◉</span>
+            <div><strong>0</strong><span>Review</span></div>
+            <span class="arrow" aria-hidden="true">›</span>
+        </article>
         <article class="queue-card queue-card--red">
             <span class="queue-icon" aria-hidden="true">!</span>
             <div><strong>0</strong><span>Held</span></div>
@@ -54,6 +43,7 @@
             <article class="metric-tile"><span>□</span><div><strong>0</strong><small>Other</small></div></article>
             @if (Model.LocalQdosIntakeEnabled)
             {
+                <a class="metric-tile" asp-page="/Intake/Queue" asp-route-decision="DraftReady"><span>▤</span><div><strong>@Model.Counts.DraftReady</strong><small>QDOS drafts</small></div></a>
                 <a class="metric-tile metric-tile--attention" asp-page="/Intake/Queue" asp-route-decision="NeedsSorting"><span>!</span><div><strong>@Model.Counts.NeedsSorting</strong><small>Needs sorting</small></div></a>
             }
             else
