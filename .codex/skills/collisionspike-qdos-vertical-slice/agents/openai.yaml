@@ -1,4 +1,0 @@
-interface:
-  display_name: "QDOS vertical slice"
-  short_description: "Deliver one real-input QDOS workflow slice"
-  default_prompt: "Use $collisionspike-qdos-vertical-slice to implement the next thin end-to-end QDOS workflow."
