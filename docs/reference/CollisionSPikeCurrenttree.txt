@@ -6,7 +6,7 @@ Current tree:
 
 - billing [payment notifications, remittances, invoice requests, billing-query, general-billing]
 
-- new-work-received [where we receive initial work instructions. subcategories of types e.g. audit, diminution, inspection, new-client, website-work]
+- new-instruction-received [where we receive initial work instructions. subcategories of types e.g. audit, diminution, inspection, new-client, website-enquiry]
 
 - non-client-related [any emails internal to the company e.g. from the tools / services we use, software packages etc]
 
