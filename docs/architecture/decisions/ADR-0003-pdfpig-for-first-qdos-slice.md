@@ -40,6 +40,13 @@ The choice is deliberately narrow:
 - the adapter records its engine and version;
 - a later engine can replace it without changing QDOS field rules.
 
+That replacement may be a separately developed in-house extractor or another
+external engine. It is not part of the current slice. Any candidate must replace
+the Infrastructure adapter through the existing engine-neutral contract after
+contract-parity, frozen-cohort, holdout, security, licence/maintenance and real-
+caller evidence; do not introduce it first as a parallel reader, external
+checkout dependency or dormant feature flag.
+
 PdfPig was preferred over iText because observed marker coverage and unreadable
 detection were equal while PdfPig has the smaller operational and licensing
 surface. iText was faster in this run, but performance was secondary and both

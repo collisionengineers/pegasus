@@ -88,7 +88,7 @@ An unreadable, incomplete, encrypted, corrupt, unsupported, bounded-out or pre-a
 
 - **Named capabilities:** legacy DOC/MSG, AI/vision/VRM OCR, malware scanning, broader mail, WhatsApp and later infrastructure.
 - **Stable seam retained:** immutable source/asset occurrences, hashes, parent provenance and engine-neutral reader results.
-- **Future migration/replacement:** DOC converter activation replaces the deferred branch; a scanner or AI path needs its own selected service, approval and caller-backed evidence.
+- **Future migration/replacement:** DOC converter activation replaces the deferred branch; a later general document reader may be external or developed in-house, but must replace the current reader through the engine-neutral port only after parity and caller-backed evaluation. A scanner or AI path needs its own selected service, approval and caller-backed evidence.
 - **Activation boundary:** product/accuracy/cost evidence and explicit approval; no corpus material may leave the local evaluation boundary.
 - **Deliberately absent:** scanner, model, extra runtime, queue, general rendering service, OCR widening, feature flag or vendor upload path for deferred capabilities.
 
