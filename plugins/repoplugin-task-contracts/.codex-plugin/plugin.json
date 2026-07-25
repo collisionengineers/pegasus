@@ -1,0 +1,18 @@
+{
+  "name": "repoplugin-task-contracts",
+  "version": "0.1.0",
+  "description": "Private task folders, artifact handoffs, and small lifecycle checks for the Repoplugin workflow suite.",
+  "author": {
+    "name": "Local developer"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Repoplugin Task Contracts",
+    "shortDescription": "Private task folders and handoffs for suite routes.",
+    "longDescription": "Provides private skills and a small PowerShell helper for explicit task identity, contained artifacts, handoffs, completion, and validation. It exposes no public user route.",
+    "developerName": "Local developer",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": "Use the owning Repoplugin route to create or attach an explicit repository task and preserve its artifacts."
+  }
+}

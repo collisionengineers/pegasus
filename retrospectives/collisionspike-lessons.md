@@ -95,7 +95,7 @@ The lineage matters. `archive/` holds valuationbot, valuationbot-claude, collisi
 
 ### Story 5 — Running blind
 
-**What happened.** One case whose `box_folder_id` pointed outside the pinned Box roots generated **1,896** `boxFolderCreate` exceptions in a single day (TKT-303): `functions-client.ts` mapped every non-2xx to a plain `Error`, two stacked Durable retry policies amplified each wake into ~12 activity executions, and the defer backoff never reached zero. The follow-up audit (TKT-305) found this was a *pattern*, not an incident: another monitor ran at four figures per day for at least six days with "no root cause … established for ANY"; 2,528 of 3,630 exceptions traced to a single stuck case. Meanwhile the nightly Box purge exhausted the dev-tier connection pool and "nothing was purged" (TKT-227) — while its own metric reported `{purged: results.length}`, counting attempts as successes. Elsewhere, a queue label rendered "Images received" regardless of what the file was, and four silent-catch paths hid Function death from staff (review 200726 B6; TKT-226).
+**What happened.** One case whose `box_folder_id` pointed outside the pinned Box roots generated **1,896** `boxFolderCreate` exceptions in a single day (TKT-303): `functions-client.ts` mapped every non-2xx to a plain `Error`, two stacked Durable retry policies amplified each wake into ~12 activity executions, and the defer backoff never reached zero. The follow-up review (TKT-305) found this was a *pattern*, not an incident: another monitor ran at four figures per day for at least six days with "no root cause … established for ANY"; 2,528 of 3,630 exceptions traced to a single stuck case. Meanwhile the nightly Box purge exhausted the dev-tier connection pool and "nothing was purged" (TKT-227) — while its own metric reported `{purged: results.length}`, counting attempts as successes. Elsewhere, a queue label rendered "Images received" regardless of what the file was, and four silent-catch paths hid Function death from staff (review 200726 B6; TKT-226).
 
 **Root cause.** One missing primitive: nothing in either language distinguished terminal from transient failure, so nothing could ever give up, park a poison row, and say so honestly. On top of it, several signals lied politely — which meant "0 exceptions" and "0 errors" dashboards were unfalsifiable noise.
 
@@ -117,7 +117,7 @@ The lineage matters. `archive/` holds valuationbot, valuationbot-claude, collisi
 | Components split to sibling repos, then reabsorbed with history | ADR-0018→0035, ADR-0034; PRs #144/#145 | Repo boundaries redrawn twice = the domain contract wasn't settled |
 | Four "LIVE" feature-wave PRs closed unmerged | PRs #47–51 | Work that never lands is invisible waste — count it |
 | The repository *reset* itself shipped 57 commits behind main, silently reverting 5 tables, with green CI | PR #100; docs/reviews/150726 | The biggest cleanups need the most adversarial review |
-| Dark surface: vision family built dark, EVA poll stub logs "poll body is not built", MCP ingest is a fail-closed no-op (permission never created), zombie evaValidation app, unrecorded "P2P Server" registration, a live capture SPA found untracked on 07-20 | docs/operations/feature-gates.md; TKT-154/228; LIVE_FACTS.json | Built-but-unwired accumulates silently; audit it on a clock (→ R18) |
+| Dark surface: vision family built dark, EVA poll stub logs "poll body is not built", MCP ingest is a fail-closed no-op (permission never created), zombie evaValidation app, unrecorded "P2P Server" registration, a live capture SPA found untracked on 07-20 | docs/operations/feature-gates.md; TKT-154/228; LIVE_FACTS.json | Built-but-unwired accumulates silently; review it on a clock (→ R18) |
 | Three idempotency `request_hash` serializers are not byte-compatible — reordered keys defeat the guard | TKT-270 M2 | Guards that were never watched failing may not guard (→ R10) |
 | The hottest file: 804 lines, ~73 casts, one pipeline pasted 3–4× with silent divergence | intakeOrchestrator.ts; review 200726 | Hot files need delete-or-generalize pressure, not more branches (→ R6) |
 | Staff conflated "live on a mailbox" with "in production"; you had to pin a cutover note into LIVE_FACTS | commit bf5a71af, `liveCutoverNote` | Name the alpha/production boundary in writing on day 0 (→ R1) |
@@ -220,7 +220,7 @@ These are the behaviors that limited the damage, with the same evidentiary stand
 - *Trigger:* calendar, weekly, non-negotiable.
 - *Scar:* the entire misclassification wave (TKT-029–043 and successors) was found by your screenshots; ~20 CI gates found none of it.
 
-**R18 — Dark-surface audit: anything built-but-unwired for two weeks gets a caller or gets deleted; reconcile the cloud estate against the repo monthly.**
+**R18 — Dark-surface review: anything built-but-unwired for two weeks gets a caller or gets deleted; reconcile the cloud estate against the repo monthly.**
 - *Trigger:* the same weekly slot as R16/R17, monthly for the estate.
 - *Scar:* a dark vision family, an EVA stub logging "poll body is not built," a zombie function app, and a live SPA discovered untracked on 2026-07-20.
 
@@ -243,7 +243,7 @@ Base path: `collisionsuite/active/collisionspike/` (branch `main` unless noted).
 | 17/25 ADRs corrected; D1 per-marker numbering; D12 false header | `docs/reviews/160726/decisions.md` |
 | Replay near-miss numbers (117 vs 390; 7,081/9,485/7,107; ~150 cases) | `docs/tickets/done/TKT-059-replay-wipe-rebuild/verification.md` (verified verbatim); driver removal: `done/TKT-106-remove-replay-backfill/` |
 | RLS false zeros; csadmin baseline (164/389/390) | TKT-059; `docs/azure/postgres.md`; session memory |
-| Retry storms: 1,896/day; ×12 per wake; four-figure audits | `docs/tickets/verify/TKT-303-…/` (spec + `evidence/diagnosis-2026-07-21.md`, verified); `backlog/TKT-305-eternal-monitor-retry-audit/` |
+| Retry storms: 1,896/day; ×12 per wake; four-figure monitor runs | `docs/tickets/verify/TKT-303-…/` (spec + `evidence/diagnosis-2026-07-21.md`, verified); `backlog/TKT-305-eternal-monitor-retry-audit/` |
 | Purge exhaustion, dishonest purge metric | `docs/tickets/now/TKT-227-box-purge-connection-exhaustion/evidence/audit-findings-2026-07-16.md` |
 | Dishonest labels, silent-null subtype, FW26029 incident | `docs/tickets/now/TKT-226-…/evidence/incident-summary-2026-07-16.md` |
 | VERIFIED-LIVE → FAILED arc | `docs/tickets/now/TKT-067-assistant-new-chat/verification.md` |

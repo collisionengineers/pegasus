@@ -26,6 +26,7 @@ appsettings.*.local.json
 /.obsidian/workspace-mobile.json
 /tmp/
 /temp/
+/.repoplugin/
 node_modules/
 .bicep/
 /src/CollisionSpike.Web/wwwroot/lib/

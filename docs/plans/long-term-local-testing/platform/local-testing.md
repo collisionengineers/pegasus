@@ -132,7 +132,7 @@ Storage Explorer, SSMS and Postman remain optional conveniences. Do not add Serv
 
 - **Requirement/decision:** The first release must prove authenticated staff workflows, durable source custody, Graph intake, Blob/Queue/Worker behavior, SQL concurrency, Box, targeted OCR, DVLA/DVSA, EVA export, provider API, staff MCP, observability and recovery through their actual callers. The complete list remains owned by [remaining requirements](../../remaining-requirements.md), not duplicated here as product authority.
 - **Confirmed facts:** The current called slice is the development-only manual upload path. Worker, production Blob/Queue, live external adapters, real-browser/authentication, load, restore-objective and alert-delivery evidence remain planned until delivered and run.
-- **Decision required before implementation:** Tests must withhold normative behavior for chase timing, reopen destination, leaving `Held`, activity dashboard meanings, business `Triage`, mailbox categorisation governance/correction, used principal-code changes, the exhaustive permanent audit catalogue and sent-report evidence. These are routed through [open decisions](../../open-decisions.md); independent test-ready work continues.
+- **Decision required before implementation:** Tests must encode the settled Triage states/findings/reply evidence/linking, used-principal-code replacement, permanent action-history boundary, chase/Held-release, reopen, London activity, immutable case identity, exact Sent-item and no-pre-send-review rules. Only automatic mailbox categorisation/email matching awaits the sole combined research decision. Image association stays conservative when evidence is not definitive; inspection address accepts confirmed physical data or exact `Image Based Assessment` without inferring precedence; first-MVP email operations remain explicitly unsupported unless required; reversible EVA wire mapping is an owning integration contract validated against operator acceptance, not product ambiguity.
 
 ### Owner and dependencies
 
@@ -144,13 +144,13 @@ Storage Explorer, SSMS and Postman remain optional conveniences. Do not add Serv
 ### Caller, contract and change boundary
 
 - **Real or intended caller:** Manual `/Intake/Upload` today; authenticated Razor Pages/API/MCP routes and actual Functions timer/queue triggers as delivered.
-- **Input/output:** Genuine local inputs for business-shape evidence and controlled fixtures for protocol/security boundaries produce persisted state, audit/telemetry and an operator-visible outcome. Every evidence record states what it does and does not prove.
+- **Input/output:** Genuine local inputs for business-shape evidence and controlled fixtures for protocol/security boundaries produce persisted state, action history/telemetry and an operator-visible outcome. Every evidence record states what it does and does not prove.
 - **Ordered decisions and failure behavior:** Unit policy first; adapter contract second; persistence/transaction third; actual HTTP/Functions caller fourth; genuine cohort/holdout where relevant; approved live-service gate; operator acceptance. Unknown input remains reviewable, terminal failure stops visibly, and transient failure retries with a bound.
 - **Persistence/migration:** SQLite proves the supported development path; LocalDB proves SQL Server migrations, transactions, constraints and concurrency; Azure SQL remains a live gate. Restore always targets a new disposable database or explicitly approved Azure target.
 - **Concurrency/edit ownership:** Exercise eight concurrent staff, duplicate source/queue/API deliveries, atomic reference allocation, outbox replay, two-browser edit leases, stale versions and external-side-effect idempotency.
 - **Adapters/side effects:** Local tests use fakes, emulators or controlled loopback contracts; live tests use exact allowlisted non-production resources and non-corpus inputs.
 - **Permission/scope guard:** Authentication/role tests deny before the external client is called. Live Graph, Box, Azure and vendor tests name the authority, grant type and exact resource scope and prove a broader or wrong scope is rejected.
-- **Operator surface and observability:** Assert the rendered queue/case outcome, permanent business audit where authorised, content-safe correlation and alertable terminal failures. Technical retry detail remains out of operator language.
+- **Operator surface and observability:** Assert the rendered queue/case outcome, permanent business action history where authorised, content-safe correlation and alertable terminal failures. Technical retry detail remains out of operator language.
 - **Documentation affected:** Feature-owned test instructions and this plan; operator notes and corpus remain read-only.
 - **Replaces/consolidates:** Mock-only completion claims, direct-service-only integration tests and broad green checks presented as end-to-end proof.
 
@@ -159,8 +159,8 @@ Storage Explorer, SSMS and Postman remain optional conveniences. Do not add Serv
 1. **Static/build/architecture:** Compile the four approved projects, enforce dependency direction and one policy owner, compile Bicep, check dependencies and prevent tracked corpus or secret material. This proves consistency only.
 2. **Core/domain:** Literal positive, contradictory, ambiguous and failure examples for intake, references, matching, lifecycle, roles, completeness and case invariants without duplicating policy at the edge.
 3. **Parser/adapter contracts:** EML/PDF/DOCX and later approved DOC/MSG handling, corruption/encryption/resource bounds, cancellation, path/integrity safety, stable contract codes and deterministic external HTTP/SDK failures. Microsoft recommends mocking Azure SDK clients at their port boundary for unit tests. [Azure SDK unit-testing guidance](https://learn.microsoft.com/dotnet/azure/sdk/unit-testing-mocking)
-4. **SQLite and LocalDB persistence:** Fresh and incompatible schema behavior, committed migrations, transaction rollback, audit/state/outbox atomicity, allocation concurrency, constraints, pagination, leases, stale versions and backup/restore.
-5. **Web/API/MCP caller:** Actual routes reach Core; authentication, antiforgery, validation, scope, idempotency, exception translation and audit actor are observable.
+4. **SQLite and LocalDB persistence:** Fresh and incompatible schema behavior, committed migrations, transaction rollback, action-history/state/outbox atomicity, allocation concurrency, constraints, pagination, leases, stale versions and backup/restore.
+5. **Web/API/MCP caller:** Actual routes reach Core; authentication, antiforgery, validation, scope, idempotency, exception translation and action-history actor are observable.
 6. **Functions/Azurite caller:** Actual timer/queue trigger, Blob staging, identifier-only queue messages, duplicate/retry/poison/restart paths and delete-after-Box-confirmation behavior.
 7. **Browser/accessibility:** Authenticated end-to-end workflows, dashboard/queue agreement, two-session editing, keyboard/focus/error handling, semantic labels, text-plus-colour states, 200% zoom and supported-browser coverage. Automated axe evidence does not replace manual keyboard and assistive-technology review.
 8. **Genuine corpus:** Immutable reviewed cohort plus untouched holdout through the real caller; field-level accuracy, conflicts, unreadable pages and false case/reference outcomes; detailed evidence remains ignored and local.
@@ -178,18 +178,18 @@ Storage Explorer, SSMS and Postman remain optional conveniences. Do not add Serv
 | Blob / Queue / Functions | Azurite plus the actual Functions host for staging, identifier messages, duplicate/poison/restart behavior | Storage RBAC, managed identity, durability, Flex scale/concurrency and platform diagnostics |
 | Key Vault / identity | Mock the port; developer credentials only for separately approved development resources | Deployed managed identity, least-privilege RBAC and firewall behavior; [managed identity itself is unavailable locally](https://learn.microsoft.com/dotnet/azure/sdk/authentication/system-assigned-managed-identity) |
 | Application Insights / Log Analytics | In-memory OpenTelemetry exporter and optional local Collector | Ingestion, sampling, KQL, retention, alert rules and recipient delivery |
-| Graph / Exchange | Kiota fake plus Dev Proxy for paging, retry, auth and throttling | Named test mailbox, Exchange Application RBAC, immutable IDs, delta behavior and actual delivery |
+| Graph / Exchange | Kiota fake plus Dev Proxy for paging, retry, auth and throttling; shared allowlist denies unknown mailbox/folder/action before the client call | Approved test mailbox allowlist, Exchange Application RBAC, immutable IDs, delta behavior and exact Sent-item existence. This does not prove recipient delivery or automatic case matching |
 | Box | Fake SDK/HTTP contract for folder/file commands, versions, idempotency and failures | Real folder custody, permissions, versions, file requests and retention |
 | Document Intelligence | Candidate-routing and response-contract tests using controlled non-corpus fixtures | OCR accuracy, confidence, API drift, cost, throttling and identity. A [disconnected container](https://learn.microsoft.com/azure/ai-services/document-intelligence/containers/disconnected?view=doc-intel-4.0.0) requires specific licensing and is not the default emulator |
 | DVLA/DVSA | Deterministic contract, invalid identifier, retry and unavailable-service outcomes | Entitlement, identity and real response behavior |
 | EVA | Exact local JSON/image-bundle contract and reconciliation metadata | Operator drag/drop acceptance and later authorised API sandbox |
-| Provider API / staff MCP | Real Kestrel endpoints, auth/scope/idempotency, audit and negative HTTP tests | Public HTTPS, canonical MCP resource metadata, hosted OAuth callback and Internet-facing posture |
+| Provider API / staff MCP | Real Kestrel endpoints, auth/scope/idempotency, action history and negative HTTP tests | Public HTTPS, canonical MCP resource metadata, hosted OAuth callback and Internet-facing posture |
 | GitHub OIDC / deployment | Bicep compile/lint and local configuration checks | Azure preflight, scoped OIDC, deployment, health smoke and rollback |
 | Backup / recovery | LocalDB backup/restore into a new disposable database | Azure SQL PITR, quarterly recovery, external-system reconciliation and alert escalation |
 
 ### Scope
 
-- **Included:** Test requirements for intake/provenance, extraction/OCR routing, auth/roles/audit, blocked intake and acceptance, case/reference/matching/correction rules, lifecycle/completeness/editing/due/chasing, dashboard/search, Box/DVLA/EVA/email, provider API/MCP, SQL/outbox/queue, health/telemetry, migration/recovery and the full caller journey.
+- **Included:** Test requirements for intake/provenance, extraction/OCR routing, auth/roles/action history, blocked intake and acceptance, immutable case/reference and linked replacement rules, lifecycle/completeness/editing/due/chasing, dashboard/search, Box/DVLA/EVA/email, provider API/MCP, SQL/outbox/queue, health/telemetry, migration/recovery and the full caller journey.
 - **Excluded:** Treating mocks as vendor evidence; uploading corpus; production load; automatic acceptance of unresolved business policy; deployment or live calls without exact approval; positive tests for excluded legacy or speculative capabilities.
 
 ### Implementation checklist
@@ -203,7 +203,14 @@ Storage Explorer, SSMS and Postman remain optional conveniences. Do not add Serv
 
 ### Validation checklist
 
-- [ ] Positive, contradiction/ambiguity, transient and terminal cases produce the ordered Core decision, persisted result, audit/telemetry and operator-visible outcome.
+- [ ] Positive, contradiction/ambiguity, transient and terminal cases produce the ordered Core decision, persisted result, action history/telemetry and operator-visible outcome.
+- [ ] Prove principal/reference edits fail immediately after allocation; wrong-principal handling makes the original terminal `Created in error`, links one replacement, never reuses either number and refuses reopening the original.
+- [ ] Prove used-principal-code direct edits fail; Administrator cutover creates one linked successor, atomically deactivates predecessor, continues the cutover-year next/exhausted state, starts later years at `001`, records reason/history and survives stale/concurrent/fault-injected transaction tests.
+- [ ] Prove first chase at the same London local time after seven calendar days, Held remainder preservation/resumption, reasoned reopen to an otherwise-valid nonterminal state, and London-midnight/Monday dashboard boundaries.
+- [ ] Prove manual chaser preparation/view/copy is not sent evidence; explicit staff confirmation persists actor/time/case/channel/outcome/optional note once, makes zero outbound calls, rejects unauthorised/stale/closed/`Held` submissions and stores no message body.
+- [ ] Prove the complete separate Triage state/finding/correction/reopen/link contract, no-registration `Needs sorting`, no case/reference, and exact allowlisted reply-chain evidence with no subject/registration/manual-selection fallback.
+- [ ] Prove the first successful EVA export generation records one `First sent to Engineer` proxy event but not receipt. When automatic report evidence is absent/ambiguous, exact manual link requires a reason; `sentDateTime` is authoritative, discovery/link times stay separate, unlink/relink recomputes events/counts, later Outlook move/delete preserves confirmed finality, and there is no pre-send review gate.
+- [ ] Prove permanent action history includes the settled material actions, denials/failures, accepted external evidence and downloads/exports; prove sign-ins use security log and routine view/search/refresh/poll/retry/lease/heartbeat/adapter mechanics use telemetry only.
 - [ ] Duplicate and concurrent requests create one business effect; stale editors and wrong-role/wrong-scope actors are refused before side effects.
 - [ ] Corrupt, encrypted, unsupported, oversized and expansion-bound inputs remain visible without case/reference creation or silent truncation.
 - [ ] Actual Web and Worker entry points reach the same Core policy; direct DI resolution and test-only callers are insufficient.
@@ -234,10 +241,10 @@ Storage Explorer, SSMS and Postman remain optional conveniences. Do not add Serv
 | Named capability | Local boundary before activation | Activation and remaining live/migration work | Deliberately absent now |
 |---|---|---|---|
 | Other Outlook mailboxes and mature categorisation | Graph fake/Dev Proxy, per-mailbox identities, delta replay, idempotency and policy-version/correction tests | Settle categorisation governance; approve named mailboxes and Exchange RBAC | Broader Graph grants, rule engine, rule table or editor |
-| Automated outbound email/chasers | Graph-send contract, recipient validation, retry/delivery state and audit | Settle timing/sent-evidence rules; use an approved test mailbox | Automatic sender or scheduler |
+| Automated outbound email/chasers | Graph-send contract, recipient validation, retry/delivery state and permanent action history | Approve sending behavior and an allowlisted test mailbox; manual cadence and exact sent evidence are already settled | Automatic sender |
 | WhatsApp automation | Versioned webhook/client fixtures, provenance, consent, duplicates and receipts | Product/provider selection and sandbox approval | WhatsApp client, webhook or queue |
 | EVA API or replacement | Versioned contract, reconciliation, idempotent create/update and shadow comparison | Vendor/operator approval and sandbox; migration from manual bundle | EVA client or replacement engine |
-| Estimating, valuation, invoicing, accounting and Audatex | Typed money/currency/source/version policy, permissions, audit and contract fakes | Product/commercial/API approval and vendor sandbox | Finance schema, service or workflow |
+| Estimating, valuation, invoicing, accounting and Audatex | Typed money/currency/source/version policy, permissions, action history and contract fakes | Product/commercial/API approval and vendor sandbox | Finance schema, service or workflow |
 | Diminution and Commercial | Explicit unsupported outcome; later lifecycle, fields, shared sequence, persistence and browser evidence | Operator-defined workflow and acceptance criteria | Case type/state implementation |
 | Guided capture, Tractable and Ravin | Mobile browser matrix, resumable upload, asset provenance/order, consent and duplicates | Vendor selection, licence/security review and sandbox | Vendor client, upload surface or service |
 | AI/vision and automated VRM recognition | Deterministic fake, suggestion-only policy, confidence/provenance/correction and frozen local cohort/holdout | Representative accuracy, model/service, licence/cost/security and data-transfer approval | Model client, endpoint, queue, flag or corpus upload |

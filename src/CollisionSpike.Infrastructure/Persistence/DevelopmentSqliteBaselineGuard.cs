@@ -74,7 +74,7 @@ public static class DevelopmentSqliteBaselineGuard
                 new("WidthPixels", "INTEGER", false, 0),
                 new("HeightPixels", "INTEGER", false, 0)
             ],
-            ["IntakeAuditEvents"] =
+            ["IntakeReceiptEvents"] =
             [
                 new("Id", "TEXT", true, 1),
                 new("IntakeReceiptId", "TEXT", true, 0),
@@ -102,10 +102,10 @@ public static class DevelopmentSqliteBaselineGuard
                 new(null, true, "pk", ["Id"]),
                 new("IX_IntakeAssets_IntakeReceiptId_ContentHash", false, "c", ["IntakeReceiptId", "ContentHash"])
             ],
-            ["IntakeAuditEvents"] =
+            ["IntakeReceiptEvents"] =
             [
                 new(null, true, "pk", ["Id"]),
-                new("IX_IntakeAuditEvents_IntakeReceiptId", false, "c", ["IntakeReceiptId"])
+                new("IX_IntakeReceiptEvents_IntakeReceiptId", false, "c", ["IntakeReceiptId"])
             ]
         };
 
@@ -117,7 +117,7 @@ public static class DevelopmentSqliteBaselineGuard
             ["IntakeReceipts"] = [],
             ["InstructionDrafts"] = [new("IntakeReceiptId", "IntakeReceipts", "Id", "CASCADE")],
             ["IntakeAssets"] = [new("IntakeReceiptId", "IntakeReceipts", "Id", "CASCADE")],
-            ["IntakeAuditEvents"] = [new("IntakeReceiptId", "IntakeReceipts", "Id", "RESTRICT")]
+            ["IntakeReceiptEvents"] = [new("IntakeReceiptId", "IntakeReceipts", "Id", "RESTRICT")]
         };
 
     public static async Task ValidateAsync(

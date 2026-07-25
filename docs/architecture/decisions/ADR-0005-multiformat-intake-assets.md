@@ -20,7 +20,7 @@ container.
 
 ## Decision
 
-1. Keep `ProcessQdosIntake` as the single Core intake use case called by the
+1. Keep `ProcessIntake` as the single Core intake use case called by the
    Development-only Web upload and, later, the Worker.
 2. Use MimeKit for bounded recursive EML traversal, PdfPig 0.1.15 for PDF
    embedded text and discrete image streams, and Open XML SDK 3.5.1 for DOCX
@@ -73,7 +73,7 @@ container.
 
 ## Evidence and limits
 
-The real `POST /Intake/Qdos` caller has synthetic before/after integration
+The real `POST /Intake/Upload` caller has synthetic before/after integration
 coverage for DOCX, deferred DOC/MSG, direct JPEG/PNG, mixed and nested EML,
 exact duplicate occurrences, malformed/resource-heavy DOCX, MIME limits even
 when earlier content confirms QDOS, and local artifact integrity. This proves

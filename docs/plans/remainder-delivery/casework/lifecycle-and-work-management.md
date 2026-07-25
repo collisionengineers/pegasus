@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Own the case state, review gates, held/incomplete behaviour, terminal history, due-date work and source matching after a case is accepted. It keeps a case recoverable and auditable; it does not invent a chase cadence or reopen destination.
+Own case state, the pre-assignment review gate, held/incomplete behaviour, terminal history, due-date work and source matching after a case is accepted. It keeps a case recoverable with permanent action history and applies the settled chase, Held-release and reopen rules.
 
 ## Authority and current boundary
 
@@ -10,13 +10,13 @@ Own the case state, review gates, held/incomplete behaviour, terminal history, d
 - **Policy owner:** planned Core `CaseLifecycle` and `CaseWork` policies.
 - **Current implementation:** there is no lifecycle, transition, review gate, due date, chaser, merge or reopen policy. Existing intake receipt decisions are pre-case processing outcomes, not a case state machine.
 - **Real callers:** `/Intake/Upload` currently creates only a pre-case receipt/draft. Accepted case detail, review actions, Worker reminders and workspace queues are **planned**.
-- **Persistence/adapters:** planned state/history, review, due date, completeness, held reason, association and reminder data. Existing `IntakeAuditEvents` is receipt-owned provenance, not the permanent business-audit catalogue.
-- **Dependencies:** accepted case/identity, staff authorisation/audit, source custody and the [exclusive case-edit guard](case-editing-concurrency.md) for every mutable caller. Domain policy can be defined independently, but no unguarded caller is emitted.
+- **Persistence/adapters:** planned state/history, review, due date, completeness, held reason, preserved chase interval, association and reminder data. Existing `IntakeReceiptEvents` is receipt-owned provenance, not permanent business action history.
+- **Dependencies:** accepted case/identity, staff authorisation/action history, source custody and the [exclusive case-edit guard](case-editing-concurrency.md) for every mutable caller. Domain policy can be defined independently, but no unguarded caller is emitted.
 - **Replaces/consolidates:** replace any route-specific state logic with one Core policy called by Web, Worker and future API/MCP.
 
 ## Shared failure and observability rules
 
-Administrator, Engineer and User may transition/review; automated actions follow the same policy. Every transition, reason/context, prior/new state and actor is permanent audit history. `Triage` stays a reserved pre-case work type; `Blocked intake` is not a case state. `Held` has a required reason and pauses progression/chasers while due dates remain visible. A failure to decide state or association must be operator-visible and retain work rather than lose/guess it.
+Administrator, Engineer and User may transition/review; automated actions follow the same policy. Every transition, reason/context, prior/new state and actor enters permanent action history. `Triage` is a separate pre-case business workflow with its own owner and caller, never an inbox category or case state; `Blocked intake` is not a case state. `Held` has a required reason and pauses progression/chasers while due dates remain visible. A failure to decide state or association must be operator-visible and retain work rather than lose/guess it.
 
 ## Implement state, reviews, terminal history and matching
 
@@ -25,44 +25,45 @@ Administrator, Engineer and User may transition/review; automated actions follow
 ### Authority and decision gate
 
 - **Requirement/decision:** questionnaire §§4–5, remaining requirements §4.
-- **Confirmed facts:** active work moves through incomplete/chasing, ready/review and inspection/report preparation; provider cancellation and Collision Engineers rejection are independent terminal outcomes; both review gates are required. Post-report states exist conceptually but are not enterable until report-sent evidence is settled.
-- **Decision required before implementation:** [reopen destination](../../open-decisions.md#reopen-destination), [leaving `Held`](../../open-decisions.md#leaving-held), and [authoritative sent-report evidence](../../open-decisions.md#authoritative-sent-report-evidence-and-time) block only their named transitions.
+- **Confirmed facts:** active work moves through incomplete/chasing, ready/review and inspection/report preparation; provider cancellation, Collision Engineers rejection and `Created in error` are independent terminal outcomes. The required review gate is before Engineer assignment; there is no review gate before sending a report. Reopening requires a reason and an operator-selected otherwise-valid nonterminal state; normal gates apply, `Held` remains a separate action, and `Created in error` never reopens. A report-send action is evidenced by an exact Outlook Sent item from the approved mailbox allowlist. When automatic matching is absent or ambiguous, any staff role may link the exact item with an entered reason; Outlook `sentDateTime` is authoritative while discovery/link times are retained separately. Any staff role may unlink/relink with a reason and dependent events/dashboard counts are recomputed. Once confirmed, the report-sent event remains final if Outlook later moves or deletes the item.
+- **Decision required before implementation:** none for the state transitions in this slice. Exact automatic Sent-item matching and ambiguity rules remain deferred to the combined mailbox/email research package; the current caller must require explicit staff association of the exact item rather than guess.
 
 ### Owner and dependencies
 
 - **Policy/implementation owner:** Core `CaseLifecycle` with an explicit transition contract.
 - **Independent evaluator:** test engineer tests transition matrix and merge reversal; operator validates vocabulary/workflow.
-- **Prerequisites:** accepted case identity, current actor/roles, immutable audit writer and typed case data.
+- **Prerequisites:** accepted case identity, current actor/roles, append-only action-history writer and typed case data.
 - **Consumers/unlocks:** the exclusive case-edit guard, work queues, case-detail UI, export/custody lock and planned remote callers.
 
 ### Caller, contract and change boundary
 
 - **Real or intended caller:** planned case-detail actions and review pages; no current lifecycle caller. The policy may be tested first, but no mutable Web or MCP caller may be enabled until the exclusive lease/version guard calls it.
-- **Input/output:** authorised actor, requested state/work action and reason/context yield an allowed new state/audit or a typed refusal. Definitive instruction/image match may associate records; uncertain match goes to `Needs sorting`.
-- **Ordered decisions and failure behavior:** the public staff mutation entry first validates the exclusive lease token and case version, then authorises and delegates to lifecycle policy; validate current state/review gate/completeness gate; require held/cancel/reject/merge-reversal reasons; atomically mutate state and audit. Review before Engineer assignment and before report send is mandatory. Reopen remains unavailable until the decision gate is settled.
+- **Input/output:** authorised actor, requested state/work action and reason/context yield an allowed new state/action-history entry or a typed refusal. Definitive instruction/image match may associate records; uncertain match goes to `Needs sorting`.
+- **Ordered decisions and failure behavior:** the public staff mutation entry first validates the exclusive lease token and case version, then authorises and delegates to lifecycle policy; validate current state/pre-assignment review/completeness gates; require held/cancel/reject/merge-reversal/reopen reasons; atomically mutate state and action history. Do not impose a pre-send report review gate. Reopen permits an operator-selected otherwise-valid nonterminal destination subject to normal gates, refuses `Held` as a reopen destination, and refuses `Created in error`. Record `Report sent` only from an exact Sent item re-read within the approved mailbox/folder scope. When staff link because automatic evidence is absent/ambiguous, require the entered reason and store `sentDateTime`, discovery time and link time separately. Reasoned unlink/relink atomically recomputes first/report events and dashboard totals without erasing earlier history; later Outlook move/delete does not reverse a confirmed event.
 - **Persistence/migration:** persist state/history, review records, staff-complete instruction/images flags, held reason, associations and reversible merge history; never delete cases.
-- **Adapters/side effects:** no direct EVA assignment/report send; emit external work only after lifecycle transaction. Closed files are application read-only until an authorised reopen in the later settled slice.
+- **Adapters/side effects:** no direct EVA assignment/report send; emit external work only after lifecycle transaction. Closed files are application read-only until a reasoned authorised reopen to an otherwise-valid nonterminal state.
 - **Operator surface and observability:** show current state, pending gate, held reason, history and association provenance; record typed denied-transition outcomes.
 - **Documentation affected:** links to decision register; no edit to operator notes.
 - **Replaces/consolidates:** no implemented lifecycle to preserve; ensure receipt decisions do not become duplicate case states.
 
 ### Scope
 
-- **Included:** permitted pre-report states, entry to reasoned `Held`, review gates, provider cancellation/Collision Engineers rejection, completeness semantics, definitive image/instruction matching and audited merge reversal.
-- **Excluded:** leaving `Held`, reopening, report-sent transition, entry to post-report, post-report completion, principal correction/freeze, document revision implementation, EVA assignment and automatic messaging until their decisions are settled.
+- **Included:** permitted states, entry to and settled release from reasoned `Held`, pre-assignment review, provider cancellation/Collision Engineers rejection/`Created in error`, reasoned reopen, completeness semantics, definitive image/instruction matching and action-history-backed merge reversal.
+- **Excluded:** a pre-send report review gate, automatic Sent-item matching, principal/reference mutation, document revision implementation, direct EVA assignment and automatic messaging.
 
 ### Implementation checklist
 
-- [ ] Define one case transition policy and persist state/audit/review/completeness/association data in the existing migration stream.
-- [ ] Implement review gates, held reason, terminal outcomes and explicit association/merge/reversal actions through planned case-detail caller.
-- [ ] Keep reopen unavailable pending the canonical decision; remove any route-local state decision.
+- [ ] Define one case transition policy and persist state/action-history/review/completeness/association data in the existing migration stream.
+- [ ] Implement the pre-assignment review, Held enter/release, terminal/reopen and explicit association/merge/reversal actions through the planned case-detail caller.
+- [ ] Record report-sent state only from the exact approved-mailbox Sent item; support reasoned staff link/unlink/relink and separate authoritative sent/discovery/link times while keeping automatic matching absent.
 
 ### Validation checklist
 
-- [ ] Exercise each allowed role across incomplete, review, entry to held, inspection and the two independent terminal outcomes; prove every withheld edge and missing reason is refused.
+- [ ] Exercise each allowed role across incomplete, review, Held enter/release, inspection, report sent, terminal and reopen outcomes; prove missing reasons, invalid destinations, `Created in error` reopen and a fabricated/unapproved-mailbox Sent item are refused.
+- [ ] Prove missing/ambiguous automatic evidence can be resolved only by an exact-item link with reason; conflicting item/case/mailbox/folder/time evidence is refused, unlink/relink recomputes events/counts, and later Outlook move/delete leaves a confirmed event final.
 - [ ] Verify configurable completeness gate blocks Engineer assignment only when enabled and both staff confirmations are absent.
 - [ ] Verify definitive merge retains original origins; uncertain association remains `Needs sorting`; reversal restores traceable history.
-- [ ] Verify terminal cases are retained and cannot revise files without a later authorised reopen policy.
+- [ ] Verify terminal cases are retained and cannot revise files until a reasoned authorised reopen; `Created in error` never reopens.
 - [ ] Run the planned real caller only after the lease/version guard is called; prove direct/unguarded and stale-version mutations are refused, then run `pwsh ./scripts/Invoke-RepoCheck.ps1` and record results/limitations.
 
 ### Acceptance criteria
@@ -70,21 +71,23 @@ Administrator, Engineer and User may transition/review; automated actions follow
 | Scenario/input/boundary | Expected observable result | Evidence | Does not prove |
 |---|---|---|---|
 | Complete case awaiting pre-assignment | `Review` and gate visible; unauthorised/ungated assignment refused | caller/domain test | EVA submission |
-| Held case with reason | progression and chasers pause; due date remains visible | transition/query test | Chase timing rule |
+| Held case released to `Not ready` | progression resumes and the preserved local-clock chase remainder continues; due date stayed visible | transition/query/clock test | outbound delivery |
 | Uncertain image/instruction association | retained `Needs sorting`, no silent merge | negative test | Match-model accuracy |
-| Closed case reopen request | no transition until canonical decision exists | policy test | Future reopen destination |
+| Closed case reopened with reason | operator selects an otherwise-valid nonterminal state; normal gates apply; `Held` and `Created in error` are refused | case-detail-to-Core positive/negative tests | operator acceptance |
+| Report sent action | exact linked Outlook Sent item records one report event at authoritative `sentDateTime`; discovery/link times and reason are retained without a pre-send review gate | caller/adapter contract test | automatic matching or recipient receipt |
+| Reasoned unlink/relink | dependent events/counts recompute with full history; moved/deleted Outlook item does not undo a previously confirmed event | transaction/query tests | continued Outlook availability |
 
 ### Approval, rollout and rollback
 
-- **Approval-triggering action and exact scope:** product decision is required for reopen destination; no external mutation is authorised.
-- **Rollout/activation:** deploy migration and Core policy without a mutable caller; enable case-detail/MCP mutations only after role/audit and exclusive lease/version proof, then run the operator walkthrough per permitted transition.
-- **Rollback/recovery:** disable new actions while retaining append-only state history; repair with a new audited transition, never delete/overwrite history.
-- **Irreversible risk:** incorrect terminal/review state; mitigated by auditable forward correction and no permanent delete.
+- **Approval-triggering action and exact scope:** Outlook read access and any Sent-folder scope require exact mailbox/folder approval; no external mutation is authorised.
+- **Rollout/activation:** deploy migration and Core policy without a mutable caller; enable case-detail/MCP mutations only after role/action-history and exclusive lease/version proof, then run the operator walkthrough per permitted transition.
+- **Rollback/recovery:** disable new actions while retaining append-only state history; repair with a new action-history-backed transition, never delete/overwrite history.
+- **Irreversible risk:** incorrect terminal/review state; mitigated by a forward correction in permanent action history and no permanent delete.
 
 ### Deferred-capability impact
 
 - **Named capabilities:** EVA replacement/API, estimating/valuation, Diminution/Commercial, external accounts and automated document/file operations.
-- **Stable seam retained:** explicit state/action/audit contracts, case type and configurable completeness boundary do not hard-code a principal field matrix.
+- **Stable seam retained:** explicit state/action/action-history contracts, case type, external Sent-item identity and configurable completeness boundary do not hard-code a principal field matrix or automatic match rule.
 - **Future migration/replacement:** deferred workflows need their own states/actions only after product authority; direct EVA calls remain adapters.
 - **Activation boundary:** accepted requirements and real caller evidence for any additional workflow.
 - **Deliberately absent:** no separate state engine, EVA assignment adapter, customer workflow or dormant case-type route.
@@ -93,7 +96,7 @@ Administrator, Engineer and User may transition/review; automated actions follow
 
 | State/command/input | Result | Boundary exercised | Proves | Does not prove / skipped |
 |---|---|---|---|---|
-| Planned | Not run | Planning review | State owner, exclusions and proof are defined; reopen is withheld | Implementation, reopened case behaviour or acceptance |
+| Planned | Not run | Planning review | State owner, settled reopen/Held/report boundaries and proof are defined | Implementation, caller behavior, automatic Sent matching or acceptance |
 
 ## Surface due work and manual chasers
 
@@ -102,70 +105,75 @@ Administrator, Engineer and User may transition/review; automated actions follow
 ### Authority and decision gate
 
 - **Requirement/decision:** questionnaire §§5 and 7; remaining requirements §5.
-- **Confirmed facts:** extract inspection/equivalent deadline as `Due by`; missing material needs seven-day chasers; chaser text is copyable and outbound sending is manual; `Held` pauses chasers.
-- **Decision required before implementation:** [chase timing around `Not ready` and `Held`](../../open-decisions.md#chase-timing-around-not-ready-and-held) blocks scheduler persistence, first-due calculation and resumption tests.
+- **Confirmed facts:** extract inspection/equivalent deadline as `Due by`; missing material needs seven-day chasers; chaser text is copyable and outbound sending is manual. The first chase is due at the same Europe/London local clock time seven calendar days after entry to `Not ready`. `Held` preserves the remaining local-clock interval. On release, staff choose the prior state or `Review`; `Not ready` resumes the preserved remainder and `Review` ends the missing-information chase.
+- **Decision required before implementation:** none for the manual first-MVP cadence. Automated outbound delivery remains deferred.
 
 ### Owner and dependencies
 
-- **Policy/implementation owner:** Core `CaseWork` due/chaser policy after the decision gate.
+- **Policy/implementation owner:** Core `CaseWork` due/chaser policy.
 - **Independent evaluator:** test engineer; operator validates wording/copyability from genuine business shape without synthetic operational messages.
 - **Prerequisites:** lifecycle state/completeness, extracted/confirmed due-by field and source custody/Box file-request plan.
 - **Consumers/unlocks:** workspace overdue/`Not ready` views; planned Worker scheduler.
 
 ### Caller, contract and change boundary
 
-- **Real or intended caller:** planned case workspace creates copyable message; planned Worker evaluates due work. Neither exists today.
-- **Input/output:** due-by, missing-material reason and lifecycle state yield visible overdue state and, once settled, one next chase/reminder plus optional file-request link.
-- **Ordered decisions and failure behavior:** display due-by now; do not schedule until first-interval and held-exit rules are settled. Stop future chasers on material receipt/terminal state; never send automatically.
-- **Persistence/migration:** due-by provenance and eventual reminder schedule/history belong to case work; no hidden timer in Web/Worker.
-- **Adapters/side effects:** Box file-request creation is a separately approved adapter; copying text causes no system send.
-- **Operator surface and observability:** visible due date/overdue condition, missing reason and copyable text; log reminder decision without content.
+- **Real or intended caller:** planned authenticated case workspace prepares/copies the message and exposes a separate `RecordManualChaserOutcome` action; planned Worker evaluates due work. Neither exists today.
+- **Input/output:** `Not ready` entry time, Europe/London clock rules, due-by, missing-material reason, lifecycle state and any preserved Held remainder yield one visible next-chase time plus optional file-request link. The confirmation action accepts trusted actor, case/version, scheduled-chase occurrence/idempotency key, selected manual channel, staff-confirmed outcome and optional note and returns the persisted result/next schedule.
+- **Ordered decisions and failure behavior:** schedule seven calendar days from `Not ready` entry at the same London local clock time; on `Held`, preserve the remaining interval; on release to `Not ready`, resume that remainder, while release to `Review` ends the chase. Stop future chasers on material receipt/terminal state; never send automatically. Preparing, viewing or copying text is never evidence of sending. Only the explicit authenticated confirmation records the staff-confirmed outcome; double-submit returns the original occurrence result. Unauthorised, stale-version, unknown occurrence, closed, `Held` or no-longer-`Not ready` confirmation is refused without advancing cadence.
+- **Persistence/migration:** due-by provenance, reminder schedule/occurrence, idempotency key, actor/time/case/channel/staff-confirmed outcome and optional note belong to case work. The confirmation and schedule advancement commit with permanent action history; prepared/viewed/copied UI interactions remain content-safe telemetry and do not create sent history. No hidden timer in Web/Worker.
+- **Adapters/side effects:** Box file-request creation is separately approved. Preparation, copy and confirmation make no email, WhatsApp or other outbound adapter call; future delivery evidence is a separate integration boundary.
+- **Operator surface and observability:** visible due date/overdue condition, missing reason, copyable text and explicit confirmation control with pending/success/refused state. Neither telemetry nor permanent history stores the message body; both use occurrence/case/channel/result identifiers only.
 - **Documentation affected:** canonical decision link until settled.
 - **Replaces/consolidates:** no reminder implementation exists.
 
 ### Scope
 
-- **Included:** due-by visibility and bounded planned shape for manual chasers.
-- **Excluded:** scheduling/cadence/resumption until decision, automatic email/WhatsApp sending and unsanctioned Box calls.
+- **Included:** due-by visibility, settled manual-chaser scheduling/cadence/resumption, copy action and authenticated staff-confirmed outcome action.
+- **Excluded:** automatic email/WhatsApp sending and unsanctioned Box calls.
 
 ### Implementation checklist
 
 - [ ] Persist and display confirmed/extracted due-by provenance through case workspace.
-- [ ] Record the first-chase and Held-exit decision before adding schedule data, Worker trigger or acceptance tests.
-- [ ] After settlement, implement one Core reminder calculation and copyable message action; wire planned Worker only when it invokes that policy.
+- [ ] Implement one Europe/London-aware Core reminder calculation and copyable message action; wire the planned Worker only when it invokes that policy.
+- [ ] Persist the original interval and Held remainder so restarts and daylight-saving changes cannot silently reset the schedule.
+- [ ] Add the guarded manual-outcome command to the case workspace with actor/time/case/channel/outcome/optional note, expected version and occurrence idempotency; make no outbound adapter call.
 
 ### Validation checklist
 
 - [ ] Valid/absent/contradictory deadline renders correct visible due state without silently guessing.
-- [ ] Prove material receipt, terminal state and Held suppress future planned chases once cadence exists.
+- [ ] Prove exact seven-calendar-day first timing, Held preservation, `Not ready` remainder resumption, `Review` termination, material receipt and terminal suppression across London daylight-saving boundaries.
 - [ ] Prove no outbound email/WhatsApp/Box operation occurs when copying or viewing a chaser.
+- [ ] Prove prepared/viewed/copied states never appear as sent; explicit confirmation commits outcome/schedule/action history once; double-submit returns the original result.
+- [ ] Prove unauthorised, stale, closed, `Held`, terminal and superseded-occurrence submissions are refused without adapter call or schedule advancement, and no message body enters telemetry/history.
 - [ ] Exercise actual workspace and later Worker caller, plus `pwsh ./scripts/Invoke-RepoCheck.ps1`.
 
 ### Acceptance criteria
 
 | Scenario/input/boundary | Expected observable result | Evidence | Does not prove |
 |---|---|---|---|
-| Confirmed deadline past due | Due date and overdue work visible | UI/query test | Reminder cadence |
-| Chase timing unresolved | No scheduler enabled; decision register linked | configuration/policy test | Future schedule correctness |
+| Enter `Not ready` | next chase is the same Europe/London local clock time seven calendar days later | injected-clock policy/caller test | message delivery |
+| Release `Held` | prior state or `Review` is selectable; `Not ready` resumes preserved remainder and `Review` ends the chase | transition/schedule integration test | automated delivery |
 | Copy chaser | Staff can copy text; no message is sent | UI/adaptor-negative test | Delivered communication |
+| Staff confirms a manual outcome | actor/time/case/channel/outcome/optional note persist once and cadence advances only when policy permits | Web-to-Core transaction/idempotency test | external send or delivery |
+| Double-submit or stale/closed/Held case | original result or typed refusal; no duplicate history/schedule advance and zero outbound calls | negative caller/transaction test | future messaging adapter |
 
 ### Approval, rollout and rollback
 
-- **Approval-triggering action and exact scope:** settle cadence/restart policy before schedule activation; Box file request and any external write require exact-target approval.
-- **Rollout/activation:** show due dates first; after decision, migrate schedules and enable one real Worker caller with bounded retries.
+- **Approval-triggering action and exact scope:** Box file request and any external write require exact-target approval; manual copy requires none.
+- **Rollout/activation:** show due dates, migrate schedules and enable one real Worker caller with bounded retries after focused clock/restart proof.
 - **Rollback/recovery:** disable scheduler/caller, retain scheduled history and reconstruct pending work visibly; never lose a due date.
 - **Irreversible risk:** unwanted chaser activity; first MVP has no automated send.
 
 ### Deferred-capability impact
 
 - **Named capabilities:** automated outbound chasers, WhatsApp ingestion/automation, wider mailbox coverage and Box file requests.
-- **Stable seam retained:** explicit missing-material reason, due-by provenance and a Core reminder decision support later adapters.
+- **Stable seam retained:** explicit missing-material reason, due-by provenance, scheduled occurrence identity and staff-confirmed channel/outcome support later adapters without treating manual confirmation as external delivery evidence.
 - **Future migration/replacement:** outbound delivery status/retries/consent need a separately approved communication slice.
-- **Activation boundary:** canonical cadence decision, real Worker evidence and explicit external approval.
+- **Activation boundary:** real Worker evidence and explicit external approval for any Box or sending side effect.
 - **Deliberately absent:** no mail sender, WhatsApp client, cron-only policy or dormant reminder queue.
 
 ### Completion evidence
 
 | State/command/input | Result | Boundary exercised | Proves | Does not prove / skipped |
 |---|---|---|---|---|
-| Planned | Not run | Planning review | Due-work sequence and explicit cadence withholding | Scheduler, outbound delivery or acceptance |
+| Planned | Not run | Planning review | Due-work sequence, settled cadence and proof boundaries | Scheduler implementation, outbound delivery or acceptance |

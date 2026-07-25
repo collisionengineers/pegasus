@@ -1,0 +1,18 @@
+{
+  "name": "repoplugin-debugging",
+  "version": "0.1.0",
+  "description": "Evidence-led failure diagnosis with reproducible facts and implementation handoffs.",
+  "author": {
+    "name": "CollisionSpike v2 development team"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Repository Debugging",
+    "shortDescription": "Reproduce, diagnose, and hand off failures.",
+    "longDescription": "Reproduces repository failures before diagnosis, distinguishes facts from hypotheses, records root cause, and returns an approved remediation to implementation.",
+    "developerName": "CollisionSpike v2 development team",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": "Reproduce and diagnose this repository failure without silently changing it."
+  }
+}

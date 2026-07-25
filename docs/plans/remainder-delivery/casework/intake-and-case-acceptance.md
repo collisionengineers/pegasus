@@ -10,13 +10,13 @@ Turn a durable, reviewable instruction or image intake into one accepted QDOS ca
 - **Policy owner:** `ProcessIntake` is the single Core receive/process use case for Web and later Worker/provider callers. One contained `QdosInstructionExtractionPolicy` owns QDOS recognition and typed suggestions; a planned `AcceptCaseDraft` command owns the one authorised case-creation transaction.
 - **Current implementation:** `ProcessIntake`, the provider-neutral EF intake store, `IntakeReceiptEntity`, and `InstructionDraftEntity` form one local pre-case proof. Channel occurrence identity is idempotent, equal bytes may remain separate occurrences, and this path has no case/reference allocator.
 - **Real callers:** `/Intake/Upload` is the only current real intake caller, and only in Development with `Features:LocalIntake`; Graph Worker, provider API, MCP and authenticated staff intake pages are **planned**.
-- **Persistence/adapters:** current SQLite/SQL receipt, typed-draft, asset and audit tables. SHA-256 is integrity/possible-duplicate evidence rather than receipt identity; production custody remains later.
-- **Dependencies:** the current local caller and extraction/provenance contracts are sufficient for the read-only relational-draft slice. An audited staff or approved automation actor, durable custody, configured principal and [case identity](case-identity-and-references.md) are prerequisites for case creation.
+- **Persistence/adapters:** current SQLite/SQL receipt, typed-draft, asset and receipt-event tables. SHA-256 is integrity/possible-duplicate evidence rather than receipt identity; production custody remains later.
+- **Dependencies:** the current local caller and extraction/provenance contracts are sufficient for the read-only relational-draft slice. A staff or approved automation actor recorded in permanent action history, durable custody, configured principal and [case identity](case-identity-and-references.md) are prerequisites for case creation.
 - **Replaces/consolidates:** the provider-neutral use case replaces the former QDOS-shaped receipt/storage/route spine without adding a second intake engine. Content hash remains integrity and possible-duplicate evidence rather than receipt identity.
 
 ## Shared failure and observability rules
 
-An uncertain classification, association, principal, vehicle registration, case type, identity-critical conflict, or standalone-Audit assessment is a retained pre-case outcome, never a best guess. `Needs sorting` means uncertain classification/association; staff-selected `Blocked intake` requires a reason and warning. Both retain source/provenance and allocate neither case nor reference. Persist correlation, actor, source identity and content-safe failure category; do not log source content. Every accept, block, retry and merge decision is permanently audited.
+An uncertain classification, association, principal, vehicle registration, case type, identity-critical conflict, or standalone-Audit assessment is a retained pre-case outcome, never a best guess. `Needs sorting` means uncertain classification/association; staff-selected `Blocked intake` requires a reason and warning. Both retain source/provenance and allocate neither case nor reference. `Triage` routes to its separate business workflow and never becomes a generic category or case state. Persist correlation, actor, source identity and content-safe failure category; do not log source content. Every accept, block, retry and merge decision enters permanent action history.
 
 ## Review and resolve an intake draft
 
@@ -26,13 +26,13 @@ An uncertain classification, association, principal, vehicle registration, case 
 
 - **Requirement/decision:** questionnaire §§4–6 and remaining requirements §§2–4.
 - **Confirmed facts:** provider-neutral field candidates/provenance remain immutable versioned JSON evidence; an applicable QDOS policy result may persist unambiguous values in a relational read-only instruction draft and suggest QDOS. Non-QDOS or ambiguous input receives no principal suggestion. The original source is retained locally but is not durable first-MVP custody. Receipt processing creates no case/reference.
-- **Decision required before the next mutation:** actor/audit, durable custody, principal configuration and the case-acceptance transaction remain separate planned boundaries. Operator resolution is required only when the automatic predicate is not definitive; it is not a universal gate on new instructions. Worker/API source identity and Box custody are not a licence to call either system.
+- **Decision required before the next mutation:** actor/action history, durable custody, principal configuration and the case-acceptance transaction remain separate planned boundaries. Operator resolution is required only when the automatic predicate is not definitive; it is not a universal gate on new instructions. Worker/API source identity and Box custody are not a licence to call either system.
 
 ### Owner and dependencies
 
 - **Policy/implementation owner:** Core `ProcessIntake` owns intake orchestration and the one typed-draft persistence model; `QdosInstructionExtractionPolicy` owns only QDOS evidence and field rules.
 - **Independent evaluator:** test engineer with a frozen operator-reviewed QDOS cohort and author-hidden holdout.
-- **Prerequisites:** current Development caller and typed extraction provenance. Authenticated actor/audit and durable production custody are required before confirmation or acceptance, not before a read-only local draft.
+- **Prerequisites:** current Development caller and typed extraction provenance. Authenticated actor/action history and durable production custody are required before confirmation or acceptance, not before a read-only local draft.
 - **Consumers/unlocks:** reviewed staff UI, later Worker/API/MCP callers, case acceptance and inbox work views.
 
 ### Caller, contract and change boundary
@@ -49,7 +49,7 @@ An uncertain classification, association, principal, vehicle registration, case 
 ### Scope
 
 - **Included:** provider-neutral receipt/review/provenance, channel-source-identity idempotency, and a QDOS-derived relational typed instruction draft through the existing Development caller.
-- **Excluded:** editing, confirmation, `Blocked intake`, case/reference creation, authenticated audit, automated mailbox receipt, provider API, OCR, DOC/MSG extraction, WhatsApp automation and case matching.
+- **Excluded:** editing, confirmation, `Blocked intake`, case/reference creation, authenticated action history, automated mailbox receipt, provider API, OCR, DOC/MSG extraction, WhatsApp automation and case matching.
 
 ### Implementation checklist
 
@@ -94,7 +94,7 @@ An uncertain classification, association, principal, vehicle registration, case 
 | State/command/input | Result | Boundary exercised | Proves | Does not prove / skipped |
 |---|---|---|---|---|
 | `pwsh ./scripts/Invoke-RepoCheck.ps1 -RequireCorpusEvidence` | Exit 0: Release build 0 warnings/errors; Core 28/28, non-corpus integration 82/82, architecture 30/30, genuine corpus 11/11; no failures/skips | Development `/Intake/Upload` caller, provider-neutral EF persistence, source/asset retention, strict SQLite baseline refusal, route guards, repository structure and Bicep compilation | Non-QDOS and transport-only QDOS evidence create no principal suggestion; local caller persists/replays typed pre-case drafts without case/reference schema; altered-byte token reuse and inconsistent policy results fail closed; supported genuine QDOS formats still traverse the caller | Operator-reviewed field accuracy/holdout, production custody, authentication, Worker, a live database upgrade, Azure deployment or business acceptance |
-| `dotnet test tests/CollisionSpike.IntegrationTests/CollisionSpike.IntegrationTests.csproj -c Release --no-build --no-restore --filter "Category=SqlServer"` | 11/11 passed; no failures/skips | Disposable LocalDB applies the single provider-neutral initial migration explicitly, including constraints, concurrency, audit-write rollback and retry | Fresh SQL Server schema and bounded transaction behavior for the test fixture | Azure SQL, a populated historical upgrade, production contention, release execution or restore |
+| `dotnet test tests/CollisionSpike.IntegrationTests/CollisionSpike.IntegrationTests.csproj -c Release --no-build --no-restore --filter "Category=SqlServer"` | 11/11 passed; no failures/skips | Disposable LocalDB applies the single provider-neutral initial migration explicitly, including constraints, concurrency, receipt-event rollback and retry | Fresh SQL Server schema and bounded transaction behavior for the test fixture | Azure SQL, a populated historical upgrade, production contention, release execution or restore |
 
 ## Accept a definitive case transaction
 
@@ -104,23 +104,23 @@ An uncertain classification, association, principal, vehicle registration, case 
 
 - **Requirement/decision:** questionnaire §§4–5 and remaining requirements §4.
 - **Confirmed facts:** automatic case creation on receipt of a definitive authorised new instruction is first-MVP scope. Missing non-identity details do not prevent the case: an automatically created incomplete case begins in `Not ready`; `Review` requires staff-confirmed completeness. A definitive match associates image-led evidence without allocating a second case/reference.
-- **Decision required before implementation:** None. The later report-sent freeze is explicitly withheld at [open decisions](../../open-decisions.md#authoritative-sent-report-evidence-and-time).
+- **Decision required before implementation:** None. Case principal/reference are immutable immediately on allocation; report evidence does not govern identity changes.
 
 ### Owner and dependencies
 
 - **Policy/implementation owner:** planned Core `AcceptCaseDraft` transaction; [case identity](case-identity-and-references.md) supplies its allocator.
 - **Independent evaluator:** separate test engineer; operator validates the QDOS acceptance journey.
-- **Prerequisites:** durable processed draft, authorised audited staff or automation actor, accepted automatic predicate, configured principal and reference-allocation transaction. Staff review is a prerequisite only for manual/resolved intake or completeness confirmation.
+- **Prerequisites:** durable processed draft, authorised staff or automation actor with permanent action history, accepted automatic predicate, configured principal and reference-allocation transaction. Staff review is a prerequisite only for manual/resolved intake or completeness confirmation.
 - **Consumers/unlocks:** lifecycle, workspace, Box custody outbox and EVA export plans.
 
 ### Caller, contract and change boundary
 
 - **Real or intended caller:** a future accepted-category flow from `ProcessIntake` may hand a definitive authorised Worker/provider instruction to `AcceptCaseDraft`; authenticated Web submission/resolution calls the same transaction for staff-initiated work. `/Intake/Upload` remains only the current development pre-case proof until those dependencies exist.
-- **Input/output:** a definitive instruction plus authorised source/actor yields exactly one QDOS case/reference in `Not ready`, unless an audited staff completeness confirmation already permits `Review`. Manual resolution/retry uses the same command. A definitive match to an existing image-led/case record associates the source and allocates no duplicate.
-- **Ordered decisions and failure behavior:** authorise the staff/service actor; re-read receipt, draft and acceptance evidence; require `Receiving work` or an authenticated principal-scoped provider instruction; require known principal/code, VRM, unambiguous case type, no identity-critical conflict and no unresolved association. A standalone Audit also requires an unambiguous original-report repairable/total-loss assessment. Idempotently return an existing acceptance/association, otherwise atomically create case, shared-sequence reference, source association, initial state, audit and custody outbox. Allocation exhaustion/concurrency/pre-commit failure is visible and leaves no partial case or counter movement. Post-commit custody failure retains the issued identity and retries without reallocation.
-- **Persistence/migration:** one Core transaction across case identity, typed data, intake association, audit and outbox; no parallel editable receipt/case authority.
+- **Input/output:** a definitive instruction plus authorised source/actor yields exactly one QDOS case/reference in `Not ready`, unless a staff completeness confirmation in permanent action history already permits `Review`. Manual resolution/retry uses the same command. A definitive match to an existing image-led/case record associates the source and allocates no duplicate.
+- **Ordered decisions and failure behavior:** authorise the staff/service actor; re-read receipt, draft and acceptance evidence; require `Receiving work` or an authenticated principal-scoped provider instruction; require known principal/code, VRM, unambiguous case type, no identity-critical conflict and no unresolved association. A standalone Audit also requires an unambiguous original-report repairable/total-loss assessment. Route business `Triage` to its separate owner and allocate no case through this command. Idempotently return an existing acceptance/association, otherwise atomically create case, shared-sequence reference, source association, initial state, action-history entry and custody outbox. Allocation exhaustion/concurrency/pre-commit failure is visible and leaves no partial case or counter movement. Post-commit custody failure retains the issued identity and retries without reallocation.
+- **Persistence/migration:** one Core transaction across case identity, typed data, intake association, action history and outbox; no parallel editable receipt/case authority.
 - **Adapters/side effects:** queue external custody after commit; an adapter failure blocks progression and is surfaced, never causes a second allocation.
-- **Operator surface and observability:** show whether the case was created automatically or by staff resolution, its case/reference, initial queue and any custody-pending warning; audit actor, channel, predicate evidence/policy version, reason and correlation.
+- **Operator surface and observability:** show whether the case was created automatically or by staff resolution, its case/reference, initial queue and any custody-pending warning; record actor, channel, predicate evidence/policy version, reason and correlation in permanent action history.
 - **Documentation affected:** source-of-truth links and evidence record only after implementation.
 - **Replaces/consolidates:** keep the retired raw-processing allocator absent; the future `AcceptCaseDraft` transaction becomes the sole owner of accepted case/reference creation.
 
@@ -137,11 +137,11 @@ An uncertain classification, association, principal, vehicle registration, case 
 
 ### Validation checklist
 
-- [ ] A definitive authorised instruction automatically creates one `Not ready` case despite missing non-identity data; only audited staff completeness confirmation permits `Review`.
+- [ ] A definitive authorised instruction automatically creates one `Not ready` case despite missing non-identity data; only staff completeness confirmation in permanent action history permits `Review`.
 - [ ] `DraftReady` with missing VRM, identity conflict, uncertain category/association/principal/case type, or missing standalone-Audit assessment allocates nothing. A staff-selected `Blocked intake` reason also allocates nothing until resolve/retry.
 - [ ] A definitive existing-case/image-led match associates without another reference; uncertain matching remains `Needs sorting`.
 - [ ] Parallel/replayed acceptance consumes one sequence; failed allocation/custody preparation leaves no partially visible accepted case.
-- [ ] Pre-case source never receives a reference; audit action has authenticated actor and required reason where applicable.
+- [ ] Pre-case source never receives a reference; action-history entry has authenticated actor and required reason where applicable.
 - [ ] Exercise the `/Intake/Upload` caller first; independently test SQL Server concurrency before release.
 - [ ] Run `pwsh ./scripts/Invoke-RepoCheck.ps1` and record its scoped result/limitations.
 
@@ -149,7 +149,7 @@ An uncertain classification, association, principal, vehicle registration, case 
 
 | Scenario/input/boundary | Expected observable result | Evidence | Does not prove |
 |---|---|---|---|
-| Authorised definitive Worker/provider instruction | One automatic case/reference in `Not ready`, audit and custody work | transaction + real-caller test | Box write succeeded |
+| Authorised definitive Worker/provider instruction | One automatic case/reference in `Not ready`, action history and custody work | transaction + real-caller test | Box write succeeded |
 | Staff confirms accepted case complete | Existing case moves to `Review`; no second reference | guarded Web caller test | later review outcome |
 | Identity/category/association/Audit evidence is uncertain | Retained pre-case warning or `Needs sorting`; allocator is not called | negative caller tests | later staff judgement |
 | Duplicate/concurrent acceptance | Original result returned; counter advances once | SQL concurrency test | Production load |
@@ -158,7 +158,7 @@ An uncertain classification, association, principal, vehicle registration, case 
 
 - **Approval-triggering action and exact scope:** QDOS case creation changes durable application state; operator acceptance is required before non-development activation. No cloud or external write is authorised here.
 - **Rollout/activation:** deploy migration explicitly; prove staff/manual resolution and automatic predicates locally; obtain operator acceptance of the genuine definitive/false-case cohort; then activate only the approved caller. Worker activation additionally waits for the mailbox-category decision, and provider activation waits for its wire/auth contract.
-- **Rollback/recovery:** disable acceptance caller; preserve accepted cases/audit and repair through audited operations, never sequence reuse.
+- **Rollback/recovery:** disable acceptance caller; preserve accepted cases/action history and repair through recorded forward operations, never sequence reuse.
 - **Irreversible risk:** reference allocation; counters and issued identities are never rewound.
 
 ### Deferred-capability impact

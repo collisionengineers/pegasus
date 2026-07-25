@@ -36,8 +36,8 @@ Create a small, navigable .NET 10 repository in which every dependency has one d
 |   |-- evaluation/
 |   |-- operator-notes/
 |   |-- plans/
-|   |-- runbooks/
-|   `-- ui-ux/
+|   |   `-- ui-ux/
+|   `-- runbooks/
 |-- retrospectives/
 |-- .codex/
 |   |-- agents/

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Review Implementation"
+  short_description: "Independently assess implementation against its plan."
+  default_prompt: "Use $review-implementation to review this implementation against its validated plan."
+policy:
+  allow_implicit_invocation: true

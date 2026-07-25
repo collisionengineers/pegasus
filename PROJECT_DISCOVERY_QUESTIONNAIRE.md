@@ -80,7 +80,11 @@ Add or remove rows as needed.
 
 **List the case stages in order, from initial instruction to final closure:**
 
-Triage is an optional pre-case stage and does not itself create a case.
+Triage is an optional, separate pre-case business record and does not itself create a case. An active Triage requires a vehicle registration; without one, retain the source in `Needs sorting`. Administrator, Engineer, and User roles may record the binary finding `Roadworthy` or `Unroadworthy`. Its states are `Open` or `Awaiting information`, then `Finding recorded`, then `Completed`. `Cancelled` is the only terminal Triage state without a finding. It has an optional assignee, no due date, and no chasers.
+
+Completing a Triage requires the exact reply-chain Outlook message found in Sent Items; subject, vehicle-registration, and manual-selection fallbacks are not sufficient. Evidence must come from an Administrator-maintained allowlist of approved shared or individual staff mailboxes. Before sending, staff may replace a finding with a required reason. After sending, a changed finding supersedes the earlier finding, requires a new response, and retains the full history. Reopening a completed or cancelled Triage always returns it to `Open`.
+
+A later case association is automatic only for a definitive shared match; otherwise staff confirm it. The Triage remains a separate linked record. Each Triage may link to at most one case, while a case may link to multiple Triage records. Any staff role may unlink or relink with a required reason. Every Triage mutation is recorded in permanent action history.
 
 1. Receiving and accepting instructions and/or images (case created)
 2. Chasing missing details, images, or documents when the case is incomplete
@@ -88,25 +92,30 @@ Triage is an optional pre-case stage and does not itself create a case.
 4. Inspection and report preparation
 5. Post-report queries or disputes
 
-A case reaches a terminal closed state through one of three outcomes:
+A case reaches a terminal closed state through one of four outcomes:
 
 1. Post-report work is complete
 2. The provider cancels the case
 3. Collision Engineers rejects or refuses the case
+4. The case was `Created in error` because its reference was allocated under the wrong principal
 
-**Who is allowed to move a case between each stage?**  Administrator, Engineer, and User roles may perform every case transition and both review gates. Only Administrators manage accounts, principals, and application configuration. Automated transitions use the same rules, and every user or automated action records its actor, timestamp, prior/new state, and reason or context.
+**Who is allowed to move a case between each stage?**  Administrator, Engineer, and User roles may perform every case transition and the pre-Engineer-assignment review gate. Only Administrators manage accounts, principals, application configuration, and the approved Outlook mailbox allowlist. Automated transitions use the same rules. Business actions are recorded under the permanent action-history boundary below.
 
-**Which stage changes require review or approval?**  Prior to being passed/assigned to an engineer (submission to EVA currently), and prior to the Engineer sending a report (as this goes to our work provider)
+**Which stage changes require review or approval?**  The configurable completeness and staff review gates apply before a case is passed or assigned to an Engineer. There is no pre-send report review gate. Engineers continue to send reports through the existing Outlook/EVA process; CollisionSpike detects sent evidence but never sends a report automatically.
 
-**Can a case be reopened after closure? If so, by whom and under what conditions?**  Yes. An authorised staff user may reopen any closed case. The reopening reason must be recorded in the permanent audit history.
+**Can a case be reopened after closure? If so, by whom and under what conditions?**  Yes. An authorised staff user must provide a reason and choose any otherwise-valid nonterminal workflow state; every normal gate for the chosen destination is enforced. `Held` is excluded because entering it is a separate reasoned action. A case closed as `Created in error` can never reopen. The action and reason are retained in permanent action history.
 
-**Can cases be merged, split, reassigned, cancelled, or deleted? Describe the rules.**  Instruction-initiated and image-initiated records may be merged automatically or manually when there is a definitive match. Administrator, Engineer, and User roles may reverse a mistaken merge, reassign a case before an Engineer report is sent, or cancel a case; every action and reason is audited.
+**Can cases be merged, split, reassigned, cancelled, or deleted? Describe the rules.**  Instruction-initiated and image-initiated records may be merged automatically or manually when there is a definitive match. Administrator, Engineer, and User roles may reverse a mistaken merge or cancel a case. Each reversal and cancellation requires a reason in permanent action history. Cases must never be permanently deleted and may only be archived.
 
-For a principal correction before Collision Engineers sends its first report for the case, retain the same case, allocate the next reference for the corrected principal using the calendar year in which the correction occurs, retain the prior reference permanently as a searchable alias, and never reuse either sequence number. The application does not reconcile external records automatically. If a Box folder already uses the former reference, show its link and require a separate audited confirmation of the manual Box update. If EVA contains the former reference, require a separate audited confirmation of the manual EVA update. Block work only until every applicable confirmation is complete; never require confirmation for an artefact that does not exist. If the error is discovered after Collision Engineers sends any report for the case, keep the original principal/reference and add a permanent audit note only. Cases must never be permanently deleted and may only be archived.
+Case principal and reference are immutable immediately upon reference allocation. If the wrong principal was used, close the erroneous original as `Created in error`, require a reason and a link to its replacement, and create the replacement as a new case under the corrected principal. Neither reference is reused, and the original can never reopen.
 
-**Which actions must be recorded in a permanent audit history?**  any user actions or automated actions
+**Which actions must be recorded in permanent action history?**  Include business mutations; downloads and exports; material denied or failed business actions; automated business results; and external information actually accepted, linked, or used. Account creation, role changes, disabling, and credential administration are permanent actions; sign-ins use the separate security log. Routine views, searches, refreshes, polling, retries, leases, heartbeats, and adapter mechanics go to content-safe telemetry rather than permanent action history.
 
-**What case, job, purchase-order, invoice, or report numbering rules must be preserved?**  Every work provider (also called a principal) has a principal code. The standard Case/PO format is `<principal-code><two-digit-current-year><three-digit-sequence>`, for example `QDOS26001`. The sequence is shared by all case types for that principal and year and increments once per case, so the next cases would be `QDOS26002`, `QDOS26003`, and so on.
+Each permanent action records structured before/after field values, actor, time, entered reason when required, and outcome. It excludes secrets and file or message bodies. An entered reason is mandatory for hold/release, cancellation, rejection, reopening, corrections, reversals or unlinks, principal/reference replacement changes, logical removal, overrides, and account or configuration changes.
+
+**What case, job, purchase-order, invoice, or report numbering rules must be preserved?**  Every work provider (also called a principal) has a principal code. The standard Case/PO format is `<principal-code><two-digit-current-year><three-digit-sequence>`, for example `QDOS26001`. The sequence is shared by all case types for that principal and year and increments once per case, so the next cases would be `QDOS26002`, `QDOS26003`, and so on. A principal code becomes immutable on first use.
+
+A legitimate code replacement creates a new linked principal and atomically deactivates the predecessor. In the cutover year, the replacement principal continues from the predecessor's next sequence number. In later years, its sequence starts at `001`. For example, if the predecessor's last 2026 reference ended in `004`, the replacement's first 2026 reference ends in `005`; its first 2027 reference ends in `001`.
 
 For a standalone Audit, use the assessment in the original Engineer's report: prefix a repairable report with `a.`, for example `a.QDOS26004`, and a total-loss report with `ap.`, for example `ap.QDOS26004`. If that original report is missing or its assessment is ambiguous, do not create the case or allocate a reference; retain the source in the inbox with a blocking warning so staff can resolve and retry it.
 
@@ -131,7 +140,7 @@ These references are entered into EVA and used as the corresponding Box folder n
 
 **What financial information is required?**  The architecture must accommodate repair estimate, vehicle valuation, and invoice amount. These values and their workflows are out of scope for the first MVP but must not require a redesign when introduced later.
 
-**Which fields are mandatory, optional, calculated, or restricted?**  Cases may exist with incomplete information during intake and chasing. Instruction completeness and image completeness are separate staff judgements. The backend provides a configurable on/off gate that, when enabled, prevents Engineer assignment until staff have confirmed both `Instruction complete` and `Images complete`; the gate must be changeable without a code deployment. The application still shows missing and contradictory values, but the first MVP does not enforce a hard-coded universal or principal-specific field matrix. Principal identity before reference allocation and a clear original-report assessment for a standalone Audit remain separate identity rules. Instruction date defaults to the current date when absent; Case/PO and audit references are calculated; inspection address may validly be `Image Based Assessment`; DVLA/DVSA and MOT-derived values are enriched or calculated when available. Financial fields planned for later are not required in the first MVP.
+**Which fields are mandatory, optional, calculated, or restricted?**  Cases may exist with incomplete information during intake and chasing. Instruction completeness and image completeness are separate staff judgements. The backend provides a configurable on/off gate that, when enabled, prevents Engineer assignment until staff have confirmed both `Instruction complete` and `Images complete`; the gate must be changeable without a code deployment. The application still shows missing and contradictory values, but the first MVP does not enforce a hard-coded universal or principal-specific field matrix. Principal identity before reference allocation and a clear original-report assessment for a standalone Audit remain separate identity rules. Instruction date defaults to the current date when absent; Case/PO and Audit references are calculated; inspection address may validly be `Image Based Assessment`; DVLA/DVSA and MOT-derived values are enriched or calculated when available. Financial fields planned for later are not required in the first MVP.
 
 **Do different case types require different fields or workflows?**  Yes. The active case types are Inspection, Audit, and Inspection + Audit. A standalone Audit includes the other firm's original Engineer report and derives its `a.` or `ap.` reference from that report's repairable/total-loss assessment. Inspection + Audit begins as an Inspection and creates its Audit reference and Box subfolder after Collision Engineers' own Engineer assessment. Diminution and Commercial must be represented in the architecture but are deferred beyond the first build.
 
@@ -141,10 +150,12 @@ These references are entered into EVA and used as the corresponding Box folder n
 
 - Case queues: `Not ready`, `Review`, and `Held`
 - Inbox queues: `Receiving work`, `Queries`, `Other`, `Needs sorting`, and the manual `Blocked intake` filter
-- Today/this-week activity: `In today`, `Submitted today`, and `Cleared this week`
+- Calendar activity: `In today`, paired `Sent to Engineer` today/week totals, and paired `Reports sent` today/week totals
 - A visible last-updated time and manual refresh action
 
-`Not ready` contains incomplete cases being chased. `Review` contains complete cases awaiting a required pre-assignment or pre-report approval. `Held` is a manual case pause with a required reason; it blocks progression and recurring chasers while due dates remain visible. `Blocked intake` is pre-case and manually chosen by staff, creates no case/reference, and retains the source, reason, warning, and retry action. `Needs sorting` remains for uncertain classification or association rather than a known blocker.
+`Not ready` contains incomplete cases being chased. `Review` contains complete cases awaiting the required pre-assignment approval. `Held` is a manual case pause with a required reason; it blocks progression and recurring chasers while due dates remain visible. `Blocked intake` is pre-case and manually chosen by staff, creates no case/reference, and retains the source, reason, warning, and retry action. `Needs sorting` remains for uncertain classification or association rather than a known blocker.
+
+Dashboard calendar days run from Europe/London midnight to midnight; weeks run Monday midnight to the following Monday midnight. `In today` counts cases created in the current London calendar day. `Sent to Engineer` counts each case once. In the first MVP, its evidence is the first successful generation of the EVA JSON and image export: this is an explicit proxy and does not prove EVA receipt. A future EVA replacement records actual Engineer assignment instead. `Reports sent` counts every successfully sent report, so one case may contribute more than once. Evidence unlink/relink recomputes these counts.
 
 Each tile or filter shows its current count and opens the corresponding work view. The first MVP must also export the case's structured JSON together with its stored images for transfer into EVA. This is an interim integration until EVA's API becomes usable.
 
@@ -159,32 +170,34 @@ Each tile or filter shows its current count and opens the corresponding work vie
 
 **Must photographs preserve original files and metadata?**  no
 
-**Must files become immutable after submission, approval, or case closure?**  When a case is closed, its files become read-only at the application level. An authorised staff user must reopen the case before files can be changed, replaced, or removed. Reopening and subsequent file changes must be recorded in the permanent audit history. This is a reversible workflow lock rather than irreversible storage immutability.
+**Must files become immutable after submission, approval, or case closure?**  When a case is closed, its files become read-only at the application level. An authorised staff user must reopen the case before files can be changed, replaced, or removed. Reopening and subsequent file changes must be recorded in permanent action history. This is a reversible workflow lock rather than irreversible storage immutability.
 
-**Should revised documents create a new version or replace the previous file?**  Revised documents create a new version and retain every previous version. Replacement must not destroy the earlier content, and each revision must be audited.
+**Should revised documents create a new version or replace the previous file?**  Revised documents create a new version and retain every previous version. Replacement must not destroy the earlier content, and each revision is recorded in permanent action history.
 
-**Who may view, upload, download, replace, or delete evidence?**  Authenticated Administrator, Engineer, and User roles may view, upload, and download case evidence. They may revise or remove evidence only while the case is open or has been reopened. Revisions retain previous versions, removals are logical rather than permanent, and all actions are audited. External clients have no access.
+**Who may view, upload, download, replace, or delete evidence?**  Authenticated Administrator, Engineer, and User roles may view, upload, and download case evidence. They may revise or remove evidence only while the case is open or has been reopened. Revisions retain previous versions, removals are logical rather than permanent, and all actions are recorded in permanent action history. External clients have no access.
 
 **Are virus scanning, OCR, image processing, redaction, or AI classification required?**  Automated malware scanning is deferred beyond the first MVP. The first MVP uses deterministic local extraction first and OCR only for scan-like PDF pages that lack usable embedded text. Ordinary email image attachments, inline images, DOCX images, and discrete PDF images are retained as separate review candidates and are not sent to OCR. Automated vehicle-registration OCR/VLM, in-app AI, guided image capture, image/vision-AI assistance, and automated malware scanning are planned beyond the first MVP. Redaction is not required.
 
 **Direct product decision — 2026-07-23:** automated vehicle-registration OCR/VLM is deferred beyond the first MVP. This resolves the older combined operator-note wording by separating two capabilities: OCR of scan-like PDF instruction pages remains required in the first MVP; reading a VRM automatically from ordinary vehicle images does not. Until the later capability is activated, staff may identify image-led work by a readable registration and all images remain reviewable evidence. Activation requires representative accuracy evidence, a selected adapter/service and licence/cost approval; this decision adds no dormant OCR/vision client, endpoint, queue, configuration or feature flag now.
 
-**Are digital signatures or evidential chain-of-custody records required?**  No. The permanent action audit and retained file-version history are sufficient.
+**Are digital signatures or evidential chain-of-custody records required?**  No. Permanent action history and retained file-version history are sufficient.
 
 
 ## 7. Communications and tasks
 
 **Should the system send or receive email? Describe the mailboxes and flows.**  Yes. The first MVP automatically ingests the new shared `instructions@collisionengineers.co.uk` mailbox. The full product must ingest and classify all received email from `desk@collisionengineers.co.uk`, `engineers@collisionengineers.co.uk`, `info@collisionengineers.co.uk`, and `instructions@collisionengineers.co.uk`. Inbound email may contain PDF, DOC/DOCX, freehand instruction text, images, queries, or other correspondence. The system must support outbound chasers/file requests for missing information or images and, eventually, general case email management from within the application.
 
-Mailbox categorisation is a major long-term architectural scope. Approved rules must be extensible and modifiable through one Core-owned policy rather than copied into Web, Worker, API, MCP, or individual mailbox adapters. The exact category predicates, rule-authoring authority, change mechanism, precedence, versioning, audit, correction, and rollback behavior remain decisions to settle before implementing automatic categorisation; this decision does not authorise a generic rule engine or dormant configuration model now.
+Mailbox categorisation and all automatic email matching are one combined open research decision routed through `docs/plans/mailbox-categorisation-and-email-matching/README.md`. Approved rules must be extensible and modifiable through one Core-owned policy rather than copied into Web, Worker, API, MCP, or individual mailbox adapters. Do not implement automatic categorisation or matching, invent predicates, or add a generic rule engine or dormant configuration model before that research is accepted.
 
-**Must email and attachments be automatically associated with cases?**  Yes. Related emails and attachments must be identified, associated with the correct case automatically where a definitive match exists, shown in the case history, and stored in the corresponding Box case folder. Uncertain matches go to the `Needs sorting` queue for staff review.
+**Must email and attachments be automatically associated with cases?**  Yes, but all automatic email matching remains inside the combined open research decision. Once accepted, related emails and attachments may be associated automatically only where the approved policy proves a definitive match. Uncertain matches go to `Needs sorting` for staff review. This does not change the separately settled Triage-to-case linking rule.
+
+**What proves that Collision Engineers sent a report?**  One exact Outlook Sent item from a mailbox on the Administrator-maintained allowlist of approved shared and individual staff mailboxes. CollisionSpike detects sent reports but never sends them automatically. Automatic matching remains deferred with the combined mailbox-categorisation and email-matching research. If evidence is absent or ambiguous, an authorised staff user may link the exact Sent item with a required reason; subject-only or other inferred evidence is insufficient. Outlook `sentDateTime` is the authoritative business time, while discovery and link times are retained separately in permanent action history. Any staff role may unlink or relink with a reason, which recomputes dependent events and dashboard counts. A confirmed sent event remains final if Outlook later moves or deletes the message.
 
 **Are SMS, Teams, portal notifications, or other channels required?**  WhatsApp remains a manual staff channel in the first MVP. Staff may manually add received WhatsApp images or information to the relevant case. The architecture should preserve WhatsApp coexistence as a potential future automation and ingestion route. No direct SMS, Teams, customer-portal, or WhatsApp integration is required in the first MVP.
 
-**What tasks, reminders, deadlines, escalations, or service-level timers are required?**  While a case is waiting for missing details, images, or documents, create a recurring reminder to chase every seven days. Stop future chase reminders when the required material is received or the case reaches a terminal state. Extract the inspection date, or equivalent deadline stated in the instructions, as the case's `Due by` date and use it to identify overdue work.
+**What tasks, reminders, deadlines, escalations, or service-level timers are required?**  Entering `Not ready` schedules the first chase at the same Europe/London local clock time exactly seven calendar days later; subsequent outstanding chasers follow the same seven-calendar-day cadence. Entering `Held` preserves the prior state and any remaining local-clock chase interval. Release offers the prior state or `Review`; returning to `Not ready` resumes the preserved remainder, while choosing `Review` ends the missing-information chase. Receiving the required material or entering any terminal case state also stops future chasers. Extract the inspection date, or equivalent deadline stated in the instructions, as the case's `Due by` date and keep it visible while held.
 
-**Who may create, assign, complete, or cancel tasks?**  Authorised Administrator, Engineer, and User roles may create, assign, complete, or cancel case tasks. The system may create recurring chase reminders automatically. All task actions are included in the permanent audit history.
+**Who may create, assign, complete, or cancel tasks?**  Authorised Administrator, Engineer, and User roles may create, assign, complete, or cancel case tasks. The system may create recurring chase reminders automatically. All task actions are included in permanent action history.
 
 **Which communications need templates and approval?**  Automated sending is out of scope for the first MVP. For chasing missing information, images, or documents, the application generates a clickable message that staff can copy and paste into email or WhatsApp. Where useful, the application also creates or includes a Box file-request link. Because staff send the copied message manually, no separate in-app approval workflow is required in the first MVP.
 
@@ -211,14 +224,14 @@ Complete the required integrations and identify the system that remains authorit
 
 **What are the provider API and MCP boundaries?**  The provider HTTP API uses separately issued principal-scoped client IDs and opaque secrets. It accepts idempotent instruction and attachment submissions and lets a principal retrieve only its own submission receipt, processing status, and resulting Case/PO. It does not expose general case reads or workflow mutation in the first MVP.
 
-MCP is a separate internal staff surface, primarily for Claude Desktop. Each staff member authorises the remote connector through CollisionSpike using OAuth, and every call uses that person's current application role and permanent audit identity. MCP may expose the full case, inbox, and document actions that the signed-in role can perform through the staff UI, but it does not expose account/role administration, principal configuration, credential management, cloud operations, or permanent deletion. Both surfaces call the same Core use cases and authorization policies as the staff Web application.
+MCP is a separate internal staff surface, primarily for Claude Desktop. Each staff member authorises the remote connector through CollisionSpike using OAuth, and every call uses that person's current application role and permanent action-history identity. MCP may expose the full case, inbox, and document actions that the signed-in role can perform through the staff UI, but it does not expose account/role administration, principal configuration, credential management, cloud operations, or permanent deletion. Both surfaces call the same Core use cases and authorization policies as the staff Web application.
 
 
 ## 9. Existing data and migration
 
 **Must any data from the previous application be migrated?**  No. CollisionSpike v2 starts fresh and does not import legacy application cases.
 
-**Which cases, users, documents, emails, audit records, or reference data must be retained?**  No legacy application cases, users, audit records, or application state are migrated into v2. Existing historical documents and operational records remain in their existing Box, EVA, Outlook, spreadsheet, or network-drive locations. Required principal codes and other operational reference data are recreated cleanly for v2 rather than migrated wholesale.
+**Which cases, users, documents, emails, action-history records, or reference data must be retained?**  No legacy application cases, users, action-history records, or application state are migrated into v2. Existing historical documents and operational records remain in their existing Box, EVA, Outlook, spreadsheet, or network-drive locations. Required principal codes and other operational reference data are recreated cleanly for v2 rather than migrated wholesale.
 
 **Where is the existing data currently stored?**  Box stores long-term case files; EVA stores current case-management, estimating, valuation, and report data; Outlook stores email; Excel acts as the current ready/not-ready holding pen; and unmatched WhatsApp images may temporarily be stored on the network drive.
 
@@ -235,9 +248,9 @@ MCP is a separate internal staff surface, primarily for Claude Desktop. Each sta
 
 **What categories of personal, sensitive, financial, or legally privileged data will be stored?**  Operational case content can include claimant names and contact/address information, provider and insurer details, claim references, vehicle registrations and details, accident circumstances and dates, inspection locations, emails, documents, vehicle images, Engineer reports, and post-report correspondence. Repair estimates, valuations, and invoice amounts are planned for later. No special data-classification feature is required for the first MVP.
 
-**What is the retention period for cases, documents, logs, backups, and audit records?**  No application-enforced retention or automatic deletion period is required for the first MVP. Box remains the long-term document store, and v2 case and audit records are retained unless Collision Engineers defines a later policy.
+**What is the retention period for cases, documents, logs, backups, and action-history records?**  No application-enforced retention or automatic deletion period is required for the first MVP. Box remains the long-term document store, and v2 case and action-history records are retained unless Collision Engineers defines a later policy.
 
-**When may data be deleted, and who can authorise deletion?**  Cases are never permanently deleted through the application and may only be archived. File removals are logical and retain version history. Closed cases must be reopened by authorised staff before changes can be made, and all such actions are audited.
+**When may data be deleted, and who can authorise deletion?**  Cases are never permanently deleted through the application and may only be archived. File removals are logical and retain version history. Closed cases must be reopened by authorised staff before changes can be made, and all such actions are recorded in permanent action history.
 
 **Are legal holds or litigation holds required?**  No legal-hold feature is required for development or the first MVP.
 
@@ -258,7 +271,7 @@ MCP is a separate internal staff surface, primarily for Claude Desktop. Each sta
 
 **Expected new cases per day or month:**  Approximately 2,000 new cases per month (about 24,000 per year).
 
-**Expected annual data growth:**  Plan for approximately 24,000 new case records and roughly 48,000 to 480,000+ associated files per year based on the stated 2-3 to 20+ files per case. At the supplied 10 MB maximum per file, the conservative upper storage envelope is about 4.8 TB per year before allowing for versions. Box remains the long-term file store; Azure application storage should primarily hold structured metadata, processing state, audit records, and any necessary transient artifacts. Measure actual case-folder sizes after launch and adjust the forecast.
+**Expected annual data growth:**  Plan for approximately 24,000 new case records and roughly 48,000 to 480,000+ associated files per year based on the stated 2-3 to 20+ files per case. At the supplied 10 MB maximum per file, the conservative upper storage envelope is about 4.8 TB per year before allowing for versions. Box remains the long-term file store; Azure application storage should primarily hold structured metadata, processing state, action-history records, and any necessary transient artifacts. Measure actual case-folder sizes after launch and adjust the forecast.
 
 **Required operating hours:**  Automated mailbox ingestion and case processing operate continuously. Staff-facing use is expected primarily during Collision Engineers business hours, but the application should remain available outside those hours unless undergoing planned maintenance.
 
@@ -295,7 +308,7 @@ Use one shared Azure development/test environment for unfinished cloud integrati
 
 **Are there fixed office IP addresses, VPNs, firewalls, or third-party allowlists to consider?**  No office-IP, VPN, or private-network restriction applies to staff access. The application is accessible from anywhere after application authentication. Any outbound allowlist requirements discovered for third-party APIs will be handled per integration.
 
-**Who needs emergency operational access to production?**  Alex initially, plus any specifically designated Administrator or Azure operator added later. Emergency application and Azure actions must remain attributable in the relevant audit/activity logs.
+**Who needs emergency operational access to production?**  Alex initially, plus any specifically designated Administrator or Azure operator added later. Emergency application and Azure actions must remain attributable in the relevant permanent action history, security logs, or Azure activity logs.
 
 
 ## 13. Monitoring, support, and operations
@@ -333,7 +346,7 @@ Use one shared Azure development/test environment for unfinished cloud integrati
 ### Must have
 
 - Self-managed CollisionSpike staff usernames/passwords, account administration, and Administrator/Engineer/User roles
-- QDOS principal configuration, provider-specific Case/PO sequencing, audit prefixes, Box naming, and Inspection + Audit secondary references
+- QDOS principal configuration, provider-specific Case/PO sequencing, Audit prefixes, Box naming, and Inspection + Audit secondary references
 - Active support for Triage requests, Inspection, Audit, and Inspection + Audit; Diminution and Commercial remain deferred
 - Automatic ingestion from the `instructions@collisionengineers.co.uk` shared Outlook mailbox
 - Identification and categorisation of every ingested mailbox item into receiving work, queries, other, needs sorting, or the applicable business Triage flow
@@ -343,17 +356,17 @@ Use one shared Azure development/test environment for unfinished cloud integrati
 - Manual review and linking of image-led intake using the vehicle registration when staff can establish it; automated vehicle-registration reading is deferred
 - Manual case creation and manual upload of instructions, correspondence, documents, and images
 - Automatic linking of image-initiated and instruction-initiated records when there is a definitive match
-- Manual linking, mistaken-merge reversal, principal reassignment before Collision Engineers' first report with correction-year references and retained aliases, cancellation, closure, reopening, and archive workflows with permanent audit history
-- Automatic association of related emails and attachments with the correct case, with uncertain matches routed to `Needs sorting`
+- Manual linking, mistaken-merge reversal, wrong-principal `Created in error` closure with a linked replacement case, cancellation, reasoned reopening to valid nonterminal states, and archive workflows with permanent action history
+- Automatic association of related emails and attachments with the correct case only after the combined categorisation/matching research is accepted, with uncertain matches routed to `Needs sorting`
 - Full staff case management and editing across intake, chasing, ready/review, inspection, post-report query/dispute, and terminal states
 - Configurable backend enforcement of staff-confirmed `Instruction complete` and `Images complete` before Engineer assignment, without a hard-coded field matrix
-- Review/approval gates before Engineer assignment and before an Engineer report is sent to the provider
+- A review/approval gate before Engineer assignment; no pre-send report review gate
 - Inspection-address capture using either the physical vehicle/repairer address or `Image Based Assessment`
 - Case due-by dates extracted from instructions and recurring seven-day chase reminders while information is missing
 - Automatic Box case-folder creation and long-term storage of instruction emails/documents, images, correspondence, and Engineer reports
 - Retained document versions, closed-case file locking, and reopen-before-edit behaviour
 - Automatic Box file-request creation and copyable chaser messages for staff to send manually
-- Case-intake dashboard with the agreed case queues, inbox queues, manual `Blocked intake` filter, today/this-week activity, counts, links, last-updated time, and refresh
+- Case-intake dashboard with the agreed case queues, inbox queues, manual `Blocked intake` filter, London-calendar `In today`, `Sent to Engineer`, and `Reports sent` activity counts, links, last-updated time, and refresh
 - Search/filter by Case/PO, VRM, claimant, claim number, principal, stage/status, Engineer, dates, and image- versus instruction-initiated origin
 - DVLA/DVSA lookup when vehicle details are absent
 - Mileage estimation from MOT data when available
@@ -361,7 +374,7 @@ Use one shared Azure development/test environment for unfinished cloud integrati
 - In-app email management for the first-MVP mailbox scope
 - Principal-scoped provider API for idempotent instruction/attachment submission and own-submission receipt, status, and resulting Case/PO retrieval
 - OAuth-authorised internal staff MCP for Claude Desktop, exposing role-authorised case/inbox/document actions through the same Core use cases while excluding security, configuration, cloud, and permanent-delete operations
-- Application and integration health monitoring, operational alerts, recovery controls, and the agreed audit trail
+- Application and integration health monitoring, operational alerts, recovery controls, permanent action history, security logs, and content-safe telemetry
 
 ### Should have
 
@@ -398,7 +411,7 @@ Use one shared Azure development/test environment for unfinished cloud integrati
 - A dedicated DPIA, legal-hold, retention, subject-request, or other data-governance workflow as part of first-MVP development
 - Multi-region, zone-redundant, or private-network infrastructure in the first MVP
 
-**What is the single most important end-to-end workflow the first release must prove?**  Full QDOS case handling: receive QDOS instructions and/or images; classify and extract EML, PDF, and DOCX content; retain legacy DOC/MSG and separate image evidence for review; OCR only scan-like PDF pages; create and definitively match the records; assign the correct QDOS Case/PO; create/store the Box case folder and files; chase missing information with due dates, reminders, and file-request links; enrich vehicle/MOT data; complete staff review and readiness gates; export structured JSON and images to EVA; track the case through Engineer/report and post-report activity; and close, reopen, or archive it with a complete audit history. Automated VRM OCR/VLM is a later enhancement, not a first-release dependency.
+**What is the single most important end-to-end workflow the first release must prove?**  Full QDOS case handling: receive QDOS instructions and/or images; classify and extract EML, PDF, and DOCX content; retain legacy DOC/MSG and separate image evidence for review; OCR only scan-like PDF pages; create and definitively match the records; assign the correct QDOS Case/PO; create/store the Box case folder and files; chase missing information with due dates, reminders, and file-request links; enrich vehicle/MOT data; complete staff review and readiness gates; export structured JSON and images to EVA; track the case through Engineer/report and post-report activity; and close, reopen, or archive it with complete permanent action history. Automated VRM OCR/VLM is a later enhancement, not a first-release dependency.
 
 **Who will perform acceptance testing and approve that workflow?**  Alex performs technical and operational acceptance testing with relevant Collision Engineers staff. Collision Engineers management provides final business approval for production release.
 
@@ -411,4 +424,4 @@ Use one shared Azure development/test environment for unfinished cloud integrati
 
 **What concerns you most about rebuilding this system?**  Avoiding the previous application's huge technical debt, spaghetti code, duplicated functions, behavioural drift, and cumbersome structure while still delivering the full required functionality quickly.
 
-**Anything else that should influence the product or architecture?**  Functionality and a complete QDOS workflow are the first-MVP priority. Use a simple modular architecture, logical names that reveal purpose, one authoritative implementation of each business rule, configurable backend policy where requirements may change, complete auditability, and explicit future extension points for deferred integrations and features. Cost should be controlled, but functional delivery takes priority over premium resilience/networking features in the first MVP.
+**Anything else that should influence the product or architecture?**  Functionality and a complete QDOS workflow are the first-MVP priority. Use a simple modular architecture, logical names that reveal purpose, one authoritative implementation of each business rule, configurable backend policy where requirements may change, complete accountability through permanent action history and security logs, and explicit future extension points for deferred integrations and features. Cost should be controlled, but functional delivery takes priority over premium resilience/networking features in the first MVP.

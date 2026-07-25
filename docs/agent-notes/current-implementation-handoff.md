@@ -102,7 +102,7 @@ ignored-boundary checks, and project-skill validation also passed.
 
 The disposable LocalDB cohort passed 11/11 with no skips. It applies the single
 provider-neutral initial migration explicitly and covers constraints,
-concurrency, audit-write rollback, and retry. Independent evaluation also reran
+concurrency, action-history-write rollback, and retry. Independent evaluation also reran
 the actual upload no-default path, unknown persisted-code failures, inconsistent
 policy-result guards, and case-variant receipt replay. These checks prove local
 caller and migration behavior only; they do not prove a live database upgrade,
@@ -139,7 +139,7 @@ deployment, extraction accuracy, or operator acceptance.
 - PdfPig handles embedded text and discrete image streams. Only scan-like low-text pages become explicit OCR candidates; no OCR service is called.
 - DOCX and image review are implemented locally. Automated DOC/MSG extraction, vehicle-registration OCR/VLM, Graph mailbox intake, private Blob staging, Box, DVLA/DVSA, EVA export, and lifecycle management are not implemented.
 - The Worker has no trigger and does not yet call Core.
-- There is no application authentication, role enforcement, or authenticated audit actor.
+- There is no application authentication, role enforcement, or authenticated action actor.
 - Development SQLite uses a fresh provider-neutral initial migration and strict baseline validation before migration. Empty databases and an exact current schema/history are accepted; old migration IDs, historyless or mismatched schemas, and unexpected tables fail closed without mutation. The former local database path remains untouched. SQLite behavior still does not prove SQL Server locking behavior.
 - Non-Development startup never applies migrations. Disposable SQL Server tests apply the provider-neutral initial migration explicitly. No migration has been applied to a live v2 database.
 - Bicep compilation proves syntax/type consistency only. No v2 Azure resources have been provisioned.
@@ -151,7 +151,7 @@ The full gap list and recommended order are in `docs/plans/remaining-requirement
 
 Add staff identity and trusted draft confirmation before any case-creation boundary:
 
-1. add self-managed staff sign-in, roles, and an authenticated audit actor;
+1. add self-managed staff sign-in, roles, and an authenticated action actor;
 2. deny anonymous intake review and fail closed for disabled or stale staff sessions;
 3. make draft confirmation a separate authenticated mutation with optimistic-concurrency evidence; and
 4. keep case/reference allocation absent until configured principal identity, durable custody, and the accepted allocation transaction are ready.

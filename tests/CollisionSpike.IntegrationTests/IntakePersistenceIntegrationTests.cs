@@ -35,7 +35,7 @@ public sealed class IntakePersistenceIntegrationTests
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'InstructionDrafts'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.tables WHERE name = N'IntakeAuditEvents'"));
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'IntakeReceiptEvents'"));
         Assert.Equal(0, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name IN (N'Cases', N'PrincipalYearCounters')"));
     }
@@ -55,7 +55,7 @@ public sealed class IntakePersistenceIntegrationTests
         });
         Assert.Equal(8, await database.CountAsync("IntakeReceipts"));
         Assert.Equal(8, await database.CountAsync("InstructionDrafts"));
-        Assert.Equal(8, await database.CountAsync("IntakeAuditEvents"));
+        Assert.Equal(8, await database.CountAsync("IntakeReceiptEvents"));
     }
 
     [Fact]
@@ -73,31 +73,31 @@ public sealed class IntakePersistenceIntegrationTests
         });
         Assert.Equal(1, await database.CountAsync("IntakeReceipts"));
         Assert.Equal(1, await database.CountAsync("InstructionDrafts"));
-        Assert.Equal(1, await database.CountAsync("IntakeAuditEvents"));
+        Assert.Equal(1, await database.CountAsync("IntakeReceiptEvents"));
     }
 
     [Fact]
-    public async Task FailedAuditInsertRollsBackReceiptAndTypedDraftBeforeRetry()
+    public async Task FailedReceiptEventInsertRollsBackReceiptAndTypedDraftBeforeRetry()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         await database.ExecuteAsync(
-            "CREATE TRIGGER [FailAuditInsert] ON [dbo].[IntakeAuditEvents] INSTEAD OF INSERT AS " +
-            "BEGIN THROW 51000, 'Deliberate integration-test audit failure.', 1; END");
+            "CREATE TRIGGER [FailReceiptEventInsert] ON [dbo].[IntakeReceiptEvents] INSTEAD OF INSERT AS " +
+            "BEGIN THROW 51000, 'Deliberate integration-test receipt-event failure.', 1; END");
         var draft = CreateDraft(1, IntakeDecision.DraftReady);
 
         await Assert.ThrowsAsync<DbUpdateException>(() => database.StoreAsync(draft));
 
         Assert.Equal(0, await database.CountAsync("IntakeReceipts"));
         Assert.Equal(0, await database.CountAsync("InstructionDrafts"));
-        Assert.Equal(0, await database.CountAsync("IntakeAuditEvents"));
-        await database.ExecuteAsync("DROP TRIGGER [dbo].[FailAuditInsert]");
+        Assert.Equal(0, await database.CountAsync("IntakeReceiptEvents"));
+        await database.ExecuteAsync("DROP TRIGGER [dbo].[FailReceiptEventInsert]");
 
         var retried = await database.StoreAsync(draft);
 
         Assert.NotNull(retried.InstructionDraft);
         Assert.Equal(1, await database.CountAsync("IntakeReceipts"));
         Assert.Equal(1, await database.CountAsync("InstructionDrafts"));
-        Assert.Equal(1, await database.CountAsync("IntakeAuditEvents"));
+        Assert.Equal(1, await database.CountAsync("IntakeReceiptEvents"));
     }
 
     [Fact]
@@ -109,25 +109,25 @@ public sealed class IntakePersistenceIntegrationTests
 
         Assert.NotNull(record.InstructionDraft);
         Assert.Equal(1, await database.CountAsync("IntakeReceipts"));
-        Assert.Equal(1, await database.CountAsync("IntakeAuditEvents"));
+        Assert.Equal(1, await database.CountAsync("IntakeReceiptEvents"));
         Assert.Equal(0, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name IN (N'Cases', N'PrincipalYearCounters')"));
     }
 
     [Fact]
-    public async Task DraftReceiptPersistsReceiptOwnedIntakeAuditContents()
+    public async Task DraftReceiptPersistsReceiptHistoryContents()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var draft = CreateDraft(1, IntakeDecision.DraftReady);
 
         var record = await database.StoreAsync(draft);
-        var audit = await database.ReadSingleAuditAsync();
+        var receiptEvent = await database.ReadSingleReceiptEventAsync();
 
-        Assert.Equal(record.Id, audit.IntakeReceiptId);
-        Assert.Equal("intake_receipt_recorded", audit.EventType);
-        Assert.Equal("LocalDB integration test", audit.Actor);
-        Assert.Equal(FixedTime, audit.OccurredAtUtc);
-        using var details = JsonDocument.Parse(audit.DetailsJson);
+        Assert.Equal(record.Id, receiptEvent.IntakeReceiptId);
+        Assert.Equal("intake_receipt_recorded", receiptEvent.EventType);
+        Assert.Equal("LocalDB integration test", receiptEvent.Actor);
+        Assert.Equal(FixedTime, receiptEvent.OccurredAtUtc);
+        using var details = JsonDocument.Parse(receiptEvent.DetailsJson);
         Assert.Equal(1, details.RootElement.GetProperty("version").GetInt32());
         var data = details.RootElement.GetProperty("data");
         Assert.Equal("draft_ready", data.GetProperty("decision").GetString());
@@ -275,7 +275,7 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
     {
         var allowed = tableName switch
         {
-            "IntakeReceipts" or "InstructionDrafts" or "IntakeAuditEvents" => tableName,
+            "IntakeReceipts" or "InstructionDrafts" or "IntakeReceiptEvents" => tableName,
             _ => throw new ArgumentOutOfRangeException(nameof(tableName))
         };
         return ScalarAsync<int>($"SELECT COUNT(*) FROM [{allowed}]");
@@ -301,16 +301,16 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         await command.ExecuteNonQueryAsync();
     }
 
-    public async Task<PersistedAudit> ReadSingleAuditAsync()
+    public async Task<PersistedReceiptEvent> ReadSingleReceiptEventAsync()
     {
         await using var connection = new SqlConnection(ConnectionString);
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
         command.CommandText =
-            "SELECT IntakeReceiptId, EventType, Actor, OccurredAtUtc, DetailsJson FROM IntakeAuditEvents";
+            "SELECT IntakeReceiptId, EventType, Actor, OccurredAtUtc, DetailsJson FROM IntakeReceiptEvents";
         await using var reader = await command.ExecuteReaderAsync();
         Assert.True(await reader.ReadAsync());
-        var result = new PersistedAudit(
+        var result = new PersistedReceiptEvent(
             reader.GetGuid(0),
             reader.GetString(1),
             reader.GetString(2),
@@ -376,7 +376,7 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
     }
 }
 
-internal sealed record PersistedAudit(
+internal sealed record PersistedReceiptEvent(
     Guid IntakeReceiptId,
     string EventType,
     string Actor,

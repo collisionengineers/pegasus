@@ -21,7 +21,7 @@ $required = @(
     'infra/main.parameters.json',
     'docs/azure/current-inventory.md',
     'docs/evaluation/corpus.md',
-    'docs/ui-ux/README.md'
+    'docs/plans/ui-ux/README.md'
 )
 
 $missing = @($required | Where-Object { -not (Test-Path -LiteralPath (Join-Path $root $_)) })
@@ -39,6 +39,11 @@ if ($trackedCorpus.Count -gt 0) {
 & git -C $root check-ignore --quiet --no-index -- 'corpus/.collisionspike-ignore-probe'
 if ($LASTEXITCODE -ne 0) {
     throw 'The local corpus must be ignored by Git.'
+}
+
+& git -C $root check-ignore --quiet --no-index -- '.repoplugin/.collisionspike-ignore-probe'
+if ($LASTEXITCODE -ne 0) {
+    throw 'Local repoplugin flow state must be ignored by Git.'
 }
 
 $projectNames = @(

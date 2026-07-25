@@ -13,7 +13,7 @@ machine integration. The product decisions are now narrower and distinct:
   result of their own submissions; and
 - MCP is an internal staff surface, primarily for Claude Desktop, whose case
   actions must use the staff member's current application role and permanent
-  audit identity.
+  action-history identity.
 
 CollisionSpike staff accounts remain application-managed ASP.NET Core Identity
 accounts rather than Microsoft Entra accounts. The Web project remains the HTTP,
@@ -36,7 +36,7 @@ The first-MVP provider contract is limited to:
 
 It does not expose general case search/read or case-workflow mutation. Every
 operation calls the same Core intake and authorization boundary as the Web and
-Worker paths and records the principal client as its audit actor.
+Worker paths and records the principal client as the action actor in permanent action history.
 
 ### Internal staff MCP
 
@@ -77,13 +77,13 @@ must not expose:
 Each MCP tool calls an existing or simultaneously delivered Core use case and
 named authorization policy. Mutating tools have narrow operation-specific
 contracts, accurate destructive/idempotent annotations, and permanent actor,
-reason, and outcome audit events. Client approval hints are not an authorization
+reason, and outcome action events. Client approval hints are not an authorization
 boundary; the server enforces every permission and invariant.
 
 ## Consequences
 
 - Provider credentials and staff OAuth clients/tokens have separate ownership,
-  scopes, administration, and audit identities.
+  scopes, administration, and action-history identities.
 - Claude Desktop actions can be attributed to the actual CollisionSpike staff
   account rather than a shared bearer actor.
 - The Web application must provide OAuth authorization-server capability in
@@ -93,7 +93,7 @@ boundary; the server enforces every permission and invariant.
   while retaining individual user consent and authorization.
 - A shared static request header was rejected because Anthropic documents it as
   beta and organization-shared, which cannot provide the required per-user role
-  and audit attribution.
+  and action attribution.
 - A local MCPB/stdio bridge was rejected because the required case system is an
   internet-hosted application and the bridge would introduce a second client and
   credential boundary.

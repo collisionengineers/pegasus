@@ -6,6 +6,17 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$repopluginRoots = @(
+    'plugins/repoplugin-task-contracts',
+    'plugins/repoplugin-planning',
+    'plugins/repoplugin-implementation',
+    'plugins/repoplugin-review',
+    'plugins/repoplugin-validation',
+    'plugins/repoplugin-debugging',
+    'plugins/repoplugin-documentation',
+    'plugins/repoplugin-ui-ux'
+)
+$repopluginSkillRoots = @($repopluginRoots | ForEach-Object { "$_/skills" })
 $testRunId = '{0}-{1}' -f (Get-Date -AsUTC -Format 'yyyyMMddTHHmmssZ'), ([Guid]::NewGuid().ToString('N').Substring(0, 8))
 $testResultsDirectory = Join-Path $root "artifacts/test-results/$testRunId"
 
@@ -79,6 +90,32 @@ function Invoke-TestGate {
     if ($testExitCode -ne 0) {
         throw "$Name test process failed with exit code $testExitCode."
     }
+}
+
+function Find-OptionalCodexValidator {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Creator,
+
+        [Parameter(Mandatory)]
+        [string]$ScriptName
+    )
+
+    $candidates = [System.Collections.Generic.List[string]]::new()
+    if (-not [string]::IsNullOrWhiteSpace($env:CODEX_HOME)) {
+        $candidates.Add((Join-Path $env:CODEX_HOME "skills/.system/$Creator/scripts/$ScriptName"))
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
+        $candidates.Add((Join-Path $env:USERPROFILE ".codex/skills/.system/$Creator/scripts/$ScriptName"))
+    }
+
+    foreach ($candidate in $candidates | Select-Object -Unique) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            return (Resolve-Path -LiteralPath $candidate).Path
+        }
+    }
+
+    return $null
 }
 
 if ($RequireCorpusEvidence) {
@@ -166,18 +203,48 @@ try {
         throw 'Python is required for project skill validation.'
     }
 
-    python scripts/validate_project_skills.py .codex/skills
+    $portableSkillArguments = @('scripts/validate_project_skills.py', '.codex/skills')
+    $portableSkillArguments += $repopluginSkillRoots
+    foreach ($pluginRoot in $repopluginRoots) {
+        $portableSkillArguments += @('--plugin', $pluginRoot)
+    }
+    $portableSkillArguments += @('--marketplace', '.agents/plugins/marketplace.json')
+    python @portableSkillArguments
     if ($LASTEXITCODE -ne 0) { throw 'Portable project skill validation failed.' }
 
-    $validator = 'C:\Users\PC\.codex\skills\.system\skill-creator\scripts\quick_validate.py'
-    if (Test-Path -LiteralPath $validator) {
-        Get-ChildItem -LiteralPath '.codex/skills' -Directory |
-            Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'agents/openai.yaml') } |
-            ForEach-Object {
-                python $validator $_.FullName
-                if ($LASTEXITCODE -ne 0) { throw "Skill validation failed: $($_.Name)" }
-            }
+    $skillValidator = Find-OptionalCodexValidator `
+        -Creator 'skill-creator' `
+        -ScriptName 'quick_validate.py'
+    if ($skillValidator) {
+        foreach ($skillRoot in @('.codex/skills') + $repopluginSkillRoots) {
+            Get-ChildItem -LiteralPath $skillRoot -Directory |
+                Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'agents/openai.yaml') } |
+                ForEach-Object {
+                    python $skillValidator $_.FullName
+                    if ($LASTEXITCODE -ne 0) { throw "Skill validation failed: $($_.Name)" }
+                }
+        }
     }
+    else {
+        Write-Warning 'Optional skill-creator quick validator is unavailable; portable repository skill validation passed.'
+    }
+
+    $pluginValidator = Find-OptionalCodexValidator `
+        -Creator 'plugin-creator' `
+        -ScriptName 'validate_plugin.py'
+    if ($pluginValidator) {
+        foreach ($pluginRoot in $repopluginRoots) {
+            python $pluginValidator $pluginRoot
+            if ($LASTEXITCODE -ne 0) {
+                throw "Official plugin validation failed for $pluginRoot."
+            }
+        }
+    }
+    else {
+        Write-Warning 'Optional plugin-creator validator is unavailable; portable plugin relationship validation passed.'
+    }
+
+    & 'plugins/repoplugin-task-contracts/scripts/Test-RepopluginTask.ps1'
 
     if (-not $RequireCorpusEvidence) {
         Write-Host 'Corpus evidence was not run.' -ForegroundColor Yellow

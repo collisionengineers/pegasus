@@ -110,7 +110,7 @@ namespace CollisionSpike.Infrastructure.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "IntakeAuditEvents",
+                name: "IntakeReceiptEvents",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: guidType, nullable: false),
@@ -122,9 +122,9 @@ namespace CollisionSpike.Infrastructure.Persistence.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_IntakeAuditEvents", x => x.Id);
+                    table.PrimaryKey("PK_IntakeReceiptEvents", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_IntakeAuditEvents_IntakeReceipts_IntakeReceiptId",
+                        name: "FK_IntakeReceiptEvents_IntakeReceipts_IntakeReceiptId",
                         column: x => x.IntakeReceiptId,
                         principalTable: "IntakeReceipts",
                         principalColumn: "Id",
@@ -137,8 +137,8 @@ namespace CollisionSpike.Infrastructure.Persistence.Migrations
                 columns: IntakeAssetIndexColumns);
 
             migrationBuilder.CreateIndex(
-                name: "IX_IntakeAuditEvents_IntakeReceiptId",
-                table: "IntakeAuditEvents",
+                name: "IX_IntakeReceiptEvents_IntakeReceiptId",
+                table: "IntakeReceiptEvents",
                 column: "IntakeReceiptId");
 
             migrationBuilder.CreateIndex(
@@ -163,7 +163,7 @@ namespace CollisionSpike.Infrastructure.Persistence.Migrations
                 name: "IntakeAssets");
 
             migrationBuilder.DropTable(
-                name: "IntakeAuditEvents");
+                name: "IntakeReceiptEvents");
 
             migrationBuilder.DropTable(
                 name: "IntakeReceipts");

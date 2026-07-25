@@ -1,6 +1,6 @@
 # Azure replacement and retirement plan
 
-This plan replaces the old pre-release application deliberately. CollisionSpike v2 starts with fresh application data: predecessor cases, users, audit records, and queue state are not migrated or preserved as v2 release requirements. This plan authorizes no deletion or cloud mutation.
+This plan replaces the old pre-release application deliberately. CollisionSpike v2 starts with fresh application data: predecessor cases, users, action-history records, and queue state are not migrated or preserved as v2 release requirements. This plan authorizes no deletion or cloud mutation.
 
 ## Decision classes
 
@@ -9,7 +9,7 @@ This plan replaces the old pre-release application deliberately. CollisionSpike 
 | Replace | old API, orchestrator, parser, EVA, Box and required enrichment/OCR compute with v2 Web/Worker/adapters |
 | Retire with the predecessor | PostgreSQL pre-release application data and queue/Durable work; no v2 import or preservation requirement |
 | Decide/possibly retain | data-bearing evidence storage, capture Static Web App, Foundry account/project/deployments, shared ACR and ValuationBot images, Document Intelligence F0 |
-| Retain | Visual Studio accounts and default workspace until a separate shared-ownership audit says otherwise |
+| Retain | Visual Studio accounts and default workspace until a separate shared-ownership review says otherwise |
 | Likely defer/retire | location/Maps/Vision and cloud evaluation functions when their v2 scope is explicitly excluded and evidence is preserved |
 
 ## Non-negotiable blockers
@@ -21,7 +21,7 @@ Do not delete either CollisionSpike resource group until all are true:
 - ACR `valuationbot-mcp` ownership and export/retention is decided.
 - Foundry deployments/project ownership is decided.
 - Capture UI ownership is decided.
-- Shared/default Log Analytics use is audited.
+- Shared/default Log Analytics use is reviewed.
 - Third-party credential rotation/revocation is scheduled.
 - Fresh live traffic proves old callers are zero and new callers are healthy.
 - An explicit rollback window has expired and the user approves the exact deletion targets.
@@ -31,7 +31,7 @@ Do not delete either CollisionSpike resource group until all are true:
 1. Freeze this inventory and export old IaC/deployment outputs needed to reproduce configuration names and role intent.
 2. Create v2 in a separate resource group from reviewed Bicep. Do not deploy over old resources.
 3. Establish managed identities, least-privilege roles, health endpoints, telemetry, and SQL Entra access.
-4. Create a fresh Azure SQL database for v2. Do not import the predecessor PostgreSQL cases, users, audit records, or application state.
+4. Create a fresh Azure SQL database for v2. Do not import the predecessor PostgreSQL cases, users, action-history records, or application state.
 5. Keep operational history in its existing authoritative Box, EVA, Outlook, spreadsheet, or network-drive locations. Do not import predecessor evidence blobs into v2 merely because they exist in Azure; determine their ownership and disposition before deleting their storage.
 6. Replace one integration at a time behind one v2 adapter: EVA, Box, Graph/mail, embedded PDF extraction, scanned OCR, then any approved enrichment.
 7. Shadow or replay a redacted/genuine local corpus cohort through v2. Do not upload the local corpus during this step.
@@ -59,7 +59,7 @@ Do not delete either CollisionSpike resource group until all are true:
 | Main Static Web App | Razor Pages Web | operator acceptance and bookmarked App Service URL |
 | Capture Static Web App | separate retain/replace decision | ownership and roadmap decision |
 | Foundry/project/deployments | retain, prune individually, or repurpose | deployment-by-deployment usage/cost decision |
-| Default workspace | retain pending shared audit | no non-CollisionSpike data source or explicit separate plan |
+| Default workspace | retain pending shared review | no non-CollisionSpike data source or explicit separate plan |
 
 ## Destructive-operation runbook
 

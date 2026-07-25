@@ -26,7 +26,7 @@ Current Microsoft guidance was refreshed read-only on 2026-07-23: [.NET isolated
 
 ### Authority and decision gate
 
-- **Requirement/decision:** Use the accepted .NET 10 Web/Worker topology and [approved Azure architecture](../../../../.codex/skills/collisionspike-azure-app/references/approved-architecture.md).
+- **Requirement/decision:** Use the accepted [.NET 10 modular-monolith Azure architecture](../../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md) and refresh the [current Azure inventory](../../../azure/current-inventory.md) before design or implementation.
 - **Confirmed facts:** Region and initial topology are accepted; SKU availability, API versions, quotas, policies, target-group existence and prices are volatile.
 - **Decision required before implementation:** None for local Bicep correction. Every Azure preview or mutation requires a fresh, exact approval.
 
@@ -121,7 +121,7 @@ Current Microsoft guidance was refreshed read-only on 2026-07-23: [.NET isolated
 - **Real or intended caller:** Explicit migrator, deployed Web/Worker, health probes and alert rules in shared development.
 - **Input/output:** Ordered migrations and concurrent/replayed work yield one committed business result, correlated evidence and recoverable data.
 - **Ordered decisions and failure behavior:** Migrate before Web, then Worker; reject schema mismatch; bound retries; poison exhausted work; alert without leaking content.
-- **Persistence/migration:** Prove fresh and upgraded databases, atomic audit/outbox/state/reference changes, unique constraints and runtime no-DDL roles.
+- **Persistence/migration:** Prove fresh and upgraded databases, atomic action-history/outbox/state/reference changes, unique constraints and runtime no-DDL roles.
 - **Adapters/side effects:** Storage queues carry identifiers only; transient Blob cleanup occurs only after confirmed approved custody.
 - **Operator surface and observability:** Health, heartbeat, queue age, poison, integration failure, restore and cost signals are actionable.
 - **Documentation affected:** Record tested recovery procedure and dated evidence without rewriting accepted requirements.
@@ -154,7 +154,7 @@ Current Microsoft guidance was refreshed read-only on 2026-07-23: [.NET isolated
 | Concurrent allocation/replay | One reference/business action and duplicate-safe outcome | Azure SQL integration evidence | Full production load |
 | Runtime schema mismatch | Readiness fails and traffic does not reach an incompatible runtime | Health/deployment evidence | Third-party health |
 | Point-in-time restore | New database is restored, validated and reconnectable within the target | Timed restore record | Regional disaster recovery |
-| Poison/integration failure | Bounded attempts stop, content-safe alert fires and work remains recoverable | Queue, audit and alert evidence | Operator acceptance of the business workflow |
+| Poison/integration failure | Bounded attempts stop, content-safe alert fires and work remains recoverable | Queue, action-history and alert evidence | Operator acceptance of the business workflow |
 
 ### Approval, rollout and rollback
 

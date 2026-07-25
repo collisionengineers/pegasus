@@ -28,7 +28,7 @@ public sealed class IntakeSqliteBaselineGuardTests
         Assert.Equal(1L, await ScalarAsync<long>(connection,
             "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='IntakeAssets'"));
         Assert.Equal(1L, await ScalarAsync<long>(connection,
-            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='IntakeAuditEvents'"));
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='IntakeReceiptEvents'"));
     }
 
     [Fact]
@@ -57,6 +57,7 @@ public sealed class IntakeSqliteBaselineGuardTests
     [InlineData("extra_index")]
     [InlineData("missing_column")]
     [InlineData("missing_index")]
+    [InlineData("renamed_receipt_event_table")]
     [InlineData("changed_foreign_key")]
     public async Task RefusedBaselineLeavesHistorySchemaAndSentinelUnchanged(string corruption)
     {
@@ -108,11 +109,15 @@ public sealed class IntakeSqliteBaselineGuardTests
             case "missing_index":
                 await ExecuteAsync(connection, "DROP INDEX IX_IntakeReceipts_SourceHash");
                 break;
+            case "renamed_receipt_event_table":
+                await ExecuteAsync(connection,
+                    "ALTER TABLE IntakeReceiptEvents RENAME TO IntakeLegacyEvents");
+                break;
             case "changed_foreign_key":
                 await ExecuteAsync(connection,
                     """
-                    ALTER TABLE IntakeAuditEvents RENAME TO IntakeAuditEventsOriginal;
-                    CREATE TABLE IntakeAuditEvents (
+                    ALTER TABLE IntakeReceiptEvents RENAME TO IntakeReceiptEventsOriginal;
+                    CREATE TABLE IntakeReceiptEvents (
                         Id TEXT NOT NULL PRIMARY KEY,
                         IntakeReceiptId TEXT NOT NULL,
                         EventType TEXT NOT NULL,
@@ -121,8 +126,8 @@ public sealed class IntakeSqliteBaselineGuardTests
                         DetailsJson TEXT NOT NULL,
                         FOREIGN KEY (IntakeReceiptId) REFERENCES IntakeReceipts(Id) ON DELETE CASCADE
                     );
-                    DROP TABLE IntakeAuditEventsOriginal;
-                    CREATE INDEX IX_IntakeAuditEvents_IntakeReceiptId ON IntakeAuditEvents(IntakeReceiptId);
+                    DROP TABLE IntakeReceiptEventsOriginal;
+                    CREATE INDEX IX_IntakeReceiptEvents_IntakeReceiptId ON IntakeReceiptEvents(IntakeReceiptId);
                     """);
                 break;
             default:

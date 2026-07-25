@@ -41,7 +41,7 @@ public sealed class IntakeStablePersistenceTests
         Assert.Equal("source", await ScalarAsync(connection,
             "SELECT Disposition FROM IntakeAssets"));
         Assert.Equal("intake_receipt_recorded", await ScalarAsync(connection,
-            "SELECT EventType FROM IntakeAuditEvents"));
+            "SELECT EventType FROM IntakeReceiptEvents"));
         AssertEnvelopeVersionOne(await ScalarAsync(connection,
             "SELECT EvidenceJson FROM IntakeReceipts"));
         AssertEnvelopeVersionOne(await ScalarAsync(connection,
@@ -49,7 +49,7 @@ public sealed class IntakeStablePersistenceTests
         AssertEnvelopeVersionOne(await ScalarAsync(connection,
             "SELECT OcrCandidatesJson FROM IntakeReceipts"));
         AssertEnvelopeVersionOne(await ScalarAsync(connection,
-            "SELECT DetailsJson FROM IntakeAuditEvents"));
+            "SELECT DetailsJson FROM IntakeReceiptEvents"));
     }
 
     [Fact]

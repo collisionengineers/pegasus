@@ -51,7 +51,7 @@ public sealed class SqlServerReadinessEndpointTests
         await using var context = await database.CreateContextAsync();
         Assert.Empty(await context.Database.GetAppliedMigrationsAsync());
         Assert.Equal(0, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.tables WHERE name IN (N'IntakeReceipts', N'IntakeAuditEvents')"));
+            "SELECT COUNT(*) FROM sys.tables WHERE name IN (N'IntakeReceipts', N'IntakeReceiptEvents')"));
     }
 
     [Fact]
