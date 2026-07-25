@@ -14,6 +14,8 @@ must not be edited from here.
 | [ADR-0004: Provider API and staff MCP authentication](decisions/ADR-0004-provider-api-and-staff-mcp-authentication.md) | Accepted | Keep the principal-scoped provider API separate from a per-staff OAuth-authorised remote MCP surface. |
 | [ADR-0005: Multi-format intake and review assets](decisions/ADR-0005-multiformat-intake-assets.md) | Accepted for the local slice; decision 1 superseded by ADR-0006 | Extract EML/PDF/DOCX and discrete images through one intake route, defer DOC/MSG parsing, and restrict OCR candidates to scan-like PDF pages. |
 | [ADR-0006: Provider-neutral intake with a contained QDOS policy](decisions/ADR-0006-provider-neutral-intake-with-contained-qdos-policy.md) | Accepted for the pre-release local slice | Keep reusable intake contracts, persistence, and callers provider-neutral while retaining QDOS as the sole concrete extraction policy. |
+| [ADR-0007: Repository-local Codex planning plugin boundaries](decisions/ADR-0007-repository-local-codex-planning-plugin-boundaries.md) | Superseded by ADR-0008 | Established the source marketplace and ignored local-work boundaries; its monolithic flow engine is historical. |
+| [ADR-0008: Focused repository workflow plugins](decisions/ADR-0008-focused-repository-workflow-plugins.md) | Accepted | Split repository delivery workflows into focused plugins sharing a thin explicit task-folder convention. |
 
 ## Open architecture work
 

@@ -222,14 +222,14 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<CollisionSpikeDbCon
             HeightPixels = asset.HeightPixels
         }));
         context.IntakeReceipts.Add(receipt);
-        context.IntakeAuditEvents.Add(new()
+        context.IntakeReceiptEvents.Add(new()
         {
             Id = Guid.NewGuid(),
             IntakeReceiptId = receipt.Id,
             EventType = "intake_receipt_recorded",
             Actor = draft.Actor,
             OccurredAtUtc = draft.ProcessedAtUtc,
-            DetailsJson = SerializeEnvelope(new IntakeAuditDetails(
+            DetailsJson = SerializeEnvelope(new IntakeReceiptEventDetails(
                 ToCode(draft.Decision),
                 channelCode,
                 draft.SourceIdentity.ExternalReceiptToken,
@@ -520,7 +520,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<CollisionSpikeDbCon
         bool IsDefaulted,
         bool HasConflict);
     private sealed record PersistedFieldCandidate(string Value, string Source, string SourceLabel);
-    private sealed record IntakeAuditDetails(
+    private sealed record IntakeReceiptEventDetails(
         string Decision,
         string SourceChannel,
         string ExternalReceiptToken,

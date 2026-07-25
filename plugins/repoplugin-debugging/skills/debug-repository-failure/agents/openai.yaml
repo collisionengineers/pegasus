@@ -1,0 +1,6 @@
+interface:
+  display_name: "Debug Repository Failure"
+  short_description: "Reproduce and diagnose safely"
+  default_prompt: "Use $debug-repository-failure to reproduce and diagnose this repository failure."
+policy:
+  allow_implicit_invocation: true

@@ -1,37 +1,43 @@
-# ADR-0021 — Case/PO markers have independent sequences
+# Legacy Case/PO marker decision superseded for v2
 
-**Status:** Accepted (2026-07-03); clarified 2026-07-16 per [Review 160726](../reviews/160726/decisions.md); extending [ADR-0014](./0014-audit-case-type-second-inspection.md).
+**Status:** Superseded for CollisionSpike v2 on 2026-07-24 by the direct user
+decision recorded in `PROJECT_DISCOVERY_QUESTIONNAIRE.md`.
 
-## Decision
+**Historical references:** `docs/reviews/160726/decisions.md` and
+`docs/reference/reports/0014-audit-case-type-second-inspection.md` are not
+present in this worktree. Their former paths are retained as historical labels,
+not current authority or live links.
 
-Case/PO case-type markers are:
+## Current v2 decision
 
-| Case type | Marker |
-| --- | --- |
-| Standard | none |
-| Audit | `A.` |
-| Audit total loss | `AP.` |
-| Diminution | `D.` |
-| Commercial | `C.` |
+- The normal Case/PO is `{principal code}{YY}{three-digit shared sequence}`.
+- Inspection, Audit, and Inspection + Audit use one shared principal/year
+  sequence. There is no independent counter per marker or work type.
+- A standalone Audit derives lowercase `a.` or `ap.` from the repairable or
+  total-loss assessment in the original Engineer's report. Missing or ambiguous
+  evidence blocks case creation and reference allocation.
+- Inspection + Audit starts with the standard Inspection reference. After
+  Collision Engineers' own Engineer records the assessment, the applicable
+  lowercase `a.` or `ap.` reference is created inside the same case folder; it
+  is not allocated from a separate marker sequence.
+- Diminution and Commercial are deferred. Do not expose active `D.` or `C.`
+  markers, counters, case types, or allocation paths without a later direct
+  product decision.
+- A case principal/reference is immutable immediately on allocation. Wrong-
+  principal work uses the terminal `Created in error` linked-replacement path;
+  neither number is reassigned or reused.
 
-Each marker has its own per-provider, per-year sequence. The same identifier renders lowercase for EVA and
-uppercase for the Archive.
+## Historical proposal not adopted
 
-For the QDOS dual “report + audit report” instruction, mint one standard-sequence Case and derive the
-audit deliverable identifier from the same number during review. Do not consume a second audit-sequence
-number.
+The predecessor proposal used independent per-provider/year counters for
+standard, `A.`, `AP.`, `D.`, and `C.` markers and rendered different casing for
+different external systems. That design is not a v2 requirement and must not be
+used as allocator, schema, UI, Box, EVA, or test authority.
 
-Markers are supported only for providers whose real corpus and reviewed business rules establish them.
-Parser detection may suggest a type and staff confirm it. The `A.`/`AP.` split reflects the **original
-engineer's verdict** — repairable versus total loss — which the engineer's report always states; it is
-never our audit's outcome.
+## Current evidence state
 
-## Rationale
-
-Independent per-marker sequences keep each deliverable family's numbering dense and collision-free
-per provider and year, which shared numbering cannot guarantee.
-
-## Consequences
-
-Sequence allocation is transactional and unique by provider, year, and marker. Detection, formatting,
-database constraints, EVA output, Archive folder naming, and snapshots share one marker table.
+The current provider-neutral intake path is called at `/Intake/Upload` through
+`ProcessIntake`, but it creates only a pre-case receipt/draft and allocates no
+case or reference. The shared allocator, Audit reference behavior, immutable
+identity, and linked replacement flows remain planned and require proof through
+their future authenticated callers.

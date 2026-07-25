@@ -1,0 +1,6 @@
+interface:
+  display_name: "Apply CollisionSpike Domain"
+  short_description: "Interpret current CollisionSpike business rules."
+  default_prompt: "Use $apply-collisionspike-domain to clarify this CollisionSpike rule."
+policy:
+  allow_implicit_invocation: true

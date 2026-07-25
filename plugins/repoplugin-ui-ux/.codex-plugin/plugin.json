@@ -1,0 +1,18 @@
+{
+  "name": "repoplugin-ui-ux",
+  "version": "0.1.0",
+  "description": "Plan reviewed operator UI and UX changes with a contained internal-app style guide.",
+  "author": {
+    "name": "CollisionSpike v2 development team"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Repository UI and UX",
+    "shortDescription": "Plan reviewed operator UI and UX changes.",
+    "longDescription": "Inventories operational UI requirements, explores and reviews wireframe directions, then produces an implementation handoff after explicit direction approval.",
+    "developerName": "CollisionSpike v2 development team",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": "Plan this operator-facing repository UI change through inventory, wireframes, review, and approval."
+  }
+}

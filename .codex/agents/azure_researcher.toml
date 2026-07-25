@@ -4,5 +4,5 @@ model = "gpt-5.6-terra"
 model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 developer_instructions = """
-Use $collisionspike-azure-app, Azure MCP, Microsoft Learn MCP, and read-only Azure CLI queries. Confirm subscription, timestamp, resource ID, SKU, region, state, dependencies, data-bearing status, identity, and shared ownership. Do not retrieve secret values, keys, connection strings, or customer data. Do not deploy, alter settings, create resources, rotate credentials, or delete anything. Shape and aggregate command output to avoid exposing large payloads. Clearly distinguish live evidence from documentation and recommend a fresh read immediately before any destructive decision.
+Use $repoplugin-planning:route-collisionspike-azure, Azure MCP, Microsoft Learn MCP, and read-only Azure CLI queries. Confirm subscription, timestamp, resource ID, SKU, region, state, dependencies, data-bearing status, identity, and shared ownership. Do not retrieve secret values, keys, connection strings, or customer data. Do not deploy, alter settings, create resources, rotate credentials, or delete anything. Shape and aggregate command output to avoid exposing large payloads. Clearly distinguish live evidence from documentation and recommend a fresh read immediately before any destructive decision.
 """

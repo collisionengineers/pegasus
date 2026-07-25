@@ -15,22 +15,29 @@ Preserve the mandatory vehicle-enrichment and manual EVA hand-off outcomes while
 
 The product requires staff-visible DVLA/DVSA lookup when vehicle details are absent and mileage estimation when MOT evidence supports it. No task is emitted until the current vendor/API contract, licence/data permission, identifiers, authoritative response fields, rate/error policy and credential boundary are verified and accepted.
 
-The future caller must be an authenticated, lease/version-guarded staff action. It may return typed suggestions and explicit no-result/invalid/transient/unknown outcomes, but cannot silently overwrite case data. Confirmed values retain lookup provenance and audit. Automated enrichment, valuation, address prediction and VRM OCR/VLM remain absent.
+The future caller must be an authenticated, lease/version-guarded staff action. It may return typed suggestions and explicit no-result/invalid/transient/unknown outcomes, but cannot silently overwrite case data. Confirmed values retain lookup provenance and permanent action history. Automated enrichment, valuation, address prediction and VRM OCR/VLM remain absent.
 
 ## Withheld EVA bundle
 
 The first release requires operator-approved structured case JSON plus stored images for manual transfer into EVA; direct EVA API use is deferred. No task is emitted until an operator accepts the versioned field mapping, image selection, readiness/release gate and error/recovery procedure. The reference schema alone is not product authority.
 
-The future authenticated download caller must validate the current case version, review gate and custody-confirmed image IDs; generate deterministic JSON, image files and a manifest with hashes; record actor/revision/outcome; and make no EVA network call. It must not assign an Engineer, estimate, value, generate a report or reconcile EVA automatically.
+The future authenticated download caller must validate the current case version, pre-assignment review gate and custody-confirmed image IDs; generate deterministic JSON, image files and a manifest with hashes; record actor/revision/outcome; and make no EVA network call. The first successful generation records the stable `First sent to Engineer` event once per case and feeds the `Sent to Engineer` today/week dashboard tile. This first-MVP event is explicitly a proxy: it proves successful export generation, not that EVA or an Engineer received it. It must not estimate, value, generate a report or reconcile EVA automatically, and there is no pre-send report review gate.
 
 ## Activation and approval
 
 - **Vehicle lookup:** accepted current contract/licence, exact target environment and credential/data-call approval, followed by failure mapping and a separately approved live smoke.
 - **EVA bundle:** operator-approved mapping/readiness procedure and genuine case-shape acceptance evidence. A download is local application behavior; any later EVA API call requires a separate ADR and approval.
 
+## Evidence and failure boundary
+
+- [ ] Drive the authenticated case-workspace caller through pre-assignment approval and successful deterministic JSON/image generation; observe one `First sent to Engineer` action-history event and one case counted in the London-day/week tile.
+- [ ] Retry or regenerate the bundle and prove the stable first event is not duplicated; retain later generation attempts/revisions separately.
+- [ ] Force generation failure and prove no `First sent to Engineer` event or dashboard count is recorded and the operator sees a recoverable failure.
+- [ ] Record that local generation evidence does not prove EVA import, Engineer assignment/receipt, production deployment or operator acceptance. When EVA is replaced, the adapter must record the actual Engineer-assignment event while preserving the stable business event contract.
+
 ## Deferred-capability impact
 
 - **Named capabilities:** direct EVA API/replacement, estimating, valuation, mapping/address suggestions, guided capture, AI/vision and external accounts.
-- **Stable seam retained:** typed staff-confirmed case fields, provenance, stable case/reference/document IDs and a future versioned export contract.
-- **Future migration/replacement:** accepted vendor provenance and export-manifest records may require the single existing migration stream; direct EVA integration replaces only the adapter, not case policy.
+- **Stable seam retained:** typed staff-confirmed case fields, provenance, stable case/reference/document IDs, the once-per-case `First sent to Engineer` event and a future versioned export contract.
+- **Future migration/replacement:** accepted vendor provenance and export-manifest records may require the single existing migration stream; direct EVA integration replaces only the adapter and changes the evidence source from successful export generation to actual Engineer assignment, not the stable business event or case policy.
 - **Deliberately absent:** vendor client, credentials, export endpoint, serializer, EVA HTTP client, valuation/geocoder/AI dependency, background job or enablement flag.

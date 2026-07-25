@@ -16,7 +16,7 @@ Expose internal staff case, inbox and document actions through one remote MCP en
 
 ## Shared failure and observability rules
 
-Bearer tokens are accepted only at `/mcp`; interactive cookies are only for staff sign-in/consent. Every request reloads enabled account/current role and validates issuer, resource/audience, lifetime, signature/introspection and scopes before a named policy/tool. Mutations are operation-specific, audited with actor/reason/outcome and cannot rely on client approval hints.
+Bearer tokens are accepted only at `/mcp`; interactive cookies are only for staff sign-in/consent. Every request reloads enabled account/current role and validates issuer, resource/audience, lifetime, signature/introspection and scopes before a named policy/tool. Mutations are operation-specific, enter permanent action history with actor/reason/outcome and cannot rely on client approval hints.
 
 ## Remote staff OAuth and restricted MCP tool surface
 
@@ -39,10 +39,10 @@ Bearer tokens are accepted only at `/mcp`; interactive cookies are only for staf
 
 - **Real or intended caller:** planned remote MCP client sends bearer token to `/mcp`; authorization/consent UI is Web cookie-based.
 - **Input/output:** a valid per-staff OAuth token for exact MCP resource invokes only a named tool mapping to an existing/simultaneously delivered Core use case and returns operation-specific result/failure.
-- **Ordered decisions and failure behavior:** validate token/resource/scope; reload enabled account/role; apply named action policy/domain invariant; enforce Box persisted-descendant rule where relevant; audit result. Invalid/disabled/revoked/mismatched requests are denied without tool execution.
+- **Ordered decisions and failure behavior:** validate token/resource/scope; reload enabled account/role; apply named action policy/domain invariant; enforce Box persisted-descendant rule where relevant; record the result in permanent action history. Invalid/disabled/revoked/mismatched requests are denied without tool execution.
 - **Persistence/migration:** persist/revoke authorizations and rotating refresh tokens; store signing/encryption/Data Protection keys durably with overlap/rotation, never in source.
 - **Adapters/side effects:** metadata endpoints, OAuth server and Streamable HTTP endpoint in Web only; no provider authentication or Box arbitrary-ID adapter.
-- **Operator surface and observability:** consent/revocation/account-disable effects, tool/audit outcomes and content-free auth failure telemetry.
+- **Operator surface and observability:** consent/revocation/account-disable effects, tool/action-history outcomes and content-free auth failure telemetry.
 - **Documentation affected:** OAuth/client registration and tool inventory; update only after real implementation evidence.
 - **Replaces/consolidates:** exclude a local bridge/static shared header/DCR; do not make tools a second business layer.
 
@@ -75,8 +75,8 @@ Bearer tokens are accepted only at `/mcp`; interactive cookies are only for staf
 ### Approval, rollout and rollback
 
 - **Approval-triggering action and exact scope:** enable the named Claude client, OAuth endpoints and durable keys only after user approval of client/callback/resource/environment; no provider/Box scope is widened.
-- **Rollout/activation:** deploy Web endpoint with tool inventory reviewed; prove local OAuth/restart/revocation; approve one client; enable and observe authentication/tool audits.
-- **Rollback/recovery:** disable `/mcp` routing/client, revoke authorizations/refresh tokens and redeploy prior artifact while retaining audit; do not delete case/document data.
+- **Rollout/activation:** deploy Web endpoint with tool inventory reviewed; prove local OAuth/restart/revocation; approve one client; enable and observe authentication/tool action-history records.
+- **Rollback/recovery:** disable `/mcp` routing/client, revoke authorizations/refresh tokens and redeploy prior artifact while retaining permanent action history; do not delete case/document data.
 - **Irreversible risk:** issuance of bearer/refresh tokens and externally callable staff actions; durable revocation/key handling is required.
 
 ### Deferred-capability impact

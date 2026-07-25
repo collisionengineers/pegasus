@@ -59,9 +59,9 @@ networking, multi-region deployment, or zone redundancy.
 | --- | --- | --- |
 | Runtime | .NET 10 LTS and C# | Current LTS release, natively available on Linux App Service and supported by Flex Consumption Functions. |
 | Staff UI | ASP.NET Core Razor Pages, server-rendered HTML, CSS, and small JavaScript modules where required | Fits a form- and queue-heavy internal application without a second client application or duplicated validation model. |
-| HTTP API and MCP transport | ASP.NET Core endpoints in the web application | Keeps API, MCP, authorization, audit, and business rules in one deployable boundary. |
+| HTTP API and MCP transport | ASP.NET Core endpoints in the web application | Keeps API, MCP, authorization, permanent action history, and business rules in one deployable boundary. |
 | Staff accounts | ASP.NET Core Identity with cookie authentication | Provides application-managed users, versioned password hashing, roles, lockout, and secure cookie support without making Entra the staff sign-in system. |
-| Persistence | EF Core 10 with Azure SQL Database | Supports transactions, unique constraints, relational case data, durable audit records, and simple scaling at this workload. |
+| Persistence | EF Core 10 with Azure SQL Database | Supports transactions, unique constraints, relational case data, durable action-history records, and simple scaling at this workload. |
 | Background work | Azure Functions Flex Consumption, .NET isolated | Separates continuous ingestion and retries from the web process while reusing the same application core. |
 | Internal messaging | Azure Storage queues | Provides inexpensive at-least-once delivery, retries, and poison queues without the operational surface of Service Bus. |
 | Transient files | Azure Blob Storage, locally redundant | Buffers mailbox and upload content while it is processed and transferred to Box. |
@@ -150,7 +150,7 @@ CollisionSpike.Worker ------> CollisionSpike.Core
   provider parsing, matching, numbering, or workflow rules.
 
 Core will use feature folders such as `Intake`, `Cases`, `Principals`,
-`Documents`, `Workflow`, `Audit`, and `Integrations`. We will not split these into
+`Documents`, `Workflow`, `ActionHistory`, and `Integrations`. We will not split these into
 separate assemblies until a measured dependency or ownership problem justifies
 it. Cross-feature access goes through named use cases, not direct writes to
 another feature's tables.
@@ -169,7 +169,7 @@ database or migration project per feature.
 
 Important consistency rules are:
 
-- A case state change, its audit event, and any outbound work item are written in
+- A case state change, its action event, and any outbound work item are written in
   one SQL transaction.
 - A SQL outbox dispatcher places work-item identifiers on Storage queues. Queue
   messages contain identifiers, not documents or unnecessary personal data.
@@ -179,7 +179,7 @@ Important consistency rules are:
 - External receipts are recorded in an inbox table before processing. Graph
   messages use the mailbox plus Microsoft Graph immutable item ID; Box and other
   systems use their own stable source/version IDs.
-- Audit events are append-only through application code. Case closure, reopening,
+- Action events are appended through application code. Case closure, reopening,
   merge reversal, configuration changes, automated actions, and failed external
   operations are attributable and retained.
 - Cases and file records are archived or logically removed, never hard-deleted by
@@ -239,7 +239,7 @@ The file path is:
    or unmatched items remain visible for recovery rather than silently expiring.
 
 Box is authoritative for original case files. SQL is authoritative for workflow,
-relationships, processing state, audit, and the Box identifiers needed to locate
+relationships, processing state, permanent action history, and the Box identifiers needed to locate
 each version. Large file bytes are not stored in SQL and queue messages never
 carry file content.
 
@@ -267,14 +267,14 @@ are not used for staff sign-in.
 - Administrator, Engineer, and User permissions are implemented through named
   authorization policies, not page-level role string checks scattered through
   the UI.
-- Application role/configuration changes are permanently audited.
+- Application role/configuration changes are recorded in permanent action history.
 
 Provider APIs do not accept a staff username/password or staff cookie. They use
 separately issued principal-scoped client IDs and opaque secrets. Only a hash of
 each secret is stored, the clear value is displayed once, and credentials can be
 rotated or revoked. Internal staff MCP uses per-staff OAuth tokens and the staff
 member's current application role. Each provider API or MCP operation passes
-through the same Core authorization and audit boundary as the staff UI. ADR-0004
+through the same Core authorization and permanent-action-history boundary as the staff UI. ADR-0004
 defines the current contract and supersedes the earlier combined credential model.
 
 ## Secrets and Azure identities
@@ -497,7 +497,7 @@ Deferred by explicit product decision. Neither is provisioned for the first MVP.
   Core.
 - Storage queues deliver at least once, so every handler and external side effect
   must be idempotent.
-- The S0 database is deliberately small and may need an early scale-up if audit or
+- The S0 database is deliberately small and may need an early scale-up if action-history or
   inbox queries are poorly indexed.
 - Direct production deployment to B1 causes a short planned application restart;
   rollback requires redeploying the prior artifact rather than swapping slots.
@@ -506,9 +506,9 @@ Deferred by explicit product decision. Neither is provisioned for the first MVP.
 - Polling has up to approximately one minute of intentional ingestion latency.
 - Automated malware scanning is a known deferred security control.
 - Provider API credentials require careful issuance, hashing, rotation,
-  revocation, rate limiting, and principal audit attribution.
+  revocation, rate limiting, and principal action attribution.
 - Staff MCP OAuth clients and tokens require revocation, expiry, per-user role
-  enforcement, rate limiting, and audit attribution as defined by ADR-0004.
+  enforcement, rate limiting, and action attribution as defined by ADR-0004.
 
 ## Required follow-up
 

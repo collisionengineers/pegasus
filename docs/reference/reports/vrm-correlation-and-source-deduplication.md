@@ -2,26 +2,26 @@
 
 **Operator decision:** Dealt with on 2026-07-24. Current v2 already covers the required principle; this report records the differences rather than adding another requirement or plan.
 
-**Legacy sources dealt with:** [ADR-0002](../dealt-with/accepted/0002-vrm-open-case-correlation.md) and its directly related [ADR-0010](../dealt-with/accepted/0010-dedup-reference-disambiguated-no-time-window.md).
+**Legacy sources dealt with:** ADR-0002 (`../dealt-with/accepted/0002-vrm-open-case-correlation.md`) and its directly related ADR-0010 (`../dealt-with/accepted/0010-dedup-reference-disambiguated-no-time-window.md`).
 
 ## Current v2 position
 
 ### Requirements
 
 - A readable vehicle registration is the provisional identifier for image-led work until the principal is known and a formal Case/PO can be allocated.
-- Instruction-led and image-led records may be linked automatically only for a definitive match. Uncertain associations remain in `Needs sorting`; staff may link them manually and reverse a mistaken merge with permanent audit history.
+- Instruction-led and image-led records may be linked automatically only for a definitive match. Uncertain associations remain in `Needs sorting`; staff may link them manually and reverse a mistaken merge with permanent action history.
 - The original intake source and provenance remain available after matching or merging.
 - Replaying the same source occurrence is idempotent. Equal bytes received as distinct permitted occurrences remain distinct evidence.
 
-These rules are already recorded in the [questionnaire](../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md#5-case-information), [remaining requirements](../../../plans/remaining-requirements.md#3-complete-intake-formats-and-paths), and accepted [multi-format intake ADR](../../../architecture/decisions/ADR-0005-multiformat-intake-assets.md).
+These rules are already recorded in the [questionnaire](../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md#5-case-information), [remaining requirements](../../plans/remaining-requirements.md#3-complete-intake-formats-and-paths), and accepted [multi-format intake ADR](../../architecture/decisions/ADR-0005-multiformat-intake-assets.md).
 
 ### Plan
 
-The [lifecycle and work-management plan](../../../plans/remainder-delivery/casework/lifecycle-and-work-management.md) already assigns definitive matching, `Needs sorting`, association history, manual linking, and merge reversal to one planned Core policy. It does not need a duplicate task derived from these legacy ADRs.
+The [lifecycle and work-management plan](../../plans/remainder-delivery/casework/lifecycle-and-work-management.md) already assigns definitive matching, `Needs sorting`, association history, manual linking, and merge reversal to one planned Core policy. It does not need a duplicate task derived from these legacy ADRs.
 
 ### Implementation and verified evidence
 
-The current `/Intake/Qdos` caller only extracts, normalises, and persists a registration in a pre-case draft through [`ProcessQdosIntake`](../../../../src/CollisionSpike.Core/Intake/Qdos/ProcessQdosIntake.cs). Source-occurrence replay and equal-content occurrence retention are covered by the current intake persistence path.
+The current `/Intake/Upload` caller only extracts, normalises, and persists a registration in a pre-case draft through [`ProcessIntake`](../../../src/CollisionSpike.Core/Intake/ProcessIntake.cs). Source-occurrence replay and equal-content occurrence retention are covered by the current intake persistence path.
 
 There is no implemented case-matching, merge, reversal, candidate search, or mutable staff caller yet. The requirement and plan exist; end-to-end matching behaviour is not implemented or verified.
 

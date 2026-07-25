@@ -11,7 +11,7 @@ Prove the complete QDOS workflow through its actual callers, keep corpus and liv
 - **Current implementation:** The development-only `/Intake/Upload` path has local integration evidence. No deployed Worker, Graph, Box, provider API or MCP path is currently proven.
 - **Real callers:** Existing Web intake first; later Web/Worker/API/MCP callers only after their task evidence reaches `Called`.
 - **Persistence/adapters:** The acceptance record names input class, source hash/cohort, actor, database, external scope, artifact and result without publishing PII.
-- **Dependencies:** Every required area in the [programme order](../README.md#delivery-order); open decisions block only their affected journey steps.
+- **Dependencies:** Every required area in the [programme order](../README.md#delivery-order); the sole combined mailbox categorisation/all-automatic-email-matching research blocks only automatic email behavior that depends on its predicates.
 - **Replaces/consolidates:** Global test lists and broad green claims are replaced by task-local evidence plus one integrated acceptance record.
 
 ## Shared failure and observability rules
@@ -118,7 +118,7 @@ A test failure, unsupported source, integration failure and business outcome rem
 - **Input/output:** Approved non-corpus fixtures exercise identity, idempotency, permission, storage and failure mechanics.
 - **Ordered decisions and failure behavior:** Prove local out-of-scope denial, approve exact target, perform one scoped call, reconcile stored identity/result, and disable the integration again.
 - **Persistence/migration:** External IDs, versions, attempts and outcomes persist without secret values or source bytes in logs.
-- **Adapters/side effects:** Box is confined to root `401774594028`; Graph uses Exchange Application RBAC as the sole application mail grant for one approved environment-specific mailbox/Inbox pair, with `instructions@` Inbox reserved for production; other vendors use named non-production/test contracts.
+- **Adapters/side effects:** Box is confined to root `401774594028`; Graph uses Exchange Application RBAC as the sole application mail grant no broader than the shared environment-specific approved-mailbox allowlist, with `instructions@` Inbox reserved for production automatic intake; every folder/action is adapter-enforced and other vendors use named non-production/test contracts.
 - **Operator surface and observability:** Success and typed failure are visible with correlation and no content leakage.
 - **Documentation affected:** Dated integration evidence records scope and limitations; it does not broaden future permission.
 - **Replaces/consolidates:** Registration or direct SDK smoke alone is not completion evidence.
@@ -179,8 +179,8 @@ A test failure, unsupported source, integration failure and business outcome rem
 ### Authority and decision gate
 
 - **Requirement/decision:** Alex and relevant staff perform technical/operational acceptance; management approves production release.
-- **Confirmed facts:** Production cannot be accepted while required task evidence or affected canonical decisions remain open.
-- **Decision required before implementation:** Close the [open decisions](../../open-decisions.md) before exercising their lifecycle/report steps; approve production Box roots/actions separately because the current root is proof-only.
+- **Confirmed facts:** Production cannot be accepted while required caller evidence is missing. Settled lifecycle, Triage, principal-code replacement, manual chaser and exact manual report-link behavior can be exercised without waiting for automatic email matching.
+- **Decision required before implementation:** Accept the [combined mailbox categorisation/all-automatic-email-matching research](../../open-decisions.md#mailbox-categorisation-and-all-email-matching-research) before exercising automatic email categorisation/matching, including the no-fallback Triage reply matcher. Approve production Box roots/actions separately because the current root is proof-only.
 
 ### Owner and dependencies
 
@@ -192,11 +192,11 @@ A test failure, unsupported source, integration failure and business outcome rem
 ### Caller, contract and change boundary
 
 - **Real or intended caller:** Authenticated operator Web journeys plus delivered Worker/provider/MCP entry points required by first-release scope.
-- **Input/output:** Approved real-shaped non-corpus input and staff actions yield a complete, auditable QDOS case journey and recoverable release.
-- **Ordered decisions and failure behavior:** Verify roles/principal configuration, intake/custody, case acceptance/reference, exclusive case editing, manual WhatsApp material, chasing/review, EVA hand-off, report/post-report and terminal/reopen behavior as settled; stop on unresolved authority or failed evidence.
-- **Persistence/migration:** Acceptance names environment, database/migration, artifact and retained audit/file identities.
+- **Input/output:** Approved real-shaped non-corpus input and staff actions yield a complete QDOS case journey with permanent action history and a recoverable release.
+- **Ordered decisions and failure behavior:** Verify roles/principal configuration and used-code cutover, intake/custody, separate Triage, case acceptance/reference, exclusive case editing, manual WhatsApp material, manual chaser confirmation, review, EVA hand-off, exact report evidence/post-report and terminal/reopen behavior as settled. Withhold only automatic email behavior whose predicate depends on the sole combined research; stop on failed evidence.
+- **Persistence/migration:** Acceptance names environment, database/migration, artifact and retained action-history/file identities.
 - **Adapters/side effects:** Enable only separately approved external scopes and one production poller.
-- **Operator surface and observability:** Every queue, count, search, active-editor/read-only state, stale/failure state, keyboard path, audit and alert used in the journey is observed.
+- **Operator surface and observability:** Every queue, count, search, active-editor/read-only state, stale/failure state, keyboard path, action-history record and alert used in the journey is observed.
 - **Documentation affected:** Record acceptance corrections separately from technical verification; accepted decisions update canonical sources.
 - **Replaces/consolidates:** No checklist signature can substitute for observed operator behavior.
 
@@ -214,7 +214,11 @@ A test failure, unsupported source, integration failure and business outcome rem
 
 ### Validation checklist
 
-- [ ] Exercise all agreed case types, inbox/case states, reference forms, matching, search, review gates, terminals and settled reopen/report behavior.
+- [ ] Exercise all agreed case types, inbox/case states, reference forms, conservative matching, search, the pre-assignment review gate, four terminals, settled reopen/Held/chase behavior, immutable wrong-principal case replacement, exact Sent-item report evidence and absence of a pre-send report review gate.
+- [ ] Through the Administrator caller, refuse used-code editing and any writable year override; exercise Core-derived Europe/London cutover-year continuity/exhaustion on both sides of the year boundary, atomic predecessor deactivation, later-year `001`, concurrency and rollback.
+- [ ] Exercise the separate Triage Web journey: registration gate, states, binary finding, correction/supersession, cancellation/reopen-to-`Open`, optional assignee, no due/chaser, exact no-fallback reply evidence and reasoned later-case unlink/relink without case/reference creation.
+- [ ] Prepare/copy a manual chaser, then separately confirm its staff outcome once; prove actor/time/case/channel/optional note, double-submit behavior, refusal for unauthorised/stale/closed/`Held`, zero outbound call and no message body in history/telemetry.
+- [ ] When automatic report evidence is absent/ambiguous, link the exact allowlisted Sent item with an entered reason; verify authoritative `sentDateTime`, separate discovery/link times, reasoned unlink/relink, recomputed events/counts, retained history and finality after later Outlook move/delete.
 - [ ] Use two authenticated browser sessions to prove one active case editor, read-only visibility for the second staff member, lease expiry recovery and stale-save refusal.
 - [ ] Add manually received WhatsApp material through the actual case caller and verify source provenance/custody state without any WhatsApp integration or corpus upload.
 - [ ] Use keyboard-only operation, semantic labels, text-plus-colour states, AA contrast and 200% zoom/reflow evidence.
@@ -226,7 +230,8 @@ A test failure, unsupported source, integration failure and business outcome rem
 
 | Scenario/input/boundary | Expected observable result | Evidence | Does not prove |
 |---|---|---|---|
-| Named operator journey | Staff complete the QDOS workflow with correct data, files, audit and visible failures | Signed acceptance record and browser/caller evidence | Deferred features or untested roles/states |
+| Named operator journey | Staff complete the QDOS workflow with correct data, files, permanent action history and visible failures | Signed acceptance record and browser/caller evidence | Deferred features or untested roles/states |
+| Named Triage journey | Staff complete the separate roadworthiness workflow with exact reply evidence and no case/reference | browser/Core/approved Outlook evidence | recipient receipt or automatic policy beyond accepted research |
 | Two staff open the same case | One may edit; the other remains read-only until release/expiry, and stale data cannot overwrite | Two-browser, SQL and operator evidence | Collaborative editing |
 | Release/rollback rehearsal | Named artifacts deploy, smoke and can return to prior artifact without down-migration | Shared-development release evidence | Production traffic or data recovery from every failure |
 | Production cutover | Exactly approved integrations activate singly after health/smoke; one poller runs | Production deployment/live verification record | Ongoing business acceptance or wider external access |
@@ -241,7 +246,7 @@ A test failure, unsupported source, integration failure and business outcome rem
 ### Deferred-capability impact
 
 - **Named capabilities:** Every named deferral in the questionnaire and remaining-requirements plan.
-- **Stable seam retained:** Accepted Core use cases, source/external identities, adapter boundaries, audit and immutable artifacts.
+- **Stable seam retained:** Accepted Core use cases, source/external identities, adapter boundaries, permanent action history and immutable artifacts.
 - **Future migration/replacement:** Each later capability owns its schema/contract/adapter and evidence without rewriting accepted history.
 - **Activation boundary:** New product decision, genuine evidence, licence/cost/security review and explicit approval.
 - **Deliberately absent:** Deferred code, resource, integration, account, scanner, network and release machinery remain absent.

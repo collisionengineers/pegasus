@@ -1,0 +1,6 @@
+interface:
+  display_name: "Persist Task Artifact"
+  short_description: "Write a contained task artifact or handoff."
+  default_prompt: "Use $persist-repository-task-artifact to write a Markdown artifact or JSON handoff for an explicit task."
+policy:
+  allow_implicit_invocation: false

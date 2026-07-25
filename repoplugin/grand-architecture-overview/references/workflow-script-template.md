@@ -258,7 +258,7 @@ verbatim in each prompt and ask for matching JSON.
 - **Concurrency** caps at ~10–16. For very large N, `pipeline` already queues Phase 1; in fallback,
   send profiles in batches of ~10.
 - **Focused mode** profiles only the named projects and investigates only the seams between them —
-  a much shorter run that returns a deep two/three-way brief, not a full audit.
+  a much shorter run that returns a deep two/three-way brief, not a full review.
 - **Update mode** — the main loop reads the prior `.json` inline and attaches it as `manifest.prior`
   before invoking Workflow (the script can't read files). The script then re-profiles only projects whose
   git head moved (compares `last_commit`), reuses prior profiles for the rest, passes the prior register to

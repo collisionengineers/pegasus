@@ -2,7 +2,7 @@
 
 **Operator decision:** ADR-0022 was rejected as a v2 case-creation and migration workflow, and dealt with on 2026-07-24.
 
-**Legacy source dealt with:** [ADR-0022](../dealt-with/rejected/0022-retroactive-case-reconstruction.md).
+**Legacy source dealt with:** ADR-0022 (`../dealt-with/rejected/0022-retroactive-case-reconstruction.md`).
 
 No legacy finding from ADR-0022 was accepted. This report records the current-v2 boundary exposed by the comparison; it does not approve the predecessor reconstruction ladder or create a new implementation requirement.
 
@@ -10,11 +10,11 @@ No legacy finding from ADR-0022 was accepted. This report records the current-v2
 
 ### Current authority
 
-- The [discovery questionnaire](../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md) says v2 starts fresh: previous application cases, users, audit records and application state are not migrated. Historical documents and operational records stay in Box, EVA, Outlook, spreadsheets or the network drive, and the previous application is shut down after cutover.
+- The [discovery questionnaire](../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md) says v2 starts fresh: previous application cases, users, action-history records and application state are not migrated. Historical documents and operational records stay in Box, EVA, Outlook, spreadsheets or the network drive, and the previous application is shut down after cutover.
 - A case and principal reference arise only from accepted definitive instructions or usable image-led intake. A missing or ambiguous input remains pre-case; it is not converted into a case merely because historical material exists.
 - Related email may be associated automatically only when it definitively matches an existing v2 case. An uncertain match is operator-visible in `Needs sorting`.
-- [`Held`](../../../../AGENTS.md#product-language-and-invariants) is a reasoned pause on an existing case. It is not a pre-case state or a fallback case constructor.
-- Post-report queries and disputes are required operational work, but the exact predicates for `Queries`, `Other`, and `Needs sorting` remain unresolved in the [mailbox categorisation decision](../../../plans/open-decisions.md#mailbox-categorisation-and-correction).
+- [`Held`](../../../AGENTS.md#product-language-and-invariants) is a reasoned pause on an existing case. It is not a pre-case state or a fallback case constructor.
+- Post-report queries and disputes are required operational work, but the exact predicates for `Queries`, `Other`, and `Needs sorting` remain unresolved in the combined [mailbox categorisation and email-matching research](../../plans/mailbox-categorisation-and-email-matching/README.md).
 
 ### Decision boundary for new correspondence about historical work
 
@@ -24,7 +24,7 @@ No legacy finding from ADR-0022 was accepted. This report records the current-v2
 4. Staff may consult the historical records that remain in Box, EVA or Outlook to answer the correspondence.
 5. Do not import a predecessor case, adopt its Case/PO as a v2 reference, or create a `Held` anchor solely to attach that correspondence.
 
-The eventual mailbox caller must audit any staff association or resolution it performs. Until that caller exists, the exact persisted action and category are not claimed as implemented.
+The eventual mailbox caller must record any staff association or resolution it performs in permanent action history. Until that caller exists, the exact persisted action and category are not claimed as implemented.
 
 ## Differences from ADR-0022
 
@@ -44,11 +44,11 @@ The eventual mailbox caller must audit any staff association or resolution it pe
 
 The only current intake caller is the Development-only path:
 
-`POST /Intake/Qdos` -> [`QdosModel.OnPostAsync`](../../../../src/CollisionSpike.Web/Pages/Intake/Qdos.cshtml.cs) -> [`ProcessQdosIntake`](../../../../src/CollisionSpike.Core/Intake/Qdos/ProcessQdosIntake.cs).
+`POST /Intake/Upload` -> [`UploadModel.OnPostAsync`](../../../src/CollisionSpike.Web/Pages/Intake/Upload.cshtml.cs) -> [`ProcessIntake`](../../../src/CollisionSpike.Core/Intake/ProcessIntake.cs).
 
-It processes new QDOS input; it does not search historical Box/Outlook records or reconstruct predecessor cases. The planned mailbox Worker, broader email management and related-correspondence caller are not implemented. The current dashboard's [`Queries` tile](../../../../src/CollisionSpike.Web/Pages/Index.cshtml) is static and is not evidence of a query workflow.
+It processes new QDOS input; it does not search historical Box/Outlook records or reconstruct predecessor cases. The planned mailbox Worker, broader email management and related-correspondence caller are not implemented. The current dashboard's [`Queries` tile](../../../src/CollisionSpike.Web/Pages/Index.cshtml) is static and is not evidence of a query workflow.
 
-The [Outlook delivery plan](../../../plans/remainder-delivery/integrations/outlook-and-background-processing.md) likewise routes uncertain associations to `Needs sorting` and excludes broader mailbox coverage from its current slice. A targeted repository search on 2026-07-24 found no production caller for retroactive case reconstruction.
+The [Outlook delivery plan](../../plans/remainder-delivery/integrations/outlook-and-background-processing.md) likewise routes uncertain associations to `Needs sorting` and excludes broader mailbox coverage from its current slice. A targeted repository search on 2026-07-24 found no production caller for retroactive case reconstruction.
 
 ## Evidence still required
 
@@ -60,4 +60,4 @@ That evidence would prove current correspondence handling. It would not prove mi
 
 Broader mailbox coverage and a future read-only historical-search aid remain possible as separately approved capabilities. Preserved source identity, explicit association outcomes and narrow Outlook/Box adapters keep those options open without importing old case state.
 
-No predecessor case migration, reference adoption, reconstruction orchestrator, broad Deleted Items search, retroactive field fill, dormant `RETRO_*` feature flag, queue, service, table or endpoint is introduced by this decision. Any later assisted historical lookup must define its operator workflow, licence and privacy boundaries, real caller, audit contract and proof without turning historical evidence into a v2 case automatically.
+No predecessor case migration, reference adoption, reconstruction orchestrator, broad Deleted Items search, retroactive field fill, dormant `RETRO_*` feature flag, queue, service, table or endpoint is introduced by this decision. Any later assisted historical lookup must define its operator workflow, licence and privacy boundaries, real caller, permanent-action-history contract and proof without turning historical evidence into a v2 case automatically.

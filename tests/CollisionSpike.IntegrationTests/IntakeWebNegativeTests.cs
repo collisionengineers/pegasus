@@ -332,7 +332,7 @@ public sealed class IntakeWebNegativeTests
                          "IntakeReceipts",
                          "IntakeAssets",
                          "InstructionDrafts",
-                         "IntakeAuditEvents"
+                         "IntakeReceiptEvents"
                      })
             {
                 await using var command = context.Database.GetDbConnection().CreateCommand();

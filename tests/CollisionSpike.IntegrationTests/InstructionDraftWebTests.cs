@@ -40,7 +40,7 @@ public sealed class InstructionDraftWebTests
         Assert.Equal(1, await CountRowsAsync(factory, "IntakeReceipts"));
         Assert.Equal(1, await CountRowsAsync(factory, "InstructionDrafts"));
         Assert.Equal(receipt.AssetRecords.Count, await CountRowsAsync(factory, "IntakeAssets"));
-        Assert.Equal(1, await CountRowsAsync(factory, "IntakeAuditEvents"));
+        Assert.Equal(1, await CountRowsAsync(factory, "IntakeReceiptEvents"));
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public sealed class InstructionDraftWebTests
         Assert.Equal(1, await CountRowsAsync(factory, "IntakeReceipts"));
         Assert.Equal(1, await CountRowsAsync(factory, "InstructionDrafts"));
         Assert.Equal(firstReceipt.AssetRecords.Count, await CountRowsAsync(factory, "IntakeAssets"));
-        Assert.Equal(1, await CountRowsAsync(factory, "IntakeAuditEvents"));
+        Assert.Equal(1, await CountRowsAsync(factory, "IntakeReceiptEvents"));
         await using var scope = factory.Services.CreateAsyncScope();
         var artifactStore = scope.ServiceProvider.GetRequiredService<IIntakeArtifactStore>();
         Assert.NotNull(await artifactStore.ReadAsync(StorageKey(firstHash), CancellationToken.None));
@@ -109,7 +109,7 @@ public sealed class InstructionDraftWebTests
         Assert.Equal(2, await CountRowsAsync(factory, "IntakeReceipts"));
         Assert.Equal(2, await CountRowsAsync(factory, "InstructionDrafts"));
         Assert.Equal(2 * firstReceipt.AssetRecords.Count, await CountRowsAsync(factory, "IntakeAssets"));
-        Assert.Equal(2, await CountRowsAsync(factory, "IntakeAuditEvents"));
+        Assert.Equal(2, await CountRowsAsync(factory, "IntakeReceiptEvents"));
     }
 
     [Fact]
@@ -247,7 +247,7 @@ public sealed class InstructionDraftWebTests
     {
         var allowed = tableName switch
         {
-            "IntakeReceipts" or "InstructionDrafts" or "IntakeAssets" or "IntakeAuditEvents" => tableName,
+            "IntakeReceipts" or "InstructionDrafts" or "IntakeAssets" or "IntakeReceiptEvents" => tableName,
             _ => throw new ArgumentOutOfRangeException(nameof(tableName))
         };
         return await ScalarAsync<int>(factory, $"SELECT COUNT(*) FROM [{allowed}]");

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Test and Validate Change"
+  short_description: "Risk-based repository validation"
+  default_prompt: "Use $test-and-validate-repository-change to validate this repository change."
+policy:
+  allow_implicit_invocation: true

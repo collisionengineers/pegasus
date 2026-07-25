@@ -70,7 +70,7 @@
 
 &#x20; ─────────────────────────────  ───────────────────────────────────────────────────────────────────────────────────────────
 
-&#x20;  confidentialledger             Immutable, tamper-evident audit ledger entries
+&#x20;  confidentialledger             Immutable, tamper-evident activity ledger entries
 
 &#x20; ─────────────────────────────  ───────────────────────────────────────────────────────────────────────────────────────────
 

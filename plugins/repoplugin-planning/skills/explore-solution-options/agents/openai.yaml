@@ -1,0 +1,6 @@
+interface:
+  display_name: "Explore Solution Options"
+  short_description: "Compare evidence-backed implementation options."
+  default_prompt: "Use $explore-solution-options to compare solutions for this change."
+policy:
+  allow_implicit_invocation: false

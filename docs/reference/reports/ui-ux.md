@@ -7,7 +7,7 @@ what needs attention, and the next safe action.
 
 ## Language
 
-- Use sentence case, active voice, and the business terms in [CONTEXT.md](../../CONTEXT.md).
+- Use sentence case, active voice, and the business terms recorded in the unavailable historical path `../../CONTEXT.md`.
 - Say what the handler can see or do, not how the system implements it.
 - Never render cloud products, service layers, routes, schemas, payloads, feature flags, deployment state,
   planning labels, ticket IDs, or internal identifiers.
@@ -20,7 +20,7 @@ what needs attention, and the next safe action.
 - Make every destructive or high-impact action explicit, previewable, and confirmable.
 - Show source and confidence for suggestions; never present model output as an established fact.
 - Keep ambiguous matching decisions human-controlled and explain the competing signals.
-- Use progressive disclosure: summary first, evidence and audit detail on demand.
+- Use progressive disclosure: summary first, evidence and action-history detail on demand.
 - Empty, loading, error, unavailable, and permission-denied states are first-class designs.
 
 ## Accessibility and responsive behaviour

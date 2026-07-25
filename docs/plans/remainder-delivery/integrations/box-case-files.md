@@ -10,7 +10,7 @@ Make Box the long-term original-file custody store while proving every operation
 - **Policy owner:** Core custody/document use case; Infrastructure owns one guarded Box adapter.
 - **Current implementation:** no Box SDK, adapter, registration, persisted Box identity or production caller exists.
 - **Real callers:** none; Web/Worker/provider/MCP are planned callers through Core only.
-- **Persistence/adapters:** Box must be authoritative for original files; SQL owns workflow, relationships, audit and persisted Box identifiers.
+- **Persistence/adapters:** Box must be authoritative for original files; SQL owns workflow, relationships, permanent action history and persisted Box identifiers.
 - **Dependencies:** durable source receipt/custody hand-off and case acceptance.
 - **Replaces/consolidates:** the ignored local store only after confirmed custody; no Box search/webhook second path.
 
@@ -39,16 +39,16 @@ Unknown/missing ancestry, unsupported operation, or root type/name mismatch is t
 
 - **Real or intended caller:** planned Core custody use case called by Web/Worker/provider/MCP, never a supplied arbitrary Box ID.
 - **Input/output:** only a root verified by immutable ID/type/name and created/traversed descendant proof may yield a persisted folder/file/version confirmation.
-- **Ordered decisions and failure behavior:** reject arbitrary/unknown IDs before SDK call; discover descendants only from verified-root traversal; fail closed on mismatched/missing parent; create version rather than overwrite; keep closed-case files read-only until audited reopen.
+- **Ordered decisions and failure behavior:** reject arbitrary/unknown IDs before SDK call; discover descendants only from verified-root traversal; fail closed on mismatched/missing parent; create version rather than overwrite; keep closed-case files read-only until a reasoned reopen recorded in permanent action history.
 - **Persistence/migration:** persist immutable IDs, root/known-parent proof, hashes/version/etag and semantic role in the existing evidence authority.
 - **Adapters/side effects:** no account-root search, enterprise event feed, global list, arbitrary item fetch, move/copy/share/collaboration/delete/tag operations or event ingestion.
-- **Operator surface and observability:** show the folder link and confirmed custody/reconciliation state; no principal-correction control is exposed while its sent-report decision is withheld.
+- **Operator surface and observability:** show the folder link and confirmed custody/reconciliation state. Principal/reference remain read-only; a wrong-principal case is terminal `Created in error` and links to its replacement without renaming either issued folder identity.
 - **Documentation affected:** approved action records and source-custody plan; no operator-note edit.
 - **Replaces/consolidates:** one adapter and scope guard; no separate Box SDK callers.
 
 ### Scope
 
-- **Included:** root verification, descendant-only case/holding folders, original/version storage, metadata confirmation, audited confirmation and file requests beneath the root.
+- **Included:** root verification, descendant-only case/holding folders, original/version storage, metadata confirmation, action-history-backed confirmation and file requests beneath the root.
 - **Excluded:** production folders, global search/events, deletion, automatic principal-reference folder rename, collaboration/sharing and unapproved reads/writes.
 
 ### Implementation checklist
@@ -106,14 +106,14 @@ Unknown/missing ancestry, unsupported operation, or root type/name mismatch is t
 
 - **Policy/implementation owner:** Core case-document intake/custody use case; the guarded Box adapter remains the only long-term file writer.
 - **Independent evaluator:** test engineer verifies source provenance, association and closed-case denial; operator confirms the upload flow.
-- **Prerequisites:** authenticated actor/audit, accepted case, [exclusive edit lease](../casework/case-editing-concurrency.md), durable staging and the scoped Box custody operation.
+- **Prerequisites:** authenticated actor/action history, accepted case, [exclusive edit lease](../casework/case-editing-concurrency.md), durable staging and the scoped Box custody operation.
 - **Consumers/unlocks:** case workspace documents, EVA image bundle and retained correspondence history.
 
 ### Caller, contract and change boundary
 
 - **Real or intended caller:** planned authenticated `Add case material` action from case edit mode; no current caller.
-- **Input/output:** staff-selected file already received outside CollisionSpike, target case, semantic role and source channel `Manual WhatsApp` yield one immutable source occurrence, auditable association and custody-pending/confirmed result.
-- **Ordered decisions and failure behavior:** authorise actor and active case lease; validate size/type and target; retain original bytes before processing; preserve manual source/actor/time; refuse closed cases until audited reopen; stage visibly on Box failure. The application never reads a WhatsApp account or guesses a case association.
+- **Input/output:** staff-selected file already received outside CollisionSpike, target case, semantic role and source channel `Manual WhatsApp` yield one immutable source occurrence, traceable association and custody-pending/confirmed result.
+- **Ordered decisions and failure behavior:** authorise actor and active case lease; validate size/type and target; retain original bytes before processing; preserve manual source/actor/time; refuse closed cases until a reasoned reopen enters permanent action history; stage visibly on Box failure. The application never reads a WhatsApp account or guesses a case association.
 - **Persistence/migration:** store immutable occurrence identity, source channel, actor/time, case association, hashes, storage key and custody status in the existing receipt/document authority; equal bytes remain separate occurrences with provenance.
 - **Adapters/side effects:** the same guarded Box operation may write only beneath the approved subtree after exact approval; no WhatsApp, network-drive or OCR call.
 - **Operator surface and observability:** upload control names `WhatsApp` as the source, shows target case/file role and custody state, and reports safe validation/custody failures without file content in telemetry.
@@ -145,14 +145,14 @@ Unknown/missing ancestry, unsupported operation, or root type/name mismatch is t
 |---|---|---|---|
 | Staff adds received WhatsApp image to an open case | One immutable occurrence shows manual source, actor, role and custody state on that case | Web-to-Core integration plus local genuine-input evaluation | WhatsApp account access or Box production scope |
 | Same bytes added from two source occurrences | Both provenance records remain; storage may deduplicate bytes without deleting occurrence history | persistence/idempotency test | They describe different business evidence |
-| Closed case or another user's active edit lease | Upload is refused with a clear reopen/lock outcome and no external write | negative caller/zero-adapter-call test | Future reopen policy while its decision is open |
+| Closed case or another user's active edit lease | Upload is refused with a clear reopen/lock outcome and no external write | negative caller/zero-adapter-call test | Operator choice of a valid reopen destination |
 | Approved Box custody fails | Original remains durably staged and visibly retryable; no false confirmation | fault-injection test | Vendor recovery time |
 
 ### Approval, rollout and rollback
 
 - **Approval-triggering action and exact scope:** local upload needs no external approval; every Box call still requires the exact action/target approval defined above and must use non-corpus proof material.
 - **Rollout/activation:** prove local receipt/provenance and lock/closed-case denials, then activate approved Box custody for this caller after the shared guard is live.
-- **Rollback/recovery:** disable the upload caller, retain staged occurrences/audit/custody results and replay through the shared outbox; never delete Box content as rollback.
+- **Rollback/recovery:** disable the upload caller, retain staged occurrences/action history/custody results and replay through the shared outbox; never delete Box content as rollback.
 - **Irreversible risk:** a permitted-subtree file/version is an external write; no live production folder or WhatsApp operation is authorised.
 
 ### Deferred-capability impact

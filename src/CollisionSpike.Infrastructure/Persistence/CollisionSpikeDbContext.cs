@@ -10,7 +10,7 @@ public sealed class CollisionSpikeDbContext(DbContextOptions<CollisionSpikeDbCon
 
     internal DbSet<InstructionDraftEntity> InstructionDrafts => Set<InstructionDraftEntity>();
 
-    internal DbSet<IntakeAuditEventEntity> IntakeAuditEvents => Set<IntakeAuditEventEntity>();
+    internal DbSet<IntakeReceiptEventEntity> IntakeReceiptEvents => Set<IntakeReceiptEventEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -75,9 +75,9 @@ public sealed class CollisionSpikeDbContext(DbContextOptions<CollisionSpikeDbCon
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        modelBuilder.Entity<IntakeAuditEventEntity>(entity =>
+        modelBuilder.Entity<IntakeReceiptEventEntity>(entity =>
         {
-            entity.ToTable("IntakeAuditEvents");
+            entity.ToTable("IntakeReceiptEvents");
             entity.HasKey(item => item.Id);
             entity.Property(item => item.EventType).HasMaxLength(100).IsRequired();
             entity.Property(item => item.Actor).HasMaxLength(200).IsRequired();
@@ -152,7 +152,7 @@ internal sealed class IntakeAssetEntity
     public int? HeightPixels { get; set; }
 }
 
-internal sealed class IntakeAuditEventEntity
+internal sealed class IntakeReceiptEventEntity
 {
     public Guid Id { get; set; }
     public Guid IntakeReceiptId { get; set; }

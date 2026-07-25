@@ -16,7 +16,7 @@ Preserve the accepted principal-scoped provider boundary without inventing the v
 
 No implementation task is emitted until a versioned contract and credential-administration workflow are accepted. ADR-0004 does not authorise HTTP Basic, an `Idempotency-Key` header, a payload signature or `/api/v1/submissions`; those remain proposals.
 
-The accepted future task must name one Web caller, the shared Core intake/authorisation owner, principal-plus-request idempotency, cross-principal denial before receipt access, hashed-secret rotation/revocation, stale-administrator behavior, audit, bounded request failures, rollout and rollback. An authenticated principal-scoped new instruction automatically enters the same Core definitive predicate and atomic `AcceptCaseDraft` transaction as the Worker; the credential principal is authoritative, any contradictory principal evidence fails closed, and a non-definitive submission returns its retained processing status without allocating a reference. A definitive incomplete instruction creates one `Not ready` case and the provider may retrieve its Case/PO. The endpoint must not implement another acceptance rule or expose general case search/workflow mutation.
+The accepted future task must name one Web caller, the shared Core intake/authorisation owner, principal-plus-request idempotency, cross-principal denial before receipt access, hashed-secret rotation/revocation, stale-administrator behavior, permanent action history, bounded request failures, rollout and rollback. An authenticated principal-scoped new instruction automatically enters the same Core definitive predicate and atomic `AcceptCaseDraft` transaction as the Worker; the credential principal is authoritative, any contradictory principal evidence fails closed, and a non-definitive submission returns its retained processing status without allocating a reference. A definitive incomplete instruction creates one `Not ready` case and the provider may retrieve its Case/PO. The endpoint must not implement another acceptance rule or expose general case search/workflow mutation.
 
 ## Activation and approval
 
@@ -25,6 +25,6 @@ Activation requires the accepted versioned wire contract, exact file/request lim
 ## Deferred-capability impact
 
 - **Named capabilities:** external accounts, provider portal, wider case APIs and additional principals.
-- **Stable seam retained:** principal ID, immutable source identity, shared intake use case and separate provider audit actor.
-- **Future migration/replacement:** the accepted contract will need credential, receipt/idempotency and audit persistence in the single migration stream.
+- **Stable seam retained:** principal ID, immutable source identity, shared intake use case and separate provider action-history actor.
+- **Future migration/replacement:** the accepted contract will need credential, receipt/idempotency and action-history persistence in the single migration stream.
 - **Deliberately absent:** endpoint, authentication handler, credential table, provider client, dormant configuration and live enablement flag.

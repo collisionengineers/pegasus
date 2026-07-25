@@ -28,22 +28,26 @@ This repository is the clean-room implementation of Collision Engineers' case-ma
 ## Product language and invariants
 
 - A work provider is also called a principal. Each principal has a principal code.
+- A principal code becomes immutable when first used. A legitimate code replacement creates a linked principal and atomically deactivates its predecessor. In the cutover year the replacement continues from the predecessor's next sequence number; each later year begins at `001`.
 - A normal case reference is `{principal code}{YY}{three-digit shared sequence}`, for example `QDOS26001`.
-- Repairable audit references use `a.`; total-loss audits use `ap.`. All case types share the same principal/year sequence.
+- Repairable Audit references use `a.`; total-loss Audit references use `ap.`. All case types share the same principal/year sequence.
 - A standalone Audit takes its `a.` or `ap.` type from the original Engineer's report. If that assessment is missing or ambiguous, do not create a case or allocate a reference.
 - An Inspection + Audit begins with the standard inspection reference. The assigned Engineer later creates the applicable `a.` or `ap.` reference inside the case folder from Collision Engineers' own assessment.
 - Before a principal reference exists, image-led work is identified by vehicle registration.
-- A reference may be reassigned on the same case before Collision Engineers sends its first report for that case. Allocate from the corrected principal's sequence for the correction year, retain the old reference as an alias, and never reuse either number. After Collision Engineers sends any report for the case, record the error in the audit trail without changing the principal or reference.
-- Never delete a case. Reopening retains its history and is visible in the audit trail.
-- Initial terminal outcomes are post report, provider cancellation, and Collision Engineers rejection.
-- Chasers are due every seven days and are manual copyable messages in the first MVP.
+- A case's principal and reference become immutable as soon as the reference is allocated. If allocation used the wrong principal, close the original as the distinct terminal outcome `Created in error`, require a reason and a link to a new replacement case under the corrected principal, and never reuse either reference.
+- Never delete a case. An authorised staff user may reopen a closed case, with a required reason, into any otherwise-valid nonterminal state; normal gates still apply. `Held` uses its separate action, and `Created in error` can never reopen. Reopening retains permanent action history.
+- Initial terminal outcomes are post report, provider cancellation, Collision Engineers rejection, and `Created in error` for wrong-principal allocation.
+- The first chaser is due at the same Europe/London local clock time seven calendar days after entering `Not ready`. `Held` preserves the prior state and any remaining local-clock chase interval. Release offers the prior state or `Review`: returning to `Not ready` resumes the preserved remainder, while `Review` ends the missing-information chase. First-MVP chasers are manual copyable messages.
 - `Triage` is a reserved pre-case state. Use `Needs sorting` for the inbox queue shown to operators.
+- Business Triage is a separate pre-case record with its own source, reply chain, states, finding, permanent action history, and optional later case link. An active Triage requires a vehicle registration; otherwise the source remains in `Needs sorting`. Its states are `Open`/`Awaiting information` -> `Finding recorded` -> `Completed`, with binary `Roadworthy`/`Unroadworthy` findings; `Cancelled` is the only end without a finding. Triage has no due date or chasers.
 - `Blocked intake` is a manual inbox filter, not a case state. It retains the source with a reason and warning but creates no case or reference until staff resolve and retry it.
 - `Not ready` is incomplete work being chased; `Review` is complete work awaiting an approval; `Held` is a reasoned manual pause that stops progression and chasers while leaving due dates visible.
-- Administrator, Engineer, and User roles may perform case transitions and review gates. Only Administrators manage accounts, principals, and configuration; every action and reason is audited.
+- Administrator, Engineer, and User roles may perform case transitions and the pre-Engineer-assignment review gate. There is no pre-send report review gate. Only Administrators manage accounts, principals, configuration, and the approved Outlook mailbox allowlist.
+- A sent report is evidenced by one exact Outlook Sent item in an approved mailbox. CollisionSpike detects but does not send reports. Automatic matching is deferred; when evidence is absent or ambiguous, staff may link the exact item with a required reason. Outlook `sentDateTime` is authoritative, discovery/link times remain in permanent action history, unlink/relink requires a reason and recomputes dependent events and counts, and a confirmed event remains final if Outlook later moves or deletes the message.
+- Permanent action history includes business mutations, downloads/exports, material denied or failed business actions, automated business results, and external information actually accepted, linked, or used. Routine views/searches/refreshes and adapter mechanics belong in content-safe telemetry. History records structured before/after values, actor, time, reason, and outcome without secrets or file/message bodies.
 - Repair estimate, valuation, invoice amount, messaging automation, WhatsApp coexistence, malware scanning, and a custom domain are planned or deferred unless the operator notes say otherwise.
 
-Use `$collisionspike-domain` for detailed rules and the canonical decision register.
+Use `$repoplugin-planning:apply-collisionspike-domain` for detailed business rules. Read the live authoritative decision register rather than copying it into the skill.
 
 ## Architecture boundary
 
@@ -121,12 +125,19 @@ Primary local check: `pwsh ./scripts/Invoke-RepoCheck.ps1`.
 - Runtime secrets belong in Infisical or Azure Key Vault. Local examples contain names only.
 - Infrastructure is Bicep orchestrated by Azure Developer CLI. The development web plan is F1; production is B1. No deployment slot is planned for those tiers.
 - Do not deploy, mutate Azure, rotate credentials, or delete old resources unless the user explicitly asks for that operation.
-- Before any Azure design or code change, use `$collisionspike-azure-app` and current Microsoft Learn/Azure MCP guidance. Current state is in `docs/azure/current-inventory.md`.
+- Before any Azure design or code change, use `$repoplugin-planning:route-collisionspike-azure` and current Microsoft Learn/Azure MCP guidance. Current state is in `docs/azure/current-inventory.md`.
 - Never delete `rg-collisionspike-dev` as a first step. It contains data-bearing and shared assets.
 
 ## Agent routing
 
 Project agents live in `.codex/agents/`. Delegate bounded work; retain one accountable implementation owner. Use:
+
+- `$repoplugin-planning:plan-repository-change` for a material planning request that needs durable research, an independent open-question review loop, and an automatically generated plan pack. It works in Default or Plan mode.
+- `$repoplugin-implementation:implement-plan-pack` only when the user explicitly asks to execute a validated ready pack; its implementation lead must call the Codex harness `update_plan` tool before editing or delegating.
+- `$repoplugin-review:review-implementation` for independent scope/caller/plan review, and `$repoplugin-review:triage-pr-feedback` for complete read-only pull-request feedback collection before remediation.
+- `$repoplugin-validation:test-and-validate-repository-change` for risk-based local and real-caller evidence; use `$repoplugin-debugging:debug-repository-failure` to reproduce and diagnose before a fix.
+- `$repoplugin-documentation:bootstrap-repository-documentation`, `$repoplugin-documentation:maintain-repository-documentation`, and `$repoplugin-documentation:audit-repository-documentation` for repository documentation and AGENTS.md ownership.
+- `$repoplugin-ui-ux:plan-ui-ux-change` for the reviewed inventory/specification/wireframe/image workflow and `$repoplugin-ui-ux:apply-collision-engineers-ui-style` for the packaged internal-app visual system.
 
 - `explorer` or `codebase_mapper` for read-only orientation.
 - `domain_analyst` for workflow interpretation.

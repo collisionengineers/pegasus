@@ -2,7 +2,7 @@
 
 **Operator decision:** Accepted on 2026-07-23.
 
-**Legacy sources dealt with:** [ADR-0001](../dealt-with/accepted/0001-repairer-first-class-entity.md), [ADR-0011](../dealt-with/accepted/0011-work-provider-intermediary-garage-roles.md), and the examined [repairer spreadsheet](./contacts/REPAIRER.xls).
+**Legacy sources dealt with:** ADR-0001 (`../dealt-with/accepted/0001-repairer-first-class-entity.md`), ADR-0011 (`../dealt-with/accepted/0011-work-provider-intermediary-garage-roles.md`), and the examined [repairer spreadsheet](../workproviders-and-repairers/contacts/REPAIRER.xls).
 
 This report records accepted findings from those sources. It does not make the predecessor architecture authoritative or approve an automatic import of its data.
 
@@ -16,16 +16,16 @@ The case must retain the historical inspection-address and role facts used for t
 
 ### Current v2 authority and evidence
 
-- The [questionnaire](../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md#5-case-information) says a repairer/garage/bodyshop can be connected to a case and requires the physical vehicle/repairer address where applicable.
-- The [operator inspection-address note](../../../operator-notes/collision-engineers-process/inspection-address/inspection-address-overview.md) says staff may need the garage/repairer location and often know which repairer a principal generally uses.
-- [Remaining requirements](../../../plans/remaining-requirements.md#4-case-model-and-lifecycle) require the full case record and allow a real vehicle/repairer address or `Image Based Assessment`.
+- The [questionnaire](../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md#5-case-information) says a repairer/garage/bodyshop can be connected to a case and requires the physical vehicle/repairer address where applicable.
+- The [operator inspection-address note](../../operator-notes/collision-engineers-process/inspection-address/inspection-address-overview.md) says staff may need the garage/repairer location and often know which repairer a principal generally uses.
+- [Remaining requirements](../../plans/remaining-requirements.md#4-case-model-and-lifecycle) require the full case record and allow a real vehicle/repairer address or `Image Based Assessment`.
 - The examined spreadsheet contains recurring repairer records with distinct codes, names, and address components. Its evidence limits are recorded below.
 
 ### Difference from current implementation and plan
 
-- The only current real caller is the development-only `/Intake/Qdos` path. Its [typed pre-case draft](../../../../src/CollisionSpike.Core/Intake/Qdos/QdosIntakeContracts.cs) stores `InspectionAddress` as a nullable string.
-- [Current EF persistence](../../../../src/CollisionSpike.Infrastructure/Persistence/CollisionSpikeDbContext.cs) likewise persists only that draft string. There is no accepted Case, Repairer identity, case-to-repairer association, or historical address policy.
-- The [intake and case-acceptance plan](../../../plans/remainder-delivery/casework/intake-and-case-acceptance.md) mentions typed fields and associations but does not identify a repairer policy owner, persisted identity, migration, failure behaviour, or caller test.
+- The only current real caller is the Development-only `/Intake/Upload` path. Its [typed pre-case draft](../../../src/CollisionSpike.Core/Intake/IntakeContracts.cs) stores `InspectionAddress` as a nullable string.
+- [Current EF persistence](../../../src/CollisionSpike.Infrastructure/Persistence/CollisionSpikeDbContext.cs) likewise persists only that draft string. There is no accepted Case, Repairer identity, case-to-repairer association, or historical address policy.
+- The [intake and case-acceptance plan](../../plans/remainder-delivery/casework/intake-and-case-acceptance.md) mentions typed fields and associations but does not identify a repairer policy owner, persisted identity, migration, failure behaviour, or caller test.
 
 ### Not accepted from the legacy design
 
@@ -54,10 +54,10 @@ Principal, Intermediary, Repairer, and Image Source are distinct functions on a 
 
 ### Current v2 authority and evidence
 
-- The [operator intake note](../../../operator-notes/collision-engineers-process/initial-case-intake/collision-engineers-process.md) distinguishes instructions sent by or on behalf of a work provider from images supplied by a repairer where the related work provider may be unknown.
-- The [questionnaire](../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md#5-case-information) already lists the Principal, claimant, Repairer, insurer, and operational contacts as case-connected people and organisations.
-- [Remaining requirements](../../../plans/remaining-requirements.md#what-is-already-proved-locally) say strong QDOS instruction content outranks the sender of a staff-forwarded email.
-- The real Web caller has a [caller-level integration test](../../../../tests/CollisionSpike.IntegrationTests/QdosIntakeWebTests.cs) for that forwarded-sender precedence rule.
+- The [operator intake note](../../operator-notes/collision-engineers-process/initial-case-intake/collision-engineers-process.md) distinguishes instructions sent by or on behalf of a work provider from images supplied by a repairer where the related work provider may be unknown.
+- The [questionnaire](../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md#5-case-information) already lists the Principal, claimant, Repairer, insurer, and operational contacts as case-connected people and organisations.
+- [Remaining requirements](../../plans/remaining-requirements.md#what-is-already-proved-locally) say strong QDOS instruction content outranks the sender of a staff-forwarded email.
+- The real Web caller has a [caller-level integration test](../../../tests/CollisionSpike.IntegrationTests/QdosIntakeWebTests.cs) for that forwarded-sender precedence rule.
 
 ### Difference from current implementation and plan
 
@@ -87,7 +87,7 @@ The workbook is now an examined repository evidence input. Before any import or 
 
 ### Policy owner and real callers
 
-The future Core accepted-case use case, currently planned as `AcceptCaseDraft`, must own confirmed case-party association alongside case creation. `ProcessQdosIntake` remains the single current pre-case intake owner; it must not grow a second case model.
+The future Core accepted-case use case, currently planned as `AcceptCaseDraft`, must own confirmed case-party association alongside case creation. `ProcessIntake` remains the single current pre-case intake owner; it must not grow a second case model.
 
 The first real mutation caller is the authorised staff review/acceptance flow. Later Worker, provider API, MCP, mailbox, and manual-case callers must invoke the same Core policy rather than assigning roles independently.
 
@@ -98,7 +98,7 @@ Future accepted-case persistence must preserve:
 - a stable identity for a reusable repairer or other case-connected party;
 - one or more named roles held by that party on a particular case;
 - the case's historical inspection-address decision and relevant source evidence; and
-- audited role assignment and correction.
+- role assignment and correction recorded in permanent action history.
 
 Exact tables, keys, snapshots, contact fields, import rules, and principal-to-repairer relationships remain design work. The spreadsheet is evidence for review, not a seed migration.
 

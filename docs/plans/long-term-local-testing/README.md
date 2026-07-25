@@ -52,7 +52,7 @@ Use `Planned`, `Implemented`, `Called`, `Locally verified`, `Deployed`, `Live ve
 
 ## Integrated acceptance journey
 
-An authenticated operator or authorised external caller submits genuine-shaped work through the delivered entry point; Core applies one intake and workflow policy; SQL commits source identity, state, audit and outbox atomically; a real Functions trigger consumes an identifier through Azurite locally and Azure Storage in the approved live gate; adapters preserve provenance and handle bounded retries; the operator sees the persisted result; and recovery, telemetry and duplicate-delivery evidence demonstrate that no second case, reference or external side effect is created. Local completion does not replace the live-service and operator-acceptance boundaries in [the evidence matrix](platform/local-testing.md#local-and-live-service-matrix).
+An authenticated operator or authorised external caller submits genuine-shaped work through the delivered entry point; Core applies one intake and workflow policy; SQL commits source identity, state, permanent action history and outbox atomically; a real Functions trigger consumes an identifier through Azurite locally and Azure Storage in the approved live gate; adapters preserve provenance and handle bounded retries; the operator sees the persisted result; and recovery, telemetry and duplicate-delivery evidence demonstrate that no second case, reference or external side effect is created. Local completion does not replace the live-service and operator-acceptance boundaries in [the evidence matrix](platform/local-testing.md#local-and-live-service-matrix).
 
 ## Plan maintenance
 

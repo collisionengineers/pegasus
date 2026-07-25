@@ -1,10 +1,10 @@
 # Deferred-capability architecture reconciliation
 
-Status: **Draft plan — reference audit refined and independently reviewed; canonical follow-up unapproved**
+Status: **Draft plan — reference review refined and independently reviewed; canonical follow-up unapproved**
 
 ## Finish line
 
-This slice finishes when the requested sources have been compared with the saved plan, the temporary audit is review-complete, and each supported correction is expressed as a separately approvable proposal without changing product authority or accepted ADRs. A later, separately authorised documentation task may make canonical product scope consistent and add only decision-local architecture impacts. Both outcomes preserve the source-of-truth order, distinguish current requirements from deferrals and exclusions, and make no claim that a deferred capability is implemented or called.
+This slice finishes when the requested sources have been compared with the saved plan, the temporary review is complete, and each supported correction is expressed as a separately approvable proposal without changing product authority or accepted ADRs. A later, separately authorised documentation task may make canonical product scope consistent and add only decision-local architecture impacts. Both outcomes preserve the source-of-truth order, distinguish current requirements from deferrals and exclusions, and make no claim that a deferred capability is implemented or called.
 
 ## Authority and boundaries
 
@@ -19,8 +19,8 @@ This slice finishes when the requested sources have been compared with the saved
 ## Stable invariants
 
 - One Core-owned policy remains authoritative for each business rule; a deferred channel or integration cannot become a parallel intake, matching, numbering, workflow, or permission engine.
-- Principal identity, case identity, shared principal/year sequencing, reference aliases, and the named case relationships already required for principals, claimants, staff/Engineers, repairers/bodyshops, insurers, and contacts remain representable across future capability additions; source/provenance and audited changes remain in case history. This does not authorise a generic party master, CRM, import, deduplication policy, cardinality, or prescribed temporal schema.
-- Original source occurrences, intake origin, evidence provenance, and Box folder/file/version identifiers remain distinct from content hashes and downstream copies. Box remains the long-term file authority while the application owns workflow, relationships, processing state, audit, and external links.
+- Principal identity, case identity, shared principal/year sequencing, explicit replacement-case relationships, and the named case relationships already required for principals, claimants, staff/Engineers, repairers/bodyshops, insurers, and contacts remain representable across future capability additions; source/provenance and recorded changes remain in permanent case action history. This does not authorise a generic party master, CRM, import, deduplication policy, cardinality, prescribed temporal schema or reference aliases.
+- Original source occurrences, intake origin, evidence provenance, and Box folder/file/version identifiers remain distinct from content hashes and downstream copies. Box remains the long-term file authority while the application owns workflow, relationships, processing state, permanent action history, and external links.
 - Application case association, external channel/message identity, Box custody, prepared or copied communication, authoritative sent-report evidence, post-report work, and business lifecycle transitions are not interchangeable. The Box report file/version, EVA report-generation authority, and application workflow facts are likewise distinct. Future reply/thread, external-delivery, and report-release contracts may require new data and migrations; this separation does not require every possible fact to be persisted before its operation is authorised.
 - A compatibility contract is either an existing current-scope identity, data, contract, or adapter boundary, or an explicit future migration. It is not dormant implementation.
 - `Planned`, `Implemented`, `Called`, `Locally verified`, `Deployed`, `Live verified`, and `Accepted` remain distinct evidence states.
@@ -59,4 +59,4 @@ An independent reviewer reads the current authoritative sources, checks every na
 
 ## Plan maintenance
 
-Reconcile this plan whenever operator truth, the questionnaire, the canonical deferral list, an accepted ADR, or caller reality changes. Do not copy mutable workspace status, cloud inventory, prices, or implementation evidence into this index. Once separately approved findings are transferred to their canonical owners, remove or consolidate this temporary audit material so it does not become a second product or architecture authority.
+Reconcile this plan whenever operator truth, the questionnaire, the canonical deferral list, an accepted ADR, or caller reality changes. Do not copy mutable workspace status, cloud inventory, prices, or implementation evidence into this index. Once separately approved findings are transferred to their canonical owners, remove or consolidate this temporary review material so it does not become a second product or architecture authority.

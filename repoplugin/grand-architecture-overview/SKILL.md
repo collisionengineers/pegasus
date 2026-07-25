@@ -12,7 +12,7 @@ description: >-
   how to connect / link / integrate them, how to make them act as one product
   suite, where they overlap or could share infra, or asks for an architecture
   overview / portfolio strategy / integration plan across projects. Also triggers
-  on "how could project A and project B interlink", "audit my whole stack of
+  on "how could project A and project B interlink", "review my whole stack of
   projects", "where am I duplicating effort across these repos", and "update the
   architecture overview". Prefer this whenever the user asks how 2+ projects relate,
   connect, overlap, or could share — even without the words "architecture" or
@@ -82,8 +82,8 @@ review the `unknown`-lifecycle projects and refine before fanning out. (For a **
 shortcut: clone the org's repos under one parent dir first — `gh repo list <org> --limit 200` then
 clone, or shallow-clone on demand — and point the scout at that dir; it labels the shape `github-org`
 when the repos share one org.) Then classify the **run profile**:
-- User named ≤3 specific projects ("how do the website and the intake app interlink") → **focused**: skip the broad audit, do a deep two/three-way integration brief.
-- "Audit / overview / how do my projects fit together" → **full**: the whole workflow.
+- User named ≤3 specific projects ("how do the website and the intake app interlink") → **focused**: skip the broad review, do a deep two/three-way integration brief.
+- "Review / overview / how do my projects fit together" → **full**: the whole workflow.
 - A prior overview exists and the user says update/refresh → **update**: re-profile only projects whose git head moved, diff against the prior register.
 
 Read any existing `INDEX`/context/constellation docs *now*. You are extending them,

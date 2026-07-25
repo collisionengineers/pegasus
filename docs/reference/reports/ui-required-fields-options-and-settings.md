@@ -4,13 +4,13 @@
 
 **Purpose:** Consolidate the staff-facing fields, choices, filters, actions, and Administrator settings that the current CollisionSpike v2 UI must support, while keeping predecessor UI material clearly separated from current authority.
 
-**Evidence state:** Requirements and planning only. The Development-only `/Intake/Qdos` page is the sole current intake caller. The authenticated dashboard, inbox workbench, case workspace, staff administration, and principal/configuration pages are planned and are not proved by the legacy application.
+**Evidence state:** Requirements and planning only. The Development-only `/Intake/Upload` page is the sole current intake caller. The authenticated dashboard, inbox workbench, case workspace, staff administration, and principal/configuration pages are planned and are not proved by the legacy application.
 
 ## Source and interpretation boundary
 
-Current UI direction comes from [UI/UX planning](../../../ui-ux/README.md), [operator experience requirements](../../../ui-ux/requirements.md), operator truth, the [settled questionnaire](../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md), [remaining requirements](../../../plans/remaining-requirements.md), current delivery plans, and the [open-decision register](../../../plans/open-decisions.md).
+Current UI direction comes from [UI/UX planning](../../plans/ui-ux/README.md), [operator experience requirements](../../plans/ui-ux/requirements.md), operator truth, the [settled questionnaire](../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md), [remaining requirements](../../plans/remaining-requirements.md), current delivery plans, and the [open-decision register](../../plans/open-decisions.md).
 
-The legacy [design and review guide](../guide/04-design-and-reviews.md) was used to route the predecessor [interaction rules](../docs/design/ui-ux.md) and dated reviews. Those files supply terminology, pain points, and candidate controls only. Their old screen layouts, completion claims, API/EVA field rules, theme decisions, and configuration model are not v2 authority.
+The legacy design and review guide (`../guide/04-design-and-reviews.md`) was used to route the predecessor interaction rules (`../docs/design/ui-ux.md`) and dated reviews. Those files supply terminology, pain points, and candidate controls only. Their old screen layouts, completion claims, API/EVA field rules, theme decisions, and configuration model are not v2 authority.
 
 “Required field” has two distinct meanings in this report:
 
@@ -31,8 +31,8 @@ These are the settled action-blocking rules the UI must communicate:
 | Place an inbox item in `Blocked intake` | Staff-entered reason | Retain the source, reason, warning, and retry action; create no case/reference. |
 | Enter `Held` | Staff-entered reason | Refuse the transition without a reason. Due dates stay visible; progression and chasers pause. |
 | Assign/pass to an Engineer when the completeness gate is on | Staff-confirmed `Instruction complete` and `Images complete` | Refuse assignment, but do not undo case creation. |
-| Cancel, reject, reopen, or reverse a mistaken merge | Reason and authenticated actor | Refuse a reasonless action and retain prior state/history. Reopen destination is still unresolved. |
-| Close a case | One named terminal outcome | Offer only `Post report`, `Provider cancellation`, or `Collision Engineers rejection`. |
+| Cancel, reject, reopen, or reverse a mistaken merge | Reason and authenticated actor | Refuse a reasonless action and retain prior state/history. Reopen additionally requires an otherwise-valid nonterminal destination, applies its normal gates, excludes `Held`, and refuses `Created in error`. |
+| Close a case | One named terminal outcome | Offer `Post report`, `Provider cancellation`, `Collision Engineers rejection`, or `Created in error`. The last requires a reason and a link to a new replacement case under the corrected principal. |
 
 ## Needs sorting and intake workbench
 
@@ -102,11 +102,11 @@ These fields must be supportable in intake review and later case editing. “Con
 | Case queues | `Not ready`, `Review`, `Held` | Not ready = incomplete and being chased; Review = complete and awaiting approval; Held = reasoned pause with due date still visible. |
 | Inbox queues | `Receiving work`, `Queries`, `Other`, `Needs sorting` | `Triage` is reserved for its actual roadworthiness workflow, not a generic inbox label. |
 | Manual inbox filter | `Blocked intake` | Must expose reason, warning, retained source, and retry, and must never resemble a case queue. |
-| Activity labels | `In today`, `Submitted today`, `Cleared this week` | Labels are settled, but their source events and Europe/London date boundaries remain open; do not implement fabricated queries. |
-| Due work | Due date, overdue state, seven-day chaser visibility, copyable chaser text | First-chase anchor and behavior after leaving Held remain open. No automatic sending in the first MVP. |
+| Activity labels | `In today`, paired `Sent to Engineer` today/week, paired `Reports sent` today/week | Use Europe/London midnight calendar days and Monday-to-Monday weeks. `In today` counts cases created. `Sent to Engineer` counts once per case from the first successful EVA JSON/image export generation in the first MVP; this proxy does not prove EVA receipt. `Reports sent` counts every successfully sent report. |
+| Due work | Due date, overdue state, seven-day chaser visibility, copyable chaser text | The first chase is due at the same Europe/London local clock time seven calendar days after entering `Not ready`. `Held` preserves the remaining interval; returning to `Not ready` resumes it, while choosing `Review` ends the missing-information chase. No automatic sending in the first MVP. |
 | Refresh | `Refresh`, last-updated time, refresh/failure state | Zero, stale, partial, unavailable, and failed are distinct states. Every count links to the exact filtered view it represents. |
 
-The current UI/UX requirements say `Due today`, while settled product authority names `In today`. Treat `In today` as the required activity label and keep due/overdue work as a separate operational view until the activity meanings are resolved.
+`In today` is the required case-created activity label. Keep due/overdue work as a separate operational view rather than conflating due dates with cases received today.
 
 ### Search and filters
 
@@ -133,12 +133,12 @@ Queue rows must show enough identity and action context to distinguish cases, in
 | Field/section | Requirement |
 | --- | --- |
 | Case identity header | Keep Case/PO, vehicle registration, principal, work type, Due by, current status, assigned Engineer, and reopened state visible. Assigned Engineer remains downstream/EVA-authoritative until an approved replacement exists. |
-| Related references | Show `a.` and `ap.` references without replacing the parent Inspection reference. Preserve aliases after an authorised pre-report principal correction. |
+| Related references | Show `a.` and `ap.` references without replacing the parent Inspection reference. Principal and Case/PO are immutable once allocated; show a `Created in error` original and its linked replacement case rather than rewriting either reference. |
 | Overview | Confirmed case fields, missing/conflicting indicators, completeness decisions, current gate/next action, origin and provenance. |
 | Documents | Original instructions/email, later correspondence, original Audit report where applicable, Engineer report, and Box-backed document states. |
 | Images | Reviewable images, provenance and image-completeness decision. Automated VRM/image analysis is deferred and must not be presented as current fact. |
-| Report | Report/review state and permitted gate action. The authoritative sent-report event/time remains unresolved. |
-| Audit trail | Actor, timestamp, action, prior/new state, reason/context, external outcome, merges/reversals, corrections, closure and reopening. |
+| Report | Report-sent evidence state. There is no pre-send report review gate. Evidence is one exact Outlook Sent item from an approved mailbox; Outlook `sentDateTime` is authoritative. CollisionSpike detects but does not send reports. Automatic matching remains in the combined mailbox/email research decision, with reasoned exact-item linking available when a match is absent or ambiguous. |
+| Action history | Actor, timestamp, action, prior/new state, reason/context, external outcome, merges/reversals, corrections, closure and reopening. |
 | Box folder | Link plus explicit `Missing`, `Pending creation`, `Inaccessible`, and `Conflict` states rather than a false success. |
 | Chaser | Due/overdue and missing-material context with `Copy message`. Copying never means sent or delivered. |
 
@@ -147,17 +147,16 @@ Queue rows must show enough identity and action context to distinguish cases, in
 | Action | Required UI input/options |
 | --- | --- |
 | Enter Held | Required reason. |
-| Leave Held | Do not expose a destination choice until the overlay/return-state rule is settled. |
+| Leave Held | Required reason plus `Return to <prior state>` or `Review`. Returning to `Not ready` resumes the preserved chase remainder; choosing `Review` ends that chase. |
 | Pre-assignment review | Explicit approval; when the completeness gate is on, both completeness confirmations must already be true. |
-| Pre-report-send review | Explicit approval before the Engineer's report goes to the provider. |
-| Close | `Post report`, `Provider cancellation`, or `Collision Engineers rejection`; cancellation/rejection require a reason and every outcome records the actor. |
-| Reopen | Required reason; destination choice remains withheld until the open decision is resolved. |
-| Correct principal before first CE report | New principal selection plus separate audited confirmation of the manual Box update only when an old-named folder exists, and separate EVA confirmation only when EVA contains the old reference. |
-| Record principal error after first CE report | Audit note only; do not offer reference/principal reassignment. |
+| Report sent evidence | No pre-send review action. Show the exact Outlook Sent item, approved mailbox, Outlook `sentDateTime`, and association state. CollisionSpike detects but never sends the report. When automatic matching is absent or ambiguous, exact-item linking requires a reason. |
+| Close | `Post report`, `Provider cancellation`, `Collision Engineers rejection`, or `Created in error`; cancellation/rejection require a reason and every outcome records the actor. `Created in error` also requires a replacement-case link. |
+| Reopen | Required reason plus any otherwise-valid nonterminal destination. Apply the normal destination gates, exclude `Held` because it has a separate action, and refuse a case closed as `Created in error`. |
+| Correct a wrong-principal allocation | Do not offer principal/reference reassignment. Close the original as `Created in error` with a required reason and linked new replacement case under the corrected principal; never reuse either reference. |
 | Reverse mistaken merge | Required reason and retained association history. |
 | Delete | No control. Cases and history are never permanently deleted. |
 
-Case editing must have an explicit edit mode and visible active-editor/stale-version conflicts. Status, references, audit prefixes, provenance, and intake origin are controlled business data, not free-form dropdowns or editable text.
+Case editing must have an explicit edit mode and visible active-editor/stale-version conflicts. Status, references, work-type prefixes, provenance, and intake origin are controlled business data, not free-form dropdowns or editable text.
 
 ## Administrator settings
 
@@ -178,7 +177,7 @@ Only Administrators may see or use account, principal, and application-configura
 | Field/control | Required options/behavior |
 | --- | --- |
 | Principal name | Required editable business name; first configured record is QDOS. |
-| Principal code | Required unique code consumed by Case/PO allocation. Do not permit an edit that rewrites issued references. Whether a used code may change prospectively remains open. |
+| Principal code | Required unique code consumed by Case/PO allocation and immutable after first use. A legitimate replacement creates a new linked principal and atomically deactivates its predecessor; it never rewrites a case or issued reference. |
 | Active state | `Active` / `Inactive`; unknown or inactive principals cannot allocate a reference. |
 | Stable principal identity | Read-only/system-owned; cases retain it after later metadata changes. |
 | Save conflict | Refuse a stale save and preserve the newer value; surface a refresh/review message. |
@@ -189,7 +188,7 @@ The predecessor `Corpus` label, corpus imports, provider file counts, and “las
 
 | Setting | Required options/behavior |
 | --- | --- |
-| Require completeness before Engineer assignment | Administrator-only `On` / `Off`. When on, both `Instruction complete` and `Images complete` must be confirmed. It affects assignment only, not case creation. Changes are versioned and permanently audited. |
+| Require completeness before Engineer assignment | Administrator-only `On` / `Off`. When on, both `Instruction complete` and `Images complete` must be confirmed. It affects assignment only, not case creation. Changes are versioned and recorded in permanent action history. |
 
 Explicitly excluded from the first settings UI:
 
@@ -209,20 +208,13 @@ Every production surface needs designed, labelled behavior for loading, empty, s
 
 Counts and colours cannot be the only signal. Use keyboard-visible focus, screen-reader names/status announcements, AA contrast, reduced motion, readable zoom/reflow, and practical 44px interaction targets. Operator copy must avoid Azure, functions, queues, OCR/AI mechanics, payloads, tickets, feature flags, or `dev copy` wording.
 
-## Open UI decisions
+## Remaining UI and contract design
 
-The control or label is known, but these options must not be invented in a mockup or implementation:
+These items still need their named research or implementation design. They do not reopen the settled workflow rules above:
 
-| Area | Unresolved UI decision |
+| Area | Remaining design |
 | --- | --- |
-| Seven-day chasers | Event that starts the first interval and whether leaving Held resumes or restarts it. |
-| Leaving Held | Return to prior state versus a constrained destination choice. |
-| Reopen | Destination state and whether staff choose from constrained destinations. |
-| Activity tiles | Source event and Europe/London boundary for `In today`, `Submitted today`, and `Cleared this week`. |
-| Business Triage | Operator actions, outcomes, completion rule, audit events, and later-case association. |
-| Mailbox classification | Complete category predicates, staff correction/reversal actions, and ambiguity rules. |
-| Principal code after use | Immutable forever versus a prospective change with alias/history. |
-| Report sent | Evidence source, sending mailbox/folder, matching rule, and authoritative sent time. |
+| Mailbox categorisation and automatic email matching | The combined research dossier owns category and matching predicates, precedence, ambiguity, policy governance, and automatic sent-report matching. Do not invent a rule engine, table, editor, or transport-specific classifier. |
 | Missing-material reason choices | Whether this remains reason text or gains a constrained category list. |
 | Current EVA export | Exact versioned JSON field mapping, image rules, readiness/release presentation, and recovery behavior. |
 
@@ -242,10 +234,10 @@ The routed legacy reviews raised useful questions but do not establish these cur
 | Bulk Hold/Release/Log chase, exact per-queue columns, quick-peek drawer, notification centre | Not required by current plans. Reconsider only through a real operator flow and caller. |
 | Visible confidence percentages | Not required. Current v2 requires suggestion/confirmation distinction and source provenance; it does not require a numerical score in the operator UI. |
 | Provider corpus/import administration and last-used statistics | Not part of the bounded QDOS principal/settings slice. |
-| Exact predecessor red/amber/nav/table theme rulings | Historical visual input only. Current application-specific UI principles live in `docs/ui-ux`; the CE website/letterhead kit excludes the internal app. |
+| Exact predecessor red/amber/nav/table theme rulings | Historical visual input only. Current application-specific UI principles live in `docs/plans/ui-ux`; the CE website/letterhead kit excludes the internal app. |
 
 ## Real caller and proof boundary
 
-The intended callers are authenticated Razor Pages for the dashboard, intake workbench, case list/workspace, staff accounts, principal settings, and operational configuration. None currently exists as a production operator surface. `/Intake/Qdos` proves only a Development review path and cannot prove these UI requirements.
+The intended callers are authenticated Razor Pages for the dashboard, intake workbench, case list/workspace, staff accounts, principal settings, and operational configuration. None currently exists as a production operator surface. `/Intake/Upload` proves only a Development review path and cannot prove these UI requirements.
 
 Implementation evidence must eventually exercise each real authenticated page through the shared Core owners, with operator review of genuine-shaped QDOS data. Legacy screenshots, predecessor deployment records, mockup filler, documentation consistency, and a rendered page without a called Core action are not acceptance evidence.

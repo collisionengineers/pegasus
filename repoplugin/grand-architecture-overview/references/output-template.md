@@ -130,7 +130,7 @@ its keep — go deeper.
   seam plus their edges; list isolated projects in the capsules, not the diagram.
 - **Focused mode** produces a *thinner* document: a short map of just the named projects, their
   capsules, and a deep register for the one or two seams between them — skip the full roadmap unless
-  the opportunities have real sequencing. Don't pad a focused brief into a full audit.
+  the opportunities have real sequencing. Don't pad a focused brief into a full review.
 - **The `.json` companion** carries the full manifest + profiles + seam index + every opportunity
   (including rejected, with kill reasons). It's the source of truth for the next update run; the
   `.md` is the human view. Keep their opportunity IDs in sync.

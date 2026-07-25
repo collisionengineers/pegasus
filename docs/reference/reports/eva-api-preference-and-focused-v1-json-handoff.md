@@ -2,7 +2,7 @@
 
 **Operator decision:** Accepted in narrowed form on 2026-07-24. The EVA API is the preferred integration route, but it is currently unavailable; focused v1 therefore exports structured JSON and stored images for manual import into EVA.
 
-**Legacy sources dealt with:** [ADR-0005](../dealt-with/accepted/0005-eva-handoff/docs/adr/0005-eva-api-full-scope-test-environment.md) and its [direct EVA handoff bundle](../dealt-with/accepted/0005-eva-handoff/README.md).
+**Legacy sources dealt with:** `docs/reference/dealt-with/accepted/0005-eva-handoff/docs/adr/0005-eva-api-full-scope-test-environment.md` and its `docs/reference/dealt-with/accepted/0005-eva-handoff/README.md` bundle. Those historical targets are absent from this worktree and are retained as path labels, not live links.
 
 This decision establishes product direction and the present release boundary. It does not select the predecessor Sentry routes or twelve-field schema as the v1 contract, authorise an EVA call, prove vendor availability, or establish a current implementation.
 
@@ -34,15 +34,15 @@ Legacy ADR-0005 correctly preserves manual handoff and requires vendor testing, 
 
 - The predecessor describes the API as an already selected Sentry path. Current v2 prefers the EVA API outcome but does not yet select a usable endpoint, route, payload or authentication contract.
 - The predecessor treats schema-validated JSON as an API fallback. For focused v1, JSON plus images is the primary handoff because the API is unavailable.
-- The legacy [twelve-field schema](../dealt-with/accepted/0005-eva-handoff/contracts/eva-payload.schema.json) and [field model](../dealt-with/accepted/0005-eva-handoff/docs/architecture/eva-field-model.md) are review evidence only. The current export plan still requires operator approval of the versioned mapping, image selection, readiness/release gate and error/recovery procedure.
-- The old [Sentry API description](../dealt-with/accepted/0005-eva-handoff/docs/architecture/eva-sentry-api.md), routes, base64-image format, request digest, credentials and predecessor service are not adopted merely by accepting the preferred API direction.
-- The predecessor [TKT-126 export zip](../dealt-with/accepted/0005-eva-handoff/docs/tickets/done/TKT-126-eva-export-zip/TKT-126-eva-export-zip.md) and [TKT-216 route/body repair](../dealt-with/accepted/0005-eva-handoff/docs/tickets/now/TKT-216-eva-sentry-route-body-contract/TKT-216-eva-sentry-route-body-contract.md) demonstrate old workflow and contract concerns but do not prove a v2 caller or accepted payload.
+- The legacy `contracts/eva-payload.schema.json` and `docs/architecture/eva-field-model.md` paths are review evidence only. The current export plan still requires operator approval of the versioned mapping, image selection, readiness/release gate and error/recovery procedure.
+- The old `docs/architecture/eva-sentry-api.md` path, routes, base64-image format, request digest, credentials and predecessor service are not adopted merely by accepting the preferred API direction.
+- The predecessor `docs/tickets/done/TKT-126-eva-export-zip/TKT-126-eva-export-zip.md` and `docs/tickets/now/TKT-216-eva-sentry-route-body-contract/TKT-216-eva-sentry-route-body-contract.md` paths demonstrate old workflow and contract concerns but do not prove a v2 caller or accepted payload.
 
 ## Current architecture, plan and evidence state
 
-The settled [questionnaire](../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md) and [remaining requirements](../../../plans/remaining-requirements.md) now record the API as preferred once available and the focused-v1 JSON/image handoff as the current route. The [EVA delivery plan](../../../plans/remainder-delivery/integrations/vehicle-data-and-eva-export.md) keeps field mapping, image selection, readiness and recovery behind operator approval.
+The settled [questionnaire](../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md) and [remaining requirements](../../plans/remaining-requirements.md) now record the API as preferred once available and the focused-v1 JSON/image handoff as the current route. The [EVA delivery plan](../../plans/remainder-delivery/integrations/vehicle-data-and-eva-export.md) keeps field mapping, image selection, readiness and recovery behind operator approval.
 
-The accepted [.NET modular-monolith architecture](../../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md) provides an EVA export port in Infrastructure while Core owns case data, review and release policy. A future API changes the adapter, not the business-policy owner.
+The accepted [.NET modular-monolith architecture](../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md) provides an EVA export port in Infrastructure while Core owns case data, review and release policy. A future API changes the adapter, not the business-policy owner.
 
 The current evidence state remains **Planned**. There is no current EVA adapter, export serializer, accepted mapping, credential, registered caller or proven API/test-environment integration. The legacy files do not change that state.
 

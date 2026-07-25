@@ -139,7 +139,7 @@ namespace CollisionSpike.Infrastructure.Persistence.Migrations
                     b.ToTable("IntakeAssets", (string)null);
                 });
 
-            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.IntakeAuditEventEntity", b =>
+            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.IntakeReceiptEventEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -169,7 +169,7 @@ namespace CollisionSpike.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("IntakeReceiptId");
 
-                    b.ToTable("IntakeAuditEvents", (string)null);
+                    b.ToTable("IntakeReceiptEvents", (string)null);
                 });
 
             modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.IntakeReceiptEntity", b =>
@@ -291,7 +291,7 @@ namespace CollisionSpike.Infrastructure.Persistence.Migrations
                     b.Navigation("IntakeReceipt");
                 });
 
-            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.IntakeAuditEventEntity", b =>
+            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.IntakeReceiptEventEntity", b =>
                 {
                     b.HasOne("CollisionSpike.Infrastructure.Persistence.IntakeReceiptEntity", null)
                         .WithMany()

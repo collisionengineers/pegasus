@@ -43,7 +43,7 @@ CollisionSpike v2 will use a hybrid extraction pipeline:
 7. Never silently accept an absent, conflicting, invalid, or uncertain value.
    Route it to the appropriate staff review queue with the source evidence.
 8. Retain the extractor version, source locations, OCR confidence where present,
-   and staff corrections in the audit history.
+   and staff corrections in permanent action history.
 
 The first MVP will not use Azure custom extraction or generative extraction
 models. Our custom provider rules are application code and do not constitute an
