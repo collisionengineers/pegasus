@@ -84,10 +84,18 @@ DOC/MSG extraction, or Azure resources.
 
 Neutral source identity, receipt provenance, instruction fields, and reader and
 artifact ports preserve later mailbox coverage, WhatsApp coexistence, guided
-capture, AI/vision, malware scanning, external accounts, and alternative
-infrastructure adapters. `InstructionDraft` preserves a pre-case boundary for
-later EVA replacement/API use, estimating and valuation, and Diminution or
-Commercial cases. Each capability still requires its own approved policy,
-caller, evidence, permissions or licence, and any necessary additive migration.
-A second provider additionally requires approved extraction rules, genuine
-evidence, and an explicit policy-selection decision; none is guessed here.
+capture, AI/vision, and alternative infrastructure adapters. `InstructionDraft`
+preserves a pre-case boundary for later EVA replacement/API use, estimating and
+valuation, and Diminution or Commercial cases. Each such capability still
+requires its own approved policy, caller, evidence, permissions or licence, and
+any necessary additive migration. A second provider additionally requires
+approved extraction rules, genuine evidence, and an explicit policy-selection
+decision; none is guessed here.
+
+### 2026-07-25 scope clarification
+
+Malware scanning and external accounts are permanent `Never` boundaries. They
+receive no compatibility seam, port, activation path, migration, or deferred
+implementation from this ADR. This clarification preserves the accepted
+provider-neutral intake decision while superseding only the earlier broad
+deferred-capability wording above.

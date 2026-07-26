@@ -1,70 +1,73 @@
 # Operator experience requirements
 
-## People and context
+Status: **Planned, direction-neutral V1 requirements.** This is the canonical publication of the reviewed V1 inventory. It does not select a direction, approve concepts, or prove a staff caller.
 
-- Approximately eight users in a small office.
-- Desktop-first; no first-MVP mobile workflow was requested.
-- Users need immediate acknowledgement and clear exception visibility more than decorative analytics.
-- Accounts use application-managed usernames and passwords.
+## Evidence state and scope
 
-## Primary surfaces
+The actual called UI is the Development-only `/Intake/Upload` pre-case upload/receipt path through `ProcessIntake`, including the retained-asset handler. It is unauthenticated, creates no case/reference, and is not V1 staff UI. Operations, Intake, Triage, Cases and Administration are all Planned V1 staff surfaces.
 
-### Case intake dashboard
+The intended setting is a small office of approximately eight users. Staff accounts use CollisionSpike-managed usernames and passwords; the authentication and authorisation behaviour remains Planned until an authenticated Web caller exists.
 
-- Queue counts: Not ready, Review, Held.
-- Inbox categories: Receiving work, Queries, Other, Needs sorting, and a manual Blocked intake filter. `Triage` is reached through its separate business workflow, never displayed as another inbox category.
-- Time view: Due today; `In today` for cases created since Europe/London midnight; Sent to Engineer today/this week; Reports sent today/this week; and seven-day chasers. Week totals use Monday-to-Monday Europe/London boundaries. `In today` is case-created activity and must not be conflated with due work.
-- Filters distinguish instructions from images.
-- Refresh age and failure state must be visible; zero and unavailable must not look identical.
-- Not ready is incomplete work being chased. Review is complete work awaiting a required approval. Held is a reasoned manual case pause that blocks progression and chasers while the due date remains visible.
-- Blocked intake is pre-case. Staff select it with a required reason; the view retains the source, warning, and retry action but shows no case/reference.
-- `Sent to Engineer` counts each case once. The first-MVP proxy is the first successful EVA JSON/image export generation and must be labelled so it does not imply EVA or Engineer receipt. `Reports sent` counts every report with an explicitly associated exact Outlook Sent item from the shared approved-mailbox allowlist; automatic matching is deferred.
+| Actor | May manage | Must not access or perform |
+| --- | --- | --- |
+| Administrator | staff accounts, disable/access review/roles; principals/successor cutover; configuration; approved mailbox allowlist; all ordinary staff intake, Triage, case and document work | credentials or cloud/release administration through the UI; permanent deletion; a generic mailbox-rule editor before policy resolves |
+| Engineer, User | authorised intake, Triage, case, document, lookup, chaser, evidence and lifecycle work | account/role/access review, principals, configuration, mailbox allowlist, credential/cloud administration or permanent deletion |
+| Automated processing | named Core intake/evidence actions under its durable identity | a UI account, guessed matching or independent business policy |
+| Provider client (V2) | principal-scoped receipt/status/result API only | staff shell, general case workflow or administration |
+| External/customer | no application account | every application surface (`Never`) |
 
-### Triage workspace
+Every protected route/action has unauthenticated, disabled-session, stale-role, denied, loading and successful outcomes. Route hiding is never authorisation.
 
-- Provide separate Triage navigation/list/detail rather than an inbox category or case page state.
-- Require vehicle registration to create an active Triage; otherwise keep the source in `Needs sorting`.
-- Present `Open`, `Awaiting information`, `Finding recorded`, `Completed` and `Cancelled`, the binary `Roadworthy`/`Unroadworthy` finding, optional assignee, no due date and no chaser controls.
-- Completion waits for exact allowlisted Outlook reply-chain evidence and offers no subject, registration or manual-item-selection fallback. Show missing/ambiguous/technical evidence outcomes without inventing completion.
-- Require reasons for finding replacement, reopen, unlink and relink; show superseded findings/replies and always reopen to `Open`. Keep the optional later-case link visibly separate from the Triage identity.
+## V1 flows
 
-### Needs sorting workbench
+**Intake** retains source and provenance, attachments/images, suggestions, validation, conflicts and origin. A definitive authorised instruction automatically creates exactly one incomplete **Not ready** case through shared fail-closed acceptance; it never automatically creates a **Review** case. Staff-resolved incomplete acceptance creates **Not ready**. Only explicit staff confirmation of both instruction and image completeness moves an existing case to **Review**; staff-resolved complete acceptance may create **Review** only through that confirmation. `Blocked intake` requires a reason and remains pre-case: no case/reference exists while it is blocked. Resolve/retry re-enters the shared fail-closed intake path and may create exactly one case/reference only when the ordinary acceptance gates then pass. Identity/Audit ambiguity, unsupported or incomplete source, limits/custody/persist/retention failure, integrity/replay/occurrence conflict and missing evidence remain pre-case, usually `Needs sorting`.
 
-- List genuine incoming items without first requiring a case.
-- Show transport metadata, attachments, PDF/document preview, image thumbnails, and evidence together.
-- Mark extracted values as suggestions until confirmed.
-- Keep instruction completeness and image completeness independently reviewable/filterable.
-- Make all three intake outcomes reachable from the real review surface: `Blocked intake` creates no case, accepting incomplete work creates a `Not ready` case, and accepting complete work creates a `Review` case. The configurable completeness gate applies to Engineer assignment, not case creation.
-- Use registration as the identifier for images before a principal reference exists.
-- Preserve unknown, contradictory, unsupported, and transient-failure outcomes instead of forcing a case classification.
-- Allow staff to place any inbox item in Blocked intake with a reason. Missing VRM and an unclear or absent original report for a standalone Audit are expected examples.
+**Triage** is a separate pre-case roadworthiness record, never an inbox label or case state. Registration is required; otherwise the source remains `Needs sorting`. It has Open, Awaiting information, Finding recorded, Completed and Cancelled states; Roadworthy/Unroadworthy findings; optional assignee; exact approved-mailbox reply-chain evidence for completion; reasoned replacement/reopen/linking; no due date and no chasers.
 
-### Case workspace
+**Case** keeps immutable Case/PO, principal, registration, type/secondary Audit identity, workflow state, due date and the EVA proxy limitation visible. It includes source/provenance, data, documents/images, inspection address or `Image Based Assessment`, vehicle/MOT, tasks/reminders, Box requests/copyable chasers, manual WhatsApp material, EVA export, exact report evidence, lease/conflict recovery and permanent action history. It supports Not ready, Review, Held, due/overdue, the four terminal outcomes (Post-report completion, Provider cancellation, Collision Engineers rejection, Created in error), archive and reasoned reopening. Archive never deletes; Created in error never reopens.
 
-- Keep case reference, registration, principal, work type, due date, status, and assigned engineer visible.
-- Expose documents, images, report, and permanent action history without separate disconnected applications.
-- Show reopened state and the full retained lifecycle.
-- Show related `a.` or `ap.` references without replacing the parent inspection reference.
-- Offer Box folder access and manual chaser text copying.
-- Closing uses one of four named business outcomes: post-report completion, provider cancellation, Collision Engineers rejection, or `Created in error`; there is no delete action.
-- Principal and reference are read-only immediately after allocation. If the principal was wrong, staff use a reasoned `Created in error` action; the original becomes terminal and links to a newly allocated replacement. `Created in error` cannot reopen.
-- Reopen requires a reason and an otherwise-valid nonterminal destination; normal gates apply and `Held` remains a separate action rather than a reopen destination.
-- Report sending has no pre-send review gate. When automatic evidence is absent/ambiguous, any staff role records `Report sent` by selecting the exact approved-mailbox Sent item and entering a reason. Show Outlook `sentDateTime` as the authoritative report time and discovery/link times separately. Allow reasoned unlink/relink, recompute dependent activity totals, retain prior history, and keep a confirmed event final if Outlook later moves/deletes the item.
+**Administration** is Administrator-only: account creation/disable/access review/roles, principal successor cutover, configuration and mailbox allowlist. It has no generic rules editor or credential/cloud operation.
 
-## Required states
+## UI-07 search and filters
 
-Every production surface needs designed states for loading, empty, stale, partial data, transient integration failure, unauthorized action, validation conflict, duplicate/idempotent intake, blocked intake, held, terminal, reopened, and successful completion. Counts and status colours must never be the only accessible signal.
+Case/PO, registration, claimant, claim number, principal, state, Engineer, received/instruction dates and range, and origin.
 
-## Visual principles
+## Operations and state boundaries
 
-- Warm off-white application ground with white panels and hairline borders.
-- Warm charcoal navigation, near-black text, CE red for primary/urgent accents.
-- Amber for incomplete/pending, restrained navy for review, green only for confirmed completion.
-- System-sans UI; 14-16px body; sharp 2-3px corners; shadows rare.
-- Lucide-style line icons in production. No emoji or decorative icon mix.
-- Keyboard-visible focus, 44px minimum interactive targets where practical, AA contrast, reduced motion, and screen-reader labels.
-- Do not narrate Azure, OCR, AI, queues, or implementation mechanics to operators. Describe evidence and actions in business language.
+Operations shows Not ready, Review, Held, Needs sorting, exact `Blocked intake`, separate Triage, Due today, In today, Sent to Engineer today/week, and Reports sent today/week. It uses Europe/London midnight days and Monday-week boundaries. Counts open their exact filtered queues; zero is distinct from stale/unavailable; last updated and manual refresh are visible. Receiving work, Queries and Other are V2 only.
 
-## Deferred-capability impact
+### V1 surface inventory
 
-The [UI planning impact register](README.md#deferred-capability-impact) applies. These requirements preserve stable case, Triage, source, document and external-message identities and named Core actions; they do not authorise broader email management, automatic matching/sending, WhatsApp automation, EVA API/replacement, finance workflows, deferred case types, guided capture, AI/vision, external accounts, malware UI or later infrastructure. Add a surface only after its owning product/contract decision and real caller exist; no placeholder navigation or generic form is permitted now.
+- Intake includes manual upload; definitive/staff-resolved paths; origin/custody; extraction and reviewed VRM suggestion; field provenance, validation, missing/conflict, duplicate/retry and missing/integrity asset/source failures.
+- Case identity covers Inspection, standalone Audit and Inspection + Audit with the secondary Audit identity. Allocated reference/principal never change. Wrong principal closes `Created in error` with a reason and linked replacement; neither reference is reused and the original never reopens.
+- Case work covers Not ready, Review and Held; due/overdue; seven-calendar-day chasers with the Held interval preserved; Box file request/copyable chaser; tasks/reminders; manual WhatsApp material; DVLA/DVSA and MOT/mileage; inspection address or exact `Image Based Assessment`; and successful EVA JSON/image export only as the Sent-to-Engineer proxy.
+- Documents/evidence covers automatic Box folder, upload/version, logical removal, closed-case lock/reopen-before-change, Box unavailable/pending/retry/unknown, exact report-Sent evidence and reasoned manual link/unlink/relink.
+- Terminal/aftercare names Post-report completion, Provider cancellation, Collision Engineers rejection and Created in error. Archive never deletes. Reopen requires a reason and valid nonterminal destination; Held is not a reopen destination and Created in error never reopens.
+
+### Complete state matrix
+
+| Scope | Explicit states |
+| --- | --- |
+| Queries | loading; empty; success; stale/partial with last-good time; transient error/retry; unauthenticated/disabled/stale-role/denied |
+| Mutations | validation; confirmation; success; denied; stale version; lease lost; dependency unavailable; idempotent/replayed result; conflict and recovery |
+| Intake | empty/oversize; replay; retention/custody failure; Draft ready; Needs sorting; Unsupported; missing/integrity asset; evidence missing/contradictory; Blocked intake reason/resolve/retry; every acceptance path; refusal with no case/reference |
+| Triage | registration missing; unassigned/assigned; every named state; missing/ambiguous/unapproved/technical reply evidence; finding replacement/correction/new response; cancel/reopen/link/unlink/relink |
+| Case | Not ready/chasing; Review; Held/preserved interval; due/overdue; gate refusal; documents locked; Box/external-effect states; EVA proxy limitation; report evidence absent/ambiguous/manual/exact; every terminal outcome; archive; reopened; Created-in-error nonreopenable; lease held/expired/lost/stale |
+
+Permanent action history records business mutations, accepted external evidence, exports and material denied/failed business actions with actor/time/outcome/reason/before-after. It excludes routine views, refresh/polling, retries, leases/heartbeats and adapter/Worker mechanics, which stay in telemetry/security evidence outside the operational UI.
+
+## Accessibility, desktop and data boundary
+
+Use semantic landmarks/headings/tables, labels and associated errors, keyboard operation, visible focus, screen-reader announcements, practical 44px targets, forced-colours and reduced-motion support; state is never colour-only. At 1280px+ use dense multi-pane desktop. At 1024–1279px and 200% zoom, reorder essential desktop content into labelled tabs/drawers/sections without loss. Mobile staff UI is **Never**; a supported-device notice is only for genuinely unsupported devices, never a CSS-width substitute.
+
+The contained visual boundary is warm off-white ground, white panels, warm-charcoal navigation, near-black text, CE-red primary/urgent accents, amber incomplete/pending, restrained navy Review and green only confirmed completion. Use system-sans 14–16px body text, sharp 2–3px corners, rare shadows and Lucide-style line icons; do not expose Azure, OCR, AI, queues or implementation mechanics in operator copy.
+
+Evaluation and operator review use approved genuine local immutable material only. Do not invent operational inputs. V2/V3/V3+ features have no V1 control, navigation, workflow or placeholder and must re-enter the complete UI route before a later UI change.
+
+## Open gates
+
+Mailbox predicates/governance block only their named automatic paths. The three shell directions passed planning review, and the user explicitly authorised all three comparison rasters on 2026-07-26 so they can be selected visually. The direction remains unselected; explicit user selection is required before final V1 UI handoff. Selection does not approve every raster detail or any V2/V3/V3+ UI.
+
+## Historical material
+
+The retained concept Markdown and `generation-prompts.md` are historical/unapproved and superseded as active candidates by [the current UI route](README.md). Their PNGs are old visual filler, not requirements. Unique retained content is reconciled through [ui-spec.md](ui-spec.md) and [traceability-matrix.md](traceability-matrix.md).

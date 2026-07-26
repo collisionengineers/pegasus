@@ -1,8 +1,14 @@
 # Lifecycle and work management
 
+Status: **Ready V1 plan — post-report disputes V2; automated chasers V3**
+
 ## Purpose
 
 Own case state, the pre-assignment review gate, held/incomplete behaviour, terminal history, due-date work and source matching after a case is accepted. It keeps a case recoverable with permanent action history and applies the settled chase, Held-release and reopen rules.
+
+## Feature coverage
+
+Primary matrix IDs: `CASE-13`, `CASE-14`, `CASE-15`, `CASE-16`, `CASE-17`, `CASE-18`, `CASE-19`, `CASE-20`, `CASE-24`, `CASE-25`, `CASE-26`, `CASE-28`, `CASE-30`, `INT-29`, `INT-30`, and `MAIL-18`. Their routes are [state, reviews, terminal history and matching](#implement-state-reviews-terminal-history-and-matching) and [due work and manual chasers](#surface-due-work-and-manual-chasers). Allocation remains owned by the [maturity map](../../feature-maturity-map.md); this list is a route, not implementation evidence.
 
 ## Authority and current boundary
 
@@ -48,14 +54,14 @@ Administrator, Engineer and User may transition/review; automated actions follow
 
 ### Scope
 
-- **Included:** permitted states, entry to and settled release from reasoned `Held`, pre-assignment review, provider cancellation/Collision Engineers rejection/`Created in error`, reasoned reopen, completeness semantics, definitive image/instruction matching and action-history-backed merge reversal.
-- **Excluded:** a pre-send report review gate, automatic Sent-item matching, principal/reference mutation, document revision implementation, direct EVA assignment and automatic messaging.
+- **Included:** permitted states, reasoned `Held`, pre-assignment review, all four V1 terminal outcomes, reasoned reopen, completeness semantics, manual image/instruction linking, and action-history-backed reversal.
+- **Excluded:** V2 automatic image/instruction matching and post-report dispute workspace, a pre-send report review gate, principal/reference mutation, document revision implementation, direct EVA assignment, and automatic messaging. Automatic exact report matching remains a separate V1 research-gated dependency.
 
 ### Implementation checklist
 
 - [ ] Define one case transition policy and persist state/action-history/review/completeness/association data in the existing migration stream.
 - [ ] Implement the pre-assignment review, Held enter/release, terminal/reopen and explicit association/merge/reversal actions through the planned case-detail caller.
-- [ ] Record report-sent state only from the exact approved-mailbox Sent item; support reasoned staff link/unlink/relink and separate authoritative sent/discovery/link times while keeping automatic matching absent.
+- [ ] Record report-sent state only from the exact approved-mailbox Sent item; support reasoned staff link/unlink/relink and separate authoritative sent/discovery/link times, then add the allocated V1 automatic exact matcher only after its research predicate is accepted.
 
 ### Validation checklist
 

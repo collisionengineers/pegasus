@@ -1,8 +1,18 @@
 # Staff MCP
 
+Status: **Ready V1 case/document/intake plan — classified-email actions V2**
+
 ## Purpose
 
-Expose internal staff case, inbox and document actions through one remote MCP endpoint while retaining per-staff application identity, current-role enforcement and the same Core policy as the Web UI.
+Expose V1 internal staff case, document, and intake-queue actions through one remote MCP endpoint while retaining per-staff identity, current-role enforcement, and the same Core policy as Web. Broader classified-email actions are V2.
+
+## Feature coverage
+
+Primary feature ownership is: `MCP-01`, `MCP-02`, `MCP-03`, and `MCP-04`.
+They cover the V1 internal staff OAuth boundary and case, intake-queue, and
+document tools that delegate to named Core use cases. `MCP-05` belongs to the
+V2 classified-email workspace plan: it must not be pulled into this V1 tool
+inventory or used to create a second email policy owner.
 
 ## Authority and current boundary
 
@@ -48,8 +58,8 @@ Bearer tokens are accepted only at `/mcp`; interactive cookies are only for staf
 
 ### Scope
 
-- **Included:** one pre-registered Claude client, OAuth authorization code with S256 PKCE, protected-resource/authorisation-server metadata, per-staff role-aware case/inbox/document tools where matching Core/Web actions exist.
-- **Excluded:** provider API authentication, Dynamic Client Registration, accounts/roles/principal/credential administration, Azure/deployment/cloud operations, permanent deletion, Box search/arbitrary IDs and tools without a real Core owner.
+- **Included:** one pre-registered Claude client, OAuth authorization code with S256 PKCE, protected-resource/authorisation-server metadata, and V1 per-staff case/document/intake-queue tools where matching Core/Web actions exist.
+- **Excluded:** V2 classified-email tools, provider API authentication, Dynamic Client Registration, accounts/roles/principal/credential administration, Azure/deployment/cloud operations, permanent deletion, Box search/arbitrary IDs, and tools without a real Core owner.
 
 ### Implementation checklist
 

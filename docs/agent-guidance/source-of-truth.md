@@ -1,15 +1,28 @@
 # Source-of-truth order
 
-When two sources disagree, use this order and record the conflict rather than silently blending them:
+Resolve each claim through its owner; do not blend sources simply because they
+are nearby. Later, explicit user instructions amend earlier instructions for
+the affected scope only.
 
-1. Direct user instruction in the current task.
-2. `docs/operator-notes/` — read-only operator truth.
-3. Settled answers in `PROJECT_DISCOVERY_QUESTIONNAIRE.md`.
-4. Accepted ADRs under `docs/architecture/decisions/`.
-5. Executable contracts and tests that were explicitly accepted for this version.
-6. Retrospectives as delivery constraints.
-7. The local corpus and predecessor as evidence of real shapes and failure modes.
+1. Direct user instruction for the current task.
+2. `docs/operator-notes/` for operator and business truth. They are read-only
+   unless the user explicitly authorises an edit.
+3. Settled product decisions in `PROJECT_DISCOVERY_QUESTIONNAIRE.md` and the
+   feature allocation in `docs/plans/feature-maturity-map.md`.
+4. Accepted technical decisions under `docs/architecture/decisions/`.
+5. Explicitly accepted executable contracts and tests for this version.
+6. Retrospectives for delivery constraints and observed failures.
+7. The local corpus, raw references, and predecessor for real shapes and failure
+   modes only.
 
-The corpus and predecessor are not specification authorities. They can demonstrate what happened, not what v2 must mean.
+The corpus, predecessor, and supplied references are not specification
+authorities: they can show what happened, not what v2 must mean. Plans describe
+intended work; implementation evidence describes what a caller currently does.
+Neither replaces the other, and registration or documentation alone is not
+caller evidence.
 
-If a material ambiguity remains, document it in `docs/plans/open-decisions.md` and keep the code reversible. Do not invent a rule that changes references, workflow transitions, permissions, document retention, or external-system behavior.
+If sources conflict or a material ambiguity remains, obtain direct user
+resolution, record it in the appropriate canonical owner, and keep affected
+work reversible. Do not invent a rule affecting references, workflow
+transitions, permissions, retention, or external-system behaviour. Track an
+unresolved decision in `docs/plans/open-decisions.md`.

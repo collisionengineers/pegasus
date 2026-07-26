@@ -1,14 +1,14 @@
 # Remaining requirements
 
-Status: **Pre-release planning baseline**
+Status: **Active V1 gap baseline**
 
-Last reconciled: 2026-07-24, Europe/London
+Last reconciled: 2026-07-26, Europe/London
 
-Implementation baseline: `9159f8b` (`feat: add local QDOS intake vertical slice`)
+Source/caller baseline: `d68bed7501e3a30abd1f32835c0de96ba90801e5`, inspected 2026-07-26. This identifies current source paths; it is not fresh runtime, deployment or operator evidence.
 
 ## Purpose
 
-This document says what remains between the current local proof and the first usable QDOS release. It is not a second product specification and it is not a ticket ledger.
+This document says what remains between the current local proof and the V1 live QDOS alpha release. It is not a second product specification, maturity map, or ticket ledger. Allocation is owned by the [feature maturity map](feature-maturity-map.md); a version is not implementation or acceptance evidence.
 
 Requirements come from, in order:
 
@@ -19,11 +19,13 @@ Requirements come from, in order:
 
 `docs/plans/open-decisions.md` is the canonical register for material ambiguity. Its current entries block only their named slices, not independent plan-ready work. The predecessor and the local corpus provide evidence, not requirements.
 
-The implementation-ready domain breakdown is maintained in [remainder-delivery/](remainder-delivery/README.md). It cites this baseline rather than replacing or duplicating it.
+The implementation-ready V1 breakdown is maintained in [remainder-delivery/](remainder-delivery/README.md). The [delivery roadmap](delivery-roadmap.md) orders that pack with V0, V1.x, V2, V3 and activation-gated V3+ plans. Neither replaces or duplicates this V1 gap baseline.
 
-## What is already proved locally
+<a id="what-is-already-proved-locally"></a>
 
-The first thin slice has a real Web caller at `/Intake/Upload`. In Development, with the explicit provider-neutral feature flag enabled, it can:
+## What current source and prior local evidence establish
+
+The first thin slice has a source-mapped Web caller at `/Intake/Upload`. In Development, with the explicit provider-neutral feature flag enabled, the prior local evidence and current source establish that it can:
 
 - accept a manually selected `.eml`, `.pdf`, `.docx`, `.doc`, `.msg`, `.jpg`, `.jpeg`, or `.png` up to 10 MB;
 - read email bodies, bounded nested EML, every page of each PDF plus its discrete images through MimeKit/PdfPig, and DOCX text/internal images through Open XML SDK; PDF processing is all-pages-or-incomplete under one aggregate per-intake expansion budget, never silently page-truncated;
@@ -71,36 +73,36 @@ The development-only manual intake route must remain unavailable in a deployed e
 
 ### 3. Complete intake formats and paths
 
-- Ingest the `instructions@collisionengineers.co.uk` shared Outlook mailbox automatically through the Worker and Microsoft Graph.
+- Ingest staff-forwarded work from the `instructions@collisionengineers.co.uk` shared Outlook mailbox automatically through the Worker and Microsoft Graph. Preserve the forwarded source; do not classify from the transport sender alone.
 - Give every receipt a stable mailbox identity and make retries idempotent. Terminal failures must stop and become visible; transient failures may retry with a bound.
-- Process PDF, DOCX, bounded nested EML/freehand email instructions, and image-led intake. Retain DOC and MSG with provenance in `Needs sorting`; their automated extraction is deferred beyond the first MVP.
-- Use embedded PDF text first and targeted Document Intelligence OCR only for scan-like pages with insufficient text and a dominant raster image.
-- Keep ordinary email, DOCX, PDF-embedded, and direct image evidence reviewable without OCR. By direct product decision on 2026-07-23, automated vehicle-registration OCR/VLM is deferred beyond the first MVP; this is separate from required scanned-PDF OCR. Staff may record a readable registration as the provisional identifier until the principal is known.
-- Treat mailbox categorisation and every automatic email-matching path as the single open research decision routed through `docs/plans/mailbox-categorisation-and-email-matching/README.md`. Keep its future policy under one Core owner without transport-specific copies. Until accepted, retain sources visibly without guessed categories or matches and do not introduce a generic engine, rule table, editor, or parallel classifier. Also provide a manual `Blocked intake` filter for staff-decided blockers: retain the source and required reason/warning but create no case/reference until staff resolve and retry it. `Triage` must never be used as a generic inbox label.
-- Support business Triage as a separate pre-case record. An active record requires a vehicle registration; otherwise retain the source in `Needs sorting`. Its states are `Open`/`Awaiting information` -> `Finding recorded` -> `Completed`, with a binary `Roadworthy`/`Unroadworthy` finding; `Cancelled` is the only end without a finding. It has an optional assignee, no due date, and no chasers.
+- Process PDF, DOCX, bounded nested EML/freehand instructions, and image-led intake in V1. Retain DOC and MSG with provenance in `Needs sorting`; their automated extraction is V2.
+- Keep embedded PDF text and images reviewable in V1. Targeted OCR for scan-like PDF pages is V2.
+- Automatically read vehicle registration from ordinary vehicle images in V1 while retaining originals, provenance, uncertainty, and operator review. Do not infer whether the implementation is OCR, VLM, or another mechanism. Broader image/damage AI or vision assistance is V2.
+- Treat mailbox categorisation and every automatic email-matching path as the single open research decision routed through [the mailbox dossier](mailbox-categorisation-and-email-matching/README.md). V0 must prove one versioned Core owner and provider-specific instruction identification through the local EML evaluator; V1 reuses it for staff-forwarded `instructions@`; V2 expands it across all four mailboxes, detailed classifications, queues, folders, and actions. Until the applicable slice is accepted, retain sources visibly without guessed categories/matches and do not add a generic engine, rule table, editor, or parallel classifier. Manual `Blocked intake` retains the source and required reason/warning but creates no case/reference. `Triage` is never a generic inbox label.
+- Support Triage as a separate V1 pre-case record. An active record requires a vehicle registration; otherwise retain the source in `Needs sorting`. Its states are `Open`/`Awaiting information` -> `Finding recorded` -> `Completed`, with a binary `Roadworthy`/`Unroadworthy` finding; `Cancelled` is the only end without a finding. It has an optional assignee, no due date, and no chasers.
 - Require the exact reply-chain Outlook Sent item from an approved mailbox to complete Triage; do not fall back to subject, registration, or manual message selection. Before send, finding replacement requires a reason. After send, store a superseding finding, require a new response, and keep full history. Reopen always to `Open`.
 - Keep each Triage separate when linked to a later case. Auto-link only after the combined research accepts a definitive shared match; otherwise staff confirm. A Triage links to at most one case, a case may link multiple Triage records, and any staff role may unlink/relink with a reason.
 - Support manual case/instruction/image upload through the same Core use cases rather than a parallel rule engine.
-- Deliver a versioned provider API that uses separately issued principal-scoped client IDs and opaque secrets, stores only each secret's hash, and supports rotation/revocation. Its first-MVP operations are idempotent instruction/attachment submission plus own-submission receipt, processing status, and resulting Case/PO retrieval.
-- Deliver a separate remote MCP surface for internal staff, primarily through Claude Desktop. Use per-staff OAuth, current application roles, and permanent user attribution. Expose the signed-in role's case, inbox, and document actions through the same Core use cases as the UI; exclude account/role administration, principal configuration, credential management, cloud operations, and permanent deletion.
-- Send uncertain associations to `Needs sorting`; never guess a case match. Automatic email association remains disabled until the combined categorisation/matching research is accepted.
+- Preserve the principal-scoped provider API contract for V2: separately issued client IDs and opaque secrets, secret hashes only, rotation/revocation, idempotent submission, and own receipt/status/result retrieval. It is not a V1 release gate.
+- Deliver the V1 remote staff MCP, primarily through Claude Desktop, with per-staff OAuth, current roles, and permanent attribution. V1 tools cover case, document, and intake-queue actions through the same Core use cases as the UI; broader classified-email actions are V2. Exclude administration, configuration, credential management, cloud operations, and permanent deletion.
+- Send uncertain associations to `Needs sorting`; never guess. Automatic email and image/instruction association is V2, except the separately allocated V1 exact report and Triage evidence matchers after the combined research is accepted.
 
 ### 4. Case model and lifecycle
 
 - Create the full QDOS case record from durably accepted definitive intake evidence, retaining the source and every available provider, claimant, claim, vehicle, accident, instruction-date, inspection-address and association value. Operator confirmation is required only to resolve material that was not already definitive or was manually blocked; it is not a universal creation gate.
-- Create the case automatically when a definitive authorised instruction is accepted; keep uncertain material out of case creation until a staff decision resolves it.
+- Create exactly one incomplete `Not ready` case automatically when a definitive authorised instruction is accepted; keep uncertain material out of case creation until a staff decision resolves it. Only explicit staff confirmation of separate instruction and image completeness moves that existing case to `Review`; do not infer automatic completeness from the instruction itself.
 - Support Inspection, Audit, and Inspection + Audit. Diminution and Commercial remain deferred.
 - Keep one shared QDOS/year sequence across all case types.
 - For a standalone Audit, produce `a.` or `ap.` from the repairable/total-loss assessment in the original Engineer's report. If that evidence is missing or ambiguous, retain the item in the inbox with a blocking warning and create no case/reference. Inspection + Audit starts with the normal inspection reference and creates the later Audit reference inside the original case folder after Collision Engineers' assigned Engineer records the finding.
-- Implement incomplete/chasing, ready/review, inspection/report preparation, post-report query/dispute, and terminal behavior.
+- Implement V1 incomplete/chasing, ready/review, tracked inspection/report progress, and all four terminal outcomes. The post-report query/dispute workspace is V2.
 - Record roadworthiness and repairable/total-loss findings needed by the active workflow. Repair-estimate and valuation workflows remain deferred.
 - Implement four initial terminal outcomes: post-report completion, provider cancellation, Collision Engineers rejection, and `Created in error` for wrong-principal allocation.
 - Make a used principal code immutable. A legitimate replacement creates a new linked principal and atomically deactivates the predecessor. Continue the predecessor's next sequence number in the cutover year; start later years at `001`.
 - Make the case principal/reference immutable immediately on allocation. A wrong-principal allocation closes the erroneous original as `Created in error`, requires a reason and link to a new replacement case under the corrected principal, never reuses either reference, and never permits the original to reopen.
 - Support reasoned reopening from a closed case to any otherwise-valid nonterminal workflow state, with normal destination gates. Exclude `Held`, which uses its separate action, and prohibit reopening `Created in error`.
-- Support image/instruction matching, manual linking, and reasoned permanent-history reversal of a mistaken merge.
+- Support V1 manual image/instruction linking and reasoned permanent-history reversal. Automatic matching is V2.
 - Add the configurable backend completeness gate before Engineer assignment without requiring a deployment to switch it on or off. When enabled, it requires staff-confirmed `Instruction complete` and `Images complete`; it does not evaluate a hard-coded principal field matrix.
-- Add the configurable review gate before Engineer assignment. Do not add a pre-send report review gate or automatic report sending.
+- Add the configurable review gate before Engineer assignment. Do not add a pre-send report review gate. V1 detects exact report evidence but does not send; automatic report sending is V3+ and requires a separate accepted contract.
 - Allow the inspection address to be a real vehicle/repairer address or the exact valid value `Image Based Assessment`.
 
 ### 5. Work management and operator UI
@@ -109,7 +111,7 @@ The development-only manual intake route must remain unavailable in a deployed e
 - Extract the inspection date or equivalent instruction deadline as `Due by` and show overdue work.
 - Schedule the first chase for the same Europe/London local clock time exactly seven calendar days after entering `Not ready`, then continue the seven-calendar-day cadence while information remains missing. Entering `Held` preserves the prior state and any remaining local-clock interval. Release offers the prior state or `Review`; returning to `Not ready` resumes the preserved remainder, while `Review` ends the chase. Material arrival or terminal closure also stops future chasers.
 - Generate clickable, copyable chaser text and a Box file-request link. Automated outbound sending is deferred.
-- Complete the intake dashboard tiles and filters: `Not ready`, `Review`, `Held`, `Receiving work`, `Queries`, `Other`, `Needs sorting`, manual `Blocked intake`, `In today`, paired `Sent to Engineer` today/week, and paired `Reports sent` today/week. Use Europe/London midnight calendar days and Monday-to-Monday weeks. `In today` counts cases created; `Sent to Engineer` counts once per case and uses first successful EVA JSON/image export generation as an explicit first-MVP proxy that does not prove EVA receipt; a future EVA replacement records actual assignment. `Reports sent` counts every successfully sent report. `Not ready` is incomplete work being chased; `Review` is complete work awaiting approval; `Held` is a reasoned manual case pause that stops progression and chasers while due dates remain visible.
+- Complete the V1 dashboard with `Not ready`, `Review`, `Held`, `Needs sorting`, manual `Blocked intake`, a separate Triage route, `In today`, paired `Sent to Engineer` today/week, and paired `Reports sent` today/week. Categorised `Receiving work`, `Queries`, and `Other` email queues are V2. Use Europe/London midnight days and Monday-to-Monday weeks. `In today` counts cases created; `Sent to Engineer` counts once from first successful EVA JSON/image export generation as a proxy that does not prove EVA receipt; later EVA replacement records actual assignment. `Reports sent` counts every successfully sent report.
 - Make each count open its actual filtered queue, with last-updated time and manual refresh.
 - Search and filter by Case/PO, registration, claimant, claim number, principal, stage/status, assigned Engineer, received/instruction dates, date range, and image- versus instruction-led origin.
 - Preserve the original intake origin after linking or merging records.
@@ -124,8 +126,8 @@ The development-only manual intake route must remain unavailable in a deployed e
 - Add DVLA/DVSA vehicle and MOT lookup when details are absent, including mileage estimation when the source data supports it.
 - Export operator-approved structured case JSON and the stored image bundle for manual transfer to EVA.
 - Keep EVA authoritative for Engineer assignment, estimating, valuation, and report generation until an approved replacement slice exists.
-- Detect but never automatically send reports. Prove a sent report with one exact Outlook Sent item from the Administrator-maintained allowlist of approved shared and individual staff mailboxes. Automatic matching remains deferred to the combined research; when evidence is absent or ambiguous, allow staff to link the exact Sent item with a required reason. Use Outlook `sentDateTime` as authoritative and retain discovery/link times separately. Allow any staff role to unlink/relink with a reason and recompute dependent events and dashboard counts; keep a confirmed event final if Outlook later moves or deletes the message.
-- Associate related emails and attachments automatically only after the combined categorisation/matching research is accepted; provide manual review through the same Core use cases meanwhile.
+- In V1, detect but do not send reports. Prove sending with one exact Outlook Sent item from the approved allowlist. Automatic exact-item matching is a V1 gate under the combined research; absent/ambiguous evidence uses the settled staff link with a required reason. Outlook `sentDateTime` is authoritative; discovery/link times remain separate. Any staff role may unlink/relink with a reason and recompute dependent events/counts; confirmed evidence remains final after an Outlook move/delete. Automatic sending is V3+.
+- Automatic general email/case association is V2 after the combined research is accepted; provide manual review through shared Core use cases meanwhile.
 
 ### 7. Azure and release readiness
 
@@ -135,38 +137,27 @@ The development-only manual intake route must remain unavailable in a deployed e
 - Use managed identity and scoped RBAC between Azure services. Store only third-party secrets that cannot use identity in Infisical or Key Vault.
 - Add correlated Web/Worker telemetry, readiness checks for real dependencies, bounded failure handling, and alerts for the business/integration failures listed in the questionnaire.
 - Prove database restore and the documented four-hour restoration path before production acceptance.
-- Add scoped GitHub OIDC deployments for the separate shared-development and production resource groups.
+- Deploy committed Bicep through `azd` from an authorised terminal. GitHub Actions/OIDC deployment is `Never`.
 - Run Bicep/azd preview, policy/quota checks, health probes, and a non-sensitive smoke path before any approved Azure deployment.
 - Obtain explicit user approval before provisioning chargeable resources, deploying, changing Azure, or retiring predecessor resources.
 
 CollisionSpike v2 starts fresh. No predecessor cases, users, action-history records, or application state are imported. The predecessor was pre-release, so preserving or reconciling its test application data is not a v2 release requirement. Retirement of its Azure resources is a separate, exact-target operation that still requires explicit approval and protection of any shared assets.
 
-## Explicitly deferred beyond the first MVP
+## Allocated beyond V1, conditional, unclear, or never
 
-- repair-estimate, valuation, invoice, accounting, and direct estimating-service workflows;
-- Diminution and Commercial case processing;
-- direct EVA API integration and eventual EVA replacement;
-- guided claimant/mobile image capture, Tractable, and Ravin;
-- in-app AI and image/vision assistance;
-- automated vehicle-registration OCR/VLM and automated extraction of legacy DOC/MSG containers;
-- automated outbound chasers and WhatsApp ingestion/automation;
-- automated malware scanning;
-- inspection-address prediction or mapping assistance;
-- a custom Collision Engineers subdomain;
-- external/customer accounts;
-- multi-region failover, zone redundancy, private networking, staging, and deployment slots.
+The bounded activation plans are indexed in [later delivery](later-delivery/README.md). Permanent and unallocated behavior is owned by the non-implementation [boundary contract](permanent-and-conditional-boundaries.md); a row there is not a backlog item.
+
+- **V1.x:** additional providers through the same bounded provider-neutral workflow.
+- **V2:** provider API; four-mailbox email workspace/management; general email/image matching; DOC/MSG extraction; scan-like PDF OCR; post-report query/dispute work; image/damage AI or vision assistance.
+- **V3:** Diminution, Commercial, automated WhatsApp, automated chasers, in-app assistant, and conditional AI suggestions where rules are insufficient.
+- **V3+:** conditional direct EVA API, EVA replacement, estimating/valuation/invoice/report functions, automatic reports, and staff-selected AI Assessor.
+- **Unclear:** own guided capture, Tractable/Ravin, and custom domain.
+- **Never:** external/customer accounts, malware scanning, SMS, Teams, portal, predecessor reuse/import/operation after cutover, separate QA/UAT/staging/demo/training environments, GitHub Actions/OIDC, slots/S1, private networking, zone/multi-region resilience, and quarterly recovery exercises.
 
 Deferred features may have clean seams in the current architecture, but they must not add dormant services, duplicate engines, speculative projects, or first-MVP release gates.
 
 ## Recommended delivery order
 
-1. Turn the current provider-neutral receipt and QDOS-derived instruction draft into a human-approved, typed case draft backed by a field-expectation cohort and holdout.
-2. Add staff authentication, roles, and permanent action-history attribution so subsequent case changes have real ownership.
-3. Replace local ignored artifact retention with durable original-source custody and the Box case-folder path; use private Blob staging with managed identity for Worker processing.
-4. Add targeted Document Intelligence OCR for the persisted scan-like PDF page candidates through the same intake use case.
-5. Wire the `instructions@` Graph Worker with bounded idempotent delivery.
-6. Complete QDOS lifecycle, exclusive case editing, matching, due-by/chasing, dashboard, search, and EVA export.
-7. Prove Azure SQL concurrency, observability, restore, and release automation in shared development.
-8. Run operator acceptance on the full QDOS workflow before any production cutover.
+Use the canonical [delivery roadmap](delivery-roadmap.md#v1-live-qdos-alpha). In summary: establish the relational draft and trusted actors; prepare principal/reference data and durable custody; prove ordinary-image registration and provisional pre-case identity; establish the allocator before the single acceptance transaction; then add Box, editing, lifecycle, the approved UI, a real Graph Worker trigger, Triage, vehicle/address/EVA, staff MCP, Azure/recovery and actual operator/management acceptance. Later work follows only through its allocated branch.
 
 Each increment needs a real caller, genuine-input evidence, an independent evaluator, and an operator-visible result. Code present, deployed, and accepted are separate states.

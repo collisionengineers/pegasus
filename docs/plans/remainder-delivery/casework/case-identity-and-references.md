@@ -1,8 +1,14 @@
 # Case identity and references
 
+Status: **Ready V1 plan — settled identity invariants**
+
 ## Purpose
 
 Give each accepted case one durable identity and the correct non-reusable principal/year reference, including Audit forms. This area owns reference policy and allocation; the principal and reference become immutable immediately on allocation, and this area does not decide whether raw intake is definitive.
+
+## Feature coverage
+
+Primary matrix IDs: `ACC-06`, `CASE-02`, `CASE-03`, `CASE-04`, `CASE-07`, `CASE-08`, `CASE-09`, and `CASE-10`. Their routes are [allocation and active identities](#allocate-and-represent-active-case-identities) and [immutable principal-code cutover](#replace-a-used-principal-code-through-an-immutable-cutover). Allocation remains owned by the [maturity map](../../feature-maturity-map.md); this list is a route, not implementation evidence.
 
 ## Authority and current boundary
 
@@ -11,7 +17,7 @@ Give each accepted case one durable identity and the correct non-reusable princi
 - **Current implementation:** there is no active case/reference allocator and v2 has not been deployed. The retired Development proof produced non-business test references only; its migration records those values for migration diagnostics, then deliberately removes the `CaseEntity`, counter, receipt links and allocation caller. Those test values are not issued case identities, do not reserve sequence numbers, and must not seed or constrain the future allocator.
 - **Real callers:** `/Intake/Upload` is a development-only pre-case intake caller and creates no case/reference. Accepted-case UI, allocator and Worker/API/MCP callers are **planned**; the planned case-detail caller also owns the explicit `Created in error` replacement action.
 - **Persistence/adapters:** the future accepted-case, principal/year counter, case type, original-report assessment, terminal reason and replacement-case relationship are planned relational data. No reference-alias correction model is authorised.
-- **Dependencies:** [intake and acceptance](intake-and-case-acceptance.md), staff action history, Box/EVA plans; lifecycle supplies authorised transitions.
+- **Dependencies:** definitive pre-case intake evidence from [intake and acceptance](intake-and-case-acceptance.md), principal configuration, staff action history and the single migration stream; Box/EVA consume the allocated identity later, while lifecycle supplies authorised transitions.
 - **Replaces/consolidates:** the retired QDOS-specific receipt-store allocator has been removed. Add one shared allocator only with the accepted-case caller; do not restore the old path or create two counters/formatters.
 - **Settled wrong-principal boundary:** never rewrite a case's allocated principal or reference. An authorised staff action marks the original terminal `Created in error`, records the reason in permanent action history, creates a replacement case through the same allocator under the correct principal, and links both cases. The original number and the replacement number are never reused. `Created in error` cannot reopen; do not add an alias, renumber, Box-rename or EVA-rewrite path.
 
@@ -33,7 +39,7 @@ No reference is allocated for a non-definitive intake, unknown principal, missin
 
 - **Policy/implementation owner:** Core `CaseIdentity` plus one SQL-backed allocation port.
 - **Independent evaluator:** test engineer, with SQL Server concurrency evaluation separate from the implementer.
-- **Prerequisites:** definitive accepted draft, principal configuration/admin and one migration stream.
+- **Prerequisites:** durable fully processed pre-case evidence, known principal/code, readable registration, unambiguous active case type, any required standalone-Audit assessment, trusted actor/action history, and one migration stream. The allocator contract is a dependency of atomic acceptance; it must not require an already accepted case.
 - **Consumers/unlocks:** acceptance, case workspace, Box naming and EVA export.
 
 ### Caller, contract and change boundary
@@ -56,7 +62,7 @@ No reference is allocated for a non-definitive intake, unknown principal, missin
 
 - [ ] Move reference rules to one Core identity owner and one persistence allocator shared by all accepted case types.
 - [ ] Persist assessment provenance; make API/UI contracts expose calculated values and never accept an arbitrary reference.
-- [ ] Connect an accepted draft from `/Intake/Upload` to case acceptance without adding allocator/format logic to intake.
+- [ ] Connect definitive pre-case source/draft evidence from the shared intake boundary to case acceptance without adding allocator/format logic to `/Intake/Upload` or another transport.
 - [ ] Add one guarded `Created in error` replacement use case that closes the original, allocates a distinct replacement through the same transaction boundary, links both cases and refuses reopening or identity edits.
 
 ### Validation checklist

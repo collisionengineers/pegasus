@@ -158,6 +158,7 @@ Push-Location $root
 
 try {
     & (Join-Path $PSScriptRoot 'Test-RepositoryStructure.ps1')
+    & (Join-Path $PSScriptRoot 'Test-Documentation.ps1') -RepositoryRoot $root
 
     dotnet restore CollisionSpike.slnx
     if ($LASTEXITCODE -ne 0) { throw 'dotnet restore failed.' }

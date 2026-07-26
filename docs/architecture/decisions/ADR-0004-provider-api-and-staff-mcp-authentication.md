@@ -22,6 +22,14 @@ in shared Core use cases.
 
 ## Decision
 
+### Maturity and activation
+
+The provider API is a V2 capability: this ADR fixes its security and contract
+boundary but does not claim a V1 implementation. Staff MCP is a V1 capability,
+limited initially to intake-oriented actions through the same Core use cases.
+Categorised-email queues, the broader email workspace, and broader MCP email
+actions wait for V2. These allocations are not caller or deployment evidence.
+
 ### Provider HTTP API
 
 The provider API uses separately issued principal-scoped client IDs and opaque

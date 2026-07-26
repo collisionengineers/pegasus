@@ -13,7 +13,7 @@ No new legacy finding was accepted. Current v2 requirements, architecture, and d
 - The [operator process](../../operator-notes/collision-engineers-process/process-overview.md) includes report preparation followed by post-report queries and disputes.
 - The [questionnaire](../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md) requires the first release to progress through inspection/report preparation and post-report work. A case closes through post-report completion, provider cancellation, Collision Engineers rejection, or the distinct wrong-principal outcome `Created in error`.
 - The [remainder-delivery finish line](../../plans/remainder-delivery/README.md) already carries operators through report and post-report activity. This is broader and more precise than stopping at EVA handoff.
-- Business Triage is optional stored pre-case work that may never become a case. Its states, binary finding, exact reply-chain completion evidence, correction/reopen behavior, and optional later-case association are settled in the questionnaire.
+- Triage is optional stored pre-case work that may never become a case. Its states, binary finding, exact reply-chain completion evidence, correction/reopen behavior, and optional later-case association are settled in the questionnaire.
 - EVA remains authoritative for Engineer assignment, estimating, valuation, and report generation in the first release. The planned v2 handoff is an operator-approved JSON and image bundle; direct EVA API use and eventual replacement are deferred.
 
 ### Current architecture

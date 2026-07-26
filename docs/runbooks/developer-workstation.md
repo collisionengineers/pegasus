@@ -11,7 +11,7 @@ Verified on 2026-07-23:
 | .NET SDK | 10.0.302 plus 10.0.204 | application build/test |
 | Azure CLI | 2.88 | read-only inventory and explicit cloud operations |
 | Bicep CLI | 0.45.15 | infrastructure compile |
-| Azure Developer CLI | 1.28.0 | environment-aware Bicep provision/deploy when approved |
+| Azure Developer CLI | 1.28.0 | approved direct-terminal Bicep/package deployment after ADR-0009 gaps are implemented |
 | Azure Functions Core Tools | 4.12.1 | local isolated Worker host |
 | GitHub CLI | 2.88 | repository/CI operations |
 | Node/npm | 24.14 / 11.9 | pinned Azure MCP launcher and tooling |
@@ -33,7 +33,9 @@ Install-Module SqlServer -Scope CurrentUser -Force -AllowClobber -Repository PSG
 
 - `az login` authenticates Azure CLI and managed-identity-aware local development through the signed-in operator.
 - `azd auth login` is separate and should be run only when provisioning/deployment work is approved.
-- GitHub OIDC is the intended CI/CD Azure identity; do not create long-lived Azure client secrets for Actions.
+- GitHub Actions/OIDC deployment is `Never`. An authorised terminal identity is
+  required only for explicitly approved Azure work; do not create long-lived
+  Azure client secrets as a substitute.
 - Application users are not Entra users by assumption. Their usernames/passwords are owned by ASP.NET Core Identity in the application database.
 - Infisical or Azure Key Vault holds third-party credentials. Never place values in local settings examples, azd parameters, committed appsettings, or agent prompts.
 

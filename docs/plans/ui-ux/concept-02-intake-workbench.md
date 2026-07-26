@@ -1,4 +1,6 @@
-# Concept 2: intake workbench
+# Historical/unapproved concept 2: intake workbench
+
+Status: Retained historical concept and superseded as an active candidate by the direction-neutral [UI specification](ui-spec.md). It does not select a direction, authorise image generation, or set requirements.
 
 ![Intake workbench](mockups/concept-02-intake-workbench.png)
 
@@ -24,4 +26,4 @@ Put incoming transport evidence, document/image evidence, and operator confirmat
 
 ## Deferred-capability impact
 
-The [UI planning impact register](README.md#deferred-capability-impact) applies. This concept preserves source occurrence, evidence provenance, confirmed-versus-suggested values and explicit unsupported outcomes for later mailbox, document, guided-capture and AI/vision work. It does not authorise an automatic matcher, runtime rules editor, VRM model, WhatsApp intake, deferred case-type form or generic provider workflow; each needs its owning contract, caller and accepted evidence.
+The [UI planning impact register](README.md#deferred-capability-impact) applies. This concept preserves source occurrence, evidence provenance, confirmed-versus-suggested values and explicit unsupported outcomes for later mailbox, document, guided-capture and AI/vision work. It does not define the V1 exact-match predicates or automatic-VRM mechanism, and it does not authorise a runtime rules editor, WhatsApp intake, later case-type form, or generic provider workflow; each needs its owning contract, caller, and accepted evidence.

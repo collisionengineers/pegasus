@@ -1,5 +1,9 @@
 # Long-term local testing
 
+Status: **Ready evidence-profile plan — implementation remains caller-scoped**
+
+Current owners: [plans index](../README.md), [validation guidance](../../agent-guidance/validation.md), and the feature-specific caller contracts. V0 includes local working-copy EML evaluation; later profiles activate only with their allocated real caller.
+
 ## Finish line
 
 CollisionSpike has a reproducible Windows-native test environment that proves each delivered capability through its real Web or Worker entry point, separates local evidence from approved live-service evidence, and can expand with named deferred capabilities without introducing dormant services. The owned requirements and evidence matrix are in [Local testing and service evidence](platform/local-testing.md).
@@ -43,8 +47,10 @@ CollisionSpike has a reproducible Windows-native test environment that proves ea
 | Use a live Azure service | Named subscription, resource group, resource and operation | Explicit mutation/cost approval plus current Azure inventory and least-privilege identity |
 | Read or change an Outlook mailbox | Named tenant, application, mailbox and folder | Exchange Application RBAC approval and a negative scope test before the Graph call |
 | Use Box or another vendor sandbox | Named enterprise/account, folder/project and operation | Credential/data approval and controlled non-corpus input |
-| Send a document to OCR, vision, AI, malware scanning or another external processor | Named service, region, model/scanner and input class | Data/licence/cost approval; corpus material remains prohibited unless separately authorised |
+| Send a document to OCR, vision, AI, or another allocated external processor | Named service, region, model and input class | Data/licence/cost approval; corpus material remains prohibited unless separately authorised |
 | Run deployment, restore, failover or retirement evidence | Exact non-production environment and recoverable target | Explicit operation approval, fresh inventory, rollback path and retained source data |
+
+Malware scanning is a permanent `Never` boundary. This plan creates no scanner profile, fixture, port, quarantine state, activation gate, or release claim.
 
 ## Evidence language
 

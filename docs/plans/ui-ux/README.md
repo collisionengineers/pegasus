@@ -1,32 +1,38 @@
 # UI/UX planning
 
-These three generated concepts explore different operator moments; they are not competing whole applications. The likely product combines the navigation and queue scanability of concept 1, the evidence-led sorting flow of concept 2, and the durable case workspace of concept 3.
+Status: **Planned, direction-neutral V1 route. Three comparison rasters were generated with explicit user authorisation on 2026-07-26; no candidate is approved.**
 
-| Concept | Primary question | Mockup |
-|---|---|---|
-| Operations cockpit | What needs attention now? | [concept-01-operations-cockpit.png](mockups/concept-01-operations-cockpit.png) |
-| Intake workbench | What arrived, what evidence was found, and what must an operator confirm? | [concept-02-intake-workbench.png](mockups/concept-02-intake-workbench.png) |
-| Case workspace | What is the current truth and next action for one case? | [concept-03-case-workspace.png](mockups/concept-03-case-workspace.png) |
+This directory records the operator-facing UI route, not an implemented staff application. The only currently called UI is the Development-only pre-case intake/receipt path: `/Intake/Upload` calls `ProcessIntake` and includes the retained-asset handler. It is not authenticated staff UI, creates no case or reference, and proves no V1 staff caller. All V1 staff surfaces below are **Planned**.
 
-The raster mockups were generated with the built-in image generation path and inspected at repository paths. Their sample names, dates, counts, navigation items, countries, and extracted values are visual filler, not approved requirements or test fixtures. Exact prompts are preserved in `generation-prompts.md`.
+## Current route
 
-## Recommended synthesis
+- [Requirements](requirements.md) are the direction-neutral V1 boundary and retained historical-content map.
+- [UI specification](ui-spec.md) defines the common shell, focused flows, state/accessibility contracts, and acceptance evidence.
+- [Feature traceability matrix](traceability-matrix.md) maps the canonical allocation to a V1 destination or explicit non-UI boundary.
+- The three unapproved shell candidates are [operations-first](directions/operations-first.md), [worklist-first](directions/worklist-first.md), and [case-first](directions/case-first.md). They share the same complete Intake, Triage, Case, and Administration flows; they differ only in landing and shell strategy.
 
-1. Start users on the operations cockpit.
-2. Open `Needs sorting` into the three-column intake workbench.
-3. Give staff three explicit outcomes after reviewing extracted suggestions: block intake with a reason and create no case; accept an incomplete case into `Not ready`; or accept a complete case into `Review` after separately judging instructions and images complete. The configurable completeness gate controls later Engineer assignment, not case creation.
-4. Route roadworthiness work into the separate Triage list/detail flow with registration, finding, exact reply evidence and later-case link; never create a case/reference from that workflow.
-5. Open an accepted reference in the case workspace.
-6. Keep permanent action history, reopened state, related Audit references, Box folder, due date, and chaser visible without turning the screen into an all-at-once form.
-7. Keep the separate `Triage` workflow out of generic inbox categories, and present London-day/week `In today`, `Sent to Engineer` and `Reports sent` activity with their evidence limitations.
+The user explicitly authorised an equally finished raster for each reviewed candidate so the direction can be selected visually. Direction approval remains a future explicit user decision. Selecting a V1 shell would approve only its landing/hierarchy direction; it would not prove implementation, approve every raster detail, or approve later-horizon UI. Any V2, V3, V3+, or conditional UI change re-enters the whole UI route: inventory, specification, alternatives, independent review, approval, concept and manual review.
 
-The Collision Engineers website kit formally excludes the internal app. These concepts therefore reuse only stable brand primitives—system sans, warm charcoal, CE red, sharp corners, border-first depth, and line icons—while defining an application-specific information system here.
+## Current visual comparison
+
+| Candidate | Comparison raster | Primary emphasis | Selection state |
+| --- | --- | --- | --- |
+| A — Operations-first | [Open raster](mockups/candidate-a-operations-first.png) | Shared-office queues, due work and day/week awareness | Unapproved |
+| B — Worklist-first | [Open raster](mockups/candidate-b-worklist-first.png) | Repeated work through one named case queue | Unapproved |
+| C — Case-first | [Open raster](mockups/candidate-c-case-first.png) | Case search, identity, evidence and business history | Unapproved |
+
+The three rasters use blank values rather than fabricated operational records. Their empty logo slot deliberately avoids redrawing or altering the approved Collision Engineers logo; the exact packaged asset is reserved for a selected implementation/final-design step. These are layout-selection aids, not requirements, test fixtures, caller evidence or operator acceptance.
+
+## Historical concepts and rasters
+
+`concept-01-operations-cockpit.md`, `concept-02-intake-workbench.md`, `concept-03-case-workspace.md`, and `generation-prompts.md` are retained historical, unapproved material. Their unique content is retained as evidence and is superseded as an active candidate by the direction-neutral route above. The associated PNGs are historical visual filler, not requirements, test fixtures, V1 scope, or an approved visual direction; sample names, dates, counts, navigation items, countries, and extracted values must not be implemented as product rules.
+
+The public Collision Engineers website kit does not define the internal application. Any later approved implementation applies the contained internal-app style boundary: warm off-white ground, white panels, warm-charcoal navigation, near-black text, CE-red accents, border-first depth, restrained system-sans operational text and line icons. Those visual primitives do not select one candidate or authorise a raster concept.
+
+## Boundaries
+
+Mobile staff UI is **Never**. At constrained desktop widths and 200% zoom, essential work reflows without losing identity, labels, focus, or actions; that does not create a mobile or read-only product. Operator review and evaluation use approved genuine local immutable material only; do not fabricate operational emails, images, instructions, staff, or cases.
 
 ## Deferred-capability impact
 
-- **Named capabilities reviewed:** wider Outlook coverage and general email management, automated WhatsApp/chaser sending, EVA API/replacement, estimating/valuation/invoicing, Diminution and Commercial cases, guided/mobile capture, AI/vision and VRM recognition, external accounts, malware scanning, and later infrastructure options.
-- **Stable seam retained:** screens present stable case/source/document identities, external evidence provenance, named Core actions and role-aware query results. The shared approved-mailbox allowlist and exact Sent-item identity stay outside view logic; the `First sent to Engineer` event remains stable when its evidence changes from first successful EVA export generation to actual Engineer assignment.
-- **Future migration/replacement:** later case types and fields require their own approved workflow and data migrations; new channels/accounts require separate authorisation and presentation; EVA/email automation replaces adapter/evidence sources without redefining current case actions.
-- **Activation boundary:** an accepted product decision, owning Core contract, real caller and operator-reviewed accessible workflow are required for each capability. External data or service use also requires exact scope, licence/security and live-evidence approval.
-- **Deliberately absent:** no dormant navigation, form, tile, role, endpoint, flag or placeholder for a deferred feature. These mockups do not authorise a generic mail client, automated matcher/sender, finance UI, AI assistant, customer portal or mobile application.
-- **Irreversible choice:** none in these planning artifacts. A later UI decision that would hide source/external identity, merge business workflows, or foreclose an accessible/operator-approved flow requires explicit review before implementation.
+The V1 route preserves stable case, Triage, source, document and external-evidence identity plus named Core actions. It does not add dormant navigation, controls, forms, roles, endpoints, flags, or placeholders for V2 email management/image AI, V3 WhatsApp/chaser automation and later case types, V3+ EVA replacement/report sending, conditional guided capture, or Never capabilities. Activation needs the owning accepted decision, Core contract, real caller, and operator-reviewed accessible workflow.

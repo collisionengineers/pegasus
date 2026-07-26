@@ -1,6 +1,10 @@
 # Mockup generation prompts
 
+Status: **Historical generation input for draft/unapproved concepts. Superseded as active candidates by the direction-neutral route; no further image generation is authorised.**
+
 All three used the built-in image generation tool in `ui-mockup` mode. The supplied intake dashboard screenshot was a structural/style reference, not an edit target.
+
+The Concept 1 prompt includes `Receiving work`, `Queries`, and `Other` cards now allocated to V2. The retained prompt and generated raster are historical visual evidence; neither is the V1 surface specification. Current scope is owned by [requirements](requirements.md) and the [feature maturity map](../feature-maturity-map.md).
 
 ## Concept 1
 
@@ -16,4 +20,4 @@ High-fidelity 16:9 case workspace for `QDOS26001`: charcoal navigation; header w
 
 ## Deferred-capability impact
 
-The [UI planning impact register](README.md#deferred-capability-impact) applies to every generated concept. Prompts may show only current named workflows and stable evidence limits; they must not add placeholder mail automation, WhatsApp, EVA API, finance, deferred case types, guided capture, AI/vision, external accounts, malware controls or infrastructure language. Any later prompt revision follows an accepted owner/caller contract and must not be treated as product authority or operational evidence.
+The [UI planning impact register](README.md#deferred-capability-impact) applies to every generated concept. A future prompt may show only features allocated to the named horizon and stable evidence limits; it must not add placeholder message sending, WhatsApp, EVA API, finance, later case types, guided capture, AI/vision, external accounts, malware controls, or infrastructure language. Any later prompt revision follows an accepted owner/caller contract and must not be treated as product authority or operational evidence.
