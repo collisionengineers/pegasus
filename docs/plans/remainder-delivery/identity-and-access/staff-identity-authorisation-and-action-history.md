@@ -1,8 +1,14 @@
 # Staff identity, authorisation and action history
 
+Status: **Ready V1 plan — external accounts remain Never**
+
 ## Purpose
 
 Establish authenticated CollisionSpike staff identities, role boundaries and permanent attributable action history before a deployed caller can accept or alter casework. This area owns actor and authorisation policy; casework owns business-transition policy.
+
+## Feature coverage
+
+Primary matrix IDs: `ACC-01`, `ACC-02`, `ACC-03`, `ACC-04`, `ACC-05`, `ACC-07`, `ACC-08`, `ACC-09`, `ACC-10`, and `UI-11`. Their implementation routes are [authentication and role boundaries](#authenticate-staff-and-enforce-role-boundaries), [permanent action history](#attribute-permanent-action-history-and-automation), and [principal and operational administration](#administer-principals-and-live-operational-configuration). Allocation remains owned by the [maturity map](../../feature-maturity-map.md); this list is a route, not implementation evidence.
 
 ## Authority and current boundary
 
@@ -102,7 +108,7 @@ Deny by default except deliberately public technical health endpoints. Passwords
 ### Authority and decision gate
 
 - **Requirement/decision:** questionnaire §§3–4 and 10 and remaining requirements §1.
-- **Confirmed facts:** permanent action history records the bounded material actions above with actor, timestamp, action, structured before/after values, required reason and outcome; it is not a log of every interaction. A report-sent event requires exact Outlook Sent-item evidence from the shared approved-mailbox allowlist; automatic matching remains deferred.
+- **Confirmed facts:** permanent action history records the bounded material actions above with actor, timestamp, action, structured before/after values, required reason and outcome; it is not a log of every interaction. A report-sent event requires exact Outlook Sent-item evidence from the shared approved-mailbox allowlist; automatic exact-item matching is a V1 research-gated requirement.
 - **Decision required before implementation:** None for append-only application action history. This owner records supplied exact external evidence; it does not decide or infer a Sent-item match.
 
 ### Owner and dependencies

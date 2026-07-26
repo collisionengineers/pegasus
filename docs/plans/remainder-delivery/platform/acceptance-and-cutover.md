@@ -1,15 +1,21 @@
 # Acceptance and cutover
 
+Status: **Ready V1 acceptance plan — later horizons excluded**
+
 ## Purpose
 
 Prove the complete QDOS workflow through its actual callers, keep corpus and live-system evidence boundaries separate, obtain operator acceptance, and cut over without widening external scope or destroying rollback.
 
+## Feature coverage
+
+Primary matrix IDs: `CASE-01`, `INT-21`, `OPS-23`, and `OPS-25`. Their routes are [local workflow proof](#prove-the-local-workflow-with-genuine-inputs), [approved shared-development integrations](#prove-approved-integrations-in-shared-development), and [operator acceptance and production cutover](#complete-operator-acceptance-and-production-cutover). Allocation remains owned by the [maturity map](../../feature-maturity-map.md); this list is a route, not implementation evidence.
+
 ## Authority and current boundary
 
-- **Authority:** [First-release finish line](../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md#15-first-release-scope), [remaining requirements](../../remaining-requirements.md), [open decisions](../../open-decisions.md), and [evidence rules](../../../../AGENTS.md#evidence-and-validation).
+- **Authority:** [First-release finish line](../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md#15-first-release-scope), [remaining requirements](../../remaining-requirements.md), [open decisions](../../open-decisions.md), and [validation guidance](../../../agent-guidance/validation.md).
 - **Policy owner:** Each feature owns its product proof; the release owner composes the integrated journey without duplicating rules.
 - **Current implementation:** The development-only `/Intake/Upload` path has local integration evidence. No deployed Worker, Graph, Box, provider API or MCP path is currently proven.
-- **Real callers:** Existing Web intake first; later Web/Worker/API/MCP callers only after their task evidence reaches `Called`.
+- **Real callers:** Existing Web intake first; V1 Web/Worker/MCP callers only after their task evidence reaches `Called`. Provider API is V2.
 - **Persistence/adapters:** The acceptance record names input class, source hash/cohort, actor, database, external scope, artifact and result without publishing PII.
 - **Dependencies:** Every required area in the [programme order](../README.md#delivery-order); the sole combined mailbox categorisation/all-automatic-email-matching research blocks only automatic email behavior that depends on its predicates.
 - **Replaces/consolidates:** Global test lists and broad green claims are replaced by task-local evidence plus one integrated acceptance record.
@@ -114,7 +120,7 @@ A test failure, unsupported source, integration failure and business outcome rem
 
 ### Caller, contract and change boundary
 
-- **Real or intended caller:** Deployed Web/Worker/API/MCP entry points, never a standalone SDK script as final proof.
+- **Real or intended caller:** Deployed Web/Worker/MCP entry points for V1, never a standalone SDK script as final proof. Provider API evidence belongs to V2.
 - **Input/output:** Approved non-corpus fixtures exercise identity, idempotency, permission, storage and failure mechanics.
 - **Ordered decisions and failure behavior:** Prove local out-of-scope denial, approve exact target, perform one scoped call, reconcile stored identity/result, and disable the integration again.
 - **Persistence/migration:** External IDs, versions, attempts and outcomes persist without secret values or source bytes in logs.
@@ -160,11 +166,11 @@ A test failure, unsupported source, integration failure and business outcome rem
 
 ### Deferred-capability impact
 
-- **Named capabilities:** Broader mailboxes, production Box, EVA API, outbound messages and malware scanning.
+- **Named capabilities:** Broader mailboxes, production Box, EVA API, and allocated outbound-message automation. Malware scanning is `Never`, with no activation path or seam.
 - **Stable seam retained:** Channel/external IDs, narrow adapters, durable attempts and explicit activation configuration.
 - **Future migration/replacement:** Each later scope needs new permission, data-flow, negative tests and operational approval.
 - **Activation boundary:** Named business scope, licence/consent, security evidence and direct approval.
-- **Deliberately absent:** No account-wide search, enterprise event feed, outbound sender, scanner or production allowlist.
+- **Deliberately absent:** No account-wide search, enterprise event feed, outbound sender, production allowlist, or scanner; malware scanning is a `Never` boundary.
 
 ### Completion evidence
 
@@ -191,9 +197,9 @@ A test failure, unsupported source, integration failure and business outcome rem
 
 ### Caller, contract and change boundary
 
-- **Real or intended caller:** Authenticated operator Web journeys plus delivered Worker/provider/MCP entry points required by first-release scope.
+- **Real or intended caller:** Authenticated operator Web journeys plus delivered Worker and staff MCP entry points required by V1.
 - **Input/output:** Approved real-shaped non-corpus input and staff actions yield a complete QDOS case journey with permanent action history and a recoverable release.
-- **Ordered decisions and failure behavior:** Verify roles/principal configuration and used-code cutover, intake/custody, separate Triage, case acceptance/reference, exclusive case editing, manual WhatsApp material, manual chaser confirmation, review, EVA hand-off, exact report evidence/post-report and terminal/reopen behavior as settled. Withhold only automatic email behavior whose predicate depends on the sole combined research; stop on failed evidence.
+- **Ordered decisions and failure behavior:** Verify roles/principal configuration and used-code cutover, staff-forwarded/manual/image intake, automatic VRM reading, custody, Triage, every active QDOS case type, references, exclusive editing, manual WhatsApp material, seven-day chasers, review, successful EVA handoff, staff MCP, exact report evidence, and terminal/reopen behavior. The V1 automatic report/Triage matchers remain withheld only until their predicates are accepted. V2 post-report dispute, general matching, OCR, email workspace, and provider API are not V1 acceptance gates.
 - **Persistence/migration:** Acceptance names environment, database/migration, artifact and retained action-history/file identities.
 - **Adapters/side effects:** Enable only separately approved external scopes and one production poller.
 - **Operator surface and observability:** Every queue, count, search, active-editor/read-only state, stale/failure state, keyboard path, action-history record and alert used in the journey is observed.
@@ -202,7 +208,7 @@ A test failure, unsupported source, integration failure and business outcome rem
 
 ### Scope
 
-- **Included:** Complete first-release QDOS workflow, role/security checks, accessibility, recovery and one-at-a-time cutover.
+- **Included:** Complete V1 QDOS-to-EVA workflow for Inspection, standalone Audit, and Inspection + Audit; role/security checks, accessibility, recovery, and one-at-a-time cutover.
 - **Excluded:** Deferred features, unapproved external scope, predecessor retirement and claims of broader reliability than observed.
 
 ### Implementation checklist
@@ -249,7 +255,7 @@ A test failure, unsupported source, integration failure and business outcome rem
 - **Stable seam retained:** Accepted Core use cases, source/external identities, adapter boundaries, permanent action history and immutable artifacts.
 - **Future migration/replacement:** Each later capability owns its schema/contract/adapter and evidence without rewriting accepted history.
 - **Activation boundary:** New product decision, genuine evidence, licence/cost/security review and explicit approval.
-- **Deliberately absent:** Deferred code, resource, integration, account, scanner, network and release machinery remain absent.
+- **Deliberately absent:** Later code, resources, integrations, accounts, networking, and release machinery remain absent; malware scanning and its scanner machinery are `Never`.
 
 ### Completion evidence
 

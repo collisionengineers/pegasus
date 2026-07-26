@@ -1,8 +1,14 @@
 # Operator workspace
 
+Status: **Ready V1 plan — categorised email queues/workspace V2**
+
 ## Purpose
 
 Provide the staff-facing intake dashboard, queues, case search and detail workspace that expose real Core decisions rather than a second workflow implementation. It makes case/inbox work observable and actionable while keeping planned callers honestly labelled.
+
+## Feature coverage
+
+Primary matrix IDs: `UI-01`, `UI-02`, `UI-03`, `UI-04`, `UI-05`, `UI-06`, `UI-07`, `UI-08`, `UI-09`, and `UI-13`. Their routes are [operational queues and dashboard](#deliver-operational-queues-and-dashboard) and [case search and workspace actions](#deliver-case-search-and-workspace-actions). Allocation remains owned by the [maturity map](../../feature-maturity-map.md); this list is a route, not implementation evidence.
 
 ## Authority and current boundary
 
@@ -25,7 +31,7 @@ Every count opens the exact filtered query it represents. Counts, last-updated t
 ### Authority and decision gate
 
 - **Requirement/decision:** questionnaire §5 dashboard requirements and remaining requirements §5.
-- **Confirmed facts:** required work tiles are `Not ready`, `Review`, `Held`, `Receiving work`, `Queries`, `Other`, `Needs sorting`, and `Blocked intake`. `In today` counts cases created since Europe/London midnight. Replace ambiguous submitted/cleared activity with paired `Sent to Engineer` and `Reports sent` today/week totals; weeks are Monday-to-Monday in Europe/London. `Sent to Engineer` counts each case once from the stable first event, whose first-MVP proxy is successful EVA JSON/image export generation. `Reports sent` counts every successfully sent report from exact Outlook Sent-item evidence in the shared approved-mailbox allowlist.
+- **Confirmed facts:** V1 tiles are `Not ready`, `Review`, `Held`, `Needs sorting`, `Blocked intake`, and a separate Triage route. `Receiving work`, `Queries`, and `Other` categorised email queues are V2. `In today` counts cases since Europe/London midnight; paired `Sent to Engineer` and `Reports sent` use Monday-to-Monday weeks. `Sent to Engineer` counts each case once from successful EVA export generation; `Reports sent` counts every report with exact allowlisted Outlook evidence.
 - **Decision required before implementation:** none; queue contents defer to lifecycle/chase decision gates where they apply.
 
 ### Owner and dependencies

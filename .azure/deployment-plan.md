@@ -1,6 +1,6 @@
 # Azure deployment plan
 
-Status: **Planning — local scaffold only. Not approved for validation deployment or provisioning.**
+Status: **Target design only — not runnable, not production-ready, and not approved for validation deployment or provisioning.**
 
 Last reviewed: 2026-07-23, Europe/London.
 
@@ -39,7 +39,11 @@ Last reviewed: 2026-07-23, Europe/London.
 - Worker uses a user-assigned identity because Flex deployment storage needs an identity before the Function App exists.
 - Storage roles are scoped to the new storage account. Shared-key access is disabled.
 - Azure SQL uses a Microsoft Entra administrator and Entra-only authentication. Runtime database users receive `db_datareader` and `db_datawriter` in the post-provision script; no SQL administrator password exists in source or parameters.
-- Because private networking was explicitly deferred, the scaffold uses public service endpoints and the Azure SQL `AllowAllWindowsAzureIps` firewall rule so App Service and Flex can reach SQL. Authentication remains Entra-only. This broad network reach is a documented first-stage trade-off to revisit before any security-hardening phase.
+- Private networking is a `Never` boundary. The scaffold therefore uses public
+  service endpoints and the Azure SQL `AllowAllWindowsAzureIps` firewall rule so
+  App Service and Flex can reach SQL. Authentication remains Entra-only. This
+  broad network reach is an accepted first-MVP trade-off, not a planned future
+  private-networking migration.
 - App settings contain resource names, endpoints, and Application Insights connection metadata. Third-party credentials are referenced from Infisical or Key Vault and are never generated into Bicep output.
 
 ## Quota and availability evidence
@@ -55,16 +59,51 @@ Immediately before provisioning, recheck:
 - Document Intelligence SKU availability;
 - role-assignment authority for the provisioning principal.
 
-## Local preparation and validation sequence
+## Intended authorised-terminal route (not runnable)
 
-1. `pwsh ./scripts/Invoke-Doctor.ps1`
-2. `pwsh ./scripts/Invoke-RepoCheck.ps1`
-3. Review `docs/azure/current-inventory.md` and refresh it if the date has changed materially.
-4. Run `azd env new dev` and populate only non-secret environment values when a validation deployment is explicitly approved.
-5. Run `azd provision --preview` or the current supported preview/what-if path and review every resource/role change.
-6. Provision a new v2 resource group; never deploy over `rg-collisionspike-dev`.
-7. Run the SQL post-provision grant, application health tests, and a non-sensitive smoke path.
-8. Do not connect genuine corpus data or live Outlook/Box/EVA until each integration cutover is approved.
+The release owner uses an authorised terminal with committed Bicep and `azd`.
+This is not a GitHub Actions/OIDC route, and `azd up` must not be used for a
+production release because it merges provision, package, and deployment without
+the required migration boundary.
+
+The intended order is local validation; one-time Web, Worker, and migration
+bundle creation with recorded hashes; approved preview/provision; explicit
+immutable migration; Web package deployment; live/ready probes; Worker package
+deployment; then smoke evidence. Prior application packages are retained for
+redeployment; schema rollback is not a down-migration.
+
+The current scaffold cannot perform that order. `azure.yaml` has no migration
+step; `dotnet ef` is not pinned or available; `AZURE_PRINCIPAL_NAME` needs a
+preflight; the least-privilege Entra directory-resolution path for `CREATE USER
+... FROM EXTERNAL PROVIDER` is unresolved; package paths, target runtimes,
+pinned tools/dependencies, hashes/provenance, and build-once/deploy-same-artifact
+proof are absent; and `SCM_DO_BUILD_DURING_DEPLOYMENT=true` conflicts with
+immutable package deployment. A separate infrastructure implementation must
+close these gaps before any command below is treated as executable.
+
+## Target release order (not executable)
+
+This is the ADR-0009 order, not a command runbook. Every cloud action requires
+separate exact approval for its target, scope, cost, and data boundary. The
+placeholders below cannot be resolved until the listed gaps have a separate
+infrastructure implementation.
+
+1. Validate locally and review the dated inventory; an authorised refresh is
+   required before relying on any live fact.
+2. Create Web, Worker, and migration bundles once from the approved revision,
+   recording package paths, target runtimes, tool/dependency versions, hashes,
+   and build-once/deploy-same-artifact provenance. **Not implemented.**
+3. Preflight the authorised terminal identity, `AZURE_PRINCIPAL_NAME`, and the
+   least-privilege Entra resolution needed for `CREATE USER ... FROM EXTERNAL
+   PROVIDER`; then preview and provision only the approved new v2 target, never
+   `rg-collisionspike-dev`. **Identity path unresolved.**
+4. Apply the explicit immutable migration bundle before application deployment.
+   **No migration bundle or `azure.yaml` migration step exists.**
+5. Deploy the hashed Web package; record live and ready probe evidence. **Package
+   route and remote-build removal are not implemented.**
+6. Deploy the hashed Worker package and record smoke evidence. Do not connect
+   genuine corpus data or live Outlook, Box, or EVA until each integration
+   cutover is separately approved.
 
 ## Deployment blockers
 
@@ -72,7 +111,9 @@ Immediately before provisioning, recheck:
 - The predecessor is pre-release and its test application data is not migrated into v2. Retirement remains a separately approved operation, not a deployment prerequisite.
 - Document Intelligence F0 ownership/reuse has not been decided.
 - SQL Entra administrator name/object ID must be confirmed at deployment time.
-- GitHub OIDC environment and release workflow are not created in this scaffold.
+- GitHub Actions/OIDC deployment is a `Never` boundary, not a missing scaffold item.
+- The direct-terminal packaging, migration, identity, Entra-resolution and
+  remote-build-removal work described above is not implemented.
 - External integration credentials and rotation sequence are not prepared.
 
 This file must not be changed to `Ready for Validation` merely because Bicep compiles.

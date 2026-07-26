@@ -4,9 +4,13 @@
 
 Host the caller-backed modular monolith in separate UK South development and production environments with least-privilege identities, explicit database migration, correlated operations evidence, tested recovery and reversible releases.
 
+## Feature coverage
+
+Primary matrix IDs: `ACC-11`, `OPS-01`, `OPS-02`, `OPS-03`, `OPS-04`, `OPS-05`, `OPS-06`, `OPS-07`, `OPS-08`, `OPS-09`, `OPS-10`, `OPS-11`, `OPS-13`, `OPS-14`, `OPS-20`, and `OPS-24`. Their routes are [V0 shared-development proof](#provision-and-prove-v0-shared-development), [infrastructure and identity boundaries](#reconcile-infrastructure-and-identity-boundaries), [persistence, observability and recovery](#prove-persistence-observability-and-recovery-in-shared-development), and [immutable release](#release-immutable-artifacts-safely). Allocation remains owned by the [maturity map](../../feature-maturity-map.md); this list is a route, not implementation evidence.
+
 ## Authority and current boundary
 
-- **Authority:** [ADR-0002](../../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md), [remaining requirements](../../remaining-requirements.md#7-azure-and-release-readiness), [current inventory](../../../azure/current-inventory.md), and [replacement/retirement plan](../../../azure/replacement-and-retirement-plan.md).
+- **Authority:** [ADR-0002](../../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md), [ADR-0009](../../../architecture/decisions/ADR-0009-direct-terminal-azure-deployment.md), [remaining requirements](../../remaining-requirements.md#7-azure-and-release-readiness), [current inventory](../../../azure/current-inventory.md), and [replacement/retirement plan](../../../azure/replacement-and-retirement-plan.md).
 - **Policy owner:** Infrastructure definitions and Web/Worker composition own Azure translation; Core remains free of Azure dependencies.
 - **Current implementation:** `infra/main.bicep`, `infra/modules/platform.bicep`, `azure.yaml`, and `.github/workflows/ci.yml` are source only. The tracked `azure.yaml` names Web/Worker services and a post-provision database script, but neither it nor Bicep supplies the accepted dedicated migrator/immutable-artifact release path. The Web App still sets `SCM_DO_BUILD_DURING_DEPLOYMENT=true`. These files do not establish a deployed or verified v2 environment.
 - **Real callers:** Local Web health endpoints exist. `azd` has a tracked but unexercised service manifest; Azure-hosted Web/Worker and release paths remain planned until the manifest is reconciled and exercised.
@@ -20,13 +24,19 @@ Azure adapters expose permanent, transient and unknown failures without turning 
 
 Current Microsoft guidance was refreshed read-only on 2026-07-23: [.NET isolated Functions](https://learn.microsoft.com/azure/azure-functions/dotnet-isolated-process-guide), [Flex Consumption](https://learn.microsoft.com/azure/azure-functions/flex-consumption-plan), [App Service Health Check](https://learn.microsoft.com/azure/app-service/monitor-instances-health-check), [managed identity with Azure SQL](https://learn.microsoft.com/azure/app-service/tutorial-connect-msi-sql-database), [Functions telemetry export](https://learn.microsoft.com/azure/azure-functions/functions-monitoring#telemetry-export-options), and [container-scoped Blob data roles](https://learn.microsoft.com/azure/storage/blobs/assign-azure-role-data-access#assign-an-azure-role).
 
+## Provision and prove V0 shared development
+
+**Evidence state:** Planned
+
+`OPS-10` is an authorised-terminal V0 proof of one exact UK South shared-development target. It begins only after the [ADR-0009 package, migration, identity and provenance foundation](#reconcile-infrastructure-and-identity-boundaries) has locally produced separately hashed Web, Worker and immutable migration bundles with pinned tool/runtime provenance, removed remote build, and defined separated deployment, migrator and no-DDL runtime identities. A second gate then requires exact subscription, tenant, resource-group, SKU, quota, policy and spending-cap approval. The authorised terminal previews/provisions the target, applies the named migration bundle, and deploys the same hashed application packages; source Bicep, `azd` registration or a health endpoint is not deployment/caller evidence. Capture exact target, bundle hashes/provenance, Entra-only SQL mode, identity/RBAC separation, schema and smoke result; stop before a write on preflight failure, and recover only by the approved target-specific procedure. This establishes neither production deployment, a Worker business caller, external integration, live verification nor acceptance; it creates no dormant V2 resource, second environment, slot, private network, region or failover topology.
+
 ## Reconcile infrastructure and identity boundaries
 
 **Evidence state:** Planned
 
 ### Authority and decision gate
 
-- **Requirement/decision:** Use the accepted [.NET 10 modular-monolith Azure architecture](../../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md) and refresh the [current Azure inventory](../../../azure/current-inventory.md) before design or implementation.
+- **Requirement/decision:** Use the accepted [.NET 10 modular-monolith Azure architecture](../../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md), implement the [ADR-0009 direct-terminal package/migration sequence](../../../architecture/decisions/ADR-0009-direct-terminal-azure-deployment.md), and refresh the [current Azure inventory](../../../azure/current-inventory.md) before design or implementation.
 - **Confirmed facts:** Region and initial topology are accepted; SKU availability, API versions, quotas, policies, target-group existence and prices are volatile.
 - **Decision required before implementation:** None for local Bicep correction. Every Azure preview or mutation requires a fresh, exact approval.
 
@@ -34,15 +44,15 @@ Current Microsoft guidance was refreshed read-only on 2026-07-23: [.NET isolated
 
 - **Policy/implementation owner:** One IaC owner coordinates shared identities, configuration and role assignments.
 - **Independent evaluator:** Azure architect/reviewer validates topology, least privilege, cost and rollback after read-only research.
-- **Prerequisites:** Stable Web/Worker configuration and external-adapter contracts.
+- **Prerequisites:** Stable Web/Worker configuration, the first caller-backed slice, a pinned repository SDK/tool set, the ordered migration stream and named external-adapter contracts. This section must complete locally before `OPS-10` provisioning/deployment.
 - **Consumers/unlocks:** Shared-development deployment, SQL proof, integration smoke tests and production release.
 
 ### Caller, contract and change boundary
 
-- **Real or intended caller:** Bicep, the tracked `azure.yaml`, and GitHub OIDC are planned deployment callers. `azd` is not a proven caller until that existing manifest is reconciled with immutable artifacts/migrations and exercised; source files alone prove no deployment.
-- **Input/output:** Environment name and approved subscription/region produce deterministic, separately scoped resources and identities.
+- **Real or intended caller:** An authorised terminal is the intended deployment caller. Bicep and the tracked `azure.yaml` are source-only inputs; `azd` is not a proven caller until the separate package, migration, identity and artifact-provenance work is implemented and exercised.
+- **Input/output:** Environment name, approved subscription/region, pinned build inputs and one validated source revision produce deterministic separately scoped resources plus hashed Web, Worker and immutable migration bundles with a machine-readable hash/provenance manifest.
 - **Ordered decisions and failure behavior:** Refresh inventory and Microsoft guidance, build/lint locally, check policy/quota with approval, preview exact targets, then provision only after separate approval; fail before writes on ambiguity.
-- **Persistence/migration:** Bicep owns infrastructure only; a post-provision migrator identity applies application migrations and runtime identities have no DDL.
+- **Persistence/migration:** Bicep owns infrastructure only. The deployment identity may preview/provision only the approved infrastructure target; a separately identified migrator applies the immutable migration bundle with schema-change permission; Web/Worker runtime identities receive only named application data/execute permissions and no DDL. The release proof must show Azure SQL remains Microsoft Entra-only, SQL-password authentication is unavailable, and none of the three boundaries silently inherits another's privilege.
 - **Adapters/side effects:** Managed identity and narrow data-plane RBAC replace keys wherever supported; secret names, never values, enter configuration. In the caller-backed staging slice, Web will receive `Storage Blob Data Contributor` only on `intake-temporary`, delivered with the Blob adapter, composition and actual Web proof; current Bicep grants Web no Blob data-plane role or container configuration. Worker retains account-scoped Blob Owner plus queue/table data roles because identity-based Functions host/deployment storage uses those services as well as application intake; sharing that account is an explicit residual isolation boundary until an accepted separate-host-storage change.
 - **Operator surface and observability:** Deployment output names resources and non-secret endpoints; alerts route initially to Alex.
 - **Documentation affected:** ADRs or Azure inventory change only when accepted architecture or verified live state changes.
@@ -50,20 +60,26 @@ Current Microsoft guidance was refreshed read-only on 2026-07-23: [.NET isolated
 
 ### Scope
 
-- **Included:** Separate v2 development/production groups, Web, Worker, SQL, Storage, Key Vault, telemetry, conditional scanned-PDF OCR resource, OIDC and identities.
-- **Excluded:** Provisioning in this task, production slots, private networking, custom domain, multi-region/zone redundancy, Defender/malware scanning and predecessor deletion.
+- **Included:** Separate v2 development/production groups, Web, Worker, SQL, Storage, Key Vault, telemetry, authorised-terminal identities, build-once package/provenance inputs and the explicit migrator boundary.
+- **Excluded:** Provisioning in this task, every V2 Document Intelligence resource/role/configuration until the V2 OCR activation slice, production slots, private networking, custom domain, multi-region/zone redundancy, Defender/malware scanning and predecessor deletion. The current conditional Document Intelligence declaration and Worker role are removed from the V0/V1 scaffold rather than shipped disabled.
 
 ### Implementation checklist
 
-- [ ] Reconcile the existing `azure.yaml` and Bicep with the accepted four-project runtime, deterministic environment naming, immutable artifacts and explicit migrations before treating `azd` as a proven caller; do not create a second manifest.
+- [ ] Reconcile the existing `azure.yaml` and Bicep with the accepted four-project runtime, deterministic environment naming, build-once immutable Web/Worker/migration bundles and explicit migrations before treating `azd` as a proven caller; do not create a second manifest.
+- [ ] Pin the .NET SDK and every release-affecting CLI/tool or record its exact validated version; generate a machine-readable manifest containing source revision, package paths, SHA-256 hashes and tool/runtime provenance, and verify deployment never rebuilds those bytes.
 - [ ] Define least-privilege Web, Worker, migrator and deployment identities without shared keys or secret values. Keep Web Blob data access container-scoped and prove it cannot reach `app-package`, queues or other containers. Retain/document the Worker host-storage account scope separately from its business responsibilities rather than claiming container isolation.
+- [ ] Prove Azure SQL is Microsoft Entra-only; prove deployment, migrator and Web/Worker runtime identities are distinct in purpose and effective database permissions, with no DDL for runtime and no standing application-data role for deployment.
+- [ ] Remove the current V2 Document Intelligence resource parameter/module path and Worker Cognitive Services role from V0/V1 output; the V2 OCR plan owns a future separately approved activation delta.
 - [ ] Make immutable artifact deployment, explicit migrations, health configuration, budgets and alerts first-class outputs.
-- [ ] Remove replaced credential and remote-build paths in the same slice.
+- [ ] Remove replaced credential and remote-build paths, including `SCM_DO_BUILD_DURING_DEPLOYMENT=true`, in the same slice.
 
 ### Validation checklist
 
 - [ ] Build and lint Bicep locally for development and production parameter sets.
+- [ ] Compare compiled V0/V1 templates and prove they contain no Document Intelligence account, role assignment, configuration or output.
+- [ ] Build the Web, Worker and migration bundles once, verify every manifest hash, then prove the shared-development command consumes those exact paths without a build step.
 - [ ] Run configuration and architecture tests that prove Core remains Azure-free and secrets are names/identity references only.
+- [ ] Prove compiled SQL configuration enables Entra-only authentication and the database grant procedure produces separate deployment, migrator and no-DDL runtime effective-permission evidence.
 - [ ] With approval, run current policy/quota checks and `what-if` against the exact new target group; record the dated source and no-write boundary.
 - [ ] `pwsh ./scripts/Invoke-RepoCheck.ps1` with exact result and limitations.
 
@@ -74,23 +90,24 @@ Current Microsoft guidance was refreshed read-only on 2026-07-23: [.NET isolated
 | Local development/production Bicep build | Both parameter sets compile with intended resources, identities and exclusions | Bicep output and lint result | SKU availability, permission or deployment success |
 | Exact approved `what-if` | Only intended new v2 resources/role assignments are proposed | Dated preview and target scope | Provisioning or runtime behavior |
 | Secret/shared-key inspection | No password, connection string or storage key is required in source; Shared Key is disabled | Scoped static review and approved negative probe | External secret existence or all live RBAC behavior |
+| V0/V1 compiled topology | No Document Intelligence account/role/configuration is emitted | Template assertion and exact compiled-resource inventory | Future V2 OCR activation |
+| Package/provenance foundation | Web, Worker and immutable migration bundles each match the source-revision/tool-provenance manifest and the deployment route performs no rebuild | Local package/hash verification plus command dry run | Azure permission or deployment success |
+| SQL authentication and identity separation | Entra-only authentication is enabled; deployment cannot mutate application data, migrator alone can apply the bundle, and runtime identities cannot perform DDL | Compiled configuration plus approved shared-development positive/negative effective-permission probes | Every future feature permission |
 | Web manual upload identity | Web can stage/read one source in `intake-temporary` and is denied Blob data access outside it | actual Web integration smoke plus negative RBAC probe | Worker processing or Box custody |
 | Web system identity recreation | role-assignment name changes deterministically with the new principal ID instead of mutating the old binding | compiled template comparison/test | Azure propagation or successful live redeployment |
 
 ### Approval, rollout and rollback
 
-- **Approval-triggering action and exact scope:** Any Azure CLI/MCP read beyond already supplied inventory, `what-if`, provisioning, RBAC/OIDC change, secret insertion or deployment requires exact subscription/environment/target approval; writes additionally require SKUs and a hard spending cap.
-- **Rollout/activation:** Validate locally, preview development, provision development, then separately repeat fresh review for production.
+- **Approval-triggering action and exact scope:** Any Azure CLI/MCP read beyond already supplied inventory, `what-if`, provisioning, RBAC change, secret insertion or deployment requires exact subscription/environment/target approval; writes additionally require SKUs and a hard spending cap.
+- **Rollout/activation:** Build and hash all three bundles locally, validate the no-dormant V0/V1 topology and identity separation, preview development, provision development, apply the named migration bundle, then deploy the same hashed Web/Worker packages. Production repeats fresh approval and the same explicit sequence; `azd up` is not the release shortcut.
 - **Rollback/recovery:** Reapply the prior immutable definitions/artifacts; never delete a resource group or down-migrate as rollback.
 - **Irreversible risk:** Role, key and data-bearing resource changes require a fresh dependency and recovery review.
 
 ### Deferred-capability impact
 
-- **Named capabilities:** Custom domain, slots, private networking, multi-region/zone resilience, later scale and malware scanning.
-- **Stable seam retained:** Host-independent routes, environment configuration, managed identities and modular adapters.
-- **Future migration/replacement:** Later tiers/networking require Bicep, DNS/certificate, identity and release changes without changing Core policy.
-- **Activation boundary:** Measured quota/reliability need, security policy, cost review, direct approval and an ADR where architecture changes.
-- **Deliberately absent:** No dormant resource, scanner, slot, network, second runtime or feature flag.
+- **Custom domain:** `Unclear`; retain host-independent routes and environment configuration only until a direct product, DNS/TLS, and OAuth decision.
+- **Permanent boundaries:** GitHub deployment/OIDC, separate staging/QA/UAT/demo, S1/slots, private networking, zone/multi-region resilience, and malware scanning are `Never`. They have no activation path.
+- **Deliberately absent:** No dormant resource, scanner port/client, slot, network, second runtime, feature flag, topology test, or ADR/cost gate for a `Never` boundary.
 
 ### Completion evidence
 
@@ -165,11 +182,9 @@ Current Microsoft guidance was refreshed read-only on 2026-07-23: [.NET isolated
 
 ### Deferred-capability impact
 
-- **Named capabilities:** Higher scale, zone/multi-region resilience, private networking and slots.
 - **Stable seam retained:** Idempotent handlers, explicit migration, health contracts, environment-scoped identities and immutable artifacts.
-- **Future migration/replacement:** Later resilience needs new topology, replication/failover and operational runbooks.
-- **Activation boundary:** Measured workload/recovery gap, accepted cost and architecture decision.
-- **Deliberately absent:** No dormant secondary region, slot, network or queueing platform.
+- **Permanent boundaries:** Zone/multi-region resilience, private networking, and slots/S1 are `Never`; no topology, replication, failover, network, or slot runbook is planned.
+- **Deliberately absent:** No dormant secondary region, slot, network, queueing platform, or test/approval path for those boundaries.
 
 ### Completion evidence
 
@@ -196,10 +211,10 @@ Current Microsoft guidance was refreshed read-only on 2026-07-23: [.NET isolated
 
 ### Caller, contract and change boundary
 
-- **Real or intended caller:** Protected GitHub production environment using scoped OIDC.
-- **Input/output:** One immutable tested artifact and explicit migration produce a health-checked release with prior artifact retained.
+- **Real or intended caller:** An authorised production terminal executing the ADR-0009 sequence after exact approval.
+- **Input/output:** Separately immutable Web, Worker and migration bundles from one validated source revision, plus a manifest of their SHA-256 hashes and pinned tool/runtime provenance, produce a health-checked release with prior application bundles retained.
 - **Ordered decisions and failure behavior:** Gate writes, pause Worker claims, migrate expand-only, deploy Web then Worker, smoke, enable integrations singly; on failure pause and redeploy prior artifacts.
-- **Persistence/migration:** Release records artifact and migration identity; runtime has no migration authority.
+- **Persistence/migration:** Release records the migration-bundle hash and migration identity before applying it. Only the migrator has schema-change permission; deployment has infrastructure/package scope, and Web/Worker runtime identities have no DDL. Azure SQL stays Entra-only throughout.
 - **Adapters/side effects:** Exactly one production Inbox poller; every external integration starts disabled.
 - **Operator surface and observability:** Staff are notified of the planned interruption; health, smoke and alerts identify the release.
 - **Documentation affected:** Release/recovery evidence records actual target and outcome; retirement stays separate.
@@ -207,19 +222,21 @@ Current Microsoft guidance was refreshed read-only on 2026-07-23: [.NET isolated
 
 ### Scope
 
-- **Included:** Protected OIDC workflow, immutable artifacts, explicit migration, direct B1 deployment, smoke, integration activation and prior-artifact rollback.
+- **Included:** Direct authorised-terminal route, hashed immutable Web/Worker/migration bundles, pinned build/tool provenance, explicit migration, direct B1 deployment, smoke, integration activation and prior-application-artifact rollback.
 - **Excluded:** Automatic predecessor shutdown, production Box enablement beyond approved IDs, slots and destructive rollback.
 
 ### Implementation checklist
 
-- [ ] Produce one immutable Web/Worker artifact set from the validated revision.
-- [ ] Protect environment approvals and scope OIDC independently for development and production.
-- [ ] Implement the write gate, claim pause, migration, health/smoke and one-at-a-time integration activation sequence.
+- [ ] Produce the Web package, Worker package and immutable migration bundle once from the validated revision; record package paths, SHA-256 hashes, source revision, target runtimes and pinned SDK/CLI/tool versions in one release manifest.
+- [ ] Verify shared development and production consume the exact manifest paths/hashes without remote build or repackaging; fail closed on any missing/mismatched byte or provenance field.
+- [ ] Implement the authorised-terminal preflight and least-privilege identity procedure; GitHub Actions/OIDC deployment remains `Never`.
+- [ ] Implement the write gate, claim pause, Entra-only migrator authentication, migration, Web deployment, Worker deployment, health/smoke and one-at-a-time integration activation sequence; prove deployment/migrator/runtime privilege separation.
 - [ ] Retain prior artifacts and a tested rollback procedure.
 
 ### Validation checklist
 
-- [ ] Prove the same artifacts pass shared-development smoke before production approval.
+- [ ] Prove the same three bundle hashes and provenance manifest pass shared-development migration/deployment/smoke before production approval.
+- [ ] Prove SQL-password authentication is unavailable, the deployment identity cannot apply schema/data mutations, the migrator can apply only the approved bundle, and Web/Worker cannot perform DDL.
 - [ ] Prove a failed health/smoke gate stops later integration activation.
 - [ ] Exercise prior-artifact redeployment in development.
 - [ ] Confirm exactly one poller and all unapproved integrations disabled.
@@ -230,23 +247,24 @@ Current Microsoft guidance was refreshed read-only on 2026-07-23: [.NET isolated
 | Scenario/input/boundary | Expected observable result | Evidence | Does not prove |
 |---|---|---|---|
 | Approved production release | Named artifacts deploy after migration and health/smoke pass | Workflow, deployment and smoke record | Sustained operation or business acceptance beyond tested journey |
+| Package or provenance mismatch | Release stops before migration/deployment; no remote rebuild substitutes new bytes | Three-bundle hash/provenance verification | Azure service health |
+| SQL identity boundary | Entra-only migrator applies the named bundle; deployment and runtime attempts outside their scopes are denied | Positive/negative effective-permission evidence | Permissions for later integrations |
 | Failed readiness/smoke | Activation stops; prior artifact can be redeployed without down-migration | Development rollback exercise | Recovery from arbitrary data corruption |
 | Integration activation | Only explicitly approved mailbox/vendor/Box scope is enabled, one boundary at a time | Configuration and negative-scope evidence | Authority to broaden scope later |
 
 ### Approval, rollout and rollback
 
-- **Approval-triggering action and exact scope:** Production OIDC/RBAC, migration, release, mailbox cutover, credentials, MCP/Claude processing and each integration activation require separate exact approval.
+- **Approval-triggering action and exact scope:** Production terminal/RBAC use, migration, release, mailbox cutover, credentials, MCP/Claude processing and each integration activation require separate exact approval.
 - **Rollout/activation:** Release outside office hours in the documented order; never infer production authority from development success.
 - **Rollback/recovery:** Pause claims/writes and redeploy prior immutable artifacts; restore to a new database only under the recovery runbook.
 - **Irreversible risk:** Predecessor pause/retirement and any data-bearing deletion remain separately authorised operations.
 
 ### Deferred-capability impact
 
-- **Named capabilities:** Slots, zero-interruption release, advanced rollout and predecessor retirement.
-- **Stable seam retained:** Immutable artifacts, protected environments, health gates and reversible activation.
-- **Future migration/replacement:** A later tier/slot rollout changes deployment topology and test evidence, not Core behavior.
-- **Activation boundary:** Measured interruption problem, accepted tier cost and new release decision.
-- **Deliberately absent:** No dormant slot, blue/green environment or automatic predecessor mutation.
+- **Stable seam retained:** Immutable artifacts, direct authorised-terminal release, health gates and reversible activation.
+- **Permanent boundaries:** S1/slots and separate staging/QA/UAT/demo environments are `Never`; no zero-interruption slot or blue/green route is planned.
+- **Separate concern:** Predecessor retirement still requires its own explicit approval; it is not a release-topology activation.
+- **Deliberately absent:** No dormant slot, blue/green environment, staging runtime, or automatic predecessor mutation.
 
 ### Completion evidence
 

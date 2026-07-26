@@ -1,6 +1,8 @@
 # CollisionSpike v2 Project Discovery Questionnaire
 
-Complete this document before the application architecture and Azure deployment plan are approved. Short answers are fine. Write `Unknown` where a decision has not yet been made.
+Status: **Active settled product authority**
+
+This document owns settled product behavior. [The feature maturity map](docs/plans/feature-maturity-map.md) owns allocation: V0 is local pre-alpha, V1 is the live QDOS alpha release gate, additional providers arrive during V1.x before V2, V2 is the email-workspace/provider-API beta, and V3/V3+ contains the allocated later release work. An allocation is not evidence that a capability is implemented, called, deployed, or accepted. `Never`, conditional, and `Unclear` remain distinct.
 
 ## 1. Project ownership
 
@@ -101,7 +103,7 @@ A case reaches a terminal closed state through one of four outcomes:
 
 **Who is allowed to move a case between each stage?**  Administrator, Engineer, and User roles may perform every case transition and the pre-Engineer-assignment review gate. Only Administrators manage accounts, principals, application configuration, and the approved Outlook mailbox allowlist. Automated transitions use the same rules. Business actions are recorded under the permanent action-history boundary below.
 
-**Which stage changes require review or approval?**  The configurable completeness and staff review gates apply before a case is passed or assigned to an Engineer. There is no pre-send report review gate. Engineers continue to send reports through the existing Outlook/EVA process; CollisionSpike detects sent evidence but never sends a report automatically.
+**Which stage changes require review or approval?**  The configurable completeness and staff review gates apply before a case is passed or assigned to an Engineer. There is no pre-send report review gate. In V1, Engineers continue to send reports through the existing Outlook/EVA process and CollisionSpike only detects exact sent evidence. Automatic report sending is separately allocated to V3+ and requires its own authority, approval, idempotency, recovery, and acceptance contract before it can replace that current boundary.
 
 **Can a case be reopened after closure? If so, by whom and under what conditions?**  Yes. An authorised staff user must provide a reason and choose any otherwise-valid nonterminal workflow state; every normal gate for the chosen destination is enforced. `Held` is excluded because entering it is a separate reasoned action. A case closed as `Created in error` can never reopen. The action and reason are retained in permanent action history.
 
@@ -176,30 +178,45 @@ Each tile or filter shows its current count and opens the corresponding work vie
 
 **Who may view, upload, download, replace, or delete evidence?**  Authenticated Administrator, Engineer, and User roles may view, upload, and download case evidence. They may revise or remove evidence only while the case is open or has been reopened. Revisions retain previous versions, removals are logical rather than permanent, and all actions are recorded in permanent action history. External clients have no access.
 
-**Are virus scanning, OCR, image processing, redaction, or AI classification required?**  Automated malware scanning is deferred beyond the first MVP. The first MVP uses deterministic local extraction first and OCR only for scan-like PDF pages that lack usable embedded text. Ordinary email image attachments, inline images, DOCX images, and discrete PDF images are retained as separate review candidates and are not sent to OCR. Automated vehicle-registration OCR/VLM, in-app AI, guided image capture, image/vision-AI assistance, and automated malware scanning are planned beyond the first MVP. Redaction is not required.
+**Are virus scanning, OCR, image processing, redaction, or AI classification required?**  V1 automatically reads a vehicle registration from ordinary vehicle images while keeping each original image and any suggestion reviewable; the implementation mechanism is not inferred here. Scan-like PDF OCR and broader vehicle-image/damage AI or vision assistance are V2. In-app AI is V3, and AI-assisted email/document/address behavior is V3 only if rule-based behavior is insufficient. Guided capture remains `Unclear`. Automated malware scanning, redaction workflow, and the other `DOC-09..15` governance workflows are `Never`, not deferred backlog.
 
-**Direct product decision — 2026-07-23:** automated vehicle-registration OCR/VLM is deferred beyond the first MVP. This resolves the older combined operator-note wording by separating two capabilities: OCR of scan-like PDF instruction pages remains required in the first MVP; reading a VRM automatically from ordinary vehicle images does not. Until the later capability is activated, staff may identify image-led work by a readable registration and all images remain reviewable evidence. Activation requires representative accuracy evidence, a selected adapter/service and licence/cost approval; this decision adds no dormant OCR/vision client, endpoint, queue, configuration or feature flag now.
+Automatic VRM reading and broader AI/vision assistance are separate capabilities. Any selected recogniser still requires representative accuracy and false-positive evidence, provenance, operator review, licence/cost/security approval, and a real caller. This decision adds no dormant client, endpoint, queue, configuration, or feature flag.
 
 **Are digital signatures or evidential chain-of-custody records required?**  No. Permanent action history and retained file-version history are sufficient.
 
 
 ## 7. Communications and tasks
 
-**Should the system send or receive email? Describe the mailboxes and flows.**  Yes. The first MVP automatically ingests the new shared `instructions@collisionengineers.co.uk` mailbox. The full product must ingest and classify all received email from `desk@collisionengineers.co.uk`, `engineers@collisionengineers.co.uk`, `info@collisionengineers.co.uk`, and `instructions@collisionengineers.co.uk`. Inbound email may contain PDF, DOC/DOCX, freehand instruction text, images, queries, or other correspondence. The system must support outbound chasers/file requests for missing information or images and, eventually, general case email management from within the application.
+**Should the system send or receive email? Describe the mailboxes and flows.**  Yes. V0 runs the real provider-specific instruction-identification rules against ignored working-copy `.eml` files in the local evaluator. V1 automatically ingests staff-forwarded work from `instructions@collisionengineers.co.uk`; forwarding means the transport sender may be a staff member, so source provenance and strong instruction content must not be replaced by sender-only classification. V2 extends the same Core-owned policy across `desk@collisionengineers.co.uk`, `engineers@collisionengineers.co.uk`, `info@collisionengineers.co.uk`, and `instructions@collisionengineers.co.uk`, adds the full email workspace and suggested actions, and lets staff confirm recommended Outlook-folder moves. General compose/reply/forward/send in the app is `Never`; automatic chasers are V3 and automatic reports are V3+ as separate capabilities.
 
-Mailbox categorisation and all automatic email matching are one combined open research decision routed through `docs/plans/mailbox-categorisation-and-email-matching/README.md`. Approved rules must be extensible and modifiable through one Core-owned policy rather than copied into Web, Worker, API, MCP, or individual mailbox adapters. Do not implement automatic categorisation or matching, invent predicates, or add a generic rule engine or dormant configuration model before that research is accepted.
+The detailed Received taxonomy and its confirmed examples/subtypes are settled:
+
+| Received family | Confirmed examples or subtypes |
+| --- | --- |
+| `General` | autoreply, undeliverable, and acknowledgements such as “thank you” |
+| `billing` | payment notifications, remittances, invoice requests, billing query, and general billing |
+| `new-instruction-received` | initial work instructions; Audit, Diminution, Inspection, new client, and website enquiry |
+| `non-client-related` | internal/company messages from tools, services, software, and similar sources |
+| `in-progress-cases` | cancellation, case update, client chasing for update, and other ongoing-case correspondence |
+| `post-report-emails` | queries, disputes, amendment requests, and similar post-report correspondence |
+| `pre-instruction-emails` | Triage requests, handling requests before formal instruction, and images received before instructions |
+| `internal-cc` | internal copied correspondence |
+
+Sent families are `Report sent`, `case-rejected`, `query-sent`, and `additional-image-request`. Reply is not a standalone recorded type: Collision Engineers' replies mirror the underlying Received category with reply context, and incoming replies to Sent messages mirror the underlying Sent category with reply context. The V0 evaluator also offers `Other`, requiring a new category name and reasoning. These are the confirmed taxonomy claims derived from the directly selected reference evidence in `docs/reference/CollisionSPikeCurrenttree.txt`; the source remains unchanged and does not become authority for unrelated legacy behavior.
+
+Detailed classification, operational queues, Triage routing, and Outlook folder destinations are distinct facts. Mailbox categorisation and all automatic email matching remain one combined open research decision routed through `docs/plans/mailbox-categorisation-and-email-matching/README.md`. The research must now settle the V0 instruction predicates and governance needed by the real evaluator, then the V1 exact matching dependencies and V2 expansion. Approved rules remain one Core-owned policy rather than copies in Web, Worker, API, MCP, or mailbox adapters. Do not invent predicates or add a generic rule engine or dormant configuration model before the applicable decision is accepted.
 
 **Must email and attachments be automatically associated with cases?**  Yes, but all automatic email matching remains inside the combined open research decision. Once accepted, related emails and attachments may be associated automatically only where the approved policy proves a definitive match. Uncertain matches go to `Needs sorting` for staff review. This does not change the separately settled Triage-to-case linking rule.
 
-**What proves that Collision Engineers sent a report?**  One exact Outlook Sent item from a mailbox on the Administrator-maintained allowlist of approved shared and individual staff mailboxes. CollisionSpike detects sent reports but never sends them automatically. Automatic matching remains deferred with the combined mailbox-categorisation and email-matching research. If evidence is absent or ambiguous, an authorised staff user may link the exact Sent item with a required reason; subject-only or other inferred evidence is insufficient. Outlook `sentDateTime` is the authoritative business time, while discovery and link times are retained separately in permanent action history. Any staff role may unlink or relink with a reason, which recomputes dependent events and dashboard counts. A confirmed sent event remains final if Outlook later moves or deletes the message.
+**What proves that Collision Engineers sent a report?**  One exact Outlook Sent item from a mailbox on the Administrator-maintained allowlist of approved shared and individual staff mailboxes. V1 detects and links this evidence but does not send the report. Automatic exact-item matching is a V1 gate owned by the combined research; when evidence is absent or ambiguous, an authorised staff user may link the exact item with a required reason. Subject-only evidence is insufficient. Outlook `sentDateTime` is authoritative; discovery/link times remain separate. Any staff role may unlink/relink with a reason and recompute dependent events/counts, while confirmed evidence remains final if Outlook later moves or deletes it. Automatic report sending is V3+ and cannot begin without a separately accepted sending contract.
 
-**Are SMS, Teams, portal notifications, or other channels required?**  WhatsApp remains a manual staff channel in the first MVP. Staff may manually add received WhatsApp images or information to the relevant case. The architecture should preserve WhatsApp coexistence as a potential future automation and ingestion route. No direct SMS, Teams, customer-portal, or WhatsApp integration is required in the first MVP.
+**Are SMS, Teams, portal notifications, or other channels required?**  V1 keeps WhatsApp manual and permits staff to add relevant received material to the case. Automated WhatsApp ingestion/coexistence is V3. SMS, Teams, customer/claimant portals, and external-role application accounts are `Never`.
 
 **What tasks, reminders, deadlines, escalations, or service-level timers are required?**  Entering `Not ready` schedules the first chase at the same Europe/London local clock time exactly seven calendar days later; subsequent outstanding chasers follow the same seven-calendar-day cadence. Entering `Held` preserves the prior state and any remaining local-clock chase interval. Release offers the prior state or `Review`; returning to `Not ready` resumes the preserved remainder, while choosing `Review` ends the missing-information chase. Receiving the required material or entering any terminal case state also stops future chasers. Extract the inspection date, or equivalent deadline stated in the instructions, as the case's `Due by` date and keep it visible while held.
 
 **Who may create, assign, complete, or cancel tasks?**  Authorised Administrator, Engineer, and User roles may create, assign, complete, or cancel case tasks. The system may create recurring chase reminders automatically. All task actions are included in permanent action history.
 
-**Which communications need templates and approval?**  Automated sending is out of scope for the first MVP. For chasing missing information, images, or documents, the application generates a clickable message that staff can copy and paste into email or WhatsApp. Where useful, the application also creates or includes a Box file-request link. Because staff send the copied message manually, no separate in-app approval workflow is required in the first MVP.
+**Which communications need templates and approval?**  In V1 the application generates a clickable message that staff copy into email or WhatsApp and may include a Box file-request link. No separate approval is required because staff send it manually. Automatic chasers are V3 and automatic reports V3+; each later sender requires a separate authority, confirmation, idempotency, recovery, and acceptance contract.
 
 
 ## 8. Integrations
@@ -208,23 +225,23 @@ Complete the required integrations and identify the system that remains authorit
 
 | System or service | Required for first release? | Information exchanged | Direction | Authoritative system | Contact/owner |
 |---|---|---|---|---|---|
-| Microsoft 365 / Outlook | Yes | Email, body content, attachments, sender/recipient data, timestamps | Inbound in first MVP; broader email management later | Microsoft 365 for mailbox content; application for case association | Collision Engineers / Alex |
+| Microsoft 365 / Outlook | Yes | Email, body content, attachments, sender/recipient data, timestamps | V1 staff-forwarded `instructions@` intake and exact Sent evidence; four-mailbox management in V2 | Microsoft 365 for mailbox content; application for classification and case association | Collision Engineers / Alex |
 | Box | Yes | Case folders, instruction emails/documents, vehicle images, Engineer reports, and file requests | Bidirectional | Box is the long-term file store; application owns case metadata and links | Collision Engineers / Alex |
 | Accounting or invoicing | No; plan for later | Invoice amount and future accounting data | To be defined | Future accounting system to be selected | To be defined |
 | DVLA / DVSA | Yes | Vehicle and MOT details, including mileage information when available | Inbound lookup | DVLA/DVSA source data; application stores the case snapshot | Collision Engineers / Alex |
-| Mapping or location | No; plan for later | Inspection-address suggestions and location signals | Inbound lookup | To be defined | To be defined |
-| OCR / document processing | Yes, scanned PDF pages only in the first MVP | PDF/email/DOCX content converted into reviewable case fields; OCR is limited to scan-like PDF pages without usable embedded text. Automated VRM reading is later scope | Inbound processing | Original source files remain authoritative; extracted fields and retained images are reviewable application data | Collision Engineers / Alex |
-| AI services | No; plan for later | In-app assistance, vision/image assistance, and classification enhancements | To be defined | Application remains authoritative for approved case data | To be defined |
-| EVA | Yes | Structured case JSON and image bundle for manual transfer; future API integration | Outbound in first MVP; bidirectional later if EVA API permits | EVA remains authoritative for Engineer assignment, estimating, valuation, and report generation until replaced | Collision Engineers / EVA vendor |
-| WhatsApp | Manual only; automate later | Instructions, chaser messages, and vehicle images | Manual in first MVP | WhatsApp retains channel history; staff add relevant content to the application/Box | Collision Engineers |
+| Mapping or location | V1 | Inspection-address mapping/prediction; AI-assisted suggestions are separately conditional V3 | Inbound lookup or rule-based suggestion | Application stores only operator-accepted case values and provenance | Collision Engineers / Alex |
+| OCR / document processing | V2 for scan-like PDF OCR; V1 for automatic VRM reading | Reviewable extraction, retained images, scan-like PDF OCR, and registration suggestions | Inbound processing | Original sources remain authoritative; accepted fields remain application data | Collision Engineers / Alex |
+| AI services | V2/V3/V3+ only as individually allocated | Image/damage assistance, conditional classification/extraction/address suggestions, staff assistant, and AI Assessor | To be defined per capability | Original sources and staff-approved application data remain authoritative | To be defined |
+| EVA | V1 export; V3+ API/replacement | Structured case JSON and image bundle; later assignment/engineering replacement | V1 manual handoff; later API only if usable and approved | EVA remains authoritative for named assignment and downstream engineering until replaced | Collision Engineers / EVA vendor |
+| WhatsApp | Manual V1; automated V3 | Instructions, chaser messages, and vehicle images | Manual then separately approved automated intake | WhatsApp retains channel history; accepted material is added to the application/Box | Collision Engineers |
 | Tractable / Ravin | No; potential future route | Guided claimant image capture | Inbound later | To be defined | Collision Engineers / vendor |
 | Audatex and valuation services | No; plan for later | Estimate and valuation data | To be defined | External service remains authoritative until replacement strategy is agreed | Collision Engineers / vendor |
 
 **Are test accounts, API specifications, credentials, or vendor contacts available for these integrations?**  Working access is available for the required first-MVP integrations except EVA. EVA API documentation is available under `docs/reference/EVA/EVA_API_SCHEMA`, but its usable API access depends on the EVA vendor. Until that is resolved, the system exports JSON and images for manual transfer. Integration secrets must never be committed to the repository; use Infisical or Azure Key Vault for secret custody.
 
-**What are the provider API and MCP boundaries?**  The provider HTTP API uses separately issued principal-scoped client IDs and opaque secrets. It accepts idempotent instruction and attachment submissions and lets a principal retrieve only its own submission receipt, processing status, and resulting Case/PO. It does not expose general case reads or workflow mutation in the first MVP.
+**What are the provider API and MCP boundaries?**  The V2 provider HTTP API uses separately issued principal-scoped client IDs and opaque secrets. It accepts idempotent instruction/attachment submissions and lets a principal retrieve only its own receipt, processing status, and resulting Case/PO. It never creates external application accounts or exposes general case reads/workflow mutation.
 
-MCP is a separate internal staff surface, primarily for Claude Desktop. Each staff member authorises the remote connector through CollisionSpike using OAuth, and every call uses that person's current application role and permanent action-history identity. MCP may expose the full case, inbox, and document actions that the signed-in role can perform through the staff UI, but it does not expose account/role administration, principal configuration, credential management, cloud operations, or permanent deletion. Both surfaces call the same Core use cases and authorization policies as the staff Web application.
+MCP is a separate V1 internal staff surface, primarily for Claude Desktop. Each staff member authorises it through CollisionSpike using OAuth, and every call uses that person's current role and permanent action-history identity. V1 MCP covers role-authorised case, document, and intake-queue actions through the same Core use cases as the staff UI; broader classified-email actions are V2. It never exposes account/role administration, principal configuration, credential management, cloud operations, or permanent deletion.
 
 
 ## 9. Existing data and migration
@@ -258,7 +275,7 @@ MCP is a separate internal staff surface, primarily for Claude Desktop. Each sta
 
 **How should subject-access, correction, export, and erasure requests be handled?**  No dedicated in-application workflow is required for the first MVP. Any external legal or management process remains outside the development scope unless Collision Engineers later adds a requirement.
 
-**Which activities require security or compliance alerts?**  Use standard operational security alerts for authentication or authorisation failures, privileged role/configuration changes, ingestion/integration failures, application availability, and unexpected Azure cost. If automated malware scanning is introduced later, detections must generate alerts. No additional data-compliance alert workflow is required for the first MVP.
+**Which activities require security or compliance alerts?**  Use standard operational security alerts for authentication or authorisation failures, privileged role/configuration changes, ingestion/integration failures, application availability, and unexpected Azure cost. Automated malware scanning is `Never`, so no scanner-specific detection or alert workflow is planned. No additional data-compliance alert workflow is required for V1.
 
 **Are there contractual, insurer, solicitor, ISO, Cyber Essentials, or other compliance requirements?**  No additional compliance implementation requirement has been supplied for development or the first MVP. This development-scope decision does not replace any external legal or organisational obligations managed by Collision Engineers.
 
@@ -275,7 +292,7 @@ MCP is a separate internal staff surface, primarily for Claude Desktop. Each sta
 
 **Required operating hours:**  Automated mailbox ingestion and case processing operate continuously. Staff-facing use is expected primarily during Collision Engineers business hours, but the application should remain available outside those hours unless undergoing planned maintenance.
 
-**Maximum acceptable planned downtime:**  A short planned interruption during a production release is acceptable for the first MVP. Validate the release in the shared development environment, deploy directly to the production B1 App Service outside office hours, wait for health checks, and run smoke tests. Keep the previous immutable artifact available for rollback and notify staff when an interruption will affect them. Upgrade to Standard S1 and deployment slots later only if release interruption becomes a genuine operational problem.
+**Maximum acceptable planned downtime:**  A short planned interruption during a production release is acceptable for V1. Validate in the shared development/integration environment, deploy directly to production B1 outside office hours, wait for health checks, and run smoke tests. Keep the previous immutable artifact for rollback and notify staff. Standard S1 and deployment slots are `Never` under the current product boundary.
 
 **Maximum acceptable unplanned downtime:**  Target restoration of service within four hours for the first MVP.
 
@@ -321,9 +338,9 @@ Use one shared Azure development/test environment for unfinished cloud integrati
 
 **Which business operations must have dashboards or alerts?**  Dashboard the agreed case and inbox queues plus today/this-week throughput. Alert on mailbox ingestion failures, document/OCR processing failures, Box folder/file-request failures, unmatched or repeatedly failing case associations, overdue due-by dates, failed recurring-chase generation, EVA export failures, application health, authentication anomalies, and unexpected Azure cost.
 
-**How often should backup restoration and disaster recovery be tested?**  Test database restore and the documented recovery procedure at least quarterly and after material infrastructure or persistence changes. Record the result and any remediation.
+**How often should backup restoration and disaster recovery be tested?**  Prove database restore, the 15-minute RPO, and the documented four-hour recovery path before V1 acceptance and after a material persistence/release change where the owning change requires it. A recurring quarterly restore exercise is `Never`.
 
-**Who may deploy to development, test, staging, and production?**  Alex controls releases initially. GitHub Actions performs automated deployments through its scoped Azure workload identity. Unfinished changes deploy only to shared development. There is no first-MVP staging environment; after approval, production releases deploy directly to B1 outside office hours and are health-checked and smoke-tested immediately.
+**Who may deploy to development, integration, and production?**  Alex controls releases initially. An authorised operator deploys committed Bicep through Azure Developer CLI from an authorised terminal. Unfinished cloud integration work uses the shared development/integration environment. There is no staging environment. After approval, production deploys directly to B1 outside office hours and is health-checked and smoke-tested immediately. GitHub Actions/OIDC deployment is `Never`.
 
 **Who approves production releases?**  Collision Engineers management provides business approval; Alex performs or authorises the technical production release.
 
@@ -334,7 +351,7 @@ Use one shared Azure development/test environment for unfinished cloud integrati
 
 **Target monthly Azure budget in production:**  No fixed monthly ceiling has been set. Size for the stated workload and reliability targets, favour managed services and simple architecture, document estimated recurring cost before deployment, and configure budget/forecast alerts.
 
-**Is increased cost acceptable for zone redundancy, private networking, stronger backups, or disaster recovery?**  Defer multi-region failover, zone redundancy, and private networking beyond the first MVP. Functional delivery is the priority. Use a cost-conscious single-region design with secure authentication, least-privilege access, encryption, standard managed backups, health checks, monitoring, and a documented path to add the deferred reliability/networking features later.
+**Is increased cost acceptable for zone redundancy, private networking, stronger backups, or disaster recovery?**  Multi-region failover, zone redundancy, and private networking are `Never` under the current product boundary. Use a cost-conscious single-region design with secure authentication, least-privilege access, encryption, managed backups, health checks, monitoring, and the V1 recovery proof.
 
 **Are there licences or existing Microsoft agreements we should use?**  Reuse Collision Engineers' existing Microsoft 365, Azure, Box, EVA, Audatex, and other vendor accounts/licences where applicable. No additional enterprise agreement or licensing constraint has been supplied; confirm commercial/API entitlement before enabling each vendor integration.
 
@@ -347,18 +364,16 @@ Use one shared Azure development/test environment for unfinished cloud integrati
 
 - Self-managed CollisionSpike staff usernames/passwords, account administration, and Administrator/Engineer/User roles
 - QDOS principal configuration, provider-specific Case/PO sequencing, Audit prefixes, Box naming, and Inspection + Audit secondary references
-- Active support for Triage requests, Inspection, Audit, and Inspection + Audit; Diminution and Commercial remain deferred
-- Automatic ingestion from the `instructions@collisionengineers.co.uk` shared Outlook mailbox
-- Identification and categorisation of every ingested mailbox item into receiving work, queries, other, needs sorting, or the applicable business Triage flow
-- Extraction of required case details from PDF, DOCX, and freehand EML instructions; retain legacy DOC and MSG sources in `Needs sorting` without allocating a reference
-- OCR only for scan-like PDF pages without usable embedded text; automated vehicle-registration OCR/VLM is deferred
-- Automatic case creation when new instructions are received
-- Manual review and linking of image-led intake using the vehicle registration when staff can establish it; automated vehicle-registration reading is deferred
+- Active V1 support for Triage, Inspection, Audit, and Inspection + Audit
+- Automatic ingestion of staff-forwarded work from the `instructions@collisionengineers.co.uk` shared mailbox with stable source identity and bounded visible recovery
+- The V0-proved Core classification owner identifying authorised instruction email for the V1 intake path; non-definitive or unsupported material remains visible in `Needs sorting`
+- Extraction of required case details from PDF, DOCX, and freehand EML instructions; legacy DOC and MSG remain retained in `Needs sorting` without a reference until their V2 automation
+- Automatic vehicle-registration reading for ordinary vehicle images, with original evidence and reviewable provenance retained; scan-like PDF OCR is V2
+- Automatic case creation from definitive authorised instructions through the shared case-acceptance rules
+- Manual review and linking of image-led intake using vehicle registration; automatic image/instruction matching is V2
 - Manual case creation and manual upload of instructions, correspondence, documents, and images
-- Automatic linking of image-initiated and instruction-initiated records when there is a definitive match
 - Manual linking, mistaken-merge reversal, wrong-principal `Created in error` closure with a linked replacement case, cancellation, reasoned reopening to valid nonterminal states, and archive workflows with permanent action history
-- Automatic association of related emails and attachments with the correct case only after the combined categorisation/matching research is accepted, with uncertain matches routed to `Needs sorting`
-- Full staff case management and editing across intake, chasing, ready/review, inspection, post-report query/dispute, and terminal states
+- Full staff case management and editing across intake, chasing, ready/review, the tracked inspection/report stage, and all four V1 terminal outcomes; post-report query/dispute work is V2
 - Configurable backend enforcement of staff-confirmed `Instruction complete` and `Images complete` before Engineer assignment, without a hard-coded field matrix
 - A review/approval gate before Engineer assignment; no pre-send report review gate
 - Inspection-address capture using either the physical vehicle/repairer address or `Image Based Assessment`
@@ -366,15 +381,15 @@ Use one shared Azure development/test environment for unfinished cloud integrati
 - Automatic Box case-folder creation and long-term storage of instruction emails/documents, images, correspondence, and Engineer reports
 - Retained document versions, closed-case file locking, and reopen-before-edit behaviour
 - Automatic Box file-request creation and copyable chaser messages for staff to send manually
-- Case-intake dashboard with the agreed case queues, inbox queues, manual `Blocked intake` filter, London-calendar `In today`, `Sent to Engineer`, and `Reports sent` activity counts, links, last-updated time, and refresh
+- Case-intake dashboard with `Not ready`, `Review`, `Held`, `Needs sorting`, manual `Blocked intake`, a separate Triage route, and London-calendar `In today`, `Sent to Engineer`, and `Reports sent` counts; categorised `Receiving work`, `Queries`, and `Other` queues are V2
 - Search/filter by Case/PO, VRM, claimant, claim number, principal, stage/status, Engineer, dates, and image- versus instruction-initiated origin
 - DVLA/DVSA lookup when vehicle details are absent
 - Mileage estimation from MOT data when available
-- Structured case JSON plus stored-image download for manual transfer into EVA until its API becomes usable
-- In-app email management for the first-MVP mailbox scope
-- Principal-scoped provider API for idempotent instruction/attachment submission and own-submission receipt, status, and resulting Case/PO retrieval
-- OAuth-authorised internal staff MCP for Claude Desktop, exposing role-authorised case/inbox/document actions through the same Core use cases while excluding security, configuration, cloud, and permanent-delete operations
+- Successful operator-approved structured case JSON plus stored-image export for every active QDOS case type; this records CollisionSpike's once-per-case `Sent to Engineer` handoff/proxy but not EVA receipt or named assignment
+- Exact Outlook Sent-item report evidence and exact reply-chain Triage evidence, including the V1 automatic matchers after the combined research is accepted and the settled manual report fallback
+- OAuth-authorised internal staff MCP for Claude Desktop, exposing V1 role-authorised case, document, and intake-queue actions through the same Core use cases while excluding security, configuration, cloud, and permanent-delete operations
 - Application and integration health monitoring, operational alerts, recovery controls, permanent action history, security logs, and content-safe telemetry
+- Direct authorised-terminal production deployment using committed Bicep through `azd`, with explicit migration, health, smoke, and prior-artifact rollback boundaries
 
 ### Should have
 
@@ -382,36 +397,22 @@ Use one shared Azure development/test environment for unfinished cloud integrati
 
 ### Could have later
 
-- Direct estimating and valuation service integrations, including Audatex and other valuation providers
-- Direct EVA API integration and eventual replacement of EVA's assignment, estimating, valuation, and report functions
-- Diminution and Commercial case workflows
-- Collision Engineers' own guided mobile image-capture system
-- In-app AI assistance and image/vision-AI features
-- Inspection-address suggestions based on provider history, accident location, and image analysis
-- Automated ingestion from the other Collision Engineers Outlook mailboxes
-- Automated WhatsApp coexistence/ingestion
-- Automated outbound email/chaser sending rather than copy-and-paste messages
-- Tractable or Ravin guided-capture integration
-- Accounting/invoicing integration and workflows for repair estimate, valuation, and invoice amount
-- Automated malware scanning for inbound files
-- A Collision Engineers custom subdomain
-- Multi-region failover, zone redundancy, and private networking when justified by usage or business requirements
+- V1.x activation of additional providers through the same bounded intake/case workflow
+- V2 provider API, four-mailbox classification/email workspace, suggested folder moves, mail mutations, automatic email/image associations, DOC/MSG extraction, scan-like PDF OCR, post-report query/dispute work, and image/damage AI or vision assistance
+- V3 Diminution and Commercial cases, automated WhatsApp ingestion, automatic chasers, and the in-app assistant
+- V3 AI-assisted email, document, or address suggestions only if rule-based behavior is insufficient
+- Conditional V3+ direct EVA API use, followed by EVA assignment/estimating/valuation/report replacement, finance workflows, integrated services, automatic reports, and the staff-selected AI Assessor option
+- Collision Engineers guided capture, Tractable/Ravin integration, and a custom domain remain `Unclear`
 
 ### Explicitly out of scope
 
-- Migration of cases or application state from the previous CollisionSpike application
-- Keeping the previous CollisionSpike application available after v2 cutover
-- Reuse of the previous `cedocumentmapper` implementation or other poorly structured legacy application code
-- External/customer application accounts in the first MVP
-- Automated WhatsApp, SMS, Teams, or customer-portal integration in the first MVP
-- Automated sending of chaser messages in the first MVP
-- Estimating, valuation, accounting, invoicing, guided capture, in-app AI, and inspection-address suggestion features in the first MVP
-- Automated malware scanning for inbound files in the first MVP
-- Diminution and Commercial case processing in the first build
-- A dedicated DPIA, legal-hold, retention, subject-request, or other data-governance workflow as part of first-MVP development
-- Multi-region, zone-redundant, or private-network infrastructure in the first MVP
+- `Never`: predecessor case/application-state import, predecessor operation after cutover, and predecessor-code reuse
+- `Never`: SMS, Teams, customer/claimant portal, external-role accounts, and public registration apart from the principal-scoped provider API
+- `Never`: staff mobile UI, malware scanning, redaction, digital signatures, automated retention/deletion, legal hold, subject-request workflow, and dedicated DPIA/compliance workflow
+- `Never`: GitHub Actions/OIDC deployment, separate QA/UAT/staging/training/demo environments, deployment slots/S1 hosting, private networking, zone redundancy, multi-region failover, and recurring quarterly recovery exercises
+- Current V1 excludes V2/V3/V3+ and `Unclear` capabilities without converting them into permanent exclusions
 
-**What is the single most important end-to-end workflow the first release must prove?**  Full QDOS case handling: receive QDOS instructions and/or images; classify and extract EML, PDF, and DOCX content; retain legacy DOC/MSG and separate image evidence for review; OCR only scan-like PDF pages; create and definitively match the records; assign the correct QDOS Case/PO; create/store the Box case folder and files; chase missing information with due dates, reminders, and file-request links; enrich vehicle/MOT data; complete staff review and readiness gates; export structured JSON and images to EVA; track the case through Engineer/report and post-report activity; and close, reopen, or archive it with complete permanent action history. Automated VRM OCR/VLM is a later enhancement, not a first-release dependency.
+**What is the single most important end-to-end workflow the first release must prove?**  Every active QDOS case type—Inspection, standalone Audit, and Inspection + Audit—must travel through the real V1 path: staff-forwarded `instructions@` or approved manual/image intake; instruction identification; bounded EML/PDF/DOCX extraction with legacy DOC/MSG retained visibly; automatic VRM reading with reviewable evidence; definitive or staff-resolved acceptance; correct shared-sequence Case/PO and Audit identity; Box custody; seven-day missing-information chasing; vehicle/MOT enrichment; completeness and staff review gates; successful structured JSON/image export to EVA as CollisionSpike's `Sent to Engineer` proxy; tracked inspection/report progress; exact report evidence; and terminal closure, reopening, or archive with permanent action history. V2 post-report dispute work, automatic image matching, scan-like PDF OCR, and broader email management are not V1 dependencies.
 
 **Who will perform acceptance testing and approve that workflow?**  Alex performs technical and operational acceptance testing with relevant Collision Engineers staff. Collision Engineers management provides final business approval for production release.
 

@@ -1,8 +1,14 @@
 # Triage workflow
 
+Status: **Ready V1 plan — exact matcher remains research-gated**
+
 ## Purpose
 
 Deliver the bounded first-MVP pre-case roadworthiness workflow without turning `Triage` into an inbox category or case state. A Triage record remains separate from any later case and reaches completion only from exact Outlook reply-chain evidence.
+
+## Feature coverage
+
+Primary matrix IDs: `TRI-01`, `TRI-02`, `TRI-03`, `TRI-04`, `TRI-05`, `TRI-06`, `TRI-07`, `TRI-08`, and `TRI-09`. All route through [Triage workflow](#triage-workflow). Allocation remains owned by the [maturity map](../../feature-maturity-map.md); this list is a route, not implementation evidence.
 
 ## Authority and current boundary
 
@@ -58,7 +64,7 @@ Missing registration, invalid state/finding, stale version, missing reason, unap
 |---|---|---|---|
 | Source lacks vehicle registration | retained `Needs sorting`; no active Triage | Web-to-Core negative test | future extraction accuracy |
 | `Roadworthy` recorded | `Finding recorded`, actor/reason/version visible | caller/persistence test | response sent |
-| Completion without exact approved reply-chain item | refused; state/history unchanged; clear evidence warning | zero/failed-adapter-call tests | future automatic matcher accuracy |
+| Completion without exact approved reply-chain item | refused; state/history unchanged; clear evidence warning | zero/failed-adapter-call tests | V1 automatic matcher accuracy |
 | Exact approved reply evidence after accepted research | `Completed` once with immutable mailbox/item/sent-time evidence | Web/Core/Graph integration test | recipient delivery or reading |
 | Finding changed after completion | prior finding/evidence retained, superseding finding recorded, new response required | transaction/browser test | report correctness |
 | Completed or cancelled record reopened | reason retained and state returns to `Open` | caller/state test | operator judgment |
@@ -73,10 +79,10 @@ Missing registration, invalid state/finding, stale version, missing reason, unap
 
 ## Deferred-capability impact
 
-- **Named capabilities:** broader mailbox/email management, automatic categorisation/all email matching, WhatsApp, guided capture, AI/vision roadworthiness assistance, external accounts, Diminution/Commercial and later infrastructure options.
+- **Later and excluded capabilities:** V2 broader mailbox/email management and general association, V3 WhatsApp and Diminution/Commercial cases, conditional guided capture, later AI/vision roadworthiness assistance, and `Never` external accounts/later resilience infrastructure. The exact Triage reply matcher is a V1 research-gated requirement, not a deferral.
 - **Stable seam retained:** stable Triage/source/case/external-message identities, typed binary finding/revisions, explicit state/action contracts, shared mailbox allowlist and narrow Outlook evidence port.
-- **Future migration/replacement:** accepted automatic matching may supply the same evidence/link commands; later channels or assistance add provenance/adapters and approved UI without replacing Triage policy. External accounts need a new tenancy/permission decision.
-- **Activation boundary:** accepted combined research for automatic reply/case matching; explicit product, licence/security, accuracy and operator acceptance for any new channel or automated finding assistance.
+- **Future migration/replacement:** the accepted V1 exact reply matcher supplies the same evidence command; later channels or assistance add provenance/adapters and approved UI without replacing Triage policy. External accounts remain `Never` unless a new direct product decision changes that boundary.
+- **Activation boundary:** accepted combined research for the V1 automatic reply matcher and V2 general case matching; explicit product, licence/security, accuracy, and operator acceptance for any later channel or automated finding assistance.
 - **Deliberately absent:** no generic classifier/rule table, automated sender, WhatsApp client, vision model, customer role, case/reference allocator, due/chaser scheduler, queue or feature flag.
 
 ## Completion evidence

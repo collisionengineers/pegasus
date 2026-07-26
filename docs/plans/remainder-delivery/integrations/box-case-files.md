@@ -1,8 +1,18 @@
 # Box case files
 
+Status: **Ready V1 plan — external writes remain separately approval-gated**
+
 ## Purpose
 
 Make Box the long-term original-file custody store while proving every operation stays inside an exact subtree approved immediately before the call.
+
+## Feature coverage
+
+Primary feature ownership is: `DOC-01`, `DOC-02`, `DOC-03`, `DOC-04`,
+`DOC-05`, `DOC-06`, `DOC-07`, and `EXT-14`. The first seven are scoped Box
+custody/file actions; `EXT-14` is only manually received WhatsApp material as
+V1 document evidence. It is not an automated WhatsApp channel, inbox,
+association engine, or external adapter.
 
 ## Authority and current boundary
 
@@ -80,7 +90,7 @@ Unknown/missing ancestry, unsupported operation, or root type/name mismatch is t
 
 ### Deferred-capability impact
 
-- **Named capabilities:** live production folders, broader mailbox/WhatsApp, MCP document tools, malware scanning and future storage/infrastructure choices.
+- **Named capabilities:** live production folders, broader mailbox/WhatsApp, MCP document tools, and future storage/infrastructure choices. Malware scanning is `Never`, with no activation path or seam.
 - **Stable seam retained:** immutable Box IDs, root/parent provenance, versions and semantic roles; downstream callers use the same custody use case.
 - **Future migration/replacement:** production-folder enablement needs new allowlist/user decision and separate negative-scope evidence; webhooks need a confined-dedup design.
 - **Activation boundary:** exact action approval, scope smoke and later direct production decision.
@@ -157,7 +167,7 @@ Unknown/missing ancestry, unsupported operation, or root type/name mismatch is t
 
 ### Deferred-capability impact
 
-- **Named capabilities:** WhatsApp ingestion/automation, guided/mobile capture, AI/vision assistance, malware scanning and production Box roots.
+- **Named capabilities:** WhatsApp ingestion/automation, guided/mobile capture, AI/vision assistance, and production Box roots. Malware scanning is `Never`, with no activation path or seam.
 - **Stable seam retained:** channel/source identity, immutable occurrence provenance, semantic role and custody contract support a later approved adapter without changing case policy.
 - **Future migration/replacement:** automated WhatsApp requires vendor/legal/security approval, stable message identity, consent, matching policy, credentials and a caller-backed adapter.
 - **Activation boundary:** direct product/security decision, approved data flow, vendor terms and independently verified association evidence.

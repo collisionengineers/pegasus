@@ -1,6 +1,8 @@
 # Repository structure plan
 
-Status: reviewed and implemented on 2026-07-23.
+Status: **Historical** — reviewed and implemented on 2026-07-23.
+
+Supersession/current owners: [plans index](docs/plans/README.md), [architecture overview](docs/architecture/README.md), and [validation guidance](docs/agent-guidance/validation.md). This planned tree remains implementation history, not ongoing guidance.
 
 ## Objective
 

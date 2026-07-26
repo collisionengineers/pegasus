@@ -1,4 +1,6 @@
-# Concept 3: case workspace
+# Historical/unapproved concept 3: case workspace
+
+Status: Retained historical concept and superseded as an active candidate by the direction-neutral [Case-first candidate](directions/case-first.md). It does not select a direction, authorise image generation, or set requirements.
 
 ![Case workspace](mockups/concept-03-case-workspace.png)
 
@@ -27,4 +29,4 @@ Create one durable home for the case after intake, keeping identity, next action
 
 ## Deferred-capability impact
 
-The [UI planning impact register](README.md#deferred-capability-impact) applies. This concept preserves immutable case/reference, linked replacement, related Audit work, source/document identity and exact external evidence so later EVA, email, finance or deferred case-type adapters can extend named actions without rewriting history. It does not authorise automatic mail matching/sending, EVA API, estimates/valuation/invoices, external accounts, AI assistance or permanent deletion.
+The [UI planning impact register](README.md#deferred-capability-impact) applies. This concept preserves immutable case/reference, linked replacement, related Audit work, source/document identity and exact external evidence so later EVA, email, finance or later case-type adapters can extend named actions without rewriting history. It does not define the V1 exact report matcher or authorise message sending, EVA API, estimates/valuation/invoices, external accounts, AI assistance, or permanent deletion.

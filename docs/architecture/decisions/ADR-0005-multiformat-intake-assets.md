@@ -71,6 +71,15 @@ container.
     safety bounds, not business completeness rules, and may change only with
     representative PDF evidence and the target host resource envelope.
 
+### 2026-07-25 DOCX placement clarification
+
+Every visible placement of a DOCX image is an asset occurrence. If the same bytes
+are placed twice, both placements are retained; a hash may group them for review
+but must not collapse them. The current URI-deduplicated part traversal is not
+compliant when a part is reused at more than one visible placement. A repeated-
+placement regression fixture is required before that behavior can be claimed as
+implemented. This clarification does not introduce a general layout engine.
+
 ## Evidence and limits
 
 The real `POST /Intake/Upload` caller has synthetic before/after integration

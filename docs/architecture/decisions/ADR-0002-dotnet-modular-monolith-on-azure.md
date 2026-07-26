@@ -1,6 +1,6 @@
 # ADR-0002: .NET modular monolith on Azure App Service
 
-- Status: Accepted; provider API and MCP authentication boundary superseded by ADR-0004
+- Status: Accepted; provider API/MCP authentication boundary superseded by ADR-0004 and deployment mechanism partially superseded by ADR-0009
 - Date: 2026-07-23
 - Owners: Alex and the CollisionSpike v2 development team
 
@@ -26,6 +26,9 @@ PDF extraction remains governed by
 The runtime, project, data, and Azure decisions in this ADR remain accepted.
 [ADR-0004](ADR-0004-provider-api-and-staff-mcp-authentication.md) supersedes
 only the combined provider API/MCP client and authentication model shown here.
+[ADR-0009](ADR-0009-direct-terminal-azure-deployment.md) supersedes only this
+ADR's GitHub Actions/OIDC deployment mechanism. The modular-monolith, runtime,
+data, regional, and cost decisions remain accepted.
 
 ## Decision summary
 
@@ -46,12 +49,22 @@ CollisionSpike v2 will be a .NET 10 LTS modular monolith with:
   Storage for file processing;
 - Box as the authoritative long-term store for original case files and their
   versions;
-- Bicep and Azure Developer CLI for infrastructure, and GitHub Actions with
-  workload identity federation for deployments.
+- Bicep and Azure Developer CLI for infrastructure and authorised-terminal
+  deployments, as defined by ADR-0009.
 
 The first MVP will not use microservices, Kubernetes, a single-page application,
 Blazor Server, Azure Service Bus, Cosmos DB, Redis, API Management, private
 networking, multi-region deployment, or zone redundancy.
+
+### 2026-07-25 scope clarification
+
+Later authoritative product decisions make GitHub deployment/OIDC, separate
+staging/QA/UAT/demo environments, S1/deployment slots, private networking,
+zone redundancy, multi-region deployment, and malware scanning permanent
+`Never` boundaries. The earlier deferred-scanning, first-MVP exclusion, and
+S1/slot-upgrade passages below are retained as historical decision evidence;
+they do not create an activation, migration, or upgrade path. Custom domain
+remains `Unclear` and needs a direct future product decision.
 
 ## Technology stack
 
@@ -67,7 +80,7 @@ networking, multi-region deployment, or zone redundancy.
 | Transient files | Azure Blob Storage, locally redundant | Buffers mailbox and upload content while it is processed and transferred to Box. |
 | Long-term files | Box | Preserves the existing business file store and folder/version identifiers. |
 | Infrastructure | Bicep under `infra/`, orchestrated by `azd` | Repeatable Azure environments using the mandated PowerShell/Azure toolchain. |
-| CI/CD | GitHub Actions using Azure workload identity federation | Avoids stored Azure deployment credentials and supports scoped environment approvals. |
+| Release route | Authorised terminal using committed Bicep and `azd` | Preserves a direct, reviewable route; ADR-0009 defines its required migration, package, identity, and evidence gates. |
 
 The staff UI will use the Collision Engineers design system. A Node-based SPA
 toolchain will not be introduced unless a later interaction demonstrably cannot
@@ -118,7 +131,7 @@ src/
   CollisionSpike.Web/
   CollisionSpike.Worker/
 tests/
-  CollisionSpike.UnitTests/
+  CollisionSpike.Core.Tests/
   CollisionSpike.IntegrationTests/
   CollisionSpike.ArchitectureTests/
 infra/
@@ -284,9 +297,9 @@ defines the current contract and supersedes the earlier combined credential mode
   identity. Secrets are not copied into source control or ordinary app settings.
 - Local development secrets are supplied through Infisical or a developer-only
   Key Vault path.
-- GitHub Actions authenticates to Azure with OpenID Connect workload identity
-  federation and a narrowly scoped deployment role; it has no long-lived Azure
-  client secret.
+- An authorised terminal authenticates using the approved operator identity. This
+  ADR does not authorise a GitHub Actions/OIDC deployment path; ADR-0009 defines
+  the terminal preflight and least-privilege requirements.
 - Box credentials and any third-party secrets are held in Key Vault. Provider
   client secrets are non-recoverable hashes in SQL because they are application
   credentials, not reusable vendor secrets.
@@ -333,9 +346,11 @@ for the first MVP.
 ## Deployment and database changes
 
 Infrastructure is declared in Bicep under `infra/` and deployed through `azd`.
-`what-if` or preview is required before production infrastructure changes.
+`what-if` or preview is required before production infrastructure changes. The
+following historical release sequence is superseded by ADR-0009; it is retained
+to preserve the decision record rather than to authorise GitHub deployment.
 
-GitHub Actions performs the application release:
+Historical GitHub Actions sequence:
 
 1. Restore, build, test, run architecture tests, and publish immutable artifacts.
 2. Apply reviewed, backward-compatible database migrations as an explicit release
@@ -371,7 +386,7 @@ Azure SQL automated point-in-time restore is the database recovery mechanism.
 Azure SQL creates transaction-log backups approximately every ten minutes and
 retains seven days by default, which supports the 15-minute recovery-point target
 for this design. The actual restore procedure and source-system reconciliation
-must be tested quarterly. Outlook and Box IDs make ingestion and file state
+require a V1 release-gated restore proof. Outlook and Box IDs make ingestion and file state
 reconcilable after a restore. The first-MVP restoration target is four hours.
 
 ## Initial Azure cost forecast

@@ -1,12 +1,18 @@
 # Exclusive case editing
 
+Status: **Ready V1 plan — settled CASE-27; not implementation evidence**
+
 ## Purpose
 
 Prevent two staff users or staff-facing callers from editing the same case at the same time, while allowing other authorised staff to inspect it read-only and ensuring an abandoned browser cannot leave a permanent lock.
 
+## Feature coverage
+
+Primary matrix ID: `CASE-27`, routed through [one case edit lease](#acquire-renew-and-release-one-case-edit-lease). Allocation remains owned by the [maturity map](../../feature-maturity-map.md); this route is not implementation evidence.
+
 ## Authority and current boundary
 
-- **Authority:** [remaining requirements §5](../../remaining-requirements.md#5-work-management-and-operator-ui) and the [questionnaire first-release case-editing requirement](../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md#15-first-release-scope). Exclusive editing is a proposed implementation contract pending operator confirmation; stale-write refusal remains mandatory.
+- **Authority:** [remaining requirements §5](../../remaining-requirements.md#5-work-management-and-operator-ui) and the [questionnaire first-release case-editing requirement](../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md#15-first-release-scope). `CASE-27` is a settled V1 requirement: exclusive editing and stale-write refusal are required; implementation remains planned.
 - **Policy owner:** planned Core `CaseEditing` lease and mutation guard; Web/MCP translate sessions or commands but never decide ownership.
 - **Current implementation:** there is no accepted-case edit page, case edit lease, row-version contract or production caller. Current receipt review is development-only and does not prove concurrent editing safety.
 - **Real callers:** planned authenticated case-detail edit mode first; later staff MCP mutations use the same guard. Read-only case views do not acquire a lease.

@@ -4,12 +4,16 @@
 
 This area owns the reproducible local test environment and the boundary between local, live-service and operator evidence. Its outcome is an honest answer to whether CollisionSpike behavior is actually callable and verified, not merely compiled, registered or represented by a mock.
 
+## Feature coverage
+
+Primary matrix ID: `OPS-22`, routed through [caller-backed local and live evidence gates](#caller-backed-local-and-live-evidence-gates). This plan owns evidence profiles and tool boundaries, not business behavior; allocation remains owned by the [maturity map](../../feature-maturity-map.md).
+
 ## Authority and current boundary
 
 - **Authority:** [Source-of-truth order](../../../agent-guidance/source-of-truth.md), [settled product decisions and deferred capabilities](../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md), [remaining first-release requirements](../../remaining-requirements.md), [open decisions](../../open-decisions.md), [ADR-0002 Azure modular monolith](../../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md), [ADR-0005 multi-format intake assets](../../../architecture/decisions/ADR-0005-multiformat-intake-assets.md), and [ADR-0006 provider-neutral intake](../../../architecture/decisions/ADR-0006-provider-neutral-intake-with-contained-qdos-policy.md).
 - **Policy owner:** Each business capability remains owned by its Core use case. This area owns only test-tool lifecycle, evidence profiles, isolation and evidence classification.
 - **Current implementation:** The development-only [manual upload page](../../../../src/CollisionSpike.Web/Pages/Intake/Upload.cshtml.cs) calls `ProcessIntake`; the [Worker composition root](../../../../src/CollisionSpike.Worker/README.md) explicitly has no trigger; the primary repository evidence entry point is [Invoke-RepoCheck.ps1](../../../../scripts/Invoke-RepoCheck.ps1).
-- **Real callers:** `/Intake/Upload` is called locally today. Authenticated production Web/API/MCP entry points and Worker timer/queue triggers are intended callers and must remain labelled `Planned` until present and exercised.
+- **Real callers:** `/Intake/Upload` is the only current source-mapped intake caller; this planning research did not execute it. Authenticated production Web/API/MCP entry points and Worker timer/queue triggers are intended callers and must remain labelled `Planned` until present and exercised.
 - **Persistence/adapters:** Current development evidence uses ignored local artifacts and relational persistence. The accepted target adds Azure SQL, transient Blob storage, Storage queues, Box, Graph, Document Intelligence, DVLA/DVSA, EVA export, Key Vault and Azure Monitor adapters.
 - **Dependencies:** The delivered feature must expose a real entry point and retain its Core policy owner before its profile can become a release gate.
 - **Replaces/consolidates:** Consolidates ad hoc test-service discovery, startup and evidence claims into one PowerShell orchestration surface. It does not replace product policy or create test-only production abstractions.
@@ -112,11 +116,11 @@ Storage Explorer, SSMS and Postman remain optional conveniences. Do not add Serv
 
 ### Deferred-capability impact
 
-- **Named capabilities:** Broader Outlook coverage, outbound email, WhatsApp, EVA API/replacement, estimating/valuation/accounting, Diminution and Commercial cases, guided capture, Tractable/Ravin, AI/vision, address assistance, external accounts, malware scanning, custom domain, multi-region/zones/private networking, staging/slots and future SKU choices.
+- **Named capabilities with an activation path:** Broader Outlook coverage, outbound email, WhatsApp, EVA API/replacement, estimating/valuation/accounting, Diminution and Commercial cases, guided capture, Tractable/Ravin, AI/vision, address assistance, and external accounts. Custom domain remains `Unclear` pending a direct product decision.
 - **Stable seam retained:** Capability profiles attach to the existing Core port and real composition-root caller; run identifiers, source identities, versioned external contracts and ignored evidence directories remain transport-neutral.
 - **Future migration/replacement:** Each activated feature still needs its own production adapter, caller, live sandbox, contract fixtures and rollout/rollback evidence; a local emulator never removes that work.
-- **Activation boundary:** Settled product decision plus representative evidence, licence/cost/security approval and a real caller. Infrastructure options additionally require an accepted ADR.
-- **Deliberately absent:** No dormant client, emulator, container, service, queue, table, endpoint, dependency, configuration or release gate for a deferred capability.
+- **Activation boundary:** Applies only to the listed non-`Never` capabilities: settled product decision plus representative evidence, licence/cost/security approval and a real caller.
+- **Permanent boundaries:** Malware scanning; multi-region/zones/private networking; separate staging/QA/UAT/demo; and S1/slots are `Never`. No local profile, port, fixture, emulator, container, service, queue, table, endpoint, dependency, configuration, release gate, or ADR/cost path is created for them.
 
 ### Completion evidence
 
@@ -130,7 +134,7 @@ Storage Explorer, SSMS and Postman remain optional conveniences. Do not add Serv
 
 ### Authority and decision gate
 
-- **Requirement/decision:** The first release must prove authenticated staff workflows, durable source custody, Graph intake, Blob/Queue/Worker behavior, SQL concurrency, Box, targeted OCR, DVLA/DVSA, EVA export, provider API, staff MCP, observability and recovery through their actual callers. The complete list remains owned by [remaining requirements](../../remaining-requirements.md), not duplicated here as product authority.
+- **Requirement/decision:** V1 must prove authenticated staff workflows, durable source custody, Graph intake, Blob/Queue/Worker behavior, SQL concurrency, Box, automatic vehicle-registration reading from ordinary vehicle images, DVLA/DVSA, EVA export, staff MCP, observability, and recovery through their actual callers. Scan-like PDF OCR and the provider API are V2 caller gates and do not block V1. The complete list remains owned by [remaining requirements](../../remaining-requirements.md), not duplicated here as product authority.
 - **Confirmed facts:** The current called slice is the development-only manual upload path. Worker, production Blob/Queue, live external adapters, real-browser/authentication, load, restore-objective and alert-delivery evidence remain planned until delivered and run.
 - **Decision required before implementation:** Tests must encode the settled Triage states/findings/reply evidence/linking, used-principal-code replacement, permanent action-history boundary, chase/Held-release, reopen, London activity, immutable case identity, exact Sent-item and no-pre-send-review rules. Only automatic mailbox categorisation/email matching awaits the sole combined research decision. Image association stays conservative when evidence is not definitive; inspection address accepts confirmed physical data or exact `Image Based Assessment` without inferring precedence; first-MVP email operations remain explicitly unsupported unless required; reversible EVA wire mapping is an owning integration contract validated against operator acceptance, not product ambiguity.
 
@@ -184,8 +188,8 @@ Storage Explorer, SSMS and Postman remain optional conveniences. Do not add Serv
 | DVLA/DVSA | Deterministic contract, invalid identifier, retry and unavailable-service outcomes | Entitlement, identity and real response behavior |
 | EVA | Exact local JSON/image-bundle contract and reconciliation metadata | Operator drag/drop acceptance and later authorised API sandbox |
 | Provider API / staff MCP | Real Kestrel endpoints, auth/scope/idempotency, action history and negative HTTP tests | Public HTTPS, canonical MCP resource metadata, hosted OAuth callback and Internet-facing posture |
-| GitHub OIDC / deployment | Bicep compile/lint and local configuration checks | Azure preflight, scoped OIDC, deployment, health smoke and rollback |
-| Backup / recovery | LocalDB backup/restore into a new disposable database | Azure SQL PITR, quarterly recovery, external-system reconciliation and alert escalation |
+| Direct authorised-terminal deployment | Bicep compile/lint and local configuration checks | Approved Azure preflight, package/migration identity, deployment, health smoke and rollback; GitHub Actions/OIDC is `Never` |
+| Backup / recovery | LocalDB backup/restore into a new disposable database | Azure SQL PITR and the V1 one-time 15-minute RPO/four-hour RTO proof; recurring quarterly recovery is `Never` |
 
 ### Scope
 
@@ -250,10 +254,10 @@ Storage Explorer, SSMS and Postman remain optional conveniences. Do not add Serv
 | AI/vision and automated VRM recognition | Deterministic fake, suggestion-only policy, confidence/provenance/correction and frozen local cohort/holdout | Representative accuracy, model/service, licence/cost/security and data-transfer approval | Model client, endpoint, queue, flag or corpus upload |
 | DOC/MSG automatic extraction | Safe local parsing fixtures for nesting, corruption, encryption and resource bounds | Human-reviewed genuine cohort and holdout; external service only if later selected | Automatic production parser until evidence exists |
 | Address suggestions/maps | Provider fake, provenance, correction and never-auto-accept behavior | Provider/privacy approval and sandbox | Map client, endpoint or stored guess |
-| Malware scanning | Scanner port with Pending/Clean/Malicious/Error states and controlled EICAR-style fixture | Settle fail-open/fail-closed policy; test selected scanner. [Defender for Storage testing](https://learn.microsoft.com/azure/defender-for-cloud/defender-for-storage-test) is a cloud gate, not a local emulator | Scanner client, quarantine service or release claim |
+| Malware scanning | `Never`: no scanner port, fixture, client, quarantine service, or release claim | No activation path | Scanner implementation |
 | External/customer accounts | Deny all external-account access; later invitation, recovery, ownership and cross-tenant isolation tests | Tenancy/identity decision, ADR and approved identity environment | External role, registration or tenant schema |
 | Custom domain | Hostname-independent auth, local HTTPS, cookie/redirect/HSTS and callback configuration tests | DNS/TLS/OAuth migration and rollback in approved environment | Domain, certificate or hostname dependency |
-| Multi-region, zones, private networking, staging, slots/S1 and future SKUs | Bicep compile and configuration-boundary tests only | ADR, cost approval and deployed failover/network/swap/capacity evidence | Dormant topology or release dependency |
+| Multi-region, zones, private networking, separate staging/QA/UAT/demo, slots/S1 | `Never`: no topology, network, slot, staging, or capacity test path | No activation path | Related runtime, resource, release dependency, or ADR/cost gate |
 | Graph webhooks | Signature, replay, expiry and duplicate-notification contract tests | Public callback and Graph subscription in approved shared development | Webhook endpoint or subscription |
 | PDF-engine replacement | Same frozen cohort/holdout and contract parity suite | Licence/security/maintenance review and single-path cutover | Parallel permanent PDF engines |
 
@@ -263,4 +267,4 @@ SMS, Teams, a customer portal, redaction, signatures, legal hold, subject-reques
 
 | State/command/input | Result | Boundary exercised | Proves | Does not prove / skipped |
 |---|---|---|---|---|
-| Planned | Not run | Planning review | Local tiers, live boundaries, caller criteria and deferred activation rules are defined | Implementation, current test pass, deployment, live verification and operator acceptance |
+| Planned | Not run | Planning review | Local tiers, live boundaries, caller criteria, activation gates, and permanent `Never` boundaries are defined | Implementation, current test pass, deployment, live verification and operator acceptance |
