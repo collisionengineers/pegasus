@@ -1,6 +1,0 @@
-interface:
-  display_name: "Apply Collision Engineers UI Style"
-  short_description: "Apply the internal-app visual style."
-  default_prompt: "Use $apply-collision-engineers-ui-style to style this internal application UI."
-policy:
-  allow_implicit_invocation: true

@@ -1,6 +1,0 @@
-interface:
-  display_name: "Route CollisionSpike Azure"
-  short_description: "Route Azure work to current evidence."
-  default_prompt: "Use $route-collisionspike-azure to scope this Azure question."
-policy:
-  allow_implicit_invocation: true

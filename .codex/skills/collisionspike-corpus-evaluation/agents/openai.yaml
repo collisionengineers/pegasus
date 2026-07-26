@@ -1,4 +1,0 @@
-interface:
-  display_name: "CollisionSpike corpus evaluation"
-  short_description: "Evaluate safely with genuine local case data"
-  default_prompt: "Use $collisionspike-corpus-evaluation to design or run a local corpus-backed evaluation."

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Evidence-led delivery"
-  short_description: "Deliver changes against independent evidence"
-  default_prompt: "Use $evidence-led-delivery to plan, implement, and independently verify this repository change."

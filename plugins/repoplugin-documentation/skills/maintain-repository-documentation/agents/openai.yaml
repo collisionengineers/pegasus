@@ -1,6 +1,0 @@
-interface:
-  display_name: "Maintain Repository Documentation"
-  short_description: "Update repository documentation without drift."
-  default_prompt: "Use $maintain-repository-documentation to update repository documentation safely."
-policy:
-  allow_implicit_invocation: true

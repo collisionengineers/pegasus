@@ -1,6 +1,0 @@
-interface:
-  display_name: "Generate Plan Pack"
-  short_description: "Generate a validated implementation plan pack."
-  default_prompt: "Use $generate-plan-pack to generate this validated plan pack."
-policy:
-  allow_implicit_invocation: false

@@ -1,6 +1,0 @@
-interface:
-  display_name: "Plan UI and UX Change"
-  short_description: "Plan and review an operator UI change."
-  default_prompt: "Use $plan-ui-ux-change to plan this operator-facing UI change."
-policy:
-  allow_implicit_invocation: true
