@@ -1,4 +1,0 @@
-interface:
-  display_name: "CollisionSpike Azure app"
-  short_description: "Plan the approved Azure application safely"
-  default_prompt: "Use $collisionspike-azure-app to plan or review CollisionSpike Azure infrastructure without deploying."

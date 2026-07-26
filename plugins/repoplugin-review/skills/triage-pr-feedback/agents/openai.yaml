@@ -1,6 +1,0 @@
-interface:
-  display_name: "Triage PR Feedback"
-  short_description: "Collect and route pull request feedback."
-  default_prompt: "Use $triage-pr-feedback to collect current pull request feedback without replying."
-policy:
-  allow_implicit_invocation: true

@@ -1,6 +1,0 @@
-interface:
-  display_name: "Audit Repository Documentation"
-  short_description: "Audit documentation for coherence and routing."
-  default_prompt: "Use $audit-repository-documentation to audit repository documentation."
-policy:
-  allow_implicit_invocation: true

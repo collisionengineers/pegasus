@@ -1,6 +1,0 @@
-interface:
-  display_name: "Implement Plan Pack"
-  short_description: "Execute an approved repository plan safely."
-  default_prompt: "Use $implement-plan-pack to execute this approved plan with the shared task folder and Codex update_plan."
-policy:
-  allow_implicit_invocation: true

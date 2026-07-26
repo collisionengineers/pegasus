@@ -1,6 +1,0 @@
-interface:
-  display_name: "Plan Repository Change"
-  short_description: "Create a reviewed repository plan pack."
-  default_prompt: "Use $plan-repository-change to plan this repository change."
-policy:
-  allow_implicit_invocation: true

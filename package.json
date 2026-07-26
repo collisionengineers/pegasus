@@ -1,0 +1,6 @@
+{
+  "private": true,
+  "devDependencies": {
+    "azurite": "3.36.0"
+  }
+}

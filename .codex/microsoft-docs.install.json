@@ -1,9 +1,0 @@
-{
-  "source": "https://github.com/MicrosoftDocs/mcp",
-  "sourcePath": ".codex-plugin",
-  "sourceCommit": "caa3d670bf2814171dba4f7346ece5080964021e",
-  "pluginVersion": "0.3.1",
-  "destination": "plugins/microsoft-docs",
-  "marketplace": ".agents/plugins/marketplace.json",
-  "installedAt": "2026-07-23"
-}

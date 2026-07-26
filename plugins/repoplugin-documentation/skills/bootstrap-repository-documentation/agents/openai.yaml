@@ -1,6 +1,0 @@
-interface:
-  display_name: "Bootstrap Repository Documentation"
-  short_description: "Create a zero-loss repository docs baseline."
-  default_prompt: "Use $bootstrap-repository-documentation to establish repository documentation safely."
-policy:
-  allow_implicit_invocation: true

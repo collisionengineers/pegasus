@@ -1,6 +1,0 @@
-interface:
-  display_name: "Draft Implementation Plan"
-  short_description: "Draft an evidence-backed implementation plan."
-  default_prompt: "Use $draft-implementation-plan to draft this implementation plan."
-policy:
-  allow_implicit_invocation: false

@@ -1,6 +1,0 @@
-interface:
-  display_name: "Review Implementation Plan"
-  short_description: "Independently review an implementation plan."
-  default_prompt: "Use $review-implementation-plan to review this draft plan."
-policy:
-  allow_implicit_invocation: false

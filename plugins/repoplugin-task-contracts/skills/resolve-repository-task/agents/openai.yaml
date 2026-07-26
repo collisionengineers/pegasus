@@ -1,6 +1,0 @@
-interface:
-  display_name: "Resolve Repository Task"
-  short_description: "Create or attach an explicit task folder."
-  default_prompt: "Use $resolve-repository-task to create, attach, or resume one explicit repository task."
-policy:
-  allow_implicit_invocation: false
