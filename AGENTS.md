@@ -1,7 +1,7 @@
 # CollisionSpike v2 repository instructions
 
 CollisionSpike v2 is the clean-room case-management application for Collision
-Engineers. Read `docs/index.md` before material work and the nearest nested
+Engineers. Read [the repository documentation](docs/index.md) before material work and the nearest nested
 `AGENTS.md` for local deltas.
 
 ## Environment and workflow
@@ -31,7 +31,7 @@ Engineers. Read `docs/index.md` before material work and the nearest nested
 - Never fabricate domain emails, images, documents, data, or work instructions.
 - An authoritative contradiction or material ambiguity requires direct user resolution and a recorded `DOC-CON-NNN`; do not invent workflow, permission, reference, retention, or external-system rules.
 
-## Product and architecture invariants
+## Product language and invariants
 
 - Fail closed before case creation or reference allocation when processing, limits, principal identity, or standalone Audit evidence is incomplete or ambiguous.
 - Principal and reference are immutable after allocation. Wrong-principal work closes as `Created in error`, with a reason and linked replacement; neither reference is reused and the original never reopens.
@@ -41,6 +41,9 @@ Engineers. Read `docs/index.md` before material work and the nearest nested
 - A new top-level directory, project, store, runtime, migration stream, or deployment unit requires an accepted ADR proving the existing boundary cannot carry it.
 - Every plan/design/schema/API/architecture change records deferred-capability impact: named deferrals, preserved seam/data identity, exclusions, activation evidence, and irreversible choices. Do not build dormant capability.
 - Prove the actual caller. Registration, a file, a green structural check, deployment, and acceptance are distinct evidence states.
+
+The architecture dependency direction and change boundaries in this section are
+also the repository's architecture invariants.
 
 ## Delivery, review, and mistakes
 

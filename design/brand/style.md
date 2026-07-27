@@ -2,15 +2,17 @@
 
 ## Purpose and governed surfaces
 
-This governs the internal Collision Engineers case-management Web UI. It does
-not treat the public website, candidate rasters, or current Development proof as
-approval of a final V1 shell.
+This governs the internal Collision Engineers case-management Web UI by adapting
+the shared essentials from the provided `collision-engineers-design-dev`
+foundation. It does not copy the marketing website or document system and does
+not treat candidate rasters/current Development proof as approval of a V1 shell.
 
 ## Principles
 
 - Operational, restrained, desktop-first, and border-led rather than decorative.
-- Warm off-white ground, white panels, warm-charcoal/near-black text/navigation, CE-red primary or urgent accents, amber incomplete/pending, restrained navy Review, and green only for confirmed completion.
-- Sharp 2–3px corners, rare shadows, system-sans text, and line-style icons only where an approved asset/source exists.
+- White/light-neutral ground, warm-charcoal/near-black text/navigation, and Collision red used sparingly for primary action, active navigation, focus, and urgent emphasis.
+- Product states remain distinct: amber incomplete/pending, restrained navy Review, and green only for confirmed completion; these are CollisionSpike semantics, not imported marketing rules.
+- Sharp 2px corners, rare soft shadows, system UI text, and Lucide icons only.
 
 ## Voice and UI language
 
@@ -21,6 +23,9 @@ Azure, OCR, AI, queue mechanics, extraction engines, or deployment terminology.
 
 ## Source and runtime mapping
 
-Planned authority is `docs/plans/ui-ux/requirements.md`; current exercised CSS
-and layout live in `src/CollisionSpike.Web/wwwroot/css/site.css` and
-`src/CollisionSpike.Web/Pages/Shared/_Layout.cshtml`.
+Upstream evidence is the provided `collision-engineers-design-dev` bundle;
+adaptation decisions live in this directory and planned interaction authority in
+`docs/plans/ui-ux/requirements.md`. Current exercised CSS/layout live in
+`src/CollisionSpike.Web/wwwroot/css/site.css` and
+`src/CollisionSpike.Web/Pages/Shared/_Layout.cshtml`; they have not yet adopted
+the approved logo and exact adapted tokens.

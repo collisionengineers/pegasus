@@ -2,8 +2,9 @@
 
 ## Purpose and principles
 
-No product motion system or animation is approved or exercised. Feedback must
-not depend on motion.
+No product motion system or animation is needed or exercised. The upstream
+marketing scroll reveals, staggered entrances, hover scaling, and CTA lift are
+excluded from this operational application. Feedback must not depend on motion.
 
 ## Durations/easing/source
 

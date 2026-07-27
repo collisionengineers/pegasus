@@ -2,9 +2,11 @@
 
 ## Layout model
 
-The current proof uses a centered maximum-width application shell, grid-based
-queue/dashboard/review panels, border-first grouping, and practical 44px action
-targets. Planned V1 uses dense desktop multi-pane work at 1280px and wider.
+Use the upstream 4px base rhythm, 2px corners, 1px hairline borders, rare soft
+shadows, and 24px primary gutters. The current proof uses a centered shell,
+grid-based queue/dashboard/review panels, and practical 44px action targets.
+Planned V1 uses dense desktop multi-pane work at 1280px and wider; the upstream
+marketing 1200px/96px section rhythm is not imported.
 
 ## Responsive behavior
 

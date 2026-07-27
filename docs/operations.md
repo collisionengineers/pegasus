@@ -78,7 +78,10 @@ cloud decision.
 
 - Work kinds: Feature, Bug, Task, Decision; each workflow-owned issue receives exactly one `type:*` label.
 - Registered project-specific categories: none.
-- Portable Project fields: Status, Priority, Horizon; target releases use milestones when allocated.
+- Delivery board: [CollisionSpike v2 Delivery](https://github.com/users/collisionengineers/projects/3), user-owned and linked to this repository.
+- Status: Triage, Ready, In progress, In review, Done.
+- Priority: P0 Critical, P1 High, P2 Normal, P3 Low.
+- Horizon: Now, Next, Later. Target releases use milestones when allocated.
 - Saved views, charts, auto-add behavior, and private issue-form enforcement require human visual confirmation where API readback cannot prove them.
 - Capability rows do not become issues automatically. The onboarding active set is empty pending a separately confirmed implementation selection.
 
