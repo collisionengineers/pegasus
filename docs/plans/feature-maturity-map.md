@@ -1,8 +1,13 @@
 # CollisionSpike feature maturity map
 
-Status: **Active canonical allocation map**
+Status: **Retained normalized allocation evidence**
 
-This map records allocation, not implementation status. `Planned`, `Implemented`, `Called`, `Locally verified`, `Deployed`, `Live verified`, and `Accepted` remain distinct. Exact feature labels and trimmed answers come from the retained [worksheet](../../FEATURE_VERSIONING.md). Its latest clear direct answers govern older maturity labels; conditional, relative, blank or internally contradictory wording remains visible rather than being silently normalised.
+This map preserves the reviewed V0/V1/V2/V3 allocation evidence and exact source
+parity. The canonical stable IDs, `Now`/`Next`/`Later`/`Not planned` horizons, and
+Semantic Version targets now live in the [capability inventory](../product/capabilities.md).
+`Planned`, `Implemented`, `Called`, `Locally verified`, `Deployed`, `Live
+verified`, and `Accepted` remain distinct. Exact feature labels and trimmed
+answers come from the retained [worksheet](../../FEATURE_VERSIONING.md).
 
 Normalized allocations appear beside, never instead of, raw answers. Conditional, relative, and `Unclear` wording remains an activation constraint. `Never` is permanent, not deferred. Every row has exactly one primary planning destination; secondary dependencies belong in the linked plan and the [delivery roadmap](delivery-roadmap.md), not in this allocation cell.
 

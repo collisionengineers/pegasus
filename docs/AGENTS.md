@@ -1,6 +1,7 @@
 # Documentation-local rules
 
-Apply the repository [agent contract](../AGENTS.md) first. These are only the
+Apply the repository [agent contract](../AGENTS.md) and [documentation
+registry](index.md) first. These are only the
 additional rules for documentation work.
 
 - Preserve information by mapping every removed, shortened, moved, or
