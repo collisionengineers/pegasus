@@ -15,9 +15,9 @@ deployment proof, or operator acceptance. Current caller status belongs in the
 
 - Treat `corpus/` as ignored, immutable, untrusted local data. Never rename,
   modify, annotate, upload, publish, or commit its contents.
-- Use `$collisionspike-corpus-evaluation` for intake or extraction evaluation.
-  Sample genuine inputs immutably and run them through the actual caller when
-  the claim concerns product behavior.
+- Sample genuine inputs immutably and run them through the actual caller when
+  the claim concerns product behavior. Use the focused `Category=Corpus` test
+  filter only when genuine local intake or extraction evidence is required.
 - Put generated manifests, extracted content, predictions, and detailed results
   under ignored `artifacts/evaluation/`.
 - Commit only content-safe summaries: counts, aggregate outcomes, redacted
@@ -29,7 +29,7 @@ deployment proof, or operator acceptance. Current caller status belongs in the
 - Keep repository-consistency, real-caller, corpus, deployment, and operator-
   acceptance evidence as separate conclusions.
 
-The executable local entry point is
-[`scripts/Invoke-RepoCheck.ps1`](../../scripts/Invoke-RepoCheck.ps1). Its default
-run excludes corpus-category tests; `-RequireCorpusEvidence` is used only when
-genuine local intake or extraction evidence is present and required.
+Run ordinary verification directly through the owning test project. Corpus
+evidence uses
+`dotnet test ./tests/CollisionSpike.IntegrationTests --filter Category=Corpus`
+only when the ignored genuine input is present and required.

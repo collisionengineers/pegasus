@@ -11,8 +11,7 @@ public sealed class LocalIntakeAccessTests
     public static TheoryData<string, bool?> DeniedConfigurations => new()
     {
         { "Development", null },
-        { "Development", false },
-        { "Production", true }
+        { "Development", false }
     };
 
     [Fact]
@@ -67,6 +66,33 @@ public sealed class LocalIntakeAccessTests
         {
             await connection.CloseAsync();
         }
+    }
+
+    [Theory]
+    [InlineData("DevelopmentOffline", false, "permitted only in the Development environment")]
+    [InlineData("Production", true, "requires the DevelopmentOffline runtime profile")]
+    public void ProductionRefusesDevelopmentOnlyConfiguration(
+        string runtimeProfile,
+        bool localIntakeEnabled,
+        string expectedMessage)
+    {
+        using var factory = new ConfiguredWebApplicationFactory(
+            "Production",
+            new Dictionary<string, string?>
+            {
+                ["Runtime:Profile"] = runtimeProfile,
+                ["Database:Provider"] = "Sqlite",
+                ["Database:LocalPath"] = Path.Combine(
+                    Path.GetTempPath(),
+                    "CollisionSpike.InvalidRuntimeProfile",
+                    Guid.NewGuid().ToString("N"),
+                    "intake.db"),
+                ["Features:LocalIntake"] = localIntakeEnabled.ToString()
+            });
+
+        var exception = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
+
+        Assert.Contains(expectedMessage, exception.ToString(), StringComparison.Ordinal);
     }
 
     private static async Task<long> CountRowsIfPresentAsync(DbConnection connection, DatabaseTable table)

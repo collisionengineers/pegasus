@@ -32,14 +32,14 @@ do not win automatically.
 
 | Path | Content role | Mutation rule | Scope/status |
 | --- | --- | --- | --- |
-| `docs/operator-notes/` (17 tracked files) | approved operator/business authority | Azure Workflow-maintained under standing user authorization; preserve material meaning and escalate conflicts | binding business processes, terms, practices, product needs, and current-system roles |
+| `docs/operator-notes/` (17 tracked files) | approved operator/business authority | maintainer-editable under standing user authorization; preserve material meaning and escalate conflicts | binding business processes, terms, practices, product needs, and current-system roles |
 | `PROJECT_DISCOVERY_QUESTIONNAIRE.md` | active controlled product authority | human-controlled; agents record only explicit user decisions through review | settled product behavior and constraints |
 | `docs/product/` | canonical product profile/capability authority | agent-editable through reviewed changes reconciled to higher authority | living requirements, stable IDs, horizons/releases |
 | `FEATURE_VERSIONING.md` | retained direct-decision worksheet evidence | preserve in place; update only through explicit allocation reconciliation | 213 original ID/label/answer triples |
-| `docs/product/areas/`, `v1-gap.md`, `boundaries.md`, `open-decisions.md` | canonical living functional requirements, gaps, boundaries, and ambiguities | Azure Workflow-maintained through reviewed product/change work | active product ownership below operator/questionnaire authority |
+| `docs/product/areas/`, `v1-gap.md`, `boundaries.md`, `open-decisions.md` | canonical living functional requirements, gaps, boundaries, and ambiguities | maintainer-editable through reviewed product/change work | active product ownership below operator/questionnaire authority |
 | `docs/history/plans/` | complete pre-onboarding plan evidence | historical; do not activate work or amend current owners here | former `docs/plans/` files not promoted to a canonical destination |
 | `docs/architecture/decisions/` | accepted/historical technical decisions | preserve; supersede explicitly through a reviewed ADR | decisions 0001–0009 |
-| `docs/decisions/` | canonical new decision authority | append or supersede through reviewed ADRs | Azure Workflow and future durable decisions |
+| `docs/decisions/` | canonical new decision authority | append or supersede through reviewed ADRs | current and future durable repository decisions |
 | `docs/architecture.md` | canonical current architecture | agent-editable with implementation/decision changes | current owners, callers, data, failure, deployment boundaries |
 | `docs/operations.md` | canonical operations authority | agent-editable with verified workflow/operations changes | build, test, deploy, diagnose, recover, GitHub routing |
 | `design/` | durable UI/design authority, product UI contract, and source/runtime map | agent-editable through reviewed UI changes; no synthetic assets | current exercised UI, approved planned rules, traceability, and candidate directions |

@@ -5,20 +5,20 @@ scope and report facts, inference, limits, and next evidence; the lead integrate
 the result and remains accountable. Read-only discovery/review may run in
 parallel only when it cannot overlap a writer.
 
-## Azure Workflow lifecycle
+## Repository lifecycle
 
 | Need | Route and boundary |
 | --- | --- |
-| Onboard/convert this repository | `$azure-workflow:onboard-azure-repository`; zero-loss conversion through an independently reviewed PR, never merge |
-| Plan one material change | `$azure-workflow:plan-azure-repository-change`; inspect authorities/callers, resolve decisions, persist and independently review the plan, then stop before implementation |
-| Implement, fix, or remediate | `$azure-workflow:deliver-azure-repository-change`; use one scoped branch/change record/PR and caller-backed proof |
-| Explain behavior or feedback | `$azure-workflow:explain-repository`; read-only plain-English explanation, not a correctness verdict or fix |
-| Review an actual PR | `$azure-workflow:review-repository-pull-request`; independent read-only exact-base/head review |
-| Inspect or operate Azure | `$azure-workflow:operate-azure-repository`; read current state and perform only an explicitly approved exact mutation |
+| Onboard/convert this repository | preserve source roles and material claims in one reviewed onboarding change and pull request; never merge |
+| Plan one material change | inspect authorities and callers, resolve decisions, persist one plan in the activated issue/change record, obtain acceptance, then stop before implementation |
+| Implement, fix, or remediate | continue the same scoped branch, issue, change record, and pull request; prove the real caller |
+| Explain behavior or feedback | read-only plain-English explanation; distinguish intended, implemented, deployed, and accepted evidence |
+| Review an actual pull request | independent read-only review of the exact base and head |
+| Inspect or operate an external service | read current state or perform only the explicitly approved exact operation against named targets |
 
-Repository business interpretation still follows [the source registry](../index.md)
-and [product authority](../product/index.md); a workflow skill is never itself a
-product-rule source. Operator-facing UI work must also follow
+Repository business interpretation follows [the source registry](../index.md)
+and [product authority](../product/index.md); a skill or tool is never itself a
+product-rule source or authorization. Operator-facing UI work must also follow
 [the design route](../../design/README.md) and the approved/current UI source it
 links.
 
@@ -29,7 +29,7 @@ Material work uses one GitHub issue when activated and one dated record under
 removed repository-local plugin suite, `.repoplugin` task database, task-folder
 handoffs, generated dashboard, or parallel status ledger.
 
-The implementation lead calls the real harness `update_plan` before repository
+The implementation lead maintains a current execution list before repository
 edits or implementation delegation. Report planned, implemented, called,
 locally verified, deployed, live verified, and accepted separately. A file,
 registration, green structural check, or deployment cannot substitute for a

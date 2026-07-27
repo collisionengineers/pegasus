@@ -8,7 +8,7 @@ namespace CollisionSpike.IntegrationTests;
 public sealed class IntakeSqliteBaselineGuardTests
 {
     [Fact]
-    public async Task FreshDevelopmentDatabaseAppliesSingleProviderNeutralMigration()
+    public async Task FreshDevelopmentDatabaseAppliesProviderNeutralAndProviderDomainMigrations()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -18,9 +18,11 @@ public sealed class IntakeSqliteBaselineGuardTests
 
         await using var connection = new SqliteConnection($"Data Source={factory.DatabasePath}");
         await connection.OpenAsync();
-        Assert.Equal(
-            "20260724104624_InitialProviderNeutralIntake",
-            await ScalarAsync<string>(connection, "SELECT MigrationId FROM __EFMigrationsHistory"));
+        Assert.Equal(2L, await ScalarAsync<long>(connection,
+            "SELECT COUNT(*) FROM __EFMigrationsHistory"));
+        Assert.Equal("20260727170804_ProviderDomainReferenceSnapshotV1",
+            await ScalarAsync<string>(connection,
+                "SELECT MigrationId FROM __EFMigrationsHistory ORDER BY MigrationId DESC LIMIT 1"));
         Assert.Equal(1L, await ScalarAsync<long>(connection,
             "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='IntakeReceipts'"));
         Assert.Equal(1L, await ScalarAsync<long>(connection,
@@ -29,6 +31,15 @@ public sealed class IntakeSqliteBaselineGuardTests
             "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='IntakeAssets'"));
         Assert.Equal(1L, await ScalarAsync<long>(connection,
             "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='IntakeReceiptEvents'"));
+        Assert.Equal(1L, await ScalarAsync<long>(connection,
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='ProviderDomainPackages'"));
+        Assert.Equal(1L, await ScalarAsync<long>(connection,
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='ProviderReferences'"));
+        Assert.Equal(1L, await ScalarAsync<long>(connection,
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='ProviderDomainEvidence'"));
+        Assert.Equal(1L, await ScalarAsync<long>(connection, "SELECT COUNT(*) FROM ProviderDomainPackages"));
+        Assert.Equal(11L, await ScalarAsync<long>(connection, "SELECT COUNT(*) FROM ProviderReferences"));
+        Assert.Equal(16L, await ScalarAsync<long>(connection, "SELECT COUNT(*) FROM ProviderDomainEvidence"));
     }
 
     [Fact]
@@ -88,7 +99,11 @@ public sealed class IntakeSqliteBaselineGuardTests
         {
             case "old_history":
                 await ExecuteAsync(connection,
-                    "UPDATE __EFMigrationsHistory SET MigrationId='20260723075441_InitialQdosIntake'");
+                    """
+                    UPDATE __EFMigrationsHistory
+                    SET MigrationId='20260723075441_InitialQdosIntake'
+                    WHERE MigrationId='20260727170804_ProviderDomainReferenceSnapshotV1'
+                    """);
                 break;
             case "schema_without_history":
                 await ExecuteAsync(connection, "DROP TABLE __EFMigrationsHistory");

@@ -4,35 +4,39 @@
 
 - Platform: Windows
 - Shell: PowerShell 7
-- Current verified baseline: PowerShell 7.6.3, Git 2.53.0, GitHub CLI 2.88.0, .NET SDK 10.0.302, and Azure CLI 2.88.0.
-- Full local verification additionally requires SQL Server Express LocalDB, Azure CLI/Bicep, and the restored .NET dependencies. LocalDB was absent during the 2026-07-27 onboarding baseline check.
-- The detailed workstation inventory and install/repair commands remain in the [developer runbook](runbooks/developer-workstation.md); re-verify drift-prone versions before relying on them.
-- Detailed local evidence profiles are in the [testing runbook](runbooks/testing/README.md).
+- Offline baseline: PowerShell 7.6.3, .NET SDK 10.0.302, Node 24/npm 11, Azurite 3.36.0, Functions Core Tools 4.12.1, SQL Server Express LocalDB, and trusted .NET Development HTTPS.
+- Azure CLI, Bicep, `azd`, Exchange, Box, Infisical, and cloud/vendor authentication are not local prerequisites.
+- Tool checks and approved live-only pins are in the [developer runbook](runbooks/developer-workstation.md).
+- Direct local process/state ownership is in [local development](runbooks/local-development.md); evidence profiles are in the [testing runbook](runbooks/testing/README.md).
 
 ## Canonical verification
 
 ```powershell
-pwsh ./scripts/Invoke-RepoCheck.ps1
+dotnet restore ./CollisionSpike.slnx
+dotnet build ./CollisionSpike.slnx --configuration Release --no-restore
+dotnet test ./CollisionSpike.slnx --configuration Release --no-build --filter "Category!=Corpus"
 ```
 
-The default is `Full`. Documentation-only CI changes call the same command with
-`-Mode Docs`; unknown or mixed paths fail safe to `Full`. `Docs` proves the
-repository/document/issue-form/change-record structure and links but does not
-restore, build, test application callers, compile Bicep, or prove product
-behavior. `Full` excludes genuine corpus tests unless
-`-RequireCorpusEvidence` is explicitly selected.
+Run focused test projects while iterating, then run the solution commands above
+before delivery. Genuine corpus, browser, LocalDB/Azurite/Functions, cloud, and
+operator evidence are separate caller-specific gates.
 
 ## Local run, build, and test
 
 ```powershell
-pwsh ./scripts/Invoke-Doctor.ps1
-pwsh ./scripts/Invoke-RepoCheck.ps1
-dotnet run --project ./src/CollisionSpike.Web --launch-profile https
+npm ci
+dotnet restore ./CollisionSpike.slnx
+sqllocaldb start MSSQLLocalDB
+dotnet run --project ./src/CollisionSpike.Web --launch-profile https -- --migrate-development
+dotnet test ./CollisionSpike.slnx --configuration Release --filter "Category!=Corpus"
+dotnet run --project ./src/CollisionSpike.Web --launch-profile https --no-build
 ```
 
-The Development route is `https://localhost:7139/Intake/Upload`. It is enabled
-only by the checked-in Development launch profile and returns 404 outside that
-environment/flag boundary. The Worker currently has no operational trigger.
+The explicit command applies migrations and exits; normal Web/Worker startup
+never changes schema. The current Development route is
+`https://localhost:7139/Intake/Upload`. `DevelopmentOffline` fails outside
+Development. The actual local Functions host currently starts without a trigger;
+that is host evidence only, not a Worker caller.
 
 ## Deploy
 
@@ -43,9 +47,9 @@ route. Packaging, hashes/provenance, explicit migration, identity resolution,
 preview, Web/Worker deployment order, health/smoke evidence, and prior-artifact
 recovery must first be implemented and reviewed.
 
-Every Azure read or mutation requires `$azure-workflow:operate-azure-repository`;
-an apply card and explicit approval are required after the exact scope and
-operation are shown. Onboarding performs no Azure query or mutation.
+Every external read or mutation requires explicit approval after the exact
+targets, scope, and operation are shown. Repository tools and credentials do
+not provide authority by themselves.
 
 ## Configuration and secrets boundary
 

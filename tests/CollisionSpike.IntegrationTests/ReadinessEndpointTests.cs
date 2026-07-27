@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.Data.Sqlite;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -122,6 +123,53 @@ public sealed class SqliteReadinessEndpointTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("Healthy", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task DevelopmentStartupDoesNotApplySqliteMigrations()
+    {
+        var workingDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "CollisionSpike.StartupMigrationTests",
+            Guid.NewGuid().ToString("N"));
+        var databasePath = Path.Combine(workingDirectory, "startup.db");
+        Directory.CreateDirectory(workingDirectory);
+
+        try
+        {
+            using var factory = new ConfiguredWebApplicationFactory(
+                "Development",
+                new Dictionary<string, string?>
+                {
+                    ["Runtime:Profile"] = "DevelopmentOffline",
+                    ["Database:Provider"] = "Sqlite",
+                    ["Database:LocalPath"] = databasePath,
+                    ["Intake:LocalArtifactPath"] = Path.Combine(workingDirectory, "intake"),
+                    ["Features:LocalIntake"] = "false"
+                });
+            using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://localhost")
+            });
+
+            using var response = await client.GetAsync("/health/ready");
+
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+            await using var connection = new SqliteConnection($"Data Source={databasePath}");
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText =
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = '__EFMigrationsHistory'";
+            Assert.Equal(0L, Convert.ToInt64(
+                await command.ExecuteScalarAsync(),
+                System.Globalization.CultureInfo.InvariantCulture));
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(workingDirectory, recursive: true);
+        }
     }
 }
 

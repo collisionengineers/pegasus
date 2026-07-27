@@ -12,11 +12,11 @@ Primary matrix ID: `OPS-22`, routed through [caller-backed local and live eviden
 
 - **Authority:** [Source-of-truth order](../../agent-guidance/source-of-truth.md), [settled product decisions and deferred capabilities](../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md), [remaining first-release requirements](../../product/v1-gap.md), [open decisions](../../product/open-decisions.md), [ADR-0002 Azure modular monolith](../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md), [ADR-0005 multi-format intake assets](../../architecture/decisions/ADR-0005-multiformat-intake-assets.md), and [ADR-0006 provider-neutral intake](../../architecture/decisions/ADR-0006-provider-neutral-intake-with-contained-qdos-policy.md).
 - **Policy owner:** Each business capability remains owned by its Core use case. This area owns only test-tool lifecycle, evidence profiles, isolation and evidence classification.
-- **Current implementation:** The development-only [manual upload page](../../../src/CollisionSpike.Web/Pages/Intake/Upload.cshtml.cs) calls `ProcessIntake`; the [Worker composition root](../../../src/CollisionSpike.Worker/README.md) explicitly has no trigger; the primary repository evidence entry point is [Invoke-RepoCheck.ps1](../../../scripts/Invoke-RepoCheck.ps1).
+- **Current implementation:** The development-only [manual upload page](../../../src/CollisionSpike.Web/Pages/Intake/Upload.cshtml.cs) calls `ProcessIntake`; the [Worker composition root](../../../src/CollisionSpike.Worker/README.md) explicitly has no trigger. Build and test evidence runs through the owning .NET projects.
 - **Real callers:** `/Intake/Upload` is the only current source-mapped intake caller; this planning research did not execute it. Authenticated production Web/API/MCP entry points and Worker timer/queue triggers are intended callers and must remain labelled `Planned` until present and exercised.
 - **Persistence/adapters:** Current development evidence uses ignored local artifacts and relational persistence. The accepted target adds Azure SQL, transient Blob storage, Storage queues, Box, Graph, Document Intelligence, DVLA/DVSA, EVA export, Key Vault and Azure Monitor adapters.
 - **Dependencies:** The delivered feature must expose a real entry point and retain its Core policy owner before its profile can become a release gate.
-- **Replaces/consolidates:** Consolidates ad hoc test-service discovery, startup and evidence claims into one PowerShell orchestration surface. It does not replace product policy or create test-only production abstractions.
+- **Replaces/consolidates:** Test projects and fixtures own their exact dependency lifecycle and evidence. This area does not add a generic repository workflow script, replace product policy, or create test-only production abstractions.
 
 ## Shared failure and observability rules
 
@@ -81,8 +81,8 @@ Storage Explorer, SSMS and Postman remain optional conveniences. Do not add Serv
 ### Implementation checklist
 
 - [ ] Pin Azurite in an npm manifest and lockfile; install with the repository package workflow rather than a global or Visual Studio-specific path.
-- [ ] Extend the doctor with `Baseline`, `SqlServer`, `StorageWorker`, `Browser`, `Graph`, `Observability`, `Performance`, `Security`, `Containers` and `LiveIntegration` capability checks.
-- [ ] Add one PowerShell orchestrator that creates an ignored run directory, allocates ports, starts Azurite with a run-specific connection string, starts the Functions host only when selected, waits for readiness and performs ownership-safe teardown.
+- [ ] Document each profile's direct version/prerequisite commands; required dependency fixtures fail with an exact remediation category rather than relying on a generic workstation doctor.
+- [ ] Give each LocalDB/Azurite/Functions-host integration fixture ownership-safe run IDs, ports, paths, readiness, diagnostics, and teardown; invoke it through the owning `dotnet test` project.
 - [ ] Add stable test traits for `Unit`, `Integration`, `SqlServer`, `Storage`, `FunctionsHost`, `Browser`, `Corpus`, `Performance`, `Security`, `Recovery` and `LiveIntegration`; a required but skipped trait fails.
 - [ ] Add Windows CI installation and caching for only the profiles used by that job; activate `StorageWorker` in the same change that provides a real trigger and storage adapter.
 - [ ] Retain failed-run diagnostics under ignored artifacts and prove cleanup cannot affect another run or a developer-owned service.
@@ -95,13 +95,13 @@ Storage Explorer, SSMS and Postman remain optional conveniences. Do not add Serv
 - [ ] LocalDB migration, transaction and backup/restore checks use new disposable databases and never overwrite the source database.
 - [ ] Once the Worker trigger exists, an identifier queued through Azurite reaches the actual Functions host and the same Core use case; direct service invocation does not satisfy this check.
 - [ ] Browser, Graph, telemetry, performance, security and live tools are checked only when their named profiles are selected.
-- [ ] Run `pwsh ./scripts/Invoke-RepoCheck.ps1` and record exact result and limitations without treating unrelated dirty-tree failures as product evidence.
+- [ ] Run the focused and full owning .NET test projects directly and record exact results and limitations.
 
 ### Acceptance criteria
 
 | Scenario/input/boundary | Expected observable result | Evidence | Does not prove |
 |---|---|---|---|
-| Clean workstation with selected profile installed | One command provisions only run-scoped dependencies and completes the lane | PowerShell exit result and ignored run log | Product behavior not included in that lane |
+| Clean workstation with selected profile installed | The owning test project provisions only run-scoped dependencies and completes the lane | `dotnet test` exit result and ignored run log | Product behavior not included in that lane |
 | Azurite Blob/Queue operation | SDK write/read/delete and queue delivery use the run-specific endpoints | Storage integration test | Entra, RBAC, durability, scale or Azure timing |
 | Functions-host delivery | Actual trigger consumes the queued identifier and persists the expected idempotent result | Host log plus persistence assertion | Flex Consumption or deployed managed identity |
 | Competing local runs | Both complete without shared ports, databases or storage state | Parallel-run test | Exhaustive race freedom in Azure |

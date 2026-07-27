@@ -11,10 +11,12 @@ later downstream replacement.
 
 - Supported email/document/image shapes preserve original sources, visible
   occurrences, extraction evidence, and bounded failure outcomes.
-- The supplied provider corpus and inspection-location corpus are imported as
-  normalized reference data with source provenance. Provider/location
-  relationships and observed frequency support reviewable suggestions; they do
-  not silently become permanent `always use` rules.
+- Approved provider spreadsheets produce immutable cumulative provider-domain
+  snapshots with source provenance. They retain stable provider codes and
+  domain suffixes only; reference presence is candidate evidence, not route
+  activation or automatic provider resolution.
+- Inspection-location/repairer reference data, history, defaults, and Case-ID
+  mapping are deferred until separately accepted evidence and activation work.
 - Box is long-term case-file custody; SQL owns workflow identity/history;
   transient Azure storage is not long-term custody.
 - Vehicle enrichment uses DVLA/DVSA and MOT evidence where available without

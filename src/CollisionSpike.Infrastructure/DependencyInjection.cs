@@ -1,4 +1,5 @@
 using CollisionSpike.Core.Intake;
+using CollisionSpike.Core.ReferenceData;
 using CollisionSpike.Infrastructure.Intake;
 using CollisionSpike.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -11,21 +12,26 @@ public static class DependencyInjection
     public static IServiceCollection AddCollisionSpikeInfrastructure(
         this IServiceCollection services,
         Action<IServiceProvider, DbContextOptionsBuilder> configureDatabase,
-        string? localArtifactRoot = null)
+        Func<IServiceProvider, string>? localArtifactRootFactory = null)
     {
         ArgumentNullException.ThrowIfNull(configureDatabase);
 
         services.AddDbContextFactory<CollisionSpikeDbContext>(configureDatabase);
 
         services.AddSingleton(TimeProvider.System);
-        services.AddSingleton<IIntakeArtifactStore>(new FileSystemIntakeArtifactStore(
-            localArtifactRoot ?? Path.Combine(AppContext.BaseDirectory, "artifacts", "intake")));
-        services.AddScoped<IIntakeSourceReader, MimeKitPdfPigOpenXmlIntakeSourceReader>();
         services.AddScoped<EfIntakeReceiptStore>();
         services.AddScoped<IIntakeReceiptStore>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
         services.AddScoped<IIntakeReceiptQueries>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
+        services.AddScoped<IProviderReferenceCatalog, EfProviderReferenceCatalog>();
         services.AddSingleton<IInstructionExtractionPolicy, QdosInstructionExtractionPolicy>();
-        services.AddScoped<ProcessIntake>();
+
+        if (localArtifactRootFactory is not null)
+        {
+            services.AddSingleton<IIntakeArtifactStore>(provider =>
+                new FileSystemIntakeArtifactStore(localArtifactRootFactory(provider)));
+            services.AddScoped<IIntakeSourceReader, MimeKitPdfPigOpenXmlIntakeSourceReader>();
+            services.AddScoped<ProcessIntake>();
+        }
         return services;
     }
 }

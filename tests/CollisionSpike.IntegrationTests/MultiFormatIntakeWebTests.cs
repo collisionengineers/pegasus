@@ -689,7 +689,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var asset = Assert.Single(
             receipt.AssetRecords,
             candidate => candidate.Kind == IntakeAssetKind.Source);
-        var artifactRoot = Path.GetFullPath(Path.Combine(FindRepositoryRoot(), "artifacts", "intake"));
+        var artifactRoot = Path.GetFullPath(factory.ArtifactDirectory);
         var storageSegments = asset.StorageKey.Split('/', StringSplitOptions.RemoveEmptyEntries);
         Assert.Equal(3, storageSegments.Length);
         var artifactPath = Path.GetFullPath(Path.Combine(artifactRoot, Path.Combine(storageSegments)));

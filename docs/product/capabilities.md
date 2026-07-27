@@ -10,15 +10,16 @@ The retained [feature maturity map](../history/plans/feature-maturity-map.md) an
 V0/V1/V2/V3 allocation evidence. Their labels no longer act as release
 versions. Active timing uses `Now`, `Next`, `Later`, or `Not planned`; every
 exact target release remains `unallocated` until release planning assigns it.
-The 128 `Now` capabilities are assigned to `0.1.0-alpha.1` by the coupled
-provider/intermediary-foundation and QDOS-alpha plan.
+The 127 `Now` capabilities are assigned to `0.1.0-alpha.1` by the coupled
+provider/intermediary-foundation and QDOS-alpha plan. `DATA-02` is explicitly
+deferred to `Next` pending separately accepted provider-location evidence.
 
 ## Allocation summary
 
 | Horizon | Capabilities | Meaning |
 | --- | ---: | --- |
-| Now | 128 | Current proof and QDOS alpha outcome; activate issues only for selected work. |
-| Next | 30 | Additional-provider and email/API beta outcomes after named dependencies. |
+| Now | 127 | Current proof and QDOS alpha outcome; activate issues only for selected work. |
+| Next | 31 | Additional-provider, provider-location, and email/API beta outcomes after named dependencies. |
 | Later | 25 | Retained outcomes requiring their promotion conditions or direct decisions. |
 | Not planned | 30 | Permanent product boundaries; no implementation issue or placeholder. |
 
@@ -152,9 +153,9 @@ Total: **213 capabilities; 213 unique IDs**.
 | OPS-14 | Production cutover and previous-artifact rollback procedure | Now | 0.1.0-alpha.1 | [Area](areas/platform-and-operator-experience.md) | V1 alpha gate | V1 gate; implementation/recovery detail remains open. |
 | OPS-20 | Capacity for about eight concurrent staff and 2,000 new cases per month | Now | 0.1.0-alpha.1 | [Area](areas/platform-and-operator-experience.md) | V1 alpha gate | Required and accepted before V1. |
 | OPS-24 | Direct production deployment from an authorised terminal using committed Bicep through `azd` | Now | 0.1.0-alpha.1 | [Area](areas/platform-and-operator-experience.md) | V1 alpha gate | Required and accepted before V1. |
-| DATA-01 | One-time preparation of provider reference data from spreadsheets | Now | 0.1.0-alpha.1 | [Area](areas/documents-and-integrations.md) | V1 alpha gate | Required and accepted before V1. |
-| DATA-02 | One-time preparation of inspection-address / repairer reference data from spreadsheets | Now | 0.1.0-alpha.1 | [Area](areas/documents-and-integrations.md) | V1 alpha gate | Required and accepted before V1. |
-| INT-04 | Activate additional providers during V1.x through the same intake/case workflow using bounded provider reference data and rules | Next | unallocated | [Area](areas/intake-and-casework.md) | V1.x before V2 | Additional providers before V2; shared workflow only. |
+| DATA-01 | Publish immutable cumulative provider-domain reference snapshots from approved spreadsheets | Now | 0.1.0-alpha.1 | [Area](areas/documents-and-integrations.md) | V1 alpha gate | Evidence only; reference presence never activates a route. |
+| DATA-02 | Prepare inspection-address / repairer reference data from separately approved spreadsheets | Next | unallocated | [Area](areas/documents-and-integrations.md) | V1 alpha gate | Deferred pending accepted provider-location evidence, schema/package, migration, and caller proof. |
+| INT-04 | Activate additional providers during V1.x through the shared intake/case workflow using separately accepted provider evidence and rules | Next | unallocated | [Area](areas/intake-and-casework.md) | V1.x before V2 | Adding reference evidence is not workflow activation. |
 | OPS-23 | Operator acceptance against the real end-to-end workflow | Now | 0.1.0-alpha.1 | [Area](areas/platform-and-operator-experience.md) | Pre-V1 gate | Required before V1 acceptance. |
 | OPS-25 | Collision Engineers management approval before production release | Now | 0.1.0-alpha.1 | [Area](areas/platform-and-operator-experience.md) | Pre-V1 gate | Required before V1 acceptance. |
 | INT-05 | Automatic ingestion from `desk@collisionengineers.co.uk` | Next | unallocated | [Area](areas/intake-and-casework.md) | V2 beta | Allocation only; owning evidence still required. |
