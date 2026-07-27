@@ -186,7 +186,8 @@ not product requirements.
 | `S4.1-L51b` | Allow staff to log a bodyshop chase and see which half each incomplete job is awaiting. | `INT-32` | Next/unallocated | `intended` |
 | `S4.2-L55a1` | Automate unique reference allocation through the shared principal/year sequence. | `CASE-07` | Now/0.1.0-alpha.1 | `intended` |
 | `S4.2-L55a2` | Create the job only from definitive authorised intake. | `INT-25` | Now/0.1.0-alpha.1 | `intended` |
-| `S4.2-L55a3` | Populate typed case data from accepted mapped-instruction values and allow administrators to add mileage and Engineer notes such as unroadworthiness or a customer preference for total loss. | `CASE-11` | Now/0.1.0-alpha.1 | `intended` |
+| `S4.2-L55a3a` | Populate typed case data from accepted mapped-instruction values, including mileage where present. | `CASE-11` | Now/0.1.0-alpha.1 | `intended` |
+| `S4.2-L55a3b` | Allow administrators to record the Engineer's roadworthiness and repairable/total-loss findings, including the supplied examples of unroadworthiness or a customer preference for total loss. | `CASE-28` | Now/0.1.0-alpha.1 | `intended` |
 | `S4.2-L55a4a` | Require both accepted job halves at the configurable readiness gate. | `CASE-14` | Now/0.1.0-alpha.1 | `intended` |
 | `S4.2-L55a4b` | Transition the job from its held/not-ready state after the readiness gate passes. | `CASE-16` | Now/0.1.0-alpha.1 | `intended` |
 | `S4.2-L55b1` | Create the case Box folder as part of automated setup. | `DOC-01` | Now/0.1.0-alpha.1 | `intended` |
@@ -329,7 +330,7 @@ not product requirements.
 | `S9-L182a` | The operating end state should reduce administration to one person monitoring an exception queue and let Engineers focus on judgement rather than filing. | `docs/product/areas/platform-and-operator-experience.md` | accepted authority | `intended` |
 | `S9-L182b` | Pegasus’s accepted product vision is to own the system and retain the ability to build newly identified ideas rapidly. | `docs/product/index.md` | accepted authority | `accepted` |
 
-Crosswalk assertion: **201 atomic rows cover all 86 non-empty
+Crosswalk assertion: **202 atomic rows cover all 86 non-empty
 source paragraphs, bullets, metadata rows and table rows; no source item is
 unmapped.** The source also contains 21 heading/separator lines that carry
 structure only and therefore require no capability disposition.
