@@ -50,4 +50,4 @@ flowchart LR
 - [ML operations](ml-ops/README.md)
 - [Collision Brain](services/collision-brain/README.md)
 
-Repository contributors and coding agents must read [AGENTS.md](AGENTS.md).
+Repository contributors and coding agents must read [the workspace instructions](../AGENTS.md).

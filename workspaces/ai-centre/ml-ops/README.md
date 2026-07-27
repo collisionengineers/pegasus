@@ -21,4 +21,4 @@ when practical or referenced from an artifact registry by immutable hash.
 
 Start with [the data-use authorisation](../docs/governance/data-authorisation.md),
 [data boundaries](../docs/governance/data-boundaries.md), and the
-[phased ML plan](reports/07-roadmap-and-pilots/02-phased-delivery-plan.md).
+[workspace delivery plan](../PLAN.md).

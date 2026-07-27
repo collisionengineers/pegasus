@@ -116,4 +116,4 @@ See [the recorded authorisation](docs/governance/data-authorisation.md).
 - treating historical reports, client text, repairer material, or third-party documents as accepted
   facts without source-role, version, and evidence review.
 
-Detailed ML sequencing remains in [the ML report roadmap](ml-ops/reports/07-roadmap-and-pilots/02-phased-delivery-plan.md).
+This plan owns ML sequencing for the imported source workspace.
