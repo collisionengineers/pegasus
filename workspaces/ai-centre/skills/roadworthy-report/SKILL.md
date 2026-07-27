@@ -43,6 +43,3 @@ Generate HS (Hackney Solutions) roadworthy / re-insurance reports from engineers
 - `references/field-mapping.md` — the 14 fields, their sources, and fallbacks
 - `scripts/render_roadworthy.py` — validates the 14-field payload and renders a prepared HS DOCX template, failing closed if the real template is unavailable
 
-## Style examples
-
-Example reports in `assets/style-examples/`: `rr.pdf` and `rr1.pdf` — reference for layout and wording.

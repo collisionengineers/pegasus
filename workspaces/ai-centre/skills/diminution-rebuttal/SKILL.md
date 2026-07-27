@@ -70,6 +70,3 @@ Plain-spoken professional — engineer's voice, not lawyer's. State the conclusi
 - `references/expert-procedure-and-evidence.md` - CPR Part 35, PD35, written questions, statements of truth, addenda, and testing disclosure checklist
 - `scripts/validate_diminution_intake.py` - validates that every attack line has been considered before drafting
 
-## Style examples
-
-Example rebuttals in `assets/style-examples/`: `dr.pdf`, `dr1.pdf`, `dr3.pdf`, `dr4.pdf`, `dr6.pdf` — reference for section structure, heading style, and red-rule formatting.
