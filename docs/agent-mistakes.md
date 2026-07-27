@@ -32,3 +32,31 @@ Do not record expected red tests, ordinary findings caught by their intended gat
 ## Entries
 
 Append incidents below; do not edit earlier entries.
+
+### AM-20260727-001: Repeated full review after metadata-only correction
+- Occurred: 2026-07-27T04:31:21Z
+- Detected: 2026-07-27T04:31:21Z
+- Workflow/package version: azure-workflow 0.1.0-alpha.1+codex.20260727012309
+- Change/PR: [PR #4](https://github.com/collisionengineers/collisionspike_v2/pull/4)
+- Classification: workflow-gap
+- What happened: After the required review of PR #4 against its new `main`
+  base found only stale wording in the PR and issue descriptions, the agent
+  corrected those two external descriptions and started another complete PR
+  review solely because the evidence fingerprint had changed. The base, head,
+  tracked diff, and successful CI result had not changed, and targeted readback
+  had already proved the wording correction. The user stopped the extra review.
+- Impact: The agent caused unnecessary delay, tool use, and confusion without
+  improving confidence in the repository change. The interrupted read-only
+  review made no repository, Azure, or other external modification.
+- Recovery: The extra reviewer was stopped. The agent read back that PR #4
+  targets `main`, remains mergeable, and has successful exact-head CI before
+  proceeding under the user's explicit merge instruction.
+- Why the gate failed: The agent applied exact-snapshot invalidation
+  mechanically to a metadata-only correction instead of applying proportional
+  verification and distinguishing repository-content changes from already-read
+  back descriptive text.
+- Reusable prevention signal: Batch mutable PR/issue descriptions before the
+  decisive review. When a later correction changes only descriptive metadata
+  and leaves base, head, diff, checks, and review findings unchanged, use a
+  targeted readback rather than automatically repeating the complete review.
+- Follow-up: none
