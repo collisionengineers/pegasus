@@ -14,7 +14,7 @@ Primary matrix IDs: `TRI-01`, `TRI-02`, `TRI-03`, `TRI-04`, `TRI-05`, `TRI-06`, 
 
 ## Authority and current boundary
 
-- **Authority:** [questionnaire Triage decisions](../../../product/project-discovery-questionnaire.md#4-the-case-lifecycle), [remaining requirements §3](../../../../product/qdos-alpha-gap.md#3-complete-intake-formats-and-paths), and the [combined mailbox/email research boundary](../../../../product/open-decisions.md#mailbox-categorisation-and-all-email-matching-research).
+- **Authority:** [questionnaire Triage decisions](../../../product/project-discovery-questionnaire.md#4-the-case-lifecycle), [remaining requirements §3](../../../../product/qdos-alpha-gap.md#3-complete-intake-formats-and-paths), and the [combined mailbox/email research boundary](../../../../product/open-decisions.md#mailbox-categorisation-and-matching-evidence).
 - **Policy owner:** planned Core `TriageWorkflow`; it alone owns states, findings, correction, reopen, cancellation and case-link policy.
 - **Evidence state:** **Planned; not implemented, called, deployed, live verified or accepted.** No production Triage type, persistence, route, Graph evidence matcher or caller exists.
 - **Intended callers:** planned authenticated Web Triage list/detail/actions; planned Web completion action calling a Core reply-evidence query backed by one Infrastructure Outlook adapter. Graph/Outlook supplies evidence only and owns no workflow decision.

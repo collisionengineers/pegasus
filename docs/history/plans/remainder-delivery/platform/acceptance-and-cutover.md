@@ -188,7 +188,7 @@ A test failure, unsupported source, integration failure and business outcome rem
 
 - **Requirement/decision:** Alex and relevant staff perform technical/operational acceptance; management approves production release.
 - **Confirmed facts:** Production cannot be accepted while required caller evidence is missing. Settled lifecycle, Triage, principal-code replacement, manual chaser and exact manual report-link behavior can be exercised without waiting for automatic email matching.
-- **Decision required before implementation:** Accept the [combined mailbox categorisation/all-automatic-email-matching research](../../../../product/open-decisions.md#mailbox-categorisation-and-all-email-matching-research) before exercising automatic email categorisation/matching, including the no-fallback Triage reply matcher. Approve production Box roots/actions separately because the current root is proof-only.
+- **Decision required before implementation:** Accept the [combined mailbox categorisation/all-automatic-email-matching research](../../../../product/open-decisions.md#mailbox-categorisation-and-matching-evidence) before exercising automatic email categorisation/matching, including the no-fallback Triage reply matcher. Approve production Box roots/actions separately because the current root is proof-only.
 
 ### Owner and dependencies
 
