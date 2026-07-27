@@ -1,6 +1,5 @@
 # Applications
 
-User-facing applications live here. Applications compose shared packages, agents, skills, and
-services; they do not own core case rules or provider-specific integration logic.
-
-- `desktop/` — the Windows Collision AI workstation.
+This imported application proposal is superseded. User-facing Pegasus applications remain in the
+root Web composition boundary and consume `Pegasus.Core`; no application or desktop runtime may be
+created here without a separately accepted root decision and caller.

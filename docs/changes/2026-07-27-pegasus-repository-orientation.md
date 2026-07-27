@@ -118,9 +118,14 @@ actual caller, recovery proof and acceptance evidence.
 ## Atomic source crosswalk
 
 `S<section>-L<line>` locators refer to the supplied Markdown source identified
-by the SHA-256 in this record. The exact supplied Markdown and normalized DOCX
-extraction were made available to the independent reviewer as ephemeral
-review artifacts and are intentionally absent from repository history. A suffix
+by the SHA-256 in this record. The exact supplied Markdown and DOCX remain in the
+review-only external paths
+`C:/Users/Alex/Documents/requirementsdocs/main-docs/PegasusSystemPlan.md` and
+`PegasusSystemPlan.docx`, with hashes
+`4eb3a75ef7d9066184be94bca5612653e78f49b8f3d3c661dee6da08f1e6655b` and
+`c86ea81d04314c1a88200b59bcf89037d6548c516af91779fe2d2bf068e21e29`.
+They are intentionally absent from repository history and must be supplied to
+the independent reviewer through that local permitted source boundary. A suffix
 splits one source line only where its clauses have different durable owners.
 Table headings and source metadata are retained as provenance rows; they are
 not product requirements.
@@ -334,6 +339,50 @@ Crosswalk assertion: **202 atomic rows cover all 86 non-empty
 source paragraphs, bullets, metadata rows and table rows; no source item is
 unmapped.** The source also contains 21 heading/separator lines that carry
 structure only and therefore require no capability disposition.
+
+## EVA source reconciliation
+
+The retired source directory remains available to exact-head review at
+`C:/Users/Alex/Documents/requirementsdocs/eva_information/`. The following
+SHA-256 inventory proves each source disposition. Same-name screenshots and
+`eva_information.md` are byte-identical; the drag/drop example is the retained
+`Final Format Example 02.json`; `AX_SP58WVO.json` is the unique imported case;
+and the differing screenshot-findings note was deliberately consolidated into
+the retained canonical note rather than discarded.
+
+| Source relative path | Retained relative path | Source SHA-256 | Retained SHA-256 / disposition |
+| --- | --- | --- | --- |
+| `AX_SP58WVO.json` | `AX_SP58WVO.json` | `4daccb2e92b8699d1ae642eee48706c8166588fc903578b2710004657c55ac9a` | identical |
+| `eva_drag_drop_json_example.json` | `Final Format Example 02.json` | `1fa894616fc688cd6c55cbbbec5ef26cad118124b87d54dc45d50db26578a574` | identical |
+| `eva_information.md` | `eva_information.md` | `0c9cc67a76831c1b00b6a8f16ab07b1166f0028e36db01856181c63c9100f974` | identical |
+| `eva_screenshot_findings.md` | `eva_screenshot_findings.md` | `df44e97a9bfa4f1829f2828231d62ce0191f45da5309c9a447df2a0b3a64eb8b` | consolidated: `8be21154af0a3d2f49194f4b2d3d699d9fe9672d4866cea45f0c03df6caf9139` |
+| `screenshots/engineer-screens/engineer1.png` | same | `f895d1ee8799cb06c065e902f036c75d6d92268d16a354483f2403a12914f093` | identical |
+| `screenshots/engineer-screens/engineer2.png` | same | `eabd4fee2aecc200d05797ae11fba63766559ffce33acd2fbaf6341f0b4d55bc` | identical |
+| `screenshots/engineer-screens/engineer3.png` | same | `e82526782c6fb20d32bdb0271817036db15727589826745f45ddd263db0bc2ec` | identical |
+| `screenshots/engineer-screens/engineer4.png` | same | `e82526782c6fb20d32bdb0271817036db15727589826745f45ddd263db0bc2ec` | identical |
+| `screenshots/engineer-screens/engineer5.png` | same | `e7bae8c076b4c2f6f37e34ccc5f25035b05f56b1d1e93fa7fda2eb5155d2a6b1` | identical |
+| `screenshots/engineer-screens/engineer6.png` | same | `6680723b31f8f14816ea368aecb2943876c30effcc0f55d52844f46e4b1fc985` | identical |
+| `screenshots/engineer-screens/engineer7.png` | same | `d7aca2fa8c13bd472172d6f522c2e715b5f6e8f2e3dbf0f835a00d38f1efc2af` | identical |
+| `screenshots/engineer-screens/engineer8.png` | same | `cfcae81c9ec415f299f74c90a1b4d8b72e6e2047ad50361a8be80c6410769ce6` | identical |
+| `screenshots/engineer-screens/engineer9.png` | same | `5c8cc8c5b60db3f4e95a90e6cbc7c33f425bc625210b2e059212ca6de279aabd` | identical |
+| `screenshots/engineer-screens/engineer10.png` | same | `1a815703c93b1c76a813db124c352587003465e17c6b47f0b98f4b21f7e9d348` | identical |
+| `screenshots/engineer-screens/engineer11.png` | same | `d740c8d2d4fa8d08315d9f21a7e44c6905f99f5eb0301232c755e1231559b7e8` | identical |
+| `screenshots/engineer-screens/engineer12.png` | same | `864dd7129192a843c3baf6e6f180bc5ef3cf619bd0ebeda8b2ff0a77eefddfa2` | identical |
+| `screenshots/{0E6CBDDD-7C09-4088-A2F7-35C9041AAA42}.png` | same | `c3610343f557e9f48378197698fea87830c49aa6a4d14a33d4e437eac419d4c7` | identical |
+| `screenshots/{245DB80D-0EB3-42CF-9775-2CD24CEDF88A}.png` | same | `82af91d5523129ecfd627f91dab5dbb9d35ee40d2a9bde01c4d6a232207ea9f3` | identical |
+| `screenshots/{28E72E59-7EE2-43DD-AA15-2F5E53DBCF6E}.png` | same | `2d35d51bd8b7c5f9048f0211c9682f6a8c8d4272f70c0b595cd87395b0b98c38` | identical |
+| `screenshots/{549C62EE-3D5E-4ADD-9F1A-714D4BBD46B9}.png` | same | `e9ec2dd6a1353cc39927b65cbc53b29214b877e9ce780a6bd10a01fc556a5b71` | identical |
+| `screenshots/{93A1970E-71A7-48D5-B940-4CE4B98228B1}.png` | same | `e5ed70fb27f4d26b972d93ceeaf761487b11fe16fed8109ab90d46d7c3ce6bf2` | identical |
+| `screenshots/{94D6ED5C-348F-4E85-B941-ECB12AE1814C}.png` | same | `ac8b17110c8d5653be42db841a2ee02891e16162cd1cdf841f1bf92a72433e5e` | identical |
+| `screenshots/{9666FEB7-AFB3-499F-9518-9AA5205CE954}.png` | same | `dc838cde8768ede00f3261d5f4c0ce61e647b987a17169445864a1a11bc9d655` | identical |
+| `screenshots/{9A82B1E4-2A4F-4B5E-8686-3C2F82E567F1}.png` | same | `b74e0670dd5812532fef3118b453ea458c3dc90991f2cce7b984070bce2d7989` | identical |
+| `screenshots/{AF221409-D318-4F27-875F-12DEB9FA879E}.png` | same | `3d7a8dd96cf7573b975b6731641562afa6f50cf512d8b06d8a82b4873ec6fed0` | identical |
+| `screenshots/{B2206742-2C06-49AD-9E78-F2047E4F9220}.png` | same | `5775780515fa485371ec203e74c57d6a17b7c3e2c896eddf93e16aa2b5bbf2c2` | identical |
+| `screenshots/{B64D5E21-E7D4-44BC-A66A-2A42AF8A69C0}.png` | same | `0164b7d7f406417c677b6941e6a91276c1369bf2a9c4587279c6ce52a28347d1` | identical |
+| `screenshots/{C292430C-514C-4073-AECA-63E4F8D0ED78}.png` | same | `d80d6cc0fccbd8adcb36dae73a64941e4548809a0419288c3c4c39f980cef70a` | identical |
+| `screenshots/{CCD7E916-7A98-488D-BDDE-8E85F7C9063F}.png` | same | `7114ff7e82e56c4e73ea84129c230387a2932bac81c67b8a6cf144feb490f713` | identical |
+| `screenshots/{D40D4374-F9FA-46DA-A042-6DDE90C00D6D}.png` | same | `4e2e552358eec7c6d9f5d5cb27a35f3e01d10faa285e0770fb0e6ecc82f4e48f` | identical |
+| `screenshots/{D9450032-911C-4ED4-BF53-669B626D33DE}.png` | same | `72dbab35bc92b9a1c8f9921159417a410fe204f6231a55a99c8abf37d1b41fda` | identical |
 
 ## Verification and evidence
 

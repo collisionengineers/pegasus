@@ -1,5 +1,5 @@
 # Desktop design system
 
-The internal workstation's tokens, accessibility rules, layout primitives, and reusable components
-will live here. This is distinct from the public website and formal-report design surfaces. Reuse CE
-brand elements deliberately and document accessibility and dense-workflow decisions.
+This imported design-system proposal is superseded. Root `design/` is the durable visual authority
+for Pegasus and the Web application is its runtime mapping. Do not implement a second workstation
+token, component, accessibility, or layout system here.

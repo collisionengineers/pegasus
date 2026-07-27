@@ -1,30 +1,17 @@
 # ADR 0002: Windows desktop technology stack
 
-- **Status:** Proposed — decision required before app bootstrap
+- **Status:** Superseded for Pegasus integration by root ADR-0013
 - **Date:** 21 July 2026
 
+This imported proposal is historical source evidence. Pegasus Web and `design/` own the active
+product shell; no desktop bootstrap is authorised in this workspace.
 ## Context
 
-The product needs a rich case workspace, image/PDF/document viewing, drag-and-drop, delegated Microsoft
-authentication, background agent activity, secure local state, accessibility, controlled updates,
-diagnostics, and reliable Windows packaging. Existing service code is TypeScript, but that alone must
-not decide the desktop shell.
+The source repository proposed a rich desktop workspace. Pegasus instead retains its existing Web
+composition root and Core policy boundary. Any future workstation requires a root product
+allocation and accepted root architecture decision.
 
-## Options to spike
+## Historical options
 
-1. WinUI 3 / .NET with WebView2 only where useful.
-2. Tauri with a TypeScript UI and a Rust/native shell.
-3. Electron with a TypeScript UI.
-
-## Required evidence
-
-Build the same small case-workspace spike in the leading options and compare:
-
-- signed install, update, rollback, and enterprise deployment;
-- accessibility, keyboard navigation, high DPI, multi-window, and screen-reader behaviour;
-- PDF/image viewing, file handling, secure token storage, delegated Microsoft login, and deep links;
-- background work, crash recovery, offline state, memory/start-up footprint, and diagnostics;
-- automated unit, contract, UI, and packaged-app testing; and
-- team maintainability and reuse of shared TypeScript contracts.
-
-Record the choice, rejected alternatives, measured results, and packaging/security implications here.
+WinUI 3, Tauri, and Electron were listed for a possible spike. No spike or application project is
+authorised by this imported record.

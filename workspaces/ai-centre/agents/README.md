@@ -1,19 +1,10 @@
 # Business agents
 
-This folder owns the production agents presented in the workstation. These are product components,
-not repository-contributor instructions.
+This folder contains historical AI-agent role proposals, not production application components or
+autonomous callers. Any future AI adapter must consume Core-owned work-request, proposal, review,
+approval, and action-history identities and remain incapable of mutating Pegasus or an external
+system without its accepted caller and policy.
 
-Initial bounded agents:
-
-| Agent | Responsibility | Must not do |
-|---|---|---|
-| Case intake | Match instructions and attachments, extract supplied facts, identify gaps | Invent facts or merge cases silently |
-| Assessment copilot | Organise evidence, propose findings, call deterministic checks | Make or sign the engineer's final opinion |
-| Correspondence | Summarise threads and draft evidence requests or replies | Send without exact-message approval |
-| Report author | Draft source-linked sections from accepted case facts | Directly edit accepted facts or issue a report |
-| Quality review | Check identity, arithmetic, consistency, citations, and limitations | Overrule the engineer or hide unresolved warnings |
-
-Each implementation needs a manifest containing purpose, owner, typed input/output contracts,
-allowed tools, data classes, approval points, failure/abstention behaviour, audit events, version,
-and linked evaluation suite. Keep agent-specific prompts and policies here; reusable operations live
-under `skills/`.
+The source roles—intake, assessment, correspondence, report drafting, and quality review—are
+evaluation categories only. They do not own case, correspondence, report, valuation, approval, or
+UI policy. Reusable source skills remain independently validated under `skills/`.

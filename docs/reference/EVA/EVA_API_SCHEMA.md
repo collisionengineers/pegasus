@@ -1,6 +1,6 @@
 # Sentry API — Complete Integration Guide
 
-> **EVA Software (Electronic Vehicle Assessment) · API v1.2**
+> **EVA Software (Electronic Vehicle Assessment) · API v1.2**  
 > Base URL: `https://sentry.evasoftware.co.uk/api/`
 
 ---

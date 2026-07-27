@@ -1,5 +1,5 @@
 # Dataset definitions
 
-Version dataset recipes, schemas, label taxonomies, fixtures, manifests, and dataset cards here.
-Authorised source and derived artifacts may also be versioned when useful. Dataset identity must be
-content-addressed and splits must be by case and time after deduplication.
+Version dataset recipes, schemas, label taxonomies, synthetic fixtures, manifests, and dataset cards
+here. Private source and derived payloads remain externally held under ignored `corpus/`; tracked
+manifests identify them by immutable hash. Dataset splits must be by case and time after deduplication.
