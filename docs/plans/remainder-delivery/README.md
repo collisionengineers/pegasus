@@ -11,7 +11,7 @@ This pack is the V1 delivery spine, not another product specification or status 
 ## Authority and boundaries
 
 - Apply the [source-of-truth order](../../agent-guidance/source-of-truth.md). Record material ambiguity in the canonical [open-decision register](../open-decisions.md); do not infer it from predecessor code or corpus evidence.
-- Keep `docs/operator-notes/` and `corpus/` read-only. Corpus evidence remains local and cannot be uploaded to Box, Azure, a model provider, or any other external service.
+- Preserve the material meaning of `docs/operator-notes/`; keep `corpus/` read-only. Corpus evidence remains local and cannot be uploaded to Box, Azure, a model provider, or any other external service.
 - Preserve the four approved projects, one Core owner for each business rule, one `CollisionSpikeDbContext`, one migration stream, and thin Web, Worker, API and MCP entry points.
 - Treat every external call, credential operation, billed run, Azure change, deployment and predecessor action as separately approval-gated. This plan is not authority to perform one.
 - No Box subtree is authorised by this plan. Any development proof requires a direct user decision naming the acting identity, exact root ID/type/name, descendant targets and permitted operations; everything else remains out of scope.

@@ -12,7 +12,7 @@ This document says what remains between the current local proof and the V1 live 
 
 Requirements come from, in order:
 
-1. `docs/operator-notes/` (read-only operator truth);
+1. `docs/operator-notes/` (authoritative operator truth; documentation and organization are Azure Workflow-maintained under user authorization);
 2. settled answers in `PROJECT_DISCOVERY_QUESTIONNAIRE.md`;
 3. accepted ADRs under `docs/architecture/decisions/`;
 4. executable behavior that has been independently checked.
