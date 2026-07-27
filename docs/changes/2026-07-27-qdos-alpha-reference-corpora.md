@@ -283,6 +283,7 @@ unit is planned.
 | `pwsh ./scripts/Invoke-RepoCheck.ps1 -Mode Docs` | planning documentation | valid record, links, source roles, design and roadmap consistency | passed: 155 Markdown files, 1,115 local links, 213 feature triples, 41 archived artifacts, 21 assertions |
 | scoped diff inspection | planning branch | documentation/work tracking only; no corpus or supplied-reference mutation | passed before publication; only canonical documentation and this record changed |
 | fresh plan review | complete record and canonical updates | no missing decision, contradiction, hidden compatibility, or unexecutable step | passed after one pre-publication remediation batch; no remaining blocker/required finding |
+| GitHub `validate` | each published exact head | proportional Docs lane succeeds | PR #4 owns current result; prior exact-head runs `30236008712` and `30236209099` passed |
 | implementation repository check | later delivery | full build/tests/architecture/docs/Bicep green | not run — implementation excluded |
 | genuine corpus evaluation | later delivery | route-specific cohorts/holdouts and failures prove accepted predicates | not run — implementation excluded |
 | live Azure/caller/acceptance evidence | later approved operation | migration, callers, external effects, recovery, operator and management acceptance | not run — implementation excluded |
@@ -296,9 +297,15 @@ unit is planned.
   `ce0135ede23101af320846a135d97c1ee05c7146` returned one required finding:
   the product index still called the selected V1 UI authority
   direction-neutral. Corrected in the next head.
-- Final exact-head review: not run — PR not yet created.
-- Remediation rounds: one pre-publication documentation batch and one PR-review
-  documentation batch.
+- Second PR review: exact head
+  `9a8ffe7cb992c024bb2ba1655368a2fdbe3db6fb` confirmed the first finding was
+  fixed and returned one required finding: this record still described the
+  already-created PR and completed validation/publication/CI as pending.
+- Final exact-head review: GitHub review evidence owned outside this commit;
+  required after every tracked change so the record never self-certifies the
+  head that contains it.
+- Remediation rounds: one pre-publication documentation batch and two PR-review
+  documentation batches.
 
 ## Documentation and work tracking
 
@@ -321,12 +328,15 @@ unit is planned.
 
 ## Outcome
 
-Pending documentation validation, publication, Docs CI, and clean exact-head
-review. Implementation remains stopped.
+The decision-complete plan is published as draft PR #4. Local Docs validation
+has passed; GitHub owns the current exact-head CI and independent-review
+evidence because those results necessarily postdate the commit under review.
+Implementation remains stopped.
 
 ## Blocker or follow-ups
 
-- Blocker: none for publishing the plan.
+- Blocker: none in the plan content. The Project item remains under review until
+  GitHub shows green exact-head Docs CI and a clean independent review.
 - Follow-ups: implementation must acquire and approve genuine evidence for each
   direct-provider or intermediary policy it activates. Additional provider case
   activation stays `Next`; all other exclusions retain their current horizon.
