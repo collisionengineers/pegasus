@@ -11,6 +11,7 @@ global tools or require a cloud login for offline development.
 | PowerShell | 7.6.3 | development shell |
 | Git | current supported client | source control and path ownership checks |
 | .NET SDK | 10.0.302 from `global.json` | build, migration command, Web and tests |
+| Python | 3.11+ | standard-library provider-domain package authoring only |
 | Node/npm | Node 24 / npm 11 | restore pinned Azurite |
 | Azurite | 3.36.0 from `package-lock.json` | local Blob/Queue/Table services |
 | Azure Functions Core Tools | 4.12.1 | actual local isolated Worker host |
@@ -23,6 +24,7 @@ Direct checks:
 pwsh --version
 git --version
 dotnet --version
+python --version
 node --version
 npm --version
 npx --no-install azurite --version
@@ -35,9 +37,11 @@ Run `npm ci` and `dotnet restore ./CollisionSpike.slnx` once package feeds are
 available. Normal local start and smoke must not need a cloud or vendor network.
 See [local development](local-development.md) for process and state ownership.
 
-Python 3.14.3 and the hash-locked workbook dependency are used only by the
-reference-data authoring command. Playwright browsers are used only by the
-browser acceptance lane. Neither is an application runtime.
+Python is an authoring-only tool; the provider-domain command requires 3.11+
+and standard-library modules only. It creates no virtual environment and
+installs no package. Playwright browsers are used only by the browser acceptance
+lane. Neither is an application runtime. See [local development](local-development.md)
+for the immutable v1 command and cumulative future-version procedure.
 
 ## Optional approved live-work profile
 

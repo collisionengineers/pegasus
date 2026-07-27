@@ -1,4 +1,5 @@
 using CollisionSpike.Core.Intake;
+using CollisionSpike.Core.ReferenceData;
 using CollisionSpike.Infrastructure.Intake;
 using CollisionSpike.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +22,7 @@ public static class DependencyInjection
         services.AddScoped<EfIntakeReceiptStore>();
         services.AddScoped<IIntakeReceiptStore>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
         services.AddScoped<IIntakeReceiptQueries>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
+        services.AddScoped<IProviderReferenceCatalog, EfProviderReferenceCatalog>();
         services.AddSingleton<IInstructionExtractionPolicy, QdosInstructionExtractionPolicy>();
 
         if (localArtifactRootFactory is not null)

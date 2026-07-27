@@ -12,6 +12,12 @@ public sealed class CollisionSpikeDbContext(DbContextOptions<CollisionSpikeDbCon
 
     internal DbSet<IntakeReceiptEventEntity> IntakeReceiptEvents => Set<IntakeReceiptEventEntity>();
 
+    internal DbSet<ProviderDomainPackageEntity> ProviderDomainPackages => Set<ProviderDomainPackageEntity>();
+
+    internal DbSet<ProviderReferenceEntity> ProviderReferences => Set<ProviderReferenceEntity>();
+
+    internal DbSet<ProviderDomainEvidenceEntity> ProviderDomainEvidence => Set<ProviderDomainEvidenceEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<IntakeReceiptEntity>(entity =>
@@ -87,6 +93,48 @@ public sealed class CollisionSpikeDbContext(DbContextOptions<CollisionSpikeDbCon
                 .HasForeignKey(item => item.IntakeReceiptId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
+
+        modelBuilder.Entity<ProviderDomainPackageEntity>(entity =>
+        {
+            entity.ToTable("ProviderDomainPackages", table =>
+            {
+                table.HasCheckConstraint("CK_ProviderDomainPackages_SchemaVersion", "[SchemaVersion] > 0");
+                table.HasCheckConstraint("CK_ProviderDomainPackages_SourceRowCount", "[SourceRowCount] > 0");
+            });
+            entity.HasKey(item => item.Version);
+            entity.Property(item => item.Version).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.PackageSha256).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.SourcePath).HasMaxLength(512).IsRequired();
+            entity.Property(item => item.SourceContentSha256).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.SourceSheet).HasMaxLength(31).IsRequired();
+            entity.HasMany(item => item.Providers)
+                .WithOne(item => item.Package)
+                .HasForeignKey(item => item.Version)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ProviderReferenceEntity>(entity =>
+        {
+            entity.ToTable("ProviderReferences", table =>
+                table.HasCheckConstraint("CK_ProviderReferences_SourceRow", "[SourceRow] > 0"));
+            entity.HasKey(item => new { item.Version, item.Code });
+            entity.Property(item => item.Version).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.Code).HasMaxLength(20).IsRequired();
+            entity.HasMany(item => item.DomainEvidence)
+                .WithOne(item => item.Provider)
+                .HasForeignKey(item => new { item.Version, item.Code })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ProviderDomainEvidenceEntity>(entity =>
+        {
+            entity.ToTable("ProviderDomainEvidence");
+            entity.HasKey(item => new { item.Version, item.Code, item.DomainSuffix });
+            entity.Property(item => item.Version).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.Code).HasMaxLength(20).IsRequired();
+            entity.Property(item => item.DomainSuffix).HasMaxLength(254).IsRequired();
+            entity.HasIndex(item => new { item.Version, item.DomainSuffix });
+        });
     }
 }
 
@@ -160,4 +208,33 @@ internal sealed class IntakeReceiptEventEntity
     public required string Actor { get; set; }
     public DateTimeOffset OccurredAtUtc { get; set; }
     public required string DetailsJson { get; set; }
+}
+
+internal sealed class ProviderDomainPackageEntity
+{
+    public required string Version { get; set; }
+    public int SchemaVersion { get; set; }
+    public required string PackageSha256 { get; set; }
+    public required string SourcePath { get; set; }
+    public required string SourceContentSha256 { get; set; }
+    public required string SourceSheet { get; set; }
+    public int SourceRowCount { get; set; }
+    public List<ProviderReferenceEntity> Providers { get; set; } = [];
+}
+
+internal sealed class ProviderReferenceEntity
+{
+    public required string Version { get; set; }
+    public required string Code { get; set; }
+    public int SourceRow { get; set; }
+    public ProviderDomainPackageEntity Package { get; set; } = null!;
+    public List<ProviderDomainEvidenceEntity> DomainEvidence { get; set; } = [];
+}
+
+internal sealed class ProviderDomainEvidenceEntity
+{
+    public required string Version { get; set; }
+    public required string Code { get; set; }
+    public required string DomainSuffix { get; set; }
+    public ProviderReferenceEntity Provider { get; set; } = null!;
 }

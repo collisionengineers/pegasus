@@ -4,7 +4,7 @@
 
 The branch is clean at `b2f40a2`, identical to `main`, with no implementation commits. Issue #3 and merged PR #4 are planning evidence only. This revision does not authorize implementation, an Azure read/write, deployment, or retirement.
 
-The finish line remains the complete `0.1.0-alpha.1` outcome in `docs/changes/2026-07-27-qdos-alpha-reference-corpora.md`: all 128 `Now` capabilities, with only QDOS activated for case creation, through the shared evaluator, durable intake, authenticated Operations-first Web caller, real Worker triggers, staff MCP, immutable references, case/Triage/lifecycle work, document custody, EVA handoff, report evidence, recovery, and operator acceptance.
+The finish line remains the complete `0.1.0-alpha.1` outcome in `docs/changes/2026-07-27-qdos-alpha-reference-corpora.md`: all 127 `Now` capabilities, with only QDOS activated for case creation, through the shared evaluator, durable intake, authenticated Operations-first Web caller, real Worker triggers, staff MCP, immutable references, case/Triage/lifecycle work, document custody, EVA handoff, report evidence, recovery, and operator acceptance.
 
 Delivery now has two hard stages:
 
@@ -42,7 +42,7 @@ The default developer profile requires only local tooling:
 | Git | Required for repository/path guards and exact working-copy checks |
 | .NET SDK | `global.json` pin `10.0.302`; restore/build all four existing projects |
 | Node/npm | Node 24 / npm 11; `npm ci` installs repository-pinned dependencies |
-| Python | `3.14.3`; an ignored authoring venv installs hash-locked `python-calamine` `0.8.2` to read legacy `.xls`, `.xlsx`, and `.xlsm`; no Python application runtime |
+| Python | `3.11+`; standard library only for the offline `.xlsx` provider-domain authoring command; no Python application runtime |
 | Azurite | npm package `3.36.0`; Blob and Queue services use run-scoped loopback ports/state |
 | Azure Functions Core Tools | v4, pinned/checked at `4.12.1`; starts the actual isolated Worker host |
 | SQL Server Express LocalDB | Supported LocalDB runtime; full offline app uses committed SQL Server migrations, transactions, constraints, and outbox |
@@ -67,7 +67,7 @@ pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Reset
 ```
 
 - `Invoke-Doctor -Profile Offline` checks only the local table above and prints exact install/repair commands. `-Profile Cloud` adds the pinned cloud/vendor tools and modules but does not log in or mutate an external service. The workstation runbook gives explicit CurrentUser `Install-Module -RequiredVersion` commands. A separate approval-gated `Invoke-LivePreflight.ps1` proves each authorized login/scope; for Exchange it imports `ExchangeOnlineManagement`, connects with the approved operator, and runs `Test-ServicePrincipalAuthorization` against the one allowed mailbox and one denied control mailbox before Graph activation.
-- `Initialize-LocalDevelopment` runs `npm ci`, creates the ignored hash-locked reference-authoring Python venv, installs pinned Playwright browsers, verifies/trusts Development HTTPS, validates LocalDB/Functions/Azurite, and creates only ignored local state. It never installs a global/system package silently and never retrieves a secret.
+- `Initialize-LocalDevelopment` runs `npm ci`, installs pinned Playwright browsers, verifies/trusts Development HTTPS, validates LocalDB/Functions/Azurite, and creates only ignored local state. It never installs a global/system package silently and never retrieves a secret.
 - `Invoke-LocalDevelopment` allocates a run ID, loopback ports, GUID-named LocalDB database, Azurite state, local mailbox, local case-file root, logs, and process manifest beneath ignored `artifacts/local-development/<run-id>/`. It starts dependencies in order, waits for real readiness, invokes a Development-only migration command, starts Worker and Web, and stops/resets only resources whose ownership manifest and run ID match.
 - First start prompts securely for an at-least-eight-character bootstrap Administrator password, exposes it only as a child-process environment value to the one-shot command, forces change at first sign-in, and does not store or echo it. Later starts refuse bootstrap when an Administrator exists.
 - Failure retains content-safe diagnostics. `Reset` refuses ambiguous database/process/path ownership and never touches corpus, tracked files, another run, Azure, or the stale deployment.
@@ -101,7 +101,7 @@ Development registrations are explicit under a single `DevelopmentOffline` profi
 ### Repository change map
 
 - **Workflow/governance:** `AGENTS.md`, nested current guidance, `docs/index.md`, `docs/agent-guidance/*`, `docs/operations.md`, current product/runbook ownership text, ADR index, and documentation tests. Add one superseding tool-neutral ADR; retain onboarding records as historical/superseded evidence.
-- **Developer tooling:** `package.json`/lock, hash-locked `scripts/reference-data-requirements.lock`, `scripts/Invoke-Doctor.ps1`, new `scripts/Initialize-LocalDevelopment.ps1`, new `scripts/Invoke-LocalDevelopment.ps1`, approval-gated `scripts/Invoke-LivePreflight.ps1`, renamed tool-neutral documentation check, `scripts/Invoke-RepoCheck.ps1`, and CI callsites.
+- **Developer tooling:** `package.json`/lock, `scripts/Invoke-Doctor.ps1`, new `scripts/Initialize-LocalDevelopment.ps1`, new `scripts/Invoke-LocalDevelopment.ps1`, dependency-free `scripts/Build-ProviderReferenceData.ps1`, approval-gated `scripts/Invoke-LivePreflight.ps1`, renamed tool-neutral documentation check, `scripts/Invoke-RepoCheck.ps1`, and CI callsites.
 - **Core:** extend `IntakeContracts.cs`; refactor `ProcessIntake`; add receive/process/resolve/accept, organization/route policy, email classification/Triage matching, case/reference/lifecycle, custody, outbox, identity/actor, and MCP-facing use cases. Remove the single-policy path after all callers move.
 - **Infrastructure:** extend the existing `CollisionSpikeDbContext` and single migration stream; add reference seed generation, LocalDB/Azurite stores, local mailbox/case-file/vehicle-replay adapters, then live adapters only after the offline gate.
 - **Web:** replace scaffold routes/shell; add Identity/OpenIddict, Operations-first UI, Development-only email evaluation UI, case/Triage/intake/admin workbenches, OAuth metadata/endpoints, and `/mcp`.
@@ -117,7 +117,7 @@ Development registrations are explicit under a single `DevelopmentOffline` profi
 - Add a canonical decision superseding `docs/decisions/0010-adopt-azure-workflow.md`: preserve repository-native change records, authority order, exact-target cloud approval, proportional validation, independent exact-head review, and no-agent-merge; remove all current plugin route tokens and plugin ownership claims.
 - Replace `docs/agent-guidance/agent-routing.md` with tool-neutral request/change/review/cloud-operation routing. Rewrite current source-role wording from “Azure Workflow-maintained” to role-based maintainership. Rename `Test-AzureWorkflowDocumentation.ps1` to a tool-neutral name and update `Invoke-RepoCheck`, CI, and documentation callsites.
 - Keep dated onboarding change/ADR/history as superseded historical evidence with clear current links. The guard must fail if `$azure-workflow:` tokens reappear in active guidance, while allowing quoted historical evidence.
-- Re-run workbook hashes/counts and freeze the 128-capability-to-evidence index in the existing change record. No cloud or vendor read occurs in this step.
+- Re-run the pinned provider-domain source hash/counts and freeze the 127-capability-to-evidence index in the existing change record. No cloud or vendor read occurs in this step.
 
 #### 1. Make the offline platform reproducible before feature code
 
@@ -127,57 +127,56 @@ Development registrations are explicit under a single `DevelopmentOffline` profi
 - Start current Web, Functions host, LocalDB, and Azurite; prove `Status`, readiness, `Stop`, failed-run diagnostics, parallel run isolation, and ownership-safe `Reset` before building further behavior.
 - Publish the quick start and full local runbook in the same slice; stale instructions are a failing acceptance condition.
 
-#### 2. Normalize provider/location data and the dual-role organization model
+#### 2. Publish the first cumulative provider-domain evidence snapshot
 
-- Add `pwsh ./scripts/Build-ProviderReferenceData.ps1 -Verify`, backed by the ignored hash-locked Python authoring venv. It inventories and hashes every supplied artifact below, parses all workbook formats, emits normalized candidates plus field-level reconciliation under ignored `artifacts/reference-data/<run-id>/`, and never reads a workbook from Web, Worker, Core, migrations, or production startup.
-
-| Supplied artifact | Observed content and authoring role |
-|---|---|
-| `docs/reference/workproviders-and-repairers/providers.xlsx` | Primary raw case/location source; `raw_export` has 17,737 data rows |
-| `docs/reference/workproviders-and-repairers/contacts/providers.xlsx` | Byte-identical duplicate of the primary raw source; provenance/checksum assertion only, never double-counted |
-| `docs/reference/workproviders-and-repairers/providers-worked-on.xlsx` | Reviewed derived workbook; `raw_export` repeats 17,737 rows and `Final` cross-checks the 88-provider/1,638-relationship result |
-| `docs/reference/workproviders-and-repairers/backup_of_ce_job_sheet_260429.xlsm` | `Jobs`, `Own figures`, `Principals`, and `Garages` operator evidence; may support review but cannot silently override case/location facts |
-| `docs/reference/workproviders-and-repairers/contacts/aALL.xls` | 74 legacy contact rows |
-| `docs/reference/workproviders-and-repairers/contacts/agent.xls` | 1 legacy contact row |
-| `docs/reference/workproviders-and-repairers/contacts/broker.xls` | 1 legacy contact row |
-| `docs/reference/workproviders-and-repairers/contacts/client.xls` | 3 legacy contact rows |
-| `docs/reference/workproviders-and-repairers/contacts/legal.xls` | 438 legacy contact rows |
-| `docs/reference/workproviders-and-repairers/contacts/other.xls` | 3 legacy contact rows |
-| `docs/reference/workproviders-and-repairers/contacts/private.xls` | 9 legacy contact rows |
-| `docs/reference/workproviders-and-repairers/contacts/REPAIRER.xls` | 70 legacy contact rows |
-| `docs/reference/workproviders-and-repairers/contactseva_combined.csv` | 528-row normalized contact union used only after the 599 legacy rows reconcile to 528 unique keys |
-
-- Pin every path, SHA-256, sheet/header contract, and row count in the generated review manifest. The eight legacy contact books currently total 599 rows and collapse to 528 unique `(code, group)` keys with 71 exact duplicate keys and no conflicting duplicate records; field normalization against the 528-row CSV remains explicit review evidence. Exclude Office `~$*.xlsx` files as inputs and abort while a lock file exists. Any source/hash/count/header/reconciliation change blocks publication for review.
-- Treat provider identity, inspection-location history, organization/contact locations, and email-route authority separately. Import every one of the 528 normalized contact entries, 58 nonblank `Principals` profiles, 38 nonblank `Garages` entries, and two `Own figures` aliases into typed versioned reference entries with all source-row provenance; each accepted address also becomes an `OrganisationAddress`. The 599 legacy contact rows remain represented by provenance on the 528 deduplicated entries. Unmatched or contradictory entries keep `Unresolved` review state rather than disappearing. The backup `Jobs` sheet is hashed/manifested but never imported as v2 cases because the accepted fresh-start decision forbids predecessor case migration.
-- Add `Organisations`, `OrganisationRoles`, `OrganisationReferenceEntries`, `OrganisationAddresses`, `ProviderPrincipals`, `ReferenceDataVersions`, `InspectionLocations`, provider/location links, and `ProviderInspectionDefaults` in the existing DbContext/migration stream. Use fixed columns/source-kind enums rather than a generic key/value store. Publish one reviewed, version-named embedded JSON package plus manifest beneath `src/CollisionSpike.Infrastructure/Persistence/ReferenceData/`; the migration imports that immutable package, and application runtime reads only SQL. Contact/profile/garage evidence may propose an organization role, alias, address, or later route policy, but never activates sender/intermediary policy without genuine route evidence.
-- One organization row may hold `WorkProvider`, `InstructionIntermediary`, or both. Route policy identity is `(route owner organization, route kind, policy key/version)`; evaluation separately stores `resolved work provider organization`. A case principal derives from the resolved work provider, never merely from the transport intermediary.
-- Reproduce exactly 88 work-provider identities and 1,638 unique relationships from 17,737 source cases: 1,555 physical, 66 Image Based Assessment, 17 Not supplied, 410 unmapped case IDs, and 74 physical links missing postcode. Keep every source version, basis, frequency, review state, unresolved row, and anomaly; do not guess or discard.
-- Compute historical inspection defaults from all 17,327 provider-mapped cases using exact integer comparison `100 × imageBasedCases > 95 × mappedCases`; there is no minimum sample-size exception because the owner selected every provider strictly above 95%. The current baseline yields exactly these 19 providers:
-
-| Code | Provider | Image Based / mapped | Rate |
-|---|---|---:|---:|
-| `AMCD` | Allan McDougall Solicitors | 2 / 2 | 100% |
-| `BASE` | Base Motor Claims | 1 / 1 | 100% |
-| `BL` | 150 Heywood Street | 1 / 1 | 100% |
-| `CAN` | Canford Law Scotland Ltd | 4 / 4 | 100% |
-| `CHESTLE` | Castle Accident Management | 70 / 70 | 100% |
-| `CRC` | Car Repair Centre CRC Ltd | 1 / 1 | 100% |
-| `DLG` | DLG Legal Services | 1 / 1 | 100% |
-| `HALO` | Halo Assist | 1 / 1 | 100% |
-| `SAMBASIVAM` | Nadarajah Sambasivam | 1 / 1 | 100% |
-| `SC` | 10 Ketlan Court | 2 / 2 | 100% |
-| `TA` | Turnamms Assessors | 18 / 18 | 100% |
-| `YUSSUF` | YUSSUF | 1 / 1 | 100% |
-| `SBL` | SBL | 192 / 193 | 99.482% |
-| `QDOS` | QDOS Assistance | 7,408 / 7,415 | 99.906% |
-| `PCH` | PCH | 1,266 / 1,271 | 99.607% |
-| `AX` | Accident Exchange Ltd | 1,200 / 1,206 | 99.502% |
-| `ARC` | Assured Accident Repair Centre | 60 / 62 | 96.774% |
-| `DAG` | Allan McDougall Solicitors | 49 / 51 | 96.078% |
-| `TDA` | The Damage Assessors | 68 / 71 | 95.775% |
-
-- Persist numerator, denominator, strict-threshold decision, reference-data version, and provenance—never a floating-point policy input. `AcceptIntake` autofills `Image Based Assessment` only when accepted instruction/case evidence supplies neither an explicit physical address nor an explicit inspection mode; explicit retained evidence wins. A pre-allocation provider correction recomputes the default; a staff override requires reason/history. A future package whose qualifying set is not exactly the reviewed set blocks publication until counts and change evidence are re-approved.
-- Generate twice and compare bytes/hashes; verify fresh SQLite and LocalDB migrations; wrong hashes, duplicate ingestion, count drift, or partial publication fails closed.
+- Run `pwsh ./scripts/Build-ProviderReferenceData.ps1` from the repository root
+  with `docs/reference/workproviders-and-repairers/initial.xlsx` closed. The
+  wrapper rejects the selected workbook's exact sibling Office lock marker and
+  an exclusive-read failure as `source-locked` before Python discovery, source
+  hashing/parsing, staging, or output work.
+- The source contract is intentionally narrow: SHA-256
+  `e4bf89b0aeef3f1106bf34ed50f74dffc44c5ed748e0ad0811b66ee099b6cd29`,
+  worksheet `Sheet1`, 11 headerless rows, provider code in column A, and
+  semicolon-separated email observations in column E. Columns B-D and later
+  columns are opaque and ignored. Only the lowercase suffix after the final
+  `@` is retained; local parts and full addresses are discarded immediately
+  and never emitted, persisted, tested, documented, or logged.
+- Use Python 3.11+ standard library only (`zipfile` and
+  `xml.etree.ElementTree`) to read the one `.xlsx` file. There is no recursive
+  workbook discovery, pip dependency, authoring virtual environment, package
+  cache, network operation, requirements lock, second manifest, or runtime
+  workbook reader.
+- Publish one canonical UTF-8 JSON package with a final newline at
+  `src/CollisionSpike.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json`.
+  The v1 package is `provider-domains-v1` and contains exactly 11 provider
+  codes, 16 code/suffix associations, and 16 distinct suffixes with source-row
+  provenance. The package is embedded by Infrastructure and imported through
+  one reviewed migration; application runtime reads SQL only.
+- Core owns generic byte/hash/schema/version/source/provider/suffix validation,
+  transient suffix extraction, deterministic `Unknown`/`Found`/`Ambiguous`
+  candidate semantics, and the exact-version catalog port. Infrastructure owns
+  immutable package/provider/evidence tables and the EF adapter. Neither owner
+  contains source-specific global count constants.
+- Provider-domain evidence does not activate a route. Direct-provider and
+  intermediary route identity remains code-versioned policy under Decision
+  0011. Only the separately accepted QDOS direct trait
+  `@qdosassist.co.uk` may support the current route; every other imported
+  suffix remains inactive evidence.
+- Publication is append-only. The pinned v1 source/version/output is the only
+  bootstrap without a previous package. A later version uses a new immutable
+  cumulative workbook, a different package version/output, and the previous
+  validated package; every prior provider/suffix pair must remain. Existing
+  different outputs are never replaced. Corrections or removals require new
+  accepted authority and a new explicit contract while old snapshots remain.
+- `DATA-02` inspection-address/repairer reference data moves to
+  `Next`/`unallocated`. Stable provider code plus package/source version is the
+  preserved join seam. Inspection locations, history, defaults, Case-ID
+  mapping, and authoring of those shapes are excluded until separately accepted
+  evidence, authority, schema/package, migration, and caller proof exist.
+- Verify generation with `pwsh ./scripts/Build-ProviderReferenceData.ps1 -Verify`,
+  focused Core and integration tests, plus exact source/package/migration
+  equality and suffix-only shape/count checks. No repository-wide email scan is
+  required; retaining only the identifying suffix is a simplicity boundary.
 
 #### 3. Establish staff identity, authorization, leases, and history
 
@@ -254,9 +253,22 @@ Development registrations are explicit under a single `DevelopmentOffline` profi
 Run from a fresh clone/setup path and record exact results/limits:
 
 1. `Invoke-Doctor -Profile Offline`, initialization, start/status/smoke/stop/reset, second parallel run, failed-run recovery, and no cloud credentials/login.
-2. Full supplied-artifact manifest and provider-reference generation: all listed workbooks/CSV, duplicate-source non-ingestion, legacy 599-to-528 reconciliation, all 528 contact entries/58 principal profiles/38 garages/two staff aliases represented with provenance, no backup Job imported as a v2 case, exactly 88 providers/1,638 inspection-location relationships/19 strict-above-95% defaults, repeat-byte equality, fresh SQLite/LocalDB migrations, wrong-hash/header/count/default-set rejection, and LocalDB allocation/outbox/lease contention with eight concurrent staff and the 2,000-cases/month profile.
-3. Genuine local evaluator cohort + untouched holdout in the graphical workbench: all 88 route dispositions, direct/intermediary/both-role cases, malformed CE forwards, QDOS, Triage positives/negatives/ambiguities/replies, automatic report candidates, human correction, repeat-byte determinism, and no source/corpus mutation.
-4. Actual Web + actual Functions host + Azurite + LocalDB + local mailbox/custody smoke for QDOS Inspection, standalone Audit repairable/total loss, and Inspection + Audit. Assert one immutable case/reference/evaluation/custody/outbox result under duplicate/retry/crash; QDOS and another qualifying provider autofill Image Based Assessment only when mode/address evidence is absent, while an explicit physical-address exception wins.
+2. Provider-domain reference generation from the pinned `initial.xlsx`: exact
+   source hash and A/E contract, immutable suffix-only package, 11 providers,
+   16 associations, repeat-byte equality, no copied local part/full address,
+   exact migration equality, idempotent fresh SQLite/LocalDB migrations, tuple
+   and suffix fail-closed precedence, and monotonic synthetic v2 growth.
+3. Genuine local evaluator cohort + untouched holdout for every route selected
+   for activation. Provider-domain presence alone is not a route disposition or
+   policy. Exercise QDOS, direct/intermediary conflicts, malformed forwards,
+   Triage positives/negatives/ambiguities/replies, automatic report candidates,
+   human correction, repeat-byte determinism, and no source/corpus mutation.
+4. Actual Web + actual Functions host + Azurite + LocalDB + local
+   mailbox/custody smoke for QDOS Inspection, standalone Audit repairable/total
+   loss, and Inspection + Audit. Assert one immutable
+   case/reference/evaluation/custody/outbox result under duplicate/retry/crash.
+   Inspection-location/default behavior remains deferred under `DATA-02` and is
+   not inferred from the provider-domain package.
 5. Negative/recovery smoke: unsupported/corrupt/oversized/incomplete, unknown/non-QDOS, route overlap, missing Audit assessment, dependency unavailable, hash conflict, sequence 999, poison exhaustion, stale lease/version, unauthorized actor, and terminal external failure all preserve pre-case and identity invariants.
 6. Full local lifecycle through Not ready/chase/Held/Review/Report preparation, custody, selected VRM/address/vehicle suggestions, EVA once-only event, exact local Sent evidence, Post report, terminal outcomes, valid reopen, Created-in-error replacement, archive/read-only, and Triage exact-reply completion/correction.
 7. Identity and local OAuth/MCP through real HTTP endpoints: seven-character password rejected, eight-character composition-free password accepted, repeated failures never persist account lockout, per-IP/global rate partitions return generic `429`/`Retry-After`, two-hour idle and eight-hour absolute expiry are clock-tested, disabled/role-changed users are rejected, and the public PKCE client completes actual MCP calls. No direct service invocation counts as caller proof.
@@ -297,30 +309,30 @@ The offline gate passes only when every implemented live port has a contract-equ
 
 ## Critical files & anchors
 
-- `docs/changes/2026-07-27-qdos-alpha-reference-corpora.md`: one delivery record, 128-capability evidence matrix, status, blockers, approvals, and outcome.
-- `docs/product/capabilities.md`, `docs/product/v1-gap.md`, and `docs/roadmap.md`: fixed `0.1.0-alpha.1` allocation and release boundary; no capability may disappear because live evidence is pending.
+- `docs/changes/2026-07-27-qdos-alpha-reference-corpora.md`: one delivery record, 127-capability evidence matrix, status, blockers, approvals, and outcome.
+- `docs/product/capabilities.md`, `docs/product/v1-gap.md`, and `docs/roadmap.md`: current `0.1.0-alpha.1` allocation and the explicit `DATA-02` deferral; no capability may disappear because live evidence is pending.
 - `docs/operator-notes/business-process/intake-and-work-instructions.md`, `inspection-address.md`, `case-types-and-references.md`, and `case-lifecycle.md`: business wording and fail-closed invariants.
 - `docs/decisions/0011-separate-direct-provider-and-intermediary-email-policies.md` plus the superseding tool-neutral ADR: route identity and repository workflow decisions.
 - `src/CollisionSpike.Core/Intake/IntakeContracts.cs`, `ProcessIntake.cs`, and `QdosInstructionExtractionPolicy.cs`: preserve the real Core caller/policy seam while splitting durable operations and adding route/default provenance.
 - `src/CollisionSpike.Infrastructure/Persistence/CollisionSpikeDbContext.cs`, `DependencyInjection.cs`, and the one existing migration stream: all reference, identity, intake, case, history, lease, and outbox persistence.
-- `src/CollisionSpike.Infrastructure/Persistence/ReferenceData/`: immutable generated provider/location/default package and manifest; no workbook access.
+- `src/CollisionSpike.Infrastructure/Persistence/ReferenceData/`: immutable cumulative provider-domain packages only; no manifest, full address, location/default data, or workbook access.
 - `src/CollisionSpike.Infrastructure/Intake/MimeKitPdfPigOpenXmlIntakeSourceReader.cs`: retained source parsing and forwarded-message evidence, not route policy.
 - `src/CollisionSpike.Web/Program.cs`, Razor Pages/layout/assets, and `design/product/ui-spec.md` plus `design/brand/logos/logo_no_margin.png`: authenticated Operations-first caller and graphical evaluator.
 - `src/CollisionSpike.Worker/Program.cs`: actual timer/queue callers against the same Core use cases.
-- `scripts/reference-data-requirements.lock`, `Invoke-Doctor.ps1`, `Initialize-LocalDevelopment.ps1`, `Invoke-LocalDevelopment.ps1`, `Build-ProviderReferenceData.ps1`, and `Invoke-LivePreflight.ps1`: hash-locked authoring dependency, reproducible setup/orchestration, provider build, and approval-gated live preflight.
-- `docs/reference/workproviders-and-repairers/`: immutable supplied evidence only; all listed workbooks and CSV are manifested, never modified or read by application runtime.
+- `scripts/Build-ProviderReferenceData.ps1` and `scripts/reference_data/build_provider_reference_data.py`: dependency-free suffix-only provider package authoring; `Invoke-Doctor.ps1`, `Initialize-LocalDevelopment.ps1`, `Invoke-LocalDevelopment.ps1`, and `Invoke-LivePreflight.ps1` retain their separate setup/orchestration/live-preflight roles.
+- `docs/reference/workproviders-and-repairers/initial.xlsx`: immutable current Step 2 evidence only; later growth uses new cumulative immutable workbooks. Application runtime never reads a workbook.
 - `docs/runbooks/developer-workstation.md`, `local-development.md`, `testing/local-testing.md`, and `predecessor-teardown.md`: operator-executable setup, proof limits, and destructive-operation safety.
 - `docs/azure/current-inventory.md`, `docs/azure/replacement-and-retirement-plan.md`, `.azure/deployment-plan.md`, `infra/`, and `azure.yaml`: dated evidence and post-offline live changes only.
 - Existing Core, Integration, Architecture, and Web test projects remain the test owners; add no test/runtime project.
-- Version/API choices are grounded in the official [`python-calamine` package record](https://pypi.org/project/python-calamine/), [Exchange Online PowerShell module guidance](https://learn.microsoft.com/powershell/exchange/exchange-online-powershell-v2?view=exchange-ps), [Exchange Online Application RBAC](https://learn.microsoft.com/exchange/permissions-exo/application-rbac), [`Test-ServicePrincipalAuthorization`](https://learn.microsoft.com/powershell/module/exchangepowershell/test-serviceprincipalauthorization?view=exchange-ps), [Azure resource-group deletion](https://learn.microsoft.com/azure/azure-resource-manager/management/delete-resource-group), and [Azure resource locks](https://learn.microsoft.com/azure/azure-resource-manager/management/lock-resources); implementation rechecks current signatures/limits before use.
+- Provider-domain authoring uses only Python 3.11+ standard-library APIs. Microsoft and Azure API choices for later delivery remain grounded through their official documentation and separately approved live-work tooling.
 
 ## Verification
 
 1. **Fresh offline setup:** on a clean working copy, run `Invoke-Doctor -Profile Offline`, `Initialize-LocalDevelopment`, then `Invoke-LocalDevelopment` `Start`, `Status`, `Smoke`, `Stop`, and ownership-safe `Reset`; repeat with two parallel run IDs and one induced startup failure.
-2. **Reference proof:** run `Build-ProviderReferenceData.ps1 -Verify` twice and compare bytes/hashes; assert every manifested artifact, the 599-to-528 contact reconciliation, all 528 contact/58 principal/38 garage/two staff-alias entries and their source dispositions, no predecessor Job import, 88 providers, 1,638 inspection-location relationships, 17,327 mapped cases, 410 unmapped cases, and exactly the 19 strict-above-95% defaults. Migrate fresh SQLite and LocalDB and exercise default/explicit-evidence precedence.
+2. **Provider-domain reference proof:** run `Build-ProviderReferenceData.ps1` and `-Verify`; assert the pinned source metadata, 11 providers, 16 suffix associations, suffix-only strings, exact package hash, append-only synthetic-v2 behavior, embedded-resource/migration equality, idempotent migrations, and deterministic exact-version catalog outcomes.
 3. **Behavioral proof:** execute the Step 10 evaluator, actual Web/Functions/Azurite/LocalDB, identity/session, MCP, QDOS type, lifecycle, Triage, custody, EVA, concurrency, negative, retry, and recovery scenarios. Each check must observe the real caller and persisted/operator-visible result.
 4. **UI proof:** drive the running Razor Pages application with Playwright at the specified desktop/constrained/200%-zoom/accessibility/multi-session states; screenshots alone do not replace interaction and persisted-result evidence.
-5. **Repository proof:** run `pwsh ./scripts/Invoke-RepoCheck.ps1`, exact-head CI, and an independent exact-head implementation review. The change record maps each of the 128 `Now` capabilities to local proof, live proof pending, or the named unsatisfied release blocker.
+5. **Repository proof:** run `pwsh ./scripts/Invoke-RepoCheck.ps1`, exact-head CI, and an independent exact-head implementation review. The change record maps each of the 127 `Now` capabilities to local proof, live proof pending, or the named unsatisfied release blocker.
 6. **Approved live proof:** after the offline gate and exact approvals, run `Invoke-Doctor -Profile Cloud`, the permitted/denied Exchange scope preflight, every live adapter contract/smoke pair, Bicep validation/what-if, deployment/health/restore checks, and genuine operator journeys. Local parity never substitutes for live scope or delivery evidence.
 7. **Teardown proof:** before deletion, compare the reviewed manifest to fresh exact IDs and capture no-active-use/rebuild/data-disposition evidence; after each batch and at completion, prove deleted IDs are absent, retained IDs still have owners, no caller/role/DNS/scheduled/orphan/cost path remains, and redeployment instructions identify exact source/package/configuration provenance.
 
@@ -328,8 +340,8 @@ The offline gate passes only when every implemented live port has a contract-equ
 
 Settled assumptions from this revision:
 
-- The supplied workbook snapshot is immutable input. The strict `>95%` rule, with no minimum sample size, currently selects exactly 19 providers; explicit instruction/address evidence still outranks an autofill. Any later source change reopens review rather than silently changing active case behavior.
-- A `~$providers-worked-on.xlsx` Office lock file is currently visible. It is not a source artifact; the owner closes the workbook before generation, and the authoring command refuses to run rather than deleting or ignoring an active lock.
+- `initial.xlsx` is the immutable v1 provider-domain source. Later growth uses a new cumulative immutable workbook and new package/migration version; it never edits v1. The provider-domain package excludes inspection locations, defaults, and Case-ID mapping, and application runtime never reads a workbook.
+- The authoring command rejects the selected workbook's exact sibling Office lock marker and an exclusive-read failure before Python discovery, source hashing/parsing, staging, or output work.
 - Passwords have an eight-character minimum with no composition requirement or persistent account lockout. Login throttling is transient and IP/global, idle expiry is two hours, and original-session absolute expiry is eight hours.
 - The predecessor deployment is not in active use and needs no restart window. That is current user direction, not live telemetry evidence; the runbook must verify it before deletion. Recovery means redeploying from recorded provenance, not retaining predecessor state.
 - The current local module inventory contains SqlServer `22.4.5.1` but not `ExchangeOnlineManagement`; offline work proceeds without it, while Cloud preflight installs/checks `3.10.0` before any approved mailbox configuration or Graph activation.
@@ -339,8 +351,8 @@ Release cannot be called complete while any item remains absent:
 
 - explicit implementation activation of issue #3;
 - green, documented offline development acceptance gate from a clean setup;
-- complete manifest/reconciliation of every listed provider/contact workbook and CSV, with no supplied reference row silently dropped, exactly 88 providers, 1,638 inspection-location relationships, and the reviewed 19-provider default set;
-- all 88 provider/intermediary dispositions, including dual-role organizations, and executable evidence for every proved route;
+- exact source/hash/package/migration/suffix-only proof for the immutable v1 provider-domain snapshot: 11 provider codes, 16 suffix associations, and no retained local part or full address;
+- executable evidence and explicit approval for every provider/intermediary route selected for activation; provider-domain presence never substitutes for a route disposition;
 - accepted Triage and report predicates with genuine holdout results;
 - selected/approved VRM engine with representative accuracy and false-positive evidence;
 - accepted DVLA/DVSA contract/licence/target and mileage rule;
@@ -350,4 +362,4 @@ Release cannot be called complete while any item remains absent:
 - green local/full/exact-head CI and independent review;
 - separately approved live Development operations, operator/management acceptance, then production target/migration/deployment/cutover.
 
-If a checkpoint cannot be satisfied, keep the corresponding live caller absent/disabled and the release blocked. Do not infer a rule, fabricate data, silently fall back to a local adapter, revive plugin-specific guidance, expose the stale deployment, or reduce the 128-capability contract.
+If a checkpoint cannot be satisfied, keep the corresponding live caller absent/disabled and the release blocked. Do not infer a rule, fabricate data, silently fall back to a local adapter, revive plugin-specific guidance, expose the stale deployment, or reduce the 127-capability contract.

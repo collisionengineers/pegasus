@@ -6,12 +6,13 @@ state; no issue is created merely because an outcome appears here.
 
 ## Now
 
-- **Provider- and intermediary-specific instruction foundation — target `0.1.0-alpha.1`.** Import the complete provider and provider-linked inspection-location reference corpora, then prove separately versioned direct-provider and intermediary email policies through genuine-input evaluation. A provider may be reached through both routes; each route owns its own provider/type/case evidence and ambiguity behavior.
+- **Provider- and intermediary-specific instruction foundation — target `0.1.0-alpha.1`.** Publish the first immutable cumulative provider-domain snapshot from the approved small corpus, then prove separately versioned direct-provider and intermediary email policies through genuine-input evaluation. Reference evidence is not route activation; only separately accepted policies may resolve a provider.
 - **Live QDOS alpha workflow — target `0.1.0-alpha.1`.** Activate QDOS direct and evidenced intermediary instruction routes and deliver every active QDOS case type through staff identity, accepted intake, immutable references, Box custody, review/work management, EVA JSON/image handoff, exact report evidence, observability/recovery, and operator/management acceptance. Current source proves only the Development intake slice.
 
 ## Next
 
 - **Additional provider case-workflow activation — target `unallocated`.** Activate case creation for another provider only after that provider's direct and applicable intermediary evidence, rules, and acceptance cohort pass through the shared workflow established by the alpha.
+- **Provider-location reference data — target `unallocated`.** Activate `DATA-02` only after separately accepted provider-location evidence defines the schema/package, migration, caller, review behavior, and activation proof. Stable provider code plus package/source version is the preserved join seam; the provider-domain snapshot does not contain locations, defaults, or Case-ID mappings.
 - **Email workspace and provider API beta — target `unallocated`.** Extend the accepted mailbox policy across four mailboxes, activate provider-scoped submissions/status, general association, legacy DOC/MSG extraction, scan-like PDF OCR, post-report work, and bounded image assistance after each named decision and dependency.
 
 ## Later

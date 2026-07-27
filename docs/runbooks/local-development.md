@@ -17,60 +17,69 @@ repository-check script.
 | SQL Server Express LocalDB | installed LocalDB runtime | `sqllocaldb versions` |
 | Development HTTPS | trusted .NET development certificate | `dotnet dev-certs https --check --trust` |
 
-Python and workbook-authoring dependencies are required only when rebuilding
-provider reference data. Playwright browser installation is required only for
-the browser acceptance lane. Cloud/vendor tools belong to approved live work,
-not this baseline.
+Python 3.11+ is required only when authoring provider-domain reference data; the
+script uses the standard library and installs no package. Playwright browser
+installation is required only for the browser acceptance lane. Cloud/vendor
+tools belong to approved live work, not this baseline.
 
-## Step 2 — author provider reference data
+## Step 2 — author provider-domain reference data
 
-The Step 2 authoring command is an offline, one-time preparation step. It reads
-the supplied workbooks under
-`docs/reference/workproviders-and-repairers/` as immutable evidence; it never
-edits, renames, deletes, or moves those workbooks or CSVs. Every generated
-location candidate is emitted with `reviewState: "Unreviewed"` and therefore
-cannot become a runtime selector until a later reviewed activation.
+The Step 2 command is an offline authoring operation over one immutable
+cumulative source workbook. For v1 it reads only
+`docs/reference/workproviders-and-repairers/initial.xlsx` and retains only the
+provider code from column A and the final lowercase `@domain` suffix from each
+semicolon-separated column-E observation. It ignores columns B-D and later
+columns. It never edits the workbook or emits an email local part, full email
+address, inspection location, default, Case ID, or opaque source value.
 
-Before authoring, close every source workbook in every application. From
-PowerShell 7 at the repository root, prove that no Office lock file remains:
-
-```powershell
-$locks = @(Get-ChildItem ./docs/reference/workproviders-and-repairers -Filter '~$*' -Force -File -Recurse)
-if ($locks.Count -ne 0) {
-  $locks | Select-Object -ExpandProperty FullName
-  throw "Source workbook lock files remain; authoring is aborted before any source read or output write."
-}
-```
-
-Only after that check is empty, invoke the owning command directly:
+Close the selected workbook, then run from PowerShell 7 at the repository root:
 
 ```powershell
 pwsh ./scripts/Build-ProviderReferenceData.ps1
+pwsh ./scripts/Build-ProviderReferenceData.ps1 -Verify
 ```
 
-The command uses the hash-locked workbook dependency from the ignored
-`artifacts/reference-data-tools/` cache and writes through the ignored atomic
-staging directory `artifacts/reference-data-staging/`. A successful run
-promotes the deterministic package and manifest to these committed
-destinations:
+Before discovering Python or reading source bytes, the wrapper rejects the
+selected workbook's exact sibling Office lock marker and an exclusive-read
+failure as `source-locked`. The helper requires Python 3.11+ and uses only
+`zipfile` and `xml.etree.ElementTree`; there is no authoring virtual
+environment, pip install, dependency lock, package cache, recursive workbook
+discovery, network operation, or second manifest.
 
-- `src/CollisionSpike.Infrastructure/ReferenceData/provider-reference-data.v1.json`
-- `src/CollisionSpike.Infrastructure/ReferenceData/provider-reference-data.v1.manifest.json`
+The v1 command stages beneath ignored
+`artifacts/reference-data-staging/` and publishes this immutable package:
 
-The command fails nonzero before dependency installation, source reading, or
-writing either committed destination if any `~$` workbook lock exists. It also
-fails without promotion when a pinned dependency, source read/hash, deterministic
-normalization, or output step fails; inspect the error and correct the
-precondition before retrying. It makes no cloud or vendor calls.
+```text
+src/CollisionSpike.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json
+```
 
-The command's completion is authoring evidence only. It does not prove that
-the package has been operator-reviewed, that candidates are selectable, that
-database migration has run, that the observed baseline counts have been
-accepted, or that tests, release, or alpha acceptance have passed. The current
-working copy contains
-`docs/reference/workproviders-and-repairers/~$providers-worked-on.xlsx`; until
-that external workbook is closed and the lock disappears, authoring is
-expected to fail and neither committed output is claimed as generated.
+Generation completes in staging before publication. An absent output is moved
+atomically into place; an existing byte-identical output is a no-op; an
+existing different output fails `immutable-output` and is not replaced.
+`-Verify` requires the output and byte-compares a regenerated staged package
+without mutating it.
+
+Later growth uses a new immutable cumulative workbook, a new version and output,
+and the previous validated package:
+
+```powershell
+pwsh ./scripts/Build-ProviderReferenceData.ps1 `
+  -SourcePath ./docs/reference/workproviders-and-repairers/provider-domains-v2.xlsx `
+  -Version provider-domains-v2 `
+  -PackagePath ./src/CollisionSpike.Infrastructure/Persistence/ReferenceData/provider-domains.v2.json `
+  -PreviousPackagePath ./src/CollisionSpike.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json
+```
+
+Every previous provider/suffix pair must remain. A removal fails
+`non-monotonic-source`; source, previous package, staging, and output paths must
+be distinct; staging/output may not be under `docs/reference/`. Corrections or
+removals require separately accepted authority and a new explicit contract;
+published snapshots remain unchanged.
+
+Command completion proves deterministic authoring bytes only. It does not
+activate an email route, resolve a provider at intake, prove a migration or
+caller, or establish release/alpha acceptance. Application runtime reads only
+the explicit versioned SQL snapshot and never opens a workbook.
 
 
 ## First setup

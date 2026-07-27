@@ -2,56 +2,42 @@ using System.Collections.Immutable;
 
 namespace CollisionSpike.Core.ReferenceData;
 
-// Callers must request a concrete schema and package hash; there is intentionally no
-// "current" or "latest" package fallback.
-public readonly record struct ReferenceDataPackageVersion(
+public readonly record struct ProviderDomainPackageVersion(
     int SchemaVersion,
+    string Version,
     string PackageSha256);
 
-public enum ReferenceDataPackageLoadStatus
+public enum ProviderDomainValidationIssueCode
 {
-    Loaded = 1,
-    NotFound = 2,
-    Rejected = 3
+    InvalidJson = 1,
+    SchemaMismatch = 2,
+    VersionMismatch = 3,
+    PackageHashMismatch = 4,
+    MissingValue = 5,
+    InvalidSource = 6,
+    InvalidProviderCode = 7,
+    DuplicateProviderCode = 8,
+    InvalidSourceRow = 9,
+    DuplicateSourceRow = 10,
+    InvalidDomainSuffix = 11,
+    DuplicateDomainSuffix = 12,
+    EmptyPackage = 13
 }
 
-public sealed record ReferenceDataPackageLoadResult(
-    ReferenceDataPackageLoadStatus Status,
-    ReferenceDataPackage? Package,
-    ImmutableArray<ReferenceDataValidationIssue> Issues);
+public sealed record ProviderDomainValidationIssue(
+    ProviderDomainValidationIssueCode Code,
+    string Subject);
 
-public enum OrganizationResolutionStatus
+public sealed record ProviderDomainValidationResult(
+    ImmutableArray<ProviderDomainValidationIssue> Issues)
 {
-    Resolved = 1,
-    UnknownOrganizationId = 2,
-    UnknownAlias = 3,
-    AmbiguousOrganizationId = 4,
-    AmbiguousAlias = 5,
-    InvalidExactValue = 6
+    public bool IsValid => Issues.IsDefaultOrEmpty;
 }
 
-public sealed record OrganizationResolution(
-    OrganizationResolutionStatus Status,
-    Organization? Organization,
-    ImmutableArray<string> CandidateOrganizationIds);
-
-public interface IReferenceDataCatalog
+public interface IProviderReferenceCatalog
 {
-    ValueTask<ReferenceDataPackageLoadResult> LoadAsync(
-        ReferenceDataPackageVersion packageVersion,
-        CancellationToken cancellationToken);
-
-    // Implementations must compare the supplied value ordinally to the stored ID.
-    // They must not normalize, fuzzily match, or infer a Principal from a sender.
-    ValueTask<OrganizationResolution> ResolveExactOrganizationIdAsync(
-        ReferenceDataPackageVersion packageVersion,
-        string organizationId,
-        CancellationToken cancellationToken);
-
-    // Implementations must compare the supplied value ordinally to stored aliases.
-    // This port never accepts sender or message-route data and never selects a Principal.
-    ValueTask<OrganizationResolution> ResolveExactOrganizationAliasAsync(
-        ReferenceDataPackageVersion packageVersion,
-        string organizationAlias,
+    ValueTask<ProviderDomainCandidates> FindCandidatesByDomainSuffixAsync(
+        ProviderDomainPackageVersion packageVersion,
+        string domainSuffix,
         CancellationToken cancellationToken);
 }

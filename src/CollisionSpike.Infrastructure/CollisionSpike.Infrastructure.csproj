@@ -17,6 +17,11 @@
     <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="2.1.12" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Persistence\ReferenceData\provider-domains.v1.json"
+                      LogicalName="CollisionSpike.Infrastructure.Persistence.ReferenceData.provider-domains.v1.json" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

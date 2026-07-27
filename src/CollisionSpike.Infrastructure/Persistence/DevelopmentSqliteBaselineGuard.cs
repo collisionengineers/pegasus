@@ -83,6 +83,29 @@ public static class DevelopmentSqliteBaselineGuard
                 new("OccurredAtUtc", "TEXT", true, 0),
                 new("DetailsJson", "TEXT", true, 0)
             ]
+            ,
+            ["ProviderDomainPackages"] =
+            [
+                new("Version", "TEXT", true, 1),
+                new("SchemaVersion", "INTEGER", true, 0),
+                new("PackageSha256", "TEXT", true, 0),
+                new("SourcePath", "TEXT", true, 0),
+                new("SourceContentSha256", "TEXT", true, 0),
+                new("SourceSheet", "TEXT", true, 0),
+                new("SourceRowCount", "INTEGER", true, 0)
+            ],
+            ["ProviderReferences"] =
+            [
+                new("Version", "TEXT", true, 1),
+                new("Code", "TEXT", true, 2),
+                new("SourceRow", "INTEGER", true, 0)
+            ],
+            ["ProviderDomainEvidence"] =
+            [
+                new("Version", "TEXT", true, 1),
+                new("Code", "TEXT", true, 2),
+                new("DomainSuffix", "TEXT", true, 3)
+            ]
         };
 
     private static readonly Dictionary<string, IndexDefinition[]> ExpectedIndexes =
@@ -107,6 +130,14 @@ public static class DevelopmentSqliteBaselineGuard
                 new(null, true, "pk", ["Id"]),
                 new("IX_IntakeReceiptEvents_IntakeReceiptId", false, "c", ["IntakeReceiptId"])
             ]
+            ,
+            ["ProviderDomainPackages"] = [new(null, true, "pk", ["Version"])],
+            ["ProviderReferences"] = [new(null, true, "pk", ["Version", "Code"])],
+            ["ProviderDomainEvidence"] =
+            [
+                new(null, true, "pk", ["Version", "Code", "DomainSuffix"]),
+                new("IX_ProviderDomainEvidence_Version_DomainSuffix", false, "c", ["Version", "DomainSuffix"])
+            ]
         };
 
     private static readonly Dictionary<string, ForeignKeyDefinition[]> ExpectedForeignKeys =
@@ -118,6 +149,14 @@ public static class DevelopmentSqliteBaselineGuard
             ["InstructionDrafts"] = [new("IntakeReceiptId", "IntakeReceipts", "Id", "CASCADE")],
             ["IntakeAssets"] = [new("IntakeReceiptId", "IntakeReceipts", "Id", "CASCADE")],
             ["IntakeReceiptEvents"] = [new("IntakeReceiptId", "IntakeReceipts", "Id", "RESTRICT")]
+            ,
+            ["ProviderDomainPackages"] = [],
+            ["ProviderReferences"] = [new("Version", "ProviderDomainPackages", "Version", "RESTRICT")],
+            ["ProviderDomainEvidence"] =
+            [
+                new("Code", "ProviderReferences", "Code", "RESTRICT"),
+                new("Version", "ProviderReferences", "Version", "RESTRICT")
+            ]
         };
 
     public static async Task ValidateAsync(
@@ -131,10 +170,10 @@ public static class DevelopmentSqliteBaselineGuard
         }
 
         var migrations = context.Database.GetMigrations().ToArray();
-        if (migrations.Length != 1)
+        if (migrations.Length != 2)
         {
             throw new InvalidOperationException(
-                $"The Development SQLite baseline requires exactly one current migration; found {migrations.Length}.");
+                $"The Development SQLite baseline requires exactly two current migrations; found {migrations.Length}.");
         }
 
         var connection = context.Database.GetDbConnection();
@@ -158,11 +197,17 @@ public static class DevelopmentSqliteBaselineGuard
             }
 
             var history = await ReadMigrationHistoryAsync(connection, cancellationToken);
-            if (history.Count != 1
-                || !string.Equals(history[0].MigrationId, migrations[0], StringComparison.Ordinal)
-                || !string.Equals(history[0].ProductVersion, "10.0.10", StringComparison.Ordinal))
+            if (history.Count != migrations.Length)
             {
                 throw IncompatibleSchema("migration history");
+            }
+            for (var index = 0; index < migrations.Length; index++)
+            {
+                if (!string.Equals(history[index].MigrationId, migrations[index], StringComparison.Ordinal)
+                    || !string.Equals(history[index].ProductVersion, "10.0.10", StringComparison.Ordinal))
+                {
+                    throw IncompatibleSchema("migration history");
+                }
             }
 
             foreach (var table in ExpectedColumns.Keys)

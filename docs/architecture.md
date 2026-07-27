@@ -16,6 +16,7 @@ authority boundaries.
 | --- | --- |
 | `src/CollisionSpike.Core/` | business use cases, invariants, models, and ports; depends on no Web, Worker, EF, Azure, Graph, or Box implementation |
 | `src/CollisionSpike.Infrastructure/` | EF persistence and source/artifact adapters implementing Core ports; depends on Core |
+| `src/CollisionSpike.Core/ReferenceData/` | provider-domain package validation, deterministic candidate semantics, and the catalog port; contains no workbook or EF implementation |
 | `src/CollisionSpike.Web/` | Razor Pages/HTTP composition root, request translation, configuration, route gates, health endpoints |
 | `src/CollisionSpike.Worker/` | isolated Functions composition root; currently telemetry host only, with no trigger or Core caller |
 
@@ -43,6 +44,11 @@ Current caller details and dated limits remain in the
 - Outlook owns mailbox content and exact sent-message evidence; the application owns accepted classifications and associations.
 - EVA remains authoritative for named Engineer assignment and downstream engineering until an accepted replacement slice.
 - Secrets use managed identity/RBAC where supported and Infisical or Key Vault only for unavoidable third-party credentials.
+- Provider-domain reference evidence is a versioned, cumulative SQL snapshot
+  seeded by the committed migration from one validated embedded package. A
+  stored suffix is candidate evidence only: it activates no route, resolves no
+  principal by itself, creates no inspection location/default, and maps no
+  Case ID.
 
 ## Rule and configuration ownership
 
@@ -55,6 +61,11 @@ Current caller details and dated limits remain in the
   where staff forwarding is proved, extracts attachments/body/subject, invokes
   exactly one applicable route policy, and records its evidence and version. It
   does not impose a universal case-matching precedence.
+- Core validates exact provider-domain package tuples and owns deterministic
+  `Found`, `Unknown`, `Ambiguous`, `InvalidSuffix`, `PackageNotFound`, and
+  `PackageRejected` results. Infrastructure implements the catalog with one
+  bounded EF query against the requested immutable version; Web and Worker have
+  no direct workbook/package parser and no active caller of this catalog yet.
 - Web/Worker adapters translate transport and configuration; they do not copy business policy.
 - EF migrations under Infrastructure own application schema evolution. Normal Web/Worker startup never applies migrations; the explicit Development command owns LocalDB migration and a release-owned bundle/operation will own deployed migration.
 - `src/CollisionSpike.Web/Program.cs` owns current Web composition, `DevelopmentOffline` isolation, and database provider selection; Development configuration uses LocalDB and an ignored local artifact root.
@@ -65,6 +76,9 @@ Current caller details and dated limits remain in the
 | Path | Role | Canonical source/generator | Consumer |
 | --- | --- | --- | --- |
 | `src/CollisionSpike.Infrastructure/Persistence/Migrations/` | live migration source | EF model and reviewed migrations | local/SQL Server schema apply procedures |
+| `docs/reference/workproviders-and-repairers/initial.xlsx` | immutable v1 provider-domain source evidence | owner-supplied workbook | offline authoring command only |
+| `scripts/Build-ProviderReferenceData.ps1` and `scripts/reference_data/build_provider_reference_data.py` | offline authoring tool | reviewed standard-library script and source contract | immutable package generation/verification only; never application runtime |
+| `src/CollisionSpike.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json` | canonical immutable v1 provider-domain package | approved workbook through the authoring tool | embedded build resource and reviewed seed migration |
 | `artifacts/bicep/main.json` | ignored generated output | `az bicep build --file infra/main.bicep` | compile evidence only |
 | `artifacts/test-results/` | ignored generated evidence | owning .NET test projects | local review/diagnosis |
 | `artifacts/local-development/` and LocalDB databases | ignored Development state | explicit migration command and real local callers | local review only; not production custody |

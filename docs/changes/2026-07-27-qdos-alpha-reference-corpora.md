@@ -19,32 +19,39 @@ superseded_by: none
 
 ## Summary
 
-Deliver the two coupled `Now` outcomes: a durable provider/intermediary-specific
-instruction foundation and the first end-to-end QDOS alpha. Delivery first
-builds and accepts the complete application offline through LocalDB, Azurite,
-the actual Functions host, local mailbox/custody adapters, local HTTPS
-authentication/MCP, and genuine working-copy evidence. Only after that gate may
-approved live adapters, Azure reconciliation, deployment, and acceptance begin.
+Deliver the two coupled `Now` outcomes: an immutable provider-domain evidence
+foundation that can grow through cumulative snapshots, and the first end-to-end
+QDOS alpha. The current reference-data slice uses only
+`docs/reference/workproviders-and-repairers/initial.xlsx`; it retains provider
+codes and final email-domain suffixes, never full email addresses, local parts,
+inspection locations, defaults, or Case-ID mappings. Delivery then builds and
+accepts the complete application offline before any separately approved live
+adapter, Azure, deployment, or acceptance work.
 
 ## Scope
 
 ### Included
 
-- Normalize all 88 supplied provider records and all 1,638 exact
-  provider/location relationships, preserving source provenance, frequency,
-  special non-physical values, missing values, and anomalies.
-- Separate provider identity from direct-provider and intermediary email-route
-  identities. A provider may be reached through both routes.
+- Import the immutable `provider-domains-v1` snapshot from
+  `docs/reference/workproviders-and-repairers/initial.xlsx`: 11 stable provider
+  codes and 16 provider/domain-suffix associations, with exact source and
+  package provenance.
+- Treat columns A and E as the only approved source contract. Column A is the
+  provider code; column E contains semicolon-separated email observations from
+  which only the final lowercase `@domain` suffix is retained. Columns B-D and
+  later columns remain opaque evidence inside the immutable workbook/hash.
+- Publish later additions as new immutable cumulative workbook/package/migration
+  versions. Earlier snapshots remain queryable and are never updated or deleted.
+- Separate provider-domain evidence from direct-provider and intermediary
+  email-route identities. A stored suffix is candidate evidence only and never
+  activates a route or resolves a provider by itself.
 - Add explicit code-versioned Core policies for evidence-backed direct-provider
   and intermediary routes, organized by stable identity and mirrored by tests.
 - Reconstruct a proved original sender for Collision Engineers staff forwards
   while retaining the outer message as transport provenance.
-- Activate genuine-evidence policies only; QDOS direct identity is the exact
-  `@qdosassist.co.uk` suffix. Do not create empty policies for spreadsheet rows.
-- Build and review a genuine provider-instruction evidence corpus covering each
-  of the 88 provider identities and every intermediary discovered in that work.
-  The foundation identifies all evidenced routes from the outset; only QDOS is
-  allowed to proceed to case creation in the alpha.
+- Activate genuine-evidence policies only; the separately accepted QDOS direct
+  identity is the exact `@qdosassist.co.uk` suffix. The other imported QDOS
+  suffixes and all non-QDOS suffixes remain inactive reference evidence.
 - Implement the live `instructions@collisionengineers.co.uk` Worker caller and
   complete every active QDOS Inspection, standalone Audit, and Inspection +
   Audit path through acceptance, immutable identity, Box custody, work/review,
@@ -73,7 +80,7 @@ approved live adapters, Azure reconciliation, deployment, and acceptance begin.
 - Product/release: [product index](../product/index.md), [capabilities](../product/capabilities.md), [V1 gap](../product/v1-gap.md), and [roadmap](../roadmap.md).
 - Architecture: [architecture](../architecture.md), [Decision 0011](../decisions/0011-separate-direct-provider-and-intermediary-email-policies.md), and ADR-0006's preserved neutral transport/storage decisions.
 - Design: [V1 requirements](../../design/product/requirements.md), [UI specification](../../design/product/ui-spec.md), and selected [Operations-first direction](../../design/references/directions/operations-first.md). The adapted `collision-engineers-design-dev` essentials remain the visual authority; its excess is not reintroduced.
-- Supplied evidence: `providers-worked-on.xlsx` SHA-256 `555a3f3ba5b81ce54af491b22fd49724d49d77b01f5b3c0a0fa8b758a03b4a33`; duplicate provider workbooks SHA-256 `25f7e2c6893f741a743f5c22fdf619032dc63d6b7aa92d24b3f842cc04e40e5f`; job sheet SHA-256 `a52b5df2a131c1b00866f478ebba20150070a3af25915acd8c05a41b2d0b983b`.
+- Supplied Step 2 evidence: `docs/reference/workproviders-and-repairers/initial.xlsx`, SHA-256 `e4bf89b0aeef3f1106bf34ed50f74dffc44c5ed748e0ad0811b66ee099b6cd29`; worksheet `Sheet1`; 11 headerless rows; provider code in column A; semicolon-separated email observations in column E. Columns B-D and later columns are opaque and ignored by authoring.
 - Current caller: Development-only `POST /Intake/Upload` calls Core
   `ProcessIntake`. The Worker is telemetry-only. The current reader records the
   root sender but suppresses nested-message sender evidence, and the one
@@ -85,16 +92,19 @@ approved live adapters, Azure reconciliation, deployment, and acceptance begin.
 
 ## Acceptance criteria
 
-- Import verification reports exactly 88 unique stable provider codes and
-  exactly 1,638 unique provider/location relationships from 17,737 source
-  cases, including 1,555 physical, 66 `Image Based Assessment`, and 17
-  `Not supplied` relationships; 410 unmapped case IDs, 74 physical links with
-  missing postcode, and anomalous labels remain visible review evidence rather
-  than guessed or discarded.
-- Every selectable physical inspection location is canonical and linked to at
-  least one provider. `Image Based Assessment` is an explicit special choice;
-  `Not supplied` and anomalous non-address labels are not selectable physical
-  locations. Frequency ranks suggestions only.
+- Authoring verification reports exactly 11 stable provider codes and 16
+  provider/domain-suffix associations from the pinned `initial.xlsx` source.
+  The canonical package contains only provider codes, source-row provenance,
+  domain suffixes, and source/package identity; it contains no email local part,
+  full email address, Case ID, inspection location, default, or opaque column
+  B-D value.
+- Package validation binds exact UTF-8 bytes, schema, version, source provenance,
+  and SHA-256. Unknown JSON members, malformed identity, invalid suffixes,
+  duplicate provider rows, duplicate per-provider suffixes, removals from a
+  later cumulative snapshot, or output replacement fail closed.
+- Exact-version SQL lookup returns all candidate provider codes for a canonical
+  suffix in ordinal order. Zero matches are `Unknown`, one is `Found`, and more
+  than one is `Ambiguous`; no implicit `current` or `latest` version exists.
 - Direct-provider and intermediary route identities are distinct from provider
   identity. Tests prove that the same provider can be determined from its own
   direct policy and from an intermediary's separate policy without sharing
@@ -119,10 +129,11 @@ approved live adapters, Azure reconciliation, deployment, and acceptance begin.
 - No policy exists without genuine examples and positive, negative, ambiguous,
   forward/intermediary, retry, and holdout evidence. Spreadsheet presence alone
   creates reference identity, not executable policy.
-- All 88 provider identities have an operator-reviewed evidence disposition:
-  proved direct route, proved intermediary route(s), both, or confirmed no
-  current email-instruction route. Every proved route has an executable policy;
-  absence of evidence blocks that route rather than producing a guessed policy.
+- Imported provider-domain evidence has no route-activation effect. Every
+  provider/intermediary route still requires genuine positive, negative,
+  ambiguous, forward/intermediary, retry, and holdout evidence plus explicit
+  approval. Absence of that evidence blocks the route rather than producing a
+  guessed policy.
 - Non-QDOS route policies are exercised by the genuine-input evaluator and may
   identify the provider/type/case evidence at live intake, but the alpha
   activation gate prevents them from creating a case or allocating a reference.
@@ -137,11 +148,11 @@ approved live adapters, Azure reconciliation, deployment, and acceptance begin.
 
 ## Capability evidence index
 
-This immutable index accounts for all 128 `Now` capability IDs. The delivery
-steps are the owning implementation/evidence slices; this table records
-allocation, not a claim that pending evidence has passed. Each row later records
-local proof, live proof where required, or the exact release blocker without
-removing the capability.
+This immutable index accounts for all 127 `Now` capability IDs after the
+explicit deferral of `DATA-02`. The delivery steps are the owning
+implementation/evidence slices; this table records allocation, not a claim that
+pending evidence has passed. Each row later records local proof, live proof
+where required, or the exact release blocker without removing the capability.
 
 | Capability IDs | Delivery steps | Required evidence owner |
 | --- | --- | --- |
@@ -161,23 +172,22 @@ removing the capability.
 | `DOC-01`, `DOC-02`, `DOC-03`, `DOC-04`, `DOC-05`, `DOC-06`, `DOC-07`, `DOC-08` | 6, 7, 9–11 | Core custody contract, local adapter/UI smoke, then Box parity/live proof |
 | `EXT-01`, `EXT-02`, `EXT-03`, `EXT-14`, `EXT-18` | 7, 10, 11 | local replay/export contract and operator smoke, then approved live parity |
 | `MCP-01`, `MCP-02`, `MCP-03`, `MCP-04` | 3, 9, 10, 13 | OpenIddict actor enforcement and real Streamable HTTP caller |
-| `DATA-01`, `DATA-02` | 2, 10 | deterministic manifest/package/migrations and exact count/hash proof |
+| `DATA-01` | 2, 10 | deterministic cumulative provider-domain package/migration and exact count/hash/suffix-only proof |
 
-Count assertion: **128 distinct IDs; no duplicate and no omitted `Now` row**.
+Count assertion: **127 distinct IDs; no duplicate and no omitted `Now` row**.
 
 ## Plan
 
-1. **Reference data — Infrastructure persistence and explicit release-owned
-   migration.** Add normalized `Provider`, `InspectionLocation`, and
-   `ProviderInspectionLocation` models/mappings. Use a reviewed EF migration
-   with deterministic seed rows generated from the pinned workbook, including
-   source hash, frequency, match basis, and review status. Add a repeatable
-   verification command that derives counts from the preserved workbook and
-   compares them with generated seed input and a migrated database. Never read
-   the workbook during application startup.
-   Provider and location reference identities are database-owned; sender traits,
-   intermediary identities, and route-to-provider predicates remain in the
-   code-versioned policy catalog and are not seed/configuration tables.
+1. **Provider-domain reference data — Infrastructure persistence and explicit
+   release-owned migration.** Generate one canonical immutable package from the
+   pinned `initial.xlsx` source, retaining only stable provider codes, final
+   domain suffixes, source-row provenance, and package/source identity. Import it
+   through the existing EF migration stream and query only an explicit
+   schema/version/hash tuple. Future additions use new cumulative immutable
+   source/package/migration versions; no workbook is read by application runtime.
+   Provider-domain evidence is database-owned. Sender traits, intermediary
+   identities, route-to-provider predicates, route activation, inspection
+   locations, and defaults remain outside this package.
 2. **Instruction evidence — Core contracts and source reader.** Extend neutral
    evidence to represent transport sender, normalized source sender, proved
    original forwarded sender, subject, body, attachment/document content, and
@@ -193,16 +203,13 @@ Count assertion: **128 distinct IDs; no duplicate and no omitted `Now` row**.
    versioned evaluation record. Each route owns its provider/type/case rules and
    precedence. Remove the superseded selector path rather than retain
    compatibility in development mode.
-4. **Evidence activation — evaluator and tests.** Build an operator-reviewed
-   evidence inventory for all 88 provider identities and every discovered
-   intermediary outside Git. Acquire genuine examples for every current email
-   route and record an explicit no-current-email-route disposition only when
-   confirmed by the owner. Implement every proved direct/intermediary policy;
-   unresolved coverage blocks release rather than creating placeholders. Prove
-   QDOS direct sender `@qdosassist.co.uk`, staff forwards, every evidenced QDOS
-   intermediary route, conflicting routes, negatives, ambiguity, policy-version
-   pinning, and untouched holdouts. Do not infer sender domains from provider
-   names or generate operational email fixtures.
+4. **Evidence activation — evaluator and tests.** Build genuine route evidence
+   outside Git for each provider/intermediary route selected for activation.
+   Presence in the provider-domain catalog does not create a policy or satisfy
+   this gate. Prove QDOS direct sender `@qdosassist.co.uk`, staff forwards, every
+   evidenced QDOS intermediary route, conflicting routes, negatives, ambiguity,
+   policy-version pinning, and untouched holdouts. Do not infer route authority
+   from provider names or generate operational email fixtures.
 5. **Case acceptance — Core and persistence.** Add the case/reference,
    instruction-type, immutable principal, lifecycle, action-history, concurrency,
    and idempotency models/use cases required by the accepted QDOS flow. Invoke
@@ -287,50 +294,69 @@ deployment unit is planned.
   architecture, one generic provider policy for intermediary mail, universal
   case-association order, CE Case/PO as a preferred key, rules engine/admin
   editor, empty policy scaffolds, and historical frequency as an `always` rule.
-- Evidence gap and release gate: supplied workbooks identify 88 providers and
-  historical provider/location relationships but do not prove complete sender
-  or message traits. Only 15 provider codes had any inspected job-sheet domain
-  clue; QDOS's exact domain is owner-supplied. Genuine policy evidence and an
-  operator-reviewed route disposition must be acquired for the complete
-  provider corpus before alpha acceptance; it is never inferred.
-- No unresolved architecture or product decision remains for implementation to
-  begin. Each policy's exact predicates remain an evidence deliverable and
-  activation gate, not permission to guess them during implementation.
+- Selected by direct owner instruction on 2026-07-27: Step 2 starts with the
+  small immutable cumulative source
+  `docs/reference/workproviders-and-repairers/initial.xlsx`. Column A is the
+  stable provider code; only the final domain suffix from each semicolon-delimited
+  column-E email observation may be retained. Columns B-D and later columns are
+  opaque and have no runtime meaning.
+- Superseded as current requirements: the 13-artifact inventory, 88/56 provider
+  baselines, four-case filter, Case-ID inference and anomalies, provider/location
+  counts, contact reconciliation, and image-based default ratios. Those
+  directions promoted unsupported evidence, copied complete email addresses
+  into candidate shapes, prevented incremental additions with global constants,
+  and depended on an unavailable ignored `python-calamine` wheel cache.
+- Deferred-capability impact: `DATA-02` moves to `Next`/`unallocated`. Stable
+  provider code plus package/source-version provenance is the preserved join
+  seam. Inspection locations, location history, defaults, and Case-ID mapping
+  are excluded. Activation requires separately accepted provider-location
+  evidence, authority, schema/package, migration, and caller proof. Published
+  provider-domain snapshots are irreversibly append-only.
+- Evidence gap and release gate: a stored suffix is candidate evidence only.
+  Decision 0011 remains unchanged. Only the separately accepted QDOS direct
+  trait `@qdosassist.co.uk` may support current route work;
+  `@qdosassists.co.uk`, `@qdoslaw.co.uk`, and every other imported suffix remain
+  inactive until their own genuine route evidence and approval exist.
+- No unresolved architecture or product decision remains for this
+  provider-domain slice. Each route's exact predicates remain a separate
+  evidence deliverable and activation gate.
 
 ## Implementation
 
 - Status: active; implementation approved on 2026-07-27.
-- Current stage: Step 2 provider/location reference data.
+- Current stage: Step 2 implementation and local verification complete;
+  exact-head independent review and publication remain pending.
 - Full implementation plan: [QDOS alpha implementation plan](2026-07-27-qdos-alpha-implementation-plan.md).
-  This change record remains the owner of current status, evidence, blockers, and
-  outcome.
+  This change record remains the owner of current status, evidence, blockers,
+  and outcome.
 - Deviations: workflow-specific repository/doctor/documentation wrapper scripts
   were removed by direct owner instruction; verification uses owning executables.
-- Recovery actions: none.
+- Recovery actions: the former broad provider/location/contact/default design
+  is superseded by the approved minimal provider-domain contract. Core owns
+  generic package validation, suffix extraction, candidate semantics, and the
+  catalog port. The authoring pipeline owns the exact source path, sheet, A/E
+  contract, suffix-only reduction, monotonic growth, and atomic publication.
+  Infrastructure owns immutable SQL snapshots, migrations, and exact-version
+  lookup.
 - Live boundary: no cloud/vendor read, write, credential, deployment, or
   predecessor-retirement operation is authorized by this activation.
-- Step 2 authoring code is implemented in `scripts/Build-ProviderReferenceData.ps1`.
-  It uses the ignored dependency cache
-  `artifacts/reference-data-tools/` and ignored atomic staging
-  `artifacts/reference-data-staging/`, then targets the committed package
-  `src/CollisionSpike.Infrastructure/ReferenceData/provider-reference-data.v1.json`
-  and manifest
-  `src/CollisionSpike.Infrastructure/ReferenceData/provider-reference-data.v1.manifest.json`.
-  This is authoring-code evidence only; no generated package, manifest,
-  migration, count, review, test, or acceptance result is claimed here.
-- Step 2 precondition: every supplied workbook must be closed and no
-  `~$*.xls*` lock may remain under
-  `docs/reference/workproviders-and-repairers/`. The authoring command rejects
-  a lock before dependency installation, source reading, or output writing.
-  The current observed external blocker is
-  `docs/reference/workproviders-and-repairers/~$providers-worked-on.xlsx`;
-  therefore neither committed output is claimed as generated. Source
-  workbooks and CSVs remain immutable, and every candidate remains
-  `Unreviewed` and unavailable as a runtime selector.
+- Step 2 uses `scripts/Build-ProviderReferenceData.ps1` and the Python 3.11+
+  standard-library helper `scripts/reference_data/build_provider_reference_data.py`.
+  It reads only `initial.xlsx`, stages beneath ignored
+  `artifacts/reference-data-staging/`, and publishes the committed immutable
+  package
+  `src/CollisionSpike.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json`.
+  There is no second manifest, authoring virtual environment, dependency lock,
+  package cache, recursive workbook discovery, or runtime workbook reader.
+- Step 2 precondition: the selected workbook must be closed. The command rejects
+  its exact sibling Office lock marker and an exclusive-read failure as
+  `source-locked` before Python discovery, source hashing/parsing, staging, or
+  output work.
 - Direct operator invocation is `pwsh ./scripts/Build-ProviderReferenceData.ps1`
-  from the repository root after the lock check. The command is offline and
-  makes no cloud/vendor calls; completion would not by itself prove review,
-  selector activation, migration, tests, release, or alpha acceptance.
+  from the repository root; verification is the same command with `-Verify`.
+  The command is offline and makes no cloud/vendor calls. Completion proves
+  authoring bytes only, not route activation, migration, caller behavior,
+  release, or alpha acceptance.
 
 
 ## Verification
@@ -341,11 +367,13 @@ deployment unit is planned.
 | scoped diff inspection | planning branch | documentation/work tracking only; no corpus or supplied-reference mutation | passed before publication; only canonical documentation and this record changed |
 | fresh plan review | complete record and canonical updates | no missing decision, contradiction, hidden compatibility, or unexecutable step | passed after one pre-publication remediation batch; no remaining blocker/required finding |
 | GitHub `validate` | each published exact head | proportional Docs lane succeeds | PR #4 owns current result; prior exact-head runs `30236008712` and `30236209099` passed |
-| direct Release build and non-corpus tests | current delivery branch | owning executables pass without workflow wrappers | passed: Architecture 30/30, Core 28/28, Integration 85/85; no failures or skips |
+| direct Release build and repository tests | current delivery branch | owning executables pass without workflow wrappers | passed: solution restore/build; Architecture 33/33, Core 62/62, Integration 98/98; no failures or skips |
 | tool-neutral activation | active guidance and scripts | issue #3 is active; no active plugin route or workflow-specific validation/doctor wrapper remains | passed; issue title/body updated and obsolete wrappers deleted |
 | offline platform source/caller smoke | standard tools, LocalDB, current Web, Azurite, actual Functions host | explicit migration only; isolated DevelopmentOffline; ready local services; no cloud/vendor client | passed: `npm ci`; LocalDB migration applied twice idempotently; Web HTTPS live/ready/intake returned 200; Azurite Blob/Queue listeners and Functions 4.12.1 host lock were observed; host correctly reported no trigger at this checkpoint |
 | Development HTTPS workstation trust | current-user certificate store | trusted certificate for ordinary browser use | certificate and HTTPS host proved; Windows trust confirmation is still required during clean-operator setup and is not claimed complete on this workstation |
-| Step 2 provider-reference authoring | supplied workbooks, lock guard, deterministic package/manifest outputs | no `~$` lock; immutable inputs; all candidates `Unreviewed`; exact package/manifest and counts only after a successful run | blocked before authoring: `docs/reference/workproviders-and-repairers/~$providers-worked-on.xlsx` is present; no generation, count, migration, review, test, or acceptance evidence claimed |
+| Step 2 Core provider-domain contract | canonical package bytes, typed package/version/candidate contracts, generic validation, transient suffix extraction, and exact-version catalog port | requested schema/version/package hash bind the exact bytes; no current/latest/workbook/full-address fallback; source A/E rules stay outside Core | passed: 34/34 focused provider-domain tests, including strict JSON/schema/version/hash validation and deterministic found/unknown/ambiguous/invalid outcomes |
+| Step 2 provider-domain authoring | `initial.xlsx`, lock guard, canonical suffix-only package, append-only publication | no `~$` lock; immutable input; 11 provider codes/16 associations; no retained source full address/local part; repeat-byte equality | passed: build and `-Verify` emitted byte-identical `provider-domains-v1`, package SHA-256 `f6b5ad8ecdd428db4316b23e16aa7e0ffc93562aec33374c03ea68cd4f0370a3`; 4/4 synthetic opacity/growth/immutability/lock-order tests passed |
+| Step 2 persistence and catalog | embedded package, committed migration, Development SQLite baseline, EF catalog | package/resource/source/migration agree; migrations are idempotent; exact tuple returns sorted candidates in one bounded query and mismatch fails closed | passed: source/package suffix-only contract and exact seeded row equality; provider persistence/baseline focus passed; direct smoke observed `Found`/`QDOS`, `Unknown`/empty, and `PackageRejected`/empty outcomes |
 
 | genuine corpus evaluation | later delivery | route-specific cohorts/holdouts and failures prove accepted predicates | not run — implementation excluded |
 | live Azure/caller/acceptance evidence | later approved operation | migration, callers, external effects, recovery, operator and management acceptance | not run — implementation excluded |
@@ -355,6 +383,12 @@ deployment unit is planned.
 - Plan review: passed in fresh context after correcting ADR supersession,
   persisted route identity, V1-gap ownership wording, normalized sender wording,
   and the direct/intermediary trait-collision test.
+- Wave 2A.1 Core contract review: the first review exposed ownership leakage
+  from authoring into Core. After the boundary correction and runtime-only
+  remediations, independent review returned `SAFE_TO_FREEZE` with 0.98
+  confidence. A second independent review of the typed manifest
+  `sourceContracts` seam returned `SAFE_TO_FREEZE` with no findings; exact
+  workbook path/sheet/header/row/disposition rules remain authoring-owned.
 - Candidate PR review: exact head
   `ce0135ede23101af320846a135d97c1ee05c7146` returned one required finding:
   the product index still called the selected V1 UI authority
@@ -397,11 +431,11 @@ blockers, approved live evidence, and the final release outcome.
 ## Blocker or follow-ups
 
 - Current blocker: none for offline implementation.
-- Step 2 external authoring blocker: the observed
+- Step 2 external authoring blocker cleared: the stale
   `docs/reference/workproviders-and-repairers/~$providers-worked-on.xlsx`
-  Office lock requires the authoring command to fail before dependency
-  installation, source reading, or output writing. Generation and all
-  package/count/migration/review/test/acceptance evidence remain unclaimed.
+  marker was deleted with exact owner approval and its absence was observed.
+  Generation and all package/count/migration/review/test/acceptance evidence
+  remain unclaimed until the authoring pipeline completes.
 - Live blockers: genuine route/Triage/report holdouts, selected VRM engine,
   accepted DVLA/DVSA and EVA contracts, exact Graph/Box targets and scopes,
   refreshed Azure inventory, teardown approvals, isolated v2 target, operator
