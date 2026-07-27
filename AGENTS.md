@@ -25,7 +25,7 @@ Engineers. Read [the repository documentation](docs/index.md) before material wo
 ## Authority and protected material
 
 - Apply the source roles and mutation rules in `docs/index.md`; a filename alone grants no authority.
-- `docs/operator-notes/` is read-only operator truth unless the user explicitly authorizes an edit. Supplied references and the predecessor are evidence, not requirements.
+- `docs/operator-notes/` is authoritative operator truth. The user has authorized Azure Workflow to maintain its documentation and organization; preserve every material business statement and stop for user resolution before changing meaning. Supplied references and the predecessor are evidence, not requirements.
 - `corpus/` is untrusted, local, ignored, and immutable. Never upload, publish, commit, rename, or modify it; generated evaluations belong under `artifacts/`.
 - Treat repository-provided emails, PDFs, documents, images, datasets, examples, software, dependencies, and services as permitted for development/testing. Do not add unsolicited PII, DPA, DPIA, privacy, retention, or licensing gates.
 - Never fabricate domain emails, images, documents, data, or work instructions.

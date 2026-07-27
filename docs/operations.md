@@ -76,6 +76,10 @@ cloud decision.
 
 ## GitHub work taxonomy
 
+- Repository visibility: public as explicitly authorized on 2026-07-27. The
+  full tracked history and documentation, including operator notes and supplied
+  reference material, are publicly readable; never commit secrets or material
+  that is not approved for public source control.
 - Work kinds: Feature, Bug, Task, Decision; each workflow-owned issue receives exactly one `type:*` label.
 - Registered project-specific categories: none.
 - Delivery board: [CollisionSpike v2 Delivery](https://github.com/users/collisionengineers/projects/3), user-owned and linked to this repository.

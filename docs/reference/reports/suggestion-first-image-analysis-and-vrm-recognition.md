@@ -36,7 +36,7 @@ If selected later, it belongs behind an engine-neutral Infrastructure adapter ca
 
 ## Current v2 position
 
-The [operator feature overview](../../operator-notes/development-notes/required-features-overview.md) records vehicle-registration OCR as a required product capability, while marking in-app AI, guided capture and image/vision address assistance outside the first MVP. The settled [questionnaire](../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md) and [remaining requirements](../../plans/remaining-requirements.md) place automated VRM OCR/VLM and AI/vision beyond the first MVP. The accepted finding therefore preserves eventual scope without changing the current release boundary.
+The [operator capability overview](../../operator-notes/product-requirements/required-capabilities.md) records vehicle-registration OCR as a required product capability, while marking in-app AI, guided capture and image/vision address assistance outside the first MVP. The settled [questionnaire](../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md) and [remaining requirements](../../plans/remaining-requirements.md) place automated VRM OCR/VLM and AI/vision beyond the first MVP. The accepted finding therefore preserves eventual scope without changing the current release boundary.
 
 Current accepted architecture separates the two concerns:
 

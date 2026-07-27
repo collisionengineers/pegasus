@@ -32,7 +32,7 @@ do not win automatically.
 
 | Path | Content role | Mutation rule | Scope/status |
 | --- | --- | --- | --- |
-| `docs/operator-notes/` (22 tracked files) | approved operator/business authority | human-edit-only; agents never edit without explicit authorization | binding business processes, terms, and practices |
+| `docs/operator-notes/` (17 tracked files) | approved operator/business authority | Azure Workflow-maintained under standing user authorization; preserve material meaning and escalate conflicts | binding business processes, terms, practices, product needs, and current-system roles |
 | `PROJECT_DISCOVERY_QUESTIONNAIRE.md` | active controlled product authority | human-controlled; agents record only explicit user decisions through review | settled product behavior and constraints |
 | `docs/product/` | canonical product profile/capability authority | agent-editable through reviewed changes reconciled to higher authority | living requirements, stable IDs, horizons/releases |
 | `FEATURE_VERSIONING.md` | retained direct-decision worksheet evidence | preserve in place; update only through explicit allocation reconciliation | 213 original ID/label/answer triples |

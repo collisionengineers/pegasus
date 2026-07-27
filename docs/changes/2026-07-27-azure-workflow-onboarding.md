@@ -8,7 +8,7 @@ risk: standard
 created: 2026-07-27
 updated: 2026-07-27
 issue: none
-pull_request: none
+pull_request: https://github.com/collisionengineers/collisionspike_v2/pull/2
 baseline: 8c3919c81bf4117cbd8f4e4aa2e85ac29ce1f8ce
 target_release: unallocated
 roadmap_horizon: Now
@@ -39,12 +39,14 @@ marketing system, and end as a green independently reviewed pull request.
 - Four `type:*` labels and one linked user-owned GitHub Project with portable
   Status, Priority, and Horizon fields.
 - Adapted Collision Engineers brand essentials and exact master-logo asset.
+- Consolidation of 22 fragmented operator-note files into 17 indexed canonical
+  files across business process, product requirements, and systems/integrations,
+  with old-to-new provenance and retained-authority assertions.
 
 ### Excluded
 
 - Product implementation, schema/API changes, a selected V1 shell, synthetic
-  operational examples, feature issue generation, release allocation, and
-  operator-note edits.
+  operational examples, feature issue generation, and release allocation.
 - Azure reads, deployments, credentials, resource mutations, and live-state
   claims.
 - The supplied marketing website, document/letterhead system, photography,
@@ -59,15 +61,18 @@ marketing system, and end as a green independently reviewed pull request.
 - Current implementation: the only mutating product entry point is the
   Development-only Web `/Intake/Upload` route calling the Core intake policy;
   the Worker has no trigger or Core caller. Onboarding does not change either.
-- Constraints: Windows/PowerShell 7, immutable `corpus/`, read-only operator
-  notes, one Core policy owner, one documentation/work owner per concern, no
-  generated status ledger, and explicit approval for every Azure read/write.
+- Constraints: Windows/PowerShell 7, immutable `corpus/`, preservation of every
+  material operator statement, one Core policy owner, one documentation/work
+  owner per concern, no generated status ledger, and explicit approval for
+  every Azure read/write.
 - Baseline: local `main` at `8c3919c`, one commit ahead of `origin/main`; that
   preceding commit removes obsolete repository-local MCP declarations and is
   part of the pull-request ancestry.
 - Conflicts: none. The user explicitly selected Azure Workflow and explicitly
   directed design adaptation from `collision-engineers-design-dev` with excess
-  removed. Existing unresolved product questions remain out of scope.
+  removed, then granted Azure Workflow full authority over repository
+  documentation and organization, including operator notes. Existing unresolved
+  product questions remain out of scope.
 
 ## Acceptance criteria
 
@@ -79,8 +84,8 @@ marketing system, and end as a green independently reviewed pull request.
 - Design authority retains only shared application essentials and one
   checksum-matched master logo; the 60-file source pack is absent from the final
   tree.
-- Existing application, operator-note, corpus, Azure/IaC, and product behavior
-  remain unchanged.
+- Existing application, corpus, Azure/IaC, operator meaning, and product
+  behavior remain unchanged.
 - GitHub labels and Project fields read back exactly, and the exact pull-request
   head passes CI and independent review.
 
@@ -93,7 +98,10 @@ marketing system, and end as a green independently reviewed pull request.
 3. Replace dead workflow checks with proportional Docs/Full validation while
    preserving the existing application harness as the Full lane.
 4. Configure and read back the bounded GitHub taxonomy and delivery Project.
-5. Verify invariants, commit scoped paths, publish a draft pull request, wait
+5. Consolidate the fragmented operator-note tree under explicit user authority,
+   repair every incoming link, record source-to-destination provenance, and add
+   retained-authority assertions.
+6. Verify invariants, commit scoped paths, publish a draft pull request, wait
    for exact-head checks, independently review, and remediate required findings.
 
 ## Data, failure, and recovery
@@ -149,23 +157,30 @@ scope and separate approval.
 
 ## Implementation
 
-- Status: repository and GitHub conversion implemented; publication/review pending.
+- Status: repository/GitHub conversion and documentation consolidation implemented; updated exact-head publication/review pending.
 - Deviations: none.
 - Recovery actions: the first Project-link attempt using literal `@me` was
   rejected by the CLI; retry with explicit owner `collisionengineers` succeeded.
   GitHub protected the built-in Status field from deletion, so its options were
-  updated in place through the supported GraphQL mutation.
+  updated in place through the supported GraphQL mutation. The first Project
+  item-add command returned success without an item; direct supported GraphQL
+  registration succeeded and read back PR 2 as `In review`, `P2 Normal`, `Now`.
+  The first CI attempt was blocked before any step by private-repository account
+  billing. The user explicitly authorized public visibility; readback confirmed
+  `PUBLIC`, and rerun attempt 2 reached the Full validation step.
 
 ## Verification
 
 | Check | Scope | Expected | Observed |
 | --- | --- | --- | --- |
-| Docs repository check | structure, docs, forms, routes, records | green | green: 138 Markdown files, 1,030 local links, 213 exact feature triples, 21 assertions |
+| Docs repository check | structure, docs, forms, routes, records | green | green after consolidation: 133 Markdown files, 1,050 local links, 213 exact feature triples, 21 assertions |
 | Design reduction | supplied pack versus retained authority | one exact logo; no duplicate system | source/copy SHA-256 `E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2`; source pack removed from final tree |
-| GitHub readback | labels and Project 3 | exact standard taxonomy | green: four labels; Status 5, Priority 4, Horizon 3; zero initial items |
+| Operator-note consolidation | 22 original files and all incoming links | every material statement retained in a smaller indexed authority | green: 17 indexed targets, old-to-new source map, 22 capability rows, lifecycle/type/term/mailbox assertions, and no legacy link remains |
+| GitHub readback | labels, Project 3, PR 2, visibility | exact standard taxonomy and authorized public repository | green: four labels; Status 5, Priority 4, Horizon 3; PR item `In review`/`P2 Normal`/`Now`; visibility `PUBLIC` |
 | Full repository check | application, tests, Bicep, corpus boundary | green or explicit environment blocker | blocked before restore by missing `sqllocaldb`; corpus correctly reported not run |
 | Focused application verification | restore, Release build, Core/integration/architecture tests, Bicep | green | green: 0 build warnings/errors; 28/28 Core, 83/83 non-corpus integration, 30/30 architecture; Bicep compiled |
-| exact-head CI | pull-request head | green | pending publication |
+| CI rerun after public visibility | pre-consolidation PR head `9207565` | green | green: Full validation completed in 4m 6s after the billing-blocked first attempt |
+| final exact-head CI | updated pull-request head | green | pending publication |
 
 ## Independent review
 
@@ -177,21 +192,22 @@ scope and separate approval.
 ## Documentation and work tracking
 
 - Documentation impact declared before implementation: product/capabilities,
-  roadmap, architecture, operations, design, decision, change, routing, and
-  repository-entry owners are affected; operator notes and supplied references
-  are not.
+  roadmap, architecture, operations, design, operator notes, questionnaire,
+  linked references/plans, decision, change, routing, and repository-entry
+  owners are affected. Supplied reference content remains evidence; only links
+  from first-party reports are repaired.
 - Agent mistake entries: none.
 - Product/capabilities: [product profile](../product/index.md) and [213-row inventory](../product/capabilities.md).
 - Design system/assets: [adapted design authority](../../design/README.md) and exact [master logo](../../design/brand/logos/logo_no_margin.png).
 - Roadmap/release: [roadmap](../roadmap.md); no release allocations changed.
 - Architecture/ADR: [architecture](../architecture.md) and [ADR 0010](../decisions/0010-adopt-azure-workflow.md).
 - Operations: [operations](../operations.md), proportional CI, and repository-owned checks.
-- GitHub issue/Project/milestone: no issue or milestone created; [Project 3](https://github.com/users/collisionengineers/projects/3) is linked and initially empty.
+- GitHub issue/Project/milestone: no issue or milestone created; draft [PR 2](https://github.com/collisionengineers/collisionspike_v2/pull/2) is registered in linked [Project 3](https://github.com/users/collisionengineers/projects/3).
 
 ## Outcome
 
 Pending exact-head pull-request checks and independent review. No application,
-data, operator-rule, corpus, IaC, or Azure behavior changed.
+data, operator meaning, corpus, IaC, or Azure behavior changed.
 
 ## Blocker or follow-ups
 

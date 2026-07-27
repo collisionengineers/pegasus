@@ -7,8 +7,10 @@ additional rules for documentation work.
 - Preserve information by mapping every removed, shortened, moved, or
   superseded claim to a retained or canonical destination. Do not move or delete
   a source to make the tree look tidy.
-- `operator-notes/` is read-only unless the user explicitly authorises its
-  change. Treat `reference/` as evidence, not current product or architecture
+- `operator-notes/` is authoritative operator truth. Azure Workflow may
+  maintain its documentation and organization under the user's standing
+  authorization, but must preserve material meaning and escalate conflicts.
+  Treat `reference/` as evidence, not current product or architecture
   authority; do not edit supplied material or promote a claim without the
   authority route in [source-of-truth.md](agent-guidance/source-of-truth.md).
 - An authoritative conflict requires direct user resolution. Record the outcome

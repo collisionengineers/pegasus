@@ -22,7 +22,7 @@ The exact persistence schema, outcome vocabulary, and whether the intended recip
 
 ### Operator truth and requirements
 
-- The [WhatsApp operator note](../../operator-notes/systems-used/WhatsApp.md) says WhatsApp is primarily used to chase garages for images.
+- The [WhatsApp operator note](../../operator-notes/systems-and-integrations/whatsapp.md) says WhatsApp is primarily used to chase garages for images.
 - The [questionnaire](../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md#7-communications-and-tasks) already requires recurring seven-day reminders while material is missing, manual copy-and-paste messages for email or WhatsApp, and an optional Box File Request. Automated sending is outside the first MVP.
 - WhatsApp remains a manual staff channel. Its channel history remains external, while staff add relevant received material to the application or Box.
 - `Held` pauses chasers while keeping due dates visible. The first chase is due at the same Europe/London local clock time seven calendar days after entering `Not ready`. Entering `Held` preserves the remaining interval; release back to `Not ready` resumes it, while release to `Review` ends the missing-information chase.

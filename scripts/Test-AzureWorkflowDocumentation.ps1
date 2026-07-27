@@ -158,6 +158,57 @@ if ($mistakes.IndexOf('Append incidents below; do not edit earlier entries.', [S
     throw '[AZWF-MISTAKES] Append-only marker is missing.'
 }
 
+$operatorRoot = Join-Path $root 'docs/operator-notes'
+$operatorFiles = @(Get-ChildItem -LiteralPath $operatorRoot -Recurse -File -Filter '*.md')
+if ($operatorFiles.Count -ne 17) {
+    throw "[AZWF-OPERATOR-NOTES] Expected 17 consolidated operator-note files; found $($operatorFiles.Count)."
+}
+foreach ($file in $operatorFiles) {
+    $content = Get-Content -LiteralPath $file.FullName -Raw
+    if ([regex]::Matches($content, '(?m)^# .+\s*$').Count -ne 1) {
+        throw "[AZWF-OPERATOR-NOTES] $($file.FullName) must contain exactly one H1."
+    }
+}
+foreach ($legacyPath in @('collision-engineers-process', 'development-notes', 'systems-used')) {
+    if (Test-Path -LiteralPath (Join-Path $operatorRoot $legacyPath)) {
+        throw "[AZWF-OPERATOR-NOTES] Superseded operator-note path remains: $legacyPath"
+    }
+}
+$operatorIndex = Get-Content -LiteralPath (Require-File 'docs/operator-notes/README.md') -Raw
+foreach ($source in @(
+        'collision-engineers-process/process-overview.md',
+        'collision-engineers-process/initial-case-intake/*',
+        'collision-engineers-process/case-guide/*',
+        'collision-engineers-process/inspection-address/inspection-address-overview.md',
+        'reserved-terms.md',
+        'development-notes/required-features-overview.md',
+        'development-notes/rules-to-follow.md',
+        'systems-used/*',
+        'development-notes/Untitled.md'
+    )) {
+    if ($operatorIndex.IndexOf($source, [StringComparison]::Ordinal) -lt 0) {
+        throw "[AZWF-OPERATOR-NOTES] Source map is missing $source."
+    }
+}
+$requiredCapabilities = Get-Content -LiteralPath (Require-File 'docs/operator-notes/product-requirements/required-capabilities.md')
+if (@($requiredCapabilities | Where-Object { $_ -match '^\d+\. ' }).Count -ne 22) {
+    throw '[AZWF-OPERATOR-NOTES] Required operator capability list must retain 22 items.'
+}
+$operatorAssertions = [ordered]@{
+    'docs/operator-notes/business-process/case-lifecycle.md' = @('## Stage 0 — Triage', '## Stage 1 — Receiving instructions or images', '## Stage 1.5 — Chasing for details, images, or documents', '## Stage 2 — Inspection', '## Stage 3 — Post-report')
+    'docs/operator-notes/business-process/case-types-and-references.md' = @('### Inspection', '### Audit', '### Audit + Inspection', '### Diminution', '### Commercial')
+    'docs/operator-notes/business-process/reserved-terms.md' = @('- Audit', '- Triage')
+    'docs/operator-notes/systems-and-integrations/outlook.md' = @('desk@collisionengineers.co.uk', 'engineers@collisionengineers.co.uk', 'info@collisionengineers.co.uk', 'instructions@collisionengineers.co.uk')
+}
+foreach ($relativePath in $operatorAssertions.Keys) {
+    $content = Get-Content -LiteralPath (Require-File $relativePath) -Raw
+    foreach ($literal in $operatorAssertions[$relativePath]) {
+        if ($content.IndexOf($literal, [StringComparison]::Ordinal) -lt 0) {
+            throw "[AZWF-OPERATOR-NOTES] $relativePath is missing retained authority: $literal"
+        }
+    }
+}
+
 $portableFiles = @('AGENTS.md', 'docs/index.md', 'docs/product/index.md', 'docs/roadmap.md', 'docs/architecture.md', 'docs/operations.md', '.github/pull_request_template.md')
 foreach ($relativePath in $portableFiles) {
     $content = Get-Content -LiteralPath (Require-File $relativePath) -Raw
@@ -167,4 +218,4 @@ foreach ($relativePath in $portableFiles) {
     }
 }
 
-Write-Host "Azure Workflow documentation is valid: $($capabilityLines.Count) capabilities, $($changeFiles.Count) change record(s), $($decisionFiles.Count) canonical ADR(s), 4 issue forms." -ForegroundColor Green
+Write-Host "Azure Workflow documentation is valid: $($capabilityLines.Count) capabilities, $($operatorFiles.Count) consolidated operator notes, $($changeFiles.Count) change record(s), $($decisionFiles.Count) canonical ADR(s), 4 issue forms." -ForegroundColor Green

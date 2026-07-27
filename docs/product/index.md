@@ -17,7 +17,7 @@ deployment.
 
 Detailed settled behavior remains controlled by the
 [project questionnaire](../../PROJECT_DISCOVERY_QUESTIONNAIRE.md), read after the
-immutable [operator notes](../operator-notes/README.md). This index owns the
+authoritative [operator notes](../operator-notes/README.md). This index owns the
 repository-level product profile and routes; it does not weaken those sources.
 
 ## Users and outcomes
@@ -50,7 +50,9 @@ repository-level product profile and routes; it does not weaken those sources.
 
 ## Requirements and invariants
 
-- `docs/operator-notes/` is absolute operator/business authority and read-only to agents.
+- `docs/operator-notes/` is absolute operator/business authority. Azure Workflow
+  may maintain its documentation and organization under standing user
+  authorization, but cannot change material meaning without direct resolution.
 - A case principal and reference become immutable on allocation. Wrong-principal work closes as `Created in error` and links a new replacement; references are never reused.
 - Cases are never permanently deleted. Reopening requires a reason and ordinary gates; `Created in error` never reopens.
 - `Triage` is a separate pre-case roadworthiness record. `Needs sorting` and `Blocked intake` are separate intake outcomes.
