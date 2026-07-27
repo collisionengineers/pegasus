@@ -25,7 +25,7 @@ Azure, OCR, AI, queue mechanics, extraction engines, or deployment terminology.
 
 Upstream evidence is the provided `collision-engineers-design-dev` bundle;
 adaptation decisions live in this directory and planned interaction authority in
-`docs/plans/ui-ux/requirements.md`. Current exercised CSS/layout live in
+`design/product/requirements.md`. Current exercised CSS/layout live in
 `src/CollisionSpike.Web/wwwroot/css/site.css` and
 `src/CollisionSpike.Web/Pages/Shared/_Layout.cshtml`; they have not yet adopted
 the approved logo and exact adapted tokens.

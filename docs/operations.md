@@ -7,6 +7,7 @@
 - Current verified baseline: PowerShell 7.6.3, Git 2.53.0, GitHub CLI 2.88.0, .NET SDK 10.0.302, and Azure CLI 2.88.0.
 - Full local verification additionally requires SQL Server Express LocalDB, Azure CLI/Bicep, and the restored .NET dependencies. LocalDB was absent during the 2026-07-27 onboarding baseline check.
 - The detailed workstation inventory and install/repair commands remain in the [developer runbook](runbooks/developer-workstation.md); re-verify drift-prone versions before relying on them.
+- Detailed local evidence profiles are in the [testing runbook](runbooks/testing/README.md).
 
 ## Canonical verification
 

@@ -29,7 +29,7 @@ The exact persistence schema, outcome vocabulary, and whether the intended recip
 
 ### Plan and implementation
 
-The [lifecycle and work-management plan](../../plans/remainder-delivery/casework/lifecycle-and-work-management.md#surface-due-work-and-manual-chasers) already plans one Core due/chaser policy, reminder schedule/history, a copyable Web action, and a later Worker caller. It explicitly says copying sends nothing and does not prove delivered communication.
+The [lifecycle and work-management plan](../../history/plans/remainder-delivery/casework/lifecycle-and-work-management.md#surface-due-work-and-manual-chasers) already plans one Core due/chaser policy, reminder schedule/history, a copyable Web action, and a later Worker caller. It explicitly says copying sends nothing and does not prove delivered communication.
 
 The plan does not yet define the manual chase action's channel, staff-confirmed outcome, actor/time action-history entry, or optional note. It also states that neither intended caller exists today. Current source contains only static `Not ready` and `Held` dashboard labels; there is no implemented case workspace, chaser policy, reminder scheduler, or mutable manual-chase caller.
 

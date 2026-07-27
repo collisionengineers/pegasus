@@ -78,7 +78,7 @@ function Get-FirstPartyMarkdownFiles {
         [void]$paths.Add($_.FullName)
     }
 
-    foreach ($relativeRoot in @('.azure', 'docs', 'retrospectives', 'src')) {
+    foreach ($relativeRoot in @('.azure', 'design', 'docs', 'retrospectives', 'src')) {
         $absoluteRoot = Join-Path $Root $relativeRoot
         if (-not (Test-Path -LiteralPath $absoluteRoot -PathType Container)) {
             continue
@@ -821,6 +821,38 @@ function Test-PlanIndex {
     return $rows.Count
 }
 
+function Test-PlanArchive {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Root
+    )
+
+    if (Test-Path -LiteralPath (Join-Path $Root 'docs/plans')) {
+        throw '[DOC-PLAN-ARCHIVE] Superseded docs/plans remains.'
+    }
+
+    $archiveRoot = Join-Path $Root 'docs/history/plans'
+    $indexPath = Join-Path $archiveRoot 'README.md'
+    if (-not (Test-Path -LiteralPath $indexPath -PathType Leaf)) {
+        throw '[DOC-PLAN-ARCHIVE] docs/history/plans/README.md is missing.'
+    }
+
+    $files = @(Get-ChildItem -LiteralPath $archiveRoot -Recurse -File)
+    if ($files.Count -ne 41) {
+        throw "[DOC-PLAN-ARCHIVE] Expected 41 default-archived artifacts; found $($files.Count)."
+    }
+
+    $markdown = @($files | Where-Object Extension -eq '.md')
+    foreach ($file in $markdown | Where-Object FullName -ne $indexPath) {
+        $content = Get-Content -LiteralPath $file.FullName -Raw
+        if ($content.IndexOf('> **Archive status — non-authoritative planning evidence.**', [StringComparison]::Ordinal) -lt 0) {
+            throw "[DOC-PLAN-ARCHIVE] Missing archive marker: $(ConvertTo-RepositoryRelativePath -Root $Root -Path $file.FullName)"
+        }
+    }
+
+    return $files.Count
+}
+
 function Test-InstructionDiscovery {
     param(
         [Parameter(Mandatory)]
@@ -1089,7 +1121,7 @@ Test-StatusSemantics
 
 $featureCount = Test-FeatureParity `
     -WorksheetPath (Join-Path $resolvedRoot 'FEATURE_VERSIONING.md') `
-    -CanonicalMapPath (Join-Path $resolvedRoot 'docs/plans/feature-maturity-map.md') `
+    -CanonicalMapPath (Join-Path $resolvedRoot 'docs/history/plans/feature-maturity-map.md') `
     -ExpectedCount 213
 Write-Host "Feature maturity parity: $featureCount exact ordinal worksheet/map triples." -ForegroundColor Green
 
@@ -1108,18 +1140,28 @@ $requiredRoutes = @(
     [pscustomobject]@{ Source = 'docs/index.md'; Target = 'docs/product/capabilities.md' },
     [pscustomobject]@{ Source = 'docs/index.md'; Target = 'docs/roadmap.md' },
     [pscustomobject]@{ Source = 'docs/index.md'; Target = 'docs/architecture.md' },
-    [pscustomobject]@{ Source = 'docs/index.md'; Target = 'docs/operations.md' }
+    [pscustomobject]@{ Source = 'docs/index.md'; Target = 'docs/operations.md' },
+    [pscustomobject]@{ Source = 'docs/product/index.md'; Target = 'docs/product/v1-gap.md' },
+    [pscustomobject]@{ Source = 'docs/product/index.md'; Target = 'docs/product/boundaries.md' },
+    [pscustomobject]@{ Source = 'docs/product/index.md'; Target = 'docs/product/open-decisions.md' },
+    [pscustomobject]@{ Source = 'docs/product/index.md'; Target = 'docs/product/areas/identity-and-access.md' },
+    [pscustomobject]@{ Source = 'docs/product/index.md'; Target = 'docs/product/areas/intake-and-casework.md' },
+    [pscustomobject]@{ Source = 'docs/product/index.md'; Target = 'docs/product/areas/documents-and-integrations.md' },
+    [pscustomobject]@{ Source = 'docs/product/index.md'; Target = 'docs/product/areas/interfaces-and-automation.md' },
+    [pscustomobject]@{ Source = 'docs/product/index.md'; Target = 'docs/product/areas/platform-and-operator-experience.md' },
+    [pscustomobject]@{ Source = 'design/README.md'; Target = 'design/product/requirements.md' },
+    [pscustomobject]@{ Source = 'docs/operations.md'; Target = 'docs/runbooks/testing/README.md' }
 )
 Test-RequiredRoutes -Links $links -RequiredRoutes $requiredRoutes
 Test-RequiredSkillRoutes -Root $resolvedRoot
 & (Join-Path $PSScriptRoot 'Test-AzureWorkflowDocumentation.ps1') -RepositoryRoot $resolvedRoot
 
-$planCount = Test-PlanIndex -Root $resolvedRoot
+$planCount = Test-PlanArchive -Root $resolvedRoot
 $instructionBytes = Test-InstructionDiscovery -Root $resolvedRoot
 
 $summary = (
     'Documentation validation passed: {0} Markdown files, {1} local links, ' +
-    '{2} exact feature triples, {3} plan-index rows, {4} instruction bytes, {5} assertions.'
+    '{2} exact feature triples, {3} archived plan artifacts, {4} instruction bytes, {5} assertions.'
 ) -f
     $markdownFiles.Count,
     $links.Count,

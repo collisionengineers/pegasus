@@ -59,7 +59,7 @@ repository-level product profile and routes; it does not weaken those sources.
 - The current case types are Inspection, standalone Audit, and Inspection + Audit. Audit reference rules fail closed when the required assessment is missing or ambiguous.
 - Core owns each business rule once; Web and Worker call the same use cases through Infrastructure ports.
 - Box owns long-term original files; SQL owns application workflow/identity/history metadata; transient Azure storage is not long-term custody.
-- The full requirement set and first-release boundary are in the [settled questionnaire](../../PROJECT_DISCOVERY_QUESTIONNAIRE.md); the [remaining-requirements baseline](../plans/remaining-requirements.md) separates current proof from the intended V1 outcome.
+- The full requirement set and first-release boundary are in the [settled questionnaire](../../PROJECT_DISCOVERY_QUESTIONNAIRE.md); the [V1 gap](v1-gap.md) separates current proof from the intended V1 outcome.
 
 ## Quality constraints
 
@@ -80,8 +80,9 @@ behavior and must not be silently changed.
 ## Functional areas
 
 - [Capability inventory](capabilities.md)
-- [V1 gap baseline](../plans/remaining-requirements.md)
-- [Direction-neutral operator experience](../plans/ui-ux/requirements.md)
+- [V1 gap baseline](v1-gap.md) and [product boundaries](boundaries.md)
+- Areas: [identity/access](areas/identity-and-access.md), [intake/casework](areas/intake-and-casework.md), [documents/integrations](areas/documents-and-integrations.md), [interfaces/automation](areas/interfaces-and-automation.md), and [platform/operator experience](areas/platform-and-operator-experience.md)
+- [Direction-neutral operator experience](../../design/product/requirements.md)
 - [Architecture](../architecture.md)
 - [Operations](../operations.md)
 
@@ -100,6 +101,5 @@ deployment, and operator acceptance are absent or planned, as detailed in the
 - The V1 shell direction remains unselected among operations-first, worklist-first, and case-first.
 - Guided capture, Tractable/Ravin, and a custom domain remain conditional/unallocated.
 
-The canonical evidence and decision questions remain in
-[open decisions](../plans/open-decisions.md). Azure ownership/retirement choices
+The canonical questions remain in [open decisions](open-decisions.md). Azure ownership/retirement choices
 are separate exact-target operations, not product ambiguities.

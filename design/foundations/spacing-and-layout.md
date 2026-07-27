@@ -17,5 +17,5 @@ product.
 
 ## Canonical source and runtime
 
-Planned rules: `docs/plans/ui-ux/requirements.md`. Exercised layout/breakpoints:
+Planned rules: `design/product/requirements.md`. Exercised layout/breakpoints:
 `src/CollisionSpike.Web/wwwroot/css/site.css`.

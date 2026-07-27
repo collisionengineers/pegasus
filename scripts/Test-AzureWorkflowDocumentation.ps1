@@ -87,7 +87,35 @@ foreach ($line in $capabilityLines) {
     if ($cells[3] -cne 'unallocated' -and $cells[3] -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$') {
         throw "[AZWF-CAPABILITY] $($cells[0]) has invalid target release '$($cells[3])'."
     }
-    if ($cells[4] -notmatch '^\[Owner\]\(\.\./plans/.+\)$') { throw "[AZWF-CAPABILITY] $($cells[0]) has no canonical owner link." }
+    if ($cells[4] -notmatch '^\[Area\]\((?:areas/[a-z0-9-]+\.md|boundaries\.md)\)$') { throw "[AZWF-CAPABILITY] $($cells[0]) has no canonical product-area link." }
+}
+
+if (Test-Path -LiteralPath (Join-Path $root 'docs/plans')) {
+    throw '[AZWF-PLAN-CONVERSION] Superseded docs/plans remains.'
+}
+$archiveFiles = @(Get-ChildItem -LiteralPath (Join-Path $root 'docs/history/plans') -Recurse -File)
+if ($archiveFiles.Count -ne 41) {
+    throw "[AZWF-PLAN-CONVERSION] Expected 41 default-archived artifacts; found $($archiveFiles.Count)."
+}
+$convertedPlanArtifacts = @(
+    'docs/product/open-decisions.md',
+    'docs/product/v1-gap.md',
+    'docs/product/boundaries.md',
+    'design/product/requirements.md',
+    'design/product/ui-spec.md',
+    'design/product/traceability-matrix.md',
+    'design/references/directions/case-first.md',
+    'design/references/directions/operations-first.md',
+    'design/references/directions/worklist-first.md',
+    'design/references/mockups/candidate-a-operations-first.png',
+    'design/references/mockups/candidate-b-worklist-first.png',
+    'design/references/mockups/candidate-c-case-first.png',
+    'docs/runbooks/testing/README.md',
+    'docs/runbooks/testing/local-testing.md'
+)
+foreach ($relativePath in $convertedPlanArtifacts) { [void](Require-File $relativePath) }
+if (($archiveFiles.Count + $convertedPlanArtifacts.Count) -ne 55) {
+    throw '[AZWF-PLAN-CONVERSION] The 55-artifact source tree does not have exact destination parity.'
 }
 
 $expectedForms = [ordered]@{

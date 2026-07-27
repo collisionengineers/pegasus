@@ -21,7 +21,19 @@ $required = @(
     'infra/main.parameters.json',
     'docs/azure/current-inventory.md',
     'docs/evaluation/corpus.md',
-    'docs/plans/ui-ux/README.md',
+    'docs/product/areas/intake-and-casework.md',
+    'docs/product/areas/identity-and-access.md',
+    'docs/product/areas/documents-and-integrations.md',
+    'docs/product/areas/interfaces-and-automation.md',
+    'docs/product/areas/platform-and-operator-experience.md',
+    'docs/product/v1-gap.md',
+    'docs/product/boundaries.md',
+    'docs/product/open-decisions.md',
+    'docs/history/plans/README.md',
+    'design/product/requirements.md',
+    'design/product/ui-spec.md',
+    'design/product/traceability-matrix.md',
+    'docs/runbooks/testing/README.md',
     'docs/index.md',
     'docs/product/index.md',
     'docs/product/capabilities.md',
@@ -36,6 +48,10 @@ $required = @(
 $missing = @($required | Where-Object { -not (Test-Path -LiteralPath (Join-Path $root $_)) })
 if ($missing.Count -gt 0) {
     throw "Required repository paths are missing: $($missing -join ', ')"
+}
+
+if (Test-Path -LiteralPath (Join-Path $root 'docs/plans')) {
+    throw 'The superseded docs/plans tree must not remain after Azure Workflow conversion.'
 }
 
 $trackedCorpus = @(& git -C $root ls-files -- corpus)

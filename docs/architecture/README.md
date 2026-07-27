@@ -74,4 +74,4 @@ ready. [ADR-0009](decisions/ADR-0009-direct-terminal-azure-deployment.md) and
 4. Build and prove the separate migration, package, identity, and release path
    recorded by ADR-0009; do not infer it from the current Bicep or `azure.yaml`.
 
-The complete product gap is maintained in `docs/plans/remaining-requirements.md`.
+The complete product gap is maintained in `docs/product/v1-gap.md`.

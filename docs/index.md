@@ -36,13 +36,13 @@ do not win automatically.
 | `PROJECT_DISCOVERY_QUESTIONNAIRE.md` | active controlled product authority | human-controlled; agents record only explicit user decisions through review | settled product behavior and constraints |
 | `docs/product/` | canonical product profile/capability authority | agent-editable through reviewed changes reconciled to higher authority | living requirements, stable IDs, horizons/releases |
 | `FEATURE_VERSIONING.md` | retained direct-decision worksheet evidence | preserve in place; update only through explicit allocation reconciliation | 213 original ID/label/answer triples |
-| `docs/plans/feature-maturity-map.md` | retained normalized allocation evidence | preserve while source parity is required; no longer a version owner | old V0/V1/V2/V3 mapping and plan routes |
-| `docs/plans/` (55 tracked files) | active/draft bounded plans and open-decision routes | agent-editable through reviewed planning changes | intended work and activation evidence, never implementation state |
+| `docs/product/areas/`, `v1-gap.md`, `boundaries.md`, `open-decisions.md` | canonical living functional requirements, gaps, boundaries, and ambiguities | Azure Workflow-maintained through reviewed product/change work | active product ownership below operator/questionnaire authority |
+| `docs/history/plans/` | complete pre-onboarding plan evidence | historical; do not activate work or amend current owners here | former `docs/plans/` files not promoted to a canonical destination |
 | `docs/architecture/decisions/` | accepted/historical technical decisions | preserve; supersede explicitly through a reviewed ADR | decisions 0001–0009 |
 | `docs/decisions/` | canonical new decision authority | append or supersede through reviewed ADRs | Azure Workflow and future durable decisions |
 | `docs/architecture.md` | canonical current architecture | agent-editable with implementation/decision changes | current owners, callers, data, failure, deployment boundaries |
 | `docs/operations.md` | canonical operations authority | agent-editable with verified workflow/operations changes | build, test, deploy, diagnose, recover, GitHub routing |
-| `design/` | durable UI/design authority and source/runtime map | agent-editable through reviewed UI changes; no synthetic assets | current exercised UI and approved planned visual rules |
+| `design/` | durable UI/design authority, product UI contract, and source/runtime map | agent-editable through reviewed UI changes; no synthetic assets | current exercised UI, approved planned rules, traceability, and candidate directions |
 | `docs/agent-notes/` | dated implementation evidence | agent-editable; retain evidence date/limits | current caller snapshots and handoffs |
 | `docs/evaluation/` | dated evaluation evidence | agent-editable reports; inputs remain immutable | observed local evaluation scope and limits |
 | `docs/azure/current-inventory.md` | dated authorized live-read evidence | change only after separately authorized refresh | 2026-07-23 snapshot; may be stale |

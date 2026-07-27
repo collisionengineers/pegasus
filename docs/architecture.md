@@ -61,7 +61,7 @@ Current caller details and dated limits remain in the
 | `artifacts/test-results/` | ignored generated evidence | repository check | local review/diagnosis |
 | `artifacts/intake/` and local database | ignored Development state | real Development Web caller | local review only; not production custody |
 | `docs/reference/` | preserved supplied evidence | not generated | planning/evaluation after authority reconciliation |
-| `docs/plans/ui-ux/mockups/` | approved-to-generate comparison/historical rasters | linked UI planning sources | direction selection only; not runtime/requirements |
+| `design/references/mockups/` | approved comparison rasters | linked candidate-direction sources | direction selection only; not runtime/requirements |
 
 ## Failure and recovery
 

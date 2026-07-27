@@ -9,7 +9,7 @@ the affected scope only.
    maintain their documentation and organization under the user's standing
    authorization, but material meaning changes require direct user resolution.
 3. Settled product decisions in `PROJECT_DISCOVERY_QUESTIONNAIRE.md` and the
-   feature allocation in `docs/plans/feature-maturity-map.md`.
+   current allocation in `docs/product/capabilities.md`.
 4. Accepted technical decisions under `docs/architecture/decisions/`.
 5. Explicitly accepted executable contracts and tests for this version.
 6. Retrospectives for delivery constraints and observed failures.
@@ -26,4 +26,4 @@ If sources conflict or a material ambiguity remains, obtain direct user
 resolution, record it in the appropriate canonical owner, and keep affected
 work reversible. Do not invent a rule affecting references, workflow
 transitions, permissions, retention, or external-system behaviour. Track an
-unresolved decision in `docs/plans/open-decisions.md`.
+unresolved decision in `docs/product/open-decisions.md`.

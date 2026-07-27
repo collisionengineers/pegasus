@@ -42,6 +42,9 @@ marketing system, and end as a green independently reviewed pull request.
 - Consolidation of 22 fragmented operator-note files into 17 indexed canonical
   files across business process, product requirements, and systems/integrations,
   with old-to-new provenance and retained-authority assertions.
+- Conversion of all 55 former `docs/plans/` artifacts: 14 active authorities
+  moved to product, design, and testing owners, and 41 superseded artifacts
+  retained under an explicitly non-authoritative history archive.
 
 ### Excluded
 
@@ -84,6 +87,9 @@ marketing system, and end as a green independently reviewed pull request.
 - Design authority retains only shared application essentials and one
   checksum-matched master logo; the 60-file source pack is absent from the final
   tree.
+- `docs/plans/` no longer exists as a parallel work database; every former
+  artifact has one recorded canonical destination or historical destination,
+  and all 213 capability rows link to current product-area owners.
 - Existing application, corpus, Azure/IaC, operator meaning, and product
   behavior remain unchanged.
 - GitHub labels and Project fields read back exactly, and the exact pull-request
@@ -101,7 +107,10 @@ marketing system, and end as a green independently reviewed pull request.
 5. Consolidate the fragmented operator-note tree under explicit user authority,
    repair every incoming link, record source-to-destination provenance, and add
    retained-authority assertions.
-6. Verify invariants, commit scoped paths, publish a draft pull request, wait
+6. Convert the former plan tree into current product, design, and testing
+   authorities plus a marked history archive, preserving artifact-count parity
+   and replacing plan-pack ownership across all capability rows.
+7. Verify invariants, commit scoped paths, publish a draft pull request, wait
    for exact-head checks, independently review, and remediate required findings.
 
 ## Data, failure, and recovery
@@ -160,7 +169,8 @@ scope and separate approval.
 
 ## Implementation
 
-- Status: repository/GitHub conversion and documentation consolidation implemented; updated exact-head publication/review pending.
+- Status: repository/GitHub conversion, operator consolidation, and plan-tree
+  conversion implemented; updated exact-head publication/review pending.
 - Deviations: none.
 - Recovery actions: the first Project-link attempt using literal `@me` was
   rejected by the CLI; retry with explicit owner `collisionengineers` succeeded.
@@ -173,20 +183,23 @@ scope and separate approval.
   `PUBLIC`, and rerun attempt 2 reached the Full validation step.
   Full CI on `4ac1cf2` passed but warned that both v4 JavaScript actions target
   deprecated Node 20; current-major remediation was applied before review.
+  CI on `4bbe176` was cancelled as obsolete after the user expanded onboarding
+  scope to include conversion of the complete `docs/plans/` tree.
 
 ## Verification
 
 | Check | Scope | Expected | Observed |
 | --- | --- | --- | --- |
-| Docs repository check | structure, docs, forms, routes, records | green | green after consolidation: 133 Markdown files, 1,050 local links, 213 exact feature triples, 21 assertions |
+| Docs repository check | structure, docs, forms, routes, records | green | green after plan conversion: 153 Markdown files, 1,101 local links, 213 exact feature triples, 41 archived plan artifacts, 21 assertions |
 | Design reduction | supplied pack versus retained authority | one exact logo; no duplicate system | source/copy SHA-256 `E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2`; source pack removed from final tree |
 | Operator-note consolidation | 22 original files and all incoming links | every material statement retained in a smaller indexed authority | green: 17 indexed targets, old-to-new source map, 22 capability rows, lifecycle/type/term/mailbox assertions, and no legacy link remains |
+| Plan-tree conversion | 55 original artifacts and all incoming links | no active `docs/plans/`; 14 current owners plus 41 marked historical artifacts | green: exact 55-artifact parity, five product-area owners, design/testing routes, archive markers, and all 213 capability ownership links converted |
 | GitHub readback | labels, Project 3, PR 2, visibility | exact standard taxonomy and authorized public repository | green: four labels; Status 5, Priority 4, Horizon 3; PR item `In review`/`P2 Normal`/`Now`; visibility `PUBLIC` |
 | Full repository check | application, tests, Bicep, corpus boundary | green or explicit environment blocker | blocked before restore by missing `sqllocaldb`; corpus correctly reported not run |
 | Focused application verification | restore, Release build, Core/integration/architecture tests, Bicep | green | green: 0 build warnings/errors; 28/28 Core, 83/83 non-corpus integration, 30/30 architecture; Bicep compiled |
 | CI rerun after public visibility | pre-consolidation PR head `9207565` | green | green: Full validation completed in 4m 6s after the billing-blocked first attempt |
 | post-consolidation CI | PR head `4ac1cf2` | green | green: Full validation completed in 4m 43s; one Node 20 action deprecation warning remediated in the next head |
-| final exact-head CI | current-action remediation head | green without the Node 20 warning | pending publication |
+| final exact-head CI | plan-conversion and current-action head | green without the Node 20 warning | pending publication |
 
 ## Independent review
 
@@ -199,9 +212,9 @@ scope and separate approval.
 
 - Documentation impact declared before implementation: product/capabilities,
   roadmap, architecture, operations, design, operator notes, questionnaire,
-  linked references/plans, decision, change, routing, and repository-entry
-  owners are affected. Supplied reference content remains evidence; only links
-  from first-party reports are repaired.
+  linked references, former plans, testing guidance, decision, change, routing,
+  and repository-entry owners are affected. Supplied reference content remains
+  evidence; only links from first-party reports are repaired.
 - Agent mistake entries: none.
 - Product/capabilities: [product profile](../product/index.md) and [213-row inventory](../product/capabilities.md).
 - Design system/assets: [adapted design authority](../../design/README.md) and exact [master logo](../../design/brand/logos/logo_no_margin.png).

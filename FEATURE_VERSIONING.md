@@ -3,7 +3,7 @@
 Status: **Completed interview input — retained for exact source evidence; superseded for active allocation**
 
 The active allocation owner is the [canonical capability inventory](docs/product/capabilities.md).
-The [retained maturity map](docs/plans/feature-maturity-map.md) preserves the
+The [retained maturity map](docs/history/plans/feature-maturity-map.md) preserves the
 normalized old allocation evidence, and the [roadmap](docs/roadmap.md) owns
 current horizons. Exact parity of all 213 unique ID, feature-label, and
 trimmed-answer triples remains required. Those rows are the raw direct-decision

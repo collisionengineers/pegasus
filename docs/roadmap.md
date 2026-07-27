@@ -28,6 +28,7 @@ state; no issue is created merely because an outcome appears here.
 - Predecessor case/application import, predecessor operation after cutover, predecessor-code reuse, SMS, Teams, customer portal, and external-party accounts.
 
 The [capability inventory](product/capabilities.md) owns all 213 stable IDs and
-maps the retained old allocation evidence into these horizons. The
-[delivery roadmap](plans/delivery-roadmap.md) remains the detailed dependency
-route until bounded plans are converted or retired with claim parity.
+maps the retained old allocation evidence into these horizons. Selecting an
+outcome creates one decision-complete change record and an activated GitHub
+work item; the pre-conversion [delivery roadmap](history/plans/delivery-roadmap.md)
+is historical dependency evidence only.
