@@ -3,7 +3,7 @@
 ```yaml
 id: 2026-07-27-azure-workflow-onboarding
 type: onboarding
-status: active
+status: complete
 risk: standard
 created: 2026-07-27
 updated: 2026-07-27
@@ -169,8 +169,9 @@ scope and separate approval.
 
 ## Implementation
 
-- Status: repository/GitHub conversion, operator consolidation, and plan-tree
-  conversion implemented; updated exact-head publication/review pending.
+- Status: complete. Repository/GitHub conversion, operator consolidation, and
+  plan-tree conversion are implemented, verified, published, and independently
+  reviewed with no required findings.
 - Deviations: none.
 - Recovery actions: the first Project-link attempt using literal `@me` was
   rejected by the CLI; retry with explicit owner `collisionengineers` succeeded.
@@ -199,13 +200,17 @@ scope and separate approval.
 | Focused application verification | restore, Release build, Core/integration/architecture tests, Bicep | green | green: 0 build warnings/errors; 28/28 Core, 83/83 non-corpus integration, 30/30 architecture; Bicep compiled |
 | CI rerun after public visibility | pre-consolidation PR head `9207565` | green | green: Full validation completed in 4m 6s after the billing-blocked first attempt |
 | post-consolidation CI | PR head `4ac1cf2` | green | green: Full validation completed in 4m 43s; one Node 20 action deprecation warning remediated in the next head |
-| final exact-head CI | plan-conversion and current-action head | green without the Node 20 warning | pending publication |
+| final Full CI | published plan-conversion head `c2c67ac` | green without the Node 20 warning | green: run `30232655439`, Full validation completed in 4m 55s |
 
 ## Independent review
 
 - Plan review: incorporated through onboarding inventory and user design direction.
-- Candidate PR review: pending publication.
-- Final exact-head review: pending publication.
+- Candidate PR review: clean at `c2c67ac`; all 163 changed paths reviewed,
+  zero required findings, stable-evidence fingerprint
+  `630b7bc0813d2c3251f32482dec9c77daf6b1588d5b0ee18cc3d1ea80c283fe2`.
+- Final exact-head confirmation: required after this outcome-only record update;
+  it is published as external PR review evidence so it does not invalidate the
+  commit it reviews.
 - Remediation rounds: none.
 
 ## Documentation and work tracking
@@ -225,8 +230,11 @@ scope and separate approval.
 
 ## Outcome
 
-Pending exact-head pull-request checks and independent review. No application,
-data, operator meaning, corpus, IaC, or Azure behavior changed.
+Azure Workflow onboarding is complete at the pull-request endpoint: the full
+repository and documentation conversion is published in draft PR 2, Full CI is
+green, and independent candidate review found no required findings. The final
+outcome-only commit receives a separate exact-head confirmation before handoff.
+No application, data, operator meaning, corpus, IaC, or Azure behavior changed.
 
 ## Blocker or follow-ups
 
