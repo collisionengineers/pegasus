@@ -1,10 +1,12 @@
 # System overview
 
-## Architectural intent
+## Source proposal and current boundary
 
-Collision AI Centre is a case-centred, evidence-first Windows workstation. A desktop shell composes
-governed agents; agents call typed skills; skills use deterministic domain packages, permissioned
-connectors, Collision Brain, and approved models. No model receives ambient authority.
+This diagram preserves the imported AI Centre proposal; it is not current Pegasus architecture
+and creates no runtime caller. Any activated agent or Collision Brain integration must call an
+accepted `Pegasus.Core` port. The Pegasus UI remains under `design/`, and deterministic document
+assembly remains owned by `workspaces/report-renderer`. No case domain, desktop shell, renderer,
+audit model, or connector may be duplicated in this workspace.
 
 ```mermaid
 flowchart TB
@@ -15,10 +17,10 @@ flowchart TB
     Local["Encrypted local state and offline queue"]
   end
 
-  subgraph Core["Provider-neutral core"]
-    Case["Canonical case domain"]
-    Report["Deterministic report renderer"]
-    Audit["Redacted audit contracts"]
+  subgraph Core["Pegasus-owned dependencies"]
+    Case["Pegasus.Core case policy"]
+    Report["workspaces/report-renderer"]
+    Audit["Pegasus action-history contract"]
     Brain["Collision Brain retrieval"]
   end
 
@@ -45,13 +47,13 @@ flowchart TB
 
 ## Ownership boundaries
 
-- The desktop owns interaction and approval, not domain truth.
-- The case domain owns accepted structured facts and versions.
-- Agents own orchestration and proposals, never silent mutation.
-- Skills own reusable operations and validation.
-- Connectors own authentication/provider translation and never expose credentials to models.
-- Collision Brain owns ingestion, retrieval, citations, and deletion; it does not generate answers.
-- The renderer owns deterministic document assembly; it does not infer facts.
+- The Pegasus Web application and `design/` own interaction and approval.
+- `Pegasus.Core` owns accepted structured facts, versions, and business mutations.
+- Agents may own orchestration and proposals only through accepted Core ports.
+- Skills own bounded reusable AI operations and validation, not case policy.
+- Activated connectors implement accepted Pegasus ports and never expose credentials to models.
+- Collision Brain owns its bounded ingestion, retrieval, citations, and deletion; it does not generate answers.
+- `workspaces/report-renderer` owns deterministic document assembly; it does not infer facts.
 - ML operations owns training/evaluation/promotion evidence, not application release approval.
 
 ## Non-negotiable flows

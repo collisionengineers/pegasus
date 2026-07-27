@@ -16,14 +16,14 @@ This repository is at foundation stage.
   service with MCP interfaces.
 - `ml-ops/reports` and `ml-ops/strategy` contain the opportunity assessment, governance analysis,
   training strategy, evaluation framework, and phased delivery research.
-- The desktop app, production business agents, connectors, shared packages, and model pipelines are
-  scaffolded but not yet implemented.
-- The inspected source corpus is under `ml-ops/data/private/raw`. Collision Engineers has explicitly
-  authorised use and sharing of this corpus and the complete Box and Outlook archives for repository
-  inclusion, ingestion, retrieval, dataset construction, training, fine-tuning, and evaluation.
-- This data permission is recorded in
-  [the data-use authorisation](docs/governance/data-authorisation.md); live sending, case-system writes,
-  report issuance, deployment, and spending remain separately controlled actions.
+- The desktop app, connectors, shared packages, and model pipelines described by the imported
+  source are not implemented here and are not Pegasus application authority. `Pegasus.Core`
+  owns case policy; `design/` owns the product UI; `workspaces/report-renderer` owns document
+  rendering.
+- Private corpus material remains outside this repository under the ignored, immutable `corpus/`
+  boundary. Box and Outlook archives are not imported. The historical data-use authorisation
+  records permitted evaluation use only; it does not override repository source-role, custody,
+  publication, external-operation, or caller gates.
 
 ## Product shape
 

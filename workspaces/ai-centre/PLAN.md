@@ -4,6 +4,12 @@
 - **Status:** Repository foundation; only Collision Brain is implemented
 - **Product:** Windows desktop workstation for Collision Engineers
 
+> **Imported source plan — non-authoritative and non-caller.** This document preserves the
+> source workspace's ML sequencing only. Pegasus application behavior is owned by
+> `docs/product/`, case policy by `Pegasus.Core`, UI by `design/`, and document rendering by
+> `workspaces/report-renderer`. The desktop/case/report workstreams below are historical
+> proposals, not permission to build parallel owners.
+
 ## Outcome
 
 Deliver a case-centred workstation in which an engineer can receive and organise instructions,
@@ -17,27 +23,26 @@ prove one safe end-to-end case workflow with traceable evidence and measurable e
 
 | Workstream | First durable outcome | Gate |
 |---|---|---|
-| Product and desktop | Usable Windows case workspace with evidence, activity, proposals, and approvals | Engineers complete a synthetic case without hidden state |
-| Case platform | Versioned canonical case schema, artifact lineage, facts, decisions, and evidence cutoffs | A reviewer can reconstruct every material output |
-| Agents and skills | Narrow agents for intake, assessment support, correspondence, reports, and QA | Tool allow-lists and scenario evaluations pass |
-| Connectors | Delegated Outlook plus case/vehicle integrations behind typed contracts | Least privilege, tenant/case isolation, audit, and revoke paths proven |
+| Product and desktop | Consume the accepted Pegasus UI and Core contracts; no parallel workstation | Accepted Pegasus caller and design mapping |
+| Case platform | Consume versioned `Pegasus.Core` case/evidence contracts | No duplicate case schema or mutation policy |
+| Agents and skills | Narrow agents for assessment support, correspondence, reports, and QA | Tool allow-lists and scenario evaluations pass |
+| Connectors | AI-specific adapters behind accepted Pegasus ports | Least privilege, case isolation, audit, and revoke paths proven |
 | Knowledge | Collision Brain integrated with permission-aware, cited retrieval | Citation correctness and leakage tests pass |
-| Documents | Deterministic report/PDF rendering with CE letterhead and source-linked facts | Engineer review and pre-issue checks pass |
+| Documents | Consume `workspaces/report-renderer` | Engineer review and pre-issue checks pass |
 | ML operations | Approved datasets, baselines, evaluation, training, registry, and rollback | A challenger beats simpler baselines on a sealed holdout |
-| Governance | DPIA, rights register, retention/deletion, incident and model-release controls | Named owners approve the pilot boundary |
+| Governance | AI-workspace data, evaluation, incident, and model-release controls | Named owners approve the bounded AI pilot |
 
 ## Phase 0 — Foundation and decisions
 
-- Establish this repository map, guidance, and data boundaries.
-- **Completed:** record Collision Engineers' authorisation to use and share the current corpus plus
-  the complete Box and Outlook archives for product and model development.
-- Resolve the known credential-bearing source risk before any corpus processing.
-- Assign product, engineering, domain, data-protection, security, and release owners.
-- Record the initial permitted users, case types, data sources, prohibited outputs, and success
-  measures.
-- Decide and record the Windows desktop stack in `docs/adr/0002-windows-desktop-stack.md` after a
-  short native-integration and deployment spike.
-- Adopt a versioned canonical case contract before connector or agent implementation.
+- Preserve this imported repository map and its AI data boundaries.
+- Keep private evaluation material outside the repository under the ignored, immutable `corpus/`
+  boundary; do not import Box or Outlook archives.
+- Resolve any credential-bearing evaluation source before processing it.
+- Assign AI product, engineering, domain, data-protection, security, and release owners.
+- Record permitted users, data sources, prohibited outputs, and success measures for each accepted
+  AI caller.
+- Reuse accepted Pegasus Core, UI, and renderer contracts rather than creating source-workspace
+  replacements.
 
 **Exit gate:** repository and security controls are in place; the pilot purpose and data authority
 are recorded; no unresolved secret is in an ingestible corpus.

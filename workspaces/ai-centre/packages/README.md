@@ -1,12 +1,10 @@
 # Shared packages
 
-Shared, provider-neutral packages will live here. Create a package only when at least two consumers
-need a stable contract.
+This imported source workspace does not own Pegasus application contracts. New packages may be
+created here only for two or more AI-workspace consumers and must not duplicate
+`Pegasus.Core`, the application audit model, the design system, or
+`workspaces/report-renderer`.
 
-Planned packages:
-
-- `case-domain/` — canonical case, artifact, evidence, fact, finding, decision, and version contracts;
-- `agent-contracts/` — tool schemas, proposals, approvals, events, and failure envelopes;
-- `report-renderer/` — deterministic document model and PDF rendering;
-- `design-system/` — internal desktop tokens and components;
-- `audit/` — append-only, redaction-aware activity contracts.
+The only prospective shared package is `agent-contracts/` for AI-specific tool
+schemas, proposals, approvals, events, and failure envelopes. It requires a
+separately accepted caller and contract before implementation.
