@@ -292,9 +292,13 @@ unit is planned.
 - Plan review: passed in fresh context after correcting ADR supersession,
   persisted route identity, V1-gap ownership wording, normalized sender wording,
   and the direct/intermediary trait-collision test.
-- Candidate PR review: pending against draft PR #4.
+- Candidate PR review: exact head
+  `ce0135ede23101af320846a135d97c1ee05c7146` returned one required finding:
+  the product index still called the selected V1 UI authority
+  direction-neutral. Corrected in the next head.
 - Final exact-head review: not run — PR not yet created.
-- Remediation rounds: one pre-publication documentation batch.
+- Remediation rounds: one pre-publication documentation batch and one PR-review
+  documentation batch.
 
 ## Documentation and work tracking
 

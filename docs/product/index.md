@@ -84,7 +84,7 @@ behavior and must not be silently changed.
 - [Capability inventory](capabilities.md)
 - [V1 gap baseline](v1-gap.md) and [product boundaries](boundaries.md)
 - Areas: [identity/access](areas/identity-and-access.md), [intake/casework](areas/intake-and-casework.md), [documents/integrations](areas/documents-and-integrations.md), [interfaces/automation](areas/interfaces-and-automation.md), and [platform/operator experience](areas/platform-and-operator-experience.md)
-- [Direction-neutral operator experience](../../design/product/requirements.md)
+- [Selected V1 operator experience](../../design/product/requirements.md)
 - [Architecture](../architecture.md)
 - [Operations](../operations.md)
 
