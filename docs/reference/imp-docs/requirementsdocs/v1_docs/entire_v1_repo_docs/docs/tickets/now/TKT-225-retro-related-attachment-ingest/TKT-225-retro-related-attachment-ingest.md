@@ -22,12 +22,12 @@ parsed for details if we don't have them."
 
 ## Change
 
-Gated `RETRO_RELATED_INGEST_ENABLED` (orchestration app only; default off = TKT-222 `0.1.0-alpha.1` behaviour,
+Gated `RETRO_RELATED_INGEST_ENABLED` (orchestration app only; default off = TKT-222 v1 behaviour,
 byte-identical):
 
 - `retroLinkRelated` activity result gains `ingestRows` (present ONLY when the gate is on — the
   checkpointed gate decision), mapped from the extended link-related response: newly linked rows
-  PLUS rows already linked to THIS case (heals the `0.1.0-alpha.1` link-only pile on a TKT-223 force re-run);
+  PLUS rows already linked to THIS case (heals the v1 link-only pile on a TKT-223 force re-run);
   rows linked elsewhere are never returned (never re-point). Sorted receivedAt ASC, capped
   (`RELATED_INGEST_CAP=25`, truncation logged).
 - New child `retroRelatedIngestOrchestrator` (`retro-related-ingest.ts`): per row, sequential with
@@ -55,8 +55,8 @@ Case-PO minting from related emails, Box mirroring on RO-root arms.
    applied fill-gaps — with zero overwrites of already-set values (audit-proven).
 2. Contradicted parses apply no fields but still persist evidence, with a logged reason.
 3. A re-run (force drain) produces no duplicate evidence and all-noop field application; rows
-   previously linked by TKT-222 `0.1.0-alpha.1` to the same case are healed with evidence on re-run.
-4. Gate off = byte-identical behaviour to TKT-222 `0.1.0-alpha.1` (generator-test pinned).
+   previously linked by TKT-222 v1 to the same case are healed with evidence on re-run.
+4. Gate off = byte-identical behaviour to TKT-222 v1 (generator-test pinned).
 5. Unit/generator/route tests green; live line: one drained case shows related-email evidence rows
    + ≥1 gap-filled field with provenance, recorded in `verification.md` with KQL excerpts.
 

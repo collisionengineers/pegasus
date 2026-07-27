@@ -15,7 +15,7 @@ MCP server for DVSA MOT History API, built in Python at C:\Users\Alex\Documents\
 
 **Implementation complete as of 2026-05-22:**
 - M1: `pyproject.toml`, `src/dvsa_mot_mcp/` scaffold with uv
-- M2: `errors.py` (MOTH-xx-yy hierarchy), `models.py` (pydantic `Next`/`unallocated` + `normalize_registration`)
+- M2: `errors.py` (MOTH-xx-yy hierarchy), `models.py` (pydantic v2 + `normalize_registration`)
 - M3: `dvsa_client.py` (OAuth2 + token bucket rate limiter + exponential backoff)
 - M4: `storage.py` (aiosqlite WAL — cache, snapshots, audit tables)
 - M5–M8: `tools/lookup.py`, `tools/analysis.py`, `tools/snapshots.py`, `tools/admin.py` — all 16 MCP tools

@@ -7,7 +7,7 @@ TESTED-OFFLINE
 
 - **Engine suite (canonical home):** `cd services/engine/cedocumentmapper_v2 && python -m pytest
   tests -q` — **466 passed, 7 skipped, 0 failed**. The 7 skips are environmental (tesseract binary
-  absent ×2; `0.1.0-alpha.1`-sibling-repo fixtures absent ×5), not real failures. Includes the relocated Slice-1
+  absent ×2; v1-sibling-repo fixtures absent ×5), not real failures. Includes the relocated Slice-1
   suites (content-typings parity + the 2 new per-file-precedence tests; the TKT-288 tripwires; the
   dual-commissioning `type_document_text()` unit tests).
 - **Materialization:** `python scripts/checks/check-engine-materialized.py` — **PASS (2 targets)**;

@@ -22,7 +22,7 @@ the api republish. Uncommitted on `feat/final-wave`.
    default-access role, and the **CollisionSpike SPA app defines NO appRoles** — no other
    source of a `CollisionSpike.*` roles value exists in the tenant.
 
-**Conclusion:** the directory can no longer mint `CollisionSpike.Admin` — a FRESH `Next`/`unallocated`
+**Conclusion:** the directory can no longer mint `CollisionSpike.Admin` — a FRESH v2
 access token for the API audience must carry `roles: ["CollisionSpike.Superuser"]`
 (assignment 5b356d4c → SP appRole value `CollisionSpike.Superuser`). The two 2026-07-09
 verifier sightings of `["CollisionSpike.Admin"]` were therefore **stale pre-rename token

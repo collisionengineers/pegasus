@@ -23,7 +23,7 @@ follow-up below is banked. The gate is trivially reversible (unset) if a regress
    (`open_case_ref_match:"matched"`) returned **HTTP 400 `error:bad_field`**; a valid probe returned 200.
    **Fingerprint contract bump (TKT-297 finding 6, addressed on PR review):** the `/fingerprint` route
    still self-identified as `ce-parser-fingerprint-v1` after the engine merge dropped that contract's
-   `repository`/`ref`/`commit`/`providers_sha256` fields — a latent trap (a future `0.1.0-alpha.1` consumer would
+   `repository`/`ref`/`commit`/`providers_sha256` fields — a latent trap (a future v1 consumer would
    accept the id then break on the absent fields; grep confirms zero live consumers today, so no live
    break). Bumped to `ce-parser-fingerprint-v2` in `function_app.py` + `test_fingerprint.py`, and the
    parser was **redeployed** (remote build, 2026-07-21). Live readback of `GET /api/fingerprint`:

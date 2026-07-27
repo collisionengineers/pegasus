@@ -10,7 +10,7 @@ orchestration + data-api deploy.
   ($search hits carry no RFC Internet-Message-Id); null on a vanished message.
 - `retro-activities.ts` — new `retroLinkRelated` activity: bounded re-sweep of every case key
   across the intake mailboxes ($top 50 per mailbox×variant), SUBJECT-corroborated filter
-  (conservative `0.1.0-alpha.1`), own-mailbox senders INCLUDED (our replies belong to the case), trigger +
+  (conservative v1), own-mailbox senders INCLUDED (our replies belong to the case), trigger +
   original excluded, cap 25 with logged truncation, minimal envelopes hashed via the shared
   hashPayload.
 - `data-api.ts` adapter + `retro-routes.ts` `POST /api/internal/retro/link-related`: per row the

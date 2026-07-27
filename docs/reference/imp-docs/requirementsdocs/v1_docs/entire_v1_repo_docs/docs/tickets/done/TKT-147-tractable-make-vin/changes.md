@@ -14,7 +14,7 @@ NEXT parser deploy (live /parse stays engine-v2.13 until then).
 - THIS repo (feat/backlog-drain, this commit) — re-cut of the vendored engine core from
   `engine-v2.14` per the PROVENANCE.md procedure INCLUDING the deliberate providers.json seed update;
   PROVENANCE.md history/pin entry (also trues up the stale "engine-v2.13 commit+tag PENDING" note —
-  `v2.13` was subsequently committed as sibling `05494a9` + tag pushed);
+  v2.13 was subsequently committed as sibling `05494a9` + tag pushed);
   `services/functions/parser/tests/test_eva_export.py` updated to the EVA_EXPORT_FIELD_ORDER contract
   (+ VIN-cannot-leak assertion); ticket artifacts.
 
@@ -29,8 +29,8 @@ Sibling (authoring source of truth — commit `2609b1a`):
   (uppercase, strip whitespace, placeholder tokens `-`/`N/A`/… → empty)
 - `src/cedocumentmapper_v2/exporters/eva_json.py` — iterates EVA_EXPORT_FIELD_ORDER (EVA export
   byte-stable; `eva-json.schema.json` UNTOUCHED, additionalProperties:false still enforced)
-- `src/cedocumentmapper_v2/config/migration.py` — `0.1.0-alpha.1` method `two_label_join`
-  (config `First||Second`, comma alternates per side) → the new kind; distinct from `0.1.0-alpha.1` `two_labels`
+- `src/cedocumentmapper_v2/config/migration.py` — v1 method `two_label_join`
+  (config `First||Second`, comma alternates per side) → the new kind; distinct from v1 `two_labels`
   (→ between_labels)
 - The sibling's documentation and runtime extraction-rule schema copies — kind enum plus
   `first_labels`/`second_labels`/`separator`; the documentation copy also picked up the
@@ -53,7 +53,7 @@ This repo:
   `rules/engine.py`, `config/migration.py`, `exporters/eva_json.py`,
   `normalization/normalizers.py`, `normalization/__init__.py`, `providers.json` (deliberate seed
   update); all other shared files byte-identical
-- `services/functions/parser/cedocumentmapper_v2/PROVENANCE.md` — `v2.14` history entry + Source pin
+- `services/functions/parser/cedocumentmapper_v2/PROVENANCE.md` — v2.14 history entry + Source pin
 - `services/functions/parser/tests/test_eva_export.py` — EVA_EXPORT_FIELD_ORDER contract + VIN-leak pin
 - Ticket folder: this file, `verification.md` (verdict stays PENDING; re-verify steps),
   `evidence/fixture-extractions.txt`

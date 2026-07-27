@@ -55,7 +55,7 @@ audit. Future vehicle/viewpoint/damage detection must sit behind a testable visi
 (`apps/capture-web/src/vision/visionRuntime.ts` is an inert seam today, not a live capability) — guidance
 rules must not depend directly on a particular model runtime.
 
-## Integration boundary (capture.`0.1.0-alpha.1` contract)
+## Integration boundary (capture.v1 contract)
 
 CollisionSpike owns the canonical OpenAPI document (`contracts/capture.v1.yaml`) and the server
 implementation. `npm run contract:capture:check` fails when either generated target (the server's

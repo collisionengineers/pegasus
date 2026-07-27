@@ -39,7 +39,7 @@
 2. **Live-number registry** — no new live counts to record until a key is minted / a case lands
    (all live facts stay in `LIVE_FACTS.json` / live-environment.md, never here).
 
-## Not built (`0.1.0-alpha.1` scope boundary — see ADR-0020)
+## Not built (v1 scope boundary — see ADR-0020)
 Per-key rate limiting, a `multipart/form-data` transport, and a provider "test my key" ping.
 
 ## 2026-07-03 — live deploy verification (agent)

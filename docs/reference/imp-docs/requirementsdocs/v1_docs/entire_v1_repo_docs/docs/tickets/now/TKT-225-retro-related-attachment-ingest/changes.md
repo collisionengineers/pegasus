@@ -2,7 +2,7 @@
 
 ## Status
 now — implemented 2026-07-17 (same branch as TKT-219/TKT-222, PR #102); offline-tested; ships DARK
-(`RETRO_RELATED_INGEST_ENABLED` unset = TKT-222 `0.1.0-alpha.1` behaviour, byte-identical).
+(`RETRO_RELATED_INGEST_ENABLED` unset = TKT-222 v1 behaviour, byte-identical).
 
 ## What changed
 

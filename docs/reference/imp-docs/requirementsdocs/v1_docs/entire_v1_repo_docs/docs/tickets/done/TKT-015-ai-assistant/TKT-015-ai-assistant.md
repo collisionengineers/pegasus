@@ -92,7 +92,7 @@ The rules-engine-v2 plan's Phase 4 built the **first real consumer** of this tic
 scaffold: **email-triage categorisation**, not the case/damage-assessment or image/reg-OCR sub-tools
 (TKT-016/017/018 remain unbuilt as noted below). `b62b0df` replaced the dormant stub body of
 `services/orchestration/src/workflows/intake/triage-classify.ts` with a real Azure OpenAI structured-output call
-(GA `0.1.0-alpha.1` surface, `json_schema` strict-mode locked to the live taxonomy, `reasoning_effort: low`,
+(GA v1 surface, `json_schema` strict-mode locked to the live taxonomy, `reasoning_effort: low`,
 `content_filter` responses treated as abstain, keyless via the orchestration app's managed identity — no
 key app-setting). It is wired **post-classify, for abstain/`uncorroborated_*` rows only**; results ride
 this ticket's own `ai_suggestion` lifecycle as `suggestion_type: 'triage_category'`, and accepting one

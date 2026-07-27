@@ -51,7 +51,7 @@ correctly as `cancellation` in the committed harness (`category_correct`/`subtyp
 **hold**, not a cancellation — a sender asking us to pause work on a specific job until further notice,
 case explicitly stays open. The plan does not define a `hold` category/subtype distinct from
 `cancellation`; the eval harness deliberately does not invent one (it scores that item as `query` in both
-`0.1.0-alpha.1` and `Next`/`unallocated`, not as a taxonomy miss) — see the manifest's own rationale for `tkt041-06-hold-request` in
+v1 and v2, not as a taxonomy miss) — see the manifest's own rationale for `tkt041-06-hold-request` in
 [scripts/evaluation/email/manifest.json](../../../../scripts/evaluation/email/manifest.json). This is a genuine gap for
 the operator to decide, not something built or guessed at in this pass.
 
@@ -63,7 +63,7 @@ The propose-close/hold action remains staff-confirmed (never an automatic close)
 
 > **Prior state (superseded 2026-07-09):** Not yet active — the `cancellation` category and the engine that
 > emits it are both gated — 🔒 D7 (DDL delta apply) must land before the taxonomy-v2 parser deploy, and no
-> live probe has run yet against a real inbound cancellation email on the deployed (`0.1.0-alpha.1`-only) engine.
+> live probe has run yet against a real inbound cancellation email on the deployed (v1-only) engine.
 
 ## Artifacts
 

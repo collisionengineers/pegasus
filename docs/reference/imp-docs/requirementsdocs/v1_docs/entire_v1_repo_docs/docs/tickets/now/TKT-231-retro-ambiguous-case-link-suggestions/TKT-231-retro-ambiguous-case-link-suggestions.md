@@ -55,7 +55,7 @@ deliberately avoids that constraint** (relates-to linked both ways).
 - Idempotency: candidates that already have a pending `case_link` suggestion for
   `(inbound_email_id, target_case_id)` are skipped — a re-run mints zero new rows.
 
-## Known limitation (`0.1.0-alpha.1`, accepted)
+## Known limitation (v1, accepted)
 
 The banner renders the FIRST pending suggestion per row; multiple candidates surface
 sequentially (accept/reject one, the next appears). A picker UI is a follow-up.

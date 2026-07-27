@@ -85,7 +85,7 @@ provenance and permanent action history. `0.1.0-alpha.1` automatic ordinary-imag
 reading remains a separate intake plan and must not infer OCR/VLM or merge with
 `Next`/`unallocated` image/damage AI. Valuation remains absent.
 
-## Export the `0.1.0-alpha.1` EVA bundle
+## Export the alpha EVA bundle
 
 **Evidence state:** Planned — operator-mapping/readiness gated
 

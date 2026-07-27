@@ -1,8 +1,8 @@
 # Blank-claimant source replay plan — 2026-07-13
 
-> **prior evidence only — never approved for apply.** This 134-case `0.1.0-alpha.1` snapshot was
+> **prior evidence only — never approved for apply.** This 134-case v1 snapshot was
 > generated against `engine-v2.23`; current code is newer and PLAN-005 requires a fresh,
-> separately checksummed `Next`/`unallocated` plan. Its broad non-claimant suggestions are outside the final
+> separately checksummed v2 plan. Its broad non-claimant suggestions are outside the final
 > TKT-150 remediation allowlist.
 
 This was a read-only, source-backed planning run after `engine-v2.23` was deployed. It read

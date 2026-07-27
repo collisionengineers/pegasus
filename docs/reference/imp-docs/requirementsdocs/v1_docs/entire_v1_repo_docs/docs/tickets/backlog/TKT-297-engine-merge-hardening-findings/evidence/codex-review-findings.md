@@ -11,7 +11,7 @@ Captured from the automated Codex review inline comments on PR #145
 | 3 | `src/cedocumentmapper_v2/eval/ci_eval.py:348` | `--update-baseline` writes even when fixtures errored/skipped. |
 | 4 | `pyproject.toml:39` | Wheel omits `eval/baseline.json`, default corpus, root `providers.json`. |
 | 5 | `src/cedocumentmapper_v2/readers/pdf.py:337` | Process-global `pytesseract` monkeypatch race under `OCR_PROVIDER=docintel`. |
-| 6 | `services/functions/parser/function_app.py:100` | ~~Fingerprint response keeps `ce-parser-fingerprint-v1` id after dropping its `0.1.0-alpha.1` fields — bump the contract id before redeploy.~~ **RESOLVED 2026-07-21 (TKT-296 / PR #154): bumped to `ce-parser-fingerprint-v2`, parser redeployed, live readback confirms `Next`/`unallocated`. Zero live consumers existed.** |
+| 6 | `services/functions/parser/function_app.py:100` | ~~Fingerprint response keeps `ce-parser-fingerprint-v1` id after dropping its v1 fields — bump the contract id before redeploy.~~ **RESOLVED 2026-07-21 (TKT-296 / PR #154): bumped to `ce-parser-fingerprint-v2`, parser redeployed, live readback confirms v2. Zero live consumers existed.** |
 
 Findings 1–5 are non-blocking tooling/packaging refinements (eval code carried over from the archived
 sibling; docintel path not currently in production use). Finding 6 (contract-versioning) is **resolved** —

@@ -4,7 +4,7 @@ next — the ref-gate/suggest-link machinery is built and deployed but GATED OFF
 (`TRIAGE_REF_GATE_ENABLED`); needs the D7 DDL delta + that gate flip to activate. See
 [verification.md](./verification.md).
 ## Commits
-- `7bac2ee` — feat(domain): Stage-B triage-policy module + `TRIAGE_*` kill-switch gates + `Next`/`unallocated` codecs/DTO.
+- `7bac2ee` — feat(domain): Stage-B triage-policy module + `TRIAGE_*` kill-switch gates + v2 codecs/DTO.
 - `00980d5` — feat(api): triage context + suggest-link endpoints, advisory-lock serialization, suggestion
   promotion, detach — `POST /api/internal/triage/context` (open-case matches case_po>job_ref>vrm +
   duplicate internetMessageId rung) with `pg_advisory_xact_lock` serialization shared with

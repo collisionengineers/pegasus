@@ -10,7 +10,7 @@ metadata:
 On 2026-06-24 the user asked to investigate the completion claim, then implement ALL remaining features ("Everything (A + B roadmap)") and update docs. Build is sequenced in waves (each touches overlapping core files, so they run serially):
 
 - **Wave 1 (parity foundation):** P0 contract fixes + P1 test/CLI/reader/migration gaps. Keep `pytest` green.
-- **Wave 2 (measurement & review):** regression corpus import + scored `0.1.0-alpha.1`↔`Next`/`unallocated` comparator; targeted extraction tests; **audit case-type built HERE** (A.-prefix Case/PO detection, `is_audit` on the record, never run the engineer-report overlay on it, surface in CLI/UI); review-UI source overlay + diagnostics + keyboard/confidence triage.
+- **Wave 2 (measurement & review):** regression corpus import + scored v1↔v2 comparator; targeted extraction tests; **audit case-type built HERE** (A.-prefix Case/PO detection, `is_audit` on the record, never run the engineer-report overlay on it, surface in CLI/UI); review-UI source overlay + diagnostics + keyboard/confidence triage.
 - **Wave 3 (revamp):** footprint trim, CI eval harness, table/geometry extraction primitives + orchestrator, teach-by-example, **FULL opt-in local model assist** (real offline, schema-constrained, source-cited, OFF by default, never auto-exports — user chose to override the requirements.md non-goal), GUI batch + frontend componentization.
 - **Final:** documentation reconciliation (see [[completion-state-2026-06]]).
 

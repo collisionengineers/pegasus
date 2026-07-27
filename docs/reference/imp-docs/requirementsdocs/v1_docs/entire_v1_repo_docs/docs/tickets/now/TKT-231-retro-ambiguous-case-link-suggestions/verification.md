@@ -24,7 +24,7 @@
   → one pending row per candidate (≤5), review_state 'pending'.
 - SPA: the trigger's inbox row shows the existing "Attach to case" banner; accepting one
   performs the standard reversible attach (row links, suggestion accepted, `inbound_linked`
-  audit); the remaining candidates surface sequentially (known `0.1.0-alpha.1` limitation).
+  audit); the remaining candidates surface sequentially (known v1 limitation).
 - Confirm NOTHING auto-attached: no `inbound_linked` audit with actor 'auto-attach' for these
   rows.
 - Re-run the same trigger (force re-drive): the SELECT above shows no NEW rows for the same

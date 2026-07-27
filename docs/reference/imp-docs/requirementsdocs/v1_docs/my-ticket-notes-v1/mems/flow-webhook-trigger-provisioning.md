@@ -11,7 +11,7 @@ In collisionspike, the **CS Intake** flow's email trigger never fired (zero runs
 
 **Did NOT work:** Flow Management API stop/start; a plain designer **Save** (it preserved the corrupt trigger node, so the dead subscription was reused). A real email reached the Inbox but produced no run.
 
-**Worked (2026-06-18):** in the make.powerautomate.com **`Later`/`unallocated` designer**, *delete* the trigger node and *add a fresh* **"When a new email arrives (`Later`/`unallocated`)"** (`Later`/`unallocated` monitors the connected account's own mailbox; the shared-mailbox-v2 trigger requires a real shared mailbox — `digital@collisionengineers.co.uk` is a normal user mailbox you sign into, not shared), reuse the existing healthy connection, then **Save**. A brand-new trigger node forces a brand-new subscription.
+**Worked (2026-06-18):** in the make.powerautomate.com **v3 designer**, *delete* the trigger node and *add a fresh* **"When a new email arrives (V3)"** (V3 monitors the connected account's own mailbox; the shared-mailbox-V2 trigger requires a real shared mailbox — `digital@collisionengineers.co.uk` is a normal user mailbox you sign into, not shared), reuse the existing healthy connection, then **Save**. A brand-new trigger node forces a brand-new subscription.
 
 **Gotcha:** if the old trigger had concurrency control (`runs:1`), the save fails with `CannotDisableTriggerConcurrency` until you re-enable **Concurrency control → Degree of parallelism = 1** on the new trigger (Settings tab). Downstream actions used **generic `triggerOutputs()?['body/...']`** refs (not `body('<trigger name>')`), so the rebuild didn't break them.
 

@@ -39,7 +39,7 @@ The `case_update` category and `images_received` subtype exist in the authored t
 `7bac2ee`/`00980d5`/`9fb16cf`/`69ec02e`). **Honest gap:** this ticket's own sample (`RE
 Ref160404_GN14GBE_... - Chaser for engineers report.eml`, manifest id `tkt043-images-existing-case`) is
 joined to the eval corpus with expected `case_update`/`images_received`, but **still scores a miss**
-(`category_correct: false`) even against the current **in-repo** `Next`/`unallocated`-ready engine — see
+(`category_correct: false`) even against the current **in-repo** v2-ready engine — see
 [baseline-v2.json](../../../../scripts/evaluation/email/baseline-v2.json). It currently returns
 `receiving_work`/`existing_provider_instruction` instead: recognising it as *work* correctly, but not yet
 as an update on an *existing* case, because that needs the ref-gate/context policy (open-case ref match),

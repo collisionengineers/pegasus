@@ -16,7 +16,7 @@ stronger domain arm.
   A.* Case/PO cannot exist without work_provider_id at create).
 - **Line 2 (backfill clean):** applied live 2026-07-06 (delta post-check remaining_mislabelled=0 at
   apply); no re-creation path exists (engine suppression + denylist deployed; zero contradicting
-  signals in 5 days of KQL). Independent re-proof = queued `Later`/`unallocated`.
+  signals in 5 days of KQL). Independent re-proof = queued V3.
 - **Line 3 (live-occurrence probe — the close condition): PROVEN at volume, both principals.**
   KQL since 07-06: providerMatch matched pch-ltd.com **54**, matched qdosassist.co.uk **233**,
   intermediary connexus.co.uk 16 (by design). 246 creates: 227 mode=review_auto vs 19 manual
@@ -37,11 +37,11 @@ stronger domain arm.
   corpus probe; not an acceptance requirement. Ticket hygiene: the folder had no verification.md
   before this transcription (change record embedded in the spec).
 
-Queued SQL `0.1.0-alpha.1`–V5 (next data pass, corroborative): audit-marker census since the fix (expect all
+Queued SQL V1–V5 (next data pass, corroborative): audit-marker census since the fix (expect all
 has_provider=true); the original bug's shape (expect 0); the delta post-check re-proof; the QDOS/PCH
 known_email_domains rows (settles the D3 wording update); per-case provenance signal.
 
 ## How to re-verify
 The five banked KQL files (scratchpad q1–q5.kql, orch component, --offset 132h — retention short);
-`0.1.0-alpha.1`–V5 in the next window; ongoing: any new A.PCH/A.QDOS mint is self-proving (mint requires a
+V1–V5 in the next window; ongoing: any new A.PCH/A.QDOS mint is self-proving (mint requires a
 resolved provider).

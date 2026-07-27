@@ -38,7 +38,7 @@ managed-identity** AOAI structured-output call.
 - **New:** `services/data-api/src/features/assistant/suggestion-client.ts` — the model-call mechanics, REUSING the established repo
   pattern (not a new HTTP client): `mintCognitiveToken` from `aoai-chat.ts` (the API MI's Cognitive
   Services token — the MI holds *Cognitive Services OpenAI User* on `digital-3339-resource`, granted
-  2026-07-05) + the LIVE email-triage lane's strict-JSON structured-output shape (AOAI GA `0.1.0-alpha.1`
+  2026-07-05) + the LIVE email-triage lane's strict-JSON structured-output shape (AOAI GA v1
   `…/openai/v1/chat/completions`, `response_format:{ json_schema, strict:true }`, gpt-5 reasoning-model
   params — `max_completion_tokens` + `reasoning_effort:'low'`, no temperature/top_p/max_tokens). Pure
   `build*`/`parse*` fns + an injectable `callSuggestionModel`. Mints three observation-only kinds:

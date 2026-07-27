@@ -8,7 +8,7 @@ Host the caller-backed modular monolith in separate UK South development and pro
 
 ## Feature coverage
 
-Primary matrix IDs: `ACC-11`, `OPS-01`, `OPS-02`, `OPS-03`, `OPS-04`, `OPS-05`, `OPS-06`, `OPS-07`, `OPS-08`, `OPS-09`, `OPS-10`, `OPS-11`, `OPS-13`, `OPS-14`, `OPS-20`, and `OPS-24`. Their routes are [`0.0.0-development` shared-development proof](#provision-and-prove-`0.0.0-development`-shared-development), [infrastructure and identity boundaries](#reconcile-infrastructure-and-identity-boundaries), [persistence, observability and recovery](#prove-persistence-observability-and-recovery-in-shared-development), and [immutable release](#release-immutable-artifacts-safely). Allocation remains owned by the [maturity map](../../feature-maturity-map.md); this list is a route, not implementation evidence.
+Primary matrix IDs: `ACC-11`, `OPS-01`, `OPS-02`, `OPS-03`, `OPS-04`, `OPS-05`, `OPS-06`, `OPS-07`, `OPS-08`, `OPS-09`, `OPS-10`, `OPS-11`, `OPS-13`, `OPS-14`, `OPS-20`, and `OPS-24`. Their routes are [`0.0.0-development` shared-development proof](#provision-and-prove-shared-development), [infrastructure and identity boundaries](#reconcile-infrastructure-and-identity-boundaries), [persistence, observability and recovery](#prove-persistence-observability-and-recovery-in-shared-development), and [immutable release](#release-immutable-artifacts-safely). Allocation remains owned by the [maturity map](../../feature-maturity-map.md); this list is a route, not implementation evidence.
 
 ## Authority and current boundary
 
@@ -26,7 +26,7 @@ Azure adapters expose permanent, transient and unknown failures without turning 
 
 Current Microsoft guidance was refreshed read-only on 2026-07-23: [.NET isolated Functions](https://learn.microsoft.com/azure/azure-functions/dotnet-isolated-process-guide), [Flex Consumption](https://learn.microsoft.com/azure/azure-functions/flex-consumption-plan), [App Service Health Check](https://learn.microsoft.com/azure/app-service/monitor-instances-health-check), [managed identity with Azure SQL](https://learn.microsoft.com/azure/app-service/tutorial-connect-msi-sql-database), [Functions telemetry export](https://learn.microsoft.com/azure/azure-functions/functions-monitoring#telemetry-export-options), and [container-scoped Blob data roles](https://learn.microsoft.com/azure/storage/blobs/assign-azure-role-data-access#assign-an-azure-role).
 
-## Provision and prove `0.0.0-development` shared development
+## Provision and prove shared development
 
 **Evidence state:** Planned
 

@@ -9,8 +9,8 @@ VERIFIED-LIVE (2026-07-02) — live-probed against the deployed engine; locked b
   own evidence base, [rules_engine_v2_plan_9ba034c4.plan.md § Evidence base](TKT-030-misclass-chasing-report.md).
 - Regression pin: manifest item `tkt030-chaser` in the committed real-email eval harness —
   `category_correct`/`subtype_correct` both `true` at confidence `0.8` in the checked-in
-  [baseline-v2.json](../../../../scripts/evaluation/email/baseline-v2.json) (`Next`/`unallocated`-taxonomy aggregate 84.1%, up from
-  the `0.1.0-alpha.1` baseline 77.3% — [README](../../../../scripts/evaluation/email/README.md)).
+  [baseline-v2.json](../../../../scripts/evaluation/email/baseline-v2.json) (v2-taxonomy aggregate 84.1%, up from
+  the v1 baseline 77.3% — [README](../../../../scripts/evaluation/email/README.md)).
 
 ## Pending / gaps
 Flagged **verified-by-eval but fragile until Phase 2** by the plan's own evidence base: today's correct

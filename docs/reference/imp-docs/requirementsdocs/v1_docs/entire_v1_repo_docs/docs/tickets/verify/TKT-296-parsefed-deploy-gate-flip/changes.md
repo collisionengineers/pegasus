@@ -6,8 +6,8 @@ Deploy + flip DONE and health-verified live (2026-07-21); gate `TRIAGE_PARSE_FED
 live post-flip arrival is banked (see verification.md); ticket stays in `now` until then.
 
 PR-review remediation (PR #154, Codex bot): bumped the parser `/fingerprint` contract id to
-`ce-parser-fingerprint-v2` and redeployed (finding 6 — `0.1.0-alpha.1` fields were retired by the engine merge;
-verified live `Next`/`unallocated`); verified the OCR route + caller wiring present/healthy (finding 3); synced
+`ce-parser-fingerprint-v2` and redeployed (finding 6 — v1 fields were retired by the engine merge;
+verified live `v2`); verified the OCR route + caller wiring present/healthy (finding 3); synced
 `feature-gates.md` to the flipped-ON state (finding 2); re-probed all ARM function counts live so the
 `live-facts.evidence.json` `capturedAt` is a genuine 2026-07-21 re-attestation (finding 4); restored the
 105 count in live-environment.md's dated 2026-07-19 section and recorded the 105→106 transition in its own

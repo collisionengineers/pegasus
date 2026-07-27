@@ -24,7 +24,7 @@ below stands corroborated)
   `cedocumentmapper_v2.0` full suite at HEAD = tag **engine-v2.15 (the live tag): 453 passed / 4
   skipped / 0 failed**; vendored `test_multiformat_extraction.py` 4 passed / 1 failed — exactly the
   recorded pre-existing environmental `[ALS_doc]` baseline, not a regression; drift guard
-  `test_engine_vendored_in_sync.py` **7/7** — vendored == sibling `v2.15` == deployed.
+  `test_engine_vendored_in_sync.py` **7/7** — vendored == sibling v2.15 == deployed.
 
 ### Expected absences / documented limitation (not regressions)
 - No `.msg` arrived through live intake in the retention window — capability proven by live probe;
@@ -37,7 +37,7 @@ below stands corroborated)
   the recorded pending item from the follow-up pass.
 
 ### Queued SQL (corroborative, next data pass)
-`0.1.0-alpha.1` per-format re-intake census (evidence ext × cases × with-provenance, 7d); `Next`/`unallocated` newest-10 spot check
+V1 per-format re-intake census (evidence ext × cases × with-provenance, 7d); V2 newest-10 spot check
 of populated `eva_*` columns.
 
 ### How to re-verify

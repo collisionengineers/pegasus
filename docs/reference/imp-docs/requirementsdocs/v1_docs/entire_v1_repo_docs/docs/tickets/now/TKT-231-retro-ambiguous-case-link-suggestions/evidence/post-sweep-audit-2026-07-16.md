@@ -42,4 +42,4 @@ Distills the TKT-231 portion of the 2026-07-16 three-agent audit of PR #102.
 ## Known limitation
 
 The banner renders the first pending suggestion per row; candidates surface sequentially.
-Acceptable `0.1.0-alpha.1`; picker UI is a follow-up.
+Acceptable v1; picker UI is a follow-up.

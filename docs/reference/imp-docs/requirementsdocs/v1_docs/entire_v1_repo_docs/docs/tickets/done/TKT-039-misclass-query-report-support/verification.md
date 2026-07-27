@@ -8,8 +8,8 @@ VERIFIED-LIVE (2026-07-09) — the deployed-parser live probe (see § Verdict up
 ## Evidence
 Manifest item `tkt039-report-support` in the committed real-email eval harness scores
 `category_correct`/`subtype_correct` both `true` at confidence `0.8` in the checked-in
-[baseline-v2.json](../../../../scripts/evaluation/email/baseline-v2.json) (`Next`/`unallocated`-taxonomy aggregate 84.1%, up from the
-`0.1.0-alpha.1` baseline 77.3% — [README](../../../../scripts/evaluation/email/README.md)). Unlike TKT-030/033/036/037/038/040,
+[baseline-v2.json](../../../../scripts/evaluation/email/baseline-v2.json) (v2-taxonomy aggregate 84.1%, up from the
+v1 baseline 77.3% — [README](../../../../scripts/evaluation/email/README.md)). Unlike TKT-030/033/036/037/038/040,
 this sample is **not** named in the rules-engine-v2 plan's live-probe list
 ([rules_engine_v2_plan_9ba034c4.plan.md § Evidence base](TKT-039-misclass-query-report-support.md))
 — the eval harness calls the vendored engine directly as a Python function (no HTTP, no Azure), so this is
@@ -33,6 +33,6 @@ to close the live-probe gap.
 
 ## Verdict update — 2026-07-09 (ticket-verifier dispatch)
 
-VERIFIED-LIVE. Sample .eml (incl. EngineersReport-v1.pdf as attachment context) POSTed to the deployed classify route -> 200 query/query_existing_work, signals report_attachment + body_jobref:45391/1 + rule:query_with_reference. query is a non-minting category under the deployed categoryMintsCase guard. Pin tkt039-report-support green. Same closing standard as TKT-030/033/036-040.
+VERIFIED-LIVE. Sample .eml (incl. EngineersReport-V1.pdf as attachment context) POSTed to the deployed classify route -> 200 query/query_existing_work, signals report_attachment + body_jobref:45391/1 + rule:query_with_reference. query is a non-minting category under the deployed categoryMintsCase guard. Pin tkt039-report-support green. Same closing standard as TKT-030/033/036-040.
 
 Verified by: ticket-verifier dispatch, transcribed by the orchestrating session, 2026-07-09.

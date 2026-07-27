@@ -27,7 +27,7 @@ follow-up lever for rung-1 links:
 
 - New orchestration activity `retroLinkRelated` (gated `RETRO_CASE_ENABLED` +
   `RETRO_OUTLOOK_SEARCH_ENABLED`): re-run the bounded `$search` for the case's keys across the
-  intake mailboxes, keep hits whose SUBJECT corroborates a key (conservative `0.1.0-alpha.1`; body-corroborated
+  intake mailboxes, keep hits whose SUBJECT corroborates a key (conservative v1; body-corroborated
   linking can widen later), INCLUDE own-mailbox senders (our replies belong to the case),
   EXCLUDE the trigger + the reconstructed original, cap the batch (~25) and log truncation.
 - Light Graph identity fetch per hit (`$select=internetMessageId,subject,from,receivedDateTime`) —

@@ -81,7 +81,7 @@ of wrong behavior.
 
 - No captured live parser response ties the supplied message/hash to `website_enquiry`,
   `website_general_enquiry`, `taxonomy_version=4`.
-- The live registry still identifies parser `engine-v2.10`/taxonomy-`Later`/`unallocated`; TKT-170 requires
+- The live registry still identifies parser `engine-v2.10`/taxonomy-v3; TKT-170 requires
   `engine-v2.24`/taxonomy-v4. Later activity suggests a deploy but does not fingerprint it.
 - Live PostgreSQL lookup parity is unproved. An authorized read without firewall change failed to
   connect; no firewall rule or retry loop was used.

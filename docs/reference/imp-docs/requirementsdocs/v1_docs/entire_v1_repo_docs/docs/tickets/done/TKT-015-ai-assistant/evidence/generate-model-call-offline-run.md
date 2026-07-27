@@ -61,7 +61,7 @@ $ node verify-all.mjs
 - parse maps a well-formed body to drafts carrying the `<deployment>:<response-model>` model_version
   stamp + clamped confidence + per-type `suggestedValue` shape; off-list severity → `unknown`;
   unknown suggestion type dropped; empty list → `[]`;
-- keyless caller hits the GA `0.1.0-alpha.1` `…/openai/v1/chat/completions` surface with a `Bearer` token from
+- keyless caller hits the GA v1 `…/openai/v1/chat/completions` surface with a `Bearer` token from
   the injected mint (production = `mintCognitiveToken`, the API MI's Cognitive Services token —
   reused from `aoai-chat.ts`, no API-key setting).
 ```

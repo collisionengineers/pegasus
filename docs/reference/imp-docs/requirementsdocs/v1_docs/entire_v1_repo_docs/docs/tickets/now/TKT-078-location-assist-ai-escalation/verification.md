@@ -11,7 +11,7 @@ unset) and the UI button is hidden. Live gate-on flip is operator-blocked on pro
   returns `[]` on malformed / non-JSON / empty content.
 - `build_reasoner` returns **None** (honest no-op) when the gate is off, when endpoint/deployment are
   unconfigured, and when no managed-identity token can be minted — i.e. it ships DARK.
-- `AiLocationReasoner.suggest`: hits the GA `0.1.0-alpha.1` `/openai/v1/chat/completions` surface with a Bearer token;
+- `AiLocationReasoner.suggest`: hits the GA v1 `/openai/v1/chat/completions` surface with a Bearer token;
   the request body uses the **reasoning-model form** (`max_completion_tokens` + `reasoning_effort`, **no**
   `temperature`/`max_tokens`); photos attached as `image_url` data URLs; non-200 → `[]`; no photos → `[]`.
 

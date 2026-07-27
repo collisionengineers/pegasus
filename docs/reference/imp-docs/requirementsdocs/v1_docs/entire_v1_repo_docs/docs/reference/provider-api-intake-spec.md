@@ -1,4 +1,4 @@
-# Provider API intake — integration spec (`0.1.0-alpha.1`)
+# Provider API intake — integration spec (v1)
 
 > **Audience.** A work provider's own software team, integrating their case-management
 > system with Collision Engineers to **lodge a case directly** (instructions + photos)
@@ -168,8 +168,8 @@ error cases above (the `message` is advisory; branch on `error`).
 
 ## 6. Versioning
 
-This is **`0.1.0-alpha.1`** of the contract. The transport is **Base64-in-JSON**; a future multipart
-(`multipart/form-data`) option may be added for very large photo sets — `0.1.0-alpha.1` will remain
+This is **v1** of the contract. The transport is **Base64-in-JSON**; a future multipart
+(`multipart/form-data`) option may be added for very large photo sets — v1 will remain
 supported. Additive fields may be introduced without a version bump; a breaking change
 would be a new versioned path. Field names, error codes, and the auth header are stable
-within `0.1.0-alpha.1`.
+within v1.
