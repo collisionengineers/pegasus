@@ -3,12 +3,12 @@
 ```yaml
 id: 2026-07-27-pegasus-repository-orientation
 type: decision
-status: in_progress
+status: in_review
 risk: high
 created: 2026-07-27
 updated: 2026-07-27
 issue: https://github.com/collisionengineers/pegasus/issues/6
-pull_request: pending
+pull_request: https://github.com/collisionengineers/pegasus/pull/7
 baseline: d0965e19230d971166a5ae8fc8b894c6053849e2
 target_release: 0.1.0-alpha.1
 roadmap_horizon: Now
@@ -280,22 +280,22 @@ structure only and therefore require no capability disposition.
 
 ## Verification and evidence
 
-- [ ] Canonical product documents and the capability inventory agree with every
+- [x] Canonical product documents and the capability inventory agree with every
   crosswalk row.
-- [ ] Capability inventory contains 229 unique IDs: Now 128, Next 32, Later 40,
+- [x] Capability inventory contains 229 unique IDs: Now 128, Next 32, Later 40,
   Not planned 29.
-- [ ] EVA examples retain the exact ordered 13 keys and all 12 Engineer screens
+- [x] EVA examples retain the exact ordered 13 keys and all 12 Engineer screens
   have reviewed findings.
-- [ ] The Pegasus source directory and duplicate EVA source directory are absent.
-- [ ] Semantic-version, language, solution-boundary and provider-package checks
+- [x] The Pegasus source directory and duplicate EVA source directory are absent.
+- [x] Semantic-version, language, solution-boundary and provider-package checks
   pass.
-- [ ] Main solution and each imported workspace pass their documented independent
+- [x] Main solution and each imported workspace pass their documented independent
   build/test/smoke route.
-- [ ] Development-only Web smoke proves the Pegasus UI and health endpoints;
+- [x] Development-only Web smoke proves the Pegasus UI and health endpoints;
   no non-Development intake route is introduced.
 - [ ] Exact-head independent review has no unresolved blocker or required finding.
 
 ## Outcome
 
-Pending implementation and exact-head evidence. The pull request remains
-unmerged from the agent workflow.
+Implementation and local caller evidence are complete. Pull request 7 remains
+unmerged pending green CI and independent exact-head review.
