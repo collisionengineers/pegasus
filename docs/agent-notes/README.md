@@ -5,4 +5,4 @@ This folder contains concise, evidence-backed handoff material for agents and th
 
 - `current-implementation-handoff.md` — what is genuinely implemented, how to run it, its evidence, limits, and the next bounded increment.
 
-Update the current handoff when repository reality materially changes. Put unresolved product decisions in `docs/plans/open-decisions.md`, not in an accumulating collection of agent scratch files.
+Update the current handoff when repository reality materially changes. Put unresolved product decisions in `docs/product/open-decisions.md`, not in an accumulating collection of agent scratch files.

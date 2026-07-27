@@ -39,4 +39,6 @@ Install-Module SqlServer -Scope CurrentUser -Force -AllowClobber -Repository PSG
 - Application users are not Entra users by assumption. Their usernames/passwords are owned by ASP.NET Core Identity in the application database.
 - Infisical or Azure Key Vault holds third-party credentials. Never place values in local settings examples, azd parameters, committed appsettings, or agent prompts.
 
-The project Azure MCP is pinned in `.codex/config.toml` and telemetry is disabled with `AZURE_MCP_COLLECT_TELEMETRY=false`.
+Repository-local Azure and Microsoft Learn MCP declarations were removed before
+Azure Workflow onboarding. Current Microsoft/Azure facts use the active workflow
+tools when available; tool availability never authorizes a cloud read or write.

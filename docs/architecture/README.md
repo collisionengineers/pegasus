@@ -1,4 +1,7 @@
-# CollisionSpike v2 architecture
+# CollisionSpike v2 decision index
+
+The canonical current architecture is [docs/architecture.md](../architecture.md).
+This directory retains accepted and historical ADRs plus their detailed context.
 
 This directory records stable technical decisions and the intended system shape.
 It is not the current implementation inventory: dated caller evidence lives in
@@ -57,7 +60,7 @@ ready. [ADR-0009](decisions/ADR-0009-direct-terminal-azure-deployment.md) and
 | [ADR-0005](decisions/ADR-0005-multiformat-intake-assets.md) | Accepted for the local slice | Multi-format assets; each visible DOCX placement is retained as an occurrence. |
 | [ADR-0006](decisions/ADR-0006-provider-neutral-intake-with-contained-qdos-policy.md) | Accepted for the pre-release local slice | Provider-neutral intake with a contained QDOS policy. |
 | [ADR-0007](decisions/ADR-0007-repository-local-codex-planning-plugin-boundaries.md) | Superseded by ADR-0008 | Historical workflow-plugin decision. |
-| [ADR-0008](decisions/ADR-0008-focused-repository-workflow-plugins.md) | Accepted | Focused repository workflow plugins. |
+| [ADR-0008](decisions/ADR-0008-focused-repository-workflow-plugins.md) | Superseded by [0010](../decisions/0010-adopt-azure-workflow.md) | Historical focused repository workflow plugins. |
 | [ADR-0009](decisions/ADR-0009-direct-terminal-azure-deployment.md) | Accepted | Direct authorised-terminal Azure release; no GitHub Actions/OIDC deployment. |
 
 ## Architecture work still required
@@ -71,4 +74,4 @@ ready. [ADR-0009](decisions/ADR-0009-direct-terminal-azure-deployment.md) and
 4. Build and prove the separate migration, package, identity, and release path
    recorded by ADR-0009; do not infer it from the current Bicep or `azure.yaml`.
 
-The complete product gap is maintained in `docs/plans/remaining-requirements.md`.
+The complete product gap is maintained in `docs/product/v1-gap.md`.

@@ -145,7 +145,7 @@ deployment, extraction accuracy, or operator acceptance.
 - Bicep compilation proves syntax/type consistency only. No v2 Azure resources have been provisioned.
 - No production route should be enabled from this slice.
 
-The full gap list and recommended order are in `docs/plans/remaining-requirements.md`. `docs/plans/open-decisions.md` remains the canonical register: its decisions withhold their named slices while independent work proceeds.
+The full gap list is in `docs/product/v1-gap.md`; current sequencing is in `docs/roadmap.md`. `docs/product/open-decisions.md` is the canonical register: its decisions withhold their named slices while independent work proceeds.
 
 ## Next bounded increment
 
