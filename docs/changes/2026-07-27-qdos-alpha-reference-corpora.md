@@ -8,7 +8,7 @@ risk: high
 created: 2026-07-27
 updated: 2026-07-27
 issue: https://github.com/collisionengineers/collisionspike_v2/issues/3
-pull_request: none
+pull_request: https://github.com/collisionengineers/collisionspike_v2/pull/4
 baseline: 5a3eae12644776926c746d9e5df9b699e6596000
 target_release: 0.1.0-alpha.1
 roadmap_horizon: Now
@@ -292,7 +292,7 @@ unit is planned.
 - Plan review: passed in fresh context after correcting ADR supersession,
   persisted route identity, V1-gap ownership wording, normalized sender wording,
   and the direct/intermediary trait-collision test.
-- Candidate PR review: not run — PR not yet created.
+- Candidate PR review: pending against draft PR #4.
 - Final exact-head review: not run — PR not yet created.
 - Remediation rounds: one pre-publication documentation batch.
 
@@ -313,7 +313,7 @@ unit is planned.
   intake/storage principles.
 - Operations: later delivery must update runbooks for import, mailbox recovery,
   migration, deployment, backup/restore, and rollback.
-- GitHub issue/Project/milestone: [issue #3](https://github.com/collisionengineers/collisionspike_v2/issues/3), Project status `In progress`, Priority `P1 High`, Horizon `Now`, milestone `0.1.0-alpha.1`.
+- GitHub issue/Project/milestone: [issue #3](https://github.com/collisionengineers/collisionspike_v2/issues/3), draft [PR #4](https://github.com/collisionengineers/collisionspike_v2/pull/4), Project status `In progress`, Priority `P1 High`, Horizon `Now`, milestone `0.1.0-alpha.1`.
 
 ## Outcome
 
