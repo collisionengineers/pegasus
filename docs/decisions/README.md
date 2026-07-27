@@ -7,3 +7,6 @@ the [legacy decision index](../architecture/README.md).
 
 Supersede decisions explicitly; never rewrite published history to hide a
 changed choice.
+
+- [0010: Adopt Azure Workflow](0010-adopt-azure-workflow.md)
+- [0011: Separate direct-provider and intermediary email policies](0011-separate-direct-provider-and-intermediary-email-policies.md)

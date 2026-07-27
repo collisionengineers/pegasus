@@ -1,6 +1,6 @@
 # Operator experience requirements
 
-Status: **Planned, direction-neutral V1 requirements.** This is the canonical publication of the reviewed V1 inventory. It does not select a direction, approve concepts, or prove a staff caller.
+Status: **Planned V1 requirements with Operations-first shell selected.** This is the canonical publication of the reviewed V1 inventory. Shell selection does not approve every comparison-raster detail or prove a staff caller.
 
 ## Evidence state and scope
 
@@ -64,9 +64,9 @@ The contained visual boundary is warm off-white ground, white panels, warm-charc
 
 Evaluation and operator review use approved genuine local immutable material only. Do not invent operational inputs. V2/V3/V3+ features have no V1 control, navigation, workflow or placeholder and must re-enter the complete UI route before a later UI change.
 
-## Open gates
+## Selected shell and open gates
 
-Mailbox predicates/governance block only their named automatic paths. The three shell directions passed planning review, and the user explicitly authorised all three comparison rasters on 2026-07-26 so they can be selected visually. The direction remains unselected; explicit user selection is required before final V1 UI handoff. Selection does not approve every raster detail or any V2/V3/V3+ UI.
+Operations-first is selected for the V1 landing and navigation strategy. The three comparison rasters remain selection evidence; only Direction A's shell strategy is approved, not every raster detail. Policy-specific email predicates and acceptance evidence still block only their named automatic paths. V2/V3/V3+ UI remains outside this selection.
 
 ## Historical material
 

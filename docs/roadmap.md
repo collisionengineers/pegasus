@@ -6,12 +6,12 @@ state; no issue is created merely because an outcome appears here.
 
 ## Now
 
-- **Provider-specific classification foundation — target `unallocated`.** Resolve and prove the versioned Core-owned instruction policy through the local genuine-input evaluator. Activation requires accepted predicates/governance and caller-backed cohort evidence.
-- **Live QDOS alpha workflow — target `unallocated`.** Deliver every active QDOS case type through staff identity, accepted intake, immutable references, Box custody, review/work management, EVA JSON/image handoff, exact report evidence, observability/recovery, and operator/management acceptance. Current source proves only the Development intake slice.
+- **Provider- and intermediary-specific instruction foundation — target `0.1.0-alpha.1`.** Import the complete provider and provider-linked inspection-location reference corpora, then prove separately versioned direct-provider and intermediary email policies through genuine-input evaluation. A provider may be reached through both routes; each route owns its own provider/type/case evidence and ambiguity behavior.
+- **Live QDOS alpha workflow — target `0.1.0-alpha.1`.** Activate QDOS direct and evidenced intermediary instruction routes and deliver every active QDOS case type through staff identity, accepted intake, immutable references, Box custody, review/work management, EVA JSON/image handoff, exact report evidence, observability/recovery, and operator/management acceptance. Current source proves only the Development intake slice.
 
 ## Next
 
-- **Additional provider activation — target `unallocated`.** Add a provider only through the same bounded Core workflow after provider reference/rule evidence and QDOS acceptance establish the shared path.
+- **Additional provider case-workflow activation — target `unallocated`.** Activate case creation for another provider only after that provider's direct and applicable intermediary evidence, rules, and acceptance cohort pass through the shared workflow established by the alpha.
 - **Email workspace and provider API beta — target `unallocated`.** Extend the accepted mailbox policy across four mailboxes, activate provider-scoped submissions/status, general association, legacy DOC/MSG extraction, scan-like PDF OCR, post-report work, and bounded image assistance after each named decision and dependency.
 
 ## Later

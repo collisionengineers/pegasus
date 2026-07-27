@@ -1,6 +1,6 @@
 # UI specification
 
-Status: **Planned, direction-neutral V1 specification published from the reviewed UI package. No visual direction is approved.**
+Status: **Planned V1 specification with Operations-first selected for the shell and landing strategy. Detailed raster styling remains subject to this specification and the design system.**
 
 ## Shared shell and hierarchy
 
