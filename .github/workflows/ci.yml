@@ -59,6 +59,7 @@ jobs:
         run: |
           dotnet restore ./CollisionRenderer.sln
           dotnet build ./CollisionRenderer.sln --configuration Release --no-restore
+          dotnet run --project src/CollisionRenderer.Cli --configuration Release --no-build -- install-browser
           dotnet test ./CollisionRenderer.sln --configuration Release --no-build
       - name: Validate AI Centre workspace
         working-directory: workspaces/ai-centre/services/collision-brain

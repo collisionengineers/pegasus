@@ -254,6 +254,102 @@ Complete the required integrations and identify the system that remains authorit
 **Who approves production releases?**  Collision Engineers management provides business approval; Alex performs or authorises the technical production release.
 
 
+## 9. Existing data and migration
+
+**Must any data from the previous application be migrated?** No. Pegasus starts fresh and does not import legacy application cases.
+
+**Which cases, users, documents, emails, action-history records, or reference data must be retained?** No legacy application cases, users, action-history records, or application state are migrated. Existing historical documents and operational records remain in their existing Box, EVA, Outlook, spreadsheet, or network-drive locations. Required principal codes and other operational reference data are recreated cleanly rather than migrated wholesale.
+
+**Where is the existing data currently stored?** Box stores long-term case files; EVA stores current case-management, estimating, valuation, and report data; Outlook stores email; Excel acts as the current ready/not-ready holding pen; and unmatched WhatsApp images may temporarily be stored on the network drive.
+
+**Approximately how much data is involved?** No legacy dataset is being migrated, so a migration volume estimate is not required. New Pegasus storage capacity is addressed by the scale and growth questions.
+
+**Can the old system be made read-only after cutover?** No read-only legacy service is required. The predecessor application will be shut down completely when Pegasus cuts over.
+
+**How long must the old system remain available?** Only until the agreed Pegasus cutover. It can be shut down after cutover validation.
+
+**Who will validate that migrated data is complete and correct?** Not applicable because no legacy data migration will occur. Collision Engineers will validate the fresh Pegasus workflow before cutover.
+
+## 10. Data protection and governance
+
+**What categories of personal, sensitive, financial, or legally privileged data will be stored?** Operational case content can include claimant names and contact/address information, provider and insurer details, claim references, vehicle registrations and details, accident circumstances and dates, inspection locations, emails, documents, vehicle images, Engineer reports, and post-report correspondence. Repair estimates, valuations, and invoice amounts are planned for `Later`/unallocated. No special data-classification feature is required for `0.1.0-alpha.1`.
+
+**What is the retention period for cases, documents, logs, backups, and action-history records?** No application-enforced retention or automatic deletion period is required for `0.1.0-alpha.1`. Box remains the long-term document store, and Pegasus case and action-history records are retained unless Collision Engineers defines a later policy.
+
+**When may data be deleted, and who can authorise deletion?** Cases are never permanently deleted through the application and may only be archived. File removals are logical and retain version history. Closed cases must be reopened by authorised staff before changes can be made, and all such actions are recorded in permanent action history.
+
+**Are legal holds or litigation holds required?** No legal-hold feature is required for development or `0.1.0-alpha.1`.
+
+**Is a Data Protection Impact Assessment required or already available?** No DPIA deliverable is in scope for application development or `0.1.0-alpha.1`.
+
+**How should subject-access, correction, export, and erasure requests be handled?** No dedicated in-application workflow is required for `0.1.0-alpha.1`. Any external legal or management process remains outside the development scope unless Collision Engineers later adds a requirement.
+
+**Which activities require security or compliance alerts?** Use standard operational security alerts for authentication or authorisation failures, privileged role/configuration changes, ingestion/integration failures, application availability, and unexpected Azure cost. Automated malware scanning is `Not planned`, so no scanner-specific detection or alert workflow is planned. No additional data-compliance alert workflow is required for `0.1.0-alpha.1`.
+
+**Are there contractual, insurer, solicitor, ISO, Cyber Essentials, or other compliance requirements?** No additional compliance implementation requirement has been supplied for development or `0.1.0-alpha.1`. This development-scope decision does not replace any external legal or organisational obligations managed by Collision Engineers.
+
+## 11. Scale, performance, and availability
+
+**Expected number of users at launch:** Approximately 8 Collision Engineers staff users.
+
+**Expected concurrent users:** Design for all 8 launch users to be active concurrently.
+
+**Expected new cases per day or month:** Approximately 2,000 new cases per month (about 24,000 per year).
+
+**Expected annual data growth:** Plan for approximately 24,000 new case records and roughly 48,000 to 480,000+ associated files per year based on the stated 2-3 to 20+ files per case. At the supplied 10 MB maximum per file, the conservative upper storage envelope is about 4.8 TB per year before allowing for versions. Box remains the long-term file store; Azure application storage should primarily hold structured metadata, processing state, action-history records, and any necessary transient artifacts. Measure actual case-folder sizes after launch and adjust the forecast.
+
+**Required operating hours:** Automated mailbox ingestion and case processing operate continuously. Staff-facing use is expected primarily during Collision Engineers business hours, but the application should remain available outside those hours unless undergoing planned maintenance.
+
+**Maximum acceptable planned downtime:** A short planned interruption during a production release is acceptable for `0.1.0-alpha.1`. Validate in the shared development/integration environment, deploy directly to production B1 outside office hours, wait for health checks, and run smoke tests. Keep the previous immutable artifact for rollback and notify staff. Standard S1 and deployment slots are `Not planned` under the current product boundary.
+
+**Maximum acceptable unplanned downtime:** Target restoration of service within four hours for `0.1.0-alpha.1`.
+
+**Maximum acceptable data loss after a failure (recovery point objective):** At most 15 minutes of recent application updates after a severe database failure requiring restore. Normal application restarts or deployments must not lose committed data. Source emails and files remain available in Outlook and Box for recovery or reconciliation.
+
+**Maximum acceptable time to restore service (recovery time objective):** Four hours for `0.1.0-alpha.1`.
+
+**Are there seasonal or deadline-driven workload peaks?** No predictable seasonal, calendar, weather-related, or deadline-driven intake peaks are expected.
+
+## 12. Environments, networking, and access
+
+**Required environments:**
+
+- [x] Local development
+- [x] Shared development
+- [ ] Test or QA
+- [ ] User acceptance testing
+- [ ] Staging
+- [x] Production
+- [ ] Training or demonstration
+
+Use one shared Azure development/integration environment for unfinished cloud integration work. Its F1 App Service may sleep when idle and is subject to the Free-tier CPU quota. `0.1.0-alpha.1` has no separate staging environment or production deployment slot; approved releases deploy directly to production B1 outside office hours.
+
+**Should production and non-production use separate Azure subscriptions?** Not for `0.1.0-alpha.1`. Use the same approved Azure subscription with separate development and production resource groups, identities, configuration, data stores, budgets, and access boundaries.
+
+**Will the application be public on the internet, restricted by organisation/network, or accessed through a private connection?** The application is reachable over the public internet so Collision Engineers staff can use it from anywhere. Staff pages use self-managed Pegasus usernames and passwords; the provider API uses principal-scoped machine credentials; and MCP uses staff-authorised OAuth tokens. Only narrowly defined technical endpoints such as health checks are anonymous. Access is not limited to the office network.
+
+**Is a custom domain already owned? If so, what is it?** No custom application domain is planned for `0.1.0-alpha.1`. Use the stable Azure App Service hostname and have staff bookmark it. Preserve support for adding a Collision Engineers subdomain later without changing application behaviour or authentication.
+
+**Are there fixed office IP addresses, VPNs, firewalls, or third-party allowlists to consider?** No office-IP, VPN, or private-network restriction applies to staff access. The application is accessible from anywhere after application authentication. Any outbound allowlist requirements discovered for third-party APIs will be handled per integration.
+
+**Who needs emergency operational access to production?** Alex initially, plus any specifically designated Administrator or Azure operator added later. Emergency application and Azure actions must remain attributable in the relevant permanent action history, security logs, or Azure activity logs.
+
+## 13. Monitoring, support, and operations
+
+**Who will support the application during business hours?** Alex provides first-line application support.
+
+**Who should receive security, availability, failure, and cost alerts?** Alex initially. Additional recipients may be added later through monitoring configuration without code changes.
+
+**What response times are expected for critical incidents?** Critical incidents should be acknowledged immediately while Alex is in the staffed office. Outside staffed hours, respond as soon as reasonably possible. The `0.1.0-alpha.1` service-restoration target remains four hours.
+
+**Which business operations must have dashboards or alerts?** Dashboard the agreed case and inbox queues plus today/this-week throughput. Alert on mailbox ingestion failures, document/OCR processing failures, Box folder/file-request failures, unmatched or repeatedly failing case associations, overdue due-by dates, failed recurring-chase generation, EVA export failures, application health, authentication anomalies, and unexpected Azure cost.
+
+**How often should backup restoration and disaster recovery be tested?** Prove database restore, the 15-minute RPO, and the documented four-hour recovery path before `0.1.0-alpha.1` acceptance and after a material persistence/release change where the owning change requires it. A recurring quarterly restore exercise is `Not planned`.
+
+**Who may deploy to development, integration, and production?** Alex controls releases initially. An authorised operator deploys committed Bicep through Azure Developer CLI from an authorised terminal. Unfinished cloud integration work uses the shared development/integration environment. There is no staging environment. After approval, production deploys directly to B1 outside office hours and is health-checked and smoke-tested immediately. GitHub Actions/OIDC deployment is `Not planned`.
+
+**Who approves production releases?** Collision Engineers management provides business approval; Alex performs or authorises the technical production release.
+
 ## 14. Budget and commercial constraints
 
 **Target monthly Azure budget during development:**  No fixed monthly budget. Use the lowest practical Azure tiers that still support required development and integration testing, remove unnecessary resources, and configure budget alerts from the approved cost forecast.
@@ -336,8 +432,3 @@ Complete the required integrations and identify the system that remains authorit
 
 **Anything else that should influence the product or architecture?**  Functionality and a complete QDOS workflow are the `0.1.0-alpha.1` priority. Use a simple modular architecture, logical names that reveal purpose, one authoritative implementation of each business rule, configurable backend policy where requirements may change, complete accountability through permanent action history and security logs, and explicit future extension points for deferred integrations and features. Cost should be controlled, but functional delivery takes priority over premium resilience/networking features in the `0.1.0-alpha.1`.
 
-
-Wall time: 0.10 seconds
-[raw output: artifact://318]
-
-[Some lines truncated to 768 chars]
