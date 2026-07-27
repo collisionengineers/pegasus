@@ -1,6 +1,6 @@
 # Accepted finding: provider API intake already covered by current plans
 
-**Operator decision:** Classified as dealt with on 2026-07-24. ADR-0020's architectural finding is accepted as already covered by current CollisionSpike `Next`/`unallocated` requirements, architecture and delivery plans.
+**Operator decision:** Classified as dealt with on 2026-07-24. ADR-0020's architectural finding is accepted as already covered by current Pegasus requirements, architecture and delivery plans.
 
 **Legacy sources dealt with:** ADR-0020 (`../dealt-with/accepted/0020-provider-api-intake/docs/adr/0020-provider-api-intake-channel.md`) and its direct provider API bundle (`../dealt-with/accepted/0020-provider-api-intake/README.md`).
 

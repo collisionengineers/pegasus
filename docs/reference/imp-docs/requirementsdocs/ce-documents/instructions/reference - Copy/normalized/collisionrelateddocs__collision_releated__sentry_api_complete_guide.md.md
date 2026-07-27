@@ -12,7 +12,7 @@ This companion is a derivative working copy. The raw source remains the source o
 
 # Sentry API — Complete Integration Guide
 
-> **EVA Software (Electronic Vehicle Assessment) · API `0.1.0-alpha.1`.2**  
+> **EVA Software (Electronic Vehicle Assessment) · API `v1.2`**  
 > Base URL: `https://sentry.evasoftware.co.uk/api/`
 
 ---
@@ -737,7 +737,7 @@ const recentReports = reports
 
 ## 6. Batch Operations
 
-> 📌 **The Sentry API `0.1.0-alpha.1`.2 does not provide a native batch endpoint.** All endpoints accept a single claim per request. Batch processing must be implemented at the client or integration layer.
+> 📌 **The Sentry API `v1.2` does not provide a native batch endpoint.** All endpoints accept a single claim per request. Batch processing must be implemented at the client or integration layer.
 
 Despite this, efficient bulk operations are fully achievable with the patterns below.
 
@@ -920,4 +920,4 @@ All write endpoints (`POST`) return the same standard response structure:
 
 ---
 
-*Sentry API Documentation `0.1.0-alpha.1`.2 — EVA Software (Electronic Vehicle Assessment)*
+*Sentry API Documentation `v1.2` — EVA Software (Electronic Vehicle Assessment)*

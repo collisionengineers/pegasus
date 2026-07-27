@@ -31,7 +31,7 @@ fixed:
   `verify-all` Domain passes — the reviewer sandbox lacked `npm install`.
 
 Redeployed: **orch** `cespk-orch-dev` (67 fns, Fix B + C) and **parser** `cespike-parser-dev-x7xt3d5ovhi7y`
-(engine-`Next`/`unallocated`.9, Fix C). Tests green: orch 170 / domain 954 / parser-classifier suite; eval `--check` no
+(engine-v2.9, Fix C). Tests green: orch 170 / domain 954 / parser-classifier suite; eval `--check` no
 movement. **Acceptance "no new case is minted" is now actually met** (Finding B fixed + deployed);
 behavioural live proof (a real open-case-ref chaser attaches with no mint) remains verify-stage.
 
@@ -46,7 +46,7 @@ behavioural live proof (a real open-case-ref chaser attaches with no mint) remai
 
 ## Files touched
 - `services/functions/parser/cedocumentmapper_v2/rules/email_classifier.py` — re-vendored from
-  engine-`Next`/`unallocated`.8: (a) new `open_case_ref_match` (one|none|ambiguous) request field — a
+  engine-v2.8: (a) new `open_case_ref_match` (one|none|ambiguous) request field — a
   ORCHESTRATION-RESOLVED context signal the classifier is told exactly like `provider_match_state`
   (the open-Case lookup stays in orchestration, ADR-0019); when one/ambiguous + an existing
   ref + new non-report evidence, the fresh-work promotion (Rules 1-3) is suppressed so a
@@ -54,7 +54,7 @@ behavioural live proof (a real open-case-ref chaser attaches with no mint) remai
   lane. Default absent = today's behaviour EXACTLY. (b) `_delivered_images_only` (factored
   `_is_image_evidence_file`) gains a FILENAME tier so a photos-in-a-PDF (`images - cvd.pdf`)
   the extension-derived kind reads as `instruction` is still `images_received`.
-- `services/functions/parser/cedocumentmapper_v2/PROVENANCE.md` — engine-`Next`/`unallocated`.8 pin + history entry.
+- `services/functions/parser/cedocumentmapper_v2/PROVENANCE.md` — engine-v2.8 pin + history entry.
 - `services/functions/parser/tests/test_email_classifier.py` — 3 pins (flip on `one`; kill-switch on
   default/`none`; `ambiguous` suppresses fresh work).
 - `scripts/evaluation/email/run_eval.py` — pass `open_case_ref_match` through `_FIELD_TO_PARAM`.
@@ -76,7 +76,7 @@ The sample is a report chaser delivering damage photos (as `images - cvd.pdf`) o
 already-open case `Ref 160404`. Its sender-written body is genuinely WORK-shaped ("engineers
 report is required on the following case … 160404" + an instruction PDF from a known provider),
 so Stage-A text-classification correctly reads `receiving_work` — only the OPEN-case lookup can
-tell it apart from a fresh instruction. Per the rules-engine-`Next`/`unallocated` Phase-2 precedence rule
+tell it apart from a fresh instruction. Per the rules-engine-v2 Phase-2 precedence rule
 (open-case-ref + new evidence → `case_update`; ADR-0019), the relabel is driven by resolved
 open-case context: the deployed `@cs/domain decideTriage` already does it live (relabel →
 `case_update`, suggest-first, and — with `TRIAGE_AUTO_ATTACH_ENABLED` — the reversible

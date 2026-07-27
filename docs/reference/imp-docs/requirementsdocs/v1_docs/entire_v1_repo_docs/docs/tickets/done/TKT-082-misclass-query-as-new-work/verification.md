@@ -9,7 +9,7 @@
   this session):** all three pins in `scripts/evaluation/email/manifest.json`
   (`tkt082-query-your-report` → query/query_existing_work; `tkt082-query-reply-eref1` →
   query/query_existing_work; `tkt082-caseupdate-reply-images` → case_update/images_received). Fresh
-  `run_eval.py` against the current tree (same lineage as live engine-`Next`/`unallocated`.15): all three pass;
+  `run_eval.py` against the current tree (same lineage as live engine-v2.15): all three pass;
   committed `baseline-v2.json` records `category_correct: true` ×3; the enforced unit test passes
   fresh.
 - **Acceptance 2 — an email matching an open case by VRM/ref does not create a second case (PROVEN
@@ -31,7 +31,7 @@
 ### Side-finding (not a TKT-082 failure — routed to the Tractable family / baseline adjudication)
 The full-corpus `--check` exits 1 vs both committed baselines with exactly **one new drift**:
 `tkt103-tractable-lead` (recorded other/other, now case_update/images_received) — a post-082 engine
-change (TKT-102/103 era, engine `Next`/`unallocated`.13–`Next`/`unallocated`.15), non-minting→non-minting, no TKT-082 pin involved. The
+change (TKT-102/103 era, engine `v2.13`–`v2.15`), non-minting→non-minting, no TKT-082 pin involved. The
 other 7 mismatches are pre-existing recorded baseline misses.
 
 ### Queued SQL (corroborative; next data pass)
@@ -113,7 +113,7 @@ Real classifier run on the samples:
 - sample-2 eml1 (Tasker reply) → `query/query_existing_work`; eml2 (image-delivery reply) →
   `case_update/images_received`. Neither is `new_client_work`.
 
-Pinned in `scripts/evaluation/email/manifest.json` (baseline-`Next`/`unallocated` regenerated, `--check` clean) + an
+Pinned in `scripts/evaluation/email/manifest.json` (baseline-v2 regenerated, `--check` clean) + an
 enforced unit test (`test_tkt082_question_about_your_report_is_query_not_new_work`). Full prior
 corpus green.
 

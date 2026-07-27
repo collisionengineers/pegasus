@@ -47,7 +47,7 @@ DEPLOYED GATED-OFF — needed D7 + TRIAGE_REF_GATE_ENABLED (both since flipped l
 ## Evidence
 - Repro material in evidence/ (operator-note.md; sent/ outgoing request 575985.eml;
   original/ incoming reply Our ref 576299.eml + 16DL.pdf + 16DL diminution PDF).
-- The rules-engine-`Next`/`unallocated` plan's own evidence base names this exact failure mode: "`Our ref: 576299` follow-up
+- The rules-engine-v2 plan's own evidence base names this exact failure mode: "`Our ref: 576299` follow-up
   mints a new case (TKT-023): the pre-mint path never checks job refs against open cases" — see
   [rules_engine_v2_plan_9ba034c4.plan.md § Evidence base](TKT-023-follow-up-docs.md).
 - The fix — a generalised ref-gate (`triagePolicy` activity + `POST /api/internal/triage/context` +
@@ -57,10 +57,10 @@ DEPLOYED GATED-OFF — needed D7 + TRIAGE_REF_GATE_ENABLED (both since flipped l
   decision path (telemetry-only, all gates forced on) is always-on.
 - Confirms the gap is real today: both of this ticket's own eval-corpus samples still MISS on the
   deployed (gate-off) engine — `tkt023-outbound-request` and `tkt023-original-reply` both score
-  `category_correct: false` in [baseline-`Next`/`unallocated`.json](../../../../scripts/evaluation/email/baseline-`Next`/`unallocated`.json) (part of
+  `category_correct: false` in [baseline-v2.json](../../../../scripts/evaluation/email/baseline-v2.json) (part of
   the eval harness's documented "context miss" set — see [README § Ground truth](../../../../scripts/evaluation/email/README.md)).
 ## Pending / gaps
-- 🔒 D7 DDL delta apply (operator, [docs/tickets/BOARD.md](../../BOARD.md) §D7) — the taxonomy-`Next`/`unallocated` engine tag and
+- 🔒 D7 DDL delta apply (operator, [docs/tickets/BOARD.md](../../BOARD.md) §D7) — the taxonomy-v2 engine tag and
   the `TRIAGE_*` gate flips are blocked on this landing first (deploy-order rule in the delta file).
 - 🔒 `TRIAGE_REF_GATE_ENABLED` flip (per-behaviour gate under D6) once D7 is live.
 - No live probe yet of the acting (non-shadow) ref-gate path — it cannot be exercised until the gate is on.

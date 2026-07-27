@@ -8,7 +8,7 @@ a fresh document PENDING
 ## Changes — engine parts (sibling-first, ADR-0018)
 
 **Sibling commit `a80246b` on `feat/tkt043-open-case-ref-context` (built directly on the
-engine-`Next`/`unallocated`.11 pin `4cbf19a`; origin/main had not moved); annotated tag `engine-v2.12`
+engine-v2.11 pin `4cbf19a`; origin/main had not moved); annotated tag `engine-v2.12`
 (final commit `ab5f8d2`, with TKT-102) PUSHED to origin with the branch.**
 
 ### Root cause
@@ -48,7 +48,7 @@ collisionspike parser suite 281 passed / 11 skipped / 1 PRE-EXISTING environment
 ## Re-vendor (collisionspike)
 `services/functions/parser/cedocumentmapper_v2/rules/{engine,email_classifier}.py` byte-mirrored from the
 tag; `PROVENANCE.md` bumped to `engine-v2.12`/`ab5f8d2` (its stale "tags LOCAL" note cleared —
-`Next`/`unallocated`.10/`Next`/`unallocated`.11 were already on origin). `tests/test_engine_vendored_in_sync.py` green.
+`v2.10`/`v2.11` were already on origin). `tests/test_engine_vendored_in_sync.py` green.
 
 ## Audited live data fix (case_ref rows) — EXECUTED 2026-07-09
 Enumerated live via the guard shapes (money-shaped / RIGERANT-like / prose-fragment): **13
@@ -68,4 +68,4 @@ nearest-fit action, mirroring the vrm-junk-cleanup precedent):
 ## Remainders
 - Live /parse probe post-deploy on a fresh REFRIGERANT-bearing estimate → `reference` empty; an
   unanchored `vehicle … HD4110` shape → no VRM. (The fixture pins this offline; the deployed
-  parser is at engine-`Next`/`unallocated`.12.)
+  parser is at engine-v2.12.)

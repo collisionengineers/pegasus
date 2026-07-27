@@ -12,7 +12,7 @@ cancellation rung and the email promoted via `images_with_work_signal` (signatur
 "engineers report" work keyword) to `receiving_work/new_client_work`. (The ticket's observed
 "case query" label was the SPA-side reading; the engine repro shows the promotion.)
 
-**Shipped (sibling-first, engine-`Next`/`unallocated`.10, re-vendored):** `resources/triage-rules.json`
+**Shipped (sibling-first, engine-v2.10, re-vendored):** `resources/triage-rules.json`
 `cancellation_phrases` +2 — `"not wish to proceed"`, `"no longer wishes to proceed"` (29→31; parity
 snapshot updated in the same commit). No rule-order change needed — Rule 0c already outranks
 `query_existing_work` AND the image/work promotion; the phrase gap was the whole defect. The negation
@@ -23,7 +23,7 @@ guard is unaffected (it guards "cancel" stems only; these phrases self-contain t
 .eml, pms one — Oakwood is the established OAK provider); cancellation subtype accuracy 13/13; full
 corpus 87.9%, `--check` clean.
 
-**Deploys/probes:** parser engine-`Next`/`unallocated`.10 live; live `POST /api/classify-email` probe 3 on the
+**Deploys/probes:** parser engine-v2.10 live; live `POST /api/classify-email` probe 3 on the
 "not wish to proceed" reply shape returned `cancellation/cancellation_notice` (2026-07-09).
 
 **Remainders:** the audited re-route of the ORIGINAL live email (propose close/hold per TKT-041's

@@ -44,7 +44,7 @@ Verified by: ticket-verifier dispatch, transcribed by the orchestrating session,
    (unchanged from 07-09): no unit test exercises the held-rows FIND matching
    (`internal.ts:2204-2219`) or the suggestion-raising loop; no natural held-row→later-instruction
    pair has occurred live.
-4. **Full prior eval corpus green — PASS** (58 loaded, 87.9%, "No regression" vs baseline-`Next`/`unallocated` as
+4. **Full prior eval corpus green — PASS** (58 loaded, 87.9%, "No regression" vs baseline-v2 as
    regenerated at 53748c6; the 7 mismatches are the documented known-miss set).
 
 Queued SQL (next data pass): Q1 the live pre_instruction arrival(s) — held state, directions

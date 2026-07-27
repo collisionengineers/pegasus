@@ -22,7 +22,7 @@ superseded_by: none
 Convert the existing Azure-oriented repository from its removed local plugin
 suite to the portable Azure Workflow standard without changing product rules,
 application behavior, data, or Azure resources. The result must retain material
-CollisionSpike truth, expose one documentation spine and work taxonomy, adapt
+repository truth, expose one documentation spine and work taxonomy, adapt
 the supplied Collision Engineers design foundation without duplicating its
 marketing system, and end as a green independently reviewed pull request.
 

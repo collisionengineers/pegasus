@@ -67,7 +67,7 @@ It creates a reviewable pre-case receipt/draft, not a lifecycle case. There is n
 
 ## Evidence required before implementation
 
-The report-sent path must prove through its real authorised caller that it associates one exact Outlook Sent item with exactly one case, records evidence provenance and Outlook `sentDateTime`, handles duplicate/late/conflicting signals idempotently, records the resulting action in permanent action history, and delegates the transition to Core. The manual path requires an entered reason when automatic matching is absent or ambiguous. It must distinguish report sent from post-report work complete and preserve the four current terminal outcomes. CollisionSpike detects the sent evidence; it does not send the report automatically.
+The report-sent path must prove through its real authorised caller that it associates one exact Outlook Sent item with exactly one case, records evidence provenance and Outlook `sentDateTime`, handles duplicate/late/conflicting signals idempotently, records the resulting action in permanent action history, and delegates the transition to Core. The manual path requires an entered reason when automatic matching is absent or ambiguous. It must distinguish report sent from post-report work complete and preserve the four current terminal outcomes. Pegasus detects the sent evidence; it does not send the report automatically.
 
 Evidence for a Box file, Sent Items message, EVA response, or staff action would prove only that selected source and matching contract. It would not automatically prove external receipt, post-report completion, production deployment, or operator acceptance.
 

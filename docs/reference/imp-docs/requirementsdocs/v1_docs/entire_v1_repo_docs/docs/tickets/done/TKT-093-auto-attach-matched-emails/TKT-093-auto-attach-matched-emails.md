@@ -46,7 +46,7 @@ PROPOSED (not built):
   (e.g. "attached to PCH26007"), not just the detail view. Ambiguous matches (multiple candidate
   cases, weak signals) keep the manual suggest dialog.
 - **Gate it** (`TRIAGE_AUTO_ATTACH_ENABLED`-style, default off) consistent with the
-  rules-engine-`Next`/`unallocated` activation pattern.
+  rules-engine-v2 activation pattern.
 - **Visibility fix** regardless of gate: the suggest card must be visible from the inbox list
   (badge/inline action), not only inside the opened email.
 - **Misclass fix**: additional-documentation emails on an open case must classify

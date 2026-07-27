@@ -80,7 +80,7 @@ CODE DEPLOYED (2026-07-02) — activation pending the D8 seed delta
   unit-tested). This is live on `cespk-api-dev` / `cespk-orch-dev`.
 - The **data** side — a `connexus.co.uk` intermediary `image_source` row joined N:N to PCH + SBL — is
   authored as the operator-gated delta
-  [`2026-07-02-rules-engine-v2-identification.sql`](../../../../database/migrations/2026-07-02-rules-engine-`Next`/`unallocated`-identification.sql)
+  [`2026-07-02-rules-engine-v2-identification.sql`](../../../../database/migrations/2026-07-02-rules-engine-v2-identification.sql)
   (ticket board **§D8**) and is **not yet applied** to the live database. Until it lands, the code path is
   live-safe but degrades to today's behaviour (an empty intermediary candidate list) per the delta's own
   "Unblocks (not blocks)" note.

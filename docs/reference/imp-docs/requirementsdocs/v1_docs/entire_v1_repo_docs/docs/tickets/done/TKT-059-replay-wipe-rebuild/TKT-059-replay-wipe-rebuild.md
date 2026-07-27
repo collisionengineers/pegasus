@@ -14,7 +14,7 @@ research-link: docs/tickets/done/TKT-059-replay-wipe-rebuild/TKT-059-replay-wipe
 
 The live stack has been intaking on info@ + engineers@ + desk@ since ~2026-06-30, but the derived
 data it built up (~165 `case_` rows / ~355 `inbound_email` rows) was processed by **since-fixed
-code** — the misclassification fixes, taxonomy-`Next`/`unallocated`, and provider-corpus corrections all landed
+code** — the misclassification fixes, taxonomy-v2, and provider-corpus corrections all landed
 *after* those emails were ingested. The UI therefore shows stale classifications, wrong providers,
 and un-linked follow-ups that current logic would get right. Incremental re-processing is unsafe:
 the live intake queue no-ops on replay (`intake-starter.ts` derives `instanceId = intake-<safeMessageId>`

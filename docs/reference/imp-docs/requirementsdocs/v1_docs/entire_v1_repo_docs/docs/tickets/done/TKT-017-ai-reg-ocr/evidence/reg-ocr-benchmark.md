@@ -66,7 +66,7 @@ running on the live stack:
 
 - **`fast-alpr` plate route** — `POST /api/plate-ocr` on the retained OCR Function `cespkocr-fn-dev-glju3v`
   (Functions-on-Azure-Container-Apps, scale-to-zero). Gate `PLATE_OCR_ENABLED=true` on `cespk-orch-dev`.
-  Engine: YOLO-v9-t detector + CCT-xs-`Next`/`unallocated` global OCR (ONNX/CPU, MIT). A `PLATE_PROVIDER=docintel` fallback
+  Engine: YOLO-v9-t detector + CCT-xs-v2 global OCR (ONNX/CPU, MIT). A `PLATE_PROVIDER=docintel` fallback
   switch is wired. (Route + gate: registry `gates` + `resourceInventory`; the OCR host URL was corrected in
   **TKT-115**.)
 - **gpt-5 vision classifier** — `services/orchestration/src/platform/image-classify.ts` (**TKT-064**), gate

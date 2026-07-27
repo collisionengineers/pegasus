@@ -36,7 +36,7 @@ file on hold … until further instructions": a work phrase + a ref, NO VRM) lef
 mint a case. It fixed ZERO items. That is precisely the abstain-lane regression the dispatch allowed
 for: **AND kept**, an adjudication comment + a regression pin
 (`test_hold_request_with_ref_but_no_vrm_stays_out_of_receiving_work`) added at the arm
-(engine-`Next`/`unallocated`.10), and the ticket's Acceptance should read "ref AND VRM (adjudicated 2026-07-09 —
+(engine-v2.10), and the ticket's Acceptance should read "ref AND VRM (adjudicated 2026-07-09 —
 OR regresses the abstain lane)".
 
 **Reconciliation — the "fairwaylegal.co.uk is unseeded" claim above is STALE.** Confirmed two ways
@@ -48,4 +48,4 @@ expected `receiving_work/existing_provider_instruction` (was none/new_client_wor
 upgrade this file predicted. Baselines regenerated; `--check` clean.
 
 **No code change to the deployed Rule-3 fix itself** (live since the 2026-07-07 parser deploy;
-carried unchanged through engine-`Next`/`unallocated`.10).
+carried unchanged through engine-v2.10).

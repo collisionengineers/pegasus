@@ -28,19 +28,19 @@ thread-scope chaser misclassification (overlaps TKT-030), or (c) both on the one
 
 ## Delivery
 
-Phase 2 of the [Rules Engine `Next`/`unallocated` plan](TKT-043-misclass-images-received.md)
+Phase 2 of the [Rules Engine v2 plan](TKT-043-misclass-images-received.md)
 (`case_update` lane + `images_received` subtype); the sample joins the eval corpus either way.
 
 ## Status update — 2026-07-02 (next — taxonomy + policy built; this sample still misses; needs D7 + gates)
 
-The `case_update` category and `images_received` subtype exist in the authored taxonomy-`Next`/`unallocated` DDL delta
+The `case_update` category and `images_received` subtype exist in the authored taxonomy-v2 DDL delta
 (`84fb102`, [docs/tickets/BOARD.md](../../BOARD.md) §D7) and the case-update/suggested-attach machinery is built
 (the same `triagePolicy`/`ai_suggestion`/SPA-tab stack as TKT-023/TKT-041 —
 `7bac2ee`/`00980d5`/`9fb16cf`/`69ec02e`). **Honest gap:** this ticket's own sample (`RE
 Ref160404_GN14GBE_... - Chaser for engineers report.eml`, manifest id `tkt043-images-existing-case`) is
 joined to the eval corpus with expected `case_update`/`images_received`, but **still scores a miss**
 (`category_correct: false`) even against the current **in-repo** `Next`/`unallocated`-ready engine — see
-[baseline-`Next`/`unallocated`.json](../../../../scripts/evaluation/email/baseline-`Next`/`unallocated`.json). It currently returns
+[baseline-v2.json](../../../../scripts/evaluation/email/baseline-v2.json). It currently returns
 `receiving_work`/`existing_provider_instruction` instead: recognising it as *work* correctly, but not yet
 as an update on an *existing* case, because that needs the ref-gate/context policy (open-case ref match),
 not text signals alone — and the ref-gate's acting path is gated off (`TRIAGE_REF_GATE_ENABLED`) pending

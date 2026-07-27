@@ -1,9 +1,9 @@
 # Changes — TKT-025: Mark + filter inbox by source mailbox (info/engineers/desk)
 ## Status
-now — built + shipped in the live SPA bundle (rules-engine-`Next`/`unallocated` Phase 5, 2026-07-02); operator live
+now — built + shipped in the live SPA bundle (rules-engine-v2 Phase 5, 2026-07-02); operator live
 click-through verification pending (see [verification.md](./verification.md) for the runbook).
 ## Commits
-- 2026-07-02 — rules-engine-`Next`/`unallocated` Phase 5: source-mailbox facet-chip row added to the Inbox toolbar
+- 2026-07-02 — rules-engine-v2 Phase 5: source-mailbox facet-chip row added to the Inbox toolbar
   (`apps/web/src/features/inbox/Inbox.tsx` + new `apps/web/src/features/inbox/inbox-mailbox-filter.ts`,
   unit-tested) — multi-select filter by distinct `sourceMailbox` values present in the loaded rows,
   wired into the existing search/subtype/triage-state filter pipeline. `tsc -b` / `vitest` / `npm run

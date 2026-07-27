@@ -30,7 +30,7 @@ resolve/merge) — the merge must prefer whichever side carries a resolved provi
 ## Delivery
 
 Rides the Phase-3 identification work of the
-[Rules Engine `Next`/`unallocated` plan](TKT-052-merge-provider-loss.md) (provider resolution at
+[Rules Engine v2 plan](TKT-052-merge-provider-loss.md) (provider resolution at
 caseResolve), with the merge-preference fix verified against the ADR-0010 dedup ladder.
 
 ## Artifacts

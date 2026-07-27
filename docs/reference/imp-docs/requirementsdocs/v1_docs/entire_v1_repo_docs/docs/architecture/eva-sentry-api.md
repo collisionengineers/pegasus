@@ -1,6 +1,6 @@
 # EVA Sentry API
 
-This page summarizes the current `0.1.0-alpha.1`.2 contract. The source PDF under
+This page summarizes the current `v1.2` contract. The source PDF under
 [docs/reference](../reference/README.md) remains authoritative for field-level implementation.
 
 ## Availability decision

@@ -18,14 +18,14 @@ Case updates and general queries are mixed together. E-mails that belong to a ca
 
 ## Wanted
 
-A `case_update` triage category (taxonomy `Next`/`unallocated`) with a defined boundary against
+A `case_update` triage category (taxonomy v2) with a defined boundary against
 `query_existing_work`: ref-match **+ new evidence** → case update (suggest-attach first); ref-match
 + question-only → the query lane. The inbox then facets the two separately.
 
 ## Delivery
 
-Phase 2 of the [Rules Engine `Next`/`unallocated` plan](TKT-046-seperate-case-updates.md)
-(ref-gate + taxonomy `Next`/`unallocated` + the SPA lane split under review 010726's inbox constraints).
+Phase 2 of the [Rules Engine v2 plan](TKT-046-seperate-case-updates.md)
+(ref-gate + taxonomy v2 + the SPA lane split under review 010726's inbox constraints).
 
 ## Status update — 2026-07-02 (next — precedence encoded + built; needs D7 + gates)
 

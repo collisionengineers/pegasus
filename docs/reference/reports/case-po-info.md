@@ -1,6 +1,6 @@
-# Legacy Case/PO marker decision superseded for `Next`/`unallocated`
+# Legacy Case/PO marker decision superseded for Pegasus
 
-**Status:** Superseded for CollisionSpike `Next`/`unallocated` on 2026-07-24 by the direct user
+**Status:** Superseded for Pegasus on 2026-07-24 by the direct user
 decision recorded in `docs/history/product/project-discovery-questionnaire.md`.
 
 **Historical references:** `docs/reviews/160726/decisions.md` and

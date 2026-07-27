@@ -37,7 +37,7 @@ PROPOSED (not built — includes a taxonomy design the operator must sign off):
   machinery) and surface the held directions on the new case.
 - Propose the concrete handling (queue placement, chaser behaviour, retention if no instruction
   ever arrives) to the operator as a short options note **before** building; implement the chosen
-  option behind a `TRIAGE_*`-style gate consistent with the rules-engine-`Next`/`unallocated` pattern.
+  option behind a `TRIAGE_*`-style gate consistent with the rules-engine-v2 pattern.
 - Add the sample to the eval corpus once the target label exists.
 
 ## Acceptance

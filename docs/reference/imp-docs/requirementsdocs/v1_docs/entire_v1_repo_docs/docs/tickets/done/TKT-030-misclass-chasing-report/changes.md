@@ -6,7 +6,7 @@ done — live-probed against the deployed engine 2026-07-02; locked in as an eva
 ## Commits
 - No code change required — the deterministic classifier's reply/chase rule (`query`/`query_existing_work`)
   already outranked the buried-instruction text in the quoted chain for this sample.
-- 2026-07-02 — rules-engine-`Next`/`unallocated` Phase 0/1 evidence pass: live-probed the evidence email against the
+- 2026-07-02 — rules-engine-v2 Phase 0/1 evidence pass: live-probed the evidence email against the
   deployed `/classify-email` route; result recorded as an eval-corpus regression pin (manifest id
   `tkt030-chaser`, `scripts/evaluation/email/`). See [verification.md](./verification.md).
 

@@ -1,9 +1,9 @@
 # Changes — TKT-015: AI suggestion layer (observation-first, gated)
 
 ## Status
-next — Phase 4 of rules-engine-`Next`/`unallocated` wired the email-triage lane to a real model call, still gated OFF
+next — Phase 4 of rules-engine-v2 wired the email-triage lane to a real model call, still gated OFF
 (`EMAIL_AI_ENABLED`/`AI_ASSIST_ENABLED` both absent). See [TKT-015-ai-assistant.md § Status update —
-2026-07-02](./TKT-015-ai-assistant.md#status-update--2026-07-02-phase-4-of-rules-engine-`Next`/`unallocated`--one-concrete-lane-wired-still-gated-off)
+2026-07-02](./TKT-015-ai-assistant.md#status-update--2026-07-02-phase-4-of-rules-engine-v2--one-concrete-lane-wired-still-gated-off)
 for the full detail.
 
 ## Commits
@@ -22,7 +22,7 @@ for the full detail.
 
 ## Summary
 A foundation for the observation-first AI suggestion layer was committed, deliberately gated OFF; Phase 4
-of rules-engine-`Next`/`unallocated` then gave ONE concrete consumer (email-triage categorisation) a real, keyless AOAI
+of rules-engine-v2 then gave ONE concrete consumer (email-triage categorisation) a real, keyless AOAI
 call — still gated OFF by default, and still not a working *live* feature until the operator flips
 `EMAIL_AI_ENABLED` (production needs the G5 sign-off; testing on repo data is already authorised, and an
 A/B smoke test used that authorisation 2026-07-02). The case/damage-assessment and image/reg-OCR

@@ -151,14 +151,14 @@ Two live prerequisites the verifier should confirm hold on the target case:
 
 ## Notes for the dispatcher
 - No new gate; no DDL (the `case_update`/`images_received` codes were already live per the
-  engine-`Next`/`unallocated`.3 deploy-order note). The live relabel is `decideTriage`'s (orchestration owns the
+  engine-v2.3 deploy-order note). The live relabel is `decideTriage`'s (orchestration owns the
   open-case lookup, ADR-0019), so the classifier's `open_case_ref_match` stays dormant/forward-supported;
   Stage A still returns `receiving_work` live and Stage B relabels + attaches.
 - **PR #45 review fix (2026-07-08):** the first pass had a BLOCKING bug — the orchestrator minted on
   `classification.category`, so an `attach_case` email attached to the matched case AND minted a
   DUPLICATE (violating "no new case is minted"). Fixed with an `attach_case` non-minting branch in
   `intakeOrchestrator.ts`; the images-only fast-path was also made signature-aware (orch + parser,
-  Finding C). **orch + parser REDEPLOYED** (engine-`Next`/`unallocated`.9; orch 67 fns). Acceptance "no new case is
+  Finding C). **orch + parser REDEPLOYED** (engine-v2.9; orch 67 fns). Acceptance "no new case is
   minted" is now met in code + deployed; the remaining PENDING item is the behavioural live proof on a
   real open-case-ref chaser (this section's "How to re-verify"). Full detail: `changes.md` PR#45 section.
 
@@ -173,14 +173,14 @@ VERIFIED-LIVE
 - Acceptance 1: a real arrival at `2026-07-13T15:56:51Z` produced `attach_case`,
   `case_update/images_received`, `matchTier=job_ref`, `matchCount=1`, `caseUpdateApplied=true`,
   `imagesOnly=true`, targeting open case `A.PCH26048` (`39822064-5e16-4ef6-b0aa-1f077f4f8ee5`). Offline
-  corroboration passed: parser classifier 182 passed/9 skipped; baseline-`Next`/`unallocated` reported no regression; domain
+  corroboration passed: parser classifier 182 passed/9 skipped; baseline-v2 reported no regression; domain
   policy/routing 60/60; orchestration signal tests 12/12.
 - Acceptance 2: API telemetry created case-link suggestion `d6a7688c-702c-400b-9d21-b02207c87d9a` for the
   matched case with `autoAttached=true`. The exact Durable instance recorded 34 rows and
   `CaseResolveRows=0`. It then persisted classification evidence, completed evidence backfill, extracted 70
   images, and archived 72/72 evidence items to folder `399470418892`. The `autoAttached=true` completion is
   the TKT-093 reversible `inbound_linked` path.
-- Acceptance 3: the fresh eval matched baseline-`Next`/`unallocated` and `receiving_work` recall was 94.7%. Targeted parser,
+- Acceptance 3: the fresh eval matched baseline-v2 and `receiving_work` recall was 94.7%. Targeted parser,
   domain and orchestration suites all passed. Current main's immediately preceding exact-head full verifier
   checkpoint was 8 passed/0 failed; it was not redundantly rerun in this dispatch.
 - Acceptance 4: the live decision's gate snapshot had ref-gate, images routing, case-update and auto-attach

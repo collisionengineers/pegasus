@@ -10,7 +10,7 @@ not started
 "AI Quote: £768.00" line surfaced `768.00` as `body_jobref` (and `168.12` / `487.32` on the sibling
 samples; reproduced on all three TKT-102 evidence .emls).
 
-**Shipped (sibling-first, engine-`Next`/`unallocated`.10, re-vendored):**
+**Shipped (sibling-first, engine-v2.10, re-vendored):**
 - `rules/email_classifier.py` `_job_reference` — a **money guard**: a token whose dotted tail is
   exactly two decimals (`768.00`, comma-grouped `1,234.56`) is never a reference; a currency marker
   immediately before the token (`£`/`$`/`€`/GBP/EUR/USD) or AS the captured head (`GBP 487.32` →
@@ -23,7 +23,7 @@ samples; reproduced on all three TKT-102 evidence .emls).
   until TKT-102 defines the Tractable lane; the token pin lives in the unit suites since the eval
   scorer asserts labels only).
 
-**Deploys/probes:** parser engine-`Next`/`unallocated`.10 live; classifier pytest + eval `--check` clean (87.9%, all 7
+**Deploys/probes:** parser engine-v2.10 live; classifier pytest + eval `--check` clean (87.9%, all 7
 mismatches pre-existing known misses).
 
 **Remainders:** the /parse-side `_fallback_reference` has the SAME family bug (the live

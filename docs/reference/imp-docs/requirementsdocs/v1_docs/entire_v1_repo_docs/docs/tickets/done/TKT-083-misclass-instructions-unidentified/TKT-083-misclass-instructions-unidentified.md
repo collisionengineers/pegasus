@@ -37,7 +37,7 @@ instruction email falls into `INBOX/OTHER` and no case is opened.
 
 PROPOSED (not built):
 
-- Root-cause why the detected signals don't license `receiving_work` in the rules-engine-`Next`/`unallocated`
+- Root-cause why the detected signals don't license `receiving_work` in the rules-engine-v2
   scoring (signal→label wiring, threshold, or a subtype-mapping miss for this signal
   combination); fix so instruction wording + ref + VRM + recognised sender is decisive.
 - Confirm `info@fairwaylegal.co.uk` / fairwaylegal.co.uk is present (or added) in the provider

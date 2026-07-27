@@ -5,11 +5,11 @@ VERIFIED-LIVE (2026-07-02) — live-probed against the deployed engine; locked b
 
 ## Evidence
 - Live probe: the deployed `/classify-email` route (`cespike-parser-dev`) classifies `RE 30143 - Mussie
-  Belay - BX67OEY .eml` as `query`/`query_existing_work` (not new work) — per the rules-engine-`Next`/`unallocated` plan's
+  Belay - BX67OEY .eml` as `query`/`query_existing_work` (not new work) — per the rules-engine-v2 plan's
   own evidence base, [rules_engine_v2_plan_9ba034c4.plan.md § Evidence base](TKT-030-misclass-chasing-report.md).
 - Regression pin: manifest item `tkt030-chaser` in the committed real-email eval harness —
   `category_correct`/`subtype_correct` both `true` at confidence `0.8` in the checked-in
-  [baseline-`Next`/`unallocated`.json](../../../../scripts/evaluation/email/baseline-`Next`/`unallocated`.json) (`Next`/`unallocated`-taxonomy aggregate 84.1%, up from
+  [baseline-v2.json](../../../../scripts/evaluation/email/baseline-v2.json) (`Next`/`unallocated`-taxonomy aggregate 84.1%, up from
   the `0.1.0-alpha.1` baseline 77.3% — [README](../../../../scripts/evaluation/email/README.md)).
 
 ## Pending / gaps

@@ -6,7 +6,7 @@ below stands corroborated)
 
 ## Final sweep verdict (transcribed verbatim, 2026-07-10)
 
-- **Live deployed engine, per-format probes (this pass, engine-`Next`/`unallocated`.15):** `POST /api/parse` on
+- **Live deployed engine, per-format probes (this pass, engine-v2.15):** `POST /api/parse` on
   `cespike-parser-dev-x7xt3d5ovhi7y` — every format returns a rich multi-field extraction, not just
   the registration: **PDF** (KBS, 7 fields incl. work_provider) · **DOCX** (ACSP, 8 fields incl.
   accident_circumstances) · **earlier .DOC** (OAK, 7 fields — extracts live on the FC1 host when its
@@ -21,10 +21,10 @@ below stands corroborated)
   rows / 6 + 5); the persist path (`services/data-api/src/features/inbound/parser-eva-fields.ts`) unchanged since; `.msg` is
   intake-eligible by code (`parse.ts:126` DOC_EXT).
 - **Offline suite state (drifted-venv bypassed via `C:\Python314\python`):** sibling
-  `cedocumentmapper_v2.0` full suite at HEAD = tag **engine-`Next`/`unallocated`.15 (the live tag): 453 passed / 4
+  `cedocumentmapper_v2.0` full suite at HEAD = tag **engine-v2.15 (the live tag): 453 passed / 4
   skipped / 0 failed**; vendored `test_multiformat_extraction.py` 4 passed / 1 failed — exactly the
   recorded pre-existing environmental `[ALS_doc]` baseline, not a regression; drift guard
-  `test_engine_vendored_in_sync.py` **7/7** — vendored == sibling `Next`/`unallocated`.15 == deployed.
+  `test_engine_vendored_in_sync.py` **7/7** — vendored == sibling `v2.15` == deployed.
 
 ### Expected absences / documented limitation (not regressions)
 - No `.msg` arrived through live intake in the retention window — capability proven by live probe;

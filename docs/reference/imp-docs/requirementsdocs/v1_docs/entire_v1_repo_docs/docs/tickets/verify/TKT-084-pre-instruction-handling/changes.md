@@ -22,7 +22,7 @@ Operator sign-off recorded 2026-07-09 (evidence/operator-signoff-2026-07-09.md) 
 signed-off approach: a `pre_instruction` taxonomy lane, no case minted, held + correlated onto the
 later official instruction, gated `TRIAGE_PRE_INSTRUCTION_ENABLED` (default OFF in code).
 
-**Classifier (sibling-first, engine-`Next`/`unallocated`.10, re-vendored):** taxonomy `Later`/`unallocated` — new category
+**Classifier (sibling-first, engine-v2.10, re-vendored):** taxonomy v3 — new category
 `pre_instruction` · subtype `pre_instruction_directions`; new `pre_instruction_phrases` collection
 (17 phrases, every one anchored to a FUTURE-instruction reference — "when you receive an
 instruction…", never a bare "hold off"); **Rule 0e** fires on phrase + an identifier (VRM/ref), with
@@ -53,7 +53,7 @@ the ADR-0019 doctrine — staff accept from the inbox banner, which performs the
 (verified: 100000007 / 100000013-100000014) BEFORE the parser deploy (deploy-order honoured);
 canonical 000_enums_lookups.sql carries the companion rows.
 
-**Deploys + GATE FLIP:** parser engine-`Next`/`unallocated`.10, orch (68 fns, +correlatePreInstruction), api (88 fns,
+**Deploys + GATE FLIP:** parser engine-v2.10, orch (68 fns, +correlatePreInstruction), api (88 fns,
 +internalTriageHeldPreInstruction), SPA — all live 2026-07-09. **`TRIAGE_PRE_INSTRUCTION_ENABLED=true`
 SET + VERIFIED on cespk-orch-dev** (operator-granted). Live probe 2: the sample shape returned
 `pre_instruction/pre_instruction_directions`, `taxonomy_version: 3`.

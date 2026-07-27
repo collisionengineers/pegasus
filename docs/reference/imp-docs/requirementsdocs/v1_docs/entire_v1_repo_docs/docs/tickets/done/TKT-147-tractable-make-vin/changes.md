@@ -1,9 +1,9 @@
 # Changes — TKT-147: Tractable layout: capture vehicle make (two-label rule) + a VIN field slot
 
 ## Status
-now — engine work sibling-first code-complete (engine-`Next`/`unallocated`.14, pushed), re-vendored into the parser
+now — engine work sibling-first code-complete (engine-v2.14, pushed), re-vendored into the parser
 Function copy; NO deploy this ticket (per the dispatch brief) — the re-vendored Function rides the
-NEXT parser deploy (live /parse stays engine-`Next`/`unallocated`.13 until then).
+NEXT parser deploy (live /parse stays engine-v2.13 until then).
 
 ## Commits
 - SIBLING `cedocumentmapper_v2.0` @ `2609b1a` (branch `feat/tkt043-open-case-ref-context`, annotated
@@ -13,8 +13,8 @@ NEXT parser deploy (live /parse stays engine-`Next`/`unallocated`.13 until then)
   rules, fixtures + 12 new tests, eval-baseline regeneration.
 - THIS repo (feat/backlog-drain, this commit) — re-cut of the vendored engine core from
   `engine-v2.14` per the PROVENANCE.md procedure INCLUDING the deliberate providers.json seed update;
-  PROVENANCE.md history/pin entry (also trues up the stale "engine-`Next`/`unallocated`.13 commit+tag PENDING" note —
-  `Next`/`unallocated`.13 was subsequently committed as sibling `05494a9` + tag pushed);
+  PROVENANCE.md history/pin entry (also trues up the stale "engine-v2.13 commit+tag PENDING" note —
+  `v2.13` was subsequently committed as sibling `05494a9` + tag pushed);
   `services/functions/parser/tests/test_eva_export.py` updated to the EVA_EXPORT_FIELD_ORDER contract
   (+ VIN-cannot-leak assertion); ticket artifacts.
 
@@ -53,7 +53,7 @@ This repo:
   `rules/engine.py`, `config/migration.py`, `exporters/eva_json.py`,
   `normalization/normalizers.py`, `normalization/__init__.py`, `providers.json` (deliberate seed
   update); all other shared files byte-identical
-- `services/functions/parser/cedocumentmapper_v2/PROVENANCE.md` — `Next`/`unallocated`.14 history entry + Source pin
+- `services/functions/parser/cedocumentmapper_v2/PROVENANCE.md` — `v2.14` history entry + Source pin
 - `services/functions/parser/tests/test_eva_export.py` — EVA_EXPORT_FIELD_ORDER contract + VIN-leak pin
 - Ticket folder: this file, `verification.md` (verdict stays PENDING; re-verify steps),
   `evidence/fixture-extractions.txt`

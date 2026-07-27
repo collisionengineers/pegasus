@@ -7,11 +7,11 @@ Vector confirmed, guard deployed, live case split + rebuilt (2026-07-09, PLAN-00
 
 Case **QDOS26056** (`8c7cbc8e…`) was created 2026-07-06 21:24 from "46533/1 - Barry Pavlou."
 (desk@). Thirteen minutes later "46671/1 - Michael McCarthy" arrived; both emails had sniffed the
-**junk VRM `AND2`** (engine `Next`/`unallocated`.7 — "Offices 1 and 2…"; both `body_vrm` values were cleared by the
+**junk VRM `AND2`** (engine `v2.7` — "Offices 1 and 2…"; both `body_vrm` values were cleared by the
 2026-07-09 vrm-junk cleanup), the case's own `case_ref` was EMPTY (no parsable doc → nothing for the
 ref arm to match), so **`linkReply`'s VRM arm auto-linked the second ref onto the first's case**
 (the inbound row went `routed` with `case_id = QDOS26056`). Upstream the AND2 extraction is dead
-(engine-`Next`/`unallocated`.10), but a genuinely shared registration (fleet/courtesy car) could reproduce the shape.
+(engine-v2.10), but a genuinely shared registration (fleet/courtesy car) could reproduce the shape.
 
 ## Shipped
 

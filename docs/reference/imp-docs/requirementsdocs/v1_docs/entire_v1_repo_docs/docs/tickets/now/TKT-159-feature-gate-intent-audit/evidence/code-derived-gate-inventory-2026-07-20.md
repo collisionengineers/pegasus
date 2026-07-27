@@ -88,7 +88,7 @@ Classification key (TKT-159 acceptance line 2): **on-and-required** / **off-and-
 | `BOX_REG_FOLDER_ENABLED` | Reg-keyed Box holding-folder rung (TKT-034 step 2) | `gates.ts:186` | off | not pinned; TKT-034 verification says step 2 built dark, steps 1+3 live | awaiting-dependency — new folder-naming semantic needs operator approval |
 | `TRIAGE_REF_GATE_ENABLED` / `TRIAGE_CANCELLATION_ENABLED` / `TRIAGE_IMAGES_ROUTING_ENABLED` / `TRIAGE_CASE_UPDATE_ENABLED` | Individual triage-policy rungs (ADR-0019) | `gates.ts:162-165` | off | not pinned | verify (all four off ⇒ proceed_default) |
 | `TRIAGE_AUTO_ATTACH_ENABLED` | Auto-attach promotion of ref-gate (TKT-093) | `gates.ts:172` | off | not pinned; operator-blocked per gate comment | off-and-intentional — verify |
-| `TRIAGE_PRE_INSTRUCTION_ENABLED` | Pre-instruction lane (TKT-084, taxonomy `Later`/`unallocated`) | `gates.ts:180` | off | not pinned | verify |
+| `TRIAGE_PRE_INSTRUCTION_ENABLED` | Pre-instruction lane (TKT-084, taxonomy v3) | `gates.ts:180` | off | not pinned | verify |
 | `PDF_MAPPER_ENABLED` | PDF mapper parse path | `gates.ts:20` | off | not pinned; `enabledCapabilities` "document parsing" ⇒ likely on | verify |
 | `ENRICHMENT_ENABLED` | Vehicle enrichment | `gates.ts:21`; `vehicle-enrichment/function_app.py:210` | off | not pinned; `enabledCapabilities` "vehicle enrichment" ⇒ likely on | verify |
 | `AZURE_MAPS_ENABLED` | Azure Maps (part of `locationAssistEnabled` AND-combo) | `gates.ts:23,225` | off | not pinned; part of "location assistance" | verify |

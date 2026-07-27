@@ -1,6 +1,6 @@
 # Accepted finding: suggestion-first image analysis and VRM recognition
 
-**Operator decision:** Accepted in narrowed form on 2026-07-24. `fast-alpr` is recorded as a potential future vehicle-registration recognition candidate, not as the selected `Next`/`unallocated` engine.
+**Operator decision:** Accepted in narrowed form on 2026-07-24. `fast-alpr` is recorded as a potential future vehicle-registration recognition candidate, not as the selected engine for the `Next`/`unallocated` allocation.
 
 **Legacy sources dealt with:** ADR-0009 (`../dealt-with/accepted/0009-image-processing/docs/adr/0009-image-processing-suggestion-first.md`) and its direct image-analysis ticket bundle (`../dealt-with/accepted/0009-image-processing/README.md`).
 
@@ -8,7 +8,7 @@ This report accepts a future product and evidence boundary. It does not move aut
 
 ## Accepted finding
 
-If CollisionSpike later adds automated vehicle-registration recognition, image-role classification, person/reflection warnings, or other image analysis:
+If Pegasus later adds automated vehicle-registration recognition, image-role classification, person/reflection warnings, or other image analysis:
 
 - every automated result is a suggestion associated with a specific retained source-image occurrence;
 - staff make the final case-data, image-role, readiness, matching, and correction decisions;

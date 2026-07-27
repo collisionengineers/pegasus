@@ -86,9 +86,9 @@ operator steps below are done. What shipped:
    grant the API managed identity the **Cognitive Services OpenAI User** role (keyless), and implement
    the model call in `callModelForSuggestions` (`services/data-api/src/features/assistant/register-suggestion-routes.ts`).
 
-## Status update — 2026-07-02 (Phase 4 of rules-engine-`Next`/`unallocated` — one concrete lane wired, still gated OFF)
+## Status update — 2026-07-02 (Phase 4 of rules-engine-v2 — one concrete lane wired, still gated OFF)
 
-The rules-engine-`Next`/`unallocated` plan's Phase 4 built the **first real consumer** of this ticket's suggestion-layer
+The rules-engine-v2 plan's Phase 4 built the **first real consumer** of this ticket's suggestion-layer
 scaffold: **email-triage categorisation**, not the case/damage-assessment or image/reg-OCR sub-tools
 (TKT-016/017/018 remain unbuilt as noted below). `b62b0df` replaced the dormant stub body of
 `services/orchestration/src/workflows/intake/triage-classify.ts` with a real Azure OpenAI structured-output call

@@ -29,7 +29,7 @@ evidence or reach the archive.
 
 ## Delivery
 
-Phase 2 of the [Rules Engine `Next`/`unallocated` plan](TKT-047-email-sigs-box.md); the engine
+Phase 2 of the [Rules Engine v2 plan](TKT-047-email-sigs-box.md); the engine
 side (sibling PR #4/#5 decorative filter) covers document-embedded rasters.
 
 ## Status update — 2026-07-08 (operator live-failure report)

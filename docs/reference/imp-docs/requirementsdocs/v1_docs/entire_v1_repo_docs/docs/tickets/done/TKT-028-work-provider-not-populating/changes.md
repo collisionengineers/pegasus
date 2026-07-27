@@ -1,7 +1,7 @@
 # Changes — TKT-028: work_provider not populating on intake
 ## Status
 now — the operator's specific example already worked via domain match (confirmed 2026-06-30); a second,
-content-string identification signal deployed live 2026-07-02 (rules-engine-`Next`/`unallocated` Phase 3) for cases the
+content-string identification signal deployed live 2026-07-02 (rules-engine-v2 Phase 3) for cases the
 domain match alone would miss; awaiting live proof on such a case.
 ## Commits
 - `3a772d1` — feat(identification): Image-Source intermediary resolution + parser-string →

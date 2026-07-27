@@ -40,7 +40,7 @@ Connected `SET ROLE csadmin` (RLS bypass — non-admin reads return false zeros,
   Rule 1 promotes new-work via the instruction-doc attachment, which the DB-field-only diff lacked. So: the
   classifier does NOT need an emergency fix; the STORED classifications (ingested with the full email) are
   largely CORRECT; a faithful reprocess needs full-email input (parse the stored `.eml`, available for the
-  ~212 case-linked emails) and would make only MODEST correct changes (chiefly adding taxonomy-`Next`/`unallocated`
+  ~212 case-linked emails) and would make only MODEST correct changes (chiefly adding taxonomy-v2
   `case_update`/`cancellation` labels to the pre-2026-07-03 emails that predate that engine). The reprocess
   is therefore **SAFE (not corrupting) but low-value** — no longer urgent. Genuine classifier gaps are the
   8 documented eval mismatches (ref-gate/`images_received` cases + operator-blocked TKT-032 routing), most

@@ -11,8 +11,8 @@ attachment kind is "instruction" and the sender matched a provider, so a PAYMENT
 minted a case. (The old design deliberately abstained remittances to `other`; the operator's
 direction is a payments/billing lane.)
 
-**Shipped (sibling-first, engine-`Next`/`unallocated`.10, re-vendored):**
-- **Taxonomy `Later`/`unallocated`**: new subtype `payment_remittance` under the existing `billing` category
+**Shipped (sibling-first, engine-v2.10, re-vendored):**
+- **Taxonomy v3**: new subtype `payment_remittance` under the existing `billing` category
   (classifier `SUBTYPE_PAYMENT_REMITTANCE`; `TAXONOMY_VERSION` 2→3). Full plumbing: TS
   `InboundSubtype`/`INBOUND_SUBTYPES` (@cs/domain), code-table JSON code **100000013**, api
   name↔code maps, SPA label "Payment received" under Billing, DDL delta
@@ -30,7 +30,7 @@ direction is a payments/billing lane.)
 **Eval:** pin `tkt105-remittance-advice` (the REAL .eml + PDF evidence); payment_remittance 2/2;
 corpus 87.9%, `--check` clean.
 
-**Deploys/probes:** DDL delta verified live (100000013), parser engine-`Next`/`unallocated`.10 + api + SPA deployed;
+**Deploys/probes:** DDL delta verified live (100000013), parser engine-v2.10 + api + SPA deployed;
 live probe 1 (`Remittance advice` + instruction-kind attachment) returned
 `billing/payment_remittance` with `payment_keywords` signals (2026-07-09).
 

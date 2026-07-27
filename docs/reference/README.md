@@ -19,8 +19,9 @@ before using it in current product or technical work.
 The supplied Pegasus system-plan Markdown/DOCX pair and the duplicate
 `requirementsdocs/eva_information/` tree were retired only after clause-level
 distillation into the orientation change record and canonical owners. The
-consolidated EVA notes, examples and 27 screenshots remain under
-`docs/reference/eva_information/`. Other `requirementsdocs/` material remains
+consolidated EVA notes, [examples](eva_information/) and
+[reviewed screenshot findings](eva_information/eva_screenshot_findings.md)
+remain under `docs/reference/eva_information/`. Other `requirementsdocs/` material remains
 reference evidence; `ce-documents/` is evaluation input, not a requirement
 source.
 

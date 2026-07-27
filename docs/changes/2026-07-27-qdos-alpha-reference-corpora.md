@@ -223,7 +223,7 @@ Count assertion: **127 distinct IDs; no duplicate and no omitted `Now` row**.
 7. **Real callers — Worker and Web.** Add the one approved `instructions@`
    Worker trigger/caller and authenticated Web operator callers. Worker invokes
    the same Core policy as manual intake and never creates a case directly.
-   Implement CollisionSpike accounts/roles and Operations-first Intake, Triage,
+   Implement Pegasus accounts/roles and Operations-first Intake, Triage,
    Case, document, administration, error, stale, retry, and accessibility states.
 8. **Azure/release — existing IaC and explicit operations route.** After a fresh
    inventory and exact-target approval, finish immutable packages, migration
@@ -438,5 +438,5 @@ blockers, approved live evidence, and the final release outcome.
   remain unclaimed until the authoring pipeline completes.
 - Live blockers: genuine route/Triage/report holdouts, selected VRM engine,
   accepted DVLA/DVSA and EVA contracts, exact Graph/Box targets and scopes,
-  refreshed Azure inventory, teardown approvals, isolated `Next`/`unallocated` target, operator
+  refreshed Azure inventory, teardown approvals, isolated Pegasus target, operator
   acceptance, and management approval remain mandatory before release.

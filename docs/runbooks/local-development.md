@@ -103,7 +103,7 @@ normal Web or Worker start never applies migrations. The checked-in Development
 configuration uses only:
 
 - `Runtime:Profile=DevelopmentOffline`;
-- `(localdb)\MSSQLLocalDB`, database `PegasusV2Development`;
+- `(localdb)\MSSQLLocalDB`, database `PegasusDevelopment`;
 - ignored files below `artifacts/local-development/default/`; and
 - loopback HTTP/HTTPS endpoints.
 
@@ -166,7 +166,7 @@ parallel runs.
 Stop only the foreground processes started in the corresponding terminals with
 Ctrl+C. Local state is ignored and disposable, but deletion is never inferred
 from a process name. Before removing it, verify the exact database name begins
-with `PegasusV2Development` or the run-specific `Pegasus_` prefix
+with `PegasusDevelopment` or the run-specific `Pegasus_` prefix
 and verify the exact artifact path is a descendant of
 `artifacts/local-development/`. Do not remove another run, `corpus/`, tracked
 reference files, or any Azure resource.

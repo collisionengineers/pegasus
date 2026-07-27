@@ -17,7 +17,7 @@ the false positive came from the **TS intake sniff** (`extractVrm` in
   (AND/THE/FOR/NOT/BUT/ARE/WAS/OUR/YOU/ALL/ANY/HAS/HAD/PER/VIA — function words nobody buys as a
   plate head; real dateless heads like VAN/JET deliberately NOT listed). QDOS-footer fixture + 3
   prose fixtures pinned in `vrm-filter.test.ts`.
-- Python mirror (engine-`Next`/`unallocated`.10): `_VRM_LOOSE_ALPHA_STOPWORDS` in `vrm_candidate_is_bad` +
+- Python mirror (engine-v2.10): `_VRM_LOOSE_ALPHA_STOPWORDS` in `vrm_candidate_is_bad` +
   `_is_suspicious_value`; sibling unit tests pin `AND 2`/`THE 4` rejection and the QDOS footer shape.
 - Eval pin: manifest item `tkt100-qdos-lead` (the Barry Pavlou sample,
   `receiving_work/existing_provider_instruction`) keeps the QDOS layout covered — the scorer asserts
@@ -26,7 +26,7 @@ the false positive came from the **TS intake sniff** (`extractVrm` in
 **Data fix (audited):** `QDOS26056.vrm` (AND2) cleared + audited; 4 QDOS `inbound_email.body_vrm`
 AND2 rows cleared (delta `2026-07-09-vrm-junk-cleanup.sql`, backup table retained; post-check 0).
 
-**Deploys/probes:** parser engine-`Next`/`unallocated`.10 + orch (TS sniff) republished. Eval `--check` clean at 87.9%.
+**Deploys/probes:** parser engine-v2.10 + orch (TS sniff) republished. Eval `--check` clean at 87.9%.
 
 **Remainders:** the four QDOS samples classify receiving_work/case_update per their attachment mix —
 the QDOS handling lane itself is TKT-101/TKT-102 territory, untouched here.

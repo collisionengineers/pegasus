@@ -248,7 +248,7 @@ AI Subscriptions
 
 Copilot – Query Response Drafter
 
-We have a custom Copilot agent designed to respond to queries (“QRD `Next`/`unallocated`”). This agent is on the digital@collisionengineers.co.uk Copilot account which has an M365 Copilot Premium subscription. This is the only account with a Copilot subscription.
+We have a custom Copilot agent designed to respond to queries (“QRD v2”). This agent is on the digital@collisionengineers.co.uk Copilot account which has an M365 Copilot Premium subscription. This is the only account with a Copilot subscription.
 
 We chose to house the query response agent on Copilot specifically because Copilot was the only place that would allow the AI to access all 3 of our shared inboxes at the same time.
 

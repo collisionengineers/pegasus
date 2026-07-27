@@ -12,7 +12,7 @@ narrative — and the carrier email only a vehicle-status advisory ("total loss 
 status" — vehicle condition, NOT circumstances; deliberately not stuffed into the field). The
 orchestration body-supplement (`supplementAccidentCircumstancesFromBody`) correctly did not fire (no
 "Accident Circumstances" label). **Correct extraction for this pair is EMPTY** — pinned as sibling
-regression fixture `OAK_RTF_01` (engine-`Next`/`unallocated`.10) so junk can never fill it and the format lane stays
+regression fixture `OAK_RTF_01` (engine-v2.10) so junk can never fill it and the format lane stays
 proven.
 
 **Corpus-wide measurement (the ticket's scope note):**
@@ -23,7 +23,7 @@ Fairway 7/8, Swan 5/5, Baker Coleman 4/4; AX 35/35 populated (TKT-050 holding), 
 tickets should be cut per layout WITH a dropped sample each (none on file here beyond the Oakwood
 pair).
 
-**Deploys:** parser engine-`Next`/`unallocated`.10 live (the fixture rides the re-vendor; no extraction-rule change was
+**Deploys:** parser engine-v2.10 live (the fixture rides the re-vendor; no extraction-rule change was
 needed for this layout).
 
 **Remainders:** acceptance line 1 ("extracts its full circumstances narrative") is superseded by the

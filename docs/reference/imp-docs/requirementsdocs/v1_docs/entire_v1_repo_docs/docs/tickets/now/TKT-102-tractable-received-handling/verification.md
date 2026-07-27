@@ -12,7 +12,7 @@ system-of-record read is queued. Not FAILED — nothing observed contradicts Acc
 (blocked, vendor docs) holds only the API capabilities. Nothing here defers to it.
 
 - **Line 1a — "recognised" (VERIFIED-LIVE):** `POST /api/classify-email` on the deployed parser
-  (engine-`Next`/`unallocated`.15) with all THREE real ticket samples → `case_update / images_received` @0.8, rule
+  (engine-v2.15) with all THREE real ticket samples → `case_update / images_received` @0.8, rule
   `image_service_delivery`; `body_jobref` empty (TKT-103 money guard live) and `body_vrm` empty on
   all three. Sibling classifier tests 4/4 fresh.
 - **Line 1b — "matched to its case" (code-live, zero live executions):** `imagesReceivedVrmMatch`
@@ -72,7 +72,7 @@ ORDER BY s.created_at DESC;
   **no field-level writes into the case record** (deliberate suggest-first). If the operator
   intended automatic field population (e.g. mileage), that is unbuilt — explicit scope adjudication
   for the loop/operator.
-- VIN is captured engine-side since `Next`/`unallocated`.14 and the repair build surfaces it as a top-level `/parse`
+- VIN is captured engine-side since `v2.14` and the repair build surfaces it as a top-level `/parse`
   field cell, deliberately outside the 12-field EVA mapping. Live proof remains pending the parser
   redeploy; no deployed-state claim is made here.
 - changes.md says flag detail `unmatched_images`; the code/DDL token is `images_no_match` — wording

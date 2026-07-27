@@ -2,7 +2,7 @@
 
 The sole case-workflow vehicle-data owner is `services/functions/vehicle-enrichment/vehicle_data`.
 Provider credentials and transport live in its adapters. Every caller receives the versioned
-[vehicle-data contract](../../contracts/vehicle-data-`0.1.0-alpha.1`.schema.json).
+[vehicle-data contract](../../contracts/vehicle-data-v1.schema.json).
 
 The Data API applies a validated result to a Case, preserves the immutable lookup evidence, and exposes
 plain-language warnings and retry. Web and orchestration callers do not clean MOT rows, calculate a rate,

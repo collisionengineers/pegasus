@@ -17,7 +17,7 @@ mileage estimate (enrichment) needs its calculation checked against known-good e
 
 ## Notes
 
-Authored 2026-07-02 from the bare drop-note during the rules-engine-`Next`/`unallocated` doc-hygiene pass (this ticket
+Authored 2026-07-02 from the bare drop-note during the rules-engine-v2 doc-hygiene pass (this ticket
 is **not** part of that plan — it's an enrichment-calculation check). Remember the ADR-0006
 precedence: a document-extracted mileage is authoritative and suppresses the MOT estimate, so any fix
 here only affects cases with no document mileage.

@@ -20,7 +20,7 @@ spot them in the Other pile and act manually.
 
 ## Wanted
 
-A `cancellation` triage category (taxonomy `Next`/`unallocated`): match the email to its open case by ref/job-ref, then
+A `cancellation` triage category (taxonomy v2): match the email to its open case by ref/job-ref, then
 **propose** a close/hold with a note + audit trail — **staff-confirmed, never an automatic close**
 (the terminal case status `removed` already exists). Unmatched cancellations surface for review.
 
@@ -33,19 +33,19 @@ A `cancellation` triage category (taxonomy `Next`/`unallocated`): match the emai
 
 ## Delivery
 
-Phase 2 of the [Rules Engine `Next`/`unallocated` plan](TKT-041-cancelled-case.md) (taxonomy `Next`/`unallocated`
+Phase 2 of the [Rules Engine v2 plan](TKT-041-cancelled-case.md) (taxonomy v2
 + triage policy). The old `TKT-041-merge-fix` note that shared this id was split out to
 [TKT-052](../../verify/TKT-052-merge-provider-loss/TKT-052-merge-provider-loss.md).
 
 ## Status update — 2026-07-02 (next — built + eval-proven; needs D7 + the parser deploy)
 
-Built: the `cancellation` category ships in the taxonomy-`Next`/`unallocated` DDL delta (`84fb102`, operator-gated —
-[docs/tickets/BOARD.md](../../BOARD.md) §D7) and the re-cut parser engine (`ec45970`, engine-`Next`/`unallocated`.3, cancellation +
+Built: the `cancellation` category ships in the taxonomy-v2 DDL delta (`84fb102`, operator-gated —
+[docs/tickets/BOARD.md](../../BOARD.md) §D7) and the re-cut parser engine (`ec45970`, engine-v2.3, cancellation +
 `case_update` rules); the propose-close/hold action (never auto-close) rides the same triage-policy +
 `ai_suggestion` machinery as TKT-023 (`7bac2ee`/`00980d5`/`9fb16cf`), with a cancellation banner + "Open
 case" affordance in the SPA (`69ec02e`). **Eval-proven**: 12/13 of this ticket's own 13-email corpus score
 correctly as `cancellation` in the committed harness (`category_correct`/`subtype_correct` both `true`,
-100% recall on the 12 true-cancellation samples — [baseline-`Next`/`unallocated`.json](../../../../scripts/evaluation/email/baseline-`Next`/`unallocated`.json)).
+100% recall on the 12 true-cancellation samples — [baseline-v2.json](../../../../scripts/evaluation/email/baseline-v2.json)).
 
 **Flagged taxonomy gap (operator decision needed):** the 13th sample (`tkt041-06-hold-request`) is a
 **hold**, not a cancellation — a sender asking us to pause work on a specific job until further notice,
@@ -55,14 +55,14 @@ case explicitly stays open. The plan does not define a `hold` category/subtype d
 [scripts/evaluation/email/manifest.json](../../../../scripts/evaluation/email/manifest.json). This is a genuine gap for
 the operator to decide, not something built or guessed at in this pass.
 
-**Now active (updated 2026-07-09):** D7 (the taxonomy-`Next`/`unallocated` DDL delta) landed, the taxonomy-`Next`/`unallocated` parser is
+**Now active (updated 2026-07-09):** D7 (the taxonomy-v2 DDL delta) landed, the taxonomy-v2 parser is
 deployed, and `TRIAGE_CANCELLATION_ENABLED=true` on `cespk-orch-dev`. A live probe has run: the real sample
 `Claim Cancelled - SBL-B0649696` classified 200 `cancellation`/`cancellation_notice` at taxonomy_version 2.
 The propose-close/hold action remains staff-confirmed (never an automatic close). See
 [changes.md](./changes.md) and [verification.md](./verification.md).
 
 > **Prior state (superseded 2026-07-09):** Not yet active — the `cancellation` category and the engine that
-> emits it are both gated — 🔒 D7 (DDL delta apply) must land before the taxonomy-`Next`/`unallocated` parser deploy, and no
+> emits it are both gated — 🔒 D7 (DDL delta apply) must land before the taxonomy-v2 parser deploy, and no
 > live probe has run yet against a real inbound cancellation email on the deployed (`0.1.0-alpha.1`-only) engine.
 
 ## Artifacts

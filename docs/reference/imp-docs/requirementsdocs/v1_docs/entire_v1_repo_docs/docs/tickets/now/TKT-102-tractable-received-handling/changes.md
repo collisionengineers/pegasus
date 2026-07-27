@@ -9,8 +9,8 @@ Tractable-email proof PENDING
 **Sibling commit `ab5f8d2`, annotated tag `engine-v2.12`, pushed to origin. Re-vendored into
 `services/functions/parser/cedocumentmapper_v2` INCLUDING a deliberate vendored providers.json seed bump
 (the cloud parser reads the vendored seed via `parser_adapter._VENDORED_PROVIDERS_JSON` — same
-pattern as the engine-`Next`/`unallocated`.10 CDQ cut). No DDL dependency: the classifier emits only existing
-taxonomy codes (`case_update`/`images_received`, live since taxonomy `Next`/`unallocated`).**
+pattern as the engine-v2.10 CDQ cut). No DDL dependency: the classifier emits only existing
+taxonomy codes (`case_update`/`images_received`, live since taxonomy v2).**
 
 ### Before/after (the three real .eml samples, evidence/tractableexamples/)
 Before: `other · other` (0.3, `uncorroborated_instruction_doc`). After: `case_update ·

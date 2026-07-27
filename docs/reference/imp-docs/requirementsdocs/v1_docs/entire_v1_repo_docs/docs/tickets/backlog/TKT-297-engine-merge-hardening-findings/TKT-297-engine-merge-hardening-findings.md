@@ -40,7 +40,7 @@ runtime behaviour. They are deferred here so the consolidation can land without 
 6. **RESOLVED 2026-07-21 (via TKT-296 / PR #154).** `function_app.py`'s parser-fingerprint response
    still self-identified as `ce-parser-fingerprint-v1` while dropping the `0.1.0-alpha.1`
    `repository`/`ref`/`commit`/`providers_sha256` fields (retired with vendoring). A deployment verifier
-   keyed on the `0.1.0-alpha.1` contract id would accept a nominal-`0.1.0-alpha.1` response and then fail on the missing fields —
+   keyed on the `0.1.0-alpha.1` contract id would accept a nominal-v1 response and then fail on the missing fields —
    though a repo-wide grep confirmed **zero live consumers** of the `/fingerprint` route or those fields,
    so it was a latent trap rather than a live break. Bumped to `ce-parser-fingerprint-v2` in
    `function_app.py` + `services/functions/parser/tests/test_fingerprint.py` and redeployed the parser;

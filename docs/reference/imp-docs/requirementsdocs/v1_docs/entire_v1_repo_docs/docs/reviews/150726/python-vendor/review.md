@@ -36,7 +36,7 @@ cleanup, not move breakage.
 
 ### Verified sound (non-findings)
 - **Vendored tree integrity:** 33/36 files pure `R100` rename; the other 3 docstring-only (AST-equal); count 36 intact.
-- **Pin internally valid on the branch:** ran `verify_vendor_pin.py` read-only → `PASS engine-`Next`/`unallocated`.24 @ e9cec4a…
+- **Pin internally valid on the branch:** ran `verify_vendor_pin.py` read-only → `PASS engine-v2.24 @ e9cec4a…
   (36 files; offline lock verified)`, exit 0. The moved script's path math tracks the new depth correctly — the
   move did not break the path the pin reads.
 - **Parser pytest layout intact post-move**; `conftest.py`, fixtures, `test_*.py` present + 5 new

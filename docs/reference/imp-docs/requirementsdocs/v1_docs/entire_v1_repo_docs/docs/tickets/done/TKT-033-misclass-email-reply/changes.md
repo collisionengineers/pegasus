@@ -6,7 +6,7 @@ done — live-probed against the deployed engine 2026-07-02; locked in as an eva
 ## Commits
 - No code change required — the same `query`/`query_existing_work` reply rule that fixes TKT-030 (same
   thread/file) already covers this sample.
-- 2026-07-02 — rules-engine-`Next`/`unallocated` Phase 0/1 evidence pass: live-probed the evidence email against the
+- 2026-07-02 — rules-engine-v2 Phase 0/1 evidence pass: live-probed the evidence email against the
   deployed `/classify-email` route; result recorded as an eval-corpus regression pin (manifest id
   `tkt033-reply-existing-query`, `scripts/evaluation/email/`). See [verification.md](./verification.md).
 

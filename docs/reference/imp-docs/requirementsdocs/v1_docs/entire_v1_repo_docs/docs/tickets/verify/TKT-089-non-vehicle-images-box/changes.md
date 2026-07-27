@@ -164,7 +164,7 @@ division of labour. Sibling fixtures: 575×174 suppressed (unit matrix + PDF-ext
 PROVENANCE mirror loop — only `application/service.py` changed; drift guard green; PROVENANCE.md
 history + Cut-from updated to `engine-v2.15`. The parser deploy **rides the already-vendored
 `engine-v2.14`** (TKT-147 Tractable `two_label_join` + VIN envelope — additive, EVA export
-byte-stable, no DDL dependency; live was `Next`/`unallocated`.13). Email-lane lockstep:
+byte-stable, no DDL dependency; live was `v2.13`). Email-lane lockstep:
 `services/orchestration/src/platform/image-sniff.ts` `BANNER_ASPECT_RATIO` 3.5 → 3.2 (+ test boundaries updated,
 575×174 flagged, 204×204 documented classifier-owned).
 

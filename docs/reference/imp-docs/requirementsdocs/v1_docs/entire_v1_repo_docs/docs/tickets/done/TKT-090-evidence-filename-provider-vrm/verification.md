@@ -34,8 +34,8 @@ short — see materiality.)
 
 ### Evidence
 - **Deploy record:** ARM deployment history for cespike-parser-dev-x7xt3d5ovhi7y shows three
-  2026-07-09 deploys: 08:50:11Z (engine-`Next`/`unallocated`.11 lifecycle-wave republish), 14:24:37Z, and 15:51:33Z
-  (ACTIVE — the TKT-143 final-wave build, vendored engine `Next`/`unallocated`.11). No parser deploy since; the active
+  2026-07-09 deploys: 08:50:11Z (engine-v2.11 lifecycle-wave republish), 14:24:37Z, and 15:51:33Z
+  (ACTIVE — the TKT-143 final-wave build, vendored engine `v2.11`). No parser deploy since; the active
   build is the one probed. Orch: TKT-143 threading live from 2026-07-09T14:16Z.
 - **Acceptance line 1 (no wrong provider token; unresolved → clean names) — live probe, deployed
   parser, compute-only:** POSTed the repo CVD sample (1,100,062 bytes) to the live /extract-images as
@@ -73,7 +73,7 @@ results); the parser probe (compute-only POST with x-functions-key, bare + provi
 
 ### Confidence + unread surfaces
 High confidence the generator is fixed live. Unread: live Postgres (queued); Box case folders
-(root-only allowlist); Kudu logs that would pin which 07-09 deploy first carried engine-`Next`/`unallocated`.11
+(root-only allowlist); Kudu logs that would pin which 07-09 deploy first carried engine-v2.11
 (bounded with banded windows instead).
 
 ## Orchestrator data-pass W2 (run 2026-07-10, transient window trap-deleted)

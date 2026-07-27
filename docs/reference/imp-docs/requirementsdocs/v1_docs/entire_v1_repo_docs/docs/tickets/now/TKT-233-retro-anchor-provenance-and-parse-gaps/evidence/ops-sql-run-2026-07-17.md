@@ -19,7 +19,7 @@ back to `["AllowAzureServices"]`).
 Full pre-check row list (id, case_po, value) captured in the session terminal; ids above
 suffice for audit — the UPDATE touched exactly the pre-check set (81 = 81).
 
-Root cause and the preventing engine fix (own-domain rejection, sibling engine-`Next`/`unallocated`.25) are in
+Root cause and the preventing engine fix (own-domain rejection, sibling engine-v2.25) are in
 [changes.md](../changes.md); the parser had been harvesting the instruction boilerplate's
 "send reports to engineers@collisionengineers.co.uk" as the claimant's email wherever a
 document carried it and no better candidate existed (`fallback_email_sole` shape).

@@ -4,7 +4,7 @@
 
 ## Decision
 
-The staff web app signs users in with Microsoft Entra workforce identity using MSAL Browser `Later`/`unallocated` in the
+The staff web app signs users in with Microsoft Entra workforce identity using MSAL Browser v3 in the
 Authorization-Code + PKCE public-client flow — [apps/web/src/auth/msalConfig.ts](../../apps/web/src/auth/msalConfig.ts).
 The SPA is a public client: only the client id, tenant id, and API scope reach the browser bundle, no
 secret does, and the token cache is `sessionStorage`. It acquires a delegated access token for the Data
@@ -18,8 +18,8 @@ capture bootstrap secret plus a short-lived access token, provider intake an `X-
 scope here.
 [services/data-api/src/platform/auth/staff-auth.ts](../../services/data-api/src/platform/auth/staff-auth.ts)
 verifies the `Authorization: Bearer` token with `jose` against the tenant JWKS (`createRemoteJWKSet` +
-`jwtVerify`), pinning the issuer to the tenant's `Next`/`unallocated`.0 endpoint and accepting both the bare client-id-GUID
-audience that `Next`/`unallocated` access tokens carry and its `api://<id>` form. It then enforces the `roles` claim:
+`jwtVerify`), pinning the issuer to the tenant's `v2.0` endpoint and accepting both the bare client-id-GUID
+audience that v2 access tokens carry and its `api://<id>` form. It then enforces the `roles` claim:
 `CollisionSpike.User` for case work and `CollisionSpike.Superuser` for privileged actions, with Superuser
 a superset of User. `withRole(...)` wraps each handler — a missing or invalid token is 401, an
 authenticated caller lacking the role is 403.

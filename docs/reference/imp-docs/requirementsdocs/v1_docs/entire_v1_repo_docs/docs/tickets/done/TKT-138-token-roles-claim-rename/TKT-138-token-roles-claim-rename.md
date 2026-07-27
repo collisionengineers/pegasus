@@ -13,7 +13,7 @@ plan: PLAN-003
 
 ## Problem
 
-Two independent verifier passes (2026-07-09) observed the operator's live `Next`/`unallocated` access token carrying
+Two independent verifier passes (2026-07-09) observed the operator's live v2 access token carrying
 roles: ["CollisionSpike.Admin"] — the pre-rename value — even though the API app registration's
 appRoles read Engineer/User/Superuser (Superuser keeping role-id 5b356d4c per the 2026-06-27
 rename record) and withRole('CollisionSpike.User') routes authorize the session fine. Either the

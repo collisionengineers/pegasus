@@ -14,7 +14,7 @@ The following project materials were reviewed and incorporated into the expanded
 ## EVA and Sentry materials
 
 - `Sentry_API_Complete_Guide.md` — EVA/Sentry API integration guide, including authentication, instruction submission, claim updates, notes, report submission, report retrieval and batch patterns.
-- `evaapidocs.pdf` — Sentry API documentation `0.1.0-alpha.1`.2.
+- `evaapidocs.pdf` — Sentry API documentation `v1.2`.
 - `EVA User Guide.pdf` — manual EVA job setup guide. Key points: setup requires offline email copy, instruction PDF/DOCX and vehicle images; EVA fields include registration, principal, inspection type, case ID/PO, insured, claim number, incident date, inspected-on date, inspection address, speedo/mileage, valuation data and photo upload ordering.
 
 ## Current operational / tooling context

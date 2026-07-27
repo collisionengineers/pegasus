@@ -1,4 +1,4 @@
-# Pegasus `Next`/`unallocated` decision index
+# Pegasus decision index
 
 The canonical current architecture is [docs/architecture.md](../architecture.md).
 This directory retains accepted and historical ADRs plus their detailed context.
@@ -14,8 +14,8 @@ Business requirements remain under `docs/operator-notes/` and are not edited her
 ```mermaid
 flowchart LR
     Staff[Staff] --> Web[Pegasus.Web\nRazor Pages and HTTP]
-    Provider[Provider API - V2] --> Web
-    Mcp[Staff MCP - V1] --> Web
+    Provider[Provider API - Next / unallocated] --> Web
+    Mcp[Staff MCP - 0.1.0-alpha.1] --> Web
     Web --> Core[Pegasus.Core\nuse cases and policy]
     Worker[Pegasus.Worker\nplanned trigger host] --> Core
     Core --> Infrastructure[Pegasus.Infrastructure\nSQL and external adapters]

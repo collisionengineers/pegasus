@@ -22,11 +22,11 @@ The implementation record is in [changes.md](./changes.md); the live proof is in
 
 The operator reported cases **still** showing "EVA (Engineers)" as their work provider, and asked
 why a **fresh** intake produces a **blank** provider when it should produce the **correct** one
-(PCH/QDOS). Investigation showed the [[TKT-056]] fix (engine-`Next`/`unallocated`.6 layout-name suppression + the
+(PCH/QDOS). Investigation showed the [[TKT-056]] fix (engine-v2.6 layout-name suppression + the
 Data-API denylist + the D9 corpus delta) only ever **stopped the wrong label** — it never
 **recovered the right provider**. The denylist was masking a genuine resolution failure.
 
-### Root cause (code-verified, engine-`Next`/`unallocated`.6 live)
+### Root cause (code-verified, engine-v2.6 live)
 
 An audit email = a PCH/QDOS **instruction** (often a earlier `.doc`) **plus an attached third-party
 "Exclusive Vehicle Assessors" report** (`.pdf`, parser layout "EVA (Engineers)",
@@ -34,10 +34,10 @@ An audit email = a PCH/QDOS **instruction** (often a earlier `.doc`) **plus an a
 
 1. `services/orchestration/src/workflows/intake/parse.ts::selectInstructionIndex` picked the **wrong
    document**: signal 1 (extraction `work_provider`) is empty for the `.doc` (FC1 has no reliable
-   earlier `.doc` reader → 422 → candidate dropped) and `''` for the EVA report (`Next`/`unallocated`.6 suppression);
+   earlier `.doc` reader → 422 → candidate dropped) and `''` for the EVA report (`v2.6` suppression);
    signal 2 misses (the audit instruction content-types as `report`, the EVA report as `instruction`
    but engineer-report-excluded); signal 3 fell through to **PDF-first → the EVA report**.
-2. engine-`Next`/`unallocated`.6 blanks the selected EVA report's `work_provider`.
+2. engine-v2.6 blanks the selected EVA report's `work_provider`.
 3. Only the **one selected envelope** was forwarded, so the instruction's `PCH`/`QDOS` signal was
    discarded — starving the Data-API content-match (`applyParserFields` →
    `matchWorkProviderByContentString`). With the sender domain also unmatched (QDOS unseeded;

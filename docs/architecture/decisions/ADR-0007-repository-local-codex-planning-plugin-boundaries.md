@@ -2,7 +2,7 @@
 
 - Status: Superseded by ADR-0008
 - Date: 2026-07-24
-- Owners: Alex and the Pegasus `Next`/`unallocated` development team
+- Owners: Alex and the Pegasus development team
 
 ## Context
 

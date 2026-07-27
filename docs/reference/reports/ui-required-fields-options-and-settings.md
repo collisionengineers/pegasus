@@ -2,7 +2,7 @@
 
 **Prepared:** 2026-07-24
 
-**Purpose:** Consolidate the staff-facing fields, choices, filters, actions, and Administrator settings that the current CollisionSpike `Next`/`unallocated` UI must support, while keeping predecessor UI material clearly separated from current authority.
+**Purpose:** Consolidate the staff-facing fields, choices, filters, actions, and Administrator settings that the current Pegasus UI must support, while keeping predecessor UI material clearly separated from current authority.
 
 **Evidence state:** Requirements and planning only. The Development-only `/Intake/Upload` page is the sole current intake caller. The authenticated dashboard, inbox workbench, case workspace, staff administration, and principal/configuration pages are planned and are not proved by the legacy application.
 
@@ -137,7 +137,7 @@ Queue rows must show enough identity and action context to distinguish cases, in
 | Overview | Confirmed case fields, missing/conflicting indicators, completeness decisions, current gate/next action, origin and provenance. |
 | Documents | Original instructions/email, later correspondence, original Audit report where applicable, Engineer report, and Box-backed document states. |
 | Images | Reviewable images, provenance and image-completeness decision. Automated VRM/image analysis is deferred and must not be presented as current fact. |
-| Report | Report-sent evidence state. There is no pre-send report review gate. Evidence is one exact Outlook Sent item from an approved mailbox; Outlook `sentDateTime` is authoritative. CollisionSpike detects but does not send reports. Automatic matching remains in the combined mailbox/email research decision, with reasoned exact-item linking available when a match is absent or ambiguous. |
+| Report | Report-sent evidence state. There is no pre-send report review gate. Evidence is one exact Outlook Sent item from an approved mailbox; Outlook `sentDateTime` is authoritative. Pegasus detects but does not send reports. Automatic matching remains in the combined mailbox/email research decision, with reasoned exact-item linking available when a match is absent or ambiguous. |
 | Action history | Actor, timestamp, action, prior/new state, reason/context, external outcome, merges/reversals, corrections, closure and reopening. |
 | Box folder | Link plus explicit `Missing`, `Pending creation`, `Inaccessible`, and `Conflict` states rather than a false success. |
 | Chaser | Due/overdue and missing-material context with `Copy message`. Copying never means sent or delivered. |
@@ -149,7 +149,7 @@ Queue rows must show enough identity and action context to distinguish cases, in
 | Enter Held | Required reason. |
 | Leave Held | Required reason plus `Return to <prior state>` or `Review`. Returning to `Not ready` resumes the preserved chase remainder; choosing `Review` ends that chase. |
 | Pre-assignment review | Explicit approval; when the completeness gate is on, both completeness confirmations must already be true. |
-| Report sent evidence | No pre-send review action. Show the exact Outlook Sent item, approved mailbox, Outlook `sentDateTime`, and association state. CollisionSpike detects but never sends the report. When automatic matching is absent or ambiguous, exact-item linking requires a reason. |
+| Report sent evidence | No pre-send review action. Show the exact Outlook Sent item, approved mailbox, Outlook `sentDateTime`, and association state. Pegasus detects but never sends the report. When automatic matching is absent or ambiguous, exact-item linking requires a reason. |
 | Close | `Post report`, `Provider cancellation`, `Collision Engineers rejection`, or `Created in error`; cancellation/rejection require a reason and every outcome records the actor. `Created in error` also requires a replacement-case link. |
 | Reopen | Required reason plus any otherwise-valid nonterminal destination. Apply the normal destination gates, exclude `Held` because it has a separate action, and refuse a case closed as `Created in error`. |
 | Correct a wrong-principal allocation | Do not offer principal/reference reassignment. Close the original as `Created in error` with a required reason and linked new replacement case under the corrected principal; never reuse either reference. |

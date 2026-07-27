@@ -31,7 +31,7 @@ content is unavailable — PII-scrubbed telemetry only); eval pin `tkt120-fairwa
 (`payment_remittance`: "a payment made TO us … not a request for our invoice") so Stage C
 distinguishes the direction.
 
-**Deploys/probes:** parser engine-`Next`/`unallocated`.10 live; a live classify probe of the transfer shape from a
+**Deploys/probes:** parser engine-v2.10 live; a live classify probe of the transfer shape from a
 matched provider returned `billing/payment_remittance` (unit-pinned identically).
 
 **Remainders / new-ticket candidates:** (1) SURFACING GAP — render pending `triage_category`

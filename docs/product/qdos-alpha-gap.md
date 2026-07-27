@@ -141,7 +141,7 @@ The development-only manual intake route must remain unavailable in a deployed e
 - Run Bicep/azd preview, policy/quota checks, health probes, and a non-sensitive smoke path before any approved Azure deployment.
 - Obtain explicit user approval before provisioning chargeable resources, deploying, changing Azure, or retiring predecessor resources.
 
-Pegasus `Next`/`unallocated` starts fresh. No predecessor cases, users, action-history records, or application state are imported. The predecessor was pre-release, so preserving or reconciling its test application data is not a `Next`/`unallocated` release requirement. Retirement of its Azure resources is a separate, exact-target operation that still requires explicit approval and protection of any shared assets.
+Pegasus `0.1.0-alpha.1` starts fresh. No predecessor cases, users, action-history records, or application state are imported. The predecessor was pre-release, so preserving or reconciling its test application data is not a `0.1.0-alpha.1` release requirement. Retirement of its Azure resources is a separate, exact-target operation that still requires explicit approval and protection of any shared assets.
 
 ## Allocated beyond `0.1.0-alpha.1`, conditional, unclear, or never
 

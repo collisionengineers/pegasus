@@ -8,7 +8,7 @@ findings:
 
 - **Line 3 (the re-fixed line) — the verifier's OWN independent re-probe PASSES:** both named
   samples POSTed to the live /extract-images → HTTP 200, **count = 1 each** (only the ~29KB MGAA
-  badge jpeg); the 10,720B QDOS-logo png that failed the morning verdict is GONE (engine-`Next`/`unallocated`.15
+  badge jpeg); the 10,720B QDOS-logo png that failed the morning verdict is GONE (engine-v2.15
   3.2-aspect retune live: 575×174 = 3.305 ≥ 3.2).
 - **Mirror filter observed live in independent telemetry:** the 17:49:34–45Z archive run on
   A.QDOS26009 — box-archive-start 202 → archive-evidence GET 200 → summary
@@ -23,7 +23,7 @@ findings:
   lanes stamp excluded in-memory BEFORE persist; person-reflection precedence + classify-null
   fail-open confirmed.
 - **Fixtures + provenance:** vendored test_extract_images 18/18; drift guard 7/7 (vendored
-  byte-identical to sibling); sibling tag engine-`Next`/`unallocated`.15 = 79efe22 pushed (ls-remote verified); the
+  byte-identical to sibling); sibling tag engine-v2.15 = 79efe22 pushed (ls-remote verified); the
   204×204 badge deliberately classifier-owned (documented in-code) — and its live classification is
   not speculative: the 07-09 audit found the badge class already classified `other` across ~40
   cases.
@@ -61,7 +61,7 @@ Verified by: ticket-verifier dispatch, 10-07-26. Lines 1, 2 and 4 individually P
 PDF-lane sample re-parse) FAILS a direct live probe:
 
 - **The decisive probe:** compute-only POST of two real retained `LtrtoEngineerIn.pdf` samples to the
-  live /extract-images (engine-`Next`/`unallocated`.13) → HTTP 200, **count=2 both times — the QDOS Assistance logo
+  live /extract-images (engine-v2.13) → HTTP 200, **count=2 both times — the QDOS Assistance logo
   (575×174, 10,720 B) and the MGAA badge (204×204, ~29 KB) still extract**, visually identical to
   the ticket's own screenshot and byte-matched to the audit's ~40-case recurring-suspect class. Both
   evade the deployed heuristics by tiny margins (aspect 3.305 < 3.5; area 41,616 vs the 40,000 floor,
@@ -171,7 +171,7 @@ Verified by: operator report transcribed by the orchestrating session, 2026-07-0
   copies are deliberately left (ADR-0017; decision in changes.md).
 - Still pending before `done`: live probe (letterhead PDF re-parse → no logo evidence; signature
   email → banner-shape skip) + recall guard (a genuine photo email/PDF still lands evidence+Box)
-  on the engine-`Next`/`unallocated`.11 / new-orch deploys.
+  on the engine-v2.11 / new-orch deploys.
 
 ## Regression verification — 2026-07-11
 
@@ -212,13 +212,13 @@ PENDING
   zero excluded. This predates the July 11 regression repair, so it does not certify current behavior.
 - **A3 — PDF reparse:** Two real `LtrtoEngineerIn.pdf` samples changed from two images to one: the QDOS
   575×174 logo was removed while the 204×204 MGAA badge remained classifier-owned. The repaired parser
-  `Next`/`unallocated`.16 was subsequently deployed on July 11.
+  `v2.16` was subsequently deployed on July 11.
 - **A4 — Backfill:** The recorded decision was evidence-row-only remediation. It updated 163 rows without
   deleting retained Archive copies, consistent with the one-way-mirror rule.
 - **R1 — Preserve plausible panoramas:** Current parser and orchestration source explicitly retain
   low-resolution panoramas for classification in
   `services/functions/parser/cedocumentmapper_v2/application/service.py:52` and
-  `services/orchestration/src/platform/image-sniff.ts`. Parser `Next`/`unallocated`.16 was deployed after the regression gates passed.
+  `services/orchestration/src/platform/image-sniff.ts`. Parser `v2.16` was deployed after the regression gates passed.
 - **R2 — Conservative automatic exclusion:** Current classification paths carry registration-readability
   state and restrict automatic non-vehicle exclusion to classifier decisions. This is source/offline
   evidence only; no current natural input was observed.

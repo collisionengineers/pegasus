@@ -27,8 +27,8 @@ the 07-10 rows are unambiguously post-deploy.
 - **Line 1 (RIGERANT no case_ref; money shapes rejected):** verifier's own runs — sibling
   test_regression 2 passed (RIGERANT fixture pins reference:"" + vrm:""), test_reference_guards
   **33 passed** (money/currency/fragment/tier-4/doc-path shapes). Guards provably in the DEPLOYED
-  engine: `git show engine-v2.13:…rules/engine.py` contains all 3 guard defs; `Next`/`unallocated`.12→`Next`/`unallocated`.13 diff on
-  the file is empty; registry records the parser redeployed at engine-`Next`/`unallocated`.13 on 2026-07-09; vendored
+  engine: `git show engine-v2.13:…rules/engine.py` contains all 3 guard defs; `v2.12`→`v2.13` diff on
+  the file is empty; registry records the parser redeployed at engine-v2.13 on 2026-07-09; vendored
   copy in sync for both guard files. Live traffic through the guarded parser since 07-09: parse
   249×200 + 13×422 (input validation), extract_images 166, classify_email 314 — 0 failed, 0
   exceptions.
@@ -37,7 +37,7 @@ the 07-10 rows are unambiguously post-deploy.
   are committed; execution recorded in the registry ("4 junk case_refs cleared incl. the RIGERANT
   marker, 8 RJS refs label-stripped, WLS26001 left for operator judgement"). Direct row readback =
   queued Q1–Q4.
-- **Line 3 (no sibling regression):** verifier's own full run at sibling HEAD (engine-`Next`/`unallocated`.14):
+- **Line 3 (no sibling regression):** verifier's own full run at sibling HEAD (engine-v2.14):
   **451 passed / 4 skipped / 0 failed**.
 - **Drain-artifact lane judgement:** JUL2026 (drain Held mint) is the SNIFF lane, not this ticket's
   /parse document lane — and is a shared month+year-composite guard gap (same class as MAY2026),
@@ -59,7 +59,7 @@ Full SQL in the verifier transcript; results to be appended here.
 
 ## How to re-verify
 Sibling: `pytest tests/test_reference_guards.py tests/test_regression.py -q` → 35 passed. Deployed
-provenance: the engine-`Next`/`unallocated`.13 git-show greps. KQL: AppRequests/AppExceptions since 2026-07-09 on
+provenance: the engine-v2.13 git-show greps. KQL: AppRequests/AppExceptions since 2026-07-09 on
 cespike-parser-law-dev. Then Q1–Q6.
 
 ## Pending / gaps

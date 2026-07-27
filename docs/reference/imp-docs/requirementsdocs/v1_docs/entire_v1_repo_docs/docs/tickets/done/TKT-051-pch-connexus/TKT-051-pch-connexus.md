@@ -39,7 +39,7 @@ TKT-021) resolves through the Image-Source intermediary map.
 
 ## Delivery
 
-Phase 3 of the [Rules Engine `Next`/`unallocated` plan](TKT-051-pch-connexus.md)
+Phase 3 of the [Rules Engine v2 plan](TKT-051-pch-connexus.md)
 (identification upgrade).
 
 ## Status update — 2026-07-03 (the "EVA (Engineers)" mislabel root-caused → TKT-056)
@@ -48,7 +48,7 @@ The operator reported these same PCH audit emails surfacing with work provider *
 Root cause chain (verified): the parse activity picked ONE attachment and preferred PDF → on an audit
 email it parsed the attached third-party **EVA report** instead of the `.DOC` instruction; the engine's
 layout-name fallback then emitted `"EVA (Engineers)"` as `work_provider`, which filled the case's
-free-text `eva_work_provider`. Fixed in code (engine-`Next`/`unallocated`.6 fallback guard + multi-doc content-typed
+free-text `eva_work_provider`. Fixed in code (engine-v2.6 fallback guard + multi-doc content-typed
 parse pick + a Data-API denylist) plus an operator delta deactivating any stale EVA corpus row —
 all under **[TKT-056](../TKT-056-audit-case-type-activation/TKT-056-audit-case-type-activation.md)**
 / [ADR-0021](../../../adr/0021-case-po-marker-taxonomy.md) / [ticket board §D9](../../BOARD.md).
@@ -61,6 +61,6 @@ against this ticket's own evidence: the doc-content provider detector already ex
 `Inspection Request - Audit Report.DOC` at confidence **1.0** — the gap was that the detected string was
 never mapped to a real `work_provider_id`; that mapping is now live at `caseResolve` (fill-if-empty +
 provenance). The `@pch-ltd.com` domain addition to PCH's `known_email_domains` rides the operator-gated
-seed delta [`2026-07-02-rules-engine-v2-identification.sql`](../../../../database/migrations/2026-07-02-rules-engine-`Next`/`unallocated`-identification.sql)
+seed delta [`2026-07-02-rules-engine-v2-identification.sql`](../../../../database/migrations/2026-07-02-rules-engine-v2-identification.sql)
 ([docs/tickets/BOARD.md](../../BOARD.md) §D8), **not yet applied live**. No live re-probe of this exact sample has
 been run post-deploy — awaiting the D8 apply to exercise both signals together.

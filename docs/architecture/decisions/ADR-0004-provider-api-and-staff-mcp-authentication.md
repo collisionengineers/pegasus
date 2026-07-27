@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-07-23
-- Owners: Alex and the Pegasus `Next`/`unallocated` development team
+- Owners: Alex and the Pegasus development team
 
 ## Context
 

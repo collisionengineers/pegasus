@@ -2,9 +2,18 @@
 
 Last reconciled: 2026-07-27, Europe/London
 
-Implementation baseline: provider-domain increment based on accepted
-`b2f40a2b68b5b1a906ff2e736fa43653006dba61`; verify the exact current head
+Implementation baseline: accepted provider-domain increment
+`d0965e1264dadc8d9942ac54fd68a4b45fd06f28`; verify the exact current head
 before relying on file locations or test counts.
+
+That increment carries package version `provider-domains-v1`, embedded logical
+resource `Pegasus.Infrastructure.Persistence.ReferenceData.provider-domains.v1.json`,
+schema version `1`, 11 providers, 16 provider/intermediary associations, and
+package SHA-256 `f6b5ad8ecdd428db4316b23e16aa7e0ffc93562aec33374c03ea68cd4f0370a3`.
+The EF adapter materializes a requested provider-domain snapshot with one
+database query. No Web or Worker caller consumes that package. At the accepted
+baseline, Release runs passed 62 Core, 33 Architecture, and 98 Integration
+tests; those counts prove that revision only.
 
 Repository state: `0.0.0-development`, local-only, no Pegasus Azure deployment
 

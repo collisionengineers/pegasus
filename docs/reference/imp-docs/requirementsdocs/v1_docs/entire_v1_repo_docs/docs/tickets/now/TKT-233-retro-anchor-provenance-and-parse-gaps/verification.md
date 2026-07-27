@@ -8,7 +8,7 @@
 - U2: sibling suite **538 passed / 3 skipped / 0 failed**; red-check reproduced the live
   harvest with the own-domain tuple emptied, green with it in place. Vendored parser suite
   **396 passed / 9 skipped / 0 failed** — zero same-day environment-drift deltas;
-  `verify_vendor_pin.py` **PASS engine-`Next`/`unallocated`.25 @ 83164e6** (immutable tag verified, 36 files);
+  `verify_vendor_pin.py` **PASS engine-v2.25 @ 83164e6** (immutable tag verified, 36 files);
   `test_engine_vendored_in_sync.py` 3/3.
 - U4: `test_explode_msg.py` green in the same run — genuine OLE fixture round-trip, magic-only
   detection, mislabeled/corrupt 422s, caps on the msg branch, `.eml` regression.

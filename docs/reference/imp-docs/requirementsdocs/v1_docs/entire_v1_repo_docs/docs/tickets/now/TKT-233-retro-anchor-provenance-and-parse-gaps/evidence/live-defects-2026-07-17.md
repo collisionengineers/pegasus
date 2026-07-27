@@ -45,7 +45,7 @@ anchor degraded to raw bytes ("explode unavailable" warn path).
 ## M365 store research (Microsoft Learn, 2026-07-17)
 
 - Outlook mail API: primary + shared mailboxes; "The API does not support accessing in-place
-  archive mailboxes" (mail-api-overview, `0.1.0-alpha.1`.0).
+  archive mailboxes" (mail-api-overview, `v1.0`).
 - `recoverableitemsdeletions` is an accessible well-known folder (the dumpster) — default
   14 d, max 30 d deleted-item retention; indefinite under Litigation Hold.
 - Mailbox import/export APIs (beta, `/admin/exchange/mailboxes/…`): "support access to data

@@ -20,7 +20,7 @@ markers, no `engineer_report` evidence.
 
 ## Built (2026-07-03 — code-complete, shadow-safe; see [changes.md](./changes.md) + [verification.md](./verification.md))
 
-- **Provider leak closed** (3 layers): engine-`Next`/`unallocated`.6 suppresses the layout-name fallback for
+- **Provider leak closed** (3 layers): engine-v2.6 suppresses the layout-name fallback for
   `engineer_report:true` layouts; the Data API denylists engineer-report layout names
   (`isEngineerReportLayoutSentinel`); the D9 delta deactivates any live EVA work_provider row.
 - **Multi-doc parse**: up to 3 document attachments parsed (Word-first), instruction selected by

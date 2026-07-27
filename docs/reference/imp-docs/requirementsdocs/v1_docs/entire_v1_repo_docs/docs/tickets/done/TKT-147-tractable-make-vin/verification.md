@@ -6,7 +6,7 @@ TESTED (offline)
 Certified by the orchestrating loop, 10-07-26. The Acceptance is explicitly offline-only
 ("with fixtures" + "no regression in the sibling suite"), so `now → done` on offline proof is the
 agreed lifecycle path (docs/tickets/README.md §Lifecycle); no live claim is made — the vendored
-Function rides the next parser deploy and the live /parse stays engine-`Next`/`unallocated`.13 until then.
+Function rides the next parser deploy and the live /parse stays engine-v2.13 until then.
 
 ## Evidence
 - **Acceptance line 1 (make + model + VIN with fixtures):**
@@ -25,7 +25,7 @@ Function rides the next parser deploy and the live /parse stays engine-`Next`/`u
 ## Pending / gaps
 - Engine work is sibling-first code-complete and re-vendored; the vendored parser
   Function rides the NEXT parser deploy (no deploy this ticket, per the dispatch
-  brief) — the LIVE /parse still runs engine-`Next`/`unallocated`.13 until then.
+  brief) — the LIVE /parse still runs engine-v2.13 until then.
 - The repair build exposes VIN as the top-level `/parse` `vin` field cell. The orchestration
   typed envelope and SPA parser adapter preserve it outside `extraction`; it is not rendered
   or written into EVA. Live proof remains pending the parser redeploy.
@@ -79,7 +79,7 @@ VERIFIED-LIVE
 - **Original acceptance 2 — no sibling regression:** `verification.md:18-23` records sibling 439 passed/4
   skipped → 451 passed/4 skipped (+12, zero regressions) for `engine-v2.14` commit `2609b1a`.
   Independent provenance verification today passed the current immutable mirror: `[vendor-pin] PASS
-  engine-`Next`/`unallocated`.24 @ e9cec4acb8f1f49fb81c4d279d3a31cc82356d84 (36 files; immutable tag verified)`. The official
+  engine-v2.24 @ e9cec4acb8f1f49fb81c4d279d3a31cc82356d84 (36 files; immutable tag verified)`. The official
   remote tag peels to that exact commit, and Git proves TKT-147 source commit `2609b1a` is an ancestor of
   both deployed `engine-v2.16` (`8dd4ba8`) and current locked `engine-v2.24` (`e9cec4a`).
 - **Regression acceptance 1 — `/parse` exposes VIN value/source/confidence:**

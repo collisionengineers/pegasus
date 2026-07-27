@@ -1,14 +1,14 @@
 # Reopen follow-up — TKT-089 (dated 2026-07-10, verify-sweep FAILED verdict)
 
 ## What failed live (acceptance line 3 — the PDF-lane sample re-parse)
-A compute-only probe of the LIVE `/extract-images` (engine-`Next`/`unallocated`.13) on two real retained
+A compute-only probe of the LIVE `/extract-images` (engine-v2.13) on two real retained
 `LtrtoEngineerIn.pdf` samples returned **count=2 both times**: `img_1_1.png` (QDOS Assistance logo,
 575×174, 10,720 B) and `img_1_2.jpeg` (MGAA badge, 204×204, ~29 KB) — visually identical to the
 ticket's own screenshot and byte-matched to the audit's recurring-suspect class (~40 cases). Both
 evade the deployed heuristics by tiny margins:
 - QDOS logo: aspect **3.305 < 3.5** banner threshold (short side 174 qualifies, ratio doesn't);
 - MGAA badge: area **41,616 vs the 40,000 floor (+4%)**, and square — the banner rung cannot apply.
-The repo-vendored engine (`Next`/`unallocated`.14) carries the SAME thresholds — no undeployed fix is waiting.
+The repo-vendored engine (`v2.14`) carries the SAME thresholds — no undeployed fix is waiting.
 
 ## Compounding storage gap ("stored on Box")
 `services/orchestration/src/workflows/evidence/extractImages.ts` persists every parser-returned
@@ -33,7 +33,7 @@ Lines 1 (written audit + lane split), 2 (email lane forward-clean: 0 name-suspec
 2. Threshold retune is allowed as a supplement (e.g. the +4% area margin) but not as the sole fix.
 3. HARD RULES: never delete from Box (ADR-0012/0017 one-way mirror — already-mirrored copies stay);
    recall protection is part of the acceptance (genuine vehicle photos must keep flowing — W2 Q5
-   baseline: 744 kept / 671 mirrored); engine changes are sibling-first (ADR-0018, engine-`Next`/`unallocated`.14 is
+   baseline: 744 kept / 671 mirrored); engine changes are sibling-first (ADR-0018, engine-v2.14 is
    current).
 4. Re-verify with the same probe: the two named samples return 0 non-vehicle images (or they persist
    as excluded-and-not-mirrored), plus the queued forward-window SQL in verification.md.

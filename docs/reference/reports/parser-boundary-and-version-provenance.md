@@ -32,12 +32,12 @@ MimeKit, PdfPig, and Open XML remain Infrastructure dependencies. Provider-speci
 | Give every caller the same contract | Already adopted through the single Core use case and engine-neutral reader port. A future caller must use that owner rather than call a parser service directly. |
 | Exercise extraction through the real intake path | Already implemented through the Development-only Web caller. Production Worker delivery and custody remain planned, not proved. |
 | Return settled EVA fields from the parser | Rejected. Intake produces reviewable business data and evidence. EVA export is a downstream adapter/use case and must not shape the document-reader contract. |
-| Use the parser during retroactive reconstruction | Rejected with ADR-0022. Migration of predecessor cases or application state is explicitly outside `Next`/`unallocated` cutover scope, so reconstruction is not an approved parser caller. |
+| Use the parser during retroactive reconstruction | Rejected with ADR-0022. Migration of predecessor cases or application state is explicitly outside Pegasus cutover scope, so reconstruction is not an approved parser caller. |
 | Be idempotent, fixture-driven, observable, and non-authoritative | The intent is already covered by current source identity, bounded outcomes, retained evidence, caller tests, planned content-free telemetry, and operator review. Repository tests were not rerun for this documentation review. |
 | Tolerate an extra base64 layer | Not adopted. No current transport requires this predecessor quirk; silently decoding speculative layers would weaken the explicit input contract. |
-| Vendor or merge `cedocumentmapper_v2` and materialise Python copies | Rejected. `Next`/`unallocated` is a clean-room .NET implementation and does not reuse, vendor, synchronise, or package the predecessor engine. |
+| Vendor or merge `cedocumentmapper_v2` and materialise Python copies | Rejected. Pegasus is a clean-room .NET implementation and does not reuse, vendor, synchronise, or package the predecessor engine. |
 
-## Existing current-`Next`/`unallocated` provenance gap
+## Existing Pegasus provenance gap
 
 Current [ADR-0001](../../architecture/decisions/ADR-0001-hybrid-pdf-extraction.md) requires retaining the extractor version and independently versioning provider-specific rules. Current [ADR-0003](../../architecture/decisions/ADR-0003-pdfpig-for-first-qdos-slice.md) also requires the adapter to record its engine and version.
 

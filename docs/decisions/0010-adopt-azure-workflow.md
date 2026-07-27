@@ -6,7 +6,7 @@
 
 ## Context
 
-Pegasus `Next`/`unallocated` had a repository-local plugin suite, task-state format, and
+Pegasus had a repository-local plugin suite, task-state format, and
 documentation routes governed by ADR-0007 and ADR-0008. The tracked plugin and
 marketplace implementation was removed before this onboarding, leaving dead
 routes and validators. The user explicitly invoked Azure Workflow repository

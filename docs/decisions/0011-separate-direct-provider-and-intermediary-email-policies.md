@@ -2,7 +2,7 @@
 
 - Date: 2026-07-27
 - Status: accepted
-- Owners: Collision Engineers product owner and Pegasus `Next`/`unallocated` development team
+- Owners: Collision Engineers product owner and Pegasus development team
 - Supersedes: ADR-0006's single-policy selection and no-provider-registry/table limits; preserves its provider-neutral transport, provenance, storage, and fail-closed boundaries
 
 ## Context

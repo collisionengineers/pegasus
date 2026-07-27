@@ -12,7 +12,7 @@ The real classifier run on the four sample `.eml`s (provider_match_state none/on
 - sample-3 ("reacted to your message") → `non_actionable/acknowledgement`
 - sample-4 ("Hi Ed, thank you, we will see…") → `non_actionable/acknowledgement`
 
-Pins added to the committed eval corpus (`scripts/evaluation/email/manifest.json`, baseline-`Next`/`unallocated`
+Pins added to the committed eval corpus (`scripts/evaluation/email/manifest.json`, baseline-v2
 regenerated, `--check` clean) + enforced synthetic unit tests in
 `services/functions/parser/tests/test_email_classifier.py`. **181 classifier pytest green, full prior
 corpus green (no recall regression).**

@@ -11,7 +11,7 @@ ruling at the bottom of this file; supersedes the TESTED-offline and PENDING ent
   `recordAiUsage` in the deployed bundle). W7's queued SQL returned the organic row:
   `usage_day 2026-07-09 | actor 06b65d89… | surface assistant | model gpt-5 | calls 4 |
   input_tokens 23866 | output_tokens 3341` — real staff use (the same staff GUID appears in that
-  day's inspection audit actors; 07-09 is the toolset-`Next`/`unallocated` re-flip day), not a synthetic probe. The
+  day's inspection audit actors; 07-09 is the toolset-v2 re-flip day), not a synthetic probe. The
   row live-proves the designed aggregation mechanics: 4 calls collapsed into one (day, actor,
   surface) row with summed tokens — the atomic `ON CONFLICT` upsert on
   `uq_ai_usage_ledger_day_actor_surface` behaving exactly as the offline tests pinned.

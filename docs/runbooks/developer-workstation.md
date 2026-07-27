@@ -1,6 +1,6 @@
 # Windows developer workstation
 
-Pegasus `Next`/`unallocated` is developed from PowerShell 7 on Windows. Verify tools
+Pegasus is developed from PowerShell 7 on Windows. Verify tools
 directly with their standard version commands; the repository does not install
 global tools or require a cloud login for offline development.
 

@@ -95,7 +95,7 @@ infrastructure implementation.
    and build-once/deploy-same-artifact provenance. **Not implemented.**
 3. Preflight the authorised terminal identity, `AZURE_PRINCIPAL_NAME`, and the
    least-privilege Entra resolution needed for `CREATE USER ... FROM EXTERNAL
-   PROVIDER`; then preview and provision only the approved new `Next`/`unallocated` target, never
+   PROVIDER`; then preview and provision only the approved new `0.1.0-alpha.1` target, never
    `rg-collisionspike-dev`. **Identity path unresolved.**
 4. Apply the explicit immutable migration bundle before application deployment.
    **No migration bundle or `azure.yaml` migration step exists.**
@@ -108,7 +108,7 @@ infrastructure implementation.
 ## Deployment blockers
 
 - User approval to create chargeable Azure resources has not been given.
-- The predecessor is pre-release and its test application data is not migrated into `Next`/`unallocated`. Retirement remains a separately approved operation, not a deployment prerequisite.
+- The predecessor is pre-release and its test application data is not migrated into `0.1.0-alpha.1`. Retirement remains a separately approved operation, not a deployment prerequisite.
 - Document Intelligence F0 ownership/reuse has not been decided.
 - SQL Entra administrator name/object ID must be confirmed at deployment time.
 - GitHub Actions/OIDC deployment is a `Not planned` boundary, not a missing scaffold item.

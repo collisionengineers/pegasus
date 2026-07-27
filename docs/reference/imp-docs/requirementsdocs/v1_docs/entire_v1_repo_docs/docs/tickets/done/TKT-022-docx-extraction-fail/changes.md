@@ -28,7 +28,7 @@ claimant/defendant QUESTIONNAIRE — Defendant and Claimant sections carry IDENT
 generic label fallbacks read the first (defendant) hit; values use a leading-dash convention; the
 narrative sits under dotted answer-leaders.
 
-**Shipped (sibling-first, engine-`Next`/`unallocated`.10, re-vendored incl. a deliberate providers.json seed update):**
+**Shipped (sibling-first, engine-v2.10, re-vendored incl. a deliberate providers.json seed update):**
 - New **CDQ** provider entry (detection anchored on the template-unique "Is client happy to be
   contacted by email" + "Accident Circumstances"; negative on the ACSP "Owner/Driver Details") and a
   new `cdq_claim_form` extraction method: every value CLAIMANT-section-scoped, question lines never

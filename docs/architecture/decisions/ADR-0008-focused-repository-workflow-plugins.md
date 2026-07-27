@@ -2,7 +2,7 @@
 
 - Status: Superseded by [0010](../../decisions/0010-adopt-azure-workflow.md)
 - Date: 2026-07-25
-- Owners: Alex and the Pegasus `Next`/`unallocated` development team
+- Owners: Alex and the Pegasus development team
 
 ## Context
 

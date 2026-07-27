@@ -55,7 +55,7 @@ Verified by: ticket-verifier dispatch, 10-07-26. Findings:
   `choice_evidence_kind` 100000007 `engineer_report` present. Applied BEFORE the gate flip, per the
   delta's deploy-order warning.
 - **Deploys (commit `aafeba1`):** parser `cespike-parser-dev-x7xt3d5ovhi7y` (`--build remote`,
-  3 functions re-verified — engine-`Next`/`unallocated`.6); api `cespk-api-dev` (77 re-verified); orch `cespk-orch-dev`
+  3 functions re-verified — engine-v2.6); api `cespk-api-dev` (77 re-verified); orch `cespk-orch-dev`
   (53 re-verified); SPA `cespk-spa-dev` (carries the `16e152c` dashboard fix; CSP header re-verified
   live). Both bundles smoke-loaded locally before publish (no `import.meta.url` 0-function crash).
 - **Gate:** `AUDIT_CASES_ENABLED=true` set and re-read `true` on **both** apps. The shadow-review

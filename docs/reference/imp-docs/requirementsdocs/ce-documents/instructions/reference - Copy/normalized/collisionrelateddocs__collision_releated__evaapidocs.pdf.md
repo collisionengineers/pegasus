@@ -18,7 +18,7 @@ This companion is a derivative working copy. The raw source remains the source o
 
 1 
 
-1 Sentry API Documentation `0.1.0-alpha.1`.2 
+1 Sentry API Documentation `v1.2` 
              Table of Contents 
 Sentry API Documentation - Version 1.0 
 1.         Overview - Purpose and scope of the Sentry API 
@@ -37,7 +37,7 @@ Sentry API Documentation - Version 1.0
 
 2 
 
-2 Sentry API Documentation `0.1.0-alpha.1`.2 
+2 Sentry API Documentation `v1.2` 
      Overview 
 The Sentry API facilitates the secure and efficient transmission of data related to 
 vehicles involved in Road Traffic Accidents (RTAs) or other forms of damage that 
@@ -68,7 +68,7 @@ external service provider.
 
 3 
 
-3 Sentry API Documentation `0.1.0-alpha.1`.2 
+3 Sentry API Documentation `v1.2` 
      Authentication 
 All Sentry API endpoints require valid authentication using a JSON Web Token (JWT). 
 External users must first obtain a token using their assigned Client ID and Client 
@@ -96,7 +96,7 @@ Client_Id=partner123&Client_Secret=secretKeyValue
 
 4 
 
-4 Sentry API Documentation `0.1.0-alpha.1`.2 
+4 Sentry API Documentation `v1.2` 
      Example Responses 
    Success (200 OK) 
 { 
@@ -126,7 +126,7 @@ https://sentry.evasoftware.co.uk/api/
 
 5 
 
-5 Sentry API Documentation `0.1.0-alpha.1`.2 
+5 Sentry API Documentation `v1.2` 
 
           Instruct Claim 
 Endpoint: POST /Instruction/Inspection 
@@ -175,7 +175,7 @@ InsName string
 
 6 
 
-6 Sentry API Documentation `0.1.0-alpha.1`.2 
+6 Sentry API Documentation `v1.2` 
 TPName string 
 (max 60) 
   Name of the third party. 
@@ -224,7 +224,7 @@ DtIncident DateTime   Date of the incident.
 
 7 
 
-7 Sentry API Documentation `0.1.0-alpha.1`.2 
+7 Sentry API Documentation `v1.2` 
 InspLocName string 
 (max 40) 
   Name of the inspection location. 
@@ -282,7 +282,7 @@ Accepted values:
 
 8 
 
-8 Sentry API Documentation `0.1.0-alpha.1`.2 
+8 Sentry API Documentation `v1.2` 
 InUse string 
 (max 9) 
    Whether the vehicle is in use. 
@@ -339,7 +339,7 @@ VatStat string
 
 9 
 
-9 Sentry API Documentation `0.1.0-alpha.1`.2 
+9 Sentry API Documentation `v1.2` 
 • No 
 • n% 
 InOrder string 
@@ -383,7 +383,7 @@ Data byte[] Base64-encoded file content.
 
 10 
 
-10 Sentry API Documentation `0.1.0-alpha.1`.2 
+10 Sentry API Documentation `v1.2` 
    Example ‘Instruct Claim’ JSON Request 
 { 
   "RequestFrom": "Provided Sender Code" , 
@@ -417,7 +417,7 @@ Data byte[] Base64-encoded file content.
 
 11 
 
-11 Sentry API Documentation `0.1.0-alpha.1`.2 
+11 Sentry API Documentation `v1.2` 
   "EstMat": 250.00, 
   "EstPts": 100.00, 
   "EstNet": 1150.00, 
@@ -451,7 +451,7 @@ Data byte[] Base64-encoded file content.
 
 12 
 
-12 Sentry API Documentation `0.1.0-alpha.1`.2 
+12 Sentry API Documentation `v1.2` 
   "InOrder": "Yes" , 
   "SumInsured": 18000.00, 
   "Cause": "Rear-end collision with another vehicle at traffic lights. " , 
@@ -486,7 +486,7 @@ system.
 
 13 
 
-13 Sentry API Documentation `0.1.0-alpha.1`.2 
+13 Sentry API Documentation `v1.2` 
 401   Unauthorized - missing or invalid JWT token. 
 409   Conflict - duplicate or conflicting instruction. 
 500   Internal Server Error - unexpected error processing request. 
@@ -509,7 +509,7 @@ ID generated in the assessor’s system.
 
 14 
 
-14 Sentry API Documentation `0.1.0-alpha.1`.2 
+14 Sentry API Documentation `v1.2` 
     Claim Location Update 
 Endpoint: POST /Claim/LocationUpdate 
 Purpose: Submit an update to the location associated with a vehicle claim. This helps 
@@ -565,7 +565,7 @@ County string
 
 15 
 
-15 Sentry API Documentation `0.1.0-alpha.1`.2 
+15 Sentry API Documentation `v1.2` 
 Postcode string 
 (max 
 10) 
@@ -605,7 +605,7 @@ If the claim cannot be found using these combinations, a 404 response will be re
 
 16 
 
-16 Sentry API Documentation `0.1.0-alpha.1`.2 
+16 Sentry API Documentation `v1.2` 
    Example ‘Location Update’ JSON Request 
 { 
   "VehReg": "AB12CDE" , 
@@ -627,7 +627,7 @@ If the claim cannot be found using these combinations, a 404 response will be re
 
 17 
 
-17 Sentry API Documentation `0.1.0-alpha.1`.2 
+17 Sentry API Documentation `v1.2` 
      Possible Responses 
 Status 
 Code 
@@ -652,7 +652,7 @@ otherwise, a 404 will be returned. Include ApprovedRepairer only for repairer lo
 
 18 
 
-18 Sentry API Documentation `0.1.0-alpha.1`.2 
+18 Sentry API Documentation `v1.2` 
      Authority Status Update 
 Endpoint: POST /Claim/AuthorityStatusUpdate 
 Purpose: Update the repair authority status on a claim. This informs the assessor 
@@ -701,7 +701,7 @@ Data byte[] Base64-encoded file content.
 
 19 
 
-19 Sentry API Documentation `0.1.0-alpha.1`.2 
+19 Sentry API Documentation `v1.2` 
     Validation Logic 
 To identify the target claim, the API will match either of the following field 
 combinations: 
@@ -728,7 +728,7 @@ If the claim cannot be found using these combinations, a 404 response will be re
 
 20 
 
-20 Sentry API Documentation `0.1.0-alpha.1`.2 
+20 Sentry API Documentation `v1.2` 
      Possible Responses 
 Status 
 Code 
@@ -754,7 +754,7 @@ Attach relevant supporting files to streamline assessor processing.
 
 21 
 
-21 Sentry API Documentation `0.1.0-alpha.1`.2 
+21 Sentry API Documentation `v1.2` 
           Submit Note 
 Endpoint: POST /Note/SubmitNote 
 Description: 
@@ -792,7 +792,7 @@ Data byte[] Base64-encoded file content.
 
 22 
 
-22 Sentry API Documentation `0.1.0-alpha.1`.2 
+22 Sentry API Documentation `v1.2` 
     Validation Logic 
 To identify the target claim, the API will match either of the following field 
 combinations: 
@@ -818,7 +818,7 @@ If the claim cannot be found using these combinations, a 404 response will be re
 
 23 
 
-23 Sentry API Documentation `0.1.0-alpha.1`.2 
+23 Sentry API Documentation `v1.2` 
      Possible Responses 
 HTTP Code Description 
 200 - Success The note and any attached files were received successfully. 
@@ -843,7 +843,7 @@ Id string Not used in this response
 
 24 
 
-24 Sentry API Documentation `0.1.0-alpha.1`.2 
+24 Sentry API Documentation `v1.2` 
     Claim Update 
 Endpoint: POST /Claim/Update 
 Description: 
@@ -885,7 +885,7 @@ ClmVatStat String
 
 25 
 
-25 Sentry API Documentation `0.1.0-alpha.1`.2 
+25 Sentry API Documentation `v1.2` 
     Validation Logic 
 To locate the target claim, one of the following field combinations must be provided: 
 • FileRef + VehReg 
@@ -905,7 +905,7 @@ returned.
 
 26 
 
-26 Sentry API Documentation `0.1.0-alpha.1`.2 
+26 Sentry API Documentation `v1.2` 
      Possible Responses 
 HTTP Code Description 
 200 - Success The claim has been successfully updated. 
@@ -924,7 +924,7 @@ Id string Not used in this response
 
 27 
 
-27 Sentry API Documentation `0.1.0-alpha.1`.2 
+27 Sentry API Documentation `v1.2` 
    Submit Report 
 Endpoint: POST / Report/SubmitReport 
 Description: 
@@ -967,7 +967,7 @@ inspected.
 
 28 
 
-28 Sentry API Documentation `0.1.0-alpha.1`.2 
+28 Sentry API Documentation `v1.2` 
 RepairsAuthorisedDate DateTime   Date repairs were authorised. 
 SuppAuthorisedDate DateTime   Date supplementary 
 authorisation was given. 
@@ -1026,7 +1026,7 @@ performed. Accepted values:
 
 29 
 
-29 Sentry API Documentation `0.1.0-alpha.1`.2 
+29 Sentry API Documentation `v1.2` 
 • Vehicle Damage 
 Inspection 
 • Rectification Work 
@@ -1083,7 +1083,7 @@ drivable. Accepted values:
 
 30 
 
-30 Sentry API Documentation `0.1.0-alpha.1`.2 
+30 Sentry API Documentation `v1.2` 
 • Not Known 
 VehInUse string 
 (max 9) 
@@ -1131,7 +1131,7 @@ values:
 
 31 
 
-31 Sentry API Documentation `0.1.0-alpha.1`.2 
+31 Sentry API Documentation `v1.2` 
 • Magazines 
 • Main Dealer 
 • Other 
@@ -1182,7 +1182,7 @@ Accepted values:
 
 32 
 
-32 Sentry API Documentation `0.1.0-alpha.1`.2 
+32 Sentry API Documentation `v1.2` 
 EngineFailReason string 
 (max 250) 
   Reason for engine failure (if 
@@ -1236,7 +1236,7 @@ Accepted values:
 
 33 
 
-33 Sentry API Documentation `0.1.0-alpha.1`.2 
+33 Sentry API Documentation `v1.2` 
 Cause string 
 (max 250) 
   Cause of the damage. 
@@ -1298,7 +1298,7 @@ FinalStorage Decimal   Final storage costs
 
 34 
 
-34 Sentry API Documentation `0.1.0-alpha.1`.2 
+34 Sentry API Documentation `v1.2` 
 CurrentStore Decimal   Current storage costs 
 SalvageRef string 
 (max 8) 
@@ -1357,7 +1357,7 @@ VehModel String
 
 35 
 
-35 Sentry API Documentation `0.1.0-alpha.1`.2 
+35 Sentry API Documentation `v1.2` 
 VehDescription String 
 (max 40) 
   Vehicle Make & Model 
@@ -1415,7 +1415,7 @@ Accepted values:
 
 36 
 
-36 Sentry API Documentation `0.1.0-alpha.1`.2 
+36 Sentry API Documentation `v1.2` 
 • Convertible 
 • Coupe 
 • Crane 
@@ -1466,7 +1466,7 @@ Accepted values:
 
 37 
 
-37 Sentry API Documentation `0.1.0-alpha.1`.2 
+37 Sentry API Documentation `v1.2` 
 • Omnibus 
 • Other 
 • P .S. V . 
@@ -1517,7 +1517,7 @@ Vehicle
 
 38 
 
-38 Sentry API Documentation `0.1.0-alpha.1`.2 
+38 Sentry API Documentation `v1.2` 
 • Wagon 
 • Welfare Unit 
 
@@ -1599,7 +1599,7 @@ seat belt. Accepted values:
 
 39 
 
-39 Sentry API Documentation `0.1.0-alpha.1`.2 
+39 Sentry API Documentation `v1.2` 
 • No Access 
 • None Fitted 
 • Not Tested 
@@ -1655,7 +1655,7 @@ Accepted values:
 
 40 
 
-40 Sentry API Documentation `0.1.0-alpha.1`.2 
+40 Sentry API Documentation `v1.2` 
 • Automatic 
 • CVT 
 • DSG 
@@ -1712,7 +1712,7 @@ Contamination
 
 41 
 
-41 Sentry API Documentation `0.1.0-alpha.1`.2 
+41 Sentry API Documentation `v1.2` 
 • No Damage 
 • Rodent Damage 
 • Storm Damage 
@@ -1767,7 +1767,7 @@ Compartment
 
 42 
 
-42 Sentry API Documentation `0.1.0-alpha.1`.2 
+42 Sentry API Documentation `v1.2` 
 • Tyre 
 • Underside 
 • Wheel 
@@ -1818,7 +1818,7 @@ Accepted values:
 
 43 
 
-43 Sentry API Documentation `0.1.0-alpha.1`.2 
+43 Sentry API Documentation `v1.2` 
 • Rear 
 • RH Front 
 • RH Rear 
@@ -1867,7 +1867,7 @@ Accepted Values:
 
 44 
 
-44 Sentry API Documentation `0.1.0-alpha.1`.2 
+44 Sentry API Documentation `v1.2` 
 • Heavy 
 • Moderate to Heavy 
 • Moderate  
@@ -1917,7 +1917,7 @@ Accepted values:
 
 45 
 
-45 Sentry API Documentation `0.1.0-alpha.1`.2 
+45 Sentry API Documentation `v1.2` 
 • Bonnet 
 • Boot 
 • Brake Lever 
@@ -1968,7 +1968,7 @@ RepairCounty String
 
 46 
 
-46 Sentry API Documentation `0.1.0-alpha.1`.2 
+46 Sentry API Documentation `v1.2` 
 RepairPCode String 
 (max 10) 
   Repairer postcode 
@@ -2024,7 +2024,7 @@ assessed recovery charge
 
 47 
 
-47 Sentry API Documentation `0.1.0-alpha.1`.2 
+47 Sentry API Documentation `v1.2` 
 LabourSavingsNet Decimal   Labour savings net between 
 estimated and assessed 
 labour charge 
@@ -2076,7 +2076,7 @@ Reserve Decimal   Reserve figure
 
 48 
 
-48 Sentry API Documentation `0.1.0-alpha.1`.2 
+48 Sentry API Documentation `v1.2` 
 Balance Decimal   Balance 
 RepairSettlement Decimal   Repair settlement figure 
 OriginalMaterialNet Decimal   Original material net figure 
@@ -2125,7 +2125,7 @@ TotalRetail Decimal   Assessed total retail figure
 
 49 
 
-49 Sentry API Documentation `0.1.0-alpha.1`.2 
+49 Sentry API Documentation `v1.2` 
 TotalDiscountAmount Decimal   Assessed total discount 
 figure 
 TotalNet Decimal   Assessed total net figure 
@@ -2146,7 +2146,7 @@ documents, etc.).
 
 50 
 
-50 Sentry API Documentation `0.1.0-alpha.1`.2 
+50 Sentry API Documentation `v1.2` 
    Example ‘Report’ JSON Request 
 { 
     "InspectEngineer": "DEMOENG1" , 
@@ -2180,7 +2180,7 @@ documents, etc.).
 
 51 
 
-51 Sentry API Documentation `0.1.0-alpha.1`.2 
+51 Sentry API Documentation `v1.2` 
     "VehRoadWorthy": "No" , 
     "VehNotRoadWorthyReason": "Front-end structural damage" , 
     "VehDriveable": "No" , 
@@ -2214,7 +2214,7 @@ documents, etc.).
 
 52 
 
-52 Sentry API Documentation `0.1.0-alpha.1`.2 
+52 Sentry API Documentation `v1.2` 
     "DoorsNotSecuredReason": "" , 
     "Diminution": "No" , 
     "DiminutionPAVPercent": 0.0, 
@@ -2248,7 +2248,7 @@ documents, etc.).
 
 53 
 
-53 Sentry API Documentation `0.1.0-alpha.1`.2 
+53 Sentry API Documentation `v1.2` 
     "StorageRate": 20.0, 
     "Inherited": "No" , 
     "DtStoreStart": "2025-09-15T00:00:00Z" , 
@@ -2282,7 +2282,7 @@ documents, etc.).
 
 54 
 
-54 Sentry API Documentation `0.1.0-alpha.1`.2 
+54 Sentry API Documentation `v1.2` 
     "VehInCarEntertainment": "Touchscreen infotainment system" , 
     "VehExtras": "Rear camera, cruise control" , 
     "VehMods": "None" , 
@@ -2316,7 +2316,7 @@ documents, etc.).
 
 55 
 
-55 Sentry API Documentation `0.1.0-alpha.1`.2 
+55 Sentry API Documentation `v1.2` 
     "RepairTel": "01151234567" , 
     "RepairEmail": "repairs@autofixgarage.co.uk" , 
     "RepairCont": "Mark Taylor" , 
@@ -2350,7 +2350,7 @@ documents, etc.).
 
 56 
 
-56 Sentry API Documentation `0.1.0-alpha.1`.2 
+56 Sentry API Documentation `v1.2` 
     "MaterialSavingsGross": 0.0, 
     "PartsSavingsNet": 30.0, 
     "PartsSavingsGross": 36.0, 
@@ -2384,7 +2384,7 @@ documents, etc.).
 
 57 
 
-57 Sentry API Documentation `0.1.0-alpha.1`.2 
+57 Sentry API Documentation `v1.2` 
     "LabourNet": 0.0, 
     "LabourVat": 0.0, 
     "LabourGross": 0.0, 
@@ -2418,7 +2418,7 @@ documents, etc.).
 
 58 
 
-58 Sentry API Documentation `0.1.0-alpha.1`.2 
+58 Sentry API Documentation `v1.2` 
     "TotalGross": 0.0, 
     "ReportText": "Vehicle sustained severe front-end damage. Recommended full 
 bumper and bonnet replacement. " , 
@@ -2452,7 +2452,7 @@ bumper and bonnet replacement. " ,
 
 59 
 
-59 Sentry API Documentation `0.1.0-alpha.1`.2 
+59 Sentry API Documentation `v1.2` 
             "LabourTime": 3.0, 
             "PaintTime": 1.5, 
             "MaterialCost": 80.0, 
@@ -2477,7 +2477,7 @@ bumper and bonnet replacement. " ,
 
 60 
 
-60 Sentry API Documentation `0.1.0-alpha.1`.2 
+60 Sentry API Documentation `v1.2` 
     Impact Image 
 Field Type Required Description 
 Start Int    Start point of impact. 
@@ -2506,7 +2506,7 @@ be outputted on the final report PDF once the report has been compiled in EVA.
 
 61 
 
-61 Sentry API Documentation `0.1.0-alpha.1`.2 
+61 Sentry API Documentation `v1.2` 
     Parts 
 Field Type Required Description 
 Description string    Part name or description. 
@@ -2529,7 +2529,7 @@ Price decimal   Price of the part.
 
 62 
 
-62 Sentry API Documentation `0.1.0-alpha.1`.2 
+62 Sentry API Documentation `v1.2` 
    Example ‘Parts’ JSON 
 "Parts" :[ 
     { 
@@ -2552,7 +2552,7 @@ Price decimal   Price of the part.
 
 63 
 
-63 Sentry API Documentation `0.1.0-alpha.1`.2 
+63 Sentry API Documentation `v1.2` 
 File Model 
 Field Type Description 
 Name string File name. 
@@ -2572,7 +2572,7 @@ Data byte[] Base64-encoded file content.
 
 64 
 
-64 Sentry API Documentation `0.1.0-alpha.1`.2 
+64 Sentry API Documentation `v1.2` 
    Retrievable Report List 
 Endpoint: GET /Report/GetAvailableReports  
 Description: 
@@ -2606,7 +2606,7 @@ releasedDate datetime   Date the report was released
 
 65 
 
-65 Sentry API Documentation `0.1.0-alpha.1`.2 
+65 Sentry API Documentation `v1.2` 
    Retrieve Report 
 Endpoint: GET /Report/ GetReport?id={id} 
 Description: 
@@ -2640,7 +2640,7 @@ HTTP Code Description
 
 66 
 
-66 Sentry API Documentation `0.1.0-alpha.1`.2 
+66 Sentry API Documentation `v1.2` 
     "ClaimType": "Repair" , 
     "IncidentDate": "2025-09-15T00:00:00Z" , 
     "InspectionDate": "2025-09-18T00:00:00Z" , 
@@ -2674,7 +2674,7 @@ HTTP Code Description
 
 67 
 
-67 Sentry API Documentation `0.1.0-alpha.1`.2 
+67 Sentry API Documentation `v1.2` 
     "TempRepairsHow": "" , 
     "TempRepairsCost": 0.0, 
     "ValMarket": 12500.0, 
@@ -2708,7 +2708,7 @@ HTTP Code Description
 
 68 
 
-68 Sentry API Documentation `0.1.0-alpha.1`.2 
+68 Sentry API Documentation `v1.2` 
     "ClaimantVatStatus": "20%" , 
     "AuthorityStatus": "Yes" , 
     "Cause": "Rear-ended another vehicle" , 
@@ -2742,7 +2742,7 @@ HTTP Code Description
 
 69 
 
-69 Sentry API Documentation `0.1.0-alpha.1`.2 
+69 Sentry API Documentation `v1.2` 
     "Rectification": "Panel adjustment required" , 
     "RectificationIssues": "" , 
     "VehImpactAsDescribed": true, 
@@ -2776,7 +2776,7 @@ HTTP Code Description
 
 70 
 
-70 Sentry API Documentation `0.1.0-alpha.1`.2 
+70 Sentry API Documentation `v1.2` 
     "VehLhrTyre": "8" , 
     "VehSpareTyre": "No spare" , 
     "VehRhfSBelt": "Fitted" , 
@@ -2810,7 +2810,7 @@ HTTP Code Description
 
 71 
 
-71 Sentry API Documentation `0.1.0-alpha.1`.2 
+71 Sentry API Documentation `v1.2` 
     "EstimatedEpa": 30.0, 
     "EstimatedParts": 600.0, 
     "EstimatedOtherTotal": 0.0, 
@@ -2844,7 +2844,7 @@ HTTP Code Description
 
 72 
 
-72 Sentry API Documentation `0.1.0-alpha.1`.2 
+72 Sentry API Documentation `v1.2` 
     "TotalSavingsGross": 48.0, 
     "VatSavings": 8.0, 
     "PrincipalSavings": 0.0, 
@@ -2878,7 +2878,7 @@ HTTP Code Description
 
 73 
 
-73 Sentry API Documentation `0.1.0-alpha.1`.2 
+73 Sentry API Documentation `v1.2` 
     "SundryNet": 0.0, 
     "SundryVat": 0.0, 
     "SundryGross": 0.0, 
@@ -2912,7 +2912,7 @@ bumper and bonnet replacement. " ,
 
 74 
 
-74 Sentry API Documentation `0.1.0-alpha.1`.2 
+74 Sentry API Documentation `v1.2` 
 
     "IsSupplementary": false, 
     "ImpactImage": [ 
@@ -2946,7 +2946,7 @@ bumper and bonnet replacement. " ,
 
 75 
 
-75 Sentry API Documentation `0.1.0-alpha.1`.2 
+75 Sentry API Documentation `v1.2` 
             "MaterialCost": 80.0, 
             "Price": 420.0 
         } 
@@ -2984,7 +2984,7 @@ ClmNo string    Claim number.
 
 76 
 
-76 Sentry API Documentation `0.1.0-alpha.1`.2 
+76 Sentry API Documentation `v1.2` 
 InsuredName string   Name of the insured party. 
 ThirdPartyName string   Name of the third party 
 involved (if applicable). 
@@ -3030,7 +3030,7 @@ location.
 
 77 
 
-77 Sentry API Documentation `0.1.0-alpha.1`.2 
+77 Sentry API Documentation `v1.2` 
 InspLocCity string 
 (max 250) 
   City of the inspection 
@@ -3091,7 +3091,7 @@ Inspection
 
 78 
 
-78 Sentry API Documentation `0.1.0-alpha.1`.2 
+78 Sentry API Documentation `v1.2` 
 • Telephone 
 RepairDuration string 
 (max 10) 
@@ -3150,7 +3150,7 @@ repairs.
 
 79 
 
-79 Sentry API Documentation `0.1.0-alpha.1`.2 
+79 Sentry API Documentation `v1.2` 
 TempRepairsCost decimal   Cost of temporary repairs. 
 ValMarket decimal   Market value of the vehicle. 
 ValRetail decimal   Retail value. 
@@ -3191,7 +3191,7 @@ owner
 
 80 
 
-80 Sentry API Documentation `0.1.0-alpha.1`.2 
+80 Sentry API Documentation `v1.2` 
 • Repairer carrying out pre 
 strip 
 • Customer unresponsive 
@@ -3246,7 +3246,7 @@ ClaimantTotLiability decimal   Total liability of the claimant.
 
 81 
 
-81 Sentry API Documentation `0.1.0-alpha.1`.2 
+81 Sentry API Documentation `v1.2` 
 RepairDelays bool   Indicates if there were repair 
 delays. 
 RepairDelaysReason string 
@@ -3304,7 +3304,7 @@ SalLocCounty string
 
 82 
 
-82 Sentry API Documentation `0.1.0-alpha.1`.2 
+82 Sentry API Documentation `v1.2` 
 SalLocPCode string 
 (max 10) 
   Salvage company postcode 
@@ -3363,7 +3363,7 @@ GlassCode string
 
 83 
 
-83 Sentry API Documentation `0.1.0-alpha.1`.2 
+83 Sentry API Documentation `v1.2` 
 GlassModelId String 
 (max 9) 
   Glass’s model Id 
@@ -3426,7 +3426,7 @@ Possible values:
 
 84 
 
-84 Sentry API Documentation `0.1.0-alpha.1`.2 
+84 Sentry API Documentation `v1.2` 
 • ATV 
 • Backhoe Digger 
 • Baler 
@@ -3477,7 +3477,7 @@ Possible values:
 
 85 
 
-85 Sentry API Documentation `0.1.0-alpha.1`.2 
+85 Sentry API Documentation `v1.2` 
 • Hay Turner 
 • Hedgetrimmer 
 • Hook Loader 
@@ -3528,7 +3528,7 @@ Vehicle
 
 86 
 
-86 Sentry API Documentation `0.1.0-alpha.1`.2 
+86 Sentry API Documentation `v1.2` 
 • Static 
 • Station Wagon 
 • Tandem Trailer 
@@ -3591,7 +3591,7 @@ VehExtras String
 
 87 
 
-87 Sentry API Documentation `0.1.0-alpha.1`.2 
+87 Sentry API Documentation `v1.2` 
 VehMods String 
 (max 40) 
   Any additional mods of the 
@@ -3664,7 +3664,7 @@ belt. Possible values:
 
 88 
 
-88 Sentry API Documentation `0.1.0-alpha.1`.2 
+88 Sentry API Documentation `v1.2` 
 • Deployed 
 • Fitted 
 • No Access 
@@ -3721,7 +3721,7 @@ Possible Values:
 
 89 
 
-89 Sentry API Documentation `0.1.0-alpha.1`.2 
+89 Sentry API Documentation `v1.2` 
 • Very Heavy  
 • Heavy 
 • Moderate to Heavy 
@@ -3778,7 +3778,7 @@ Possible values:
 
 90 
 
-90 Sentry API Documentation `0.1.0-alpha.1`.2 
+90 Sentry API Documentation `v1.2` 
 • Engine Bay 
 • Fairing 
 • Foot Peg 
@@ -3830,7 +3830,7 @@ Contamination
 
 91 
 
-91 Sentry API Documentation `0.1.0-alpha.1`.2 
+91 Sentry API Documentation `v1.2` 
 • Fire (External) 
 • Fire (Fuel) 
 • Ground Damage 
@@ -3878,7 +3878,7 @@ Possible values:
 
 92 
 
-92 Sentry API Documentation `0.1.0-alpha.1`.2 
+92 Sentry API Documentation `v1.2` 
 • Interior 
 • Luggage 
 Compartment 
@@ -3927,7 +3927,7 @@ Contamination
 
 93 
 
-93 Sentry API Documentation `0.1.0-alpha.1`.2 
+93 Sentry API Documentation `v1.2` 
 • Storm Damage 
 • Theft or Attempted 
 • Unrecovered Theft 
@@ -3976,7 +3976,7 @@ Compartment
 
 94 
 
-94 Sentry API Documentation `0.1.0-alpha.1`.2 
+94 Sentry API Documentation `v1.2` 
 • Rear Panel 
 • Rear to Front 
 • Roof 
@@ -4036,7 +4036,7 @@ EstimatedLabourRate Decimal   Estimated labour rate
 
 95 
 
-95 Sentry API Documentation `0.1.0-alpha.1`.2 
+95 Sentry API Documentation `v1.2` 
 LabourRate Decimal   Assessed labour rate 
 RecoveryDiscountPercent Decimal   Assessed recovery discount 
 percentage 
@@ -4088,7 +4088,7 @@ estimated and assessed
 
 96 
 
-96 Sentry API Documentation `0.1.0-alpha.1`.2 
+96 Sentry API Documentation `v1.2` 
 DeleteSavingsGross Decimal   Deleted estimate items 
 savings gross between 
 estimated and assessed 
@@ -4138,7 +4138,7 @@ SundryNet Decimal   Assessed sundry net figure
 
 97 
 
-97 Sentry API Documentation `0.1.0-alpha.1`.2 
+97 Sentry API Documentation `v1.2` 
 SundryVat Decimal   Assessed sundry vat figure 
 SundryGross Decimal   Assessed sundry gross figure 
 EpaNet Decimal   Assessed epa net figure 
@@ -4185,7 +4185,7 @@ table below).
 
 98 
 
-98 Sentry API Documentation `0.1.0-alpha.1`.2 
+98 Sentry API Documentation `v1.2` 
 Files List   Associated files (photos, 
 documents, etc.). 
 

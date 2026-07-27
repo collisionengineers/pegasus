@@ -2,11 +2,11 @@
 
 - Status: Accepted; provider API/MCP authentication boundary superseded by ADR-0004 and deployment mechanism partially superseded by ADR-0009
 - Date: 2026-07-23
-- Owners: Alex and the Pegasus `Next`/`unallocated` development team
+- Owners: Alex and the Pegasus development team
 
 ## Context
 
-Pegasus `Next`/`unallocated` is a staff case-management application for approximately eight
+Pegasus is a staff case-management application for approximately eight
 concurrent users and 2,000 new cases per month. It must continuously ingest a
 shared Outlook mailbox, process documents and images, manage the full QDOS case
 workflow, use Box as the long-term file store, and expose provider API and MCP
@@ -32,7 +32,7 @@ data, regional, and cost decisions remain accepted.
 
 ## Decision summary
 
-Pegasus `Next`/`unallocated` will be a .NET 10 LTS modular monolith with:
+Pegasus will be a .NET 10 LTS modular monolith with:
 
 - ASP.NET Core 10 Razor Pages for the staff interface and ASP.NET Core HTTP APIs
   for machine integrations;
@@ -318,7 +318,7 @@ telemetry, and third-party integration boundaries.
 | Web app | Development Azure hostname; may sleep when idle | Production Azure hostname; direct deployment |
 | Functions | Flex Consumption, .NET 10 isolated, zero always-ready instances initially | Flex Consumption, .NET 10 isolated, zero always-ready instances initially |
 | Azure SQL | Basic, 2 GB | Standard S0, 10 DTU and 250 GB included storage |
-| Storage | Standard general-purpose `Next`/`unallocated`, LRS | Standard general-purpose `Next`/`unallocated`, LRS |
+| Storage | Standard general-purpose v2, LRS | Standard general-purpose v2, LRS |
 | Key Vault | Standard | Standard |
 | Telemetry | Application Insights and Log Analytics with sampling/cap | Application Insights and Log Analytics with sampling/cap |
 | Document Intelligence | S0, development endpoint | S0, production endpoint |

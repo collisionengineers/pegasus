@@ -32,7 +32,7 @@ which is Postgres-gated from this workstation.)
    passed, incl. the banner matrix (600x150/900x180/150x800/840x240 flagged; photo shapes kept) and
    GIF/BMP dims-win-over-byte-floor.
 4. **Parser/PDF lane** — the vendored engine carries the identical heuristic constants; live parser
-   runs engine-`Next`/`unallocated`.13 (heuristic entered at `Next`/`unallocated`.11) — included. (Repo vendored at `Next`/`unallocated`.14, not yet
+   runs engine-v2.13 (heuristic entered at `v2.11`) — included. (Repo vendored at `v2.14`, not yet
    deployed — expected, not a gap here.)
 5. **prior cleanup** — recorded live-verified in TKT-089's verification.md 2026-07-09 (163 rows
    excluded, residual suspects 0).
@@ -110,7 +110,7 @@ PENDING
   rule: `Failed to connect to 51.142.242.153:5432`. Therefore there is no current data/Archive artifact
   proving the universal "never reaches" clause after the 29 live skips.
 - The 2026-07-08 operator failure is incorporated: above-floor banners and GIF/BMP gaps were fixed/deployed
-  in `Next`/`unallocated`.15. However, the registry's last relevant live deploy remains `Next`/`unallocated`.15, while TKT-089's current `Next`/`unallocated`.16
+  in `v2.15`. However, the registry's last relevant live deploy remains `v2.15`, while TKT-089's current `v2.16`
   panoramic-photo regression repair is explicitly `TESTED (offline) — deployment pending`
   (`verification.md:178–198`), so source/live parity is not current.
 
@@ -119,7 +119,7 @@ PENDING
 - No fresh post-10-Jul evidence/Archive census; direct case-folder descent was intentionally not performed.
 - No live stimulus has exercised the banner, GIF/BMP, or byte-fallback rungs after the Jul-8
   failure/follow-up.
-- Current main's `Next`/`unallocated`.16 image-filter behavior is not yet the deployed live behavior.
+- Current main's `v2.16` image-filter behavior is not yet the deployed live behavior.
 
 ## How to re-verify
 
@@ -129,10 +129,10 @@ PENDING
 - Observe a natural real inbound above-floor PNG/JPEG banner or GIF/BMP signature and require a
   corresponding skip trace plus no evidence row/Archive file. Do not manufacture or send a production test
   email.
-- Deploy the reviewed `Next`/`unallocated`.16 repair first if main/live parity is required, then repeat the forward check.
+- Deploy the reviewed `v2.16` repair first if main/live parity is required, then repeat the forward check.
 
 ## Confidence + unread surfaces
 
 High confidence in PENDING. Live telemetry proves the original area floor is actively skipping
 signature-like attachments, and no fresh evidence contradicts the fix. Unread/unevidenced surfaces are the
-post-10-Jul Postgres/Archive census, the new rungs' natural live behavior, and `Next`/`unallocated`.16 live parity.
+post-10-Jul Postgres/Archive census, the new rungs' natural live behavior, and `v2.16` live parity.

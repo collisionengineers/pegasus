@@ -12,7 +12,7 @@ that repository was archived as part of TKT-287. File paths below were relative 
 
 PR #4 (`feat/intake-classifier-2026-06-29`, merged 8445028) and PR #5 (closed as a strict subset of
 #4) collected **18 inline Codex P2 review comments** — none blocking, none acted on during the
-rules-engine-`Next`/`unallocated` Phase-0 fork-consolidation merge, per that plan's explicit scope: fix only what
+rules-engine-v2 Phase-0 fork-consolidation merge, per that plan's explicit scope: fix only what
 blocks `pytest` green; document the rest for a follow-up pass. This issue is that tracking note.
 
 Two are already resolved as part of the Phase-0 consolidation itself (see below); the other 16 are
@@ -101,5 +101,5 @@ both together before touching `readers/pdf.py` again.
 
 ---
 
-_Originally filed as part of the rules-engine-`Next`/`unallocated` Phase-0 "consolidate the fork" slice (2026-07-02) in
+_Originally filed as part of the rules-engine-v2 Phase-0 "consolidate the fork" slice (2026-07-02) in
 `collisionengineers/cedocumentmapper_v2.0`. Source: `gh api repos/collisionengineers/cedocumentmapper_v2.0/pulls/4/comments`._

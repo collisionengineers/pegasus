@@ -1,1 +1,0 @@
-- [`0.1.0-alpha.1`/`Next`/`unallocated` app-data collision](`0.1.0-alpha.1`-`Next`/`unallocated`-appdata-collision.md) — both versions share Documents\CE Document Mapper\providers.json; running `Next`/`unallocated` migrates it and breaks `0.1.0-alpha.1`

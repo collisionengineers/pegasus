@@ -22,7 +22,7 @@ Single-page, no-nav WinUI 3 desktop app (net8.0-windows10.0.19041.0, WindowsPack
   - Credentials: DVSA_TENANT_ID, DVSA_CLIENT_ID, DVSA_CLIENT_SECRET, DVSA_API_KEY
   - Token caching with 60s expiry skew (from Python/TS connector pattern)
   - Returns: make, model, colour, fuel, engine, dates, MOT tests[], defects[] per test
-- **DVLA VES `0.1.0-alpha.1`.2.0** — static x-api-key header
+- **DVLA VES `v2.0`** — static x-api-key header
   - Returns: tax status, emissions (CO2, euroStatus, RDE), additional identity fields
 
 ## Key Architecture Decisions

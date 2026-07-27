@@ -1,6 +1,6 @@
 # Changes — TKT-021: Resolve Connexus claims-manager to the real provider (PCH/SBL)
 ## Status
-now — Image-Source intermediary resolution code deployed live 2026-07-02 (rules-engine-`Next`/`unallocated` Phase 3);
+now — Image-Source intermediary resolution code deployed live 2026-07-02 (rules-engine-v2 Phase 3);
 activates once the D8 seed delta (Connexus → PCH/SBL) is applied — see [verification.md](./verification.md).
 
 ## 2026-07-10 — Reopen fix: explicit intermediary/unresolved-principal Held reason
@@ -70,7 +70,7 @@ arrival (note "Held — intermediary sender" + audit "…principal unresolved" o
   work_provider_id mapping (ADR-0011). `matchSenderIdentity` now resolves address-level provider >
   intermediary > domain-level provider, and provider-match records carry the intermediary `image_source`
   + its N:N provider candidates. The Connexus→{PCH,SBL} seed row itself rides the operator-gated D8 delta
-  ([`2026-07-02-rules-engine-v2-identification.sql`](../../../../database/migrations/2026-07-02-rules-engine-`Next`/`unallocated`-identification.sql)),
+  ([`2026-07-02-rules-engine-v2-identification.sql`](../../../../database/migrations/2026-07-02-rules-engine-v2-identification.sql)),
   not yet applied live.
 ## Summary
 Captures the operator's ask to treat Connexus as an intermediary and resolve the

@@ -20,7 +20,7 @@
 
 ## U2 — own-domain claimant-contact exclusion (sibling-first)
 
-- Sibling `cedocumentmapper_v2.0` commit `83164e6`, annotated tag **engine-`Next`/`unallocated`.25**, pushed:
+- Sibling `cedocumentmapper_v2.0` commit `83164e6`, annotated tag **engine-v2.25**, pushed:
   `rules/engine.py` gains module-level `_OWN_EMAIL_DOMAINS = ("collisionengineers.co.uk",)`;
   `_is_non_claimant_email` rejects any candidate at an own domain or subdomain. New
   `tests/test_contact_extraction.py` (4 tests: live shape, claimant-context, subdomain,
@@ -29,7 +29,7 @@
 - Vendored mirror: `services/functions/parser/cedocumentmapper_v2/rules/engine.py` (same
   executable AST; wording-normalisation preserved) + the same four tests in
   `services/functions/parser/tests/test_contact_extraction.py`.
-- `cedocumentmapper_v2/VENDOR_LOCK.json` re-authored for engine-`Next`/`unallocated`.25 @ `83164e6…` with the
+- `cedocumentmapper_v2/VENDOR_LOCK.json` re-authored for engine-v2.25 @ `83164e6…` with the
   sanctioned three-file `normalisedFiles` list (schema 2); each normalised file re-proved
   AST-identical after docstring strip; `PROVENANCE.md` updated (release, commit, both
   digests). `verify_vendor_pin.py` → PASS (immutable tag verified);

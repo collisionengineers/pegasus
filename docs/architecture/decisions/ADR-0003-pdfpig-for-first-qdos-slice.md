@@ -2,7 +2,7 @@
 
 - Status: Accepted for the first local QDOS slice
 - Date: 2026-07-23
-- Owners: Pegasus `Next`/`unallocated` development team
+- Owners: Pegasus development team
 
 ## Context
 

@@ -4,7 +4,7 @@ done — live-probed against the deployed engine 2026-07-02; locked in as an eva
 ## Commits
 - No code change required — the deterministic classifier's `billing`/`billing_request` rule already
   recognises the "please provide the invoice" body cue + prior-report attachment.
-- 2026-07-02 — rules-engine-`Next`/`unallocated` Phase 0/1 evidence pass: live-probed the evidence email against the
+- 2026-07-02 — rules-engine-v2 Phase 0/1 evidence pass: live-probed the evidence email against the
   deployed `/classify-email` route; result recorded as an eval-corpus regression pin (manifest id
   `tkt037-invoice-request`, `scripts/evaluation/email/`). See [verification.md](./verification.md).
 ## Summary

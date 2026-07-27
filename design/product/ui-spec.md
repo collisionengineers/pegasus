@@ -54,7 +54,7 @@ Illustrative text must not fabricate operational input. Loading, empty, stale/pa
 
 ## Accessibility and acceptance
 
-Use skip link, labelled navigation, semantic tables/captions/header/sort state, keyboard queue selection, pane/tab relationships, associated error summary, restrained live announcements, visible focus and safe modal focus handling. At 1280+ use dense panes; at 1024–1279 and 200% zoom, turn secondary panes into labelled tabs/drawers/ordered sections while identity/state/actions remain first. Mobile is Never.
+Use skip link, labelled navigation, semantic tables/captions/header/sort state, keyboard queue selection, pane/tab relationships, associated error summary, restrained live announcements, visible focus and safe modal focus handling. At 1280+ use dense panes; at 1024–1279 and 200% zoom, turn secondary panes into labelled tabs/drawers/ordered sections while identity/state/actions remain first. Mobile is `Not planned`.
 
 When implemented:
 

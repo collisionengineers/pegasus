@@ -2,11 +2,11 @@
 
 - Status: Accepted; embedded engine selected by ADR-0003; scan qualification refined by ADR-0005
 - Date: 2026-07-23
-- Owners: Alex and the Pegasus `Next`/`unallocated` development team
+- Owners: Alex and the Pegasus development team
 
 ## Context
 
-Pegasus `Next`/`unallocated` must extract case information from ordinary PDFs and scanned
+Pegasus must extract case information from ordinary PDFs and scanned
 PDFs received as work instructions. The expected workload is approximately 2,000
 cases per month. Original documents remain authoritative and are stored in Box.
 
@@ -24,7 +24,7 @@ unavailable; it must remain a visible terminal or manual-review outcome.
 
 ## Decision
 
-Pegasus `Next`/`unallocated` will use a hybrid extraction pipeline:
+Pegasus will use a hybrid extraction pipeline:
 
 1. Preserve the original PDF in Box and calculate a content hash.
 2. Pass the PDF to a proven, maintained PDF engine; do not implement the PDF file

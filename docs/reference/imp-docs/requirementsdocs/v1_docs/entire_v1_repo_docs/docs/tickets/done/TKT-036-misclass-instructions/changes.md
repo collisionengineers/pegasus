@@ -4,7 +4,7 @@ done — live-probed against the deployed engine 2026-07-02; locked in as an eva
 ## Commits
 - No code change required — the deterministic classifier already treats the "New eng ins" subject +
   instructions attachment as `receiving_work`/`new_client_work`, not a query.
-- 2026-07-02 — rules-engine-`Next`/`unallocated` Phase 0/1 evidence pass: live-probed the evidence email against the
+- 2026-07-02 — rules-engine-v2 Phase 0/1 evidence pass: live-probed the evidence email against the
   deployed `/classify-email` route; result recorded as an eval-corpus regression pin (manifest id
   `tkt036-instructions-misclass`, `scripts/evaluation/email/`). See [verification.md](./verification.md).
 ## Summary
