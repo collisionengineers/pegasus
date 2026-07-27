@@ -4,6 +4,7 @@ param()
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $errors = [System.Collections.Generic.List[string]]::new()
+$allowedLanguageMatches = [System.Collections.Generic.List[string]]::new()
 
 function Add-PolicyError([string]$Message) {
     $errors.Add($Message)
@@ -64,40 +65,48 @@ $activeFiles = foreach ($relative in $activeRoots) {
     if (-not $item.PSIsContainer) { $item; continue }
     Get-ChildItem -LiteralPath $path -Recurse -File | Where-Object {
         $textExtensions -contains $_.Extension -and
-        $_.FullName -notmatch '[\\/](?:bin|obj|node_modules|artifacts|corpus)[\\/]' -and
-        $_.FullName -notmatch '[\\/]docs[\\/](?:history|reference|changes)[\\/]' -and
-        $_.FullName -notlike '*docs\azure\current-inventory.md' -and
-        $_.FullName -notlike '*docs\agent-mistakes.md'
+        $_.FullName -notmatch '[\\/](?:bin|obj|node_modules|artifacts|corpus)[\\/]'
     }
 }
+
+$historicalOrTechnicalIdentity = '(?i)(predecessor|legacy|historical|former|old application|rg-collisionspike-dev|collisionengineers/collisionspike_v2|CollisionSpikeCurrenttree|collisionspike-corpus-evaluation|ASP-rgcollisionspikedev|cespk-pg-dev|databases:.*collisionspike|CollisionSpike\.(?:Core|Infrastructure|Web|Worker|User|Superuser|Admin|Engineer))'
+$technicalVersionContext = '(?i)(schema|engine|API|token|taxonomy|storage|MSAL|package|version|provider-domains-v1|cedocumentmapper_v2|baseline-v2|v2\.0|engine-v2|webhooks v2|names such as)'
+$corruptedTechnicalHorizon = '(?i)(?:MSAL Browser|Rules Engine|taxonomy|access tokens?|general-purpose|engine-ready|QRD)\s+`(?:Next|Later)`/`unallocated`|`(?:Next|Later)`/`unallocated`\s+(?:access tokens?|schema|engine|storage)'
 
 foreach ($file in $activeFiles | Sort-Object FullName -Unique) {
     if ($file.FullName -eq $PSCommandPath) { continue }
     $relative = [System.IO.Path]::GetRelativePath($root, $file.FullName).Replace('\', '/')
     $lineNumber = 0
-    $inFence = $false
     foreach ($line in [System.IO.File]::ReadLines($file.FullName)) {
         $lineNumber++
-        if ($file.Extension -in @('.md', '.txt') -and $line.TrimStart().StartsWith('```')) {
-            $inFence = -not $inFence
-            continue
-        }
-        if ($inFence) { continue }
 
-        $plain = [regex]::Replace($line, '`[^`]*`', '')
-        $plain = [regex]::Replace($plain, '\]\([^)]+\)', ']')
-        if ($plain -match '(?<!Historical )CollisionSpike' -and
-            $line -notmatch 'CollisionSPikeCurrenttree\.txt' -and
-            $line -notmatch 'rg-collisionspike-dev') {
-            Add-PolicyError "Obsolete active product identity at ${relative}:$lineNumber"
+        if ($line -match '(?i)Pegasus\s+`(?:Next|Later)`/`unallocated`') {
+            Add-PolicyError "Release horizon used as Pegasus product identity at ${relative}:$lineNumber"
+        }
+        if ($line -match $corruptedTechnicalHorizon) {
+            Add-PolicyError "Release horizon replaced a technical version at ${relative}:$lineNumber"
+        }
+        if ($line -match 'CollisionSpike') {
+            if ($relative -like 'docs/reference/imp-docs/*' -or
+                $relative -like 'docs/history/*' -or $line -match $historicalOrTechnicalIdentity) {
+                $allowedLanguageMatches.Add("Allowed historical/technical identity at ${relative}:$lineNumber")
+            } else {
+                Add-PolicyError "Obsolete active product identity at ${relative}:$lineNumber"
+            }
         }
         if ($file.Extension -in @('.md', '.txt', '.yml', '.yaml') -and
-            $plain -cmatch '\b(?:V0|V1(?:\.x)?|V2|V3\+?|first-MVP)\b' -and
-            $line -notmatch 'ProviderDomainReferenceSnapshotV1') {
-            Add-PolicyError "Obsolete release-stage prose at ${relative}:$lineNumber"
+            $line -cmatch '\b(?:V0|V1(?:\.x)?|V2|V3\+?|first-MVP)\b') {
+            if ($relative -like 'docs/reference/imp-docs/*' -or
+                $relative -like 'docs/history/*' -or $line -match $technicalVersionContext) {
+                $allowedLanguageMatches.Add("Allowed technical/evidence version at ${relative}:$lineNumber")
+            } else {
+                Add-PolicyError "Obsolete release-stage prose at ${relative}:$lineNumber"
+            }
         }
     }
 }
+
+$allowedLanguageMatches | Sort-Object -Unique | ForEach-Object { Write-Host $_ }
 
 $solution = Get-Content -LiteralPath (Join-Path $root 'Pegasus.slnx') -Raw
 if ($solution -match 'workspaces[/\\]') {
@@ -124,7 +133,7 @@ Get-ChildItem -LiteralPath (Join-Path $root 'workspaces') -Recurse -Force | ForE
 }
 
 if ($errors.Count -gt 0) {
-    $errors | ForEach-Object { Write-Error $_ }
+    $errors | ForEach-Object { Write-Error $_ -ErrorAction Continue }
     exit 1
 }
 
