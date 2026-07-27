@@ -1,0 +1,66 @@
+{
+  "name": "Feature",
+  "description": "Propose a bounded user or operator outcome.",
+  "title": "[Feature]: ",
+  "labels": ["type:feature"],
+  "body": [
+    {
+      "type": "markdown",
+      "attributes": {
+        "value": "Describe the outcome and evidence. Planning will inspect the repository before selecting implementation."
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "problem",
+      "attributes": {
+        "label": "Problem",
+        "description": "What problem exists, for whom, and what happens today?"
+      },
+      "validations": {"required": true}
+    },
+    {
+      "type": "textarea",
+      "id": "outcome",
+      "attributes": {
+        "label": "Desired outcome",
+        "description": "What should a user or operator be able to observe?"
+      },
+      "validations": {"required": true}
+    },
+    {
+      "type": "textarea",
+      "id": "acceptance",
+      "attributes": {
+        "label": "Acceptance evidence",
+        "description": "What would prove the outcome works, including important failure or recovery behavior?"
+      },
+      "validations": {"required": true}
+    },
+    {
+      "type": "textarea",
+      "id": "scope",
+      "attributes": {
+        "label": "Scope and exclusions",
+        "description": "What is included, and what should remain unchanged?"
+      },
+      "validations": {"required": true}
+    },
+    {
+      "type": "input",
+      "id": "capability",
+      "attributes": {
+        "label": "Capability or product-area link",
+        "description": "Stable capability ID or relative product-document link, if known."
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "dependencies",
+      "attributes": {
+        "label": "Dependencies or decisions",
+        "description": "Name known blockers; use native issue dependencies after creation."
+      }
+    }
+  ]
+}

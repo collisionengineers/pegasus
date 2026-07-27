@@ -1,2 +1,0 @@
-
-These are systems currently in evaluation by Collision Engineers as a possible image intake method. These are mobile apps that provide a guided capture service to claimants, and we receive the images direct.

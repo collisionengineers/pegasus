@@ -32,5 +32,5 @@ before using it in current product or technical work.
 
 Current requirements are owned by the
 [project questionnaire](../../PROJECT_DISCOVERY_QUESTIONNAIRE.md), current
-maturity allocation by the [feature maturity map](../plans/feature-maturity-map.md),
+current allocation by the [capability inventory](../product/capabilities.md),
 and stable technical decisions by the [architecture index and ADRs](../architecture/README.md).
