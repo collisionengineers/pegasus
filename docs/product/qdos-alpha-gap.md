@@ -143,7 +143,7 @@ The development-only manual intake route must remain unavailable in a deployed e
 
 Pegasus `0.1.0-alpha.1` starts fresh. No predecessor cases, users, action-history records, or application state are imported. The predecessor was pre-release, so preserving or reconciling its test application data is not a `0.1.0-alpha.1` release requirement. Retirement of its Azure resources is a separate, exact-target operation that still requires explicit approval and protection of any shared assets.
 
-## Allocated beyond `0.1.0-alpha.1`, conditional, unclear, or never
+## Allocated beyond `0.1.0-alpha.1` or `Not planned`
 
 The former [later-delivery pack](../history/plans/later-delivery/README.md) is historical activation evidence. Permanent and unallocated behavior is owned by the non-implementation [boundary contract](boundaries.md); a row there is not a backlog item. Any promoted outcome starts with a current change record.
 
@@ -151,8 +151,8 @@ The former [later-delivery pack](../history/plans/later-delivery/README.md) is h
 - **`Next`/`unallocated`:** provider API; four-mailbox email workspace/management; general email/image matching; DOC/MSG extraction; scan-like PDF OCR; post-report query/dispute work; image/damage AI or vision assistance.
 - **`Later`/`unallocated`:** Diminution, Commercial, automated WhatsApp, automated chasers, in-app assistant, and conditional AI suggestions where rules are insufficient.
 - **`Later`/`unallocated`:** conditional direct EVA API, EVA replacement, estimating/valuation/invoice/report functions, automatic reports, and staff-selected AI Assessor.
-- **Unclear:** own guided capture, Tractable/Ravin, and custom domain.
-- **Never:** external/customer accounts, malware scanning, SMS, Teams, portal, predecessor reuse/import/operation after cutover, separate QA/UAT/staging/demo/training environments, GitHub Actions/OIDC, slots/S1, private networking, zone/multi-region resilience, and quarterly recovery exercises.
+- **`Later`/`unallocated` with conditional activation:** own guided capture, Tractable/Ravin, and custom domain; each still requires a direct decision.
+- **`Not planned`:** external/customer accounts, malware scanning, SMS, Teams, portal, predecessor reuse/import/operation after cutover, separate QA/UAT/staging/demo/training environments, GitHub Actions/OIDC, slots/S1, private networking, zone/multi-region resilience, and quarterly recovery exercises.
 
 Deferred features may have clean seams in the current architecture, but they must not add dormant services, duplicate engines, speculative projects, or `0.1.0-alpha.1` release gates.
 

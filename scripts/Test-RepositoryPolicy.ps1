@@ -72,6 +72,7 @@ $activeFiles = foreach ($relative in $activeRoots) {
 $historicalOrTechnicalIdentity = '(?i)(predecessor|legacy|historical|former|old application|rg-collisionspike-dev|collisionengineers/collisionspike_v2|CollisionSpikeCurrenttree|collisionspike-corpus-evaluation|ASP-rgcollisionspikedev|cespk-pg-dev|databases:.*collisionspike|CollisionSpike\.(?:Core|Infrastructure|Web|Worker|User|Superuser|Admin|Engineer))'
 $technicalVersionContext = '(?i)(schema|engine|API|token|taxonomy|storage|MSAL|package|version|provider-domains-v1|cedocumentmapper_v2|baseline-v2|v2\.0|engine-v2|webhooks v2|names such as)'
 $corruptedTechnicalHorizon = '(?i)(?:MSAL Browser|Rules Engine|taxonomy|access tokens?|general-purpose|engine-ready|QRD)\s+`(?:Next|Later)`/`unallocated`|`(?:Next|Later)`/`unallocated`\s+(?:access tokens?|schema|engine|storage)'
+$obsoleteAllocationLanguage = '(?:^\s*#{1,6}\s+(?:Never|Conditional\s*/\s*Unclear)\s*$)|(?:\|\s*(?:Never|Conditional\s*/\s*Unclear)\s*\|)|(?:\*\*(?:Never|Unclear):\*\*)'
 
 foreach ($file in $activeFiles | Sort-Object FullName -Unique) {
     if ($file.FullName -eq $PSCommandPath) { continue }
@@ -85,6 +86,10 @@ foreach ($file in $activeFiles | Sort-Object FullName -Unique) {
         }
         if ($line -match $corruptedTechnicalHorizon) {
             Add-PolicyError "Release horizon replaced a technical version at ${relative}:$lineNumber"
+        }
+        if ($relative -notlike 'docs/reference/imp-docs/*' -and
+            $line -cmatch $obsoleteAllocationLanguage) {
+            Add-PolicyError "Obsolete allocation label at ${relative}:$lineNumber"
         }
         if ($line -match 'CollisionSpike') {
             if ($relative -like 'docs/reference/imp-docs/*' -or

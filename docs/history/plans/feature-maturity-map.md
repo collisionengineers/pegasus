@@ -25,13 +25,13 @@ Normalized allocations appear beside, never instead of, raw answers. Relative an
 | `Later`/`unallocated` release work | 9 |
 | `Later`/`unallocated` release work | 13 |
 | `Not planned` | 30 |
-| Conditional / Unclear | 3 |
+| `Later`/`unallocated` with conditional activation | 3 |
 
 Total: **213 rows; 213 unique IDs**.
 
 ## Primary planning ownership
 
-The `Owning requirement/plan` cell is the single primary planning owner for that feature row. It must resolve to the bounded section that sequences and accepts the feature, or to the non-implementation boundary section for `Not planned` and conditional/Unclear work. A link is planning traceability only; it is not implementation, caller, deployment or acceptance evidence.
+The `Owning requirement/plan` cell is the single primary planning owner for that feature row. It must resolve to the bounded section that sequences and accepts the feature, or to the non-implementation boundary section for `Not planned` and conditionally activated `Later`/`unallocated` work. A link is planning traceability only; it is not implementation, caller, deployment or acceptance evidence.
 
 ## `0.0.0-development` pre-alpha
 
@@ -251,7 +251,7 @@ The `Owning requirement/plan` cell is the single primary planning owner for that
 | EXT-13 | Other valuation-service integrations | `Later`/`unallocated` | `Later`/`unallocated` release work | [Worksheet] | [Primary plan](later-delivery/integrations/eva-replacement-and-engineering.md#integrate-approved-estimating-and-valuation-services) | Allocation only; owning evidence still required. |
 | AI-07 | Staff-selected `AI Assessor` Engineer option in the post-EVA-replacement assignment workflow | `Later`/`unallocated` | `Later`/`unallocated` release work | [Worksheet] | [Primary plan](later-delivery/integrations/eva-replacement-and-engineering.md#offer-staff-selected-ai-assessor) | Allocation only; owning evidence still required. |
 
-## Never
+## `Not planned`
 
 | ID | Feature | Raw answer | Allocation | Authority/source | Owning requirement/plan | Activation note |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -286,13 +286,13 @@ The `Owning requirement/plan` cell is the single primary planning owner for that
 | BND-10 | Separate user-acceptance environment | `Not planned` | `Not planned` | [Worksheet] | [Primary plan](../../product/boundaries.md#product-and-environment-boundaries) | Permanent boundary; not backlog. |
 | BND-11 | Training/demo environment | `Not planned` | `Not planned` | [Worksheet] | [Primary plan](../../product/boundaries.md#product-and-environment-boundaries) | Permanent boundary; not backlog. |
 
-## Conditional / Unclear
+## `Later`/`unallocated` with conditional activation
 
 | ID | Feature | Raw answer | Allocation | Authority/source | Owning requirement/plan | Activation note |
 | --- | --- | --- | --- | --- | --- | --- |
-| EXT-16 | Collision Engineers guided mobile image capture | conditional `Later`/`unallocated` | Conditional / Unclear | [Worksheet] | [Primary plan](../../product/boundaries.md#guided-capture-activation-gates) | Unassigned; later direct decision required. |
-| EXT-17 | Tractable or Ravin guided-capture integration | conditional `Later`/`unallocated` | Conditional / Unclear | [Worksheet] | [Primary plan](../../product/boundaries.md#guided-capture-activation-gates) | Unassigned; later direct decision required. |
-| EXT-19 | Collision Engineers custom application domain | conditional `Later`/`unallocated` | Conditional / Unclear | [Worksheet] | [Primary plan](../../product/boundaries.md#custom-domain-activation-gate) | Unassigned; later direct decision required. |
+| EXT-16 | Collision Engineers guided mobile image capture | conditional `Later`/`unallocated` | `Later`/`unallocated` | [Worksheet] | [Primary plan](../../product/boundaries.md#guided-capture-activation-gates) | Unassigned; later direct decision required. |
+| EXT-17 | Tractable or Ravin guided-capture integration | conditional `Later`/`unallocated` | `Later`/`unallocated` | [Worksheet] | [Primary plan](../../product/boundaries.md#guided-capture-activation-gates) | Unassigned; later direct decision required. |
+| EXT-19 | Collision Engineers custom application domain | conditional `Later`/`unallocated` | `Later`/`unallocated` | [Worksheet] | [Primary plan](../../product/boundaries.md#custom-domain-activation-gate) | Unassigned; later direct decision required. |
 
 ## Non-row direct claim
 
