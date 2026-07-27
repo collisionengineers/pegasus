@@ -29,7 +29,7 @@ Push-Location ./workspaces/document-extraction; dotnet test ./CollisionDocNet.sl
 Push-Location ./workspaces/report-renderer; dotnet test ./CollisionRenderer.sln --configuration Release; Pop-Location
 npm ci --prefix ./workspaces/ai-centre/services/collision-brain
 npm test --prefix ./workspaces/ai-centre/services/collision-brain
-Push-Location ./workspaces/agent-skills/tools; python -m unittest test_pack_skill; Pop-Location
+Push-Location ./workspaces/ai-centre/skills/tools; python -m unittest test_pack_skill; Pop-Location
 ```
 
 These checks prove only their imported source snapshots. They do not activate

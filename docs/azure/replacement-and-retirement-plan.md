@@ -14,7 +14,7 @@ This plan replaces the old pre-release application deliberately. Pegasus `Next`/
 
 ## Non-negotiable blockers
 
-Do not delete either Pegasus resource group until all are true:
+Do not delete either predecessor resource group until all are true:
 
 - Intake producers and triggers are stopped so the old application cannot keep processing after retirement. Its pre-release queues and Durable state may then be discarded; they do not need migration or business reconciliation.
 - The evidence container's predecessor-only ownership and disposition are confirmed. Its contents were not inspected during inventory and are not assumed to be disposable.

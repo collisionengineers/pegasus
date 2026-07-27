@@ -68,6 +68,6 @@ jobs:
           npm run typecheck
           npm test
       - name: Validate agent-skill packaging
-        working-directory: workspaces/agent-skills/tools
+        working-directory: workspaces/ai-centre/skills/tools
         shell: pwsh
         run: python -m unittest test_pack_skill

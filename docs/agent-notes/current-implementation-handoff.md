@@ -155,7 +155,7 @@ operator acceptance.
 - DOCX and image review are implemented locally. Automated DOC/MSG extraction, vehicle-registration OCR/VLM, Graph mailbox intake, private Blob staging, Box, DVLA/DVSA, EVA export, and lifecycle management are not implemented.
 - The Worker has no trigger and does not yet call Core.
 - There is no application authentication, role enforcement, or authenticated action actor.
-- The four source imports under `workspaces/` build and test independently. They are not in `Pegasus.slnx`, referenced by the application, loaded at runtime, or deployed.
+- The three source workspaces under `workspaces/`, imported from four sources with agent skills merged under `ai-centre/skills/`, build and test independently. They are not in `Pegasus.slnx`, referenced by the application, loaded at runtime, or deployed.
 - Development uses SQL Server Express LocalDB and the committed SQL Server migration stream. Empty databases and exact current migration history are accepted; unexpected schema/history or a pending model fail before normal application use. Normal Web/Worker startup never applies migrations.
 - Disposable SQL Server/LocalDB evidence does not prove Azure SQL locking, migration, recovery, or live behavior. No migration has been applied to a live Pegasus database.
 - Bicep compilation proves syntax/type consistency only. The renamed target describes fresh Pegasus resources; none has been provisioned.

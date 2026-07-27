@@ -25,8 +25,9 @@ project, runtime, store, migration stream, deployment unit, or top-level
 application boundary requires an accepted ADR proving these owners cannot carry
 the change.
 
-`workspaces/` contains four independently buildable source imports: document
-extraction, report rendering, AI Centre, and agent skills. They are not solution
+`workspaces/` contains three independently buildable source workspaces imported
+from four sources: document extraction, report rendering, and AI Centre with the
+agent-skill source merged under `ai-centre/skills/`. They are not solution
 projects, application dependencies, runtime callers, deployment units, or
 business-policy authorities. `Pegasus.Core` remains the sole business-policy
 owner. A workspace may cross into the application only through a separately

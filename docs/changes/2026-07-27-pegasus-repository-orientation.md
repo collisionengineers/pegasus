@@ -90,8 +90,8 @@ no transcript, archive copy, README or second requirements ledger is created.
 - Consolidation of the exact EVA drag-and-drop examples and 12 Engineer screens.
 - Clean active identity rename, SemVer/horizon conversion and retirement of loose
   root planning documents into history.
-- Four independently buildable, non-caller workspaces and independent CI health
-  checks.
+- Three independently buildable, non-caller workspaces imported from four
+  sources, with agent skills merged under AI Centre, plus independent CI checks.
 - Target IaC rename only; no Azure read, write, deployment or resource mutation.
 
 ### Excluded
@@ -117,10 +117,13 @@ actual caller, recovery proof and acceptance evidence.
 
 ## Atomic source crosswalk
 
-`S<section>-L<line>` locators refer to the deleted Markdown source as shown in
-this pull request's deletion diff. A suffix splits one source line only where
-its clauses have different durable owners. Table headings and source metadata
-are retained as provenance rows; they are not product requirements.
+`S<section>-L<line>` locators refer to the supplied Markdown source identified
+by the SHA-256 in this record. The exact supplied Markdown and normalized DOCX
+extraction were made available to the independent reviewer as ephemeral
+review artifacts and are intentionally absent from repository history. A suffix
+splits one source line only where its clauses have different durable owners.
+Table headings and source metadata are retained as provenance rows; they are
+not product requirements.
 
 | Source | Normalized atomic claim | Durable owner / capability | Allocation | Evidence state |
 | --- | --- | --- | --- | --- |
@@ -131,7 +134,7 @@ are retained as provenance rows; they are not product requirements.
 | `Smetadata-L7` | The source is dated 26 July 2026 and has status “Draft for discussion”. | `this change record` | provenance | `accepted` |
 | `S1-L11a` | Pegasus is Collision Engineers’ case-management and reporting product and is intended to become the place where jobs are created, assessed, reported, and tracked. | `docs/product/index.md` | accepted authority | `accepted` |
 | `S1-L11b` | Keep EVA and its surrounding spreadsheets/manual steps in parallel until the deferred replacement slice, then replace that workflow with Pegasus. | `EXT-03` | Now/0.1.0-alpha.1 | `intended` |
-| `S1-L11c` | Box remains the backing file store for Pegasus-managed case files. | `DOC-01` | Now/0.1.0-alpha.1 | `accepted` |
+| `S1-L11c` | Box remains the backing file store for Pegasus-managed case files. | `DOC-02` | Now/0.1.0-alpha.1 | `accepted` |
 | `S1-L13` | Capture each job once as structured canonical data and render the assessment report, fee note, audit report, diminution report, addendum, query response, invoice, and management statistic from that source so outputs require no retyping and cannot disagree. | `CASE-31` | Later/unallocated | `intended` |
 | `S1-L15a` | Assign post-EVA AI Assessor work within the case workflow to read relevant instruction context and draft image-based assessments, with an engineer reviewing and approving every outward result. | `AI-07` | Later/unallocated | `intended` |
 | `S1-L15b` | Generate query-response proposals for engineer review and approval rather than allowing autonomous outward responses. | `AI-08` | Later/unallocated | `intended` |
@@ -161,8 +164,10 @@ are retained as provenance rows; they are not product requirements.
 | `S4.1-L51a` | Allow staff to send a request-scoped upload link to a client. | `INT-31` | Now/0.1.0-alpha.1 | `intended` |
 | `S4.1-L51b` | Allow staff to log a bodyshop chase and see which half each incomplete job is awaiting. | `INT-32` | Next/unallocated | `intended` |
 | `S4.2-L55a` | Automate unique reference allocation, job creation, mapped-instruction population, and the final readiness transition while allowing administrators to add mileage and engineer notes such as unroadworthiness or a customer preference for total loss. | `CASE-31` | Later/unallocated | `intended` |
-| `S4.2-L55b` | Create the case Box folder and file the instruction, images, and notes into it as part of automated setup. | `DOC-02` | Now/0.1.0-alpha.1 | `intended` |
-| `S4.2-L55c` | Provide external adapters for CAP, Glass’s, and Cazana guide-value retrieval and DVLA registration lookup, including make, model, year, engine, and fuel, with optional prefetch before a user opens the job. | `EXT-13` | Later/unallocated | `intended` |
+| `S4.2-L55b1` | Create the case Box folder as part of automated setup. | `DOC-01` | Now/0.1.0-alpha.1 | `intended` |
+| `S4.2-L55b2` | File the instruction, images, and notes into the Box case folder as part of automated setup. | `DOC-02` | Now/0.1.0-alpha.1 | `intended` |
+| `S4.2-L55c1` | Provide external adapters for CAP, Glass’s, and Cazana guide-value retrieval, including optional prefetch before a user opens the job. | `EXT-07` | Later/unallocated | `intended` |
+| `S4.2-L55c2` | Provide DVLA registration lookup for make, model, year, engine, and fuel, including optional prefetch before a user opens the job. | `EXT-01` | Now/0.1.0-alpha.1 | `intended` |
 | `S4.2-L57` | Design queue operations so one team member can monitor and resolve unmatched images, unmapped instructions, and unusual cases instead of requiring two to three people for data entry. | `docs/product/areas/platform-and-operator-experience.md` | accepted authority | `intended` |
 | `S4.3-L61` | Arrange the engineer workspace around expert decisions and expose exactly the three declared repair-specification entry routes without unrelated administration. | `UI-15` | Later/unallocated | `intended` |
 | `S4.3-L63a` | Support Glass’s as a repair-specification route equivalent to the traditional EVA-integrated route. | `ENG-01` | Later/unallocated | `intended` |
@@ -183,9 +188,9 @@ are retained as provenance rows; they are not product requirements.
 | `S4.4-L79` | Generate a diminution-in-value report from the original job data after the engineer supplies the percentage. | `RPT-04` | Later/unallocated | `intended` |
 | `S4.4-L81` | Generate an addendum from existing job data with the amendment applied and without retyping the job. | `RPT-05` | Later/unallocated | `intended` |
 | `S4.4-L83a` | Generate the fee note and itemised repair-specification breakdown as report-engine outputs. | `RPT-01` | Later/unallocated | `intended` |
-| `S4.4-L83b` | File the fee note and itemised repair-specification breakdown in Box alongside the report. | `DOC-04` | Now/0.1.0-alpha.1 | `intended` |
+| `S4.4-L83b` | File the fee note and itemised repair-specification breakdown in Box alongside the report. | `DOC-02` | Now/0.1.0-alpha.1 | `intended` |
 | `S4.5-L87a` | Send the report and fee note from Pegasus on the original instruction email thread or API route, using each principal’s saved CC suggestions, delivery preferences such as separate report and image attachments, and standing notes; then mark the job complete. | `MAIL-17` | Later/unallocated | `intended` |
-| `S4.5-L87b` | File the sent report-package items into Box. | `DOC-05` | Now/0.1.0-alpha.1 | `intended` |
+| `S4.5-L87b` | File the sent report-package items into Box. | `DOC-02` | Now/0.1.0-alpha.1 | `intended` |
 | `S4.5-L87c` | Stamp the operational management-information event when the report package is sent and the job completes. | `MI-03` | Later/unallocated | `intended` |
 | `S4.6-L91a` | Keep the case alive after reporting and display its complete email chain and correspondence history on the job. | `MAIL-11` | Next/unallocated | `intended` |
 | `S4.6-L91b` | For a defendant-engineer challenge, dispute, requested adjustment, or similar query, propose a job-aware CE-house-style letterhead response for the engineer to accept or amend before sending. | `AI-08` | Later/unallocated | `intended` |
@@ -198,9 +203,9 @@ are retained as provenance rows; they are not product requirements.
 | `S4.7-L105a` | Every engineer and administration team member should have an individual login. | `ACC-01` | Now/0.1.0-alpha.1 | `intended` |
 | `S4.7-L105b` | Accounts information and management statistics should be restricted to the superuser role. | `ACC-03` | Now/0.1.0-alpha.1 | `intended` |
 | `S4.7-L105c` | Andrew is the initial superuser/Administrator assignment. | `ACC-02` | Now/0.1.0-alpha.1 | `intended` |
-| `S4.8-L109a` | Box should remain the archive and file store behind Pegasus. | `DOC-01` | Now/0.1.0-alpha.1 | `intended` |
-| `S4.8-L109b` | Pegasus should create each case folder through the Box API. | `DOC-02` | Now/0.1.0-alpha.1 | `intended` |
-| `S4.8-L109c` | Pegasus should automatically file the instruction, images, notes, reports, fee notes, breakdowns and sent correspondence so staff do not handle Box manually and it serves as the audit-proof case library. | `DOC-03` | Now/0.1.0-alpha.1 | `intended` |
+| `S4.8-L109a` | Box should remain the archive and file store behind Pegasus. | `DOC-02` | Now/0.1.0-alpha.1 | `intended` |
+| `S4.8-L109b` | Pegasus should create each case folder through the Box API. | `DOC-01` | Now/0.1.0-alpha.1 | `intended` |
+| `S4.8-L109c` | Pegasus should automatically file the instruction, images, notes, reports, fee notes, breakdowns and sent correspondence so staff do not handle Box manually and it serves as the audit-proof case library. | `DOC-02` | Now/0.1.0-alpha.1 | `intended` |
 | `S5-L113` | The change record introduces the following items as substantial existing Pegasus assets, without establishing production deployment. | `this change record provenance` | provenance | `accepted` |
 | `S5-L115` | Structural table header: Asset \| What it gives Pegasus. | `this change record provenance` | provenance | `accepted` |
 | `S5-L117a` | The imported report generator contains deterministic PDF rendering, computed-once figures, validation, four outcome variants, a fee-note page and a variables walkthrough mapping fields to dashboard input types; it has no established production caller. | `workspaces/report-renderer` | implemented/non-caller | `implemented` |
@@ -221,9 +226,11 @@ are retained as provenance rows; they are not product requirements.
 | `S6-L131a` | API access, licensing and terms for CAP, Glass’s and Cazana outside EVA must be confirmed. | `docs/product/open-decisions.md` | unallocated blocker | `intended` |
 | `S6-L131b` | Pegasus should replace EVA-mediated valuation access with supported direct valuation integrations where terms permit. | `EXT-07` | Later/unallocated | `intended` |
 | `S6-L132` | The provider API capability must establish which larger work providers can submit instructions by API and which formats they use. | `API-01` | Next/unallocated | `intended` |
-| `S6-L133a` | Box API access should support case-folder creation and automated filing. | `DOC-02` | Now/0.1.0-alpha.1 | `intended` |
-| `S6-L133b` | The source treats the Box API as mature and the proposed integration as straightforward. | `DOC-02` | Now/0.1.0-alpha.1 | `accepted` |
-| `S6-L134` | External adapters should provide DVLA vehicle-detail lookup and a provider lookup such as Experian AutoCheck for the mandatory vehicle-history check. | `EXT-13` | Later/unallocated | `intended` |
+| `S6-L133a1` | Box API access should support case-folder creation. | `DOC-01` | Now/0.1.0-alpha.1 | `intended` |
+| `S6-L133a2` | Box API access should support automated filing. | `DOC-02` | Now/0.1.0-alpha.1 | `intended` |
+| `S6-L133b` | The source treats the Box API as mature and the proposed integration as straightforward. | `DOC-01` | Now/0.1.0-alpha.1 | `accepted` |
+| `S6-L134a` | An external adapter should provide DVLA vehicle-detail lookup. | `EXT-01` | Now/0.1.0-alpha.1 | `intended` |
+| `S6-L134b` | A provider lookup such as Experian AutoCheck should support the mandatory vehicle-history check. | `EXT-13` | Later/unallocated | `intended` |
 | `S6-L135` | The Audatex integration must confirm that its PDF mapping covers the variants Engineers produce so drag-in import is reliable. | `EXT-12` | Later/unallocated | `intended` |
 | `S7-L139a` | Each build phase should be independently useful while EVA remains available in parallel. | `EXT-03` | Now/0.1.0-alpha.1 | `intended` |
 | `S7-L139b` | After Pegasus covers the full flow, work should migrate from EVA provider by provider through a deferred replacement slice. | `CASE-22` | Later/unallocated | `intended` |
@@ -235,8 +242,10 @@ are retained as provenance rows; they are not product requirements.
 | `S7-L144b` | Phase 1 should automate the single intake inbox and pair received instructions and images into jobs. | `INT-28` | Next/unallocated | `intended` |
 | `S7-L144c` | Phase 1 should provide the holding pen, separate-half notifications, readiness notices and chase tools, replacing the spreadsheet as the control mechanism for incomplete intake. | `INT-32` | Next/unallocated | `intended` |
 | `S7-L145a` | Phase 2 should create Pegasus jobs with automatic reference numbers and mapped instruction data in the structured single source. | `CASE-31` | Later/unallocated | `intended` |
-| `S7-L145b` | Phase 2 should create the Box case folder and file case material automatically. | `DOC-02` | Now/0.1.0-alpha.1 | `intended` |
-| `S7-L145c` | Phase 2 should connect valuation APIs and DVLA lookup so external vehicle and valuation data are available when a job is born in Pegasus. | `EXT-07` | Later/unallocated | `intended` |
+| `S7-L145b1` | Phase 2 should create the Box case folder automatically. | `DOC-01` | Now/0.1.0-alpha.1 | `intended` |
+| `S7-L145b2` | Phase 2 should file case material into Box automatically. | `DOC-02` | Now/0.1.0-alpha.1 | `intended` |
+| `S7-L145c1` | Phase 2 should connect valuation APIs so external valuation data is available when a job is born in Pegasus. | `EXT-07` | Later/unallocated | `intended` |
+| `S7-L145c2` | Phase 2 should connect DVLA lookup so external vehicle data is available when a job is born in Pegasus. | `EXT-01` | Now/0.1.0-alpha.1 | `intended` |
 | `S7-L146a` | Phase 3 should expose the Engineer decision fields needed to record value, outcome, salvage and roadworthiness judgements. | `ENG-02` | Later/unallocated | `intended` |
 | `S7-L146b` | Phase 3 should support the three repair-specification routes: vendor-neutral Send to AI first, Audatex import second and Glass’s when access is resolved, beginning with clear total losses. | `ENG-01` | Later/unallocated | `intended` |
 | `S7-L146c` | Phase 3 should send generated reports using the applicable principal profile, completing the target report-send workflow. | `MAIL-17` | Later/unallocated | `intended` |
@@ -273,7 +282,7 @@ are retained as provenance rows; they are not product requirements.
 | `S9-L182a` | The operating end state should reduce administration to one person monitoring an exception queue and let Engineers focus on judgement rather than filing. | `docs/product/areas/platform-and-operator-experience.md` | accepted authority | `intended` |
 | `S9-L182b` | Pegasus’s accepted product vision is to own the system and retain the ability to build newly identified ideas rapidly. | `docs/product/index.md` | accepted authority | `accepted` |
 
-Crosswalk assertion: **148 atomic rows cover all 86 non-empty
+Crosswalk assertion: **154 atomic rows cover all 86 non-empty
 source paragraphs, bullets, metadata rows and table rows; no source item is
 unmapped.** The source also contains 21 heading/separator lines that carry
 structure only and therefore require no capability disposition.
