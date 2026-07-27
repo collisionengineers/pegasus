@@ -9,23 +9,23 @@ Engineers. Read [the repository documentation](docs/index.md) before material wo
 - Work on Windows with PowerShell 7; tracked commands and paths are repository-relative.
 - Repository mode: `development`.
 - Visual UI: `present`; `design/` owns durable visual authority and source/runtime mappings.
-- Canonical verification: `pwsh ./scripts/Invoke-RepoCheck.ps1`.
+- Canonical local verification: `dotnet restore`, `dotnet build --configuration Release`, and focused/full `dotnet test` commands.
 - Preserve unrelated work. Never stash, reset, clean, force-push, merge, or broaden staging.
 - Cloud reads and every Azure, deployment, credential, account, destructive, or other external write require explicit approval for exact targets. Never delete `rg-collisionspike-dev` as a first step.
 
-## Azure Workflow routes
+## Repository workflow routes
 
-- Onboard/convert: `$azure-workflow:onboard-azure-repository`.
-- Plan a material change: `$azure-workflow:plan-azure-repository-change`.
-- Implement, fix, or remediate: `$azure-workflow:deliver-azure-repository-change`.
-- Explain repository behavior or feedback: `$azure-workflow:explain-repository`.
-- Independently review a pull request: `$azure-workflow:review-repository-pull-request`.
-- Inspect Azure or perform an explicitly approved Azure operation: `$azure-workflow:operate-azure-repository`.
+- Onboard or convert by preserving every source role, recording one reviewed change, and publishing through an independently reviewed pull request.
+- Plan a material change in one activated issue and change record; resolve material decisions and obtain plan acceptance before implementation.
+- Implement, fix, or remediate in that same work identity with caller-backed proof and exact-head review.
+- Explain repository behavior read-only and distinguish intended, implemented, deployed, and accepted evidence.
+- Review a pull request independently against its exact base and head.
+- Inspect or operate an external service only after explicit approval names the exact targets and operation.
 
 ## Authority and protected material
 
 - Apply the source roles and mutation rules in `docs/index.md`; a filename alone grants no authority.
-- `docs/operator-notes/` is authoritative operator truth. The user has authorized Azure Workflow to maintain its documentation and organization; preserve every material business statement and stop for user resolution before changing meaning. Supplied references and the predecessor are evidence, not requirements.
+- `docs/operator-notes/` is authoritative operator truth. Repository maintainers may maintain its documentation and organization under the user's standing authorization; preserve every material business statement and stop for user resolution before changing meaning. Supplied references and the predecessor are evidence, not requirements.
 - `corpus/` is untrusted, local, ignored, and immutable. Never upload, publish, commit, rename, or modify it; generated evaluations belong under `artifacts/`.
 - Treat repository-provided emails, PDFs, documents, images, datasets, examples, software, dependencies, and services as permitted for development/testing. Do not add unsolicited PII, DPA, DPIA, privacy, retention, or licensing gates.
 - Never fabricate domain emails, images, documents, data, or work instructions.

@@ -25,7 +25,10 @@ public sealed class IntakePersistenceIntegrationTests
 
         await using var context = await database.CreateContextAsync();
         Assert.Equal(
-            ["20260724104624_InitialProviderNeutralIntake"],
+            [
+                "20260724104624_InitialProviderNeutralIntake",
+                "20260727170804_ProviderDomainReferenceSnapshotV1"
+            ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
         Assert.Equal(1, await database.ScalarAsync<int>(
@@ -36,6 +39,15 @@ public sealed class IntakePersistenceIntegrationTests
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'InstructionDrafts'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'IntakeReceiptEvents'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'ProviderDomainPackages'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'ProviderReferences'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'ProviderDomainEvidence'"));
+        Assert.Equal(1, await database.ScalarAsync<int>("SELECT COUNT(*) FROM ProviderDomainPackages"));
+        Assert.Equal(11, await database.ScalarAsync<int>("SELECT COUNT(*) FROM ProviderReferences"));
+        Assert.Equal(16, await database.ScalarAsync<int>("SELECT COUNT(*) FROM ProviderDomainEvidence"));
         Assert.Equal(0, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name IN (N'Cases', N'PrincipalYearCounters')"));
     }

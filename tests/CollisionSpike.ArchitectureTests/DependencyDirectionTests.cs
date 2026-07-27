@@ -2,6 +2,8 @@ using System.Reflection;
 using System.Xml.Linq;
 using CollisionSpike.Core;
 using CollisionSpike.Core.Intake;
+using CollisionSpike.Core.ReferenceData;
+using CollisionSpike.Infrastructure;
 
 namespace CollisionSpike.ArchitectureTests;
 
@@ -15,6 +17,7 @@ public sealed class DependencyDirectionTests
         "Microsoft.Graph",
         "Box",
         "MimeKit",
+        "DocumentFormat.OpenXml",
         "UglyToad.PdfPig",
         "Microsoft.Data.SqlClient",
         "Microsoft.Data.Sqlite",
@@ -39,6 +42,7 @@ public sealed class DependencyDirectionTests
     [InlineData("Microsoft.EntityFrameworkCore", true)]
     [InlineData("Microsoft.Graph", true)]
     [InlineData("Box.V2", true)]
+    [InlineData("DocumentFormat.OpenXml", true)]
     [InlineData("MimeKit", true)]
     [InlineData("UglyToad.PdfPig", true)]
     [InlineData("Microsoft.Data.SqlClient", true)]
@@ -126,6 +130,49 @@ public sealed class DependencyDirectionTests
             .Where(type => !type.IsAbstract && typeof(IInstructionExtractionPolicy).IsAssignableFrom(type))
             .ToArray();
         Assert.Equal([typeof(QdosInstructionExtractionPolicy)], implementations);
+    }
+
+    [Fact]
+    public void ProviderReferenceRuntimeKeepsWorkbookAuthoringOutsideApplicationProjects()
+    {
+        var root = FindRepositoryRoot();
+        var runtimeProjects = new[]
+        {
+            "src/CollisionSpike.Core/CollisionSpike.Core.csproj",
+            "src/CollisionSpike.Infrastructure/CollisionSpike.Infrastructure.csproj",
+            "src/CollisionSpike.Web/CollisionSpike.Web.csproj",
+            "src/CollisionSpike.Worker/CollisionSpike.Worker.csproj"
+        };
+
+        foreach (var project in runtimeProjects)
+        {
+            var document = XDocument.Load(Path.Combine(root, project));
+            Assert.DoesNotContain(
+                document.Descendants().Select(element => (string?)element.Attribute("Include")),
+                include => include is not null &&
+                    (include.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) ||
+                     include.EndsWith(".py", StringComparison.OrdinalIgnoreCase) ||
+                     include.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase)));
+        }
+
+        var resources = typeof(InfrastructureAssembly).Assembly.GetManifestResourceNames();
+        Assert.Contains(
+            "CollisionSpike.Infrastructure.Persistence.ReferenceData.provider-domains.v1.json",
+            resources);
+        Assert.DoesNotContain(resources, name => name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void ProviderReferenceCatalogBoundaryHasOneInfrastructureImplementation()
+    {
+        Assert.Equal(typeof(CoreAssembly).Assembly, typeof(IProviderReferenceCatalog).Assembly);
+
+        var implementations = typeof(InfrastructureAssembly).Assembly.GetTypes()
+            .Where(type => !type.IsAbstract && typeof(IProviderReferenceCatalog).IsAssignableFrom(type))
+            .ToArray();
+        var implementation = Assert.Single(implementations);
+        Assert.False(implementation.IsPublic);
+        Assert.Equal("EfProviderReferenceCatalog", implementation.Name);
     }
 
     private static bool IsForbiddenCoreDependency(string assemblyName) =>

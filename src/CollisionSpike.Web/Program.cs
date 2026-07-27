@@ -6,7 +6,12 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
-var builder = WebApplication.CreateBuilder(args);
+const string DevelopmentOfflineProfile = "DevelopmentOffline";
+var migrateDevelopment = args.Contains("--migrate-development", StringComparer.Ordinal);
+var applicationArgs = args
+    .Where(argument => !argument.Equals("--migrate-development", StringComparison.Ordinal))
+    .ToArray();
+var builder = WebApplication.CreateBuilder(applicationArgs);
 
 builder.Services.AddRazorPages();
 builder.Services.AddHealthChecks()
@@ -16,9 +21,6 @@ builder.Services.Configure<FormOptions>(options =>
     options.MultipartBodyLengthLimit = (10 * 1024 * 1024) + (64 * 1024);
 });
 
-var localArtifactRoot = Path.GetFullPath(Path.Combine(
-    builder.Environment.ContentRootPath,
-    builder.Configuration["Intake:LocalArtifactPath"] ?? "../../artifacts/intake"));
 
 builder.Services.AddCollisionSpikeInfrastructure((serviceProvider, options) =>
 {
@@ -56,21 +58,66 @@ builder.Services.AddCollisionSpikeInfrastructure((serviceProvider, options) =>
     }
 
     throw new InvalidOperationException($"Unsupported database provider '{databaseProvider}'.");
-}, localArtifactRoot);
+}, serviceProvider =>
+{
+    var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+    var environment = serviceProvider.GetRequiredService<IHostEnvironment>();
+    var profile = configuration["Runtime:Profile"]
+        ?? throw new InvalidOperationException("Runtime:Profile is required.");
+    if (!profile.Equals(DevelopmentOfflineProfile, StringComparison.Ordinal)
+        || !environment.IsDevelopment())
+    {
+        throw new InvalidOperationException(
+            "The local intake artifact store is available only in the DevelopmentOffline runtime profile.");
+    }
+
+    var configuredArtifactRoot = configuration["Intake:LocalArtifactPath"]
+        ?? throw new InvalidOperationException(
+            "Intake:LocalArtifactPath is required for the DevelopmentOffline runtime profile.");
+    return Path.GetFullPath(Path.Combine(environment.ContentRootPath, configuredArtifactRoot));
+});
 
 var app = builder.Build();
-var localIntakeEnabled = app.Environment.IsDevelopment()
-    && builder.Configuration.GetValue<bool>("Features:LocalIntake");
+var runtimeProfile = app.Configuration["Runtime:Profile"]
+    ?? throw new InvalidOperationException("Runtime:Profile is required.");
+var developmentOffline = runtimeProfile.Equals(
+    DevelopmentOfflineProfile,
+    StringComparison.Ordinal);
+var localIntakeConfigured = app.Configuration.GetValue<bool>("Features:LocalIntake");
 
-if (app.Environment.IsDevelopment()
-    && app.Configuration["Database:Provider"]?.Equals("Sqlite", StringComparison.OrdinalIgnoreCase) == true)
+if (developmentOffline && !app.Environment.IsDevelopment())
 {
+    throw new InvalidOperationException(
+        "The DevelopmentOffline runtime profile is permitted only in the Development environment.");
+}
+
+if (localIntakeConfigured && !developmentOffline)
+{
+    throw new InvalidOperationException(
+        "Features:LocalIntake requires the DevelopmentOffline runtime profile.");
+}
+if (migrateDevelopment)
+{
+    if (!developmentOffline)
+    {
+        throw new InvalidOperationException(
+            "--migrate-development requires the DevelopmentOffline runtime profile.");
+    }
+
     await using var scope = app.Services.CreateAsyncScope();
     var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<CollisionSpikeDbContext>>();
     await using var context = await contextFactory.CreateDbContextAsync();
-    await DevelopmentSqliteBaselineGuard.ValidateAsync(context);
+    if (context.Database.IsSqlite())
+    {
+        await DevelopmentSqliteBaselineGuard.ValidateAsync(context);
+    }
+
     await context.Database.MigrateAsync();
+    Console.WriteLine("Development database migrations applied.");
+    return;
 }
+
+var localIntakeEnabled = developmentOffline && localIntakeConfigured;
 
 if (!app.Environment.IsDevelopment())
 {

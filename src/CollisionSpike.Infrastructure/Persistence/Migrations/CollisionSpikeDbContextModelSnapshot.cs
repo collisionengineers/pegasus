@@ -139,39 +139,6 @@ namespace CollisionSpike.Infrastructure.Persistence.Migrations
                     b.ToTable("IntakeAssets", (string)null);
                 });
 
-            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.IntakeReceiptEventEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Actor")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("DetailsJson")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("EventType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<Guid>("IntakeReceiptId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset>("OccurredAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("IntakeReceiptId");
-
-                    b.ToTable("IntakeReceiptEvents", (string)null);
-                });
-
             modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.IntakeReceiptEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -269,6 +236,123 @@ namespace CollisionSpike.Infrastructure.Persistence.Migrations
                     b.ToTable("IntakeReceipts", (string)null);
                 });
 
+            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.IntakeReceiptEventEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Actor")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("DetailsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("IntakeReceiptId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("OccurredAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IntakeReceiptId");
+
+                    b.ToTable("IntakeReceiptEvents", (string)null);
+                });
+
+            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.ProviderDomainEvidenceEntity", b =>
+                {
+                    b.Property<string>("Version")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Code")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("DomainSuffix")
+                        .HasMaxLength(254)
+                        .HasColumnType("nvarchar(254)");
+
+                    b.HasKey("Version", "Code", "DomainSuffix");
+
+                    b.HasIndex("Version", "DomainSuffix");
+
+                    b.ToTable("ProviderDomainEvidence", (string)null);
+                });
+
+            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.ProviderDomainPackageEntity", b =>
+                {
+                    b.Property<string>("Version")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("PackageSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("SchemaVersion")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SourceContentSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("SourcePath")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<int>("SourceRowCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SourceSheet")
+                        .IsRequired()
+                        .HasMaxLength(31)
+                        .HasColumnType("nvarchar(31)");
+
+                    b.HasKey("Version");
+
+                    b.ToTable("ProviderDomainPackages", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ProviderDomainPackages_SchemaVersion", "[SchemaVersion] > 0");
+
+                            t.HasCheckConstraint("CK_ProviderDomainPackages_SourceRowCount", "[SourceRowCount] > 0");
+                        });
+                });
+
+            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.ProviderReferenceEntity", b =>
+                {
+                    b.Property<string>("Version")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Code")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("SourceRow")
+                        .HasColumnType("int");
+
+                    b.HasKey("Version", "Code");
+
+                    b.ToTable("ProviderReferences", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ProviderReferences_SourceRow", "[SourceRow] > 0");
+                        });
+                });
+
             modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.InstructionDraftEntity", b =>
                 {
                     b.HasOne("CollisionSpike.Infrastructure.Persistence.IntakeReceiptEntity", "IntakeReceipt")
@@ -300,11 +384,43 @@ namespace CollisionSpike.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.ProviderDomainEvidenceEntity", b =>
+                {
+                    b.HasOne("CollisionSpike.Infrastructure.Persistence.ProviderReferenceEntity", "Provider")
+                        .WithMany("DomainEvidence")
+                        .HasForeignKey("Version", "Code")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Provider");
+                });
+
+            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.ProviderReferenceEntity", b =>
+                {
+                    b.HasOne("CollisionSpike.Infrastructure.Persistence.ProviderDomainPackageEntity", "Package")
+                        .WithMany("Providers")
+                        .HasForeignKey("Version")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Package");
+                });
+
             modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.IntakeReceiptEntity", b =>
                 {
                     b.Navigation("Assets");
 
                     b.Navigation("InstructionDraft");
+                });
+
+            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.ProviderDomainPackageEntity", b =>
+                {
+                    b.Navigation("Providers");
+                });
+
+            modelBuilder.Entity("CollisionSpike.Infrastructure.Persistence.ProviderReferenceEntity", b =>
+                {
+                    b.Navigation("DomainEvidence");
                 });
 #pragma warning restore 612, 618
         }

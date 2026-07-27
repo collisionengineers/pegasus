@@ -1,7 +1,8 @@
 # 0010: Adopt Azure Workflow repository standard
 
 - Date: 2026-07-27
-- Status: accepted
+- Status: superseded
+- Superseded by: [0012](0012-adopt-tool-neutral-repository-workflow.md)
 
 ## Context
 

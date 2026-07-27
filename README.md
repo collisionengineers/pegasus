@@ -1,16 +1,24 @@
 # CollisionSpike v2
 
-CollisionSpike v2 is the clean-room case-management application for Collision Engineers. The repository contains its reviewed agent harness, .NET 10 modular monolith, local evaluation boundary, UI concepts, Azure replacement plan, and a provider-neutral intake proof with one contained QDOS extraction policy. That slice is development-only; the repository does not claim a completed QDOS workflow, support for a second principal's extraction rules, or an Azure deployment.
+CollisionSpike v2 is the clean-room case-management application for Collision Engineers. It is a .NET 10 modular monolith with Core-owned business policy, Infrastructure adapters, and Web/Worker composition roots. The repository is in development and does not claim a released QDOS workflow or Azure deployment.
 
 ## Get started on Windows
 
 ```powershell
-pwsh ./scripts/Invoke-Doctor.ps1
-pwsh ./scripts/Invoke-RepoCheck.ps1
-dotnet run --project ./src/CollisionSpike.Web
+npm ci
+dotnet restore ./CollisionSpike.slnx
+sqllocaldb start MSSQLLocalDB
+dotnet run --project ./src/CollisionSpike.Web --launch-profile https -- --migrate-development
+dotnet build ./CollisionSpike.slnx --configuration Release --no-restore
+dotnet test ./CollisionSpike.slnx --configuration Release --no-build --filter "Category!=Corpus"
+dotnet run --project ./src/CollisionSpike.Web --launch-profile https --no-build
 ```
 
-The current local route is `/Intake/Upload`; it is enabled by the checked-in Development launch profile and denied outside Development. QDOS is suggested only when the contained policy finds positive QDOS content evidence; it is never a default for other or ambiguous intake. See `docs/agent-notes/current-implementation-handoff.md` for the caller path, evidence, and limits, and `docs/product/v1-gap.md` for the work still required for the first QDOS release.
+The current local route is `https://localhost:7139/Intake/Upload`. See the
+[local development runbook](docs/runbooks/local-development.md) for Azurite,
+the actual Functions host, isolated runs, state ownership, and proof limits.
+See the [implementation handoff](docs/agent-notes/current-implementation-handoff.md)
+for the current caller and [V1 gap](docs/product/v1-gap.md) for remaining release work.
 
 Start with the [repository documentation](docs/index.md), [product requirements](docs/product/index.md), [roadmap](docs/roadmap.md),
 [architecture](docs/architecture.md), and [operations](docs/operations.md).
