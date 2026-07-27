@@ -54,8 +54,10 @@ foreach ($relative in $forbiddenPaths) {
 }
 
 $activeRoots = @(
-    'README.md', 'AGENTS.md', 'azure.yaml', '.github', 'design', 'docs',
-    'infra', 'scripts', 'src', 'tests', 'workspaces/README.md', 'workspaces/AGENTS.md'
+    'README.md', 'AGENTS.md', 'Directory.Build.props', 'Pegasus.slnx',
+    'package.json', 'package-lock.json', 'azure.yaml', '.azure', '.github',
+    'design', 'docs', 'infra', 'scripts', 'src', 'tests',
+    'workspaces/README.md', 'workspaces/AGENTS.md'
 )
 $textExtensions = @('.md', '.txt', '.yml', '.yaml', '.json', '.jsonc', '.ps1', '.py', '.bicep', '.csproj', '.slnx', '.cs', '.cshtml', '.props', '.targets')
 $activeFiles = foreach ($relative in $activeRoots) {
@@ -72,7 +74,7 @@ $activeFiles = foreach ($relative in $activeRoots) {
 $historicalOrTechnicalIdentity = '(?i)(predecessor|legacy|historical|former|old application|rg-collisionspike-dev|collisionengineers/collisionspike_v2|CollisionSpikeCurrenttree|collisionspike-corpus-evaluation|ASP-rgcollisionspikedev|cespk-pg-dev|databases:.*collisionspike|CollisionSpike\.(?:Core|Infrastructure|Web|Worker|User|Superuser|Admin|Engineer))'
 $technicalVersionContext = '(?i)(schema|engine|API|token|taxonomy|storage|MSAL|package|version|provider-domains-v1|cedocumentmapper_v2|baseline-v2|v2\.0|engine-v2|webhooks v2|names such as)'
 $corruptedTechnicalHorizon = '(?i)(?:MSAL Browser|Rules Engine|taxonomy|access tokens?|general-purpose|engine-ready|QRD)\s+`(?:Next|Later)`/`unallocated`|`(?:Next|Later)`/`unallocated`\s+(?:access tokens?|schema|engine|storage)'
-$obsoleteAllocationLanguage = '(?:^\s*#{1,6}\s+(?:Never|Conditional\s*/\s*Unclear)\s*$)|(?:\|\s*(?:Never|Conditional\s*/\s*Unclear)\s*\|)|(?:\*\*(?:Never|Unclear):\*\*)'
+$obsoleteAllocationLanguage = '(?:^\s*#{1,6}\s+(?:Never|Conditional\s*/\s*Unclear)\s*$)|(?:\|\s*(?:Never|Conditional\s*/\s*Unclear)\s*\|)|(?:\|\s*Never:)|(?:\bEvery Never feature\b)|(?:\*\*(?:Never|Unclear):\*\*)'
 
 foreach ($file in $activeFiles | Sort-Object FullName -Unique) {
     if ($file.FullName -eq $PSCommandPath) { continue }

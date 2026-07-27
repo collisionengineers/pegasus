@@ -19,7 +19,7 @@ The current source-mapped mutating caller remains Development-gated `POST /Intak
 | `Next`/`unallocated` post-report work | [Post-report query and dispute](../later-delivery/casework/post-report-query-and-dispute.md) | Direct lifecycle decision, caller-backed operator evidence | Treating threads as case authority |
 | `Later`/`unallocated` case types/communications/AI | [Diminution and Commercial](../later-delivery/casework/diminution-and-commercial.md), [communications](../later-delivery/integrations/communications-automation.md), [operator assistance](../later-delivery/ai-and-automation/operator-assistance.md) | Direct domain/channel/AI contract, exact external or model scope, evaluation and operator approval | Copied workflows, generic sender/channel/AI engine or autonomous action |
 | `Later`/`unallocated` EVA and finance | [EVA replacement and engineering](../later-delivery/integrations/eva-replacement-and-engineering.md) and [accounting/invoicing](../later-delivery/integrations/accounting-and-invoicing.md) | Separate staged product/vendor/finance contracts, callers and acceptance | Assuming export equals replacement, or absorbing finance into EVA |
-| Never / Conditional | [Permanent and conditional boundaries](../../../product/boundaries.md) | Never: explicit authority change. Conditional: future direct decision before a focused activation plan. | Backlog, route, schema, adapter, account, flag or resource |
+| Not planned / conditional activation | [Permanent and conditional boundaries](../../../product/boundaries.md) | Not planned: explicit authority change. Conditional: future direct decision before a focused activation plan. | Backlog, route, schema, adapter, account, flag or resource |
 
 ## Stable constraints retained across activation
 
