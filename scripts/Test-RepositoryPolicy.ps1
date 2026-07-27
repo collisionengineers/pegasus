@@ -32,6 +32,36 @@ foreach ($entry in $expectedHorizons.GetEnumerator()) {
     }
 }
 
+$canonicalHorizons = @{}
+foreach ($row in $rows) {
+    $canonicalHorizons[$row.Id] = $row.Horizon
+}
+
+$matrixPath = Join-Path $root 'design/product/traceability-matrix.md'
+$matrixRows = foreach ($line in [System.IO.File]::ReadLines($matrixPath)) {
+    if ($line -match '^\| (?<id>[A-Z]+-\d+) — .*?\| (?<horizon>[^|]+) \|') {
+        $matrixId = $Matches.id
+        $matrixHorizonText = $Matches.horizon
+        $matrixHorizon = switch -Regex ($matrixHorizonText) {
+            'Not planned' { 'Not planned'; break }
+            'Later' { 'Later'; break }
+            'Next' { 'Next'; break }
+            default { 'Now' }
+        }
+        [pscustomobject]@{ Id = $matrixId; Horizon = $matrixHorizon }
+    }
+}
+if ($matrixRows.Count -ne 229) {
+    Add-PolicyError "Traceability matrix must contain 229 capability rows; found $($matrixRows.Count)."
+}
+foreach ($matrixRow in $matrixRows) {
+    if (-not $canonicalHorizons.ContainsKey($matrixRow.Id)) {
+        Add-PolicyError "Traceability matrix contains unknown capability ID: $($matrixRow.Id)."
+    } elseif ($canonicalHorizons[$matrixRow.Id] -ne $matrixRow.Horizon) {
+        Add-PolicyError "Capability horizon mismatch for $($matrixRow.Id): inventory=$($canonicalHorizons[$matrixRow.Id]), matrix=$($matrixRow.Horizon)."
+    }
+}
+
 $forbiddenPaths = @(
     'CollisionSpike.slnx',
     'src/CollisionSpike.Core',

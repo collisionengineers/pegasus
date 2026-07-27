@@ -170,7 +170,6 @@ The `Owning requirement/plan` cell is the single primary planning owner for that
 | OPS-20 | Capacity for about eight concurrent staff and 2,000 new cases per month | `0.1.0-alpha.1` | `0.1.0-alpha.1` alpha gate | [Worksheet] | [Primary plan](remainder-delivery/platform/azure-observability-and-release.md#prove-persistence-observability-and-recovery-in-shared-development) | Required and accepted before `0.1.0-alpha.1`. |
 | OPS-24 | Direct production deployment from an authorised terminal using committed Bicep through `azd` | `0.1.0-alpha.1` | `0.1.0-alpha.1` alpha gate | [Worksheet] | [Primary plan](remainder-delivery/platform/azure-observability-and-release.md#release-immutable-artifacts-safely) | Required and accepted before `0.1.0-alpha.1`. |
 | DATA-01 | One-time preparation of provider reference data from spreadsheets | `0.1.0-alpha.1` | `0.1.0-alpha.1` alpha gate | [Worksheet] | [Primary plan](remainder-delivery/casework/intake-and-case-acceptance.md#prepare-reviewed-provider-reference-data) | Required and accepted before `0.1.0-alpha.1`. |
-| DATA-02 | One-time preparation of inspection-address / repairer reference data from spreadsheets | `0.1.0-alpha.1` | `0.1.0-alpha.1` alpha gate | [Worksheet] | [Primary plan](remainder-delivery/integrations/vehicle-data-and-eva-export.md#prepare-reviewed-inspection-address-reference-data) | Required and accepted before `0.1.0-alpha.1`. |
 
 ## `Next`/`unallocated` before `Next`/`unallocated`
 
@@ -189,6 +188,7 @@ The `Owning requirement/plan` cell is the single primary planning owner for that
 
 | ID | Feature | Raw answer | Allocation | Authority/source | Owning requirement/plan | Activation note |
 | --- | --- | --- | --- | --- | --- | --- |
+| DATA-02 | One-time preparation of inspection-address / repairer reference data from spreadsheets | `Next`/`unallocated` | `Next`/`unallocated` | [Worksheet] | [Primary plan](remainder-delivery/integrations/vehicle-data-and-eva-export.md#prepare-reviewed-inspection-address-reference-data) | Allocation only; owning evidence still required. |
 | INT-05 | Automatic ingestion from `desk@collisionengineers.co.uk` | `Next`/`unallocated` | `Next`/`unallocated` | [Worksheet] | [Primary plan](later-delivery/integrations/email-workspace-and-association.md#ingest-all-four-mailboxes) | Allocation only; owning evidence still required. |
 | INT-06 | Automatic ingestion from `engineers@collisionengineers.co.uk` | `Next`/`unallocated` | `Next`/`unallocated` | [Worksheet] | [Primary plan](later-delivery/integrations/email-workspace-and-association.md#ingest-all-four-mailboxes) | Allocation only; owning evidence still required. |
 | INT-07 | Automatic ingestion from `info@collisionengineers.co.uk` | `Next`/`unallocated` | `Next`/`unallocated` | [Worksheet] | [Primary plan](later-delivery/integrations/email-workspace-and-association.md#ingest-all-four-mailboxes) | Allocation only; owning evidence still required. |
@@ -250,6 +250,7 @@ The `Owning requirement/plan` cell is the single primary planning owner for that
 | EXT-12 | Audatex or another estimating-service integration | `Later`/`unallocated` | `Later`/`unallocated` release work | [Worksheet] | [Primary plan](later-delivery/integrations/eva-replacement-and-engineering.md#integrate-approved-estimating-and-valuation-services) | Allocation only; owning evidence still required. |
 | EXT-13 | Other valuation-service integrations | `Later`/`unallocated` | `Later`/`unallocated` release work | [Worksheet] | [Primary plan](later-delivery/integrations/eva-replacement-and-engineering.md#integrate-approved-estimating-and-valuation-services) | Allocation only; owning evidence still required. |
 | AI-07 | Staff-selected `AI Assessor` Engineer option in the post-EVA-replacement assignment workflow | `Later`/`unallocated` | `Later`/`unallocated` release work | [Worksheet] | [Primary plan](later-delivery/integrations/eva-replacement-and-engineering.md#offer-staff-selected-ai-assessor) | Allocation only; owning evidence still required. |
+| MAIL-12 | Compose, reply, forward, and send email in the app | Never — automated sending is separate and planned after `Later`/`unallocated` | `Later`/`unallocated` release work | [Worksheet] | [Primary plan](later-delivery/integrations/communications-automation.md#send-general-case-email) | Raw answer narrowed: authenticated staff email is deferred; MAIL-17 owns automatic report sending. |
 
 ## `Not planned`
 
@@ -258,7 +259,6 @@ The `Owning requirement/plan` cell is the single primary planning owner for that
 | ACC-12 | External/customer application accounts | Never — out of scope and not planned | `Not planned` | [Worksheet] | [Primary plan](../../product/boundaries.md#identity-and-external-access-boundaries) | Permanent boundary; not backlog. |
 | ACC-13 | Public registration | Never — internal business use only aside from the provider API | `Not planned` | [Worksheet] | [Primary plan](../../product/boundaries.md#identity-and-external-access-boundaries) | Permanent boundary; not backlog. |
 | ACC-14 | Multi-factor authentication for staff | `Not planned` | `Not planned` | [Worksheet] | [Primary plan](../../product/boundaries.md#identity-and-external-access-boundaries) | Permanent boundary; not backlog. |
-| MAIL-12 | Compose, reply, forward, and send email in the app | Never — automated sending is separate and planned after `Later`/`unallocated` | `Not planned` | [Worksheet] | [Primary plan](../../product/boundaries.md#communications-boundaries) | Permanent boundary; not backlog. |
 | UI-12 | Responsive/mobile staff interface | Never — mobile is not planned | `Not planned` | [Worksheet] | [Primary plan](../../product/boundaries.md#operator-interface-boundaries) | Permanent boundary; not backlog. |
 | DOC-09 | Automated malware scanning of inbound files | `Not planned` | `Not planned` | [Worksheet] | [Primary plan](../../product/boundaries.md#document-governance-boundaries) | Permanent boundary; not backlog. |
 | DOC-10 | Document redaction workflow | `Not planned` | `Not planned` | [Worksheet] | [Primary plan](../../product/boundaries.md#document-governance-boundaries) | Permanent boundary; not backlog. |
