@@ -15,7 +15,8 @@ design registration or infrastructure compilation.
   motion.
 - Mobile staff UI is not planned. Constrained-width/zoom reflow does not create
   a mobile product.
-- The shell direction remains unselected among the three approved candidates.
+- Operations-first is selected for the V1 shell and landing strategy; the
+  comparison raster does not override the complete UI specification.
 - Windows and PowerShell 7 own repository/release operations. GitHub Actions
   validates but does not deploy.
 - The Azure release path requires explicit approval, immutable artifacts,
