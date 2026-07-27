@@ -110,7 +110,7 @@ An unreadable, incomplete, encrypted, corrupt, unsupported, bounded-out or pre-a
 |---|---|---|---|---|
 | Planned | Not run | planning review | caller, recovery and approvals are specified | implementation, deployment, live custody and acceptance |
 
-## Later targeted scanned PDF OCR
+## Targeted scanned PDF OCR
 
 **Evidence state:** Planned
 
@@ -203,5 +203,5 @@ not authorise a dormant converter, dependency, route, process, deployment
 unit, OCR widening, or cloud upload in `0.1.0-alpha.1`. Focused format/negative/replay tests
 and genuine local evidence through the actual Worker caller must establish
 parity before this replaces the deferred branch. This anchor is deliberately
-separate from [Later targeted scanned-PDF OCR](#later-targeted-scanned-pdf-ocr): DOC
+separate from [targeted scanned-PDF OCR](#targeted-scanned-pdf-ocr): DOC
 and MSG automation neither calls OCR nor broadens its billed external adapter.

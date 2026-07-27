@@ -203,13 +203,13 @@ An uncertain classification, association, principal, vehicle registration, case 
 |---|---|---|---|---|
 | Planned | Not run | Planning review | Acceptance transaction boundary is defined | Implementation, caller, deployment or acceptance |
 
-## Later match image-led and instruction-led records
+## Match image-led and instruction-led records
 
 **Evidence state:** Planned
 
 `INT-28` adds one Core association policy after `0.1.0-alpha.1` acceptance, not a second intake or allocation engine. It compares retained image-led and instruction-led evidence and may associate them automatically only when the accepted policy proves a definitive match. Non-definitive candidates remain explainable and require authorised staff confirmation; ambiguous, conflicting or failed matches remain visible and unassociated. Automatic or staff-confirmed association preserves each source origin and allocates neither a second case nor reference, while reasoned reversal retains permanent history. The `Next`/`unallocated` caller, definitive predicate, threshold/evaluation cohort, mistaken-match recovery and audit evidence require their own approved slice; no external lookup is implied.
 
-## Later assist vehicle image and damage review
+## Assist vehicle image and damage review
 
 **Evidence state:** Planned
 
