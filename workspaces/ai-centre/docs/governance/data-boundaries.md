@@ -1,28 +1,28 @@
 # Data boundaries
 
-Collision Engineers has expressly authorised this project to use and share the current corpus and its
-complete Box and Outlook archives for workstation and model development. The recorded scope is in
+Management's historical authorisation permits bounded workstation evaluation of approved source
+material. The root repository boundary still controls custody: private corpus material remains
+external under ignored `corpus/`, and complete Box or Outlook archives are not imported. See
 [data-authorisation.md](data-authorisation.md).
 
-That permission resolves the project-level data-use question for these named sources. Purpose,
-evidential authority, source role, licence metadata, client boundary, retention, and deletion still
-need to be preserved so the data is used correctly and outputs remain auditable.
+Purpose, evidential authority, source role, licence metadata, client boundary, retention, and deletion
+must be preserved so each bounded evaluation is auditable.
 
 | Class | Examples | Git | External model/service | Training |
 |---|---|---|---|---|
 | Public/synthetic | Schemas, fake fixtures, public-domain examples | Allowed after review | Per approved provider policy | Only with recorded licence |
 | Internal approved knowledge | CE-authored playbooks and approved templates | Usually private repo; minimise | Only approved deployment and purpose | Only if manifest permits |
-| Authorised case/archive data | Instructions, email, images, reports, registrations, personal data | Allowed in this repository | Allowed within an approved technical/provider boundary | Authorised; build through a versioned dataset manifest |
+| Authorised case/archive data | Instructions, email, images, reports, registrations, personal data | Never; keep externally under `corpus/` custody | Only within a separately approved technical/provider boundary | Bounded extracts only through a versioned dataset manifest |
 | Licensed ephemeral | Per-job OEM/repair/valuation material | Never persist beyond terms | Only if licence and provider permit | Never by default |
 | Secrets/credentials | Tokens, passwords, certificates, portal credentials | Never | Never | Never |
 
-## Local layout
+## Repository and external layout
 
-- `ml-ops/data/private/raw/` — authorised source snapshot; retain original bytes and provenance.
-- `ml-ops/data/private/work/` — extraction and annotation workspace.
-- `ml-ops/datasets/` — versioned recipes, schemas, manifests, cards, and synthetic fixtures only.
-- `ml-ops/artifacts/` and `ml-ops/runs/` — run outputs pending the chosen registry/versioning policy.
-- `models/` — model cards, configs, manifests, and promoted artifacts where practical.
+- external ignored `corpus/` — immutable approved source inputs and bounded evaluation extracts;
+  never copied into this workspace;
+- `ml-ops/datasets/` — versioned recipes, schemas, manifests, cards, and synthetic fixtures only;
+- root `artifacts/` — generated run and evaluation outputs;
+- `models/` — model cards, configs, manifests, and artifact references; no private training corpus.
 
 ## Promotion gate
 

@@ -1,5 +1,5 @@
 # Report renderer
 
-Deterministic report and PDF assembly from accepted case facts, calculations, templates, and
-versioned wording blocks. The renderer must not call a model. Formal CE output uses the canonical
-letterhead system under `.agents/skills/collision-engineers-design/`.
+This imported package proposal is superseded. Deterministic document assembly is owned by
+`workspaces/report-renderer`; durable visual and letterhead authority is owned by `design/`.
+Do not implement or consume a duplicate renderer or model-calling report path here.

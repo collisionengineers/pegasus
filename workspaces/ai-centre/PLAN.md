@@ -101,15 +101,14 @@ representative pilot period.
 **Exit gate:** each owned model beats the simpler approved baseline on its intended slice and passes
 safety, calibration, abstention, licensing, privacy, and reproducibility gates.
 
-## Authorised data scope
+## Permitted evaluation-data boundary
 
-- the complete current source corpus;
-- the complete Collision Engineers Box archive;
-- the complete Collision Engineers Outlook archive; and
-- repository inclusion, ingestion, transformation, retrieval, dataset construction, training,
-  fine-tuning, and evaluation using those sources.
+Management's historical authorisation permits bounded evaluation use of approved source material.
+It does not permit copying the corpus or complete Box/Outlook archives into this repository.
+Private inputs remain externally held under the root repository's ignored, immutable `corpus/`
+boundary; only manifests, schemas, synthetic fixtures, and generated results may be tracked.
 
-See [the recorded authorisation](docs/governance/data-authorisation.md).
+See [the controlling boundary](docs/governance/data-authorisation.md).
 
 ## Separately controlled operations
 

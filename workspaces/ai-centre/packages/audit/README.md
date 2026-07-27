@@ -1,5 +1,5 @@
 # Audit contracts
 
-Append-only, redaction-aware records for case access, connector calls, agent proposals, approvals,
-changes, exports, model/prompt/tool versions, and failures. Audit records must identify human and
-machine actors without copying unnecessary case content.
+This imported package proposal is superseded. Pegasus action-history contracts remain with
+`Pegasus.Core` and its persistence adapter. AI-specific evaluation records may reference those
+immutable action identities but cannot create a parallel case audit model.

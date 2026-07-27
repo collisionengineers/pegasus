@@ -1,30 +1,29 @@
 # ADR 0001: Repository and runtime boundaries
 
-- **Status:** Accepted
+- **Status:** Superseded for Pegasus integration by root ADR-0013
 - **Date:** 21 July 2026
 
+This imported decision records the source repository's former proposal only. It cannot create a
+Pegasus runtime, caller, package owner, data boundary, or top-level application.
 ## Decision
 
-Use one product repository with explicit top-level ownership boundaries for the Windows app, business
-agents, production skills, connectors, shared packages, services, ML operations, and versionable model
-metadata.
+Pegasus retains its existing application boundary: `Pegasus.Core` owns business policy;
+Infrastructure implements Core ports; Web and Worker are the composition roots. This source
+workspace may independently maintain Collision Brain and bounded AI evaluation/training tools, but
+none is an application caller until a separately accepted root contract activates one.
 
-The runtime dependency direction is:
+The dependency direction proposed by this imported ADR is therefore not active. Any future AI
+adapter must consume a Core port and cannot introduce a desktop, case-domain package, report
+renderer, audit model, or connector owner here.
 
-`desktop -> agents -> skills -> packages/services/connectors`
-
-Provider-specific SDKs remain inside connectors or service adapters. The desktop does not own case
-rules. Models propose structured changes; deterministic packages validate and render; a human accepts
-or rejects material actions.
-
-The authorised source archives and binary model artifacts may be versioned in this repository
-when practical. Large derived artifacts may instead live in a documented registry and be referenced by
-immutable hash. Git also stores code, schemas, manifests, cards, fixtures, and evaluation definitions.
+Private corpus and archive material remains external under the root repository's ignored,
+immutable `corpus/` boundary. Git may contain code, schemas, manifests, model cards, synthetic
+fixtures, evaluation definitions, and immutable artifact references—not private source archives
+or binary model payloads.
 
 ## Consequences
 
-- A complete feature normally spans a thin desktop surface, an agent/skill contract, a domain or
-  connector implementation, audit events, and boundary tests.
-- The existing RAG pipeline becomes `services/collision-brain` without changing its contract.
-- Contributor-agent skills live in `.agents/skills`; production business skills live in `skills`.
-- Cross-boundary schemas need versioning and migration discipline.
+- Collision Brain remains a source-workspace service with no Pegasus caller.
+- Production business skills remain source packs, not autonomous callers.
+- Cross-boundary schemas require a separately accepted root owner, caller, versioning, and
+  migration decision before activation.

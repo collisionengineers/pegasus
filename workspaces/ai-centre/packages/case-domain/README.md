@@ -1,5 +1,5 @@
 # Case domain
 
-Canonical provider-neutral contracts for cases, parties, vehicles, instructions, artifacts, evidence
-events, facts, findings, calculations, decisions, report versions, and evidence cutoffs. The case,
-not an isolated file or image, is the primary unit.
+This imported package proposal is superseded. `Pegasus.Core` is the sole owner of case, party,
+vehicle, instruction, artifact, evidence, fact, finding, calculation, decision, report-version,
+and cutoff contracts. Do not implement or consume a parallel case domain here.

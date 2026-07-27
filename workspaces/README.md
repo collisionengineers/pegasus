@@ -8,10 +8,14 @@ These directories are source-only imports for independent maintenance, review, a
 | --- | --- | --- | --- |
 | `document-extraction/` | CollisionDocNet document/email extraction libraries and CLI | Local source snapshot `../collisiondocnetconverter`; no `.git` metadata was present, so branch, remote, and commit are unavailable | 259 files, 2,288,020 bytes, SHA-256 `b83f9d8df250ca754f8ce232d848855ddf0bba39690c5d8799763baa6140ecee` |
 | `report-renderer/` | Deterministic CollisionRenderer report-rendering source | `collisionengineers/collisionsuite`, branch `main`, commit `acd3b0c28b59b60cfdbd8504daf0f5e8603bb59d`, path `active/collisionrenderer` | 154 files, 1,469,273 bytes, SHA-256 `a19b1a5f153d8839a6d24377e4b845cd9720be3813c1934ec26d1e418a59e7d8` |
-| `ai-centre/` | AI model, agent, evaluation, training, and AI-service strategy | `collisionengineers/collisionsuite`, branch `main`, commit `acd3b0c28b59b60cfdbd8504daf0f5e8603bb59d`, path `collision-ai-centre` | 109 files, 555,048 bytes, SHA-256 `b4a144b0af5515a3b48413971fdd5b8117cca98d19d8bad381bbc6428502d31d` |
-| `ai-centre/skills/` | Source skill packs and their pack-validation tools, colocated under their owning AI Centre workspace | `collisionengineers/collisionsuite`, branch `main`, commit `acd3b0c28b59b60cfdbd8504daf0f5e8603bb59d`, path `active/collision-agent-skills` | 172 files, 9,346,070 bytes, SHA-256 `9874a0cfbf7a0a2b42c0beff6d32ea5c7cc3caebba26850fadcc9728b4e8caa3` |
+| `ai-centre/` | AI model, agent, evaluation, training, and AI-service strategy | `collisionengineers/collisionsuite`, branch `main`, commit `acd3b0c28b59b60cfdbd8504daf0f5e8603bb59d`, path `collision-ai-centre` | 109 files, 555,423 bytes, SHA-256 `eca883bbf7aedfd4f9e5faf82837cd300b56b7c414d1d79e0cde044f2d690026` |
+| `ai-centre/skills/` | Source skill packs and their pack-validation tools, colocated under their owning AI Centre workspace | `collisionengineers/collisionsuite`, branch `main`, commit `acd3b0c28b59b60cfdbd8504daf0f5e8603bb59d`, path `active/collision-agent-skills` | 180 files, 2,876,625 bytes, SHA-256 `611728841f03a807886cb58c867e952d210470d1967613b39362bafe8041b02c` |
 
-The manifest hash is computed over each imported relative path and byte payload in ordinal path order. It proves this import snapshot only; it is not an upstream commit identity or runtime acceptance evidence.
+The manifest hash is SHA-256 over each UTF-8 relative path immediately followed by its byte payload,
+in ordinal path order. AI Centre excludes `skills/`, `ml-ops/data/`, nested `.github/`, caches,
+and build outputs; the separately listed skills manifest also excludes nested `.github/`, caches,
+and removed `assets/style-examples/` or `fixtures/style-examples/` sample material. It proves this
+import snapshot only; it is not an upstream commit identity or runtime acceptance evidence.
 
 ## Ownership and activation
 
