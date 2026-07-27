@@ -1,0 +1,12 @@
+# Design references
+
+| Relative path | Content role | Governed surface | Status |
+| --- | --- | --- | --- |
+| `docs/plans/ui-ux/requirements.md` | approved direction-neutral planned UI authority | V1 staff interaction/accessibility | active plan authority; no caller proof |
+| `docs/plans/ui-ux/ui-spec.md` | approved direction-neutral planned UI contract | V1 shell/flows/states | active plan authority; no shell selected |
+| `docs/plans/ui-ux/mockups/candidate-*.png` | visual comparison evidence | V1 shell direction | authorized to generate; unapproved |
+| `docs/plans/ui-ux/concept-*.md` and matching rasters | historical proposal evidence | former UI concepts | historical/unapproved |
+| `src/CollisionSpike.Web/wwwroot/css/site.css` | current runtime evidence and exercised token source | Development Razor Pages | implemented/called by current pages |
+
+References do not become authority by appearing here. Preserve their declared
+role and source/runtime boundary.

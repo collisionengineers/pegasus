@@ -1,0 +1,44 @@
+{
+  "name": "Task",
+  "description": "Capture bounded technical or operational work with an already-settled outcome.",
+  "title": "[Task]: ",
+  "labels": ["type:task"],
+  "body": [
+    {
+      "type": "textarea",
+      "id": "outcome",
+      "attributes": {
+        "label": "Required outcome",
+        "description": "State the observable technical or operational result."
+      },
+      "validations": {"required": true}
+    },
+    {
+      "type": "textarea",
+      "id": "authority",
+      "attributes": {
+        "label": "Authority and context",
+        "description": "Link the product decision, ADR, parent feature, incident, or operation that authorizes this task."
+      },
+      "validations": {"required": true}
+    },
+    {
+      "type": "textarea",
+      "id": "acceptance",
+      "attributes": {
+        "label": "Acceptance evidence",
+        "description": "Name the exact checks or observed state that prove completion."
+      },
+      "validations": {"required": true}
+    },
+    {
+      "type": "textarea",
+      "id": "boundaries",
+      "attributes": {
+        "label": "Boundaries and dependencies",
+        "description": "State exclusions, blockers, and native issue relationships."
+      },
+      "validations": {"required": true}
+    }
+  ]
+}

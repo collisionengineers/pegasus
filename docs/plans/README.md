@@ -1,8 +1,13 @@
 # CollisionSpike plans index
 
-Status: **Active canonical plan route**
+Status: **Active detailed plan route**
 
-Start with the [delivery roadmap](delivery-roadmap.md). It orders the plans by dependency without becoming a backlog or implementation-status ledger. The [feature maturity map](feature-maturity-map.md) alone owns allocation; bounded feature plans own intended behavior and evidence; task and validation artifacts own observed delivery state. Product authority remains in the source-of-truth order, and historical sources remain in place.
+Start with the repository [roadmap](../roadmap.md) for horizons and the
+[capability inventory](../product/capabilities.md) for stable IDs and release
+allocation. This detailed plan route orders bounded dependencies without
+becoming a backlog or implementation-status ledger. The retained
+[feature maturity map](feature-maturity-map.md) preserves old allocation parity;
+bounded plans own intended change/evidence and GitHub owns actionable work.
 
 | Plan | Purpose | Authority | Status | Horizon | Real/intended caller | Blocker/activation gate | Supersession |
 | --- | --- | --- | --- | --- | --- | --- | --- |

@@ -1,0 +1,44 @@
+{
+  "name": "Decision",
+  "description": "Resolve a material product, architecture, design, release, or operations choice.",
+  "title": "[Decision]: ",
+  "labels": ["type:decision"],
+  "body": [
+    {
+      "type": "textarea",
+      "id": "question",
+      "attributes": {
+        "label": "Decision required",
+        "description": "Ask one concrete question and state why it blocks or changes work."
+      },
+      "validations": {"required": true}
+    },
+    {
+      "type": "textarea",
+      "id": "evidence",
+      "attributes": {
+        "label": "Repository evidence and authority",
+        "description": "Link current behavior, intended authority, constraints, and any conflict IDs."
+      },
+      "validations": {"required": true}
+    },
+    {
+      "type": "textarea",
+      "id": "options",
+      "attributes": {
+        "label": "Options and consequences",
+        "description": "Give materially distinct options, consequences, and the recommended default."
+      },
+      "validations": {"required": true}
+    },
+    {
+      "type": "textarea",
+      "id": "decision_owner",
+      "attributes": {
+        "label": "Decision owner and deadline",
+        "description": "Who decides, and which release or change is affected?"
+      },
+      "validations": {"required": true}
+    }
+  ]
+}

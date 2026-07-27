@@ -1,8 +1,13 @@
 # CollisionSpike feature versioning worksheet
 
-Status: **Completed interview input — retained for exact source evidence**
+Status: **Completed interview input — retained for exact source evidence; superseded for active allocation**
 
-The active allocation owner is [the canonical feature maturity map](docs/plans/feature-maturity-map.md), and the dependency-ordered route from current proof through V3 and activation-gated V3+ is the [delivery roadmap](docs/plans/delivery-roadmap.md). Exact parity of all 213 unique ID, feature-label, and trimmed-answer triples was proved before this note was added. Those 213 table rows remain the raw direct-decision record; only their active-roadmap role is superseded. This added status note does not claim byte-for-byte preservation of the initially untracked file.
+The active allocation owner is the [canonical capability inventory](docs/product/capabilities.md).
+The [retained maturity map](docs/plans/feature-maturity-map.md) preserves the
+normalized old allocation evidence, and the [roadmap](docs/roadmap.md) owns
+current horizons. Exact parity of all 213 unique ID, feature-label, and
+trimmed-answer triples remains required. Those rows are the raw direct-decision
+record; only their active release/roadmap role is superseded.
 
 **Original interview instruction (retained):** Fill in the **Your version** column. Use an exact release such as `0.2`, `1.0`, `1.x`, `2.0`, or `3.x+`; use `Later` or `Never` where that is the right answer. Edit incorrect feature wording and add missing capabilities at the end.
 

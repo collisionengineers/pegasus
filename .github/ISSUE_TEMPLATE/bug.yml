@@ -1,0 +1,52 @@
+{
+  "name": "Bug",
+  "description": "Report behavior that differs from intended or supported behavior.",
+  "title": "[Bug]: ",
+  "labels": ["type:bug"],
+  "body": [
+    {
+      "type": "textarea",
+      "id": "observed",
+      "attributes": {
+        "label": "Observed behavior",
+        "description": "What happened, through which real user/operator path?"
+      },
+      "validations": {"required": true}
+    },
+    {
+      "type": "textarea",
+      "id": "expected",
+      "attributes": {
+        "label": "Expected behavior",
+        "description": "What should happen, and which product or contract authority supports it?"
+      },
+      "validations": {"required": true}
+    },
+    {
+      "type": "textarea",
+      "id": "reproduction",
+      "attributes": {
+        "label": "Reproduction and supplied evidence",
+        "description": "Give exact steps and point to repository-provided inputs, logs, images, or documents. Do not create synthetic examples."
+      },
+      "validations": {"required": true}
+    },
+    {
+      "type": "textarea",
+      "id": "impact",
+      "attributes": {
+        "label": "Impact and recovery",
+        "description": "Who is affected, how severe is it, and is there a proven recovery?"
+      },
+      "validations": {"required": true}
+    },
+    {
+      "type": "textarea",
+      "id": "environment",
+      "attributes": {
+        "label": "Environment",
+        "description": "Version, Azure environment or scope without secrets, and relevant toolchain."
+      }
+    }
+  ]
+}

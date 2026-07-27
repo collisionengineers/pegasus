@@ -1,6 +1,6 @@
 # ADR-0008: Focused repository workflow plugins
 
-- Status: Accepted
+- Status: Superseded by [0010](../../decisions/0010-adopt-azure-workflow.md)
 - Date: 2026-07-25
 - Owners: Alex and the CollisionSpike v2 development team
 
