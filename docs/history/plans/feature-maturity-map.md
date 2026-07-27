@@ -250,7 +250,7 @@ The `Owning requirement/plan` cell is the single primary planning owner for that
 | EXT-12 | Audatex or another estimating-service integration | `Later`/`unallocated` | `Later`/`unallocated` release work | [Worksheet] | [Primary plan](later-delivery/integrations/eva-replacement-and-engineering.md#integrate-approved-estimating-and-valuation-services) | Allocation only; owning evidence still required. |
 | EXT-13 | Other valuation-service integrations | `Later`/`unallocated` | `Later`/`unallocated` release work | [Worksheet] | [Primary plan](later-delivery/integrations/eva-replacement-and-engineering.md#integrate-approved-estimating-and-valuation-services) | Allocation only; owning evidence still required. |
 | AI-07 | Staff-selected `AI Assessor` Engineer option in the post-EVA-replacement assignment workflow | `Later`/`unallocated` | `Later`/`unallocated` release work | [Worksheet] | [Primary plan](later-delivery/integrations/eva-replacement-and-engineering.md#offer-staff-selected-ai-assessor) | Allocation only; owning evidence still required. |
-| MAIL-12 | Compose, reply, forward, and send email in the app | Never — automated sending is separate and planned after `Later`/`unallocated` | `Later`/`unallocated` release work | [Worksheet] | [Primary plan](later-delivery/integrations/communications-automation.md#send-general-case-email) | Raw answer narrowed: authenticated staff email is deferred; MAIL-17 owns automatic report sending. |
+| MAIL-12 | Compose, reply, forward, and send email in the app | Never — automated sending is separate and planned after `Later`/`unallocated` | `Later`/`unallocated` release work | [Worksheet] | [Primary contract](../../product/boundaries.md#communications-boundaries) | Raw answer narrowed: authenticated staff email is deferred; MAIL-17 owns automatic report sending. |
 
 ## `Not planned`
 
@@ -290,9 +290,9 @@ The `Owning requirement/plan` cell is the single primary planning owner for that
 
 | ID | Feature | Raw answer | Allocation | Authority/source | Owning requirement/plan | Activation note |
 | --- | --- | --- | --- | --- | --- | --- |
-| EXT-16 | Collision Engineers guided mobile image capture | conditional `Later`/`unallocated` | `Later`/`unallocated` | [Worksheet] | [Primary plan](../../product/boundaries.md#guided-capture-activation-gates) | Unassigned; later direct decision required. |
-| EXT-17 | Tractable or Ravin guided-capture integration | conditional `Later`/`unallocated` | `Later`/`unallocated` | [Worksheet] | [Primary plan](../../product/boundaries.md#guided-capture-activation-gates) | Unassigned; later direct decision required. |
-| EXT-19 | Collision Engineers custom application domain | conditional `Later`/`unallocated` | `Later`/`unallocated` | [Worksheet] | [Primary plan](../../product/boundaries.md#custom-domain-activation-gate) | Unassigned; later direct decision required. |
+| EXT-16 | Collision Engineers guided mobile image capture | conditional `Later`/`unallocated` | `Later`/`unallocated` | [Worksheet] | [Primary contract](../../product/boundaries.md#conditional-activation-gates) | Unassigned; later direct decision required. |
+| EXT-17 | Tractable or Ravin guided-capture integration | conditional `Later`/`unallocated` | `Later`/`unallocated` | [Worksheet] | [Primary contract](../../product/boundaries.md#conditional-activation-gates) | Unassigned; later direct decision required. |
+| EXT-19 | Collision Engineers custom application domain | conditional `Later`/`unallocated` | `Later`/`unallocated` | [Worksheet] | [Primary contract](../../product/boundaries.md#conditional-activation-gates) | Unassigned; later direct decision required. |
 
 ## Non-row direct claim
 
