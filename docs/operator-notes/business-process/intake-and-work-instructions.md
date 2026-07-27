@@ -41,3 +41,28 @@ The authoritative channel and format list is:
 - Email: PDF attachment; DOC/DOCX attachment; or freehand text in the email.
 - WhatsApp: PDF attachment; DOC/DOCX attachment; or text typed in WhatsApp.
 - A future API into the Collision Engineers system.
+
+## Provider and intermediary email routes
+
+The sender route and the work provider are related but different facts.
+
+- When a provider sends work directly, identify the provider from that
+  provider's accepted sender-address traits. Extract the attachments, email
+  body, and subject before the provider's direct-email rules determine the
+  instruction type and any related case.
+- An intermediary has its own rules. Identify the intermediary from its sender
+  traits, extract the attachments, body, and subject, and use the intermediary's
+  rules to determine the underlying provider, instruction type, and any related
+  case.
+- A provider may send some work directly and have an intermediary send other
+  work. These are separate routes to the same provider; an intermediary email
+  must not be interpreted as though it were a direct provider email.
+- When Collision Engineers staff forward an email from an
+  `@collisionengineers.co.uk` address, use the original forwarded sender for
+  route identification and retain the staff forward as transport provenance.
+
+Case association depends on the rules for the identified direct-provider or
+intermediary route. Providers do not generally quote a Collision Engineers
+Case/PO, so it is never the universal first match and may only be used as a
+lowest-priority fallback where that route's evidence supports it. Ambiguous
+provider, type, or case evidence remains pre-case for staff sorting.

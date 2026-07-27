@@ -21,6 +21,11 @@ work, report-evidence, reopening, matching, and terminal-history paths.
   gates; `Created in error` never reopens.
 - Matching/linking is evidence-backed and reversible with a reason while both
   source origins remain permanently attributable.
+- Direct-provider and intermediary email routes have separate rules. Either can
+  identify the same provider, but the applicable route owns its provider,
+  instruction-type, and case-association evidence and precedence.
+- A staff-forwarded message retains the Collision Engineers forward as
+  provenance while the proved original sender drives route identification.
 - Concurrent editing cannot silently overwrite newer case data.
 
 The stable `EVAL-*`, `INT-*`, `MAIL-*`, `TRI-*`, and `CASE-*` outcomes and

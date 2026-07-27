@@ -46,7 +46,15 @@ Current caller details and dated limits remain in the
 
 ## Rule and configuration ownership
 
-- Core owns intake decisions, provider policy boundaries, case/reference rules, lifecycle, matching/classification, and later shared UI/Worker/API/MCP business actions.
+- Core owns intake decisions, route-policy selection, provider/type/case
+  determinations, case/reference rules, lifecycle, matching/classification, and
+  later shared UI/Worker/API/MCP business actions. Direct-provider policies and
+  intermediary policies are separate code-versioned owners: either may resolve
+  the same provider, but each applies only to its own message shape and evidence.
+- Shared intake code normalizes the transport, reconstructs an original sender
+  where staff forwarding is proved, extracts attachments/body/subject, invokes
+  exactly one applicable route policy, and records its evidence and version. It
+  does not impose a universal case-matching precedence.
 - Web/Worker adapters translate transport and configuration; they do not copy business policy.
 - EF migrations under Infrastructure own application schema evolution. Production startup must not apply migrations implicitly.
 - `src/CollisionSpike.Web/Program.cs` owns current Web composition and database provider selection; checked-in Development launch settings own the local intake flag/path.

@@ -4,8 +4,8 @@
 
 The current exercised surface is the Development-only Razor Pages dashboard,
 manual intake upload, queue, and receipt review. The planned V1 staff surfaces
-are Operations, Intake, Triage, Cases, and authorized Administration; their
-shell direction remains unapproved.
+are Operations, Intake, Triage, Cases, and authorized Administration;
+Operations-first is the selected V1 shell strategy.
 
 The provided `collision-engineers-design-dev` bundle was the upstream Collision
 Engineers visual foundation. It explicitly excludes an internal command-centre
