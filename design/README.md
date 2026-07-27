@@ -20,7 +20,7 @@ The source bundle is not retained as a second design system.
 
 | Concern | Canonical design source | Runtime consumer/output |
 | --- | --- | --- |
-| product interaction/accessibility | [`docs/plans/ui-ux/requirements.md`](../docs/plans/ui-ux/requirements.md) and [`ui-spec.md`](../docs/plans/ui-ux/ui-spec.md) | planned V1 Razor Pages; current proof is narrower |
+| product interaction/accessibility | [`product/requirements.md`](product/requirements.md), [`ui-spec.md`](product/ui-spec.md), and [`traceability-matrix.md`](product/traceability-matrix.md) | planned V1 Razor Pages; current proof is narrower |
 | brand/style and master logo | [`brand/style.md`](brand/style.md), [`brand/logos/README.md`](brand/logos/README.md) | approved source for future V1 UI; current Development layout has not adopted it |
 | adapted tokens | [`tokens/README.md`](tokens/README.md) | approved design values; current `src/CollisionSpike.Web/wwwroot/css/site.css` is recorded divergence |
 | components/patterns | [`components/index.md`](components/index.md), [`patterns/index.md`](patterns/index.md) | current Razor Pages under `src/CollisionSpike.Web/Pages/` |
@@ -31,6 +31,7 @@ The source bundle is not retained as a second design system.
 - [Brand style](brand/style.md), [imagery](brand/imagery.md), and [logos](brand/logos/README.md)
 - Foundations: [colour](foundations/colour.md), [typography](foundations/typography.md), [spacing/layout](foundations/spacing-and-layout.md), [motion](foundations/motion.md), and [accessibility](foundations/accessibility.md)
 - [Tokens](tokens/README.md), [icons](assets/icons/README.md), and [fonts](assets/fonts/README.md)
+- Product UI: [requirements](product/requirements.md), [specification](product/ui-spec.md), and [traceability](product/traceability-matrix.md)
 - [Components](components/index.md), [patterns](patterns/index.md), and [references](references/README.md)
 
 ## Change rule

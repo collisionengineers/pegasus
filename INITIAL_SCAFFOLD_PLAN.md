@@ -2,7 +2,7 @@
 
 Status: **Historical** — reviewed and implemented on 2026-07-23. This establishes an executable foundation, not a completed business feature.
 
-Supersession/current owners: [plans index](docs/plans/README.md), [architecture overview](docs/architecture/README.md), and [validation guidance](docs/agent-guidance/validation.md). This file remains implementation history, not ongoing guidance.
+Supersession/current owners: [plans index](docs/history/plans/README.md), [architecture overview](docs/architecture/README.md), and [validation guidance](docs/agent-guidance/validation.md). This file remains implementation history, not ongoing guidance.
 
 ## Scope
 

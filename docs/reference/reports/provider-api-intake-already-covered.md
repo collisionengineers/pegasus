@@ -25,9 +25,9 @@ Legacy ADR-0020 contains the same high-level channel and shared-policy direction
 
 ## Current architecture, plan and evidence state
 
-The settled [questionnaire](../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md) and [remaining requirements](../../plans/remaining-requirements.md) already require the principal-scoped, idempotent provider submission and own-result boundary.
+The settled [questionnaire](../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md) and [remaining requirements](../../product/v1-gap.md) already require the principal-scoped, idempotent provider submission and own-result boundary.
 
-Current [ADR-0004](../../architecture/decisions/ADR-0004-provider-api-and-staff-mcp-authentication.md) owns the provider authentication and MCP separation decision. The [provider submissions delivery plan](../../plans/remainder-delivery/integrations/provider-submissions.md) assigns business policy to shared Core intake and principal authorization, with Web translating a later accepted HTTP contract.
+Current [ADR-0004](../../architecture/decisions/ADR-0004-provider-api-and-staff-mcp-authentication.md) owns the provider authentication and MCP separation decision. The [provider submissions delivery plan](../../history/plans/remainder-delivery/integrations/provider-submissions.md) assigns business policy to shared Core intake and principal authorization, with Web translating a later accepted HTTP contract.
 
 The evidence state remains **Planned**. There is no current provider endpoint, credential store, registered caller, live provider client or proven v2 submission. The Development-only `/Intake/Upload` path is not a provider API, and predecessor deployment evidence does not change current status.
 

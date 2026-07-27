@@ -2,7 +2,7 @@
 
 Status: **Active settled product authority**
 
-This document owns settled product behavior. [The feature maturity map](docs/plans/feature-maturity-map.md) owns allocation: V0 is local pre-alpha, V1 is the live QDOS alpha release gate, additional providers arrive during V1.x before V2, V2 is the email-workspace/provider-API beta, and V3/V3+ contains the allocated later release work. An allocation is not evidence that a capability is implemented, called, deployed, or accepted. `Never`, conditional, and `Unclear` remain distinct.
+This document owns settled product behavior. [The capability inventory](docs/product/capabilities.md) owns current allocation: the retained V0/V1/V2/V3 labels remain source evidence while active timing is Now, Next, Later, or Not planned. An allocation is not evidence that a capability is implemented, called, deployed, or accepted. `Never`, conditional, and `Unclear` remain distinct source decisions.
 
 ## 1. Project ownership
 
@@ -204,7 +204,7 @@ The detailed Received taxonomy and its confirmed examples/subtypes are settled:
 
 Sent families are `Report sent`, `case-rejected`, `query-sent`, and `additional-image-request`. Reply is not a standalone recorded type: Collision Engineers' replies mirror the underlying Received category with reply context, and incoming replies to Sent messages mirror the underlying Sent category with reply context. The V0 evaluator also offers `Other`, requiring a new category name and reasoning. These are the confirmed taxonomy claims derived from the directly selected reference evidence in `docs/reference/CollisionSPikeCurrenttree.txt`; the source remains unchanged and does not become authority for unrelated legacy behavior.
 
-Detailed classification, operational queues, Triage routing, and Outlook folder destinations are distinct facts. Mailbox categorisation and all automatic email matching remain one combined open research decision routed through `docs/plans/mailbox-categorisation-and-email-matching/README.md`. The research must now settle the V0 instruction predicates and governance needed by the real evaluator, then the V1 exact matching dependencies and V2 expansion. Approved rules remain one Core-owned policy rather than copies in Web, Worker, API, MCP, or mailbox adapters. Do not invent predicates or add a generic rule engine or dormant configuration model before the applicable decision is accepted.
+Detailed classification, operational queues, Triage routing, and Outlook folder destinations are distinct facts. Mailbox categorisation and all automatic email matching remain one combined [open research decision](docs/product/open-decisions.md); the former dossier is historical evidence. The research must now settle the V0 instruction predicates and governance needed by the real evaluator, then the V1 exact matching dependencies and V2 expansion. Approved rules remain one Core-owned policy rather than copies in Web, Worker, API, MCP, or mailbox adapters. Do not invent predicates or add a generic rule engine or dormant configuration model before the applicable decision is accepted.
 
 **Must email and attachments be automatically associated with cases?**  Yes, but all automatic email matching remains inside the combined open research decision. Once accepted, related emails and attachments may be associated automatically only where the approved policy proves a definitive match. Uncertain matches go to `Needs sorting` for staff review. This does not change the separately settled Triage-to-case linking rule.
 

@@ -15,5 +15,5 @@ Never generate placeholder cases, damage images, emails, documents, or people.
 
 | Asset/source | Purpose | Runtime destination/consumer | Recorded status |
 | --- | --- | --- | --- |
-| `docs/plans/ui-ux/mockups/candidate-*.png` | compare three shell directions | no runtime consumer | authorized selection aids; unapproved |
-| `docs/plans/ui-ux/mockups/concept-*.png` | historical UI evidence | no runtime consumer | historical/unapproved visual filler |
+| `design/references/mockups/candidate-*.png` | compare three shell directions | no runtime consumer | authorized selection aids; unapproved |
+| `docs/history/plans/ui-ux/mockups/concept-*.png` | historical UI evidence | no runtime consumer | historical/unapproved visual filler |

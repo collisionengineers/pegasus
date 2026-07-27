@@ -10,7 +10,7 @@ pwsh ./scripts/Invoke-RepoCheck.ps1
 dotnet run --project ./src/CollisionSpike.Web
 ```
 
-The current local route is `/Intake/Upload`; it is enabled by the checked-in Development launch profile and denied outside Development. QDOS is suggested only when the contained policy finds positive QDOS content evidence; it is never a default for other or ambiguous intake. See `docs/agent-notes/current-implementation-handoff.md` for the caller path, evidence, and limits, and `docs/plans/remaining-requirements.md` for the work still required for the first QDOS release.
+The current local route is `/Intake/Upload`; it is enabled by the checked-in Development launch profile and denied outside Development. QDOS is suggested only when the contained policy finds positive QDOS content evidence; it is never a default for other or ambiguous intake. See `docs/agent-notes/current-implementation-handoff.md` for the caller path, evidence, and limits, and `docs/product/v1-gap.md` for the work still required for the first QDOS release.
 
 Start with the [repository documentation](docs/index.md), [product requirements](docs/product/index.md), [roadmap](docs/roadmap.md),
 [architecture](docs/architecture.md), and [operations](docs/operations.md).

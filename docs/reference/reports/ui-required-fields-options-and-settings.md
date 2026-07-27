@@ -8,7 +8,7 @@
 
 ## Source and interpretation boundary
 
-Current UI direction comes from [UI/UX planning](../../plans/ui-ux/README.md), [operator experience requirements](../../plans/ui-ux/requirements.md), operator truth, the [settled questionnaire](../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md), [remaining requirements](../../plans/remaining-requirements.md), current delivery plans, and the [open-decision register](../../plans/open-decisions.md).
+Current UI direction comes from [design authority](../../../design/README.md), [operator experience requirements](../../../design/product/requirements.md), operator truth, the [settled questionnaire](../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md), [the V1 gap](../../product/v1-gap.md), product areas, and the [open-decision register](../../product/open-decisions.md). The former UI plan pack is historical evidence only.
 
 The legacy design and review guide (`../guide/04-design-and-reviews.md`) was used to route the predecessor interaction rules (`../docs/design/ui-ux.md`) and dated reviews. Those files supply terminology, pain points, and candidate controls only. Their old screen layouts, completion claims, API/EVA field rules, theme decisions, and configuration model are not v2 authority.
 
@@ -234,7 +234,7 @@ The routed legacy reviews raised useful questions but do not establish these cur
 | Bulk Hold/Release/Log chase, exact per-queue columns, quick-peek drawer, notification centre | Not required by current plans. Reconsider only through a real operator flow and caller. |
 | Visible confidence percentages | Not required. Current v2 requires suggestion/confirmation distinction and source provenance; it does not require a numerical score in the operator UI. |
 | Provider corpus/import administration and last-used statistics | Not part of the bounded QDOS principal/settings slice. |
-| Exact predecessor red/amber/nav/table theme rulings | Historical visual input only. Current application-specific UI principles live in `docs/plans/ui-ux`; the CE website/letterhead kit excludes the internal app. |
+| Exact predecessor red/amber/nav/table theme rulings | Historical visual input only. Current application-specific UI principles live in `design/`; the CE website/letterhead kit excludes the internal app. |
 
 ## Real caller and proof boundary
 
