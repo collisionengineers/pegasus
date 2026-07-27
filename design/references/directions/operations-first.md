@@ -1,8 +1,8 @@
 # Direction A — operations-first shell
 
-Status: **Candidate, unapproved.** A landing/shell strategy over the shared complete Intake, Triage, Case and Administration flows in [the UI specification](../../product/ui-spec.md), not a partial product.
+Status: **Selected for the planned V1 shell.** This approves the landing/navigation strategy over the shared complete Intake, Triage, Case and Administration flows in [the UI specification](../../product/ui-spec.md), not every raster detail and not a partial product.
 
-Comparison preview: [candidate A — Operations-first](../mockups/candidate-a-operations-first.png). The raster is a manually reviewed selection aid, not an approved requirement or implementation.
+Comparison preview: [candidate A — Operations-first](../mockups/candidate-a-operations-first.png). The raster remains a selection aid; approved behavior comes from the product specification and this selected direction, not pixel-for-pixel reproduction.
 
 ```text
 CE logo | Operations | Intake | Triage | Cases | Administration | Search | User

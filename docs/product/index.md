@@ -39,7 +39,9 @@ repository-level product profile and routes; it does not weaken those sources.
 ### Included
 
 - V1 QDOS intake, Triage, case identity/lifecycle, document custody, work management, operator UI, staff MCP, vehicle enrichment, EVA handoff, observability, and approved direct-terminal Azure release.
-- One provider-neutral Core workflow with contained provider policy and Web/Worker composition roots.
+- One provider-neutral Core workflow with separate code-versioned
+  direct-provider and intermediary route policies and Web/Worker composition
+  roots.
 - Stable capability IDs and activation boundaries in [capabilities](capabilities.md).
 
 ### Excluded
@@ -82,7 +84,7 @@ behavior and must not be silently changed.
 - [Capability inventory](capabilities.md)
 - [V1 gap baseline](v1-gap.md) and [product boundaries](boundaries.md)
 - Areas: [identity/access](areas/identity-and-access.md), [intake/casework](areas/intake-and-casework.md), [documents/integrations](areas/documents-and-integrations.md), [interfaces/automation](areas/interfaces-and-automation.md), and [platform/operator experience](areas/platform-and-operator-experience.md)
-- [Direction-neutral operator experience](../../design/product/requirements.md)
+- [Selected V1 operator experience](../../design/product/requirements.md)
 - [Architecture](../architecture.md)
 - [Operations](../operations.md)
 
@@ -98,7 +100,7 @@ deployment, and operator acceptance are absent or planned, as detailed in the
 ## Open decisions
 
 - Mailbox categorisation and automatic matching predicates/governance block only their named slices.
-- The V1 shell direction remains unselected among operations-first, worklist-first, and case-first.
+- Operations-first is selected for the V1 shell; detailed implementation remains planned.
 - Guided capture, Tractable/Ravin, and a custom domain remain conditional/unallocated.
 
 The canonical questions remain in [open decisions](open-decisions.md). Azure ownership/retirement choices
