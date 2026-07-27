@@ -153,6 +153,9 @@ scope and separate approval.
   active LTS and Functions 4.x supports .NET 10 isolated at dependency minimums
   below the repository's Worker packages. This is drift-prone operations
   evidence, not a product decision.
+- GitHub Actions release readback on 2026-07-27 found `actions/checkout@v7`
+  and `actions/setup-dotnet@v6` current. They replace v4 pins after exact-head
+  CI reported the Node 20 deprecation; behavior remains the same Full gate.
 - Unresolved onboarding decisions: none.
 
 ## Implementation
@@ -168,6 +171,8 @@ scope and separate approval.
   The first CI attempt was blocked before any step by private-repository account
   billing. The user explicitly authorized public visibility; readback confirmed
   `PUBLIC`, and rerun attempt 2 reached the Full validation step.
+  Full CI on `4ac1cf2` passed but warned that both v4 JavaScript actions target
+  deprecated Node 20; current-major remediation was applied before review.
 
 ## Verification
 
@@ -180,7 +185,8 @@ scope and separate approval.
 | Full repository check | application, tests, Bicep, corpus boundary | green or explicit environment blocker | blocked before restore by missing `sqllocaldb`; corpus correctly reported not run |
 | Focused application verification | restore, Release build, Core/integration/architecture tests, Bicep | green | green: 0 build warnings/errors; 28/28 Core, 83/83 non-corpus integration, 30/30 architecture; Bicep compiled |
 | CI rerun after public visibility | pre-consolidation PR head `9207565` | green | green: Full validation completed in 4m 6s after the billing-blocked first attempt |
-| final exact-head CI | updated pull-request head | green | pending publication |
+| post-consolidation CI | PR head `4ac1cf2` | green | green: Full validation completed in 4m 43s; one Node 20 action deprecation warning remediated in the next head |
+| final exact-head CI | current-action remediation head | green without the Node 20 warning | pending publication |
 
 ## Independent review
 
