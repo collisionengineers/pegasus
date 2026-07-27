@@ -2,7 +2,7 @@
 
 > **Archive status — non-authoritative planning evidence.** Revalidate against current product, roadmap, architecture, operations, design, decisions, and code before use.
 
-Pre-conversion status: **Ready V1 plan — external accounts remain Never**
+Pre-conversion status: **Ready `0.1.0-alpha.1` plan — external accounts remain Never**
 
 ## Purpose
 
@@ -14,7 +14,7 @@ Primary matrix IDs: `ACC-01`, `ACC-02`, `ACC-03`, `ACC-04`, `ACC-05`, `ACC-07`, 
 
 ## Authority and current boundary
 
-- **Authority:** [source order](../../../../agent-guidance/source-of-truth.md), [questionnaire §§3–4 and 10–12](../../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md), [remaining requirements §1](../../../../product/v1-gap.md), and [ADR-0004](../../../../architecture/decisions/ADR-0004-provider-api-and-staff-mcp-authentication.md).
+- **Authority:** [source order](../../../../agent-guidance/source-of-truth.md), [questionnaire §§3–4 and 10–12](../../../product/project-discovery-questionnaire.md), [remaining requirements §1](../../../../product/qdos-alpha-gap.md), and [ADR-0004](../../../../architecture/decisions/ADR-0004-provider-api-and-staff-mcp-authentication.md).
 - **Policy owner:** planned Core `StaffAccess` actor/authorisation contracts, with Web authentication composition; business transition authority stays in Casework.
 - **Current implementation:** Web calls `UseAuthorization` but registers no authentication/identity scheme; receipt-owned `IntakeReceiptEvents.Actor` accepts the development intake string. There are no staff accounts, role enforcement or permanent trusted actor derivation.
 - **Real callers:** `/Intake/Upload` is the only current real intake caller and is deliberately unavailable outside Development; all authenticated staff pages, bootstrap, administration and future MCP are **planned**.
@@ -33,7 +33,7 @@ Deny by default except deliberately public technical health endpoints. Passwords
 ### Authority and decision gate
 
 - **Requirement/decision:** questionnaire §3 and §12; remaining requirements §1; ADR-0004.
-- **Confirmed facts:** staff use application-managed usernames/passwords, no external customer users/MFA requirement in first MVP, and an Administrator creates/disables/reviews accounts and assigns roles.
+- **Confirmed facts:** staff use application-managed usernames/passwords, no external customer users/MFA requirement in `0.1.0-alpha.1`, and an Administrator creates/disables/reviews accounts and assigns roles.
 - **Decision required before implementation:** none. Initial bootstrap credentials must be supplied securely at execution time, never planned as a source/configuration secret.
 
 ### Owner and dependencies
@@ -110,7 +110,7 @@ Deny by default except deliberately public technical health endpoints. Passwords
 ### Authority and decision gate
 
 - **Requirement/decision:** questionnaire §§3–4 and 10 and remaining requirements §1.
-- **Confirmed facts:** permanent action history records the bounded material actions above with actor, timestamp, action, structured before/after values, required reason and outcome; it is not a log of every interaction. A report-sent event requires exact Outlook Sent-item evidence from the shared approved-mailbox allowlist; automatic exact-item matching is a V1 research-gated requirement.
+- **Confirmed facts:** permanent action history records the bounded material actions above with actor, timestamp, action, structured before/after values, required reason and outcome; it is not a log of every interaction. A report-sent event requires exact Outlook Sent-item evidence from the shared approved-mailbox allowlist; automatic exact-item matching is a `0.1.0-alpha.1` research-gated requirement.
 - **Decision required before implementation:** None for append-only application action history. This owner records supplied exact external evidence; it does not decide or infer a Sent-item match.
 
 ### Owner and dependencies
@@ -164,7 +164,7 @@ Deny by default except deliberately public technical health endpoints. Passwords
 ### Approval, rollout and rollback
 
 - **Approval-triggering action and exact scope:** migration/release approval only; external telemetry/alert destinations need separate configuration approval.
-- **Rollout/activation:** migrate action-history schema with caller slices, backfill only required v2 local records if accepted, then verify immutable history via actual caller.
+- **Rollout/activation:** migrate action-history schema with caller slices, backfill only required `Next`/`unallocated` local records if accepted, then verify immutable history via actual caller.
 - **Rollback/recovery:** preserve action-history records and revert application artifact compatibly; corrective events append rather than alter history.
 - **Irreversible risk:** action-history records are intentionally retained; do not offer destructive rollback.
 
@@ -188,7 +188,7 @@ Deny by default except deliberately public technical health endpoints. Passwords
 
 ### Authority and decision gate
 
-- **Requirement/decision:** [questionnaire role and configuration rules](../../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md#3-users-and-organisations), [first-release must-haves](../../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md#15-first-release-scope), and [remaining requirements §1](../../../../product/v1-gap.md).
+- **Requirement/decision:** [questionnaire role and configuration rules](../../../product/project-discovery-questionnaire.md#3-users-and-organisations), [first-release must-haves](../../../product/project-discovery-questionnaire.md#15-first-release-scope), and [remaining requirements §1](../../../../product/qdos-alpha-gap.md).
 - **Confirmed facts:** Administrators alone manage principals and application configuration; QDOS principal configuration and the switchable completeness gate are first-release requirements; existing issued references must not be rewritten or reused. A used principal code is read-only and changes only through the linked-successor cutover owned by [case identity](../casework/case-identity-and-references.md#replace-a-used-principal-code-through-an-immutable-cutover).
 - **Decision required before implementation:** None for the bounded QDOS principal record and completeness gate. Any later principal-specific field matrix, transport credential or external-system configuration requires its own authority.
 

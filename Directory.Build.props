@@ -6,5 +6,6 @@
     <Deterministic>true</Deterministic>
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Version>0.0.0-development</Version>
   </PropertyGroup>
 </Project>

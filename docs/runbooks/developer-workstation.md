@@ -1,6 +1,6 @@
 # Windows developer workstation
 
-CollisionSpike v2 is developed from PowerShell 7 on Windows. Verify tools
+Pegasus `Next`/`unallocated` is developed from PowerShell 7 on Windows. Verify tools
 directly with their standard version commands; the repository does not install
 global tools or require a cloud login for offline development.
 
@@ -33,7 +33,7 @@ sqllocaldb versions
 dotnet dev-certs https --check --trust
 ```
 
-Run `npm ci` and `dotnet restore ./CollisionSpike.slnx` once package feeds are
+Run `npm ci` and `dotnet restore ./Pegasus.slnx` once package feeds are
 available. Normal local start and smoke must not need a cloud or vendor network.
 See [local development](local-development.md) for process and state ownership.
 
@@ -41,7 +41,7 @@ Python is an authoring-only tool; the provider-domain command requires 3.11+
 and standard-library modules only. It creates no virtual environment and
 installs no package. Playwright browsers are used only by the browser acceptance
 lane. Neither is an application runtime. See [local development](local-development.md)
-for the immutable v1 command and cumulative future-version procedure.
+for the immutable `0.1.0-alpha.1` command and cumulative future-version procedure.
 
 ## Optional approved live-work profile
 
@@ -70,6 +70,6 @@ Install-Module ExchangeOnlineManagement -Scope CurrentUser -RequiredVersion 3.10
 Tool installation and authentication do not authorize an external read or
 write. `az login`, `azd auth login`, Exchange connection, Box login, credential
 changes, deployment, and Azure operations retain separate exact-target
-approval. Application staff accounts are CollisionSpike Identity accounts, not
+approval. Application staff accounts are Pegasus Identity accounts, not
 assumed Entra users. Third-party credentials never enter tracked settings,
 terminal output, prompts, telemetry, or business history.

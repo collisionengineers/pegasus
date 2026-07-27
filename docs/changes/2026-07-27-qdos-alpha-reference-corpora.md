@@ -57,7 +57,7 @@ adapter, Azure, deployment, or acceptance work.
   Audit path through acceptance, immutable identity, Box custody, work/review,
   EVA JSON/image handoff, report evidence, lifecycle, observability, recovery,
   and acceptance.
-- Implement the selected Operations-first V1 staff shell and all states needed
+- Implement the selected Operations-first `0.1.0-alpha.1` staff shell and all states needed
   by the QDOS workflow.
 
 ### Excluded
@@ -67,7 +67,7 @@ adapter, Azure, deployment, or acceptance work.
 - Generic rules engines, expression languages, database-authored predicates,
   admin rule editors, universal case-match ordering, placeholder policies, or a
   second classifier tied to one mailbox.
-- V2 all-mailbox management, folder moves, general correspondence matching,
+- `Next`/`unallocated` all-mailbox management, folder moves, general correspondence matching,
   provider API activation, DOC/MSG/OCR expansion, AI classification, WhatsApp
   automation, and every Later/Not planned capability.
 - Live-service client construction, Azure/IaC mutation, cloud reads/writes,
@@ -77,9 +77,9 @@ adapter, Azure, deployment, or acceptance work.
 ## Authorities, current state, and constraints
 
 - Operator behavior: [intake and work instructions](../operator-notes/business-process/intake-and-work-instructions.md), [inspection address](../operator-notes/business-process/inspection-address.md), [case types and references](../operator-notes/business-process/case-types-and-references.md), and [case lifecycle](../operator-notes/business-process/case-lifecycle.md).
-- Product/release: [product index](../product/index.md), [capabilities](../product/capabilities.md), [V1 gap](../product/v1-gap.md), and [roadmap](../roadmap.md).
+- Product/release: [product index](../product/index.md), [capabilities](../product/capabilities.md), [`0.1.0-alpha.1` gap](../product/qdos-alpha-gap.md), and [roadmap](../roadmap.md).
 - Architecture: [architecture](../architecture.md), [Decision 0011](../decisions/0011-separate-direct-provider-and-intermediary-email-policies.md), and ADR-0006's preserved neutral transport/storage decisions.
-- Design: [V1 requirements](../../design/product/requirements.md), [UI specification](../../design/product/ui-spec.md), and selected [Operations-first direction](../../design/references/directions/operations-first.md). The adapted `collision-engineers-design-dev` essentials remain the visual authority; its excess is not reintroduced.
+- Design: [`0.1.0-alpha.1` requirements](../../design/product/requirements.md), [UI specification](../../design/product/ui-spec.md), and selected [Operations-first direction](../../design/references/directions/operations-first.md). The adapted `collision-engineers-design-dev` essentials remain the visual authority; its excess is not reintroduced.
 - Supplied Step 2 evidence: `docs/reference/workproviders-and-repairers/initial.xlsx`, SHA-256 `e4bf89b0aeef3f1106bf34ed50f74dffc44c5ed748e0ad0811b66ee099b6cd29`; worksheet `Sheet1`; 11 headerless rows; provider code in column A; semicolon-separated email observations in column E. Columns B-D and later columns are opaque and ignored by authoring.
 - Current caller: Development-only `POST /Intake/Upload` calls Core
   `ProcessIntake`. The Worker is telemetry-only. The current reader records the
@@ -139,7 +139,7 @@ adapter, Azure, deployment, or acceptance work.
   activation gate prevents them from creating a case or allocating a reference.
 - `instructions@collisionengineers.co.uk` is the sole live alpha mailbox caller.
   Only definitive QDOS instructions create cases. All three active QDOS case
-  types complete the settled V1 path with staff identity/authorization,
+  types complete the settled `0.1.0-alpha.1` path with staff identity/authorization,
   immutable references, Box custody, Operations-first UI, EVA handoff, exact
   report evidence, terminal history, and accepted recovery evidence.
 - Full repository validation, independent implementation review, operator
@@ -268,7 +268,7 @@ office outcomes and links each count to its exact filtered queue. Intake shows
 route, provider/type/case evidence and provenance in operator language, never
 internal parser/policy names. Unknown, conflicting, retrying, stale, denied,
 empty, loading, and dependency-unavailable states are distinct and recoverable.
-All planned V1 keyboard, focus, semantic, forced-colour, reduced-motion,
+All planned `0.1.0-alpha.1` keyboard, focus, semantic, forced-colour, reduced-motion,
 1024px/200%-zoom, and role boundaries apply. The existing adapted CE logo,
 colour/type/geometry/icon rules are reused; no upstream marketing, mobile,
 document, imagery, or animation excess returns.
@@ -285,7 +285,7 @@ deployment unit is planned.
 
 ## Decisions and conflicts
 
-- Selected: Operations-first V1 shell; classification policy is code-versioned
+- Selected: Operations-first `0.1.0-alpha.1` shell; classification policy is code-versioned
   Core behavior; version is pinned on first successful evaluation and retained
   on retries/replays.
 - Corrected: intermediary rules are independent route rules, not a resolver
@@ -345,7 +345,7 @@ deployment unit is planned.
   It reads only `initial.xlsx`, stages beneath ignored
   `artifacts/reference-data-staging/`, and publishes the committed immutable
   package
-  `src/CollisionSpike.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json`.
+  `src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json`.
   There is no second manifest, authoring virtual environment, dependency lock,
   package cache, recursive workbook discovery, or runtime workbook reader.
 - Step 2 precondition: the selected workbook must be closed. The command rejects
@@ -381,7 +381,7 @@ deployment unit is planned.
 ## Independent review
 
 - Plan review: passed in fresh context after correcting ADR supersession,
-  persisted route identity, V1-gap ownership wording, normalized sender wording,
+  persisted route identity, `0.1.0-alpha.1`-gap ownership wording, normalized sender wording,
   and the direct/intermediary trait-collision test.
 - Wave 2A.1 Core contract review: the first review exposed ownership leakage
   from authoring into Core. After the boundary correction and runtime-only
@@ -391,7 +391,7 @@ deployment unit is planned.
   workbook path/sheet/header/row/disposition rules remain authoring-owned.
 - Candidate PR review: exact head
   `ce0135ede23101af320846a135d97c1ee05c7146` returned one required finding:
-  the product index still called the selected V1 UI authority
+  the product index still called the selected `0.1.0-alpha.1` UI authority
   direction-neutral. Corrected in the next head.
 - Second PR review: exact head
   `9a8ffe7cb992c024bb2ba1655368a2fdbe3db6fb` confirmed the first finding was
@@ -438,5 +438,5 @@ blockers, approved live evidence, and the final release outcome.
   remain unclaimed until the authoring pipeline completes.
 - Live blockers: genuine route/Triage/report holdouts, selected VRM engine,
   accepted DVLA/DVSA and EVA contracts, exact Graph/Box targets and scopes,
-  refreshed Azure inventory, teardown approvals, isolated v2 target, operator
+  refreshed Azure inventory, teardown approvals, isolated `Next`/`unallocated` target, operator
   acceptance, and management approval remain mandatory before release.

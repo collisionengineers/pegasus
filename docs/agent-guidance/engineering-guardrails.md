@@ -14,7 +14,7 @@ copy of business behaviour.
    consolidation; migrate or delete the replaced path, registration, tests, and
    documentation in the same bounded slice.
 4. Organise by business capability. Do not add horizontal `Common`, `Helpers`,
-   `Utilities`, or undifferentiated `Services` folders, or names such as `V2`,
+   `Utilities`, or undifferentiated `Services` folders, or names such as `Next`/`unallocated`,
    `New`, `Manager`, `Helper`, or `Util` to justify another layer.
 5. Add an interface or abstraction only for a real external boundary, two
    concrete callers or implementations, or an accepted architecture decision.

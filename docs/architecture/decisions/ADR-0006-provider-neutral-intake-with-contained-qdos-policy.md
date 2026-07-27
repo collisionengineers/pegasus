@@ -2,7 +2,7 @@
 
 - Status: Accepted for the pre-release local intake slice
 - Date: 2026-07-24
-- Owners: Alex and the CollisionSpike v2 development team
+- Owners: Alex and the Pegasus `Next`/`unallocated` development team
 - Supersedes: ADR-0005 decision 1 only
 
 ## Context
@@ -17,7 +17,7 @@ transport and storage model is not. Case identity and workflow are uniform acros
 principals, and ADR-0001 requires provider extraction rules to remain isolated
 behind a common contract.
 
-No v2 database or deployment had entered live use when this decision was made.
+No `Next`/`unallocated` database or deployment had entered live use when this decision was made.
 The existing local database was disposable development evidence rather than a
 compatibility boundary.
 
@@ -48,7 +48,7 @@ compatibility boundary.
    A retention failure is retryable and does not claim custody in SQL. A later
    SQL failure may leave unreferenced content-addressed local bytes; an
    idempotent retry reuses them and this slice does not delete them.
-7. Because the application is pre-release with no live v2 schema to preserve,
+7. Because the application is pre-release with no live `Next`/`unallocated` schema to preserve,
    the existing migration chain is replaced by one provider-neutral initial
    migration. Development SQLite uses a new default database path and a strict
    baseline guard; the prior local database is left untouched. Non-Development
@@ -94,7 +94,7 @@ decision; none is guessed here.
 
 ### 2026-07-25 scope clarification
 
-Malware scanning and external accounts are permanent `Never` boundaries. They
+Malware scanning and external accounts are permanent `Not planned` boundaries. They
 receive no compatibility seam, port, activation path, migration, or deferred
 implementation from this ADR. This clarification preserves the accepted
 provider-neutral intake decision while superseding only the earlier broad

@@ -1,0 +1,29 @@
+<Project>
+  <!--
+    Common build settings for every project in the Collision Renderer solution.
+    Per-project TargetFramework is set in each .csproj (Core/Cli/Api are net8.0;
+    the WinUI Gui is net8.0-windows). Keep this file framework-agnostic.
+  -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!--
+      CS1591: XML doc comments not required.
+      NU1901-1904: Scriban advisories. Accepted: templates are first-party embedded
+      artifacts, never authored by end users at runtime, and all payload data is
+      HTML-encoded and passed as *values* (never compiled). See docs/adr/0010.
+    -->
+    <NoWarn>$(NoWarn);CS1591;NU1901;NU1902;NU1903;NU1904</NoWarn>
+
+    <!-- Product metadata -->
+    <Version>0.2.6</Version>
+    <Company>Collision Engineers Ltd</Company>
+    <Product>Collision Renderer</Product>
+    <Authors>Collision Engineers</Authors>
+    <Copyright>Copyright © Collision Engineers Ltd</Copyright>
+    <RepositoryUrl>https://github.com/collision-engineers/collisionrenderer</RepositoryUrl>
+  </PropertyGroup>
+</Project>

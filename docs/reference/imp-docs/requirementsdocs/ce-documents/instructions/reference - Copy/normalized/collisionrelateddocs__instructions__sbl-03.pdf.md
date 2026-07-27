@@ -1,0 +1,59 @@
+# Normalized Companion: SBL 03.pdf
+
+- Raw source: `docs/reference/raw/collisionrelateddocs/Instructions/SBL 03.pdf`
+- SHA256: `d5106d2067f7576c6873527db59f8868ed8617f2f1334faf22f5a65caf36adee`
+- Extraction method: pypdf-text
+- Extraction confidence: partial-review-required
+- Blocker: No OCR/layout validation in scaffold pass
+
+This companion is a derivative working copy. The raw source remains the source of truth.
+
+---
+
+## Page 1
+
+Asquith House, 130 Asquith Avenue
+Morley, Leeds, West Yorkshire
+LS27 9QX
+URGENT NEW INSTRUCTION
+Instruction Details
+To: Collision Engineers
+Date: 28/04/2026
+From: Smart Business Link
+Introducer: C.A.R.S Collision Accident Recovery Service Ltd
+Claim & Policyholder
+Claim Number: SBL-B0427818
+Incident Date: 12/02/2026
+Claim Type: Credit Repair
+Driver: Ms Jacklyn Gurney
+Policyholder Name: Ms Jacklyn Gurney
+Policyholder VAT Status: Not VAT Registered
+Address: 75 Auckland Street Glasgow,  G22 5NY
+Tel Mobile: 07764511171
+Vehicle & Damage
+Vehicle Make: 	AUDI A1 TFSI S LINE
+Engine Size:
+Registration: L777 GUR
+Vehicle Driveable: Yes
+Vehicle Damage:
+Pre-Existing Damage:
+Incident Circumstances: Hit whilst parked unoccupied
+Agreed Value:
+Current Vehicle Location: At home location
+Repairer Details
+Repairer Name: Motherwell Accident Repair Centre / Scottish Accident
+Repairer Address: 36 Speirs Wharf, Glasgow G4 9TG
+Repairer Tel: 07792089990
+Repairer Email: motherwellarc@outlook.com
+Agreed Labour Rate:
+Insurance & Hire
+Insurance Cover:
+Policy Excess: £0
+Authorise if in order?: Yes
+Hire Supplied:
+Hire Company:
+Hire Out Date:
+Important Notes
+Please confirm by return receipt of instruction. Arrange inspection within 24 hours and provide full report within 48 hours.
+Smart Business Link, Asquith House, 130 Asquith Avenue, Morley, Leeds, West Yorkshire, LS27 9QX
+tel: 01132 898839 | email: claims@smartbusinesslink.com | web: www.smartbusinesslink.com

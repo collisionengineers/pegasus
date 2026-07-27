@@ -1,0 +1,19 @@
+{
+  "meta": {
+    "ourRef": "CE-LH-0001",
+    "date": "01/01/2026"
+  },
+  "title": "Letter of Engagement",
+  "titleRed": false,
+  "salutation": "Dear Sirs,",
+  "intro": [
+    "Thank you for instructing Collision Engineers Ltd in connection with this matter.",
+    "This letterhead provides a clean, branded page for any correspondence that does not fit one of the structured report templates. Add as many paragraphs of free text as the matter requires.",
+    "Please do not hesitate to contact us should you require any further information."
+  ],
+  "signature": {
+    "signatureImage": "andy_patterson",
+    "name": "A. Patterson",
+    "qualifications": "M.Inst.AEA"
+  }
+}

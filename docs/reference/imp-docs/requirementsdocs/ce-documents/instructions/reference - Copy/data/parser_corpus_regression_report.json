@@ -1,0 +1,3332 @@
+{
+  "corpus": "docs/reference/raw/collisionrelateddocs/Instructions",
+  "file_count": 134,
+  "reader_blocker_count": 0,
+  "reader_blockers": [],
+  "provider_counts": {
+    "ALISON": 10,
+    "ALS": 5,
+    "AMS": 5,
+    "AX": 5,
+    "BC": 5,
+    "BLACK": 5,
+    "CNX (Engineers)": 5,
+    "DFD": 5,
+    "EVA (Engineers)": 5,
+    "FW (Garage)": 4,
+    "FW (Solicitor)": 1,
+    "HDUK": 5,
+    "KBS": 5,
+    "KERR": 5,
+    "KMR": 5,
+    "MP (Branded)": 3,
+    "MP (Simple)": 8,
+    "OAK": 5,
+    "PCH (Lawshield)": 3,
+    "PCH (Performance)": 7,
+    "QCL": 5,
+    "QDOS": 5,
+    "RJS": 5,
+    "SBL": 5,
+    "SWAN": 5,
+    "TEN": 5,
+    "UNKNOWN": 3
+  },
+  "reader_counts": {
+    "extract_msg": 15,
+    "olefile_worddocument": 35,
+    "pdf_image_metadata": 1,
+    "pymupdf_blocks": 55,
+    "pymupdf_ocr_fallback": 6,
+    "python_docx_ooxml": 17,
+    "rtf_plain_text": 5
+  },
+  "blocker_counts": {
+    "missing_inspection_address": 3,
+    "missing_mileage": 120,
+    "missing_mileage_unit": 121,
+    "missing_vat_status": 106,
+    "missing_vrm": 2,
+    "not_instruction_export_candidate": 3
+  },
+  "warning_counts": {
+    "image_only_pdf_requires_review": 1,
+    "ocr_fallback_used": 6,
+    "pdf_page_no_text": 1,
+    "provider_not_detected": 3
+  },
+  "files": [
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/__Images 01.docx",
+      "sha256": "e6fcc03186984f416a190fd2b0389393f9cd277dc7e40de25378ca9524ed0abb",
+      "document_classification": "image_pack",
+      "reader_method": "python_docx_ooxml",
+      "detected_provider": "UNKNOWN",
+      "blockers": [
+        "not_instruction_export_candidate"
+      ],
+      "warnings": [
+        "provider_not_detected"
+      ],
+      "nonempty_fields": []
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/__Images 02.pdf",
+      "sha256": "f4e63b242eb2028da48a21eee45bd4bb8fe08b96ab6b3f9e277af94dc417bd3d",
+      "document_classification": "image_pack",
+      "reader_method": "pdf_image_metadata",
+      "detected_provider": "UNKNOWN",
+      "blockers": [
+        "not_instruction_export_candidate"
+      ],
+      "warnings": [
+        "image_only_pdf_requires_review",
+        "provider_not_detected"
+      ],
+      "nonempty_fields": []
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/__Images 03.pdf",
+      "sha256": "b22aafff212825938aaffd0d933aed3342057685740d61b07705dd5029f0c93e",
+      "document_classification": "image_pack",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "UNKNOWN",
+      "blockers": [
+        "not_instruction_export_candidate"
+      ],
+      "warnings": [
+        "provider_not_detected"
+      ],
+      "nonempty_fields": [
+        "reference"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/ALISON PDF 01.pdf",
+      "sha256": "d70b613c47138d65af56aeb3313ba86d416742e29d12f5275b9474175fcdf263",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "ALISON",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/ALISON PDF 02.pdf",
+      "sha256": "4245ad8fb9d0216bbc3a6e91ac7b79a4729ab5496963fca2e06ba9b597781b72",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "ALISON",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/ALISON PDF 03.pdf",
+      "sha256": "7bb3cace40cd619269c36ac7f2f1777d96a8b32b50fd1b8e6d45167fc0d91201",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "ALISON",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/ALISON PDF 04.pdf",
+      "sha256": "c9c48af52fbb4fdd8b5d1583d46113ab40e54e3d79372609b4037bd296bb462e",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "ALISON",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/ALISON PDF 05.pdf",
+      "sha256": "e6c1d1888d9b00b708cac9ed61f375dfb4a2809daea6495b2ef7d49c914f710b",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "ALISON",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/ALISON WORD 01.docx",
+      "sha256": "0bb5640eadfe71c8fa7bca3cf03fdb123ae1d05dd2c6bac61e2054bdba389367",
+      "document_classification": "instruction",
+      "reader_method": "python_docx_ooxml",
+      "detected_provider": "ALISON",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/ALISON WORD 02.docx",
+      "sha256": "b3b79b5001145457e06af78998174fa2be4608b474d6c8ede9117c52fd0702b6",
+      "document_classification": "instruction",
+      "reader_method": "python_docx_ooxml",
+      "detected_provider": "ALISON",
+      "blockers": [
+        "missing_vrm",
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/ALISON WORD 03.docx",
+      "sha256": "ceb3b496e36c9d4ca749982fc008df4a49f500b15b5c7c4f8636deb200e64bf8",
+      "document_classification": "instruction",
+      "reader_method": "python_docx_ooxml",
+      "detected_provider": "ALISON",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/ALISON WORD 04.docx",
+      "sha256": "1ca54f46c1d2c46f09d47343dc86f28b9fdbbd048b21812e450002e973183c2c",
+      "document_classification": "instruction",
+      "reader_method": "python_docx_ooxml",
+      "detected_provider": "ALISON",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/ALISON WORD 05.docx",
+      "sha256": "05415183569f8b71fcd899e5385b6be6e24fb5f5ad90d43daee107b684d3f7fd",
+      "document_classification": "instruction",
+      "reader_method": "python_docx_ooxml",
+      "detected_provider": "ALISON",
+      "blockers": [
+        "missing_vrm",
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/ALS 01.DOC",
+      "sha256": "573a1db2e96f1c3d924fd04fceff5d24378d34a070f884b030a5f95a44de3f35",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "ALS",
+      "blockers": [
+        "missing_mileage",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vat_status",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/ALS 02.DOC",
+      "sha256": "1d27d037ad10f3ff84abe9b82b1389100a73f713d2ac4feade8db6ff20439578",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "ALS",
+      "blockers": [
+        "missing_mileage",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vat_status",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/ALS 03.DOC",
+      "sha256": "a70a4e486150780f7ea05c3776aeea696091c3b80cc369659786b8c38be94911",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "ALS",
+      "blockers": [
+        "missing_mileage",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vat_status",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/ALS 04.DOC",
+      "sha256": "ed85af2000f47314f4b0d3a6620b62e8a316b0de8dab98e9d50ce607bbf4c7be",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "ALS",
+      "blockers": [
+        "missing_mileage",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vat_status",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/ALS 05.DOC",
+      "sha256": "f53eaceac1c0b31b8052af04ecda4272be0e0030aac996d25ead38b471c0586b",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "ALS",
+      "blockers": [
+        "missing_mileage",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vat_status",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/AMS 01.DOC",
+      "sha256": "30ba3639d8b2804010f077e125f287c0ffe9e763aee1224b44f5596a2cd447f6",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "AMS",
+      "blockers": [
+        "missing_inspection_address",
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/AMS 02.DOC",
+      "sha256": "d17d499ae88bc9185b3a8b6a29966ff090568860f41be08d27e1d445af0ee1e1",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "AMS",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/AMS 03.DOC",
+      "sha256": "2f8f667454834c8e296c77e21af27f5eb5ed0978ddd398771dd95090f0434d62",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "AMS",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/AMS 04.DOC",
+      "sha256": "6876f5bf0884c0ae7dc036acf11336091309568aae2ef75166a152a098472d10",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "AMS",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/AMS 05.DOC",
+      "sha256": "2766088b7daffbf1e179222df7bbe85634c0eff014a3785b190eac8245b40102",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "AMS",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/AX 01.pdf",
+      "sha256": "58e6bdf408d46c547efe6bf4c168fe878b028b8ff9c8692fa78ecbe37180df3f",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "AX",
+      "blockers": [
+        "missing_mileage",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vat_status",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/AX 02.pdf",
+      "sha256": "74a6f73c862efc079208f816727ddff5a4e16f1114290e7c74743ccf37a2e992",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "AX",
+      "blockers": [
+        "missing_mileage",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vat_status",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/AX 03.pdf",
+      "sha256": "c94df8b20c8e7bc90d2c910099ed62fcd3e1fd2cbf2dafec7db06eaab33cca5a",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "AX",
+      "blockers": [
+        "missing_mileage",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vat_status",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/AX 04.pdf",
+      "sha256": "2d8e3e0eced74dc915b028f6b8a4ef064efffc27f63c1be7741f8dae1dad4985",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "AX",
+      "blockers": [
+        "missing_mileage",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vat_status",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/AX 05.pdf",
+      "sha256": "0f6cde6ed6caf12f30305afd530333f0b7d580e8affe0ecd0491400cbc9ec777",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "AX",
+      "blockers": [
+        "missing_mileage",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vat_status",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/BC 01.DOC",
+      "sha256": "a917a59c8ac78c4f5887f14544497899612b8503f443b7841601e66567f65544",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "BC",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/BC 02.DOC",
+      "sha256": "44b4f5665b21723befa2e13712a553d236e23d862ed2061f964212477eb33adf",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "BC",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/BC 03.DOC",
+      "sha256": "b031745bb46d740cad472cc4be29705a338e819ebf3c7981033fad447cbd3809",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "BC",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/BC 04.DOC",
+      "sha256": "4240c22b2de79ba94dbbe87aeab675e329b9c8507af864bd2250ce35b664a87c",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "BC",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/BC 05.DOC",
+      "sha256": "1363d914b187c57d6a75f26da31c183c61ce30862c160b9120926153aae1efe5",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "BC",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/BLACK 01.pdf",
+      "sha256": "bf9f91b87f71dec6ecbea3f77d54c0522867c9a446599a1ebf5f03d859fa4385",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "BLACK",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/BLACK 02.pdf",
+      "sha256": "7deb35748a1bff7f8804f312b1cee297c0abfdc4323474ab9e3142cf909fb834",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "BLACK",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/BLACK 03.pdf",
+      "sha256": "201fb07ae667c1300ca773f24c6dee1e66e8eb63364e30932ff626e660e98071",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "BLACK",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/BLACK 04.pdf",
+      "sha256": "89aaec4f52eb417ed7207319a8e7d2171b70d364f5f944b494b3e222de60afcd",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "BLACK",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/BLACK 05.pdf",
+      "sha256": "a0a1ae68d7f000d2d0fcf0e2db9e8185c53edc9a9a67b30c37466e95ec855419",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "BLACK",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/CNX 01.pdf",
+      "sha256": "0082a0cba98af3e7e408b6f48724c6e9a64bb7f72aa5b1e08ad7d511b71f6b8a",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "CNX (Engineers)",
+      "blockers": [
+        "missing_vat_status"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "mileage",
+        "mileage_unit",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/CNX 02.pdf",
+      "sha256": "5dc091471954e509f9d324a7fe5aee8a1d08aac03cb39f66376de19b163e2b13",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "CNX (Engineers)",
+      "blockers": [
+        "missing_vat_status"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "mileage",
+        "mileage_unit",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/CNX 03.pdf",
+      "sha256": "2daa97f7316cf3253fe2ee461c3c5a03d0bb6920afd28e06310105d8a67e2c08",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "CNX (Engineers)",
+      "blockers": [
+        "missing_vat_status"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "mileage",
+        "mileage_unit",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/CNX 04.pdf",
+      "sha256": "e3254af9becdfbc6ccaf7e88bdfb81059bb415d3b08396200db05ef20e8f5259",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "CNX (Engineers)",
+      "blockers": [
+        "missing_vat_status"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "mileage",
+        "mileage_unit",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/CNX 05.pdf",
+      "sha256": "d239bc8de8deef86afd2c49aed03f92ab4d4fd36473af2c8a46e2da9db41be97",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "CNX (Engineers)",
+      "blockers": [
+        "missing_vat_status"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "mileage",
+        "mileage_unit",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/DFD 01.pdf",
+      "sha256": "a8eebc6d0c4088cd8d7a1ccff8dc690a5f8a13c96457d1bc04b1aed7b4930782",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "DFD",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/DFD 02.pdf",
+      "sha256": "10f47df9a02a19c111e0ad07d9f739e904b4665fbe8a452640f4f7a1814fb72d",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "DFD",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/DFD 03.pdf",
+      "sha256": "bc276820f055a184e8ca0f977b59e5bcdeb703ed15ebff24772f24511d0760d1",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "DFD",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/DFD 04.pdf",
+      "sha256": "6b27e492c18fbb4fde08ec059acbc3a79a18e2db4fa5036dfbae32224d96744b",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "DFD",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/DFD 05.pdf",
+      "sha256": "ee4fab522c6f4bb5b3fbc693f405ac6282aa166d9af5bf9868f0f9a0d728019d",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "DFD",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/EVA 01.pdf",
+      "sha256": "4138321abc9549c0877abe2b80352c8b8cd788c91ccd1733cc4e5d3b7b5048ec",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "EVA (Engineers)",
+      "blockers": [
+        "missing_vat_status"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "mileage",
+        "mileage_unit",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/EVA 02.pdf",
+      "sha256": "c60e8d2aa70b1ae9a114bf6b435ec51f0c514b689af5f7a3790da0df51d1094a",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "EVA (Engineers)",
+      "blockers": [
+        "missing_vat_status"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "mileage",
+        "mileage_unit",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/EVA 03.pdf",
+      "sha256": "e47b592e6f01d9db9a2a92cc57c0442af439bebb58d6fda222fc1b17a1ddcd63",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "EVA (Engineers)",
+      "blockers": [
+        "missing_vat_status"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "mileage",
+        "mileage_unit",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/EVA 04.pdf",
+      "sha256": "32b1c1872ada54ab4fa239efe23f0ba4e1e6a5169707893028bcbf6901e777b3",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "EVA (Engineers)",
+      "blockers": [
+        "missing_vat_status"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "mileage",
+        "mileage_unit",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/EVA 05.pdf",
+      "sha256": "03c21b65aa79f2816b4a13ee013628697e11b5779a8804d4e2dd7d6c176a4b07",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "EVA (Engineers)",
+      "blockers": [
+        "missing_vat_status"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "mileage",
+        "mileage_unit",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/FW 01.msg",
+      "sha256": "448cb639dffea48acb76c3cc68d3457028e7c600c06caa4e166d236266503512",
+      "document_classification": "email",
+      "reader_method": "extract_msg",
+      "detected_provider": "FW (Garage)",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/FW 02.msg",
+      "sha256": "db2572722d94ead8f15337368eec36ea6cfaa72f1a62f1d07bb6fbfc7f8e4d50",
+      "document_classification": "email",
+      "reader_method": "extract_msg",
+      "detected_provider": "FW (Solicitor)",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/FW 03.msg",
+      "sha256": "34e712ed176dc36135ed4e55badea0ff3c9897a8ea6d25fbad976e590223e45f",
+      "document_classification": "email",
+      "reader_method": "extract_msg",
+      "detected_provider": "FW (Garage)",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/FW 04.msg",
+      "sha256": "071dd9a8f16c16b368d52742848fae65fb1d79912e176a4abc49163a76b724d1",
+      "document_classification": "email",
+      "reader_method": "extract_msg",
+      "detected_provider": "FW (Garage)",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/FW 05.msg",
+      "sha256": "cd6df4397aec439baa5223bb549a4e0579ab9e6c09fc935e5159f3ac10a5bfa3",
+      "document_classification": "email",
+      "reader_method": "extract_msg",
+      "detected_provider": "FW (Garage)",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/HDUK 01.pdf",
+      "sha256": "37f70f707fa710d81c09abb3ccda02c61292a37fa3665d4dccc4ce20c6c8cfc6",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "HDUK",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/HDUK 02.pdf",
+      "sha256": "1567e1393f0a1d7c3cd609664b58fa4697cc30cfe57a8feb60ae741240f06e69",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "HDUK",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/HDUK 03.pdf",
+      "sha256": "f1540a0c96e4d32d703b4faab7ed1ed2621e755d7395bd426da3288693688db2",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "HDUK",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/HDUK 04.pdf",
+      "sha256": "8dc9d4b59b85feb64eed9fc7a3dbc020170f002c82363372af5768411aa888b9",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "HDUK",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/HDUK 05.pdf",
+      "sha256": "6708f0e9f46186a4ef7a5972271b05ac7ed8873d628b42940a5ef323bdf6d906",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "HDUK",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/KBS 01.docx",
+      "sha256": "bcc96a21cb4418349f0a720c1b64545560b058d8ea7d19162bd2e8d1b2397730",
+      "document_classification": "instruction",
+      "reader_method": "python_docx_ooxml",
+      "detected_provider": "KBS",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/KBS 02.pdf",
+      "sha256": "882c6ed6d2c78599b1d5bab4013a25288f1d9cc64b9c3ab0b58b4e68df5e7db8",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "KBS",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/KBS 03.pdf",
+      "sha256": "ab970f4d2b22e4665ba0240f26129f3247e7a091822e734c0a129b7c5b99f22f",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "KBS",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/KBS 04.pdf",
+      "sha256": "cbc01789c2808a572006880a02bc97962c3a57252e23b94061bc5a35d0c87b0e",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "KBS",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/KBS 05.pdf",
+      "sha256": "7bdd91f82cb2877de5e231bdacf2335f65b8d2e3308c96f479c39eb1a8d4c3fe",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "KBS",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/KERR 01.msg",
+      "sha256": "73c0d6cdaac90c7392c24ed7ec1f38fd30e45ec664b4fcccadfaff0bbebe550f",
+      "document_classification": "email",
+      "reader_method": "extract_msg",
+      "detected_provider": "KERR",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/KERR 02.msg",
+      "sha256": "ee086c4a796f271f1b1d773784fa86d3f09736cc90f99e41056d007768d2cf41",
+      "document_classification": "email",
+      "reader_method": "extract_msg",
+      "detected_provider": "KERR",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/KERR 03.msg",
+      "sha256": "60807a55b75d7511e98bb721f286a113f7662926444e5002c325b2e6bba2a2c2",
+      "document_classification": "email",
+      "reader_method": "extract_msg",
+      "detected_provider": "KERR",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/KERR 04.msg",
+      "sha256": "754e165a6d9c0075aef20c06c3394e993aec615e1d1e95720e8fc7a8afef8db4",
+      "document_classification": "email",
+      "reader_method": "extract_msg",
+      "detected_provider": "KERR",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/KERR 05.msg",
+      "sha256": "78813ea0d2fa5bb10e73d2cc4c623ccdd0ca0e24738de5e97256890320306dc7",
+      "document_classification": "email",
+      "reader_method": "extract_msg",
+      "detected_provider": "KERR",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/KMR 01.pdf",
+      "sha256": "d7dd8d77204b224f7f5a212b5dc64ad868bd040da71de87d93a0d8947480011a",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "KMR",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/KMR 02.pdf",
+      "sha256": "57d9ce853f2559f641a2da5ababe19288f00b68b47931556369a4d94dd3e7f9f",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "KMR",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/KMR 03.pdf",
+      "sha256": "75eae4d900a747e6cac9cccfaa976b1cf010f79d15eb2bc4b82aab6ae622eac1",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "KMR",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/KMR 04.pdf",
+      "sha256": "900ca6d59ba3902aee61527aa84953d0c52842da487cd71a08057703fb5954cb",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "KMR",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/KMR 05.pdf",
+      "sha256": "c62f1592bd495c43495074d5307ee0502efc949bdf68c9da0ed94e421de7a3d3",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "KMR",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/LAW 01.DOC",
+      "sha256": "b74f3882372e66e825725bb439547e5cb30542aeb4c5156ccf6cf88fa4995b78",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "PCH (Performance)",
+      "blockers": [
+        "missing_mileage",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vat_status",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/LAW 02.DOC",
+      "sha256": "a413b4a4f1ebe3f73917f46c3ef4f5c96cf5f09a8aef955a1f6af962c57bf510",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "PCH (Lawshield)",
+      "blockers": [
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "mileage",
+        "reference",
+        "vat_status",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/LAW 03.DOC",
+      "sha256": "84911f291873ecb06976cab0085fe2a794a5d5fadad944f325a3491b1cf7115c",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "PCH (Lawshield)",
+      "blockers": [
+        "missing_mileage",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vat_status",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/LAW 04.DOC",
+      "sha256": "6ee09293e270ec95d67f906bb9d5e5b608a8678594a1842ec17e62d1f75b4d0a",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "PCH (Performance)",
+      "blockers": [
+        "missing_mileage",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vat_status",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/LAW 05.DOC",
+      "sha256": "90b91354897139ffccc1e29cd5e103d8ba3024cbcdd54b24cac2176ff6f017ad",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "PCH (Lawshield)",
+      "blockers": [
+        "missing_mileage",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vat_status",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/MP PDF 01.pdf",
+      "sha256": "79097baeec1eac46bb9a34afe67945d398df93a621857179c793f2cff5d5d3f4",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_ocr_fallback",
+      "detected_provider": "MP (Simple)",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [
+        "ocr_fallback_used"
+      ],
+      "nonempty_fields": [
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/MP PDF 02.pdf",
+      "sha256": "bf8092e4bd7e47407590a20784173bc185b5d68b265451a7b71d4a6214eafe82",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_ocr_fallback",
+      "detected_provider": "MP (Simple)",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [
+        "ocr_fallback_used"
+      ],
+      "nonempty_fields": [
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/MP PDF 03.pdf",
+      "sha256": "b33f7e55b179a8a12b2f1a59d2360f12f8b1e49fd65b673e8b7544ce913967f5",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_ocr_fallback",
+      "detected_provider": "MP (Simple)",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [
+        "ocr_fallback_used"
+      ],
+      "nonempty_fields": [
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/MP PDF 04.pdf",
+      "sha256": "6f799851135947ec05c90d464eb6266bad570f0fe1a7e13ae9992b1b6071e917",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_ocr_fallback",
+      "detected_provider": "MP (Simple)",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [
+        "ocr_fallback_used"
+      ],
+      "nonempty_fields": [
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/MP Weird 01.pdf",
+      "sha256": "277b0531273e350ebd60f5820024e9a40e45b71d7d5e0157d11c84c1ac9a0541",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_ocr_fallback",
+      "detected_provider": "MP (Branded)",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [
+        "ocr_fallback_used"
+      ],
+      "nonempty_fields": [
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/MP Weird 02.pdf",
+      "sha256": "89413ad58022e75f3592c377d0c0f572d8ba8325722090775334178ca94be098",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_ocr_fallback",
+      "detected_provider": "MP (Branded)",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [
+        "ocr_fallback_used"
+      ],
+      "nonempty_fields": [
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/MP Word 01.doc",
+      "sha256": "fcd72fbe7d3058f27c1552c2e91d910b055a15834e22177e27c1c67e1fda83d3",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "MP (Simple)",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/MP Word 02.doc",
+      "sha256": "cd2b104f88a4674ba99251e1940268c709ff1c78a90eba4a7dfdb4ff5e66e0f3",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "MP (Simple)",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/MP Word 03.doc",
+      "sha256": "18fa98723d35429de6ff75e955beaee59cdd63c87b3169092566178b2f43b654",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "MP (Simple)",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/MP Word 04.doc",
+      "sha256": "b494d5e063beb991b4ab4239f11465dc189a3d8ec29afcebb7976490b357ad56",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "MP (Branded)",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/MP Word 05.doc",
+      "sha256": "c0aa299d0affab6ef2696ac11b7e5edb83d504d4ffcb5893874161c9159d53b5",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "MP (Simple)",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/OAK 01.DOC",
+      "sha256": "2253a09ce674ef3e52548694f14d9b00e989789212acb210f4766ecd35979da7",
+      "document_classification": "instruction",
+      "reader_method": "rtf_plain_text",
+      "detected_provider": "OAK",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/OAK 02.DOC",
+      "sha256": "22395559092263e89dd7440e61e26521a0f693e87355ccdaf5f64bae77b06d4e",
+      "document_classification": "instruction",
+      "reader_method": "rtf_plain_text",
+      "detected_provider": "OAK",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/OAK 03.DOC",
+      "sha256": "9955964e26c7867805685736d9d9bc9d59286c0717440ef73e4b92fd71dda780",
+      "document_classification": "instruction",
+      "reader_method": "rtf_plain_text",
+      "detected_provider": "OAK",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/OAK 04.DOC",
+      "sha256": "53abdd7c3c833168d0a41d08c809709c749c91fafed710dd755f197fe5fe3a02",
+      "document_classification": "instruction",
+      "reader_method": "rtf_plain_text",
+      "detected_provider": "OAK",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/OAK 05.DOC",
+      "sha256": "70424671cf11e236e570db5bf0f806a23499d7d663f857f0a2c73c67e3c89b41",
+      "document_classification": "instruction",
+      "reader_method": "rtf_plain_text",
+      "detected_provider": "OAK",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/PCH 01.DOC",
+      "sha256": "87181b81f0fd3c59001178be782bcdfdb0efd504bb311491329d50896dbb94a4",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "PCH (Performance)",
+      "blockers": [
+        "missing_mileage",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vat_status",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/PCH 02.DOC",
+      "sha256": "66f29af7613f63cc6c8ce13286db9905e6456574ebdb8aa9308806ca494746bd",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "PCH (Performance)",
+      "blockers": [
+        "missing_mileage",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vat_status",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/PCH 03.DOC",
+      "sha256": "e9242909d2e4be91e35a4c90ada904f2d832fca3e126d2ea224bc1d0cc4d6a27",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "PCH (Performance)",
+      "blockers": [
+        "missing_mileage",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vat_status",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/PCH 04.DOC",
+      "sha256": "a2fa3a75cb7aee3fcb634692dc8abc3cdebd56fa7be7fb5471f62439d1aeb80c",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "PCH (Performance)",
+      "blockers": [
+        "missing_mileage",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vat_status",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/PCH 05.DOC",
+      "sha256": "e5e6a84abe062fc5130d77b950a7fb5465f46560eb99879fc9171f0e4bafca05",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "PCH (Performance)",
+      "blockers": [
+        "missing_mileage",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vat_status",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/QCL 01.docx",
+      "sha256": "cb6b0f120d2e8d06a2e79e0b97f6326ab12395a1c9cfc60cc3f8ad6e1744bac7",
+      "document_classification": "instruction",
+      "reader_method": "python_docx_ooxml",
+      "detected_provider": "QCL",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/QCL 02.docx",
+      "sha256": "94f1c9c9af4881d20a18a6ba3819970273dc1c66ebe71b18f8d29ed6807131c7",
+      "document_classification": "instruction",
+      "reader_method": "python_docx_ooxml",
+      "detected_provider": "QCL",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/QCL 03.docx",
+      "sha256": "a0cc054eb8060172428cad0cc8621cd019c45efa929fb453d42960782dbff474",
+      "document_classification": "instruction",
+      "reader_method": "python_docx_ooxml",
+      "detected_provider": "QCL",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/QCL 04.docx",
+      "sha256": "e37143b3f73ada187db9ff4e196778f40ddd4ca7f302508d5285cdcae7170a2e",
+      "document_classification": "instruction",
+      "reader_method": "python_docx_ooxml",
+      "detected_provider": "QCL",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/QCL 05.docx",
+      "sha256": "4cee9b8ef41dccdbc2db90685ec1fef3fc00eba13dd28da8b09d44503259433a",
+      "document_classification": "instruction",
+      "reader_method": "python_docx_ooxml",
+      "detected_provider": "QCL",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/QDOS 01.pdf",
+      "sha256": "21ad661ea450a7d05a082da8742f5ea0d6bb6917db5b5b290ab2dabe78c04ede",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "QDOS",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/QDOS 02.pdf",
+      "sha256": "854ad91f463010780fc91e9c08961546d05c5c6f29cdf8320ae0fdad52d94d91",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "QDOS",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/QDOS 03.pdf",
+      "sha256": "f6961bc33ec46f3e6312f9818f12b1b116a1645407f7e342c0d41806be88efef",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "QDOS",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [
+        "pdf_page_no_text"
+      ],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/QDOS 04.pdf",
+      "sha256": "c78c2dcf87c3f2949cbe446840cbaa17cd54098b89b9972a43a84309d2cdc56b",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "QDOS",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/QDOS 05.pdf",
+      "sha256": "080bec20fd211188ca8e19404ff518ed8396c348e381c6d2a2fda53fd0f0af94",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "QDOS",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/RJS 01.DOC",
+      "sha256": "2df5be4f88b9830b456169601b01baf73cd8a3a514304507db4d87f09989f467",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "RJS",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/RJS 02.DOC",
+      "sha256": "20a755f5fa2d5b8229665e3bee136b0148bf1aa218eda5c976403cd669cb3e8d",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "RJS",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/RJS 03.DOC",
+      "sha256": "a8718e95523dd99230583153d03236984d95a5b12cd63f02b1cc78320ccd215d",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "RJS",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/RJS 04.DOC",
+      "sha256": "bd1b55ea9ea8861665e252697a78fd04113f5032efc5c2127e372ebf51c4d118",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "RJS",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/RJS 05.DOC",
+      "sha256": "4e789343422d0d79c4fa1b021b06ba2acdf318e72018e2732384bef31a220b26",
+      "document_classification": "instruction",
+      "reader_method": "olefile_worddocument",
+      "detected_provider": "RJS",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/SBL 01.pdf",
+      "sha256": "fa2d7e6abe04830ac29bd5faa7b9452212a6bc91d636cfddf10510c821780fc8",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "SBL",
+      "blockers": [
+        "missing_mileage",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vat_status",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/SBL 02.pdf",
+      "sha256": "7cd71550bb2d0d782885928036c23818b6db877cac97db30d55e76ca47d62866",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "SBL",
+      "blockers": [
+        "missing_mileage",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vat_status",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/SBL 03.pdf",
+      "sha256": "d5106d2067f7576c6873527db59f8868ed8617f2f1334faf22f5a65caf36adee",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "SBL",
+      "blockers": [
+        "missing_mileage",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vat_status",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/SBL 04.pdf",
+      "sha256": "3fd4d9cd2f7895579f51afcaf055f43e465038125543f198046109fd313dd99b",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "SBL",
+      "blockers": [
+        "missing_mileage",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vat_status",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/SBL 05.pdf",
+      "sha256": "436db268cf7cb824ef089e08399879b4f7f78a65bf3c2b0f515d043c44bb3e00",
+      "document_classification": "instruction",
+      "reader_method": "pymupdf_blocks",
+      "detected_provider": "SBL",
+      "blockers": [
+        "missing_mileage",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "accident_circumstances",
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vat_status",
+        "vehicle_model",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/SWAN 01.docx",
+      "sha256": "d8eab26c5a7c522c17901c2d81be4729f74b628159df0c7c48f8bb9c4cc74d89",
+      "document_classification": "instruction",
+      "reader_method": "python_docx_ooxml",
+      "detected_provider": "SWAN",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/SWAN 02.docx",
+      "sha256": "c9ef76a0a46d95bc8a31257444534a16c1d850d898c45134faca64131cf793e9",
+      "document_classification": "instruction",
+      "reader_method": "python_docx_ooxml",
+      "detected_provider": "SWAN",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/SWAN 03.docx",
+      "sha256": "81ebf171fe46979ef9fa3effbe61e16789b4b6f5e8f7044bdc445d87c4206111",
+      "document_classification": "instruction",
+      "reader_method": "python_docx_ooxml",
+      "detected_provider": "SWAN",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/SWAN 04.docx",
+      "sha256": "4929e82195367e24c89fa5491c2f91688c7b2c74d49fde67f3555688a2dc4e48",
+      "document_classification": "instruction",
+      "reader_method": "python_docx_ooxml",
+      "detected_provider": "SWAN",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/SWAN 05.docx",
+      "sha256": "8723a19be7759b81dec2ddc905c74ff42464f4a740ca925a2a5ab770396cc7d2",
+      "document_classification": "instruction",
+      "reader_method": "python_docx_ooxml",
+      "detected_provider": "SWAN",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/TEN 01.msg",
+      "sha256": "aaf2aad0843e9af2dea3071c51d0dba3751001d38b9f9626de422c4c07b04f96",
+      "document_classification": "email",
+      "reader_method": "extract_msg",
+      "detected_provider": "TEN",
+      "blockers": [
+        "missing_inspection_address",
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "claimant_name",
+        "incident_date",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/TEN 02.msg",
+      "sha256": "6bb564894574ce70f207f2b935ed17ce19c5687cd19c24196e33151530cae080",
+      "document_classification": "email",
+      "reader_method": "extract_msg",
+      "detected_provider": "TEN",
+      "blockers": [
+        "missing_inspection_address",
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "claimant_name",
+        "incident_date",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/TEN 03.msg",
+      "sha256": "7367847b975ce2df915976c6468f0fe97f1decf00470d014065d6cf2c1e18ec4",
+      "document_classification": "email",
+      "reader_method": "extract_msg",
+      "detected_provider": "TEN",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/TEN 04.msg",
+      "sha256": "1379514b350f47312fc3ea405033f4abe87f6babffea4e19c46f23c1e25e4b44",
+      "document_classification": "email",
+      "reader_method": "extract_msg",
+      "detected_provider": "TEN",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    },
+    {
+      "path": "docs/reference/raw/collisionrelateddocs/Instructions/TEN 05.msg",
+      "sha256": "1cf3dd85a35c30250eece4a684b204f3a8285bee1e2a3fa6b39feda4620ad3dc",
+      "document_classification": "email",
+      "reader_method": "extract_msg",
+      "detected_provider": "TEN",
+      "blockers": [
+        "missing_mileage",
+        "missing_vat_status",
+        "missing_mileage_unit"
+      ],
+      "warnings": [],
+      "nonempty_fields": [
+        "claimant_name",
+        "incident_date",
+        "inspection_address",
+        "inspection_date",
+        "instruction_date",
+        "reference",
+        "vrm",
+        "work_provider"
+      ]
+    }
+  ]
+}

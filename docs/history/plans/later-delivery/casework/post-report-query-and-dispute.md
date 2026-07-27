@@ -4,12 +4,12 @@
 
 Primary plan: `P-POST`
 
-Feature: `CASE-23` — V2 beta.
+Feature: `CASE-23` — `Next`/`unallocated`.
 Pre-conversion status: **Planned; no post-report Core owner or caller is implemented.**
 
 ## Scope, dependency and boundary
 
-Extend the settled case lifecycle for post-report queries/disputes without making an Outlook thread, message move, or external reply the authority for a case transition. Dependencies are the V1 lifecycle, case identity/action history, source custody, approved operator UI route, and intended Outlook evidence adapter. The named automatic mailbox association policy is additionally gated by the mailbox decision dossier; staff-originated casework need not wait for that gate.
+Extend the settled case lifecycle for post-report queries/disputes without making an Outlook thread, message move, or external reply the authority for a case transition. Dependencies are the `0.1.0-alpha.1` lifecycle, case identity/action history, source custody, approved operator UI route, and intended Outlook evidence adapter. The named automatic mailbox association policy is additionally gated by the mailbox decision dossier; staff-originated casework need not wait for that gate.
 
 ## Resolve post-report queries and disputes
 

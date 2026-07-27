@@ -2,11 +2,11 @@
 
 - Status: Accepted; embedded engine selected by ADR-0003; scan qualification refined by ADR-0005
 - Date: 2026-07-23
-- Owners: Alex and the CollisionSpike v2 development team
+- Owners: Alex and the Pegasus `Next`/`unallocated` development team
 
 ## Context
 
-CollisionSpike v2 must extract case information from ordinary PDFs and scanned
+Pegasus `Next`/`unallocated` must extract case information from ordinary PDFs and scanned
 PDFs received as work instructions. The expected workload is approximately 2,000
 cases per month. Original documents remain authoritative and are stored in Box.
 
@@ -24,11 +24,11 @@ unavailable; it must remain a visible terminal or manual-review outcome.
 
 ## Decision
 
-CollisionSpike v2 will use a hybrid extraction pipeline:
+Pegasus `Next`/`unallocated` will use a hybrid extraction pipeline:
 
 1. Preserve the original PDF in Box and calculate a content hash.
 2. Pass the PDF to a proven, maintained PDF engine; do not implement the PDF file
-   format or glyph decoder in CollisionSpike code.
+   format or glyph decoder in Pegasus code.
 3. Extract text, page numbers, reading order, and coordinates from PDFs that
    contain usable embedded text.
 4. Send only scan-like pages to Azure Document Intelligence `prebuilt-read` OCR:
@@ -45,7 +45,7 @@ CollisionSpike v2 will use a hybrid extraction pipeline:
 8. Retain the extractor version, source locations, OCR confidence where present,
    and staff corrections in permanent action history.
 
-The first MVP will not use Azure custom extraction or generative extraction
+The `0.1.0-alpha.1` will not use Azure custom extraction or generative extraction
 models. Our custom provider rules are application code and do not constitute an
 Azure custom model.
 
@@ -90,7 +90,7 @@ UK South Azure price and the measured proportion of pages requiring OCR.
 
 ### Positive
 
-- Provider field rules remain deterministic, testable, and owned by CollisionSpike.
+- Provider field rules remain deterministic, testable, and owned by Pegasus.
 - Scanned documents remain supported without maintaining our own OCR engine.
 - Ordinary PDFs do not incur an avoidable per-page processing charge.
 - The PDF engine and OCR provider can be replaced behind stable application contracts.

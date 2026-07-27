@@ -1,12 +1,12 @@
 # Parser boundary and version provenance
 
-**Operator decision:** Rejected as v2 architecture and dealt with on 2026-07-24. The useful principles are already required by current v2; the predecessor service and engine-ownership mechanics are not adopted.
+**Operator decision:** Rejected as `Next`/`unallocated` architecture and dealt with on 2026-07-24. The useful principles are already required by current `Next`/`unallocated`; the predecessor service and engine-ownership mechanics are not adopted.
 
 **Legacy sources dealt with:** ADR-0004 (`../dealt-with/rejected/0004-parser-as-azure-function-inline.md`), ADR-0018 (`../dealt-with/rejected/0018-cedocumentmapper-dual-target-vendored-engine.md`), and ADR-0035 (`../dealt-with/rejected/0035-cedocumentmapper-engine-repository-consolidation.md`).
 
 ADR-0022 (`../dealt-with/rejected/0022-retroactive-case-reconstruction.md`) was subsequently rejected and dealt with as a separate predecessor workflow decision. It is not an approved parser caller or case-creation path.
 
-## Current v2 position
+## Current `Next`/`unallocated` position
 
 ### Accepted architecture
 
@@ -19,29 +19,29 @@ ADR-0022 (`../dealt-with/rejected/0022-retroactive-case-reconstruction.md`) was 
 
 The current real path is:
 
-`POST /Intake/Upload` -> [`UploadModel.OnPostAsync`](../../../src/CollisionSpike.Web/Pages/Intake/Upload.cshtml.cs) -> [`ProcessIntake`](../../../src/CollisionSpike.Core/Intake/ProcessIntake.cs) -> Core [`IIntakeSourceReader`](../../../src/CollisionSpike.Core/Intake/IntakeContracts.cs) -> Infrastructure [`MimeKitPdfPigOpenXmlIntakeSourceReader`](../../../src/CollisionSpike.Infrastructure/Intake/MimeKitPdfPigOpenXmlIntakeSourceReader.cs).
+`POST /Intake/Upload` -> [`UploadModel.OnPostAsync`](../../../src/Pegasus.Web/Pages/Intake/Upload.cshtml.cs) -> [`ProcessIntake`](../../../src/Pegasus.Core/Intake/ProcessIntake.cs) -> Core [`IIntakeSourceReader`](../../../src/Pegasus.Core/Intake/IntakeContracts.cs) -> Infrastructure [`MimeKitPdfPigOpenXmlIntakeSourceReader`](../../../src/Pegasus.Infrastructure/Intake/MimeKitPdfPigOpenXmlIntakeSourceReader.cs).
 
 MimeKit, PdfPig, and Open XML remain Infrastructure dependencies. Provider-specific extraction and review decisions remain in Core. The Web caller is Development-only; the Worker currently has composition and telemetry but no intake trigger or parser caller. No current intake code is coupled to EVA.
 
 ## Differences from the legacy ADRs
 
-| Legacy decision | Current v2 treatment |
+| Legacy decision | Current `Next`/`unallocated` treatment |
 | --- | --- |
 | Deploy a focused parser Azure Function service | Rejected. The existing Infrastructure reader and Core use case run behind Web now and the planned thin Worker later. No separate parser service or network hop is justified. |
 | Isolate Python/document dependencies | Python is not part of the accepted intake stack. Format libraries are isolated in Infrastructure without creating another runtime. |
 | Give every caller the same contract | Already adopted through the single Core use case and engine-neutral reader port. A future caller must use that owner rather than call a parser service directly. |
 | Exercise extraction through the real intake path | Already implemented through the Development-only Web caller. Production Worker delivery and custody remain planned, not proved. |
 | Return settled EVA fields from the parser | Rejected. Intake produces reviewable business data and evidence. EVA export is a downstream adapter/use case and must not shape the document-reader contract. |
-| Use the parser during retroactive reconstruction | Rejected with ADR-0022. Migration of predecessor cases or application state is explicitly outside v2 cutover scope, so reconstruction is not an approved parser caller. |
+| Use the parser during retroactive reconstruction | Rejected with ADR-0022. Migration of predecessor cases or application state is explicitly outside `Next`/`unallocated` cutover scope, so reconstruction is not an approved parser caller. |
 | Be idempotent, fixture-driven, observable, and non-authoritative | The intent is already covered by current source identity, bounded outcomes, retained evidence, caller tests, planned content-free telemetry, and operator review. Repository tests were not rerun for this documentation review. |
 | Tolerate an extra base64 layer | Not adopted. No current transport requires this predecessor quirk; silently decoding speculative layers would weaken the explicit input contract. |
-| Vendor or merge `cedocumentmapper_v2` and materialise Python copies | Rejected. v2 is a clean-room .NET implementation and does not reuse, vendor, synchronise, or package the predecessor engine. |
+| Vendor or merge `cedocumentmapper_v2` and materialise Python copies | Rejected. `Next`/`unallocated` is a clean-room .NET implementation and does not reuse, vendor, synchronise, or package the predecessor engine. |
 
-## Existing current-v2 provenance gap
+## Existing current-`Next`/`unallocated` provenance gap
 
 Current [ADR-0001](../../architecture/decisions/ADR-0001-hybrid-pdf-extraction.md) requires retaining the extractor version and independently versioning provider-specific rules. Current [ADR-0003](../../architecture/decisions/ADR-0003-pdfpig-for-first-qdos-slice.md) also requires the adapter to record its engine and version.
 
-The current PDF reader adds a `pdf-engine` evidence entry whose human-readable detail names `PdfPig 0.1.15`. The persisted Core intake record has no explicit extractor-engine version or provider-rule version field. This is a gap against current v2 provenance requirements, not an accepted reason to introduce the predecessor's service, Python engine, vendoring, materialised copies, or cross-language drift machinery.
+The current PDF reader adds a `pdf-engine` evidence entry whose human-readable detail names `PdfPig 0.1.15`. The persisted Core intake record has no explicit extractor-engine version or provider-rule version field. This is a gap against current `Next`/`unallocated` provenance requirements, not an accepted reason to introduce the predecessor's service, Python engine, vendoring, materialised copies, or cross-language drift machinery.
 
 The current owner should eventually provide stable, queryable version provenance through the existing engine-neutral intake contract and persistence path. The exact field shape and migration belong to that implementation slice; this report does not design them.
 

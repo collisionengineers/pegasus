@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>CollisionRenderer.Mcp</RootNamespace>
+    <AssemblyName>collisionrenderer-mcp</AssemblyName>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol" Version="1.4.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
+    <!-- Match Core so Program.cs can drive the shell-only browser install on first run.
+         1.61.0 (matches the valuation connector): 1.49.x has a Windows headless-shell
+         launch hang (microsoft/playwright issue 34306); 1.61 launches the bundled shell cleanly. -->
+    <PackageReference Include="Microsoft.Playwright" Version="1.61.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CollisionRenderer.Core\CollisionRenderer.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Expose the hand-mirrored contract required-lists to the drift-guard test. -->
+    <InternalsVisibleTo Include="CollisionRenderer.Mcp.Tests" />
+  </ItemGroup>
+
+</Project>

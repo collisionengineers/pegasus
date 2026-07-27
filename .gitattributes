@@ -1,0 +1,14 @@
+# Preserve supplied and generated binary assets byte-for-byte.
+docs/reference/imp-docs/** binary
+*.doc binary
+*.docx binary
+*.ico binary
+*.jpeg binary
+*.jpg binary
+*.pdf binary
+*.png binary
+*.woff binary
+*.woff2 binary
+*.xls binary
+*.xlsx binary
+*.zip binary

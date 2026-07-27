@@ -6,7 +6,7 @@ Pre-conversion status: **Historical generation input for draft/unapproved concep
 
 All three used the built-in image generation tool in `ui-mockup` mode. The supplied intake dashboard screenshot was a structural/style reference, not an edit target.
 
-The Concept 1 prompt includes `Receiving work`, `Queries`, and `Other` cards now allocated to V2. The retained prompt and generated raster are historical visual evidence; neither is the V1 surface specification. Current scope is owned by [requirements](../../../../design/product/requirements.md) and the [feature maturity map](../feature-maturity-map.md).
+The Concept 1 prompt includes `Receiving work`, `Queries`, and `Other` cards now allocated to `Next`/`unallocated`. The retained prompt and generated raster are historical visual evidence; neither is the `0.1.0-alpha.1` surface specification. Current scope is owned by [requirements](../../../../design/product/requirements.md) and the [feature maturity map](../feature-maturity-map.md).
 
 ## Concept 1
 

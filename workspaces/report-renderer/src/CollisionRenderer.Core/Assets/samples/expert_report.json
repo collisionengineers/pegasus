@@ -1,0 +1,82 @@
+{
+  "meta": {
+    "ourRef": "PCH25427",
+    "yourRef": "CK25AEA-2025",
+    "date": "20/06/2026"
+  },
+  "title": "Total Loss Report",
+  "subtitle": "RE: BMW 3 Series 320d M Sport — Registration CK25AEA",
+  "titleRed": true,
+  "titleUnderlined": false,
+  "salutation": "Dear Sirs,",
+  "reLine": "RE: Assessment of the above vehicle following a road traffic incident",
+  "redIntro": false,
+  "intro": [
+    "In accordance with your instructions, we have inspected the above vehicle and our findings are detailed below.",
+    "This report is provided on an independent basis. We confirm that we have no financial interest in the settlement of this claim."
+  ],
+  "sections": [
+    {
+      "heading": "Subject Vehicle Details",
+      "blocks": [
+        {
+          "type": "datatable",
+          "rows": [
+            { "label": "Registration", "value": "CK25AEA" },
+            { "label": "Make / Model", "value": "BMW 3 Series 320d M Sport" },
+            { "label": "First Registered", "value": "01/03/2022" },
+            { "label": "Mileage", "value": "31,450 miles" },
+            { "label": "Colour", "value": "Mineral Grey Metallic" },
+            { "label": "VIN", "value": "WBA5E11020K123456" }
+          ]
+        }
+      ]
+    },
+    {
+      "heading": "Nature of Incident",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "The vehicle sustained significant impact damage to the front nearside following a collision. The damage extends to the structural members of the vehicle, as detailed in our inspection findings."
+        }
+      ]
+    },
+    {
+      "heading": "Engineer's Comments",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Having inspected the vehicle and assessed the extent of the damage, we consider the cost of repair to exceed the pre-accident value of the vehicle. On that basis, the vehicle is properly categorised as a total loss."
+        },
+        {
+          "type": "bullets",
+          "items": [
+            "Structural damage to the front nearside chassis leg.",
+            "Deployment of the front and side restraint systems.",
+            "Repair cost exceeds the pre-accident value of the vehicle."
+          ]
+        }
+      ]
+    },
+    {
+      "heading": "Settlement",
+      "blocks": [
+        {
+          "type": "valuebox",
+          "value": { "label": "Pre-accident value, less salvage", "value": "£21,950.00" }
+        },
+        {
+          "type": "paragraph",
+          "text": "We consider that an equitable settlement, being the pre-accident retail value of £24,750.00 less the assessed salvage value of £2,800.00, is £21,950.00."
+        }
+      ]
+    }
+  ],
+  "signature": {
+    "name": "E. Mawdsley",
+    "qualifications": "M.Inst.AEA",
+    "aqpNumber": "AQP05678",
+    "signatureImage": "ed_mawdsley",
+    "closing": "Yours faithfully,"
+  }
+}

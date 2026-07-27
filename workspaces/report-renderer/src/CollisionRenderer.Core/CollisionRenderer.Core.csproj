@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>CollisionRenderer.Core</RootNamespace>
+    <AssemblyName>CollisionRenderer.Core</AssemblyName>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="PDFsharp" Version="6.2.4" />
+    <PackageReference Include="Scriban" Version="5.12.1" />
+    <!-- 1.61.0: 1.49.x hangs launching the headless shell on Windows (playwright#34306). -->
+    <PackageReference Include="Microsoft.Playwright" Version="1.61.0" />
+  </ItemGroup>
+
+  <!-- Self-contained: templates, stylesheet, logo and signatures are embedded so the
+       Core renders identically from a CLI, a desktop app, or a Linux container. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\templates\**\*" />
+    <EmbeddedResource Include="Assets\samples\**\*" />
+    <EmbeddedResource Include="Assets\brand\logo.png" />
+    <EmbeddedResource Include="Assets\brand\signatures\**\*" />
+  </ItemGroup>
+
+</Project>

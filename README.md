@@ -1,26 +1,40 @@
-# CollisionSpike v2
+# Pegasus
 
-CollisionSpike v2 is the clean-room case-management application for Collision Engineers. It is a .NET 10 modular monolith with Core-owned business policy, Infrastructure adapters, and Web/Worker composition roots. The repository is in development and does not claim a released QDOS workflow or Azure deployment.
+Pegasus is Collision Engineers' clean-room case-management and reporting
+application. The current repository is a .NET 10 modular monolith in
+`0.0.0-development`; `0.1.0-alpha.1` is the first planned QDOS release target,
+not an implementation, deployment, or acceptance claim.
 
 ## Get started on Windows
 
 ```powershell
 npm ci
-dotnet restore ./CollisionSpike.slnx
+dotnet restore ./Pegasus.slnx
 sqllocaldb start MSSQLLocalDB
-dotnet run --project ./src/CollisionSpike.Web --launch-profile https -- --migrate-development
-dotnet build ./CollisionSpike.slnx --configuration Release --no-restore
-dotnet test ./CollisionSpike.slnx --configuration Release --no-build --filter "Category!=Corpus"
-dotnet run --project ./src/CollisionSpike.Web --launch-profile https --no-build
+dotnet run --project ./src/Pegasus.Web --launch-profile https -- --migrate-development
+dotnet build ./Pegasus.slnx --configuration Release --no-restore
+dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"
+dotnet run --project ./src/Pegasus.Web --launch-profile https --no-build
 ```
 
-The current local route is `https://localhost:7139/Intake/Upload`. See the
-[local development runbook](docs/runbooks/local-development.md) for Azurite,
-the actual Functions host, isolated runs, state ownership, and proof limits.
-See the [implementation handoff](docs/agent-notes/current-implementation-handoff.md)
-for the current caller and [V1 gap](docs/product/v1-gap.md) for remaining release work.
+The current caller is the Development-only intake route at
+`https://localhost:7139/Intake/Upload`; it creates a persisted pre-case
+receipt/draft, not a case or reference. See the
+[local-development runbook](docs/runbooks/local-development.md) and
+[current implementation handoff](docs/agent-notes/current-implementation-handoff.md).
 
-Start with the [repository documentation](docs/index.md), [product requirements](docs/product/index.md), [roadmap](docs/roadmap.md),
-[architecture](docs/architecture.md), and [operations](docs/operations.md).
-Detailed plans, historical decisions, and evidence remain routed from those
-owners. Local genuine inputs remain ignored and immutable under `corpus/`.
+Start with [repository documentation](docs/index.md),
+[product requirements](docs/product/index.md),
+[capability inventory](docs/product/capabilities.md),
+[roadmap](docs/roadmap.md), [architecture](docs/architecture.md), and
+[operations](docs/operations.md). The
+[QDOS alpha gap](docs/product/qdos-alpha-gap.md) records remaining
+`0.1.0-alpha.1` work.
+
+`workspaces/` contains independently validated, source-only imports for
+document extraction, report rendering, AI strategy, and agent skills. They are
+not application callers or projects in `Pegasus.slnx`; see
+[workspace authority and provenance](workspaces/README.md).
+
+Local genuine inputs remain ignored and immutable under `corpus/`. Generated
+evaluation and build evidence belongs under ignored `artifacts/`.

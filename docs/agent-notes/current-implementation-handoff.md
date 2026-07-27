@@ -1,10 +1,12 @@
 # Current implementation handoff
 
-Handoff date: 2026-07-24, Europe/London
+Last reconciled: 2026-07-27, Europe/London
 
-Starting implementation baseline: `9159f8b` (`feat: add local QDOS intake vertical slice`)
+Implementation baseline: provider-domain increment based on accepted
+`b2f40a2b68b5b1a906ff2e736fa43653006dba61`; verify the exact current head
+before relying on file locations or test counts.
 
-Repository state at handoff: pre-release, local-only, no v2 Azure deployment
+Repository state: `0.0.0-development`, local-only, no Pegasus Azure deployment
 
 ## Outcome
 
@@ -26,20 +28,25 @@ The browser is the real caller. Source processing, QDOS field-candidate extracti
 From PowerShell 7 at the repository root:
 
 ```powershell
-dotnet restore ./CollisionSpike.slnx
-dotnet build ./CollisionSpike.slnx --configuration Release --no-restore
-dotnet test ./CollisionSpike.slnx --configuration Release --no-build --filter "Category!=Corpus"
-dotnet run --project ./src/CollisionSpike.Web --launch-profile https
+dotnet restore ./Pegasus.slnx
+dotnet build ./Pegasus.slnx --configuration Release --no-restore
+dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"
+sqllocaldb start MSSQLLocalDB
+dotnet run --project ./src/Pegasus.Web --launch-profile https -- --migrate-development
+dotnet run --project ./src/Pegasus.Web --launch-profile https --no-build
 ```
 
-Open `https://localhost:7139/Intake/Upload` or use the dashboard link. The launch profile supplies:
+Open `https://localhost:7139/Intake/Upload` or use the dashboard link. Current
+Development configuration selects the `DevelopmentOffline` runtime profile,
+SQL Server Express LocalDB through connection name `Pegasus`, database
+`PegasusDevelopment`, ignored artifact root
+`artifacts/local-development/default/intake`, and `Features:LocalIntake=true`.
 
-- `ASPNETCORE_ENVIRONMENT=Development`;
-- `Database__Provider=Sqlite`;
-- ignored local database `artifacts/local/collisionspike-v2-dev.db`; and
-- `Features__LocalIntake=true`.
-
-The route is deny-by-default. It returns 404 if the flag is absent/false and also returns 404 in Production even if someone sets the flag to true.
+Normal startup deliberately does not apply migrations. The explicit
+`--migrate-development` invocation validates the local-only profile, applies
+the committed migration stream to LocalDB, prints completion, and exits; start
+the Web host separately afterward. The route is deny-by-default and returns
+404 outside the Development-only profile/feature combination.
 
 ## Supported behavior
 
@@ -109,25 +116,32 @@ policy-result guards, and case-variant receipt replay. These checks prove local
 caller and migration behavior only; they do not prove a live database upgrade,
 deployment, extraction accuracy, or operator acceptance.
 
+The provider-domain increment adds the immutable embedded
+`provider-domains.v1.json` package and its committed reference-snapshot
+migration. Infrastructure can query that exact version through the Core
+catalog port, but no Web or Worker route calls the catalog. Package presence,
+migration registration and passing policy tests are not route activation or
+operator acceptance.
+
 ## Key files
 
 | Responsibility | File |
 |---|---|
-| Business intake use case | `src/CollisionSpike.Core/Intake/ProcessIntake.cs` |
-| Core contracts and ports | `src/CollisionSpike.Core/Intake/IntakeContracts.cs` |
-| QDOS extraction policy | `src/CollisionSpike.Core/Intake/QdosInstructionExtractionPolicy.cs` |
-| Multi-format adapter | `src/CollisionSpike.Infrastructure/Intake/MimeKitPdfPigOpenXmlIntakeSourceReader.cs` |
-| Local artifact adapter | `src/CollisionSpike.Infrastructure/Intake/FileSystemIntakeArtifactStore.cs` |
-| EF receipt and typed-draft persistence | `src/CollisionSpike.Infrastructure/Persistence/EfIntakeReceiptStore.cs` |
-| Database model/migration | `src/CollisionSpike.Infrastructure/Persistence/CollisionSpikeDbContext.cs` and `Migrations/` |
-| Web composition and safety gate | `src/CollisionSpike.Web/Program.cs` |
-| Real manual caller | `src/CollisionSpike.Web/Pages/Intake/Upload.cshtml.cs` |
-| Review/queue/dashboard callers | `src/CollisionSpike.Web/Pages/Intake/` and `Pages/Index.cshtml.cs` |
-| Genuine-input Web evidence | `tests/CollisionSpike.IntegrationTests/QdosIntakeWebTests.cs` |
-| Route-denial evidence | `tests/CollisionSpike.IntegrationTests/LocalIntakeAccessTests.cs` |
-| Stable persistence and unsupported-source evidence | `tests/CollisionSpike.IntegrationTests/IntakeStablePersistenceTests.cs` |
-| SQLite baseline refusal evidence | `tests/CollisionSpike.IntegrationTests/IntakeSqliteBaselineGuardTests.cs` |
-| Architecture boundary evidence | `tests/CollisionSpike.ArchitectureTests/DependencyDirectionTests.cs` |
+| Business intake use case | `src/Pegasus.Core/Intake/ProcessIntake.cs` |
+| Core contracts and ports | `src/Pegasus.Core/Intake/IntakeContracts.cs` |
+| QDOS extraction policy | `src/Pegasus.Core/Intake/QdosInstructionExtractionPolicy.cs` |
+| Multi-format adapter | `src/Pegasus.Infrastructure/Intake/MimeKitPdfPigOpenXmlIntakeSourceReader.cs` |
+| Local artifact adapter | `src/Pegasus.Infrastructure/Intake/FileSystemIntakeArtifactStore.cs` |
+| EF receipt and typed-draft persistence | `src/Pegasus.Infrastructure/Persistence/EfIntakeReceiptStore.cs` |
+| Database model/migration | `src/Pegasus.Infrastructure/Persistence/PegasusDbContext.cs` and `Migrations/` |
+| Web composition and safety gate | `src/Pegasus.Web/Program.cs` |
+| Real manual caller | `src/Pegasus.Web/Pages/Intake/Upload.cshtml.cs` |
+| Review/queue/dashboard callers | `src/Pegasus.Web/Pages/Intake/` and `Pages/Index.cshtml.cs` |
+| Genuine-input Web evidence | `tests/Pegasus.IntegrationTests/QdosIntakeWebTests.cs` |
+| Route-denial evidence | `tests/Pegasus.IntegrationTests/LocalIntakeAccessTests.cs` |
+| Stable persistence and unsupported-source evidence | `tests/Pegasus.IntegrationTests/IntakeStablePersistenceTests.cs` |
+| SQLite baseline refusal evidence | `tests/Pegasus.IntegrationTests/IntakeSqliteBaselineGuardTests.cs` |
+| Architecture boundary evidence | `tests/Pegasus.ArchitectureTests/DependencyDirectionTests.cs` |
 | Embedded PDF decision | `docs/architecture/decisions/ADR-0003-pdfpig-for-first-qdos-slice.md` |
 | Multi-format/asset decision | `docs/architecture/decisions/ADR-0005-multiformat-intake-assets.md` |
 | Provider-neutral intake decision | `docs/architecture/decisions/ADR-0006-provider-neutral-intake-with-contained-qdos-policy.md` |
@@ -141,12 +155,13 @@ deployment, extraction accuracy, or operator acceptance.
 - DOCX and image review are implemented locally. Automated DOC/MSG extraction, vehicle-registration OCR/VLM, Graph mailbox intake, private Blob staging, Box, DVLA/DVSA, EVA export, and lifecycle management are not implemented.
 - The Worker has no trigger and does not yet call Core.
 - There is no application authentication, role enforcement, or authenticated action actor.
-- Development SQLite uses a fresh provider-neutral initial migration and strict baseline validation before migration. Empty databases and an exact current schema/history are accepted; old migration IDs, historyless or mismatched schemas, and unexpected tables fail closed without mutation. The former local database path remains untouched. SQLite behavior still does not prove SQL Server locking behavior.
-- Non-Development startup never applies migrations. Disposable SQL Server tests apply the provider-neutral initial migration explicitly. No migration has been applied to a live v2 database.
-- Bicep compilation proves syntax/type consistency only. No v2 Azure resources have been provisioned.
+- The four source imports under `workspaces/` build and test independently. They are not in `Pegasus.slnx`, referenced by the application, loaded at runtime, or deployed.
+- Development uses SQL Server Express LocalDB and the committed SQL Server migration stream. Empty databases and exact current migration history are accepted; unexpected schema/history or a pending model fail before normal application use. Normal Web/Worker startup never applies migrations.
+- Disposable SQL Server/LocalDB evidence does not prove Azure SQL locking, migration, recovery, or live behavior. No migration has been applied to a live Pegasus database.
+- Bicep compilation proves syntax/type consistency only. The renamed target describes fresh Pegasus resources; none has been provisioned.
 - No production route should be enabled from this slice.
 
-The full gap list is in `docs/product/v1-gap.md`; current sequencing is in `docs/roadmap.md`. `docs/product/open-decisions.md` is the canonical register: its decisions withhold their named slices while independent work proceeds.
+The full gap list is in `docs/product/qdos-alpha-gap.md`; current sequencing is in `docs/roadmap.md`. `docs/product/open-decisions.md` is the canonical register: its decisions withhold their named slices while independent work proceeds.
 
 ## Next bounded increment
 
@@ -161,6 +176,6 @@ Do not start mailbox automation by copying the current rules into the Worker or 
 
 ## Cloud and predecessor boundary
 
-No Azure resource, setting, role, secret, deployment, or predecessor asset was changed by this implementation. CollisionSpike v2 starts with fresh application data; the predecessor's pre-release test cases and application state are not migrated or preserved as a v2 release requirement.
+No Azure resource, setting, role, secret, deployment, or predecessor asset was changed by this implementation. Pegasus starts with fresh application data; the predecessor's pre-release test cases and application state are not migrated or preserved as a `0.1.0-alpha.1` release requirement.
 
 The current read-only Azure inventory remains in `docs/azure/current-inventory.md`. Any resource creation, deployment, credential change, or retirement still requires explicit user approval for the exact targets. Shared Foundry, ACR/ValuationBot, capture, and default-workspace ownership must not be inferred from the predecessor resource group.

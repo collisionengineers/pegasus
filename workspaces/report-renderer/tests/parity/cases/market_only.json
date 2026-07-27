@@ -1,0 +1,71 @@
+{
+  "meta": { "our_ref": "PCH25410", "your_ref": "MKT-2025-077", "date": "21/06/2026" },
+  "valuation_mode": "market_only",
+  "guide_value_unavailable_reason": "No published trade guide figure is available for this derivative and age combination, so the assessed value rests wholly on the live retail comparables below.",
+  "assessed_retail_value": "18250",
+  "is_commercial_vehicle": false,
+  "subject_vehicle": {
+    "registration": "RK19 TYS",
+    "make": "Volkswagen",
+    "model": "Golf",
+    "derivative": "2.0 TDI GTD",
+    "vehicle_description": "Volkswagen Golf 2.0 TDI GTD Hatchback",
+    "body_type": "Hatchback",
+    "fuel": "Diesel",
+    "transmission": "Manual",
+    "engine": "1968cc",
+    "first_registered": "01/06/2019",
+    "mileage": "58200",
+    "colour": "Tornado Red",
+    "vehicle_history": "Two former keepers, full service history",
+    "vin": "WVWZZZ1KZLW000000"
+  },
+  "intro": "We have reviewed comparable retail adverts to establish the pre-accident retail value.",
+  "market_research": "Comparable retail market evidence reviewed having regard to make, model, age, mileage, engine, transmission and specification.",
+  "search_summary": "Five comparable adverts identified across franchise and independent retailers.",
+  "evidence_assessment": { "sufficient_for_pdf": true, "basis": "Three closely comparable supportive adverts bracket the assessed figure." },
+  "valuation_commentary": [
+    "The subject vehicle is a well-specified GTD finished in a desirable colour with full service history.",
+    "The comparable evidence sits within a range of approximately GBP 16,995 to GBP 19,750.",
+    "Greatest weight is placed on the examples closest in age, mileage and specification."
+  ],
+  "conclusion": "It is our professional opinion that the pre-accident retail value is GBP 18,250.00.",
+  "adverts": [
+    {
+      "source": "Retail listing", "url": "https://example.com/advert/200311", "price": "18995",
+      "make": "Volkswagen", "model": "Golf", "derivative_or_engine": "2.0 TDI GTD",
+      "registration_year": "2019", "mileage": "54000", "fuel": "Diesel", "transmission": "Manual",
+      "body_style": "Hatchback", "seller_type": "Franchise", "location": "Bristol",
+      "date_accessed": "21/06/2026", "comparability_note": "Closely comparable specification and age.",
+      "differences_note": "Slightly lower mileage than the subject vehicle.",
+      "supports_assessed_value": true, "evidence_role": "supportive", "is_materially_comparable": true,
+      "advert_id": "B-200311",
+      "report_comment": "Directly supportive of the assessed retail value.",
+      "vat_status": "Inc. VAT", "admin_fee": "0", "delivery_fee": "0"
+    },
+    {
+      "source": "Retail listing", "url": "https://example.com/advert/200344", "price": "17490",
+      "make": "Volkswagen", "model": "Golf", "derivative_or_engine": "2.0 TDI GTD",
+      "registration_year": "2018", "mileage": "63500", "fuel": "Diesel", "transmission": "Manual",
+      "body_style": "Hatchback", "seller_type": "Independent", "location": "Sheffield",
+      "date_accessed": "21/06/2026", "comparability_note": "Comparable derivative and specification.",
+      "differences_note": "One year older with higher mileage.",
+      "supports_assessed_value": true, "evidence_role": "supportive", "is_materially_comparable": true,
+      "advert_id": "B-200344",
+      "report_comment": "Supports the lower end of the range.",
+      "vat_status": "Inc. VAT", "admin_fee": "0", "delivery_fee": "0"
+    },
+    {
+      "source": "Retail listing", "url": "https://example.com/advert/200358", "price": "18750",
+      "make": "Volkswagen", "model": "Golf", "derivative_or_engine": "2.0 TDI GTD",
+      "registration_year": "2019", "mileage": "51200", "fuel": "Diesel", "transmission": "Manual",
+      "body_style": "Hatchback", "seller_type": "Franchise", "location": "Nottingham",
+      "date_accessed": "21/06/2026", "comparability_note": "Directly comparable age and mileage.",
+      "differences_note": "Marginally lower mileage.",
+      "supports_assessed_value": true, "evidence_role": "supportive", "is_materially_comparable": true,
+      "advert_id": "B-200358",
+      "report_comment": "Closely supportive of the assessed figure.",
+      "vat_status": "Inc. VAT", "admin_fee": "0", "delivery_fee": "0"
+    }
+  ]
+}

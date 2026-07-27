@@ -2,7 +2,7 @@
 
 - Date: 2026-07-27
 - Status: accepted
-- Owners: Collision Engineers product owner and CollisionSpike v2 development team
+- Owners: Collision Engineers product owner and Pegasus `Next`/`unallocated` development team
 - Supersedes: ADR-0006's single-policy selection and no-provider-registry/table limits; preserves its provider-neutral transport, provenance, storage, and fail-closed boundaries
 
 ## Context
@@ -83,7 +83,7 @@ case model, or general policy selector.
 The alpha activates QDOS case creation only. It establishes the exercised
 route-policy catalog and stable provider/intermediary identities needed by
 later provider activation, without creating dormant policies, routes, secrets,
-mailbox actions, or resources. V2 general mailbox categorisation and email
+mailbox actions, or resources. `Next`/`unallocated` general mailbox categorisation and email
 management remain separate. Direct provider API submission is not an email
 route and remains independently gated.
 

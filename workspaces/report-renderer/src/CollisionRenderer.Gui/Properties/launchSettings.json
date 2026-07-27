@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "CollisionRenderer.Gui (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "CollisionRenderer.Gui (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

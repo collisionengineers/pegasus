@@ -1,0 +1,14 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+.data/
+benchmark-results/
+*.rag-export.json
+*.log
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db

@@ -2,7 +2,7 @@
 
 > **Archive status — non-authoritative planning evidence.** Revalidate against current product, roadmap, architecture, operations, design, decisions, and code before use.
 
-Pre-conversion status: **Ready V1 handoff plan — EVA API/replacement and AI Assessor V3+**
+Pre-conversion status: **Ready `0.1.0-alpha.1` handoff plan — EVA API/replacement and AI Assessor `Later`/`unallocated`**
 
 ## Purpose
 
@@ -18,7 +18,7 @@ external adapter or AI suggestion is implied by the deterministic path.
 
 ## Authority and current boundary
 
-- **Authority:** [remaining requirements](../../../../product/v1-gap.md#6-box-vehicle-data-eva-and-email), [ADR-0002](../../../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md), and the authoritative [EVA operator note](../../../../operator-notes/systems-and-integrations/eva.md).
+- **Authority:** [remaining requirements](../../../../product/qdos-alpha-gap.md#6-box-vehicle-data-eva-and-email), [ADR-0002](../../../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md), and the authoritative [EVA operator note](../../../../operator-notes/systems-and-integrations/eva.md).
 - **Policy owner:** case/intake policy owns missing-field need, staff confirmation and export readiness. Future Infrastructure adapters translate an accepted vehicle contract or EVA bundle schema.
 - **Current implementation/callers:** no DVLA/DVSA or EVA adapter, export serializer, credential, registered caller or accepted mapping exists.
 - **Persistence boundary:** SQL remains authoritative for confirmed typed case data/provenance; custody supplies persisted image identities; EVA remains authoritative for assignment, estimating, valuation and reports.
@@ -81,23 +81,23 @@ The intended caller is an authenticated, lease/version-guarded staff action to
 one Core vehicle policy and one approved Infrastructure adapter. It may return
 typed suggestions and explicit no-result/invalid/transient/unknown outcomes,
 but cannot silently overwrite case data. Confirmed values retain lookup
-provenance and permanent action history. V1 automatic ordinary-image VRM
+provenance and permanent action history. `0.1.0-alpha.1` automatic ordinary-image VRM
 reading remains a separate intake plan and must not infer OCR/VLM or merge with
-V2 image/damage AI. Valuation remains absent.
+`Next`/`unallocated` image/damage AI. Valuation remains absent.
 
-## Export the V1 EVA bundle
+## Export the `0.1.0-alpha.1` EVA bundle
 
 **Evidence state:** Planned — operator-mapping/readiness gated
 
 `EXT-03` and `CASE-21` require operator-approved structured case JSON plus
 stored images for manual transfer into EVA for every active QDOS case type.
-Direct EVA API use is conditional V3+ on usable vendor capability; EVA
-replacement and AI Assessor are V3+. No export implementation is authorised
+Direct EVA API use is conditional `Later`/`unallocated` on usable vendor capability; EVA
+replacement and AI Assessor are `Later`/`unallocated`. No export implementation is authorised
 until an operator accepts the versioned field mapping, image selection,
 readiness/release gate, and recovery procedure. The reference schema alone is
 not product authority.
 
-The future authenticated download caller must validate the current case version, pre-assignment review gate and custody-confirmed image IDs; generate deterministic JSON, image files and a manifest with hashes; record actor/revision/outcome; and make no EVA network call. The first successful generation records the stable `First sent to Engineer` event once per case and feeds the `Sent to Engineer` today/week dashboard tile. This first-MVP event is explicitly a proxy: it proves successful export generation, not that EVA or an Engineer received it. It must not estimate, value, generate a report or reconcile EVA automatically, and there is no pre-send report review gate.
+The future authenticated download caller must validate the current case version, pre-assignment review gate and custody-confirmed image IDs; generate deterministic JSON, image files and a manifest with hashes; record actor/revision/outcome; and make no EVA network call. The first successful generation records the stable `First sent to Engineer` event once per case and feeds the `Sent to Engineer` today/week dashboard tile. This `0.1.0-alpha.1` event is explicitly a proxy: it proves successful export generation, not that EVA or an Engineer received it. It must not estimate, value, generate a report or reconcile EVA automatically, and there is no pre-send report review gate.
 
 ## Activation and approval
 

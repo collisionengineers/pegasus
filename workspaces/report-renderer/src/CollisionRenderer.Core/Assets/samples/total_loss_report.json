@@ -1,0 +1,73 @@
+{
+  "meta": {
+    "ourRef": "SYN-TL-001",
+    "yourRef": "EXAMPLE-TL",
+    "date": "20/06/2026"
+  },
+  "title": "Total Loss Report",
+  "titleRed": false,
+  "titleUnderlined": true,
+  "salutation": "Dear Sirs,",
+  "reLine": "RE: Example total loss assessment",
+  "intro": [
+    "In accordance with your instructions, we assessed the example vehicle and our findings are detailed below."
+  ],
+  "sections": [
+    {
+      "heading": "Vehicle Summary",
+      "blocks": [
+        {
+          "type": "datatable",
+          "rows": [
+            { "label": "Make", "value": "Example" },
+            { "label": "Registration", "value": "CE00BBB" },
+            { "label": "Model", "value": "Demonstrator" },
+            { "label": "Status", "value": "Total Loss" },
+            { "label": "Category", "value": "N" },
+            { "label": "Salvage Value", "value": "GBP 1,200.00" },
+            { "label": "Repair Cost", "value": "GBP 12,500.00" },
+            { "label": "Legal Status", "value": "Unroadworthy" },
+            { "label": "Engineer Value", "value": "GBP 10,000.00" },
+            { "label": "Impact Magnitude", "value": "Moderate to heavy" }
+          ]
+        }
+      ]
+    },
+    {
+      "heading": "Images",
+      "blocks": [
+        {
+          "type": "mediarow",
+          "media": [
+            { "caption": "Vehicle", "note": "Image slot for the case vehicle." },
+            { "caption": "Impact Area", "note": "Image slot for the impact-area diagram." }
+          ]
+        }
+      ]
+    },
+    {
+      "heading": "Nature of Incident",
+      "blocks": [
+        { "type": "paragraph", "text": "The example vehicle sustained significant front-end impact damage." }
+      ]
+    },
+    {
+      "heading": "Engineer's Comments",
+      "blocks": [
+        { "type": "paragraph", "text": "The estimated repair cost exceeds the pre-accident value and the vehicle is properly treated as a total loss." }
+      ]
+    },
+    {
+      "heading": "Settlement",
+      "blocks": [
+        { "type": "valuebox", "value": { "label": "Pre-accident value, less salvage", "value": "GBP 8,800.00" } },
+        { "type": "paragraph", "text": "We consider an equitable settlement to be the engineer value less the assessed salvage value." }
+      ]
+    }
+  ],
+  "signature": {
+    "name": "E. Mawdsley",
+    "signatureImage": "ed_mawdsley",
+    "closing": "Yours faithfully,"
+  }
+}

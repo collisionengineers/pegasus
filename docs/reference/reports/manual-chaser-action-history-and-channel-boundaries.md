@@ -8,7 +8,7 @@ This report records the accepted finding from the predecessor ADR. It does not a
 
 ## Accepted finding
 
-A chaser is tracked case work for obtaining missing information, images, or documents. In the first MVP:
+A chaser is tracked case work for obtaining missing information, images, or documents. In the `0.1.0-alpha.1`:
 
 - the application prepares a message that staff can copy for manual use;
 - preparing or copying a message must not record it as sent;
@@ -18,12 +18,12 @@ A chaser is tracked case work for obtaining missing information, images, or docu
 
 The exact persistence schema, outcome vocabulary, and whether the intended recipient or complete prepared message should be retained are not settled by this finding. Those choices must be justified by the real caller, operational need, privacy and retention requirements rather than copied from the predecessor.
 
-## Current v2 position
+## Current `Next`/`unallocated` position
 
 ### Operator truth and requirements
 
 - The [WhatsApp operator note](../../operator-notes/systems-and-integrations/whatsapp.md) says WhatsApp is primarily used to chase garages for images.
-- The [questionnaire](../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md#7-communications-and-tasks) already requires recurring seven-day reminders while material is missing, manual copy-and-paste messages for email or WhatsApp, and an optional Box File Request. Automated sending is outside the first MVP.
+- The [questionnaire](../../history/product/project-discovery-questionnaire.md#7-communications-and-tasks) already requires recurring seven-day reminders while material is missing, manual copy-and-paste messages for email or WhatsApp, and an optional Box File Request. Automated sending is outside the `0.1.0-alpha.1`.
 - WhatsApp remains a manual staff channel. Its channel history remains external, while staff add relevant received material to the application or Box.
 - `Held` pauses chasers while keeping due dates visible. The first chase is due at the same Europe/London local clock time seven calendar days after entering `Not ready`. Entering `Held` preserves the remaining interval; release back to `Not ready` resumes it, while release to `Review` ends the missing-information chase.
 
@@ -35,16 +35,16 @@ The plan does not yet define the manual chase action's channel, staff-confirmed 
 
 ## Differences from the legacy ADR
 
-| Legacy proposal | Accepted v2 treatment |
+| Legacy proposal | Accepted `Next`/`unallocated` treatment |
 | --- | --- |
 | Chasers are assisted, tracked requests | Accepted, within the current seven-day manual-chaser requirement. |
 | Record channel | Accepted for the explicit manual chase action. |
 | Record staff disposition and timestamps | Accepted as actor, timestamp, and staff-confirmed outcome in permanent action history. |
 | Record the complete draft and recipient | Not accepted as mandatory fields. Their need, privacy, and retention consequences remain to be justified. |
-| Distinguish prepared from sent | Accepted, narrowed to prepared/copied versus staff-confirmed sent versus externally delivered. Only the first two are first-MVP application facts. |
+| Distinguish prepared from sent | Accepted, narrowed to prepared/copied versus staff-confirmed sent versus externally delivered. Only the first two are `0.1.0-alpha.1` application facts. |
 | Allow free-text Notes alongside structured chasers | Accepted only as an optional note on the manual chase action, not as approval of a generic predecessor Notes feature. |
 | Email may be sent through the approved mail path | Staff may manually paste and send through Outlook. Application-driven sending remains deferred and is not authorised by this finding. |
-| WhatsApp chasers are prepared for manual staff sending | Already aligned with v2. No WhatsApp API, sender, ingestion, scraping, or delivery-status integration is introduced. |
+| WhatsApp chasers are prepared for manual staff sending | Already aligned with `Next`/`unallocated`. No WhatsApp API, sender, ingestion, scraping, or delivery-status integration is introduced. |
 | Audatex sources are await-only | Not adopted. Estimating and valuation integration is deferred, and current authority defines no Audatex-specific no-chase rule. |
 
 ## Real caller and evidence still required

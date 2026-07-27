@@ -1,0 +1,45 @@
+{
+  "meta": {
+    "ourRef": "SYN-ADD-001",
+    "yourRef": "EXAMPLE-ADD",
+    "date": "20/06/2026"
+  },
+  "title": "Addendum Report",
+  "titleRed": false,
+  "titleUnderlined": true,
+  "salutation": "Dear Sirs,",
+  "reLine": "RE: Addendum to example engineering report",
+  "intro": [
+    "We have been asked to provide further comment following the issue of our original report."
+  ],
+  "sections": [
+    {
+      "heading": "Original Report",
+      "blocks": [
+        {
+          "type": "datatable",
+          "rows": [
+            { "label": "Original report reference/date", "value": "SYN-ORIGINAL-001 / 10/06/2026" }
+          ]
+        }
+      ]
+    },
+    {
+      "heading": "Addendum",
+      "blocks": [
+        { "type": "paragraph", "text": "The additional material does not alter our original opinion." }
+      ]
+    },
+    {
+      "heading": "Conclusion",
+      "blocks": [
+        { "type": "paragraph", "text": "Our original findings remain unchanged." }
+      ]
+    }
+  ],
+  "signature": {
+    "name": "N. D. O'Reilly",
+    "signatureImage": "neil_oreilly",
+    "closing": "Yours faithfully,"
+  }
+}
