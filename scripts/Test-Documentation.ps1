@@ -78,7 +78,7 @@ function Get-FirstPartyMarkdownFiles {
         [void]$paths.Add($_.FullName)
     }
 
-    foreach ($relativeRoot in @('.azure', 'docs', 'retrospectives', 'src', 'repoplugin')) {
+    foreach ($relativeRoot in @('.azure', 'docs', 'retrospectives', 'src')) {
         $absoluteRoot = Join-Path $Root $relativeRoot
         if (-not (Test-Path -LiteralPath $absoluteRoot -PathType Container)) {
             continue
@@ -87,15 +87,6 @@ function Get-FirstPartyMarkdownFiles {
         Get-ChildItem -LiteralPath $absoluteRoot -Recurse -File -Filter '*.md' |
             Where-Object { $_.FullName -notmatch '[\\/](?:bin|obj)[\\/]' } |
             ForEach-Object { [void]$paths.Add($_.FullName) }
-    }
-
-    $pluginsRoot = Join-Path $Root 'plugins'
-    if (Test-Path -LiteralPath $pluginsRoot -PathType Container) {
-        Get-ChildItem -LiteralPath $pluginsRoot -Directory -Filter 'repoplugin-*' |
-            ForEach-Object {
-                Get-ChildItem -LiteralPath $_.FullName -Recurse -File -Filter '*.md' |
-                    ForEach-Object { [void]$paths.Add($_.FullName) }
-            }
     }
 
     return @($paths | Sort-Object)
@@ -616,28 +607,20 @@ function Test-RequiredSkillRoutes {
 
     $requirements = [ordered]@{
         'AGENTS.md' = @(
-            '$repoplugin-planning:apply-collisionspike-domain',
-            '$repoplugin-planning:route-collisionspike-azure',
-            '$repoplugin-documentation:bootstrap-repository-documentation',
-            '$repoplugin-documentation:maintain-repository-documentation',
-            '$repoplugin-documentation:audit-repository-documentation',
-            '$repoplugin-ui-ux:plan-ui-ux-change',
-            '$repoplugin-ui-ux:apply-collision-engineers-ui-style'
+            '$azure-workflow:onboard-azure-repository',
+            '$azure-workflow:plan-azure-repository-change',
+            '$azure-workflow:deliver-azure-repository-change',
+            '$azure-workflow:explain-repository',
+            '$azure-workflow:review-repository-pull-request',
+            '$azure-workflow:operate-azure-repository'
         )
         'docs/agent-guidance/agent-routing.md' = @(
-            '$repoplugin-planning:plan-repository-change',
-            '$repoplugin-planning:apply-collisionspike-domain',
-            '$repoplugin-planning:route-collisionspike-azure',
-            '$repoplugin-implementation:implement-plan-pack',
-            '$repoplugin-review:review-implementation',
-            '$repoplugin-review:triage-pr-feedback',
-            '$repoplugin-validation:test-and-validate-repository-change',
-            '$repoplugin-debugging:debug-repository-failure',
-            '$repoplugin-documentation:bootstrap-repository-documentation',
-            '$repoplugin-documentation:maintain-repository-documentation',
-            '$repoplugin-documentation:audit-repository-documentation',
-            '$repoplugin-ui-ux:plan-ui-ux-change',
-            '$repoplugin-ui-ux:apply-collision-engineers-ui-style'
+            '$azure-workflow:onboard-azure-repository',
+            '$azure-workflow:plan-azure-repository-change',
+            '$azure-workflow:deliver-azure-repository-change',
+            '$azure-workflow:explain-repository',
+            '$azure-workflow:review-repository-pull-request',
+            '$azure-workflow:operate-azure-repository'
         )
     }
 
@@ -1115,25 +1098,21 @@ Test-MarkdownPatchArtifacts -Root $resolvedRoot -MarkdownFiles $markdownFiles
 $links = @(Test-MarkdownLinks -Root $resolvedRoot -MarkdownFiles $markdownFiles)
 
 $requiredRoutes = @(
-    [pscustomobject]@{ Source = 'README.md'; Target = 'docs/README.md' },
-    [pscustomobject]@{ Source = 'README.md'; Target = 'docs/architecture/README.md' },
-    [pscustomobject]@{ Source = 'README.md'; Target = 'docs/plans/feature-maturity-map.md' },
-    [pscustomobject]@{ Source = 'README.md'; Target = 'docs/runbooks/developer-workstation.md' },
-    [pscustomobject]@{ Source = 'README.md'; Target = 'docs/agent-guidance/validation.md' },
-    [pscustomobject]@{ Source = 'AGENTS.md'; Target = 'docs/agent-guidance/source-of-truth.md' },
-    [pscustomobject]@{ Source = 'AGENTS.md'; Target = 'docs/agent-guidance/agent-routing.md' },
-    [pscustomobject]@{ Source = 'AGENTS.md'; Target = 'docs/agent-guidance/validation.md' },
-    [pscustomobject]@{ Source = 'docs/README.md'; Target = 'docs/plans/README.md' },
-    [pscustomobject]@{ Source = 'docs/README.md'; Target = 'docs/plans/feature-maturity-map.md' },
-    [pscustomobject]@{ Source = 'docs/README.md'; Target = 'docs/architecture/README.md' },
-    [pscustomobject]@{ Source = 'docs/README.md'; Target = 'docs/agent-notes/current-implementation-handoff.md' },
-    [pscustomobject]@{ Source = 'docs/README.md'; Target = 'docs/azure/README.md' },
-    [pscustomobject]@{ Source = 'docs/README.md'; Target = 'docs/reference/README.md' },
-    [pscustomobject]@{ Source = 'docs/README.md'; Target = 'docs/evaluation/README.md' },
-    [pscustomobject]@{ Source = 'docs/README.md'; Target = 'docs/runbooks/developer-workstation.md' }
+    [pscustomobject]@{ Source = 'README.md'; Target = 'docs/index.md' },
+    [pscustomobject]@{ Source = 'README.md'; Target = 'docs/product/index.md' },
+    [pscustomobject]@{ Source = 'README.md'; Target = 'docs/architecture.md' },
+    [pscustomobject]@{ Source = 'README.md'; Target = 'docs/operations.md' },
+    [pscustomobject]@{ Source = 'AGENTS.md'; Target = 'docs/index.md' },
+    [pscustomobject]@{ Source = 'docs/README.md'; Target = 'docs/index.md' },
+    [pscustomobject]@{ Source = 'docs/index.md'; Target = 'docs/product/index.md' },
+    [pscustomobject]@{ Source = 'docs/index.md'; Target = 'docs/product/capabilities.md' },
+    [pscustomobject]@{ Source = 'docs/index.md'; Target = 'docs/roadmap.md' },
+    [pscustomobject]@{ Source = 'docs/index.md'; Target = 'docs/architecture.md' },
+    [pscustomobject]@{ Source = 'docs/index.md'; Target = 'docs/operations.md' }
 )
 Test-RequiredRoutes -Links $links -RequiredRoutes $requiredRoutes
 Test-RequiredSkillRoutes -Root $resolvedRoot
+& (Join-Path $PSScriptRoot 'Test-AzureWorkflowDocumentation.ps1') -RepositoryRoot $resolvedRoot
 
 $planCount = Test-PlanIndex -Root $resolvedRoot
 $instructionBytes = Test-InstructionDiscovery -Root $resolvedRoot

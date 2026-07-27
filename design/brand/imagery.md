@@ -2,8 +2,9 @@
 
 ## Approved imagery roles
 
-No brand or decorative imagery is approved for the runtime. Genuine case images
-are operational evidence, not decorative design assets.
+No brand or decorative imagery is needed for the internal application. Genuine
+case images are operational evidence, not decorative design assets. The upstream
+marketing photography and document signatures are deliberately excluded.
 
 ## Selection and treatment
 
@@ -16,4 +17,3 @@ Never generate placeholder cases, damage images, emails, documents, or people.
 | --- | --- | --- | --- |
 | `docs/plans/ui-ux/mockups/candidate-*.png` | compare three shell directions | no runtime consumer | authorized selection aids; unapproved |
 | `docs/plans/ui-ux/mockups/concept-*.png` | historical UI evidence | no runtime consumer | historical/unapproved visual filler |
-| `docs/reference/eva_information/screenshots/` | supplied EVA workflow evidence | no runtime consumer | reference evidence, not design authority |

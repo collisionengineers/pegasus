@@ -13,9 +13,36 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+      - name: Select proportional check
+        shell: pwsh
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          $mode = 'Full'
+          $validSha = '^[0-9a-fA-F]{40}$'
+          if ($env:BASE_SHA -match $validSha -and
+              $env:HEAD_SHA -match $validSha -and
+              $env:BASE_SHA -notmatch '^0{40}$') {
+            git cat-file -e "$env:BASE_SHA^{commit}" 2>$null
+            if ($LASTEXITCODE -eq 0) {
+              $changed = @(git diff --name-only $env:BASE_SHA $env:HEAD_SHA)
+              if ($LASTEXITCODE -eq 0 -and $changed.Count -gt 0) {
+                $nonDocs = @($changed | Where-Object {
+                    $_ -notmatch '\.md$' -and
+                    $_ -notmatch '^\.github/ISSUE_TEMPLATE/[^/]+\.yml$'
+                  })
+                if ($nonDocs.Count -eq 0) { $mode = 'Docs' }
+              }
+            }
+          }
+          "REPO_CHECK_MODE=$mode" >> $env:GITHUB_ENV
+          Write-Host "Selected repository check: $mode"
       - name: Validate repository
         shell: pwsh
-        run: ./scripts/Invoke-RepoCheck.ps1
+        run: ./scripts/Invoke-RepoCheck.ps1 -Mode $env:REPO_CHECK_MODE
