@@ -9,7 +9,7 @@ created: 2026-07-27
 updated: 2026-07-27
 issue: https://github.com/collisionengineers/pegasus/issues/6
 pull_request: https://github.com/collisionengineers/pegasus/pull/7
-baseline: d0965e19230d971166a5ae8fc8b894c6053849e2
+baseline: d0965e1264dadc8d9942ac54fd68a4b45fd06f28
 target_release: 0.1.0-alpha.1
 roadmap_horizon: Now
 mode: development
