@@ -47,17 +47,19 @@ jobs:
         with:
           python-version: "3.14"
       - name: Validate document-extraction workspace
+        working-directory: workspaces/document-extraction
         shell: pwsh
         run: |
-          dotnet restore ./workspaces/document-extraction/CollisionDocNet.slnx
-          dotnet build ./workspaces/document-extraction/CollisionDocNet.slnx --configuration Release --no-restore
-          dotnet test ./workspaces/document-extraction/CollisionDocNet.slnx --configuration Release --no-build
+          dotnet restore ./CollisionDocNet.slnx
+          dotnet build ./CollisionDocNet.slnx --configuration Release --no-restore
+          dotnet test ./CollisionDocNet.slnx --configuration Release --no-build
       - name: Validate report-renderer workspace
+        working-directory: workspaces/report-renderer
         shell: pwsh
         run: |
-          dotnet restore ./workspaces/report-renderer/CollisionRenderer.sln
-          dotnet build ./workspaces/report-renderer/CollisionRenderer.sln --configuration Release --no-restore
-          dotnet test ./workspaces/report-renderer/CollisionRenderer.sln --configuration Release --no-build
+          dotnet restore ./CollisionRenderer.sln
+          dotnet build ./CollisionRenderer.sln --configuration Release --no-restore
+          dotnet test ./CollisionRenderer.sln --configuration Release --no-build
       - name: Validate AI Centre workspace
         working-directory: workspaces/ai-centre/services/collision-brain
         shell: pwsh

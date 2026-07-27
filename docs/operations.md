@@ -25,8 +25,8 @@ Source workspaces validate independently and are not part of the application
 solution:
 
 ```powershell
-dotnet test ./workspaces/document-extraction/CollisionDocNet.slnx --configuration Release
-dotnet test ./workspaces/report-renderer/CollisionRenderer.sln --configuration Release
+Push-Location ./workspaces/document-extraction; dotnet test ./CollisionDocNet.slnx --configuration Release; Pop-Location
+Push-Location ./workspaces/report-renderer; dotnet test ./CollisionRenderer.sln --configuration Release; Pop-Location
 npm ci --prefix ./workspaces/ai-centre/services/collision-brain
 npm test --prefix ./workspaces/ai-centre/services/collision-brain
 Push-Location ./workspaces/agent-skills/tools; python -m unittest test_pack_skill; Pop-Location
