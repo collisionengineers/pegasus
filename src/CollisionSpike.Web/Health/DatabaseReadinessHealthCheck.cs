@@ -19,8 +19,7 @@ internal sealed class DatabaseReadinessHealthCheck(
                 return HealthCheckResult.Unhealthy("The configured database is unavailable.");
             }
 
-            if (database.Database.IsSqlServer()
-                && (await database.Database.GetPendingMigrationsAsync(cancellationToken)).Any())
+            if ((await database.Database.GetPendingMigrationsAsync(cancellationToken)).Any())
             {
                 return HealthCheckResult.Unhealthy("The configured database schema is not current.");
             }

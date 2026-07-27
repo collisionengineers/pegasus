@@ -5,9 +5,9 @@ processes, operating knowledge, product requirements, and practices. They are
 organized by concern so agents can find the relevant authority without treating
 the folder as a single undifferentiated source.
 
-Current explicit user direction authorizes Azure Workflow to maintain and
-organize repository documentation, including this folder. Changes must preserve
-every material business statement, remain reviewable in Git history, and stop
+Current explicit user direction authorizes repository maintainers to maintain
+and organize repository documentation, including this folder. Changes must
+preserve every material business statement, remain reviewable in Git history, and stop
 for user resolution if two authoritative statements materially conflict. Code,
 references, plans, and predecessor behavior do not override this authority.
 
@@ -32,8 +32,8 @@ references, plans, and predecessor behavior do not override this authority.
 
 ## Onboarding source map
 
-The 2026-07-27 Azure Workflow onboarding consolidated the original fragments as
-follows. This map preserves provenance and makes removals auditable.
+The 2026-07-27 repository workflow onboarding consolidated the original
+fragments as follows. This map preserves provenance and makes removals auditable.
 
 | Original source | Canonical destination |
 | --- | --- |

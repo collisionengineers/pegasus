@@ -1,0 +1,2 @@
+--only-binary=:all:
+python-calamine==0.8.2 --hash=sha256:408c60e8c5671c87dec3fda2268475bafcd05dfc7684c72ad15adb050ae5dc45

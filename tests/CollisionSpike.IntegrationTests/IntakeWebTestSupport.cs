@@ -7,8 +7,11 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using CollisionSpike.Core.Intake;
+using CollisionSpike.Infrastructure.Persistence;
 
 namespace CollisionSpike.IntegrationTests;
 
@@ -55,14 +58,16 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         {
             var values = new Dictionary<string, string?>
             {
+                ["Runtime:Profile"] = environment.Equals(
+                    "Development",
+                    StringComparison.OrdinalIgnoreCase)
+                    ? "DevelopmentOffline"
+                    : "Production",
                 ["Database:Provider"] = "Sqlite",
                 ["Database:LocalPath"] = DatabasePath,
-                ["Intake:LocalArtifactPath"] = ArtifactDirectory
+                ["Intake:LocalArtifactPath"] = ArtifactDirectory,
+                ["Features:LocalIntake"] = (localIntakeEnabled ?? false).ToString()
             };
-            if (localIntakeEnabled is not null)
-            {
-                values["Features:LocalIntake"] = localIntakeEnabled.Value.ToString();
-            }
 
             configuration.AddInMemoryCollection(values);
         });
@@ -76,6 +81,17 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
                 services.AddSingleton(artifactStore);
             }
         });
+    }
+
+    protected override IHost CreateHost(IHostBuilder builder)
+    {
+        var host = base.CreateHost(builder);
+        using var scope = host.Services.CreateScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<CollisionSpikeDbContext>>();
+        using var context = contextFactory.CreateDbContext();
+        DevelopmentSqliteBaselineGuard.ValidateAsync(context).GetAwaiter().GetResult();
+        context.Database.Migrate();
+        return host;
     }
 
     protected override void Dispose(bool disposing)

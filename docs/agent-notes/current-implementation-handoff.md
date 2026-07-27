@@ -26,8 +26,9 @@ The browser is the real caller. Source processing, QDOS field-candidate extracti
 From PowerShell 7 at the repository root:
 
 ```powershell
-pwsh ./scripts/Invoke-Doctor.ps1
-pwsh ./scripts/Invoke-RepoCheck.ps1
+dotnet restore ./CollisionSpike.slnx
+dotnet build ./CollisionSpike.slnx --configuration Release --no-restore
+dotnet test ./CollisionSpike.slnx --configuration Release --no-build --filter "Category!=Corpus"
 dotnet run --project ./src/CollisionSpike.Web --launch-profile https
 ```
 
@@ -62,7 +63,7 @@ The test clock is fixed to 2031, so integration assertions use a 2031 instructio
 
 ## Evidence at the baseline
 
-`pwsh ./scripts/Invoke-RepoCheck.ps1` passed after the implementation commit. It covered:
+The baseline repository validation passed after the implementation commit. It covered:
 
 - repository structure and ignored-boundary guards;
 - Release restore/build;
@@ -94,11 +95,11 @@ tests, all executed with no failures or skips.
 
 ### Provider-neutral intake refactor on 2026-07-24
 
-`pwsh ./scripts/Invoke-RepoCheck.ps1 -RequireCorpusEvidence` passed on the final
-refactored tree. The Release build completed with no warnings or errors; 28/28
-Core, 82/82 non-corpus integration, 30/30 architecture, and 11/11 genuine-corpus
-tests executed with no failures or skips. Repository structure, Bicep compilation,
-ignored-boundary checks, and project-skill validation also passed.
+Final refactor validation completed a Release build with no warnings or errors;
+28/28 Core, 82/82 non-corpus integration, 30/30 architecture, and 11/11
+genuine-corpus tests executed with no failures or skips. Repository structure,
+Bicep compilation, ignored-boundary checks, and project-skill validation also
+passed at that checkpoint.
 
 The disposable LocalDB cohort passed 11/11 with no skips. It applies the single
 provider-neutral initial migration explicitly and covers constraints,

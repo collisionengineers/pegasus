@@ -1,44 +1,71 @@
 # Windows developer workstation
 
-CollisionSpike v2 is developed from PowerShell 7 on Windows. Run `pwsh ./scripts/Invoke-Doctor.ps1` for the current check.
+CollisionSpike v2 is developed from PowerShell 7 on Windows. Verify tools
+directly with their standard version commands; the repository does not install
+global tools or require a cloud login for offline development.
 
-Verified on 2026-07-23:
+## Offline baseline
 
-| Tool | Verified version/presence | Purpose |
-|---|---|---|
-| PowerShell | 7.6.3 | repository and cloud automation |
-| Git | 2.53 | source control |
-| .NET SDK | 10.0.302 plus 10.0.204 | application build/test |
-| Azure CLI | 2.88 | read-only inventory and explicit cloud operations |
-| Bicep CLI | 0.45.15 | infrastructure compile |
-| Azure Developer CLI | 1.28.0 | approved direct-terminal Bicep/package deployment after ADR-0009 gaps are implemented |
-| Azure Functions Core Tools | 4.12.1 | local isolated Worker host |
-| GitHub CLI | 2.88 | repository/CI operations |
-| Node/npm | 24.14 / 11.9 | pinned Azure MCP launcher and tooling |
-| Python | 3.14.3 | skill and evaluation utilities |
-| Infisical CLI | 0.43.104 | local/runtime secret workflow |
-| Box CLI | 4.9.2 | explicitly approved Box diagnostics/operations |
-| SqlServer PowerShell module | 22.4.5.1 | Entra-token SQL post-provision grant |
+| Tool | Supported version/presence | Purpose |
+| --- | --- | --- |
+| PowerShell | 7.6.3 | development shell |
+| Git | current supported client | source control and path ownership checks |
+| .NET SDK | 10.0.302 from `global.json` | build, migration command, Web and tests |
+| Node/npm | Node 24 / npm 11 | restore pinned Azurite |
+| Azurite | 3.36.0 from `package-lock.json` | local Blob/Queue/Table services |
+| Azure Functions Core Tools | 4.12.1 | actual local isolated Worker host |
+| SQL Server Express LocalDB | installed LocalDB runtime | full local relational database |
+| Development HTTPS certificate | trusted .NET development certificate | Web and local OAuth/MCP |
 
-Azure Developer CLI is installed under `%LOCALAPPDATA%\Programs\Azure Dev CLI` and on the user PATH. An already-running shell may need to restart before `azd` resolves by name.
-
-## Install or repair commands
+Direct checks:
 
 ```powershell
-winget install --id Microsoft.Azd --exact --accept-package-agreements --accept-source-agreements
-Install-Module SqlServer -Scope CurrentUser -Force -AllowClobber -Repository PSGallery
+pwsh --version
+git --version
+dotnet --version
+node --version
+npm --version
+npx --no-install azurite --version
+func --version
+sqllocaldb versions
+dotnet dev-certs https --check --trust
 ```
 
-## Authentication boundaries
+Run `npm ci` and `dotnet restore ./CollisionSpike.slnx` once package feeds are
+available. Normal local start and smoke must not need a cloud or vendor network.
+See [local development](local-development.md) for process and state ownership.
 
-- `az login` authenticates Azure CLI and managed-identity-aware local development through the signed-in operator.
-- `azd auth login` is separate and should be run only when provisioning/deployment work is approved.
-- GitHub Actions/OIDC deployment is `Never`. An authorised terminal identity is
-  required only for explicitly approved Azure work; do not create long-lived
-  Azure client secrets as a substitute.
-- Application users are not Entra users by assumption. Their usernames/passwords are owned by ASP.NET Core Identity in the application database.
-- Infisical or Azure Key Vault holds third-party credentials. Never place values in local settings examples, azd parameters, committed appsettings, or agent prompts.
+Python 3.14.3 and the hash-locked workbook dependency are used only by the
+reference-data authoring command. Playwright browsers are used only by the
+browser acceptance lane. Neither is an application runtime.
 
-Repository-local Azure and Microsoft Learn MCP declarations were removed before
-Azure Workflow onboarding. Current Microsoft/Azure facts use the active workflow
-tools when available; tool availability never authorizes a cloud read or write.
+## Optional approved live-work profile
+
+These tools are not offline prerequisites. Check them only when the exact live
+operation has already been approved:
+
+| Tool/module | Supported version |
+| --- | --- |
+| Azure CLI | 2.88 |
+| Azure Developer CLI | 1.28.0 |
+| Bicep CLI | 0.45.15 |
+| GitHub CLI | 2.88 |
+| Infisical CLI | 0.43.104 |
+| Box CLI | 4.9.2 |
+| SqlServer PowerShell module | 22.4.5.1 |
+| ExchangeOnlineManagement PowerShell module | 3.10.0 |
+
+Install PowerShell modules only at CurrentUser scope and only for the selected
+live work:
+
+```powershell
+Install-Module SqlServer -Scope CurrentUser -RequiredVersion 22.4.5.1 -Force -AllowClobber -Repository PSGallery
+Install-Module ExchangeOnlineManagement -Scope CurrentUser -RequiredVersion 3.10.0 -Force -AllowClobber -Repository PSGallery
+```
+
+Tool installation and authentication do not authorize an external read or
+write. `az login`, `azd auth login`, Exchange connection, Box login, credential
+changes, deployment, and Azure operations retain separate exact-target
+approval. Application staff accounts are CollisionSpike Identity accounts, not
+assumed Entra users. Third-party credentials never enter tracked settings,
+terminal output, prompts, telemetry, or business history.

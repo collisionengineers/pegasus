@@ -1,15 +1,15 @@
-# Change: Plan provider-aware email interpretation and QDOS alpha
+# Change: Deliver provider-aware email interpretation and QDOS alpha
 
 ```yaml
 id: 2026-07-27-qdos-alpha-reference-corpora
 type: feature
-status: planned
+status: in_progress
 risk: high
 created: 2026-07-27
 updated: 2026-07-27
 issue: https://github.com/collisionengineers/collisionspike_v2/issues/3
-pull_request: https://github.com/collisionengineers/collisionspike_v2/pull/4
-baseline: 5a3eae12644776926c746d9e5df9b699e6596000
+pull_request: pending
+baseline: b2f40a2b68b5b1a906ff2e736fa43653006dba61
 target_release: 0.1.0-alpha.1
 roadmap_horizon: Now
 mode: development
@@ -19,13 +19,12 @@ superseded_by: none
 
 ## Summary
 
-Plan the two coupled `Now` outcomes: a durable provider/intermediary-specific
-instruction foundation and the first live end-to-end QDOS alpha. The change
-must load the complete supplied provider and inspection-location corpora,
-identify whether email came directly from a provider or through an
-intermediary, apply the correct route-specific rules, and fail closed before
-case/reference creation whenever provider, type, case, or required evidence is
-not definitive.
+Deliver the two coupled `Now` outcomes: a durable provider/intermediary-specific
+instruction foundation and the first end-to-end QDOS alpha. Delivery first
+builds and accepts the complete application offline through LocalDB, Azurite,
+the actual Functions host, local mailbox/custody adapters, local HTTPS
+authentication/MCP, and genuine working-copy evidence. Only after that gate may
+approved live adapters, Azure reconciliation, deployment, and acceptance begin.
 
 ## Scope
 
@@ -64,9 +63,9 @@ not definitive.
 - V2 all-mailbox management, folder moves, general correspondence matching,
   provider API activation, DOC/MSG/OCR expansion, AI classification, WhatsApp
   automation, and every Later/Not planned capability.
-- Repository implementation, migration, executable CI/IaC change, Azure
-  mutation, corpus mutation/upload, deployment, acceptance, or merge in this
-  planning PR.
+- Live-service client construction, Azure/IaC mutation, cloud reads/writes,
+  deployment, predecessor retirement, or production cutover before the complete
+  offline acceptance gate and their own exact-target approvals.
 
 ## Authorities, current state, and constraints
 
@@ -135,6 +134,36 @@ not definitive.
 - Full repository validation, independent implementation review, operator
   acceptance, management acceptance, and separately authorized live Azure
   validation are green before `0.1.0-alpha.1` is accepted.
+
+## Capability evidence index
+
+This immutable index accounts for all 128 `Now` capability IDs. The delivery
+steps are the owning implementation/evidence slices; this table records
+allocation, not a claim that pending evidence has passed. Each row later records
+local proof, live proof where required, or the exact release blocker without
+removing the capability.
+
+| Capability IDs | Delivery steps | Required evidence owner |
+| --- | --- | --- |
+| `OPS-10` | 12, 13 | approved isolated Azure Development deployment and direct-terminal release evidence |
+| `OPS-22` | 4, 10 | genuine-input graphical evaluator and cohort/holdout evidence |
+| `OPS-01`, `OPS-02`, `OPS-03`, `OPS-04`, `OPS-05`, `OPS-06`, `OPS-07`, `OPS-08`, `OPS-09`, `OPS-11`, `OPS-13`, `OPS-14`, `OPS-20`, `OPS-24` | 1, 5, 8, 10, 12, 13 | offline platform/caller/concurrency proof followed by approved Azure, resilience, capacity, deployment, and recovery proof |
+| `OPS-23`, `OPS-25` | 13 | operator journey and Collision Engineers management release approval |
+| `EVAL-01`, `EVAL-02`, `EVAL-03`, `EVAL-04`, `EVAL-05` | 4, 10 | local evaluator UI, persisted review evidence, cohort/holdout |
+| `MAIL-20`, `MAIL-21`, `MAIL-22` | 4, 10, 11 | shared Core taxonomy/route evidence, local caller proof, then approved Graph parity |
+| `MAIL-14`, `MAIL-15`, `MAIL-16` | 6–8, 10, 11 | exact local Sent evidence/linking and approved automatic matcher holdout, then Graph parity |
+| `MAIL-18` | 6, 9, 10 | Core chaser policy and authenticated copyable Web output |
+| `ACC-01`, `ACC-02`, `ACC-03`, `ACC-04`, `ACC-05`, `ACC-06`, `ACC-07`, `ACC-08`, `ACC-09`, `ACC-10`, `ACC-11` | 3, 9, 10 | Identity/OpenIddict, authorization, history, authenticated browser/MCP |
+| `INT-01`, `INT-02`, `INT-03`, `INT-08`, `INT-09`, `INT-10`, `INT-11`, `INT-12`, `INT-13`, `INT-17`, `INT-18`, `INT-19`, `INT-20`, `INT-21`, `INT-22`, `INT-23`, `INT-24`, `INT-25`, `INT-26`, `INT-27`, `INT-29`, `INT-30` | 4–10 | shared evaluator, durable receipt/outbox/Worker, acceptance and negative recovery smoke |
+| `TRI-01`, `TRI-02`, `TRI-03`, `TRI-04`, `TRI-05`, `TRI-06`, `TRI-07`, `TRI-08`, `TRI-09` | 4, 6, 8–10 | approved matcher evidence, Core transitions, Worker Sent evidence, UI/MCP |
+| `CASE-01`, `CASE-02`, `CASE-03`, `CASE-04`, `CASE-07`, `CASE-08`, `CASE-09`, `CASE-10`, `CASE-11`, `CASE-12`, `CASE-13`, `CASE-14`, `CASE-15`, `CASE-16`, `CASE-17`, `CASE-18`, `CASE-19`, `CASE-20`, `CASE-21`, `CASE-24`, `CASE-25`, `CASE-26`, `CASE-27`, `CASE-28`, `CASE-29`, `CASE-30` | 6–10 | Core/persistence contract, local adapters, Worker, UI/MCP, lifecycle smoke |
+| `UI-01`, `UI-02`, `UI-03`, `UI-04`, `UI-05`, `UI-06`, `UI-07`, `UI-08`, `UI-09`, `UI-11`, `UI-13` | 9, 10 | authenticated Razor Pages caller and Playwright/accessibility acceptance |
+| `DOC-01`, `DOC-02`, `DOC-03`, `DOC-04`, `DOC-05`, `DOC-06`, `DOC-07`, `DOC-08` | 6, 7, 9–11 | Core custody contract, local adapter/UI smoke, then Box parity/live proof |
+| `EXT-01`, `EXT-02`, `EXT-03`, `EXT-14`, `EXT-18` | 7, 10, 11 | local replay/export contract and operator smoke, then approved live parity |
+| `MCP-01`, `MCP-02`, `MCP-03`, `MCP-04` | 3, 9, 10, 13 | OpenIddict actor enforcement and real Streamable HTTP caller |
+| `DATA-01`, `DATA-02` | 2, 10 | deterministic manifest/package/migrations and exact count/hash proof |
+
+Count assertion: **128 distinct IDs; no duplicate and no omitted `Now` row**.
 
 ## Plan
 
@@ -239,13 +268,13 @@ document, imagery, or animation excess returns.
 
 ## Azure impact
 
-Planning performs no Azure read or write. Delivery materially affects the
-existing intended Web, Worker, SQL, Storage, Key Vault, Application Insights,
-and Log Analytics topology, so it requires a fresh live inventory, explicit
-subscription/resource targets, spending boundary, identity/RBAC proof,
-deployment approval, health/smoke validation, and recovery approval through
-`$azure-workflow:operate-azure-repository`. No new Azure service or deployment
-unit is planned.
+Delivery materially affects the intended Web, Worker, SQL, Storage, Key Vault,
+Application Insights, and Log Analytics topology. Offline delivery performs no
+Azure read or write and does not modify IaC. After offline acceptance, a fresh
+inventory, explicit subscription/resource targets, spending boundary,
+identity/RBAC proof, deployment approval, health/smoke validation, and recovery
+approval are required before each exact live operation. No new Azure service or
+deployment unit is planned.
 
 ## Decisions and conflicts
 
@@ -270,21 +299,54 @@ unit is planned.
 
 ## Implementation
 
-- Status: not started.
-- Deviations: none.
+- Status: active; implementation approved on 2026-07-27.
+- Current stage: Step 2 provider/location reference data.
+- Full implementation plan: [QDOS alpha implementation plan](2026-07-27-qdos-alpha-implementation-plan.md).
+  This change record remains the owner of current status, evidence, blockers, and
+  outcome.
+- Deviations: workflow-specific repository/doctor/documentation wrapper scripts
+  were removed by direct owner instruction; verification uses owning executables.
 - Recovery actions: none.
-- Stop: this documentation-only PR must not implement runtime code, schema,
-  migration, executable CI/IaC, Azure changes, deployment, or merge.
+- Live boundary: no cloud/vendor read, write, credential, deployment, or
+  predecessor-retirement operation is authorized by this activation.
+- Step 2 authoring code is implemented in `scripts/Build-ProviderReferenceData.ps1`.
+  It uses the ignored dependency cache
+  `artifacts/reference-data-tools/` and ignored atomic staging
+  `artifacts/reference-data-staging/`, then targets the committed package
+  `src/CollisionSpike.Infrastructure/ReferenceData/provider-reference-data.v1.json`
+  and manifest
+  `src/CollisionSpike.Infrastructure/ReferenceData/provider-reference-data.v1.manifest.json`.
+  This is authoring-code evidence only; no generated package, manifest,
+  migration, count, review, test, or acceptance result is claimed here.
+- Step 2 precondition: every supplied workbook must be closed and no
+  `~$*.xls*` lock may remain under
+  `docs/reference/workproviders-and-repairers/`. The authoring command rejects
+  a lock before dependency installation, source reading, or output writing.
+  The current observed external blocker is
+  `docs/reference/workproviders-and-repairers/~$providers-worked-on.xlsx`;
+  therefore neither committed output is claimed as generated. Source
+  workbooks and CSVs remain immutable, and every candidate remains
+  `Unreviewed` and unavailable as a runtime selector.
+- Direct operator invocation is `pwsh ./scripts/Build-ProviderReferenceData.ps1`
+  from the repository root after the lock check. The command is offline and
+  makes no cloud/vendor calls; completion would not by itself prove review,
+  selector activation, migration, tests, release, or alpha acceptance.
+
 
 ## Verification
 
 | Check | Scope | Expected | Observed |
 | --- | --- | --- | --- |
-| `pwsh ./scripts/Invoke-RepoCheck.ps1 -Mode Docs` | planning documentation | valid record, links, source roles, design and roadmap consistency | passed: 155 Markdown files, 1,115 local links, 213 feature triples, 41 archived artifacts, 21 assertions |
+| planning documentation validation (historical) | planning documentation | valid record, links, source roles, design and roadmap consistency | passed: 155 Markdown files, 1,115 local links, 213 feature triples, 41 archived artifacts, 21 assertions |
 | scoped diff inspection | planning branch | documentation/work tracking only; no corpus or supplied-reference mutation | passed before publication; only canonical documentation and this record changed |
 | fresh plan review | complete record and canonical updates | no missing decision, contradiction, hidden compatibility, or unexecutable step | passed after one pre-publication remediation batch; no remaining blocker/required finding |
 | GitHub `validate` | each published exact head | proportional Docs lane succeeds | PR #4 owns current result; prior exact-head runs `30236008712` and `30236209099` passed |
-| implementation repository check | later delivery | full build/tests/architecture/docs/Bicep green | not run — implementation excluded |
+| direct Release build and non-corpus tests | current delivery branch | owning executables pass without workflow wrappers | passed: Architecture 30/30, Core 28/28, Integration 85/85; no failures or skips |
+| tool-neutral activation | active guidance and scripts | issue #3 is active; no active plugin route or workflow-specific validation/doctor wrapper remains | passed; issue title/body updated and obsolete wrappers deleted |
+| offline platform source/caller smoke | standard tools, LocalDB, current Web, Azurite, actual Functions host | explicit migration only; isolated DevelopmentOffline; ready local services; no cloud/vendor client | passed: `npm ci`; LocalDB migration applied twice idempotently; Web HTTPS live/ready/intake returned 200; Azurite Blob/Queue listeners and Functions 4.12.1 host lock were observed; host correctly reported no trigger at this checkpoint |
+| Development HTTPS workstation trust | current-user certificate store | trusted certificate for ordinary browser use | certificate and HTTPS host proved; Windows trust confirmation is still required during clean-operator setup and is not claimed complete on this workstation |
+| Step 2 provider-reference authoring | supplied workbooks, lock guard, deterministic package/manifest outputs | no `~$` lock; immutable inputs; all candidates `Unreviewed`; exact package/manifest and counts only after a successful run | blocked before authoring: `docs/reference/workproviders-and-repairers/~$providers-worked-on.xlsx` is present; no generation, count, migration, review, test, or acceptance evidence claimed |
+
 | genuine corpus evaluation | later delivery | route-specific cohorts/holdouts and failures prove accepted predicates | not run — implementation excluded |
 | live Azure/caller/acceptance evidence | later approved operation | migration, callers, external effects, recovery, operator and management acceptance | not run — implementation excluded |
 
@@ -322,21 +384,25 @@ unit is planned.
 - Architecture/ADR: Decision 0011 supersedes ADR-0006's single-policy selection
   and no-provider-registry/table limits while preserving its neutral
   intake/storage principles.
-- Operations: later delivery must update runbooks for import, mailbox recovery,
-  migration, deployment, backup/restore, and rollback.
-- GitHub issue/Project/milestone: [issue #3](https://github.com/collisionengineers/collisionspike_v2/issues/3), draft [PR #4](https://github.com/collisionengineers/collisionspike_v2/pull/4), Project status `In progress`, Priority `P1 High`, Horizon `Now`, milestone `0.1.0-alpha.1`.
+- Operations: offline setup, live preflight, teardown, migration, deployment,
+  backup/restore, and rollback procedures are updated with their owning slices.
+- GitHub issue/Project/milestone: [issue #3](https://github.com/collisionengineers/collisionspike_v2/issues/3), delivery pull request pending, Project status `In progress`, Priority `P1 High`, Horizon `Now`, milestone `0.1.0-alpha.1`.
 
 ## Outcome
 
-The decision-complete plan is published as draft PR #4. Local Docs validation
-has passed; GitHub owns the current exact-head CI and independent-review
-evidence because those results necessarily postdate the commit under review.
-Implementation remains stopped.
+Implementation is active on the approved delivery branch. The planning PR is
+historical evidence; the current change record owns offline proof, named live
+blockers, approved live evidence, and the final release outcome.
 
 ## Blocker or follow-ups
 
-- Blocker: none in the plan content. The Project item remains under review until
-  GitHub shows green exact-head Docs CI and a clean independent review.
-- Follow-ups: implementation must acquire and approve genuine evidence for each
-  direct-provider or intermediary policy it activates. Additional provider case
-  activation stays `Next`; all other exclusions retain their current horizon.
+- Current blocker: none for offline implementation.
+- Step 2 external authoring blocker: the observed
+  `docs/reference/workproviders-and-repairers/~$providers-worked-on.xlsx`
+  Office lock requires the authoring command to fail before dependency
+  installation, source reading, or output writing. Generation and all
+  package/count/migration/review/test/acceptance evidence remain unclaimed.
+- Live blockers: genuine route/Triage/report holdouts, selected VRM engine,
+  accepted DVLA/DVSA and EVA contracts, exact Graph/Box targets and scopes,
+  refreshed Azure inventory, teardown approvals, isolated v2 target, operator
+  acceptance, and management approval remain mandatory before release.

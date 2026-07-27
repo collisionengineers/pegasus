@@ -7,7 +7,7 @@ additional rules for documentation work.
 - Preserve information by mapping every removed, shortened, moved, or
   superseded claim to a retained or canonical destination. Do not move or delete
   a source to make the tree look tidy.
-- `operator-notes/` is authoritative operator truth. Azure Workflow may
+- `operator-notes/` is authoritative operator truth. Repository maintainers may
   maintain its documentation and organization under the user's standing
   authorization, but must preserve material meaning and escalate conflicts.
   Treat `reference/` as evidence, not current product or architecture

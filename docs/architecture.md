@@ -37,8 +37,8 @@ Current caller details and dated limits remain in the
 
 ## Data and integrations
 
-- Development SQLite stores provider-neutral receipt, relational draft, asset/evidence metadata, and versioned codes; ignored content-addressed local storage holds source bytes.
-- Azure SQL is the intended application store for case workflow, identity, permanent action history, configuration, and source/file relationships. No live v2 migration has been applied.
+- DevelopmentOffline uses SQL Server Express LocalDB and the same committed migration stream as SQL Server/Azure SQL; ignored local files hold current source bytes until the local custody adapter replaces that proof.
+- Azure SQL is the intended deployed application store for case workflow, identity, permanent action history, configuration, and source/file relationships. No live v2 migration has been applied.
 - Box is the intended long-term original-file owner. Local artifacts and transient Blob/queues are not Box custody.
 - Outlook owns mailbox content and exact sent-message evidence; the application owns accepted classifications and associations.
 - EVA remains authoritative for named Engineer assignment and downstream engineering until an accepted replacement slice.
@@ -56,8 +56,8 @@ Current caller details and dated limits remain in the
   exactly one applicable route policy, and records its evidence and version. It
   does not impose a universal case-matching precedence.
 - Web/Worker adapters translate transport and configuration; they do not copy business policy.
-- EF migrations under Infrastructure own application schema evolution. Production startup must not apply migrations implicitly.
-- `src/CollisionSpike.Web/Program.cs` owns current Web composition and database provider selection; checked-in Development launch settings own the local intake flag/path.
+- EF migrations under Infrastructure own application schema evolution. Normal Web/Worker startup never applies migrations; the explicit Development command owns LocalDB migration and a release-owned bundle/operation will own deployed migration.
+- `src/CollisionSpike.Web/Program.cs` owns current Web composition, `DevelopmentOffline` isolation, and database provider selection; Development configuration uses LocalDB and an ignored local artifact root.
 - `infra/` and `.azure/deployment-plan.md` own target infrastructure/release design. They do not prove a live deployment.
 
 ## Source roles and generated material
@@ -66,8 +66,8 @@ Current caller details and dated limits remain in the
 | --- | --- | --- | --- |
 | `src/CollisionSpike.Infrastructure/Persistence/Migrations/` | live migration source | EF model and reviewed migrations | local/SQL Server schema apply procedures |
 | `artifacts/bicep/main.json` | ignored generated output | `az bicep build --file infra/main.bicep` | compile evidence only |
-| `artifacts/test-results/` | ignored generated evidence | repository check | local review/diagnosis |
-| `artifacts/intake/` and local database | ignored Development state | real Development Web caller | local review only; not production custody |
+| `artifacts/test-results/` | ignored generated evidence | owning .NET test projects | local review/diagnosis |
+| `artifacts/local-development/` and LocalDB databases | ignored Development state | explicit migration command and real local callers | local review only; not production custody |
 | `docs/reference/` | preserved supplied evidence | not generated | planning/evaluation after authority reconciliation |
 | `design/references/mockups/` | approved comparison rasters | linked candidate-direction sources | direction selection only; not runtime/requirements |
 

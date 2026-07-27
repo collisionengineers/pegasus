@@ -87,7 +87,7 @@ The current genuine corpus category has 11 passing Web tests in total. One histo
 low-text PDF is now explicitly `Needs sorting`, not OCR, because it has no
 dominant page raster. This is the intended scan-only OCR policy.
 
-The full `pwsh ./scripts/Invoke-RepoCheck.ps1 -RequireCorpusEvidence` gate passed
+The recorded full validation gate with required corpus evidence passed
 after this increment: 11/11 Core tests, 57/57 non-corpus integration tests,
 29/29 architecture tests, and 11/11 corpus tests, with no failures or skips. It
 also completed the Release build, repository guards, Bicep compilation, and

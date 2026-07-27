@@ -5,9 +5,9 @@ are nearby. Later, explicit user instructions amend earlier instructions for
 the affected scope only.
 
 1. Direct user instruction for the current task.
-2. `docs/operator-notes/` for operator and business truth. Azure Workflow may
-   maintain their documentation and organization under the user's standing
-   authorization, but material meaning changes require direct user resolution.
+2. `docs/operator-notes/` for operator and business truth. Repository
+   maintainers may maintain their documentation and organization under the
+   user's standing authorization, but material meaning changes require direct user resolution.
 3. Settled product decisions in `PROJECT_DISCOVERY_QUESTIONNAIRE.md` and the
    current allocation in `docs/product/capabilities.md`.
 4. Accepted technical decisions under `docs/architecture/decisions/`.
