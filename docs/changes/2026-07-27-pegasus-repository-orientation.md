@@ -448,4 +448,5 @@ Pull request review validated and remediated the following required findings:
 ## Outcome
 
 Implementation and local caller evidence are complete. Pull request 7 remains
-unmerged pending green CI and independent exact-head review.
+the retained source review at `493189012afee158793d1f5d1602b5708b33e530`;
+pull request 17 is the delivery under green CI and independent exact-head review.
