@@ -3,12 +3,12 @@
 ```yaml
 id: 2026-07-27-pegasus-repository-orientation
 type: decision
-status: in_progress
+status: in_review
 risk: high
 created: 2026-07-27
 updated: 2026-07-28
 issue: https://github.com/collisionengineers/pegasus/issues/6
-pull_request: pending
+pull_request: https://github.com/collisionengineers/pegasus/pull/17
 baseline: d0965e1264dadc8d9942ac54fd68a4b45fd06f28
 target_release: 0.1.0-alpha.1
 roadmap_horizon: Now
@@ -16,6 +16,21 @@ mode: development
 supersedes: none
 superseded_by: none
 ```
+
+## Delivery series
+
+| Order | Pull request | Scope |
+| ---: | --- | --- |
+| 01 | https://github.com/collisionengineers/pegasus/pull/8 | Establish Pegasus orientation governance |
+| 02 | https://github.com/collisionengineers/pegasus/pull/9 | Cut over the runtime identity to Pegasus |
+| 03 | https://github.com/collisionengineers/pegasus/pull/10 | Import the document extraction workspace |
+| 04 | https://github.com/collisionengineers/pegasus/pull/11 | Import the secured report renderer workspace |
+| 05 | https://github.com/collisionengineers/pegasus/pull/12 | Import the hardened AI Centre workspace |
+| 06 | https://github.com/collisionengineers/pegasus/pull/13 | Import Agent Skills and complete workspace manifests |
+| 07 | https://github.com/collisionengineers/pegasus/pull/14 | Preserve Pegasus history and EVA evidence |
+| 08 | https://github.com/collisionengineers/pegasus/pull/15 | Normalize imported reference terminology |
+| 09 | https://github.com/collisionengineers/pegasus/pull/16 | Orient canonical Pegasus documentation |
+| 10 | https://github.com/collisionengineers/pegasus/pull/17 | Enforce Pegasus repository integration |
 
 ## Summary
 
@@ -413,8 +428,7 @@ Pull request review validated and remediated the following required findings:
   bundled signature resolution to known keys, reported the actual de-collided artifact filename,
   and returned per-item validation for null batch entries.
 
-## Source-head verification to reproduce on the split series
-The checked evidence below was observed at source head 493189012afee158793d1f5d1602b5708b33e530 and must be reproduced on the reconstructed final head before this record returns to in-review status.
+## Verification and evidence
 
 - [x] Canonical product documents and the capability inventory agree with every
   crosswalk row.
@@ -434,4 +448,5 @@ The checked evidence below was observed at source head 493189012afee158793d1f5d1
 ## Outcome
 
 Implementation and local caller evidence are complete. Pull request 7 remains
-unmerged pending green CI and independent exact-head review.
+the retained source review at `493189012afee158793d1f5d1602b5708b33e530`;
+pull request 17 is the delivery under green CI and independent exact-head review.
