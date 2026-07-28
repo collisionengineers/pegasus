@@ -8,7 +8,7 @@ risk: high
 created: 2026-07-27
 updated: 2026-07-28
 issue: https://github.com/collisionengineers/pegasus/issues/6
-pull_request: pending
+pull_request: https://github.com/collisionengineers/pegasus/pull/17
 baseline: d0965e1264dadc8d9942ac54fd68a4b45fd06f28
 target_release: 0.1.0-alpha.1
 roadmap_horizon: Now
@@ -16,6 +16,21 @@ mode: development
 supersedes: none
 superseded_by: none
 ```
+
+## Delivery series
+
+| Order | Pull request | Scope |
+| ---: | --- | --- |
+| 01 | https://github.com/collisionengineers/pegasus/pull/8 | Establish Pegasus orientation governance |
+| 02 | https://github.com/collisionengineers/pegasus/pull/9 | Cut over the runtime identity to Pegasus |
+| 03 | https://github.com/collisionengineers/pegasus/pull/10 | Import the document extraction workspace |
+| 04 | https://github.com/collisionengineers/pegasus/pull/11 | Import the secured report renderer workspace |
+| 05 | https://github.com/collisionengineers/pegasus/pull/12 | Import the hardened AI Centre workspace |
+| 06 | https://github.com/collisionengineers/pegasus/pull/13 | Import Agent Skills and complete workspace manifests |
+| 07 | https://github.com/collisionengineers/pegasus/pull/14 | Preserve Pegasus history and EVA evidence |
+| 08 | https://github.com/collisionengineers/pegasus/pull/15 | Normalize imported reference terminology |
+| 09 | https://github.com/collisionengineers/pegasus/pull/16 | Orient canonical Pegasus documentation |
+| 10 | https://github.com/collisionengineers/pegasus/pull/17 | Enforce Pegasus repository integration |
 
 ## Summary
 
