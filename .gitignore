@@ -67,3 +67,4 @@ l
 /workspaces/ai-centre/services/collision-brain/dist/
 /workspaces/ai-centre/skills/tools/__pycache__/
 /.obsidian
+src/CollisionSpike.Web/wwwroot/lib/jquery-validation/LICENSE.md
