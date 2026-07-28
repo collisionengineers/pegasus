@@ -18,6 +18,6 @@ Snapshot observed 2026-07-23:
 - Do not upload corpus material to Azure, Box, GitHub, public model services, or other external systems without a new explicit instruction.
 - Write manifests, extracted text, hashes, predictions, and reports to ignored `artifacts/evaluation/`.
 - Do not expose personal data, secret values, full email content, or case documents in committed reports. Use counts, hashes, redacted identifiers, and small approved excerpts.
-- The corpus's historical labels and nested notes are evidence, not v2 product authority.
+- The corpus's historical labels and nested notes are evidence, never product authority at any horizon.
 
 Use `$collisionspike-corpus-evaluation` to design or run a corpus-backed test.

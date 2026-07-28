@@ -2,7 +2,7 @@
 
 ## Standard and supported input
 
-Planned V1 supports keyboard and pointer operation, screen readers, 200% zoom,
+Planned `0.1.0-alpha.1` supports keyboard and pointer operation, screen readers, 200% zoom,
 forced colours, and reduced motion on supported desktop layouts. Mobile staff
 UI is not planned.
 
