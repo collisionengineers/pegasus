@@ -29,7 +29,27 @@ appsettings.*.local.json
 /.repoplugin/
 node_modules/
 .bicep/
-/src/CollisionSpike.Web/wwwroot/lib/
+/src/Pegasus.Web/wwwroot/lib/
+
+# Imported source-workspace outputs and local/private material
+/workspaces/**/.git/
+/workspaces/**/node_modules/
+/workspaces/**/.venv/
+/workspaces/**/.pytest_cache/
+/workspaces/**/__pycache__/
+/workspaces/**/_dev/
+/workspaces/**/dist/
+/workspaces/**/coverage/
+/workspaces/**/artifacts/
+/workspaces/**/outputs/
+/workspaces/**/runs/
+/workspaces/**/checkpoints/
+/workspaces/**/*.zip
+/workspaces/**/*.skill
+/workspaces/**/*.nupkg
+/workspaces/**/*.snupkg
+/workspaces/document-extraction/sample-doc-files/
+/workspaces/ai-centre/ml-ops/data/
 
 # Operating-system files
 .DS_Store

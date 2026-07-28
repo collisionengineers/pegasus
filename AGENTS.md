@@ -1,8 +1,8 @@
-# CollisionSpike v2 repository instructions
+# Pegasus repository instructions
 
-CollisionSpike v2 is the clean-room case-management application for Collision
-Engineers. Read [the repository documentation](docs/index.md) before material work and the nearest nested
-`AGENTS.md` for local deltas.
+Pegasus is Collision Engineers' clean-room case-management and reporting
+application. Read [the repository documentation](docs/index.md) before material
+work and the nearest nested `AGENTS.md` for local deltas.
 
 ## Environment and workflow
 
@@ -37,10 +37,13 @@ Engineers. Read [the repository documentation](docs/index.md) before material wo
 - Principal and reference are immutable after allocation. Wrong-principal work closes as `Created in error`, with a reason and linked replacement; neither reference is reused and the original never reopens.
 - Never delete a case. Reopening needs a reason and normal destination gates.
 - `Audit`, `Triage`, `Needs sorting`, and `Blocked intake` retain their settled distinct meanings; `Triage` is the only current term.
-- `CollisionSpike.Core` owns business policy and ports. Infrastructure depends on Core; Web and Worker are composition roots depending on both. Duplicate business implementation is a stop condition.
+- `Pegasus.Core` owns business policy and ports. Infrastructure depends on Core; Web and Worker are composition roots depending on both. Duplicate business implementation is a stop condition.
 - A new top-level directory, project, store, runtime, migration stream, or deployment unit requires an accepted ADR proving the existing boundary cannot carry it.
 - Every plan/design/schema/API/architecture change records deferred-capability impact: named deferrals, preserved seam/data identity, exclusions, activation evidence, and irreversible choices. Do not build dormant capability.
 - Prove the actual caller. Registration, a file, a green structural check, deployment, and acceptance are distinct evidence states.
+- `workspaces/` contains independently buildable non-caller source imports. Never add one to `Pegasus.slnx`, reference or dynamically load it from the application, hoist its dependencies, or include it in an application deployment without a separately accepted integration contract and caller-backed proof.
+- AI Centre owns AI model, evaluation, training, and provider experimentation only. `Pegasus.Core` retains every business rule and human-approval gate; a workspace, skill, prompt, or model never becomes an application policy owner.
+- Local alpha work must not mutate an Outlook mailbox or any Box location. Box testing is permitted only in a separately approved disposable test subtree; Outlook tests use immutable local copies or an explicitly approved test mailbox and operation.
 
 The architecture dependency direction and change boundaries in this section are
 also the repository's architecture invariants.
