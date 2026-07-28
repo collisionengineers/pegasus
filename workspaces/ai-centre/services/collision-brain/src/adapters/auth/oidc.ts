@@ -6,14 +6,14 @@ const allowedRoles = new Set<Role>(["reader", "contributor", "admin"]);
 
 export class OidcAuthProvider implements AuthProvider {
   private readonly jwks;
-  private readonly normalisedIssuer: string;
+  private readonly issuer: string;
 
   constructor(
     issuer: string,
     private readonly audience: string,
     jwksUrl: string,
   ) {
-    this.normalisedIssuer = issuer.replace(/\/$/, "");
+    this.issuer = issuer;
     this.jwks = createRemoteJWKSet(new URL(jwksUrl));
   }
 
@@ -23,7 +23,7 @@ export class OidcAuthProvider implements AuthProvider {
 
     try {
       const { payload } = await jwtVerify(token, this.jwks, {
-        issuer: this.normalisedIssuer,
+        issuer: this.issuer,
         audience: this.audience,
       });
       if (!payload.sub) return null;

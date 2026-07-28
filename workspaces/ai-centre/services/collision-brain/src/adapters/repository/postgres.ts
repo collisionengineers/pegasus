@@ -27,6 +27,9 @@ function parseMetadata(value: unknown): DocumentMetadata {
   return (typeof value === "string" ? JSON.parse(value) : value) as DocumentMetadata;
 }
 
+const ingestionLeaseTimeout = "15 minutes";
+const maxIngestionAttempts = 3;
+
 function parseEmbedding(value: unknown) {
   if (value === null || value === undefined) return null;
   return (typeof value === "string" ? JSON.parse(value) : value) as DocumentRecord["embedding"];
@@ -191,19 +194,42 @@ export class PostgresDocumentRepository implements DocumentRepository {
 
   async claimNextJob(): Promise<IngestionJob | null> {
     return this.transaction(async (client) => {
+      await client.query(
+        `WITH exhausted AS (
+           UPDATE ingestion_jobs
+           SET state = 'failed',
+               last_error = 'Ingestion lease expired after the maximum number of attempts',
+               completed_at = now()
+           WHERE state = 'processing'
+             AND started_at < now() - $1::interval
+             AND attempts >= $2
+           RETURNING document_id
+         )
+         UPDATE documents
+         SET status = 'failed',
+             error = 'Ingestion lease expired after the maximum number of attempts',
+             updated_at = now()
+         WHERE id IN (SELECT document_id FROM exhausted)`,
+        [ingestionLeaseTimeout, maxIngestionAttempts],
+      );
       const result = await client.query(
         `SELECT id, document_id, attempts, created_at
          FROM ingestion_jobs
          WHERE state = 'queued'
+            OR (state = 'processing'
+                AND started_at < now() - $1::interval
+                AND attempts < $2)
          ORDER BY created_at
          FOR UPDATE SKIP LOCKED
          LIMIT 1`,
+        [ingestionLeaseTimeout, maxIngestionAttempts],
       );
       const row = result.rows[0];
       if (!row) return null;
       await client.query(
         `UPDATE ingestion_jobs
-         SET state = 'processing', attempts = attempts + 1, started_at = now()
+         SET state = 'processing', attempts = attempts + 1,
+             started_at = now(), completed_at = NULL, last_error = NULL
          WHERE id = $1`,
         [row.id],
       );

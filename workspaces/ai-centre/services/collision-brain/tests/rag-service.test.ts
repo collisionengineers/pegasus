@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { MemoryObjectStore } from "../src/adapters/object-store/memory.js";
 import { ForbiddenError } from "../src/domain/errors.js";
 import type { Principal } from "../src/domain/types.js";
 import { admin, createTestService } from "./helpers.js";
+
+class CleanupFailingObjectStore extends MemoryObjectStore {
+  override async delete(key: string): Promise<void> {
+    if (key.startsWith("uploads/")) throw new Error("staging cleanup unavailable");
+    await super.delete(key);
+  }
+}
 
 describe("RagService", () => {
   it("runs the complete text lifecycle and retains a content-free tombstone", async () => {
@@ -67,6 +75,24 @@ describe("RagService", () => {
     const lookup = await rag.lookup(admin, { query: "unsafe tyres" });
     expect(lookup.matches[0]?.documentId).toBe(written.document_id);
     expect(lookup.matches[0]?.excerpt).not.toContain("<html>");
+  });
+
+  it("keeps the committed document when staging cleanup fails", async () => {
+    const objectStore = new CleanupFailingObjectStore();
+    const { rag, uploads, repository } = createTestService(objectStore);
+    const staged = await uploads.stage({
+      filename: "guide.html",
+      contentType: "text/html",
+      body: Buffer.from("<html><body>Retain the durable source.</body></html>"),
+    });
+
+    const written = await rag.write(admin, {
+      title: "Durable source",
+      uploadRef: staged.uploadRef,
+    });
+
+    expect(written.status).toBe("pending");
+    expect((await repository.getDocument(written.document_id))?.status).toBe("pending");
   });
 
   it("enforces contributor and administrator roles", async () => {

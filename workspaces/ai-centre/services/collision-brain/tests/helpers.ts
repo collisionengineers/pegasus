@@ -10,11 +10,13 @@ export const admin: Principal = {
   roles: ["reader", "contributor", "admin"],
 };
 
-export function createTestService() {
+export function createTestService(
+  objectStore = new MemoryObjectStore(),
+  uploadTtlSeconds = 900,
+) {
   const repository = new InMemoryDocumentRepository();
-  const objectStore = new MemoryObjectStore();
   const embeddings = new LocalHashEmbeddingProvider(384);
-  const uploads = new UploadTokenService(objectStore, "test-upload-secret", 900);
+  const uploads = new UploadTokenService(objectStore, "test-upload-secret", uploadTtlSeconds);
   const rag = new RagService(repository, objectStore, embeddings, uploads);
   return { repository, objectStore, embeddings, uploads, rag };
 }

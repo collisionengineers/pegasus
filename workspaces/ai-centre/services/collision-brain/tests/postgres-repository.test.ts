@@ -75,4 +75,39 @@ describe.skipIf(!enabled)("PostgresDocumentRepository", () => {
       await repository.close();
     }
   });
+
+  it("reclaims a processing job after its lease expires", async () => {
+    const repository = new PostgresDocumentRepository(connectionString);
+    const pool = new Pool({ connectionString });
+    const documentId = randomUUID();
+    try {
+      await repository.initialise();
+      await repository.createDocumentWithJob({
+        id: documentId,
+        contentHash: "b".repeat(64),
+        sourceObjectKey: `documents/${documentId}/source.txt`,
+        metadata: {
+          title: "Lease recovery",
+          source: "test",
+          tags: ["integration"],
+          filename: "source.txt",
+          mimeType: "text/plain",
+          sizeBytes: 20,
+        },
+        createdBy: "test",
+      });
+      expect((await repository.claimNextJob())?.attempts).toBe(1);
+      await pool.query(
+        "UPDATE ingestion_jobs SET started_at = now() - interval '16 minutes' WHERE document_id = $1",
+        [documentId],
+      );
+
+      const reclaimed = await repository.claimNextJob();
+      expect(reclaimed?.documentId).toBe(documentId);
+      expect(reclaimed?.attempts).toBe(2);
+    } finally {
+      await pool.end();
+      await repository.close();
+    }
+  });
 });

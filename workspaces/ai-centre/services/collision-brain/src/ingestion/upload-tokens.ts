@@ -57,6 +57,10 @@ export class UploadTokenService {
     };
   }
 
+  expirationCutoff(now = new Date()): Date {
+    return new Date(now.getTime() - this.ttlSeconds * 1000);
+  }
+
   verify(uploadRef: string): UploadTokenPayload {
     const [encoded, suppliedSignature, extra] = uploadRef.split(".");
     if (!encoded || !suppliedSignature || extra) {

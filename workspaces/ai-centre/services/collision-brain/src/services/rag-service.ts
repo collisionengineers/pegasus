@@ -111,32 +111,23 @@ export class RagService {
       const filename = safeFilename(source.filename);
       const sourceObjectKey = `documents/${documentId}/${filename}`;
       await this.objectStore.put({ key: sourceObjectKey, ...source });
+      const metadata: DocumentMetadata = {
+        title,
+        source: input.source?.trim() || null,
+        tags: [...new Set((input.tags ?? []).map((tag) => tag.trim()).filter(Boolean))],
+        filename,
+        mimeType: source.contentType,
+        sizeBytes: source.body.byteLength,
+      };
+      let created: Awaited<ReturnType<DocumentRepository["createDocumentWithJob"]>>;
       try {
-        const metadata: DocumentMetadata = {
-          title,
-          source: input.source?.trim() || null,
-          tags: [...new Set((input.tags ?? []).map((tag) => tag.trim()).filter(Boolean))],
-          filename,
-          mimeType: source.contentType,
-          sizeBytes: source.body.byteLength,
-        };
-        const { document, job } = await this.repository.createDocumentWithJob({
+        created = await this.repository.createDocumentWithJob({
           id: documentId,
           contentHash: hash,
           sourceObjectKey,
           metadata,
           createdBy: principal.subject,
         });
-        if (stagedKey) await this.objectStore.delete(stagedKey);
-        span.setAttribute("rag.document_id", documentId);
-        span.end();
-        return {
-          document_id: document.id,
-          content_hash: document.contentHash,
-          status: document.status,
-          job_id: job.id,
-          deduplicated: false,
-        };
       } catch (error) {
         await this.objectStore.delete(sourceObjectKey);
         if (stagedKey) await this.objectStore.delete(stagedKey);
@@ -157,6 +148,27 @@ export class RagService {
         span.end();
         throw error;
       }
+
+      if (stagedKey) {
+        try {
+          await this.objectStore.delete(stagedKey);
+        } catch (error) {
+          logger.warn("Committed upload staging cleanup failed", {
+            documentId,
+            errorType: error instanceof Error ? error.name : "unknown",
+          });
+        }
+      }
+      const { document, job } = created;
+      span.setAttribute("rag.document_id", documentId);
+      span.end();
+      return {
+        document_id: document.id,
+        content_hash: document.contentHash,
+        status: document.status,
+        job_id: job.id,
+        deduplicated: false,
+      };
     });
   }
 
@@ -262,7 +274,7 @@ export class RagService {
     return true;
   }
 
-  async cleanupExpiredUploads(before = new Date()): Promise<number> {
-    return this.objectStore.deleteExpired("uploads/", before);
+  async cleanupExpiredUploads(now = new Date()): Promise<number> {
+    return this.objectStore.deleteExpired("uploads/", this.uploads.expirationCutoff(now));
   }
 }
