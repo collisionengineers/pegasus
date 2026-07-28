@@ -50,9 +50,9 @@ jobs:
         working-directory: workspaces/document-extraction
         shell: pwsh
         run: |
-          dotnet restore ./CollisionDocNet.slnx
+          dotnet restore ./CollisionDocNet.slnx --locked-mode
           dotnet build ./CollisionDocNet.slnx --configuration Release --no-restore
-          dotnet test ./CollisionDocNet.slnx --configuration Release --no-build
+          dotnet test --solution ./CollisionDocNet.slnx --configuration Release --no-build
       - name: Validate report-renderer workspace
         working-directory: workspaces/report-renderer
         shell: pwsh

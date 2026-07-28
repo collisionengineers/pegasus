@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using CollisionDocNet.Model;
+using CollisionDocNet.Core;
 
 namespace CollisionDocNet.Cli.Tests;
 
@@ -73,6 +74,60 @@ public sealed class CliApplicationTests
             Assert.AreEqual(Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(content)), asset.GetProperty("sha256").GetString());
         }
         finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [TestMethod]
+    public async Task OutputBundleWriter_MaterializesAssetsFromNestedResults()
+    {
+        string root = CreateTemporaryDirectory();
+        try
+        {
+            string outputPath = Path.Combine(root, "bundle");
+            var asset = new ReviewAsset(
+                "nested-image",
+                "image",
+                "image/png",
+                "nested.png",
+                new byte[] { 1, 2, 3 },
+                null);
+            var nested = new ExtractionResult(
+                DetectedContainer.FlatBinary,
+                DetectedFormat.Pdf,
+                ExtractionOutcome.Complete,
+                Sha256Digest.Compute("nested"u8),
+                "1.0.0-test",
+                "test-spec/1",
+                "test-policy/1",
+                new ResourceMeasurements(3, 0, 0, 0, 0, 3, 0, 1),
+                assets: [asset]);
+            var parent = new ExtractionResult(
+                DetectedContainer.InternetMessage,
+                DetectedFormat.InternetMessage,
+                ExtractionOutcome.Complete,
+                Sha256Digest.Compute("parent"u8),
+                "1.0.0-test",
+                "test-spec/1",
+                "test-policy/1",
+                new ResourceMeasurements(6, 0, 0, 0, 0, 3, 0, 1),
+                nestedResults: [nested]);
+
+            await OutputBundleWriter.WriteAsync(
+                outputPath,
+                parent,
+                PhysicalCliFileSystem.Instance,
+                CancellationToken.None);
+
+            using JsonDocument bundle = JsonDocument.Parse(
+                await File.ReadAllBytesAsync(Path.Combine(outputPath, "result.json")));
+            JsonElement bundledAsset = Assert.ContainsSingle(
+                bundle.RootElement.GetProperty("assetFiles").EnumerateArray().ToArray());
+            Assert.AreEqual("nested-image", bundledAsset.GetProperty("stableId").GetString());
+            Assert.IsTrue(File.Exists(Path.Combine(outputPath, "assets", "nested-image.png")));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     [TestMethod]

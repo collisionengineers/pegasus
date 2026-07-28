@@ -18,14 +18,22 @@ internal static class OutputBundleWriter
         bool moved = false;
         try
         {
-            var files = new List<BundleAssetFile>(result.Assets.Length);
-            if (!result.Assets.IsEmpty)
+            var assets = new List<ReviewAsset>(result.Assets.Length);
+            CollectAssets(result, assets);
+            var files = new List<BundleAssetFile>(assets.Count);
+            if (assets.Count > 0)
             {
                 string assetsDirectory = fileSystem.Combine(staging, "assets");
                 fileSystem.CreateDirectory(assetsDirectory);
-                foreach (ReviewAsset asset in result.Assets)
+                var stableIds = new HashSet<string>(StringComparer.Ordinal);
+                foreach (ReviewAsset asset in assets)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+                    if (!stableIds.Add(asset.StableId))
+                    {
+                        throw new InvalidDataException(
+                            $"The extraction boundary supplied duplicate bundle asset stable ID '{asset.StableId}'.");
+                    }
                     if (asset.Kind != "image" || asset.MediaType?.StartsWith("image/", StringComparison.OrdinalIgnoreCase) != true)
                     {
                         throw new InvalidDataException("The extraction boundary supplied a non-image payload asset.");
@@ -58,6 +66,15 @@ internal static class OutputBundleWriter
                 CliPathPolicy.RequireDirectChild(parent, staging, fileSystem);
                 fileSystem.DeleteDirectory(staging, recursive: true);
             }
+        }
+    }
+
+    private static void CollectAssets(ExtractionResult result, List<ReviewAsset> assets)
+    {
+        assets.AddRange(result.Assets);
+        foreach (ExtractionResult nested in result.NestedResults)
+        {
+            CollectAssets(nested, assets);
         }
     }
 
