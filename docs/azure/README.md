@@ -16,4 +16,4 @@ The intended route is a direct authorised terminal using committed Bicep and
 packages. It is not runnable or production-ready: packaging, migration-bundle,
 identity, Entra-resolution, build-provenance, and remote-build-removal gaps are
 listed in the deployment plan. `azd up` is not the production release route, and
-GitHub Actions/OIDC deployment is `Never`.
+GitHub Actions/OIDC deployment is `Not planned`.

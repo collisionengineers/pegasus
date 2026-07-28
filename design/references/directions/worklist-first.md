@@ -13,4 +13,4 @@ Open case workspace                           | identity, state, evidence, safe 
 
 Landing is one named case queue, initially Not ready; its selector is limited to Not ready, Review and Held, never a generic cross-feature list. Needs sorting and Blocked intake remain dedicated Intake work; Triage remains dedicated. Results are keyboard-operable; the summary is read-only and consequential actions open focused flows. Constrained desktop places the summary after results without losing selection context.
 
-Trade-off: highest repeated case throughput but weak whole-office day/week visibility. No cross-feature records, bulk actions, saved personal queues, inline lifecycle mutation or speculative email work. All shared intake/Triage/case/Admin states and exceptions remain exactly specified; V2/V3 UI re-enters the route.
+Trade-off: highest repeated case throughput but weak whole-office day/week visibility. No cross-feature records, bulk actions, saved personal queues, inline lifecycle mutation or speculative email work. All shared intake/Triage/case/Admin states and exceptions remain exactly specified; `Next`/`unallocated`/`Later`/`unallocated` UI re-enters the route.

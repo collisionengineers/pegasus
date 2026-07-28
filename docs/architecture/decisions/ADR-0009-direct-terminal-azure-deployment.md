@@ -6,9 +6,9 @@
 
 ## Context
 
-CollisionSpike has committed Bicep and an `azd` service manifest, but neither
+Pegasus has committed Bicep and an `azd` service manifest, but neither
 proves a runnable release route. GitHub Actions/OIDC deployment is a permanent
-`Never` boundary. Production needs an explicit migration boundary, package
+`Not planned` boundary. Production needs an explicit migration boundary, package
 identity, and a recoverable direct deployment appropriate to the F1/B1 topology.
 
 ## Decision
@@ -47,9 +47,9 @@ or ready to run.
 
 ## Recovery boundary
 
-V1 requires a one-time backup/restore proof meeting the 15-minute RPO and
-four-hour RTO targets. Recurring quarterly recovery exercises are `Never`; that
-does not waive the V1 proof or its evidence.
+`0.1.0-alpha.1` requires a one-time backup/restore proof meeting the 15-minute RPO and
+four-hour RTO targets. Recurring quarterly recovery exercises are `Not planned`; that
+does not waive the `0.1.0-alpha.1` proof or its evidence.
 
 ## Consequences
 

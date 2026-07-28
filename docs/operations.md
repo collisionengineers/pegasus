@@ -12,24 +12,38 @@
 ## Canonical verification
 
 ```powershell
-dotnet restore ./CollisionSpike.slnx
-dotnet build ./CollisionSpike.slnx --configuration Release --no-restore
-dotnet test ./CollisionSpike.slnx --configuration Release --no-build --filter "Category!=Corpus"
+dotnet restore ./Pegasus.slnx
+dotnet build ./Pegasus.slnx --configuration Release --no-restore
+dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"
 ```
 
 Run focused test projects while iterating, then run the solution commands above
 before delivery. Genuine corpus, browser, LocalDB/Azurite/Functions, cloud, and
 operator evidence are separate caller-specific gates.
 
+Source workspaces validate independently and are not part of the application
+solution:
+
+```powershell
+Push-Location ./workspaces/document-extraction; dotnet test ./CollisionDocNet.slnx --configuration Release; Pop-Location
+Push-Location ./workspaces/report-renderer; dotnet test ./CollisionRenderer.sln --configuration Release; Pop-Location
+npm ci --prefix ./workspaces/ai-centre/services/collision-brain
+npm test --prefix ./workspaces/ai-centre/services/collision-brain
+Push-Location ./workspaces/ai-centre/skills/tools; python -m unittest test_pack_skill; Pop-Location
+```
+
+These checks prove only their imported source snapshots. They do not activate
+an application reference, model, skill, external call, or deployment.
+
 ## Local run, build, and test
 
 ```powershell
 npm ci
-dotnet restore ./CollisionSpike.slnx
+dotnet restore ./Pegasus.slnx
 sqllocaldb start MSSQLLocalDB
-dotnet run --project ./src/CollisionSpike.Web --launch-profile https -- --migrate-development
-dotnet test ./CollisionSpike.slnx --configuration Release --filter "Category!=Corpus"
-dotnet run --project ./src/CollisionSpike.Web --launch-profile https --no-build
+dotnet run --project ./src/Pegasus.Web --launch-profile https -- --migrate-development
+dotnet test ./Pegasus.slnx --configuration Release --filter "Category!=Corpus"
+dotnet run --project ./src/Pegasus.Web --launch-profile https --no-build
 ```
 
 The explicit command applies migrations and exits; normal Web/Worker startup
@@ -53,8 +67,8 @@ not provide authority by themselves.
 
 ## Configuration and secrets boundary
 
-- Web composition and database selection: `src/CollisionSpike.Web/Program.cs` plus environment configuration.
-- Local Development flag/path: `src/CollisionSpike.Web/Properties/launchSettings.json`; generated state stays under ignored `artifacts/`.
+- Web composition and database selection: `src/Pegasus.Web/Program.cs` plus environment configuration.
+- Local Development flag/path: `src/Pegasus.Web/Properties/launchSettings.json`; generated state stays under ignored `artifacts/`.
 - Target Azure parameters/topology: `infra/`, `azure.yaml`, and `.azure/deployment-plan.md`.
 - Repository Codex app/tool availability: `.codex/config.toml`; availability never authorizes external action.
 - Use managed identity and scoped RBAC. Store unavoidable third-party secrets in Infisical or Key Vault; never commit values, connection strings, readable passwords, or generated secrets.
@@ -76,8 +90,8 @@ cloud decision.
 
 - Local ignored artifacts are disposable Development evidence; preserve `corpus/` unchanged.
 - Production releases retain the prior immutable application artifact for redeployment and apply migrations explicitly before application packages.
-- Database recovery must prove the 15-minute recovery point and four-hour restoration path before V1 acceptance and after material persistence/release changes where required.
-- Predecessor retirement is separate from v2 deployment and requires exact-target approval; never begin by deleting `rg-collisionspike-dev`.
+- Database recovery must prove the 15-minute recovery point and four-hour restoration path before `0.1.0-alpha.1` acceptance and after material persistence/release changes where required.
+- Predecessor retirement is separate from Pegasus deployment and requires exact-target approval; never begin by deleting `rg-collisionspike-dev`.
 
 ## GitHub work taxonomy
 
@@ -87,12 +101,12 @@ cloud decision.
   that is not approved for public source control.
 - Work kinds: Feature, Bug, Task, Decision; each workflow-owned issue receives exactly one `type:*` label.
 - Registered project-specific categories: none.
-- Delivery board: [CollisionSpike v2 Delivery](https://github.com/users/collisionengineers/projects/3), user-owned and linked to this repository.
+- Delivery board: [Pegasus Delivery](https://github.com/users/collisionengineers/projects/3), user-owned and linked to this repository.
 - Status: Triage, Ready, In progress, In review, Done.
 - Priority: P0 Critical, P1 High, P2 Normal, P3 Low.
 - Horizon: Now, Next, Later. Target releases use milestones when allocated.
 - Saved views, charts, auto-add behavior, and private issue-form enforcement require human visual confirmation where API readback cannot prove them.
-- Capability rows do not become issues automatically. The onboarding active set is empty pending a separately confirmed implementation selection.
+- Capability rows do not become issues automatically. Issue #3 owns the QDOS alpha delivery plan; issue #6 owns this repository-orientation change.
 
 ## Supported platforms and release operations
 

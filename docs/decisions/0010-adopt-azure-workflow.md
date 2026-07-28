@@ -6,7 +6,7 @@
 
 ## Context
 
-CollisionSpike v2 had a repository-local plugin suite, task-state format, and
+Pegasus had a repository-local plugin suite, task-state format, and
 documentation routes governed by ADR-0007 and ADR-0008. The tracked plugin and
 marketplace implementation was removed before this onboarding, leaving dead
 routes and validators. The user explicitly invoked Azure Workflow repository
@@ -17,7 +17,7 @@ business authority, application behavior, or Azure resources.
 
 Adopt the Azure Workflow repository standard for documentation, GitHub work
 routing, change records, path-aware verification, delivery, independent review,
-and explicitly approved Azure operations. Preserve CollisionSpike-specific
+and explicitly approved Azure operations. Preserve Pegasus-specific
 operator authority, product invariants, architecture, evidence, and historical
 ADRs. Remove the dead repository-local plugin validation and active routes only
 after their replacement owners and checks pass. ADR-0008 is superseded for
