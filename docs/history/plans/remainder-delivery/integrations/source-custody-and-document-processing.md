@@ -2,7 +2,7 @@
 
 > **Archive status — non-authoritative planning evidence.** Revalidate against current product, roadmap, architecture, operations, design, decisions, and code before use.
 
-Pre-conversion status: **Ready V1 custody plan — scan-like PDF OCR and DOC/MSG automation V2**
+Pre-conversion status: **Ready `0.1.0-alpha.1` custody plan — scan-like PDF OCR and DOC/MSG automation `Next`/`unallocated`**
 
 ## Purpose
 
@@ -12,13 +12,13 @@ Replace local ignored artifact retention with durable, reviewable original-sourc
 
 Primary feature ownership is: `INT-09`, `INT-10`, `INT-11`, `INT-12`,
 `INT-13`, `DOC-08`, `INT-14`, `INT-15`, and `INT-16`. Durable source custody
-owns the V1 formats and transient staging; V2 legacy DOC/MSG automation and
-V2 scan-like PDF OCR remain separate anchors below. Neither is automatic VRM
+owns the `0.1.0-alpha.1` formats and transient staging; `Next`/`unallocated` legacy DOC/MSG automation and
+`Next`/`unallocated` scan-like PDF OCR remain separate anchors below. Neither is automatic VRM
 reading, image/damage assistance, or a general document/AI service.
 
 ## Authority and current boundary
 
-- **Authority:** [remaining requirements](../../../../product/v1-gap.md#2-reviewable-extraction-and-source-custody), [ADR-0005](../../../../architecture/decisions/ADR-0005-multiformat-intake-assets.md), and [ADR-0002](../../../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md#files-box-and-document-processing).
+- **Authority:** [remaining requirements](../../../../product/qdos-alpha-gap.md#2-reviewable-extraction-and-source-custody), [ADR-0005](../../../../architecture/decisions/ADR-0005-multiformat-intake-assets.md), and [ADR-0002](../../../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md#files-box-and-document-processing).
 - **Policy owner:** the named Core receive/process/accept intake operations; Core retains format, provenance and failure outcomes, not vendor types.
 - **Current implementation:** `ProcessIntake`, the registered `MimeKitPdfPigOpenXmlIntakeSourceReader`, and `FileSystemIntakeArtifactStore` support only the Development `/Intake/Upload` caller and ignored local retention. The reader processes every PDF page or marks the intake incomplete when its shared text/image expansion budget is breached; it does not silently truncate by page count.
 - **Real callers:** `/Intake/Upload` is called only in Development when `Features:LocalIntake` is enabled. In the planned production path, Web is the first byte receiver for manual/provider HTTP submissions; Worker is the first byte receiver for Graph and consumes queued staged-source identifiers. Blob staging, Box custody and OCR adapters are not implemented.
@@ -36,7 +36,7 @@ An unreadable, incomplete, encrypted, corrupt, unsupported, bounded-out or pre-a
 
 ### Authority and decision gate
 
-- **Requirement/decision:** [source custody](../../../../product/v1-gap.md#2-reviewable-extraction-and-source-custody), [format/candidate rules](../../../../architecture/decisions/ADR-0005-multiformat-intake-assets.md), and the approved Box custody sequence recorded below.
+- **Requirement/decision:** [source custody](../../../../product/qdos-alpha-gap.md#2-reviewable-extraction-and-source-custody), [format/candidate rules](../../../../architecture/decisions/ADR-0005-multiformat-intake-assets.md), and the approved Box custody sequence recorded below.
 - **Confirmed facts:** local content-addressed artifacts do not prove Blob staging, Box custody, deployment or acceptance.
 - **Decision required before implementation:** none for the stated staged custody path; each Box action still needs the exact approval in [Box case files](box-case-files.md#scoped-box-folder-and-version-custody).
 
@@ -98,11 +98,11 @@ An unreadable, incomplete, encrypted, corrupt, unsupported, bounded-out or pre-a
 
 ### Deferred-capability impact
 
-- **Named capabilities:** legacy DOC/MSG, AI/vision/VRM OCR, broader mail, WhatsApp, and later infrastructure. Malware scanning is `Never`, with no activation path or seam.
+- **Named capabilities:** legacy DOC/MSG, AI/vision/VRM OCR, broader mail, WhatsApp, and later infrastructure. Malware scanning is `Not planned`, with no activation path or seam.
 - **Stable seam retained:** immutable source/asset occurrences, hashes, parent provenance and engine-neutral reader results.
 - **Future migration/replacement:** DOC converter activation replaces the deferred branch; a later general document reader may be external or developed in-house, but must replace the current reader through the engine-neutral port only after parity and caller-backed evaluation. An allocated AI path needs its own selected service, approval, and caller-backed evidence; no scanner migration exists.
 - **Activation boundary:** product/accuracy/cost evidence and explicit approval; no corpus material may leave the local evaluation boundary.
-- **Deliberately absent:** the `Never` scanner boundary plus any dormant model, extra runtime, queue, general rendering service, OCR widening, feature flag, or vendor upload path for later capabilities.
+- **Deliberately absent:** the `Not planned` scanner boundary plus any dormant model, extra runtime, queue, general rendering service, OCR widening, feature flag, or vendor upload path for later capabilities.
 
 ### Completion evidence
 
@@ -110,21 +110,21 @@ An unreadable, incomplete, encrypted, corrupt, unsupported, bounded-out or pre-a
 |---|---|---|---|---|
 | Planned | Not run | planning review | caller, recovery and approvals are specified | implementation, deployment, live custody and acceptance |
 
-## V2 targeted scanned PDF OCR
+## Targeted scanned PDF OCR
 
 **Evidence state:** Planned
 
 ### Authority and decision gate
 
-- **Requirement/decision:** [the maturity map](../../feature-maturity-map.md) allocates scan-like PDF OCR to V2. Existing candidate detection may remain review evidence, but OCR execution is not a V1 gate. Eligibility remains limited to persisted pages with fewer than 80 non-whitespace embedded-text characters and a dominant raster covering at least 80 percent of the page.
-- **Confirmed facts:** the Core contract records scan-like page candidates. The current Bicep conditionally declares Document Intelligence plus Worker `Cognitive Services User`, but no OCR adapter, caller or result persistence exists; the V0/V1 platform plan must remove that dormant resource/role path before shared-development deployment. This V2 plan owns any later reintroduction as one separately approved activation change.
+- **Requirement/decision:** [the maturity map](../../feature-maturity-map.md) allocates scan-like PDF OCR to `Next`/`unallocated`. Existing candidate detection may remain review evidence, but OCR execution is not a `0.1.0-alpha.1` gate. Eligibility remains limited to persisted pages with fewer than 80 non-whitespace embedded-text characters and a dominant raster covering at least 80 percent of the page.
+- **Confirmed facts:** the Core contract records scan-like page candidates. The current Bicep conditionally declares Document Intelligence plus Worker `Cognitive Services User`, but no OCR adapter, caller or result persistence exists; the `0.0.0-development`/`0.1.0-alpha.1` platform plan must remove that dormant resource/role path before shared-development deployment. This `Next`/`unallocated` plan owns any later reintroduction as one separately approved activation change.
 - **Decision required before implementation:** none for the local adapter/contract work. Any billed call, Azure enablement or deployment requires a direct approval naming account, region/SKU, non-corpus input/page limit and spending cap. Repository corpus is immutable local evidence and is never eligible for upload.
 
 ### Owner and dependencies
 
 - **Policy/implementation owner:** Core document-processing policy owns candidate eligibility and typed outcomes; one Infrastructure Document Intelligence adapter owns `prebuilt-read` translation. Worker composition is the sole production OCR caller.
 - **Independent evaluator:** a test engineer authors negative routing/retry cases; a different Azure/domain reviewer gives the verdict.
-- **Prerequisites:** durable source/page-candidate persistence, Worker identity, bounded processing contract, accepted V1 release with no Document Intelligence resource/role/configuration, and a newly approved non-production service target for this V2 slice.
+- **Prerequisites:** durable source/page-candidate persistence, Worker identity, bounded processing contract, accepted `0.1.0-alpha.1` release with no Document Intelligence resource/role/configuration, and a newly approved non-production service target for this `Next`/`unallocated` slice.
 - **Consumers/unlocks:** Worker intake completion and operator review of scanned PDF text/provenance.
 
 ### Caller, contract and change boundary
@@ -140,13 +140,13 @@ An unreadable, incomplete, encrypted, corrupt, unsupported, bounded-out or pre-a
 
 ### Scope
 
-- **Included:** one V2 activation change that adds candidate-page dispatch, the exact Document Intelligence resource/role/configuration, `prebuilt-read` adapter, result persistence, bounded retry/idempotency, managed-identity configuration, content-safe telemetry and actual Worker caller evidence together.
+- **Included:** one `Next`/`unallocated` activation change that adds candidate-page dispatch, the exact Document Intelligence resource/role/configuration, `prebuilt-read` adapter, result persistence, bounded retry/idempotency, managed-identity configuration, content-safe telemetry and actual Worker caller evidence together.
 - **Excluded:** automated VRM OCR/VLM, ordinary-image OCR, handwriting/semantic extraction promises, legacy DOC/MSG conversion, malware scanning, general rendering and every corpus/cloud upload.
 
 ### Implementation checklist
 
 - [ ] Add the engine-neutral OCR request/result contract to the existing Core document-processing owner and persist page-level work/result provenance in the existing migration stream.
-- [ ] Confirm the accepted V1 topology contains no Document Intelligence resource, role assignment, endpoint or dormant Worker configuration; introduce them only in this approved V2 activation change.
+- [ ] Confirm the accepted `0.1.0-alpha.1` topology contains no Document Intelligence resource, role assignment, endpoint or dormant Worker configuration; introduce them only in this approved `Next`/`unallocated` activation change.
 - [ ] Implement one Infrastructure Document Intelligence `prebuilt-read` adapter and register it only in Worker production composition; preserve page identity and existing intake-wide bounds.
 - [ ] Add one idempotent Worker handler for persisted eligible page candidates with bounded retry and visible terminal/unknown outcomes; do not add a Web OCR caller.
 
@@ -167,13 +167,13 @@ An unreadable, incomplete, encrypted, corrupt, unsupported, bounded-out or pre-a
 ### Approval, rollout and rollback
 
 - **Approval-triggering action and exact scope:** enabling/deploying Document Intelligence or sending any page requires exact subscription, tenant, UK South resource/SKU, named non-corpus input, page ceiling and hard spending cap. Repository corpus cannot be approved for upload.
-- **Rollout/activation:** keep the resource, role, endpoint/configuration, adapter registration and caller absent through V1. After the V2 target/data/page/cost approval, introduce them together, prove negative routing locally, deploy one development Worker caller, run a bounded non-corpus smoke, then review cost/accuracy before wider use. Do not ship a dormant disabled resource or adapter in advance of that gate.
+- **Rollout/activation:** keep the resource, role, endpoint/configuration, adapter registration and caller absent through `0.1.0-alpha.1`. After the `Next`/`unallocated` target/data/page/cost approval, introduce them together, prove negative routing locally, deploy one development Worker caller, run a bounded non-corpus smoke, then review cost/accuracy before wider use. Do not ship a dormant disabled resource or adapter in advance of that gate.
 - **Rollback/recovery:** stop claims/disable the adapter and redeploy the prior artifact; retain source, candidates and attempts for manual review/replay.
 - **Irreversible risk:** document content leaves the application boundary and incurs a billed vendor call; fail before submission when scope or approval is missing.
 
 ### Deferred-capability impact
 
-- **Named capabilities:** automated VRM OCR/VLM, AI/vision assistance, legacy DOC/MSG, broader mailbox coverage, and later OCR/provider replacement. Malware scanning is `Never`, with no activation path or seam.
+- **Named capabilities:** automated VRM OCR/VLM, AI/vision assistance, legacy DOC/MSG, broader mailbox coverage, and later OCR/provider replacement. Malware scanning is `Not planned`, with no activation path or seam.
 - **Stable seam retained:** engine-neutral page candidate/result contracts, immutable source/page identity and provider-neutral provenance/outcomes.
 - **Future migration/replacement:** another approved OCR provider replaces the Infrastructure adapter and may require result-version migration; candidate policy remains in Core.
 - **Activation boundary:** representative accuracy, licence/service, privacy, cost and operator approval for each widened input class.
@@ -189,8 +189,8 @@ An unreadable, incomplete, encrypted, corrupt, unsupported, bounded-out or pre-a
 
 **Evidence state:** Planned
 
-`INT-14` and `INT-15` are a V2 Core document-processing extension, called only
-by the approved Worker receipt path after durable source retention. V1 retains
+`INT-14` and `INT-15` are a `Next`/`unallocated` Core document-processing extension, called only
+by the approved Worker receipt path after durable source retention. `0.1.0-alpha.1` retains
 each original occurrence with an explicit unsupported outcome and no
 case/reference. The implementation must use the existing engine-neutral
 reader-result and source-occurrence boundary, preserve every visible failure
@@ -200,8 +200,8 @@ incomplete, ambiguous, corrupt, encrypted, bounded-out, or unsupported input.
 The exact converter/runtime, licence and security ownership, isolation,
 resource limits, and accepted format scope remain activation evidence; they do
 not authorise a dormant converter, dependency, route, process, deployment
-unit, OCR widening, or cloud upload in V1. Focused format/negative/replay tests
+unit, OCR widening, or cloud upload in `0.1.0-alpha.1`. Focused format/negative/replay tests
 and genuine local evidence through the actual Worker caller must establish
 parity before this replaces the deferred branch. This anchor is deliberately
-separate from [V2 targeted scanned-PDF OCR](#v2-targeted-scanned-pdf-ocr): DOC
+separate from [targeted scanned-PDF OCR](#targeted-scanned-pdf-ocr): DOC
 and MSG automation neither calls OCR nor broadens its billed external adapter.

@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://collisionengineers.local/schemas/diminution-rebuttal/intake.schema.json",
+  "title": "Diminution rebuttal structured intake",
+  "description": "Structured intake used before drafting a diminution rebuttal, advice note, insurer response, or Part 35 addendum.",
+  "type": "object",
+  "required": [
+    "ce_role",
+    "output_mode",
+    "vehicle",
+    "claimant_report",
+    "evidence",
+    "attack_line_assessments"
+  ],
+  "properties": {
+    "ce_role": {
+      "type": "string",
+      "enum": [
+        "rebutting_third_party",
+        "defending_ce_report",
+        "solicitor_advice",
+        "insurer_response",
+        "part35_addendum"
+      ]
+    },
+    "output_mode": {
+      "type": "string",
+      "enum": [
+        "formal_rebuttal_report",
+        "solicitor_facing_advice",
+        "insurer_facing_response",
+        "formal_addendum_report"
+      ]
+    },
+    "vehicle": {
+      "type": "object",
+      "required": ["registration", "make_model"],
+      "properties": {
+        "registration": { "type": "string", "minLength": 1 },
+        "make_model": { "type": "string", "minLength": 1 },
+        "variant_or_trim": { "type": "string" },
+        "body_style": { "type": "string" },
+        "mileage": { "type": "string" },
+        "market_segment": {
+          "type": "string",
+          "enum": [
+            "mainstream",
+            "prestige",
+            "performance",
+            "specialist",
+            "classic_or_rare",
+            "unknown"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "claimant_report": {
+      "type": "object",
+      "required": ["assessor", "claimed_diminution", "formula_or_method"],
+      "properties": {
+        "assessor": { "type": "string", "minLength": 1 },
+        "report_reference": { "type": "string" },
+        "claimed_diminution": { "type": "string", "minLength": 1 },
+        "repair_cost": { "type": "string" },
+        "pav": { "type": "string" },
+        "repair_cost_to_pav_ratio": { "type": "string" },
+        "formula_or_method": { "type": "string", "minLength": 1 },
+        "comparable_count": { "type": "string" },
+        "statement_of_truth_signed": {
+          "type": "string",
+          "enum": ["yes", "no", "not_applicable", "unknown"]
+        },
+        "floating_point_or_arithmetic_issue": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "evidence": {
+      "type": "object",
+      "properties": {
+        "documents_reviewed": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "photos_reviewed": { "type": "boolean" },
+        "physical_inspection_evidence": { "type": "boolean" },
+        "paint_depth_evidence": { "type": "boolean" },
+        "estimate_invoice_reconciled": { "type": "string" },
+        "prior_history_evidence": { "type": "string" },
+        "market_value_support": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "attack_line_assessments": {
+      "type": "array",
+      "minItems": 14,
+      "items": {
+        "type": "object",
+        "required": ["id", "status", "rationale"],
+        "properties": {
+          "id": { "type": "integer", "minimum": 1, "maximum": 14 },
+          "status": {
+            "type": "string",
+            "enum": ["include", "exclude", "needs_evidence"]
+          },
+          "rationale": { "type": "string", "minLength": 1 },
+          "evidence_refs": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "draft_point": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "drafting_notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": true
+}

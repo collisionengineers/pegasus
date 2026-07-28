@@ -1,20 +1,20 @@
 # Azure replacement and retirement plan
 
-This plan replaces the old pre-release application deliberately. CollisionSpike v2 starts with fresh application data: predecessor cases, users, action-history records, and queue state are not migrated or preserved as v2 release requirements. This plan authorizes no deletion or cloud mutation.
+This plan replaces the old pre-release application deliberately. Pegasus `0.1.0-alpha.1` starts with fresh application data: predecessor cases, users, action-history records, and queue state are not migrated or preserved as `0.1.0-alpha.1` release requirements. This plan authorizes no deletion or cloud mutation.
 
 ## Decision classes
 
 | Class | Assets |
 |---|---|
-| Replace | old API, orchestrator, parser, EVA, Box and required enrichment/OCR compute with v2 Web/Worker/adapters |
-| Retire with the predecessor | PostgreSQL pre-release application data and queue/Durable work; no v2 import or preservation requirement |
+| Replace | old API, orchestrator, parser, EVA, Box and required enrichment/OCR compute with `0.1.0-alpha.1` Web/Worker/adapters |
+| Retire with the predecessor | PostgreSQL pre-release application data and queue/Durable work; no `0.1.0-alpha.1` import or preservation requirement |
 | Decide/possibly retain | data-bearing evidence storage, capture Static Web App, Foundry account/project/deployments, shared ACR and ValuationBot images, Document Intelligence F0 |
 | Retain | Visual Studio accounts and default workspace until a separate shared-ownership review says otherwise |
-| Likely defer/retire | location/Maps/Vision and cloud evaluation functions when their v2 scope is explicitly excluded and evidence is preserved |
+| Likely defer/retire | location/Maps/Vision and cloud evaluation functions when their `0.1.0-alpha.1` scope is explicitly excluded and evidence is preserved |
 
 ## Non-negotiable blockers
 
-Do not delete either CollisionSpike resource group until all are true:
+Do not delete either predecessor resource group until all are true:
 
 - Intake producers and triggers are stopped so the old application cannot keep processing after retirement. Its pre-release queues and Durable state may then be discarded; they do not need migration or business reconciliation.
 - The evidence container's predecessor-only ownership and disposition are confirmed. Its contents were not inspected during inventory and are not assumed to be disposable.
@@ -29,37 +29,37 @@ Do not delete either CollisionSpike resource group until all are true:
 ## Replacement sequence
 
 1. Freeze this inventory and export old IaC/deployment outputs needed to reproduce configuration names and role intent.
-2. Create v2 in a separate resource group from reviewed Bicep. Do not deploy over old resources.
+2. Create `0.1.0-alpha.1` in a separate resource group from reviewed Bicep. Do not deploy over old resources.
 3. Establish managed identities, least-privilege roles, health endpoints, telemetry, and SQL Entra access.
-4. Create a fresh Azure SQL database for v2. Do not import the predecessor PostgreSQL cases, users, action-history records, or application state.
-5. Keep operational history in its existing authoritative Box, EVA, Outlook, spreadsheet, or network-drive locations. Do not import predecessor evidence blobs into v2 merely because they exist in Azure; determine their ownership and disposition before deleting their storage.
-6. Replace one integration at a time behind one v2 adapter: EVA, Box, Graph/mail, embedded PDF extraction, scanned OCR, then any approved enrichment.
-7. Shadow or replay a redacted/genuine local corpus cohort through v2. Do not upload the local corpus during this step.
+4. Create a fresh Azure SQL database for `0.1.0-alpha.1`. Do not import the predecessor PostgreSQL cases, users, action-history records, or application state.
+5. Keep operational history in its existing authoritative Box, EVA, Outlook, spreadsheet, or network-drive locations. Do not import predecessor evidence blobs into `0.1.0-alpha.1` merely because they exist in Azure; determine their ownership and disposition before deleting their storage.
+6. Replace one in-scope integration at a time behind one `0.1.0-alpha.1` adapter: EVA, Box, Graph/mail, embedded PDF extraction, then any approved enrichment. Scan-like OCR remains `Next`/`unallocated` and is not an alpha replacement gate.
+7. Shadow or replay a redacted/genuine local corpus cohort through `0.1.0-alpha.1`. Do not upload the local corpus during this step.
 8. Stop old mailbox/intake producers and triggers. The predecessor's pre-release queues, Durable state, and test application data may be discarded after the exact retirement targets are approved.
-9. Cut operator traffic to v2. Monitor health, errors, queue age, duplicate actions, database writes, Box/EVA outcomes, and operator acceptance through the rollback period.
+9. Cut operator traffic to `0.1.0-alpha.1`. Monitor health, errors, queue age, duplicate actions, database writes, Box/EVA outcomes, and operator acceptance through the rollback period.
 10. Rotate or revoke external credentials after each integration cutover; do not perpetually copy old secrets.
 11. Remove leaf compute first, then dedicated plans and package storage, then dedicated vaults/telemetry. Remove the managed OCR child through its parent lifecycle.
 12. Delete old groups only after shared/data-bearing assets are separated and a fresh subscription-wide dependency/role query is clean.
 
 ## Resource disposition
 
-| Old asset | v2 disposition | Retirement evidence |
+| Old asset | `0.1.0-alpha.1` disposition | Retirement evidence |
 |---|---|---|
-| API Function + plan/storage/App Insights | Web/API on App Service | operator/API traffic on v2; old requests zero; rollback expired |
+| API Function + plan/storage/App Insights | Web/API on App Service | operator/API traffic on `0.1.0-alpha.1`; old requests zero; rollback expired |
 | Orchestrator Function + plan/storage/App Insights | Worker on Flex plus one shared Core | producers stopped; exact old resources approved for retirement |
 | Parser Function + plan/storage/telemetry | embedded-text library inside one extraction adapter | genuine PDF benchmark meets accepted threshold |
-| OCR ACA/Function/environment/storage/telemetry/ACR image | Document Intelligence adapter only for scanned/insufficient inputs | OCR cohort parity, cost measured, shared ACR separated |
+| OCR ACA/Function/environment/storage/telemetry/ACR image | no `0.1.0-alpha.1` replacement; retain only while an old caller still requires it, otherwise retire after caller and ownership proof | old callers zero, exact retirement approved, shared ACR separated; any future scan-like OCR follows a separately accepted `Next` plan |
 | PostgreSQL | fresh Azure SQL with no predecessor import | exact old-server retirement approval after callers are stopped |
-| Evidence storage | decide after a contents/ownership check; no automatic v2 import | confirmed predecessor-only ownership, explicit disposition, and exact storage retirement approval |
-| EVA Function | manual JSON/image export in the first MVP; direct API adapter deferred | accepted manual export, old callers zero, and credential disposition |
+| Evidence storage | decide after a contents/ownership check; no automatic `0.1.0-alpha.1` import | confirmed predecessor-only ownership, explicit disposition, and exact storage retirement approval |
+| EVA Function | manual JSON/image export in the `0.1.0-alpha.1`; direct API adapter deferred | accepted manual export, old callers zero, and credential disposition |
 | Box Function/webhook | one Infrastructure Box adapter | webhook and file/folder lifecycle parity |
-| Enrichment Function | consolidate only if first-MVP decision says yes | decision, real caller, and provider evidence |
+| Enrichment Function | consolidate only if `0.1.0-alpha.1` decision says yes | decision, real caller, and provider evidence |
 | Location Function + Maps/Vision | defer/retire unless operator value is established | explicit scope decision and no remaining caller |
 | Evaluation Function | local ignored corpus harness | frozen cohort/holdout reporting and no cloud caller |
 | Main Static Web App | Razor Pages Web | operator acceptance and bookmarked App Service URL |
 | Capture Static Web App | separate retain/replace decision | ownership and roadmap decision |
 | Foundry/project/deployments | retain, prune individually, or repurpose | deployment-by-deployment usage/cost decision |
-| Default workspace | retain pending shared review | no non-CollisionSpike data source or explicit separate plan |
+| Default workspace | retain pending shared review | no non-Pegasus data source or explicit separate plan |
 
 ## Destructive-operation runbook
 

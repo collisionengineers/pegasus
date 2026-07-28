@@ -57,7 +57,7 @@ adapter, Azure, deployment, or acceptance work.
   Audit path through acceptance, immutable identity, Box custody, work/review,
   EVA JSON/image handoff, report evidence, lifecycle, observability, recovery,
   and acceptance.
-- Implement the selected Operations-first V1 staff shell and all states needed
+- Implement the selected Operations-first `0.1.0-alpha.1` staff shell and all states needed
   by the QDOS workflow.
 
 ### Excluded
@@ -67,7 +67,7 @@ adapter, Azure, deployment, or acceptance work.
 - Generic rules engines, expression languages, database-authored predicates,
   admin rule editors, universal case-match ordering, placeholder policies, or a
   second classifier tied to one mailbox.
-- V2 all-mailbox management, folder moves, general correspondence matching,
+- `Next`/`unallocated` all-mailbox management, folder moves, general correspondence matching,
   provider API activation, DOC/MSG/OCR expansion, AI classification, WhatsApp
   automation, and every Later/Not planned capability.
 - Live-service client construction, Azure/IaC mutation, cloud reads/writes,
@@ -77,9 +77,9 @@ adapter, Azure, deployment, or acceptance work.
 ## Authorities, current state, and constraints
 
 - Operator behavior: [intake and work instructions](../operator-notes/business-process/intake-and-work-instructions.md), [inspection address](../operator-notes/business-process/inspection-address.md), [case types and references](../operator-notes/business-process/case-types-and-references.md), and [case lifecycle](../operator-notes/business-process/case-lifecycle.md).
-- Product/release: [product index](../product/index.md), [capabilities](../product/capabilities.md), [V1 gap](../product/v1-gap.md), and [roadmap](../roadmap.md).
+- Product/release: [product index](../product/index.md), [capabilities](../product/capabilities.md), [`0.1.0-alpha.1` gap](../product/qdos-alpha-gap.md), and [roadmap](../roadmap.md).
 - Architecture: [architecture](../architecture.md), [Decision 0011](../decisions/0011-separate-direct-provider-and-intermediary-email-policies.md), and ADR-0006's preserved neutral transport/storage decisions.
-- Design: [V1 requirements](../../design/product/requirements.md), [UI specification](../../design/product/ui-spec.md), and selected [Operations-first direction](../../design/references/directions/operations-first.md). The adapted `collision-engineers-design-dev` essentials remain the visual authority; its excess is not reintroduced.
+- Design: [`0.1.0-alpha.1` requirements](../../design/product/requirements.md), [UI specification](../../design/product/ui-spec.md), and selected [Operations-first direction](../../design/references/directions/operations-first.md). The adapted `collision-engineers-design-dev` essentials remain the visual authority; its excess is not reintroduced.
 - Supplied Step 2 evidence: `docs/reference/workproviders-and-repairers/initial.xlsx`, SHA-256 `e4bf89b0aeef3f1106bf34ed50f74dffc44c5ed748e0ad0811b66ee099b6cd29`; worksheet `Sheet1`; 11 headerless rows; provider code in column A; semicolon-separated email observations in column E. Columns B-D and later columns are opaque and ignored by authoring.
 - Current caller: Development-only `POST /Intake/Upload` calls Core
   `ProcessIntake`. The Worker is telemetry-only. The current reader records the
@@ -139,7 +139,7 @@ adapter, Azure, deployment, or acceptance work.
   activation gate prevents them from creating a case or allocating a reference.
 - `instructions@collisionengineers.co.uk` is the sole live alpha mailbox caller.
   Only definitive QDOS instructions create cases. All three active QDOS case
-  types complete the settled V1 path with staff identity/authorization,
+  types complete the settled `0.1.0-alpha.1` path with staff identity/authorization,
   immutable references, Box custody, Operations-first UI, EVA handoff, exact
   report evidence, terminal history, and accepted recovery evidence.
 - Full repository validation, independent implementation review, operator
@@ -148,7 +148,7 @@ adapter, Azure, deployment, or acceptance work.
 
 ## Capability evidence index
 
-This immutable index accounts for all 127 `Now` capability IDs after the
+This immutable index accounts for all 128 `Now` capability IDs after the
 explicit deferral of `DATA-02`. The delivery steps are the owning
 implementation/evidence slices; this table records allocation, not a claim that
 pending evidence has passed. Each row later records local proof, live proof
@@ -166,6 +166,7 @@ where required, or the exact release blocker without removing the capability.
 | `MAIL-18` | 6, 9, 10 | Core chaser policy and authenticated copyable Web output |
 | `ACC-01`, `ACC-02`, `ACC-03`, `ACC-04`, `ACC-05`, `ACC-06`, `ACC-07`, `ACC-08`, `ACC-09`, `ACC-10`, `ACC-11` | 3, 9, 10 | Identity/OpenIddict, authorization, history, authenticated browser/MCP |
 | `INT-01`, `INT-02`, `INT-03`, `INT-08`, `INT-09`, `INT-10`, `INT-11`, `INT-12`, `INT-13`, `INT-17`, `INT-18`, `INT-19`, `INT-20`, `INT-21`, `INT-22`, `INT-23`, `INT-24`, `INT-25`, `INT-26`, `INT-27`, `INT-29`, `INT-30` | 4–10 | shared evaluator, durable receipt/outbox/Worker, acceptance and negative recovery smoke |
+| `INT-31` | 7, 9, 10 | request-scoped upload token/limit/custody/retry/revocation/abuse contract, real authenticated staff creator, bounded unauthenticated upload caller, negative isolation proof, and operator acceptance; release remains blocked until implemented |
 | `TRI-01`, `TRI-02`, `TRI-03`, `TRI-04`, `TRI-05`, `TRI-06`, `TRI-07`, `TRI-08`, `TRI-09` | 4, 6, 8–10 | approved matcher evidence, Core transitions, Worker Sent evidence, UI/MCP |
 | `CASE-01`, `CASE-02`, `CASE-03`, `CASE-04`, `CASE-07`, `CASE-08`, `CASE-09`, `CASE-10`, `CASE-11`, `CASE-12`, `CASE-13`, `CASE-14`, `CASE-15`, `CASE-16`, `CASE-17`, `CASE-18`, `CASE-19`, `CASE-20`, `CASE-21`, `CASE-24`, `CASE-25`, `CASE-26`, `CASE-27`, `CASE-28`, `CASE-29`, `CASE-30` | 6–10 | Core/persistence contract, local adapters, Worker, UI/MCP, lifecycle smoke |
 | `UI-01`, `UI-02`, `UI-03`, `UI-04`, `UI-05`, `UI-06`, `UI-07`, `UI-08`, `UI-09`, `UI-11`, `UI-13` | 9, 10 | authenticated Razor Pages caller and Playwright/accessibility acceptance |
@@ -174,7 +175,7 @@ where required, or the exact release blocker without removing the capability.
 | `MCP-01`, `MCP-02`, `MCP-03`, `MCP-04` | 3, 9, 10, 13 | OpenIddict actor enforcement and real Streamable HTTP caller |
 | `DATA-01` | 2, 10 | deterministic cumulative provider-domain package/migration and exact count/hash/suffix-only proof |
 
-Count assertion: **127 distinct IDs; no duplicate and no omitted `Now` row**.
+Count assertion: **128 distinct IDs; no duplicate and no omitted `Now` row**.
 
 ## Plan
 
@@ -223,7 +224,7 @@ Count assertion: **127 distinct IDs; no duplicate and no omitted `Now` row**.
 7. **Real callers — Worker and Web.** Add the one approved `instructions@`
    Worker trigger/caller and authenticated Web operator callers. Worker invokes
    the same Core policy as manual intake and never creates a case directly.
-   Implement CollisionSpike accounts/roles and Operations-first Intake, Triage,
+   Implement Pegasus accounts/roles and Operations-first Intake, Triage,
    Case, document, administration, error, stale, retry, and accessibility states.
 8. **Azure/release — existing IaC and explicit operations route.** After a fresh
    inventory and exact-target approval, finish immutable packages, migration
@@ -268,7 +269,7 @@ office outcomes and links each count to its exact filtered queue. Intake shows
 route, provider/type/case evidence and provenance in operator language, never
 internal parser/policy names. Unknown, conflicting, retrying, stale, denied,
 empty, loading, and dependency-unavailable states are distinct and recoverable.
-All planned V1 keyboard, focus, semantic, forced-colour, reduced-motion,
+All planned `0.1.0-alpha.1` keyboard, focus, semantic, forced-colour, reduced-motion,
 1024px/200%-zoom, and role boundaries apply. The existing adapted CE logo,
 colour/type/geometry/icon rules are reused; no upstream marketing, mobile,
 document, imagery, or animation excess returns.
@@ -285,7 +286,7 @@ deployment unit is planned.
 
 ## Decisions and conflicts
 
-- Selected: Operations-first V1 shell; classification policy is code-versioned
+- Selected: Operations-first `0.1.0-alpha.1` shell; classification policy is code-versioned
   Core behavior; version is pinned on first successful evaluation and retained
   on retries/replays.
 - Corrected: intermediary rules are independent route rules, not a resolver
@@ -345,7 +346,7 @@ deployment unit is planned.
   It reads only `initial.xlsx`, stages beneath ignored
   `artifacts/reference-data-staging/`, and publishes the committed immutable
   package
-  `src/CollisionSpike.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json`.
+  `src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json`.
   There is no second manifest, authoring virtual environment, dependency lock,
   package cache, recursive workbook discovery, or runtime workbook reader.
 - Step 2 precondition: the selected workbook must be closed. The command rejects
@@ -381,7 +382,7 @@ deployment unit is planned.
 ## Independent review
 
 - Plan review: passed in fresh context after correcting ADR supersession,
-  persisted route identity, V1-gap ownership wording, normalized sender wording,
+  persisted route identity, `0.1.0-alpha.1`-gap ownership wording, normalized sender wording,
   and the direct/intermediary trait-collision test.
 - Wave 2A.1 Core contract review: the first review exposed ownership leakage
   from authoring into Core. After the boundary correction and runtime-only
@@ -391,7 +392,7 @@ deployment unit is planned.
   workbook path/sheet/header/row/disposition rules remain authoring-owned.
 - Candidate PR review: exact head
   `ce0135ede23101af320846a135d97c1ee05c7146` returned one required finding:
-  the product index still called the selected V1 UI authority
+  the product index still called the selected `0.1.0-alpha.1` UI authority
   direction-neutral. Corrected in the next head.
 - Second PR review: exact head
   `9a8ffe7cb992c024bb2ba1655368a2fdbe3db6fb` confirmed the first finding was
@@ -438,5 +439,5 @@ blockers, approved live evidence, and the final release outcome.
   remain unclaimed until the authoring pipeline completes.
 - Live blockers: genuine route/Triage/report holdouts, selected VRM engine,
   accepted DVLA/DVSA and EVA contracts, exact Graph/Box targets and scopes,
-  refreshed Azure inventory, teardown approvals, isolated v2 target, operator
+  refreshed Azure inventory, teardown approvals, isolated Pegasus target, operator
   acceptance, and management approval remain mandatory before release.

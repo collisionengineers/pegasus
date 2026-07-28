@@ -2,11 +2,11 @@
 
 - Status: Accepted; provider API/MCP authentication boundary superseded by ADR-0004 and deployment mechanism partially superseded by ADR-0009
 - Date: 2026-07-23
-- Owners: Alex and the CollisionSpike v2 development team
+- Owners: Alex and the Pegasus development team
 
 ## Context
 
-CollisionSpike v2 is a staff case-management application for approximately eight
+Pegasus is a staff case-management application for approximately eight
 concurrent users and 2,000 new cases per month. It must continuously ingest a
 shared Outlook mailbox, process documents and images, manage the full QDOS case
 workflow, use Box as the long-term file store, and expose provider API and MCP
@@ -32,7 +32,7 @@ data, regional, and cost decisions remain accepted.
 
 ## Decision summary
 
-CollisionSpike v2 will be a .NET 10 LTS modular monolith with:
+Pegasus will be a .NET 10 LTS modular monolith with:
 
 - ASP.NET Core 10 Razor Pages for the staff interface and ASP.NET Core HTTP APIs
   for machine integrations;
@@ -52,7 +52,7 @@ CollisionSpike v2 will be a .NET 10 LTS modular monolith with:
 - Bicep and Azure Developer CLI for infrastructure and authorised-terminal
   deployments, as defined by ADR-0009.
 
-The first MVP will not use microservices, Kubernetes, a single-page application,
+The `0.1.0-alpha.1` will not use microservices, Kubernetes, a single-page application,
 Blazor Server, Azure Service Bus, Cosmos DB, Redis, API Management, private
 networking, multi-region deployment, or zone redundancy.
 
@@ -61,10 +61,10 @@ networking, multi-region deployment, or zone redundancy.
 Later authoritative product decisions make GitHub deployment/OIDC, separate
 staging/QA/UAT/demo environments, S1/deployment slots, private networking,
 zone redundancy, multi-region deployment, and malware scanning permanent
-`Never` boundaries. The earlier deferred-scanning, first-MVP exclusion, and
+`Not planned` boundaries. The earlier deferred-scanning, `0.1.0-alpha.1` exclusion, and
 S1/slot-upgrade passages below are retained as historical decision evidence;
 they do not create an activation, migration, or upgrade path. Custom domain
-remains `Unclear` and needs a direct future product decision.
+remains conditional `Later`/`unallocated` and needs a direct future product decision.
 
 ## Technology stack
 
@@ -126,39 +126,39 @@ per feature:
 
 ```text
 src/
-  CollisionSpike.Core/
-  CollisionSpike.Infrastructure/
-  CollisionSpike.Web/
-  CollisionSpike.Worker/
+  Pegasus.Core/
+  Pegasus.Infrastructure/
+  Pegasus.Web/
+  Pegasus.Worker/
 tests/
-  CollisionSpike.Core.Tests/
-  CollisionSpike.IntegrationTests/
-  CollisionSpike.ArchitectureTests/
+  Pegasus.Core.Tests/
+  Pegasus.IntegrationTests/
+  Pegasus.ArchitectureTests/
 infra/
 ```
 
 The dependencies are deliberately one-way:
 
 ```text
-CollisionSpike.Web ---------> CollisionSpike.Core
+Pegasus.Web ---------> Pegasus.Core
          |                            ^
-         +--> CollisionSpike.Infrastructure
+         +--> Pegasus.Infrastructure
                                       |
-CollisionSpike.Worker ------> CollisionSpike.Core
+Pegasus.Worker ------> Pegasus.Core
          |
-         +--> CollisionSpike.Infrastructure
+         +--> Pegasus.Infrastructure
 ```
 
-- `CollisionSpike.Core` owns the domain model, application use cases, ports, and
+- `Pegasus.Core` owns the domain model, application use cases, ports, and
   provider-specific business rules. It must not reference EF Core, Azure, Graph,
   Box, HTTP, or a PDF SDK.
-- `CollisionSpike.Infrastructure` implements Core ports for SQL, Box, Graph,
+- `Pegasus.Infrastructure` implements Core ports for SQL, Box, Graph,
   Azure storage, OCR, PDF decoding, DVLA/DVSA, EVA export, clock, and other
   external systems. It depends on Core.
-- `CollisionSpike.Web` owns Razor Pages, HTTP/API/MCP endpoints, staff cookie
+- `Pegasus.Web` owns Razor Pages, HTTP/API/MCP endpoints, staff cookie
   authentication, request validation, and dependency composition. It contains no
   authoritative case rules.
-- `CollisionSpike.Worker` owns Function triggers and dependency composition. A
+- `Pegasus.Worker` owns Function triggers and dependency composition. A
   trigger translates an external event into a Core use case; it contains no
   provider parsing, matching, numbering, or workflow rules.
 
@@ -215,7 +215,7 @@ mailbox Inbox with Microsoft Graph delta query approximately once per minute.
 The delta cursor is persisted in SQL. Microsoft Graph immutable IDs are requested
 so moving a message does not change its recorded identity.
 
-Polling is selected instead of webhooks for the first MVP because it avoids a
+Polling is selected instead of webhooks for the `0.1.0-alpha.1` because it avoids a
 second public callback endpoint and expiring subscription lifecycle while still
 meeting the required intake latency. A lost or expired cursor causes an
 idempotent resynchronisation, not duplicate cases.
@@ -258,19 +258,19 @@ carry file content.
 
 ### Deferred malware scanning
 
-Automated malware scanning is explicitly deferred beyond the first MVP. No
+Automated malware scanning is explicitly deferred beyond the `0.1.0-alpha.1`. No
 Microsoft Defender for Storage, ClamAV service, or alternative scanner will be
 provisioned in this architecture. The inbound file boundary and processing state
-must allow a scanner to be inserted later, but the first MVP must not label files
+must allow a scanner to be inserted later, but the `0.1.0-alpha.1` must not label files
 as scanned or safe. This decision should be reviewed before introducing external
 users or automatic outbound distribution of received files.
 
 ## Authentication and authorization
 
-Staff sign in with CollisionSpike-managed usernames and passwords. Entra accounts
+Staff sign in with Pegasus-managed usernames and passwords. Entra accounts
 are not used for staff sign-in.
 
-- Accounts are created, disabled, and assigned roles by authorised CollisionSpike
+- Accounts are created, disabled, and assigned roles by authorised Pegasus
   administrators; public registration is disabled.
 - ASP.NET Core Identity's versioned password hasher is used. Passwords and reset
   tokens are never stored in readable form.
@@ -306,7 +306,7 @@ defines the current contract and supersedes the earlier combined credential mode
 
 ## Azure environments and resources
 
-All first-MVP resources use one Azure subscription and UK South unless deployment
+All `0.1.0-alpha.1` resources use one Azure subscription and UK South unless deployment
 validation identifies a service or quota constraint. Development and production
 have separate resource groups, identities, configuration, databases, storage,
 telemetry, and third-party integration boundaries.
@@ -336,12 +336,12 @@ limits obstruct testing.
 
 Production B1 is the lowest dedicated Linux App Service tier. It does not support
 deployment slots. A short restart during a direct release is an accepted
-first-MVP trade-off; upgrade production to S1 only if that becomes operationally
+`0.1.0-alpha.1` trade-off; upgrade production to S1 only if that becomes operationally
 unacceptable.
 
 No VNet, private endpoints, NAT Gateway, API Management, Redis, Service Bus,
 Container Apps, Kubernetes, or separate analytics database will be provisioned
-for the first MVP.
+for the `0.1.0-alpha.1`.
 
 ## Deployment and database changes
 
@@ -386,8 +386,8 @@ Azure SQL automated point-in-time restore is the database recovery mechanism.
 Azure SQL creates transaction-log backups approximately every ten minutes and
 retains seven days by default, which supports the 15-minute recovery-point target
 for this design. The actual restore procedure and source-system reconciliation
-require a V1 release-gated restore proof. Outlook and Box IDs make ingestion and file state
-reconcilable after a restore. The first-MVP restoration target is four hours.
+require a `0.1.0-alpha.1` release-gated restore proof. Outlook and Box IDs make ingestion and file state
+reconcilable after a restore. The `0.1.0-alpha.1` restoration target is four hours.
 
 ## Initial Azure cost forecast
 
@@ -412,7 +412,7 @@ following normalises hourly products to 730 hours and daily SQL products to
 | Development Azure SQL Basic | £0.1523/day | £4.63 |
 | **Fixed baseline** |  | **£28.50** |
 
-There is no first-MVP production staging slot or separate staging environment.
+There is no `0.1.0-alpha.1` production staging slot or separate staging environment.
 
 ### Variable monthly planning allowance
 
@@ -431,7 +431,7 @@ approximately **£35-£70 per month** before VAT and third-party licences. Use
 on both actual and forecast cost. Replace assumptions with measured ingestion,
 OCR page, storage, telemetry, and database usage after the first full month.
 
-Malware scanning has no first-MVP cost because it is explicitly deferred.
+Malware scanning has no `0.1.0-alpha.1` cost because it is explicitly deferred.
 
 ## Alternatives considered
 
@@ -445,7 +445,7 @@ without a demonstrated interaction requirement that justifies them.
 
 Not selected. Its persistent SignalR circuit model is unnecessary for this
 queue- and form-oriented application and introduces connection/state behaviour
-that provides no first-MVP advantage over Razor Pages.
+that provides no `0.1.0-alpha.1` advantage over Razor Pages.
 
 ### Microservices, AKS, or Container Apps for the whole application
 
@@ -458,7 +458,7 @@ extraction only if measurements and ownership eventually justify it.
 
 Not selected initially. S1 is the lowest App Service tier that supports a
 production deployment slot, but its fixed UK South Linux retail cost is about
-£55.33 per month. The first MVP accepts a short outside-office-hours restart on
+£55.33 per month. The `0.1.0-alpha.1` accepts a short outside-office-hours restart on
 B1 instead. S1 remains the upgrade path if release frequency or disruption later
 justifies the additional cost.
 
@@ -468,7 +468,7 @@ Not selected. App Service restarts, direct deployments, and web scaling should n
 mailbox cursors or interrupt/repeat continuous processing. A small Functions app
 provides independent triggers and retries while sharing the same Core code.
 
-### Microsoft Graph webhooks for first-MVP mailbox intake
+### Microsoft Graph webhooks for `0.1.0-alpha.1` mailbox intake
 
 Not selected initially. Webhooks require a public callback, subscription renewal,
 and missed-notification recovery. One-minute delta polling is simpler, remains
@@ -484,12 +484,12 @@ scale vertically without an application redesign.
 ### Microsoft Entra staff authentication
 
 Not selected because the business explicitly requires usernames and passwords
-managed by CollisionSpike. Entra identities remain appropriate for Azure resource,
+managed by Pegasus. Entra identities remain appropriate for Azure resource,
 deployment, and mailbox machine access; they are not staff application accounts.
 
 ### Microsoft Defender for Storage or self-hosted ClamAV
 
-Deferred by explicit product decision. Neither is provisioned for the first MVP.
+Deferred by explicit product decision. Neither is provisioned for the `0.1.0-alpha.1`.
 
 ## Consequences
 

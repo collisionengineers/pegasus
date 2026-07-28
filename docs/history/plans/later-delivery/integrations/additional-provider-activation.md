@@ -4,14 +4,14 @@
 
 Primary plan: `P-V1X`
 
-Feature: `INT-04` — V1.x before V2.
+Feature: `INT-04` — `Next`/`unallocated` before `Next`/`unallocated`.
 Pre-conversion status: **Planned activation contract; no additional-provider caller exists.**
 
 ## Scope, ownership and caller
 
 Activate one approved additional provider at a time through the existing provider-neutral intake and case workflow. Core continues to own source-processing/acceptance policy; a contained provider extraction/reference policy may interpret only that provider's approved inputs. Web, Worker, or a provider endpoint is an intended composition-root caller selected by the activation decision, not a new intake engine.
 
-Dependencies are accepted V1 operator/management release evidence, staff identity/action history, configured principal/reference data, durable custody, and the existing intake/acceptance plans. A provider-specific project, allocator, case workflow, generic provider framework, credential, external call, or cloud resource is excluded now.
+Dependencies are accepted `0.1.0-alpha.1` operator/management release evidence, staff identity/action history, configured principal/reference data, durable custody, and the existing intake/acceptance plans. A provider-specific project, allocator, case workflow, generic provider framework, credential, external call, or cloud resource is excluded now.
 
 ## Activate an additional provider
 

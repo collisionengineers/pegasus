@@ -1,6 +1,6 @@
 # UI specification
 
-Status: **Planned V1 specification with Operations-first selected for the shell and landing strategy. Detailed raster styling remains subject to this specification and the design system.**
+Status: **Planned `0.1.0-alpha.1` specification with Operations-first selected for the shell and landing strategy. Detailed raster styling remains subject to this specification and the design system.**
 
 ## Shared shell and hierarchy
 
@@ -10,7 +10,7 @@ Status: **Planned V1 specification with Operations-first selected for the shell 
 4. Named workflow/evidence/lease/exception state and consequential action.
 5. Provenance, external identity, permanent business history and limitation.
 
-The Planned V1 routes are Operations, Intake, Triage, Cases and authorised Administration. Each candidate direction uses the same focused-flow set. V2 email appears only after its gates; V3/V3+ has no placeholder route or control.
+The Planned `0.1.0-alpha.1` routes are Operations, Intake, Triage, Cases and authorised Administration. Each candidate direction uses the same focused-flow set. `Next`/`unallocated` email appears only after its gates; `Later`/`unallocated` has no placeholder route or control.
 
 ## Contracts
 
@@ -54,11 +54,11 @@ Illustrative text must not fabricate operational input. Loading, empty, stale/pa
 
 ## Accessibility and acceptance
 
-Use skip link, labelled navigation, semantic tables/captions/header/sort state, keyboard queue selection, pane/tab relationships, associated error summary, restrained live announcements, visible focus and safe modal focus handling. At 1280+ use dense panes; at 1024–1279 and 200% zoom, turn secondary panes into labelled tabs/drawers/ordered sections while identity/state/actions remain first. Mobile is Never.
+Use skip link, labelled navigation, semantic tables/captions/header/sort state, keyboard queue selection, pane/tab relationships, associated error summary, restrained live announcements, visible focus and safe modal focus handling. At 1280+ use dense panes; at 1024–1279 and 200% zoom, turn secondary panes into labelled tabs/drawers/ordered sections while identity/state/actions remain first. Mobile is `Not planned`.
 
 When implemented:
 
 - each visible trace row and state needs authenticated Web-caller and named Core-owner evidence;
 - keyboard, screen-reader, focus/error, forced-colours, reduced-motion, 1280+ desktop, constrained desktop and 200%-zoom inspection must be recorded;
 - operator review uses approved genuine local immutable material only; generated imagery or synthetic operational material cannot prove acceptance; and
-- every V2/V3/V3+ UI change re-enters inventory, specification, alternatives, independent review, explicit approval, visual generation and manual visual review.
+- every `Next`/`unallocated` and `Later`/`unallocated` UI change re-enters inventory, specification, alternatives, independent review, explicit approval, visual generation and manual visual review.

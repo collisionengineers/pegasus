@@ -2,7 +2,7 @@
 
 > **Archive status — non-authoritative planning evidence.** Revalidate against current product, roadmap, architecture, operations, design, decisions, and code before use.
 
-Pre-conversion status: **Ready V1 plan — categorised email queues/workspace V2**
+Pre-conversion status: **Ready `0.1.0-alpha.1` plan — categorised email queues/workspace `Next`/`unallocated`**
 
 ## Purpose
 
@@ -14,9 +14,9 @@ Primary matrix IDs: `UI-01`, `UI-02`, `UI-03`, `UI-04`, `UI-05`, `UI-06`, `UI-07
 
 ## Authority and current boundary
 
-- **Authority:** [source order](../../../../agent-guidance/source-of-truth.md), [questionnaire §§4–7](../../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md), and [remaining requirements §§4–5](../../../../product/v1-gap.md).
+- **Authority:** [source order](../../../../agent-guidance/source-of-truth.md), [questionnaire §§4–7](../../../product/project-discovery-questionnaire.md), and [remaining requirements §§4–5](../../../../product/qdos-alpha-gap.md).
 - **Policy owner:** Core case/intake query and action use cases; Web owns request/view translation only.
-- **Current implementation:** an unauthenticated development-only `/Intake/Upload` page plus provider-neutral receipt queue/review and persisted counts. Its models are not the first-MVP operational workspace.
+- **Current implementation:** an unauthenticated development-only `/Intake/Upload` page plus provider-neutral receipt queue/review and persisted counts. Its models are not the `0.1.0-alpha.1` operational workspace.
 - **Real callers:** `/Intake/Upload` is the only current real intake caller. Authenticated dashboard, inbox queues, case detail/search and manual refresh are **planned**.
 - **Persistence/adapters:** read models must query the authoritative intake/case/lifecycle records; no dashboard counter store. Box/EVA/document presentation depends on their own adapters.
 - **Dependencies:** staff identity, [intake acceptance](intake-and-case-acceptance.md), [Triage workflow](triage-workflow.md), [identity](case-identity-and-references.md), [lifecycle/work](lifecycle-and-work-management.md) and [exclusive case editing](case-editing-concurrency.md).
@@ -33,7 +33,7 @@ Every count opens the exact filtered query it represents. Counts, last-updated t
 ### Authority and decision gate
 
 - **Requirement/decision:** questionnaire §5 dashboard requirements and remaining requirements §5.
-- **Confirmed facts:** V1 tiles are `Not ready`, `Review`, `Held`, `Needs sorting`, `Blocked intake`, and a separate Triage route. `Receiving work`, `Queries`, and `Other` categorised email queues are V2. `In today` counts cases since Europe/London midnight; paired `Sent to Engineer` and `Reports sent` use Monday-to-Monday weeks. `Sent to Engineer` counts each case once from successful EVA export generation; `Reports sent` counts every report with exact allowlisted Outlook evidence.
+- **Confirmed facts:** `0.1.0-alpha.1` tiles are `Not ready`, `Review`, `Held`, `Needs sorting`, `Blocked intake`, and a separate Triage route. `Receiving work`, `Queries`, and `Other` categorised email queues are `Next`/`unallocated`. `In today` counts cases since Europe/London midnight; paired `Sent to Engineer` and `Reports sent` use Monday-to-Monday weeks. `Sent to Engineer` counts each case once from successful EVA export generation; `Reports sent` counts every report with exact allowlisted Outlook evidence.
 - **Decision required before implementation:** none; queue contents defer to lifecycle/chase decision gates where they apply.
 
 ### Owner and dependencies
@@ -128,7 +128,7 @@ Every count opens the exact filtered query it represents. Counts, last-updated t
 - **Real or intended caller:** planned authenticated case-list/detail pages; no current caller.
 - **Input/output:** authorised structured filters return matching cases; case detail presents identity, origin/source, fields/provenance, history, documents/links, state/gates and permitted Core actions.
 - **Ordered decisions and failure behavior:** validate filter/date range; authorise; query the owner; acquire the [exclusive case-edit lease](case-editing-concurrency.md#acquire-renew-and-release-one-case-edit-lease) before exposing mutations; delegate changes to intake/lifecycle/identity use cases with lease token and case version. Unknown/no-match, active editor and stale lease/version are visible; UI never alters reference/state directly.
-- **Persistence/migration:** searchable/indexed authoritative fields and origin/association history; no copied Elastic/index service in first MVP.
+- **Persistence/migration:** searchable/indexed authoritative fields and origin/association history; no copied Elastic/index service in `0.1.0-alpha.1`.
 - **Adapters/side effects:** render persisted Box/EVA links only through approved adapters; export and document actions remain separate plans.
 - **Operator surface and observability:** exact labelled filters, readable origin and permanent action history; content-safe search/action telemetry. Principal/reference are read-only immediately after allocation; wrong-principal handling shows the terminal `Created in error` original and linked replacement, not an alias or edit.
 - **Documentation affected:** preserve operator terminology and source links; no operator-note edits.

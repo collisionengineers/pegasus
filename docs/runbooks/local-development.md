@@ -1,6 +1,6 @@
 # Local development
 
-CollisionSpike runs offline on Windows without Azure, Graph, Box, DVLA/DVSA,
+Pegasus runs offline on Windows without Azure, Graph, Box, DVLA/DVSA,
 EVA, Infisical, Docker, or a cloud login. Use the standard owning executables
 directly; the repository does not wrap them in a workstation doctor or generic
 repository-check script.
@@ -17,6 +17,26 @@ repository-check script.
 | SQL Server Express LocalDB | installed LocalDB runtime | `sqllocaldb versions` |
 | Development HTTPS | trusted .NET development certificate | `dotnet dev-certs https --check --trust` |
 
+### Windows checkout path
+
+Before cloning, either enable Windows long-path support and configure Git for long
+paths, or choose a checkout root whose absolute path is no more than 23 characters
+(for example, `C:\src\pegasus`). The repository contains a tracked 235-character
+relative path; a longer root can exceed the traditional 260-character limit before
+any repository command can run.
+
+Verify long-path support from PowerShell:
+
+```powershell
+(Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem').LongPathsEnabled
+git config --show-origin --get core.longpaths
+```
+
+The first command must report `1` and the Git setting must report `true` when using
+a longer checkout root. These commands are read-only; configure the workstation
+through its approved administrator policy before cloning if either prerequisite is
+missing.
+
 Python 3.11+ is required only when authoring provider-domain reference data; the
 script uses the standard library and installs no package. Playwright browser
 installation is required only for the browser acceptance lane. Cloud/vendor
@@ -25,7 +45,7 @@ tools belong to approved live work, not this baseline.
 ## Step 2 — author provider-domain reference data
 
 The Step 2 command is an offline authoring operation over one immutable
-cumulative source workbook. For v1 it reads only
+provider package `provider-domains-v1` reads only
 `docs/reference/workproviders-and-repairers/initial.xlsx` and retains only the
 provider code from column A and the final lowercase `@domain` suffix from each
 semicolon-separated column-E observation. It ignores columns B-D and later
@@ -46,11 +66,11 @@ failure as `source-locked`. The helper requires Python 3.11+ and uses only
 environment, pip install, dependency lock, package cache, recursive workbook
 discovery, network operation, or second manifest.
 
-The v1 command stages beneath ignored
+The `provider-domains-v1` command stages beneath ignored
 `artifacts/reference-data-staging/` and publishes this immutable package:
 
 ```text
-src/CollisionSpike.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json
+src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json
 ```
 
 Generation completes in staging before publication. An absent output is moved
@@ -66,8 +86,8 @@ and the previous validated package:
 pwsh ./scripts/Build-ProviderReferenceData.ps1 `
   -SourcePath ./docs/reference/workproviders-and-repairers/provider-domains-v2.xlsx `
   -Version provider-domains-v2 `
-  -PackagePath ./src/CollisionSpike.Infrastructure/Persistence/ReferenceData/provider-domains.v2.json `
-  -PreviousPackagePath ./src/CollisionSpike.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json
+  -PackagePath ./src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v2.json `
+  -PreviousPackagePath ./src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json
 ```
 
 Every previous provider/suffix pair must remain. A removal fails
@@ -88,11 +108,11 @@ From PowerShell 7 at the repository root:
 
 ```powershell
 npm ci
-dotnet restore ./CollisionSpike.slnx
+dotnet restore ./Pegasus.slnx
 dotnet dev-certs https --trust
 dotnet dev-certs https --check --trust
 sqllocaldb start MSSQLLocalDB
-dotnet run --project ./src/CollisionSpike.Web --launch-profile https -- --migrate-development
+dotnet run --project ./src/Pegasus.Web --launch-profile https -- --migrate-development
 ```
 
 Windows displays a current-user trust confirmation for the first command; the
@@ -103,7 +123,7 @@ normal Web or Worker start never applies migrations. The checked-in Development
 configuration uses only:
 
 - `Runtime:Profile=DevelopmentOffline`;
-- `(localdb)\MSSQLLocalDB`, database `CollisionSpikeV2Development`;
+- `(localdb)\MSSQLLocalDB`, database `PegasusDevelopment`;
 - ignored files below `artifacts/local-development/default/`; and
 - loopback HTTP/HTTPS endpoints.
 
@@ -124,7 +144,7 @@ npx --no-install azurite --location ./artifacts/local-development/default/azurit
 Terminal 2 — Functions host:
 
 ```powershell
-Push-Location ./src/CollisionSpike.Worker
+Push-Location ./src/Pegasus.Worker
 func start --port 7071 --no-build
 Pop-Location
 ```
@@ -132,7 +152,7 @@ Pop-Location
 Terminal 3 — Web:
 
 ```powershell
-dotnet run --project ./src/CollisionSpike.Web --launch-profile https --no-build
+dotnet run --project ./src/Pegasus.Web --launch-profile https --no-build
 ```
 
 Verify `https://localhost:7139/health/live` and
@@ -153,7 +173,7 @@ each run. For example, set these in every terminal before starting its process:
 
 ```powershell
 $runId = [Guid]::NewGuid().ToString('N')
-$env:ConnectionStrings__CollisionSpike = "Server=(localdb)\MSSQLLocalDB;Database=CollisionSpike_$runId;Integrated Security=True;Encrypt=False;MultipleActiveResultSets=True"
+$env:ConnectionStrings__Pegasus = "Server=(localdb)\MSSQLLocalDB;Database=Pegasus_$runId;Integrated Security=True;Encrypt=False;MultipleActiveResultSets=True"
 $env:Intake__LocalArtifactPath = "../../artifacts/local-development/$runId/intake"
 ```
 
@@ -166,7 +186,7 @@ parallel runs.
 Stop only the foreground processes started in the corresponding terminals with
 Ctrl+C. Local state is ignored and disposable, but deletion is never inferred
 from a process name. Before removing it, verify the exact database name begins
-with `CollisionSpikeV2Development` or the run-specific `CollisionSpike_` prefix
+with `PegasusDevelopment` or the run-specific `Pegasus_` prefix
 and verify the exact artifact path is a descendant of
 `artifacts/local-development/`. Do not remove another run, `corpus/`, tracked
 reference files, or any Azure resource.
