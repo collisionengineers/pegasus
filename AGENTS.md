@@ -10,7 +10,7 @@ Engineers. Read [the repository documentation](docs/index.md) before material wo
 - Repository mode: `development`.
 - Visual UI: `present`; `design/` owns durable visual authority and source/runtime mappings.
 - Canonical local verification: `dotnet restore`, `dotnet build --configuration Release`, and focused/full `dotnet test` commands.
-- Preserve unrelated work. Never stash, reset, clean, force-push, merge, or broaden staging.
+- Preserve unrelated work. Never stash, reset, clean, force-push, merge, or broaden staging. PR Merge can only be performed if the operator specifically states: MERGE AUTH GRANTED in their prompt.
 - Cloud reads and every Azure, deployment, credential, account, destructive, or other external write require explicit approval for exact targets. Never delete `rg-collisionspike-dev` as a first step.
 
 ## Repository workflow routes
