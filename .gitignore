@@ -34,3 +34,15 @@ node_modules/
 # Operating-system files
 .DS_Store
 Thumbs.db
+.claudian/claudian-settings.json
+.obsidian/graph.json
+.obsidian/plugins/realclaudian/data.json
+.obsidian/plugins/realclaudian/main.js
+.obsidian/plugins/realclaudian/manifest.json
+.obsidian/plugins/realclaudian/styles.css
+l
+
+# Generated workspace outputs and imported review bundle
+/p17/
+/workspaces/ai-centre/services/collision-brain/dist/
+/workspaces/ai-centre/skills/tools/__pycache__/
