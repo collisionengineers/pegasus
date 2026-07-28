@@ -1,0 +1,4 @@
+interface:
+  display_name: "Manufacturer Methods Evidence"
+  short_description: "OEM repair-method evidence pointers"
+  default_prompt: "Use $manufacturer-methods-evidence to check manufacturer-method evidence pointers for a repair scope or dispute."
