@@ -2,22 +2,22 @@
 
 > **Archive status — non-authoritative planning evidence.** Revalidate against current product, roadmap, architecture, operations, design, decisions, and code before use.
 
-Pre-conversion status: **Planned V2 — not a V1 release gate**
+Pre-conversion status: **Planned `Next`/`unallocated` — not a `0.1.0-alpha.1` release gate**
 
 ## Purpose
 
-Preserve the accepted V2 principal-scoped provider boundary without inventing the versioned HTTP contract, credential-administration workflow or limits that implementation still requires. This plan is not a V1 release gate.
+Preserve the accepted `Next`/`unallocated` principal-scoped provider boundary without inventing the versioned HTTP contract, credential-administration workflow or limits that implementation still requires. This plan is not a `0.1.0-alpha.1` release gate.
 
 ## Feature coverage
 
 Primary feature ownership is: `API-01`, `API-02`, `API-03`, and `API-04`.
-The three V2 delivery slices below are deliberately contract-neutral: this plan
+The three `Next`/`unallocated` delivery slices below are deliberately contract-neutral: this plan
 does not choose an authentication scheme, route, header, request shape,
 signature, or provider client.
 
 ## Authority and current boundary
 
-- **Authority:** [remaining requirements](../../../../product/v1-gap.md#3-complete-intake-formats-and-paths) and [ADR-0004](../../../../architecture/decisions/ADR-0004-provider-api-and-staff-mcp-authentication.md#provider-http-api).
+- **Authority:** [remaining requirements](../../../../product/qdos-alpha-gap.md#3-complete-intake-formats-and-paths) and [ADR-0004](../../../../architecture/decisions/ADR-0004-provider-api-and-staff-mcp-authentication.md#provider-http-api).
 - **Policy owner:** shared Core intake and principal-authorisation policy; Web will translate the accepted HTTP contract.
 - **Current implementation/callers:** no provider endpoint, credential store, caller or live client exists. The Development `/Intake/Upload` caller is not a provider API.
 - **Accepted invariant:** separately issued principal-scoped client IDs and opaque secrets; store only secret hashes; support rotation/revocation; accept idempotent instruction/attachment submission; expose only that principal's submission receipt, status and resulting Case/PO.
@@ -25,7 +25,7 @@ signature, or provider client.
 
 ## Receive principal scoped submissions
 
-**Evidence state:** Planned — V2 contract and credential workflow gated
+**Evidence state:** Planned — `Next`/`unallocated` contract and credential workflow gated
 
 `API-01` is one authenticated, principal-scoped Web/API caller that delegates
 to the existing Core intake and principal-authorisation owners. It must retain
@@ -38,7 +38,7 @@ intake or allocation policy.
 
 ## Return provider receipt, status and result
 
-**Evidence state:** Planned — V2 contract and credential workflow gated
+**Evidence state:** Planned — `Next`/`unallocated` contract and credential workflow gated
 
 `API-02` and `API-03` expose only the submitting principal's durable receipt,
 processing status, and resulting Case/PO where the shared Core outcome permits
@@ -50,7 +50,7 @@ are planned; no endpoint or result lookup is current evidence.
 
 ## Issue, rotate and revoke provider credentials
 
-**Evidence state:** Planned — V2 credential-administration workflow gated
+**Evidence state:** Planned — `Next`/`unallocated` credential-administration workflow gated
 
 `API-04` requires a named, authorised staff administration caller, Core
 principal/authorisation policy, opaque hashed secrets, permanent action

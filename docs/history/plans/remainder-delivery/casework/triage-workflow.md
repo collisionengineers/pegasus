@@ -2,11 +2,11 @@
 
 > **Archive status — non-authoritative planning evidence.** Revalidate against current product, roadmap, architecture, operations, design, decisions, and code before use.
 
-Pre-conversion status: **Ready V1 plan — exact matcher remains research-gated**
+Pre-conversion status: **Ready `0.1.0-alpha.1` plan — exact matcher remains research-gated**
 
 ## Purpose
 
-Deliver the bounded first-MVP pre-case roadworthiness workflow without turning `Triage` into an inbox category or case state. A Triage record remains separate from any later case and reaches completion only from exact Outlook reply-chain evidence.
+Deliver the bounded `0.1.0-alpha.1` pre-case roadworthiness workflow without turning `Triage` into an inbox category or case state. A Triage record remains separate from any later case and reaches completion only from exact Outlook reply-chain evidence.
 
 ## Feature coverage
 
@@ -14,7 +14,7 @@ Primary matrix IDs: `TRI-01`, `TRI-02`, `TRI-03`, `TRI-04`, `TRI-05`, `TRI-06`, 
 
 ## Authority and current boundary
 
-- **Authority:** [questionnaire Triage decisions](../../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md#4-the-case-lifecycle), [remaining requirements §3](../../../../product/v1-gap.md#3-complete-intake-formats-and-paths), and the [combined mailbox/email research boundary](../../../../product/open-decisions.md#mailbox-categorisation-and-all-email-matching-research).
+- **Authority:** [questionnaire Triage decisions](../../../product/project-discovery-questionnaire.md#4-the-case-lifecycle), [remaining requirements §3](../../../../product/qdos-alpha-gap.md#3-complete-intake-formats-and-paths), and the [combined mailbox/email research boundary](../../../../product/open-decisions.md#mailbox-categorisation-and-matching-evidence).
 - **Policy owner:** planned Core `TriageWorkflow`; it alone owns states, findings, correction, reopen, cancellation and case-link policy.
 - **Evidence state:** **Planned; not implemented, called, deployed, live verified or accepted.** No production Triage type, persistence, route, Graph evidence matcher or caller exists.
 - **Intended callers:** planned authenticated Web Triage list/detail/actions; planned Web completion action calling a Core reply-evidence query backed by one Infrastructure Outlook adapter. Graph/Outlook supplies evidence only and owns no workflow decision.
@@ -66,7 +66,7 @@ Missing registration, invalid state/finding, stale version, missing reason, unap
 |---|---|---|---|
 | Source lacks vehicle registration | retained `Needs sorting`; no active Triage | Web-to-Core negative test | future extraction accuracy |
 | `Roadworthy` recorded | `Finding recorded`, actor/reason/version visible | caller/persistence test | response sent |
-| Completion without exact approved reply-chain item | refused; state/history unchanged; clear evidence warning | zero/failed-adapter-call tests | V1 automatic matcher accuracy |
+| Completion without exact approved reply-chain item | refused; state/history unchanged; clear evidence warning | zero/failed-adapter-call tests | `0.1.0-alpha.1` automatic matcher accuracy |
 | Exact approved reply evidence after accepted research | `Completed` once with immutable mailbox/item/sent-time evidence | Web/Core/Graph integration test | recipient delivery or reading |
 | Finding changed after completion | prior finding/evidence retained, superseding finding recorded, new response required | transaction/browser test | report correctness |
 | Completed or cancelled record reopened | reason retained and state returns to `Open` | caller/state test | operator judgment |
@@ -81,10 +81,10 @@ Missing registration, invalid state/finding, stale version, missing reason, unap
 
 ## Deferred-capability impact
 
-- **Later and excluded capabilities:** V2 broader mailbox/email management and general association, V3 WhatsApp and Diminution/Commercial cases, conditional guided capture, later AI/vision roadworthiness assistance, and `Never` external accounts/later resilience infrastructure. The exact Triage reply matcher is a V1 research-gated requirement, not a deferral.
+- **Later and excluded capabilities:** `Next`/`unallocated` broader mailbox/email management and general association, `Later`/`unallocated` WhatsApp and Diminution/Commercial cases, conditional guided capture, later AI/vision roadworthiness assistance, and `Not planned` external accounts/later resilience infrastructure. The exact Triage reply matcher is a `0.1.0-alpha.1` research-gated requirement, not a deferral.
 - **Stable seam retained:** stable Triage/source/case/external-message identities, typed binary finding/revisions, explicit state/action contracts, shared mailbox allowlist and narrow Outlook evidence port.
-- **Future migration/replacement:** the accepted V1 exact reply matcher supplies the same evidence command; later channels or assistance add provenance/adapters and approved UI without replacing Triage policy. External accounts remain `Never` unless a new direct product decision changes that boundary.
-- **Activation boundary:** accepted combined research for the V1 automatic reply matcher and V2 general case matching; explicit product, licence/security, accuracy, and operator acceptance for any later channel or automated finding assistance.
+- **Future migration/replacement:** the accepted `0.1.0-alpha.1` exact reply matcher supplies the same evidence command; later channels or assistance add provenance/adapters and approved UI without replacing Triage policy. External accounts remain `Not planned` unless a new direct product decision changes that boundary.
+- **Activation boundary:** accepted combined research for the `0.1.0-alpha.1` automatic reply matcher and `Next`/`unallocated` general case matching; explicit product, licence/security, accuracy, and operator acceptance for any later channel or automated finding assistance.
 - **Deliberately absent:** no generic classifier/rule table, automated sender, WhatsApp client, vision model, customer role, case/reference allocator, due/chaser scheduler, queue or feature flag.
 
 ## Completion evidence

@@ -31,4 +31,4 @@ Create one durable home for the case after intake, keeping identity, next action
 
 ## Deferred-capability impact
 
-The [UI planning impact register](README.md#deferred-capability-impact) applies. This concept preserves immutable case/reference, linked replacement, related Audit work, source/document identity and exact external evidence so later EVA, email, finance or later case-type adapters can extend named actions without rewriting history. It does not define the V1 exact report matcher or authorise message sending, EVA API, estimates/valuation/invoices, external accounts, AI assistance, or permanent deletion.
+The [UI planning impact register](README.md#deferred-capability-impact) applies. This concept preserves immutable case/reference, linked replacement, related Audit work, source/document identity and exact external evidence so later EVA, email, finance or later case-type adapters can extend named actions without rewriting history. It does not define the `0.1.0-alpha.1` exact report matcher or authorise message sending, EVA API, estimates/valuation/invoices, external accounts, AI assistance, or permanent deletion.

@@ -4,7 +4,7 @@
 
 Primary plan: `P-FIN`
 
-Feature: `EXT-11` — V3+ release work.
+Feature: `EXT-11` — `Later`/`unallocated` release work.
 Pre-conversion status: **Planned decision/contract activation; no accounting caller, policy or integration exists.**
 
 ## Deliver accounting and invoicing workflow

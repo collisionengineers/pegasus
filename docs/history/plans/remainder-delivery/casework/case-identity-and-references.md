@@ -2,7 +2,7 @@
 
 > **Archive status — non-authoritative planning evidence.** Revalidate against current product, roadmap, architecture, operations, design, decisions, and code before use.
 
-Pre-conversion status: **Ready V1 plan — settled identity invariants**
+Pre-conversion status: **Ready `0.1.0-alpha.1` plan — settled identity invariants**
 
 ## Purpose
 
@@ -14,9 +14,9 @@ Primary matrix IDs: `ACC-06`, `CASE-02`, `CASE-03`, `CASE-04`, `CASE-07`, `CASE-
 
 ## Authority and current boundary
 
-- **Authority:** [source order](../../../../agent-guidance/source-of-truth.md), [questionnaire §§4–5](../../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md), [remaining requirements §4](../../../../product/v1-gap.md), and [open decisions](../../../../product/open-decisions.md).
+- **Authority:** [source order](../../../../agent-guidance/source-of-truth.md), [questionnaire §§4–5](../../../product/project-discovery-questionnaire.md), [remaining requirements §4](../../../../product/qdos-alpha-gap.md), and [open decisions](../../../../product/open-decisions.md).
 - **Policy owner:** planned Core `CaseIdentity` policy/use case.
-- **Current implementation:** there is no active case/reference allocator and v2 has not been deployed. The retired Development proof produced non-business test references only; its migration records those values for migration diagnostics, then deliberately removes the `CaseEntity`, counter, receipt links and allocation caller. Those test values are not issued case identities, do not reserve sequence numbers, and must not seed or constrain the future allocator.
+- **Current implementation:** there is no active case/reference allocator and `Next`/`unallocated` has not been deployed. The retired Development proof produced non-business test references only; its migration records those values for migration diagnostics, then deliberately removes the `CaseEntity`, counter, receipt links and allocation caller. Those test values are not issued case identities, do not reserve sequence numbers, and must not seed or constrain the future allocator.
 - **Real callers:** `/Intake/Upload` is a development-only pre-case intake caller and creates no case/reference. Accepted-case UI, allocator and Worker/API/MCP callers are **planned**; the planned case-detail caller also owns the explicit `Created in error` replacement action.
 - **Persistence/adapters:** the future accepted-case, principal/year counter, case type, original-report assessment, terminal reason and replacement-case relationship are planned relational data. No reference-alias correction model is authorised.
 - **Dependencies:** definitive pre-case intake evidence from [intake and acceptance](intake-and-case-acceptance.md), principal configuration, staff action history and the single migration stream; Box/EVA consume the allocated identity later, while lifecycle supplies authorised transitions.
@@ -112,7 +112,7 @@ No reference is allocated for a non-definitive intake, unknown principal, missin
 
 ### Owner, caller and contract
 
-- **Requirement/decision:** [remaining requirements §4](../../../../product/v1-gap.md#4-case-model-and-lifecycle) makes a used principal code immutable. A legitimate change creates a new linked principal and atomically deactivates its predecessor.
+- **Requirement/decision:** [remaining requirements §4](../../../../product/qdos-alpha-gap.md#4-case-model-and-lifecycle) makes a used principal code immutable. A legitimate change creates a new linked principal and atomically deactivates its predecessor.
 - **Policy/implementation owner:** Core `PrincipalCodeReplacement` within the case-identity/reference capability; the [Administrator principal page](../identity-and-access/staff-identity-authorisation-and-action-history.md#administer-principals-and-live-operational-configuration) is the planned caller. This is distinct from wrong-principal case replacement: it changes prospective principal configuration and counter continuity, never a case's allocated identity.
 - **Input/output:** authorised Administrator, predecessor principal/version, unique replacement code and required reason yield one active linked successor, one inactive predecessor, preserved counter continuity and a permanent action-history event. The caller never supplies the cutover year.
 - **Ordered decisions and failure behavior:** refuse editing a code once any reference uses it; validate Administrator, predecessor/current version and replacement uniqueness; derive the cutover year inside Core from the injected trusted clock and the Europe/London business calendar; lock predecessor/successor/counter rows; create the linked successor and deactivate the predecessor atomically. The successor continues the predecessor's next sequence in that derived year and begins later years at `001`. If the predecessor cutover-year counter is exhausted at `999`, preserve that exhaustion visibly for the successor in that year; never wrap, widen, reset or reuse. Conflict, stale version, duplicate code or history-write failure leaves predecessor/counters unchanged.

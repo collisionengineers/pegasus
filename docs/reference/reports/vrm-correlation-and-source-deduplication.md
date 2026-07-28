@@ -1,10 +1,10 @@
 # VRM correlation and source deduplication
 
-**Operator decision:** Dealt with on 2026-07-24. Current v2 already covers the required principle; this report records the differences rather than adding another requirement or plan.
+**Operator decision:** Dealt with on 2026-07-24. Current Pegasus already covers the required principle; this report records the differences rather than adding another requirement or plan.
 
 **Legacy sources dealt with:** ADR-0002 (`../dealt-with/accepted/0002-vrm-open-case-correlation.md`) and its directly related ADR-0010 (`../dealt-with/accepted/0010-dedup-reference-disambiguated-no-time-window.md`).
 
-## Current v2 position
+## Current Pegasus position
 
 ### Requirements
 
@@ -13,7 +13,7 @@
 - The original intake source and provenance remain available after matching or merging.
 - Replaying the same source occurrence is idempotent. Equal bytes received as distinct permitted occurrences remain distinct evidence.
 
-These rules are already recorded in the [questionnaire](../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md#5-case-information), [remaining requirements](../../product/v1-gap.md#3-complete-intake-formats-and-paths), and accepted [multi-format intake ADR](../../architecture/decisions/ADR-0005-multiformat-intake-assets.md).
+These rules are already recorded in the [questionnaire](../../history/product/project-discovery-questionnaire.md#5-case-information), [remaining requirements](../../product/qdos-alpha-gap.md#3-complete-intake-formats-and-paths), and accepted [multi-format intake ADR](../../architecture/decisions/ADR-0005-multiformat-intake-assets.md).
 
 ### Plan
 
@@ -21,21 +21,21 @@ The [lifecycle and work-management plan](../../history/plans/remainder-delivery/
 
 ### Implementation and verified evidence
 
-The current `/Intake/Upload` caller only extracts, normalises, and persists a registration in a pre-case draft through [`ProcessIntake`](../../../src/CollisionSpike.Core/Intake/ProcessIntake.cs). Source-occurrence replay and equal-content occurrence retention are covered by the current intake persistence path.
+The current `/Intake/Upload` caller only extracts, normalises, and persists a registration in a pre-case draft through [`ProcessIntake`](../../../src/Pegasus.Core/Intake/ProcessIntake.cs). Source-occurrence replay and equal-content occurrence retention are covered by the current intake persistence path.
 
 There is no implemented case-matching, merge, reversal, candidate search, or mutable staff caller yet. The requirement and plan exist; end-to-end matching behaviour is not implemented or verified.
 
 ## Differences from the legacy ADRs
 
-| Legacy decision | Current v2 treatment |
+| Legacy decision | Current Pegasus treatment |
 | --- | --- |
 | Search only compatible open cases | Not adopted as an exact candidate boundary. Closed/reopened-case treatment and the definitive compatibility predicate are not settled by current authority. |
 | Use `-002`/`-003` suffixes for concurrent image-first work | Not planned. Stable source occurrence identity prevents storage collision without making a suffixed VRM a business identity. |
-| Adopt images through the predecessor archive-holding path | Not adopted. v2 preserves source identity/provenance and uses the planned case association and custody boundaries. |
+| Adopt images through the predecessor archive-holding path | Not adopted. Pegasus preserves source identity/provenance and uses the planned case association and custody boundaries. |
 | Provider reference, principal, and incident-date rules are fixed eliminators | Not yet adopted as an exact matching contract. They may be useful evidence, but the approved definitive predicate must be settled and tested through the current Core owner. |
 | Same incident date plus corroboration may attach | Not an implemented or accepted automatic rule. A date match alone is correctly insufficient. |
-| Arrival-time proximity may never merge cases | Aligned with v2's requirement for a definitive match; time proximity alone is not definitive evidence. |
-| Exact payload-hash repeat is dropped | Rejected for distinct occurrences. Current v2 groups equal hashes for review but retains every occurrence and its provenance. Only replay of the same channel occurrence is idempotent. |
+| Arrival-time proximity may never merge cases | Aligned with Pegasus's requirement for a definitive match; time proximity alone is not definitive evidence. |
+| Exact payload-hash repeat is dropped | Rejected for distinct occurrences. Current Pegasus groups equal hashes for review but retains every occurrence and its provenance. Only replay of the same channel occurrence is idempotent. |
 | Matching Case/PO or provider reference forms fixed deduplication rungs | Not adopted as a generic ladder. Provider-scoped identities, application Case/PO, and source occurrence identity remain distinct concepts. |
 | Merges are logged and reversible | Already required and planned, but not implemented. |
 
