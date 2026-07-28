@@ -31,8 +31,10 @@ Unknown extensions, profile claims, optional structures and application-specific
 - Tests use manifest-scoped fixtures and explicit approved external corpus paths. Corpus tooling must reject profile, cache, application-data and reparse-point roots before enumeration.
 - The DOC specification bundle is retained only under ignored `artifacts/research/doc/2026-07-24/specifications/`; [the acquisition script](../../scripts/Acquire-DocSpecifications.ps1) verifies its pinned hashes and is never part of the offline repository check.
 
-## CollisionSpike boundary
+## Pegasus intake and workspace boundary
 
-The first production consumer is the existing Development-only `POST /Intake/Qdos` path in the adjacent `collisionspike_v2` checkout. The extractor will be reached through a CollisionSpike Infrastructure adapter and must not reference CollisionSpike Core types.
+Current source evidence establishes a development-only local caller: the `Pegasus.Web` Razor Page `POST /Intake/Upload` calls `Pegasus.Core.Intake.ProcessIntake.ExecuteAsync`. It is enabled only with the `DevelopmentOffline` runtime profile and `Features:LocalIntake`; otherwise `/Intake` returns `404`. This is not production or deployed-caller evidence.
 
-Current constraints include a 10 MB source limit, deterministic reviewable text/images plus control provenance, visible incomplete outcomes and no case/reference creation from unsupported, encrypted, corrupt or resource-breaching content. CollisionSpike owns the policy that acts on extraction results.
+`Pegasus.Infrastructure` owns the current intake implementation registrations and `Pegasus.Core` owns the business policy and ports. This document-extraction workspace is source-only and independently buildable: it is not in `Pegasus.slnx`, and no Pegasus application project references `CollisionDocNet`; it has no current application adapter, caller, or production consumer.
+
+The workspace's 10 MB source limit, deterministic reviewable text/images plus control provenance, and visible incomplete outcomes are extraction-boundary constraints. A future integration may add a `Pegasus.Infrastructure` adapter only under a separately accepted integration contract and caller-backed proof; `Pegasus.Core` must retain the policy deciding whether unsupported, encrypted, corrupt, or resource-breaching content can lead to case or reference creation, and workspace code must remain free of Pegasus Core types.
