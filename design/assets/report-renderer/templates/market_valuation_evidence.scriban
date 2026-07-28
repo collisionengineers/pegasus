@@ -1,0 +1,75 @@
+<h1 class="title">MARKET VALUATION EVIDENCE</h1>
+<p class="subtitle">RE: {{ subject_display }} &mdash; Registration {{ registration }}</p>
+<p class="intro">{{ intro }}</p>
+
+<section class="section">
+  <h2>SUBJECT VEHICLE DETAILS</h2>
+  <table class="kv-table"><tbody>
+    {{ for row in subject_rows }}
+    <tr>{{ for c in row.cells }}<th>{{ c.label }}</th><td>{{ c.value }}</td>{{ end }}</tr>
+    {{ end }}
+  </tbody></table>
+</section>
+
+<section class="section">
+  <h2>ASSESSED RETAIL MARKET VALUE</h2>
+  <table class="value-box"><tbody>
+    <tr><td>Engineer&rsquo;s assessed retail value</td><td class="value">{{ assessed_value }}</td></tr>
+    {{ if guide_value }}<tr><td>Trade guide reference value</td><td class="value">{{ guide_value }}</td></tr>{{ end }}
+  </tbody></table>
+</section>
+
+<section class="section">
+  <h2>MARKET RESEARCH</h2>
+  <p>{{ market_research }}</p>
+  <table class="advert-table report-advert-table">
+    <thead><tr>
+      <th class="number">No.</th>
+      <th class="vehicle-cell">Vehicle / Derivative</th>
+      <th class="year">Year</th>
+      <th class="mileage">Mileage</th>
+      <th class="seller-cell">Seller</th>
+      <th class="price">Asking Price</th>
+      <th class="comment-cell">Comment</th>
+    </tr></thead>
+    <tbody>
+    {{ for a in adverts }}
+      <tr>
+        <td class="number">{{ a.index }}</td>
+        <td class="vehicle-cell small">{{ a.vehicle }}</td>
+        <td class="year">{{ a.year }}</td>
+        <td class="mileage">{{ a.mileage }}</td>
+        <td class="seller-cell small">{{ a.seller_type }}</td>
+        <td class="price">{{ a.price }}</td>
+        <td class="comment-cell small">{{ a.report_comment }}</td>
+      </tr>
+    {{ end }}
+    </tbody>
+  </table>
+</section>
+
+{{ if valuation_commentary.size > 0 || vat_note }}
+<section class="section">
+  <h2>VALUATION COMMENTARY</h2>
+  {{ for p in valuation_commentary }}<p>{{ p }}</p>{{ end }}
+  {{ if vat_note }}<p>{{ vat_note }}</p>{{ end }}
+</section>
+{{ end }}
+
+{{ if conclusion }}
+<section class="section">
+  <h2>CONCLUSION</h2>
+  <p>{{ conclusion }}</p>
+</section>
+{{ end }}
+
+{{ if signature }}
+<div class="sig-block">
+  <p class="sig-closing">{{ signature.closing }}</p>
+  {{ if signature.image }}<img class="sig-img" src="{{ signature.image }}" alt="Signature">{{ end }}
+  {{ if signature.name }}<p class="sig-name">{{ signature.name }}</p>{{ end }}
+  {{ if signature.role }}<p class="sig-role">{{ signature.role }}{{ if signature.qualifications }}, {{ signature.qualifications }}{{ end }}</p>{{ else if signature.qualifications }}<p class="sig-role">{{ signature.qualifications }}</p>{{ end }}
+  {{ if signature.org }}<p class="sig-org">{{ signature.org }}</p>{{ end }}
+  {{ if signature.aqp }}<p class="sig-role">AQP No. {{ signature.aqp }}</p>{{ end }}
+</div>
+{{ end }}

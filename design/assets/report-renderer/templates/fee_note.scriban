@@ -1,0 +1,49 @@
+<h1 class="title red">FEE NOTE</h1>
+{{ if subject_line }}<p class="subtitle">RE: {{ subject_line }}</p>{{ end }}
+
+<div class="fee-meta">
+  <div class="billto">
+    <div class="lab">Fee note to</div>
+    <div><strong>{{ bill_to_name }}</strong></div>
+    {{ for line in bill_to_address }}<div>{{ line }}</div>{{ end }}
+    {{ if bill_to_reference }}<div>Ref: {{ bill_to_reference }}</div>{{ end }}
+  </div>
+  <div>
+    <div class="lab">Details</div>
+    <div class="fee-rows">
+      <div class="k">Fee Note No.</div><div>{{ fee_note_number }}</div>
+      <div class="k">Date</div><div>{{ date }}</div>
+      {{ if matter_reference }}<div class="k">Matter Ref</div><div>{{ matter_reference }}</div>{{ end }}
+    </div>
+  </div>
+</div>
+
+<table class="fee-table">
+  <thead><tr><th>Description</th><th class="amt">Amount</th></tr></thead>
+  <tbody>
+  {{ for item in items }}
+    <tr>
+      <td>{{ item.description }}{{ if item.detail }}<div class="fee-detail">{{ item.detail }}</div>{{ end }}</td>
+      <td class="amt">{{ item.amount }}</td>
+    </tr>
+  {{ end }}
+  </tbody>
+</table>
+
+<div class="fee-totals">
+  <div class="r"><span>Subtotal</span><span>{{ subtotal }}</span></div>
+  <div class="r"><span>VAT ({{ vat_rate }})</span><span>{{ vat }}</span></div>
+  <div class="r total"><span>Total due</span><span>{{ total }}</span></div>
+</div>
+
+<section class="section">
+  <h2>PAYMENT</h2>
+  <div class="pay-grid">
+    {{ if payment.bank_name }}<div class="k">Bank</div><div>{{ payment.bank_name }}</div>{{ end }}
+    {{ if payment.account_name }}<div class="k">Account name</div><div>{{ payment.account_name }}</div>{{ end }}
+    {{ if payment.sort_code }}<div class="k">Sort code</div><div>{{ payment.sort_code }}</div>{{ end }}
+    {{ if payment.account_number }}<div class="k">Account no.</div><div>{{ payment.account_number }}</div>{{ end }}
+  </div>
+  {{ if payment.terms }}<p class="fee-notes">{{ payment.terms }}</p>{{ end }}
+  {{ if notes }}<p class="fee-notes">{{ notes }}</p>{{ end }}
+</section>
