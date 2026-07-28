@@ -1,0 +1,50 @@
+<h1 class="title">ADVERT EVIDENCE PACK</h1>
+<p class="subtitle">RE: {{ subject_display }} &mdash; Registration {{ registration }}</p>
+<p class="intro">{{ intro }}</p>
+
+<section class="section">
+  <h2>ADVERT REFERENCES</h2>
+  <table class="advert-table evidence-advert-table">
+    <thead><tr>
+      <th class="number">No.</th>
+      <th class="advert-id">Advert ID</th>
+      <th class="vehicle-cell">Vehicle / Derivative</th>
+      <th class="year">Year</th>
+      <th class="mileage">Mileage</th>
+      <th class="price">Price</th>
+      <th class="link-cell">Link</th>
+    </tr></thead>
+    <tbody>
+    {{ for a in adverts }}
+      <tr>
+        <td class="number">{{ a.index }}</td>
+        <td class="advert-id">{{ a.advert_id }}</td>
+        <td class="vehicle-cell">{{ a.vehicle }}</td>
+        <td class="year">{{ a.year }}</td>
+        <td class="mileage">{{ a.mileage }}</td>
+        <td class="price">{{ a.price }}</td>
+        <td class="link-cell">{{ if a.url }}<a href="{{ a.url }}">Open advert</a>{{ else }}Not stated{{ end }}</td>
+      </tr>
+    {{ end }}
+    </tbody>
+  </table>
+</section>
+
+{{ if captures }}
+<section class="section">
+  <h2>CAPTURED EVIDENCE</h2>
+  {{ for a in captures }}
+    <div class="capture-block">
+      <h3>Advert {{ a.index }}{{ if a.advert_id }} &mdash; {{ a.advert_id }}{{ end }}</h3>
+      {{ if a.screenshot }}<img class="capture-img" src="{{ a.screenshot }}" alt="Advert {{ a.index }} screenshot">{{ end }}
+      {{ if a.capture_pdf }}<p class="capture-pdf">Captured PDF appended after this pack: {{ a.capture_pdf }}</p>{{ end }}
+    </div>
+  {{ end }}
+</section>
+{{ end }}
+
+<section class="section">
+  <h2>SEARCH SUMMARY</h2>
+  <p class="search-summary">{{ search_summary }}</p>
+  <p class="search-summary">The advert numbering above mirrors the numbering used in the valuation evidence report.</p>
+</section>

@@ -1,0 +1,12 @@
+**/bin/
+**/obj/
+**/.vs/
+artifacts/
+documentexamples/
+stylexamples/
+collision-engineers-design-dev/
+report-renderer/
+**/__pycache__/
+.git/
+.gitignore
+*.md
