@@ -15,7 +15,7 @@ current change record.
 | --- | --- |
 | 213 stable identities and allocation | [capability inventory](../../product/capabilities.md) |
 | outcome horizons and dependency intent | [roadmap](../../roadmap.md) |
-| V1 gap | [V1 gap](../../product/v1-gap.md) |
+| `0.1.0-alpha.1` gap | [`0.1.0-alpha.1` gap](../../product/qdos-alpha-gap.md) |
 | permanent/conditional boundaries | [product boundaries](../../product/boundaries.md) |
 | unresolved product questions | [open decisions](../../product/open-decisions.md) |
 | identity/access | [product area](../../product/areas/identity-and-access.md) |
@@ -36,9 +36,9 @@ current change record.
   the root roadmap now owns current intent.
 - [Mailbox categorisation and matching](mailbox-categorisation-and-email-matching/README.md):
   research evidence routed by current open decisions.
-- [Remainder delivery](remainder-delivery/README.md): verbose V1 planning
+- [Remainder delivery](remainder-delivery/README.md): verbose `0.1.0-alpha.1` planning
   evidence, including the dated PR #1 review snapshot.
-- [Later delivery](later-delivery/README.md): V1.x/V2/V3/V3+ activation evidence.
+- [Later delivery](later-delivery/README.md): `Next`/`unallocated`/`Next`/`unallocated` and `Later`/`unallocated` activation evidence.
 - [Deferred-capability architecture](deferred-capability-architecture/README.md):
   reconciliation evidence; accepted ADRs and current product owners prevail.
 - [UI/UX history](ui-ux/README.md): superseded concepts, generation prompts,
@@ -52,7 +52,7 @@ moved to `docs/history/plans/<path>`.
 | Former source | Current destination |
 | --- | --- |
 | `open-decisions.md` | `docs/product/open-decisions.md` |
-| `remaining-requirements.md` | `docs/product/v1-gap.md` |
+| `remaining-requirements.md` | `docs/product/qdos-alpha-gap.md` |
 | `permanent-and-conditional-boundaries.md` | `docs/product/boundaries.md` |
 | `ui-ux/requirements.md` | `design/product/requirements.md` |
 | `ui-ux/ui-spec.md` | `design/product/ui-spec.md` |

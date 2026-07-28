@@ -1,8 +1,8 @@
-# V0 classification foundation and local EML evaluator
+# `0.0.0-development` classification foundation and local EML evaluator
 
 > **Archive status — non-authoritative planning evidence.** Revalidate against current product, roadmap, architecture, operations, design, decisions, and code before use.
 
-Pre-conversion status: **Planned V0 foundation — mailbox-policy gated**
+Pre-conversion status: **Planned `0.0.0-development` foundation — mailbox-policy gated**
 
 ## Purpose
 
@@ -14,7 +14,7 @@ Outlook, Graph, a Worker trigger, or a mailbox API.
 ## Feature coverage
 
 Primary feature ownership is: `EVAL-01`, `EVAL-02`, `EVAL-03`, `EVAL-04`,
-`EVAL-05`, `MAIL-20`, `MAIL-21`, and `MAIL-22`. V1 Outlook receipt and V2
+`EVAL-05`, `MAIL-20`, `MAIL-21`, and `MAIL-22`. `0.1.0-alpha.1` Outlook receipt and `Next`/`unallocated`
 four-mailbox/email-workspace features are secondary dependencies only; this
 plan owns neither a transport adapter nor an application mailbox UI.
 
@@ -91,8 +91,8 @@ the evaluator's workspace/retention procedure is approved. Rollback disables
 the evaluator/policy caller and retains local review/comparison evidence; it
 does not delete originals, rewrite reviews, or change mailbox state.
 
-V1 may reuse the same accepted Core policy for the bounded `instructions@`
-receipt path, while V2 may reuse it for four-mailbox classification and email
+`0.1.0-alpha.1` may reuse the same accepted Core policy for the bounded `instructions@`
+receipt path, while `Next`/`unallocated` may reuse it for four-mailbox classification and email
 actions. Those callers need their own Graph scope, identity, storage,
 correction, rollout, and acceptance evidence. Deliberately absent are Outlook
 or Graph adapters, mailbox credentials, a Worker trigger, generic rule engine,

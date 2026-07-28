@@ -2,23 +2,23 @@
 
 > **Archive status — non-authoritative planning evidence.** Revalidate against current product, roadmap, architecture, operations, design, decisions, and code before use.
 
-Pre-conversion status: **Ready V1 case/document/intake plan — classified-email actions V2**
+Pre-conversion status: **Ready `0.1.0-alpha.1` case/document/intake plan — classified-email actions `Next`/`unallocated`**
 
 ## Purpose
 
-Expose V1 internal staff case, document, and intake-queue actions through one remote MCP endpoint while retaining per-staff identity, current-role enforcement, and the same Core policy as Web. Broader classified-email actions are V2.
+Expose `0.1.0-alpha.1` internal staff case, document, and intake-queue actions through one remote MCP endpoint while retaining per-staff identity, current-role enforcement, and the same Core policy as Web. Broader classified-email actions are `Next`/`unallocated`.
 
 ## Feature coverage
 
 Primary feature ownership is: `MCP-01`, `MCP-02`, `MCP-03`, and `MCP-04`.
-They cover the V1 internal staff OAuth boundary and case, intake-queue, and
+They cover the `0.1.0-alpha.1` internal staff OAuth boundary and case, intake-queue, and
 document tools that delegate to named Core use cases. `MCP-05` belongs to the
-V2 classified-email workspace plan: it must not be pulled into this V1 tool
+`Next`/`unallocated` classified-email workspace plan: it must not be pulled into this `0.1.0-alpha.1` tool
 inventory or used to create a second email policy owner.
 
 ## Authority and current boundary
 
-- **Authority:** [remaining requirements](../../../../product/v1-gap.md#3-complete-intake-formats-and-paths) and [ADR-0004](../../../../architecture/decisions/ADR-0004-provider-api-and-staff-mcp-authentication.md#internal-staff-mcp).
+- **Authority:** [remaining requirements](../../../../product/qdos-alpha-gap.md#3-complete-intake-formats-and-paths) and [ADR-0004](../../../../architecture/decisions/ADR-0004-provider-api-and-staff-mcp-authentication.md#internal-staff-mcp).
 - **Policy owner:** existing staff authorization and named Core use cases; Web owns `/mcp`, OAuth metadata and composition.
 - **Current implementation:** no staff identity, OAuth server, OpenIddict/MCP package, `/mcp` endpoint, tool inventory or durable key store is registered.
 - **Real callers:** planned remote Streamable HTTP MCP client, initially one pre-registered Claude connector; no provider caller may use it.
@@ -60,8 +60,8 @@ Bearer tokens are accepted only at `/mcp`; interactive cookies are only for staf
 
 ### Scope
 
-- **Included:** one pre-registered Claude client, OAuth authorization code with S256 PKCE, protected-resource/authorisation-server metadata, and V1 per-staff case/document/intake-queue tools where matching Core/Web actions exist.
-- **Excluded:** V2 classified-email tools, provider API authentication, Dynamic Client Registration, accounts/roles/principal/credential administration, Azure/deployment/cloud operations, permanent deletion, Box search/arbitrary IDs, and tools without a real Core owner.
+- **Included:** one pre-registered Claude client, OAuth authorization code with S256 PKCE, protected-resource/authorisation-server metadata, and `0.1.0-alpha.1` per-staff case/document/intake-queue tools where matching Core/Web actions exist.
+- **Excluded:** `Next`/`unallocated` classified-email tools, provider API authentication, Dynamic Client Registration, accounts/roles/principal/credential administration, Azure/deployment/cloud operations, permanent deletion, Box search/arbitrary IDs, and tools without a real Core owner.
 
 ### Implementation checklist
 

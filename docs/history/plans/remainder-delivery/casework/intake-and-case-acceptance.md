@@ -2,7 +2,7 @@
 
 > **Archive status — non-authoritative planning evidence.** Revalidate against current product, roadmap, architecture, operations, design, decisions, and code before use.
 
-Pre-conversion status: **Ready V1 plan — later V2 matching and reviewed vision remain planned**
+Pre-conversion status: **Ready `0.1.0-alpha.1` plan — later `Next`/`unallocated` matching and reviewed vision remain planned**
 
 ## Purpose
 
@@ -10,11 +10,11 @@ Turn a durable, reviewable instruction or image intake into one accepted QDOS ca
 
 ## Feature coverage
 
-Primary matrix IDs: `AI-05`, `CASE-11`, `CASE-12`, `DATA-01`, `INT-01`, `INT-08`, `INT-17`, `INT-18`, `INT-19`, `INT-20`, `INT-22`, `INT-23`, `INT-24`, `INT-25`, `INT-26`, `INT-27`, and `INT-28`. Their routes are [draft review](#review-and-resolve-an-intake-draft), [ordinary-image VRM reading](#read-vehicle-registration-from-ordinary-images), [provisional image identity](#establish-provisional-image-identity-before-acceptance), [reviewed provider reference preparation](#prepare-reviewed-provider-reference-data), [definitive acceptance](#accept-a-definitive-case-transaction), [V2 record matching](#v2-match-image-led-and-instruction-led-records), and [V2 reviewed vision assistance](#v2-assist-vehicle-image-and-damage-review). Allocation remains owned by the [maturity map](../../feature-maturity-map.md); this list is a route, not implementation evidence.
+Primary matrix IDs: `AI-05`, `CASE-11`, `CASE-12`, `DATA-01`, `INT-01`, `INT-08`, `INT-17`, `INT-18`, `INT-19`, `INT-20`, `INT-22`, `INT-23`, `INT-24`, `INT-25`, `INT-26`, `INT-27`, and `INT-28`. Their routes are [draft review](#review-and-resolve-an-intake-draft), [ordinary-image VRM reading](#read-vehicle-registration-from-ordinary-images), [provisional image identity](#establish-provisional-image-identity-before-acceptance), [reviewed provider reference preparation](#prepare-reviewed-provider-reference-data), [definitive acceptance](#accept-a-definitive-case-transaction), [`Next`/`unallocated` record matching](#match-image-led-and-instruction-led-records), and [`Next`/`unallocated` reviewed vision assistance](#assist-vehicle-image-and-damage-review).
 
 ## Authority and current boundary
 
-- **Authority:** [source order](../../../../agent-guidance/source-of-truth.md), [questionnaire §§4–6](../../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md), [remaining requirements §§1–4](../../../../product/v1-gap.md), [ADR-0005](../../../../architecture/decisions/ADR-0005-multiformat-intake-assets.md), and [ADR-0006](../../../../architecture/decisions/ADR-0006-provider-neutral-intake-with-contained-qdos-policy.md).
+- **Authority:** [source order](../../../../agent-guidance/source-of-truth.md), [questionnaire §§4–6](../../../product/project-discovery-questionnaire.md), [remaining requirements §§1–4](../../../../product/qdos-alpha-gap.md), [ADR-0005](../../../../architecture/decisions/ADR-0005-multiformat-intake-assets.md), and [ADR-0006](../../../../architecture/decisions/ADR-0006-provider-neutral-intake-with-contained-qdos-policy.md).
 - **Policy owner:** `ProcessIntake` is the single Core receive/process use case for Web and later Worker/provider callers. One contained `QdosInstructionExtractionPolicy` owns QDOS recognition and typed suggestions; a planned `AcceptCaseDraft` command owns the one authorised case-creation transaction.
 - **Current implementation:** `ProcessIntake`, the provider-neutral EF intake store, `IntakeReceiptEntity`, and `InstructionDraftEntity` form one local pre-case proof. Channel occurrence identity is idempotent, equal bytes may remain separate occurrences, and this path has no case/reference allocator.
 - **Real callers:** `/Intake/Upload` is the only current real intake caller, and only in Development with `Features:LocalIntake`; Graph Worker, provider API, MCP and authenticated staff intake pages are **planned**.
@@ -33,7 +33,7 @@ An uncertain classification, association, principal, vehicle registration, case 
 ### Authority and decision gate
 
 - **Requirement/decision:** questionnaire §§4–6 and remaining requirements §§2–4.
-- **Confirmed facts:** provider-neutral field candidates/provenance remain immutable versioned JSON evidence; an applicable QDOS policy result may persist unambiguous values in a relational read-only instruction draft and suggest QDOS. Non-QDOS or ambiguous input receives no principal suggestion. The original source is retained locally but is not durable first-MVP custody. Receipt processing creates no case/reference.
+- **Confirmed facts:** provider-neutral field candidates/provenance remain immutable versioned JSON evidence; an applicable QDOS policy result may persist unambiguous values in a relational read-only instruction draft and suggest QDOS. Non-QDOS or ambiguous input receives no principal suggestion. The original source is retained locally but is not durable `0.1.0-alpha.1` custody. Receipt processing creates no case/reference.
 - **Decision required before the next mutation:** actor/action history, durable custody, principal configuration and the case-acceptance transaction remain separate planned boundaries. Operator resolution is required only when the automatic predicate is not definitive; it is not a universal gate on new instructions. Worker/API source identity and Box custody are not a licence to call either system.
 
 ### Owner and dependencies
@@ -84,7 +84,7 @@ An uncertain classification, association, principal, vehicle registration, case 
 ### Approval, rollout and rollback
 
 - **Approval-triggering action and exact scope:** no external mutation and no case/reference creation occurs in this slice.
-- **Rollout/activation:** use the new `artifacts/local/collisionspike-v2-dev.db` provider-neutral baseline, enable only the refactored Development caller, prove it, then enable confirmation/acceptance and subsequent callers in their own approved slices. Old migration IDs or an unrecognised SQLite schema fail before mutation.
+- **Rollout/activation:** use the new `artifacts/local/pegasus-development.db` provider-neutral baseline, enable only the refactored Development caller, prove it, then enable confirmation/acceptance and subsequent callers in their own approved slices. Old migration IDs or an unrecognised SQLite schema fail before mutation.
 - **Rollback/recovery:** disable the new caller and restore the previous binary with its prior database path. Do not delete or down-migrate either database or retained artifacts; new-path receipts remain retained but unavailable to the reverted binary.
 - **Irreversible risk:** accepting a false case/reference; mitigate with the definitive predicate, transactional acceptance and independent holdout evidence.
 - **Local-only residual:** two simultaneous first uses of one new token with different bytes are rejected at persistence, but the losing content-addressed local file may be unreferenced. Durable staging must reserve identity or reconcile orphan content before any production caller is enabled.
@@ -102,7 +102,7 @@ An uncertain classification, association, principal, vehicle registration, case 
 | State/command/input | Result | Boundary exercised | Proves | Does not prove / skipped |
 |---|---|---|---|---|
 | `pwsh ./scripts/Invoke-RepoCheck.ps1 -RequireCorpusEvidence` | Exit 0: Release build 0 warnings/errors; Core 28/28, non-corpus integration 82/82, architecture 30/30, genuine corpus 11/11; no failures/skips | Development `/Intake/Upload` caller, provider-neutral EF persistence, source/asset retention, strict SQLite baseline refusal, route guards, repository structure and Bicep compilation | Non-QDOS and transport-only QDOS evidence create no principal suggestion; local caller persists/replays typed pre-case drafts without case/reference schema; altered-byte token reuse and inconsistent policy results fail closed; supported genuine QDOS formats still traverse the caller | Operator-reviewed field accuracy/holdout, production custody, authentication, Worker, a live database upgrade, Azure deployment or business acceptance |
-| `dotnet test tests/CollisionSpike.IntegrationTests/CollisionSpike.IntegrationTests.csproj -c Release --no-build --no-restore --filter "Category=SqlServer"` | 11/11 passed; no failures/skips | Disposable LocalDB applies the single provider-neutral initial migration explicitly, including constraints, concurrency, receipt-event rollback and retry | Fresh SQL Server schema and bounded transaction behavior for the test fixture | Azure SQL, a populated historical upgrade, production contention, release execution or restore |
+| `dotnet test tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj -c Release --no-build --no-restore --filter "Category=SqlServer"` | 11/11 passed; no failures/skips | Disposable LocalDB applies the single provider-neutral initial migration explicitly, including constraints, concurrency, receipt-event rollback and retry | Fresh SQL Server schema and bounded transaction behavior for the test fixture | Azure SQL, a populated historical upgrade, production contention, release execution or restore |
 
 ## Read vehicle registration from ordinary images
 
@@ -129,7 +129,7 @@ An uncertain classification, association, principal, vehicle registration, case 
 ### Authority and decision gate
 
 - **Requirement/decision:** questionnaire §§4–5 and remaining requirements §4.
-- **Confirmed facts:** automatic case creation on receipt of a definitive authorised new instruction is first-MVP scope. Missing non-identity details do not prevent the case: every automatically created instruction-led case begins incomplete in `Not ready`; it cannot be created directly in `Review`. A case may also begin from vehicle images: a readable registration is its provisional identity, and the formal Case/PO is allocated through this same transaction only once the principal and other identity gates are known. A definitive match associates image-led evidence without allocating a second case/reference.
+- **Confirmed facts:** automatic case creation on receipt of a definitive authorised new instruction is `0.1.0-alpha.1` scope. Missing non-identity details do not prevent the case: every automatically created instruction-led case begins incomplete in `Not ready`; it cannot be created directly in `Review`. A case may also begin from vehicle images: a readable registration is its provisional identity, and the formal Case/PO is allocated through this same transaction only once the principal and other identity gates are known. A definitive match associates image-led evidence without allocating a second case/reference.
 - **Decision required before implementation:** None. Case principal/reference are immutable immediately on allocation; report evidence does not govern identity changes.
 
 ### Owner and dependencies
@@ -203,14 +203,14 @@ An uncertain classification, association, principal, vehicle registration, case 
 |---|---|---|---|---|
 | Planned | Not run | Planning review | Acceptance transaction boundary is defined | Implementation, caller, deployment or acceptance |
 
-## V2 match image-led and instruction-led records
+## Match image-led and instruction-led records
 
 **Evidence state:** Planned
 
-`INT-28` adds one Core association policy after V1 acceptance, not a second intake or allocation engine. It compares retained image-led and instruction-led evidence and may associate them automatically only when the accepted policy proves a definitive match. Non-definitive candidates remain explainable and require authorised staff confirmation; ambiguous, conflicting or failed matches remain visible and unassociated. Automatic or staff-confirmed association preserves each source origin and allocates neither a second case nor reference, while reasoned reversal retains permanent history. The V2 caller, definitive predicate, threshold/evaluation cohort, mistaken-match recovery and audit evidence require their own approved slice; no external lookup is implied.
+`INT-28` adds one Core association policy after `0.1.0-alpha.1` acceptance, not a second intake or allocation engine. It compares retained image-led and instruction-led evidence and may associate them automatically only when the accepted policy proves a definitive match. Non-definitive candidates remain explainable and require authorised staff confirmation; ambiguous, conflicting or failed matches remain visible and unassociated. Automatic or staff-confirmed association preserves each source origin and allocates neither a second case nor reference, while reasoned reversal retains permanent history. The `Next`/`unallocated` caller, definitive predicate, threshold/evaluation cohort, mistaken-match recovery and audit evidence require their own approved slice; no external lookup is implied.
 
-## V2 assist vehicle image and damage review
+## Assist vehicle image and damage review
 
 **Evidence state:** Planned
 
-`AI-05` is reviewed assistance only: a separately approved image/damage adapter may propose evidence to the existing intake/review policy, with its result, version and refusal visible to staff. It cannot decide principal, case type, completeness, matching, acceptance, allocation or lifecycle state; rules and staff confirmation remain authoritative. Its V2 activation gate is approved cost/data scope, evaluation cohort/holdout, failure/rollback behavior and permanent action-history boundary; unlike conditional `AI-02`, `AI-03`, `AI-04` and `AI-06`, it does not require evidence that deterministic rules are insufficient. No cross-domain AI owner, background activation or unreviewed case mutation is introduced.
+`AI-05` is reviewed assistance only: a separately approved image/damage adapter may propose evidence to the existing intake/review policy, with its result, version and refusal visible to staff. It cannot decide principal, case type, completeness, matching, acceptance, allocation or lifecycle state; rules and staff confirmation remain authoritative. Its `Next`/`unallocated` activation gate is approved cost/data scope, evaluation cohort/holdout, failure/rollback behavior and permanent action-history boundary; unlike conditional `AI-02`, `AI-03`, `AI-04` and `AI-06`, it does not require evidence that deterministic rules are insufficient. No cross-domain AI owner, background activation or unreviewed case mutation is introduced.

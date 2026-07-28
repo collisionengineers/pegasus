@@ -33,10 +33,10 @@ do not win automatically.
 | Path | Content role | Mutation rule | Scope/status |
 | --- | --- | --- | --- |
 | `docs/operator-notes/` (17 tracked files) | approved operator/business authority | maintainer-editable under standing user authorization; preserve material meaning and escalate conflicts | binding business processes, terms, practices, product needs, and current-system roles |
-| `PROJECT_DISCOVERY_QUESTIONNAIRE.md` | active controlled product authority | human-controlled; agents record only explicit user decisions through review | settled product behavior and constraints |
+| `docs/history/product/project-discovery-questionnaire.md` | historical direct-decision evidence | preserve material source meaning; later explicit decisions are reconciled into canonical product owners | complete distilled questionnaire evidence, not active product authority |
 | `docs/product/` | canonical product profile/capability authority | agent-editable through reviewed changes reconciled to higher authority | living requirements, stable IDs, horizons/releases |
-| `FEATURE_VERSIONING.md` | retained direct-decision worksheet evidence | preserve in place; update only through explicit allocation reconciliation | 213 original ID/label/answer triples |
-| `docs/product/areas/`, `v1-gap.md`, `boundaries.md`, `open-decisions.md` | canonical living functional requirements, gaps, boundaries, and ambiguities | maintainer-editable through reviewed product/change work | active product ownership below operator/questionnaire authority |
+| `docs/history/product/feature-versioning-worksheet.md` | historical allocation evidence | preserve the 213-row source identity and reconcile active allocation through canonical product owners | original feature decisions normalized into retained horizon/target evidence |
+| `docs/product/areas/`, `v1-gap.md`, `boundaries.md`, `open-decisions.md` | canonical living functional requirements, gaps, boundaries, and ambiguities | maintainer-editable through reviewed product/change work | active product ownership below operator authority |
 | `docs/history/plans/` | complete pre-onboarding plan evidence | historical; do not activate work or amend current owners here | former `docs/plans/` files not promoted to a canonical destination |
 | `docs/architecture/decisions/` | accepted/historical technical decisions | preserve; supersede explicitly through a reviewed ADR | decisions 0001–0009 |
 | `docs/decisions/` | canonical new decision authority | append or supersede through reviewed ADRs | current and future durable repository decisions |
@@ -49,7 +49,7 @@ do not win automatically.
 | `.azure/`, `infra/`, `azure.yaml` | target deployment/IaC evidence | reviewed changes only; execution separately approved | intended Azure topology, not live or deployable proof |
 | `src/`, `tests/`, `scripts/`, `.github/workflows/` | current executable behavior and verification evidence | agent-editable through scoped delivery | callers, owners, tests, checks, CI |
 | `docs/reference/` (50 tracked files) | supplied reference/evidence | preserve in place | shapes and failure modes, not requirements |
-| `retrospectives/` and root scaffold plans | history | preserve in place unless parity/removal is separately proved | delivery constraints and superseded implementation plans |
+| `retrospectives/` and `docs/history/plans/scaffold/` | history | preserve material historical meaning | delivery constraints and superseded implementation plans |
 | `.codex/config.toml` | repository tool/app configuration | reviewed changes only; no secrets | local Codex capabilities, not product authority |
 | `corpus/` | untrusted local ignored evidence | immutable; never upload, publish, commit, rename, or modify | genuine local evaluation inputs only |
 

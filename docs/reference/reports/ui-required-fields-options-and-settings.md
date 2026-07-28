@@ -2,22 +2,22 @@
 
 **Prepared:** 2026-07-24
 
-**Purpose:** Consolidate the staff-facing fields, choices, filters, actions, and Administrator settings that the current CollisionSpike v2 UI must support, while keeping predecessor UI material clearly separated from current authority.
+**Purpose:** Consolidate the staff-facing fields, choices, filters, actions, and Administrator settings that the current Pegasus UI must support, while keeping predecessor UI material clearly separated from current authority.
 
 **Evidence state:** Requirements and planning only. The Development-only `/Intake/Upload` page is the sole current intake caller. The authenticated dashboard, inbox workbench, case workspace, staff administration, and principal/configuration pages are planned and are not proved by the legacy application.
 
 ## Source and interpretation boundary
 
-Current UI direction comes from [design authority](../../../design/README.md), [operator experience requirements](../../../design/product/requirements.md), operator truth, the [settled questionnaire](../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md), [the V1 gap](../../product/v1-gap.md), product areas, and the [open-decision register](../../product/open-decisions.md). The former UI plan pack is historical evidence only.
+Current UI direction comes from [design authority](../../../design/README.md), [operator experience requirements](../../../design/product/requirements.md), operator truth, the [settled questionnaire](../../history/product/project-discovery-questionnaire.md), [the `0.1.0-alpha.1` gap](../../product/qdos-alpha-gap.md), product areas, and the [open-decision register](../../product/open-decisions.md). The former UI plan pack is historical evidence only.
 
-The legacy design and review guide (`../guide/04-design-and-reviews.md`) was used to route the predecessor interaction rules (`../docs/design/ui-ux.md`) and dated reviews. Those files supply terminology, pain points, and candidate controls only. Their old screen layouts, completion claims, API/EVA field rules, theme decisions, and configuration model are not v2 authority.
+The legacy design and review guide (`../guide/04-design-and-reviews.md`) was used to route the predecessor interaction rules (`../docs/design/ui-ux.md`) and dated reviews. Those files supply terminology, pain points, and candidate controls only. Their old screen layouts, completion claims, API/EVA field rules, theme decisions, and configuration model are not Pegasus authority.
 
 “Required field” has two distinct meanings in this report:
 
 1. a field the relevant screen must display or allow staff to capture when applicable; and
 2. a value that must exist before a particular action can succeed.
 
-V2 does **not** have a universal required-field matrix. Cases may be accepted with incomplete ordinary information into `Not ready`. The UI must show missing and contradictory values rather than silently guessing or preventing every incomplete case.
+Pegasus does **not** have a universal required-field matrix. Cases may be accepted with incomplete ordinary information into `Not ready`. The UI must show missing and contradictory values rather than silently guessing or preventing every incomplete case.
 
 ## Actual blocking rules
 
@@ -57,7 +57,7 @@ These fields must be supportable in intake review and later case editing. “Con
 | Work provider / Principal | Identity-critical | Staff confirm a configured active principal. Required before Case/PO allocation. Do not use claimant, insurer, or repairer as the principal. |
 | Principal code | Derived, read-only | Display from the selected principal; never accept it as free text on the case. |
 | Case/PO | Calculated, read-only | Allocate from the confirmed principal/year sequence. Never let staff type or overwrite it. |
-| Work type | Identity-critical | First-MVP options: `Inspection`, `Audit`, `Inspection + Audit`. `Diminution` and `Commercial` remain deferred and must not appear as active first-MVP choices. |
+| Work type | Identity-critical | `0.1.0-alpha.1` options: `Inspection`, `Audit`, `Inspection + Audit`. `Diminution` and `Commercial` remain deferred and must not appear as active `0.1.0-alpha.1` choices. |
 | Original Engineer report | Conditional blocker | Required evidence for a standalone `Audit`. Keep the source report available beside the assessment decision. |
 | Original-report assessment | Conditional blocker | Staff-confirmed evidence outcome: `Repairable`, `Total loss`, or `Missing/ambiguous`. Calculate `a.` or `ap.` from the first two; the last blocks creation. Do not offer a free-form prefix. |
 | Claimant name | Capture when available | Show missing/conflicting state. Its absence alone is not a universal creation blocker. |
@@ -71,7 +71,7 @@ These fields must be supportable in intake review and later case editing. “Con
 | Instruction date | Defaulted when absent | Use the source value when supplied; otherwise default to the current date and make the default/provenance visible. |
 | Due by | Capture/confirm when available | Extract the inspection date or equivalent deadline from instructions. Show source, missing state, and overdue state. It is not the same field as Instruction date. |
 | Inspection address mode | Required choice when completing the address | `Physical vehicle/repairer address` or the exact valid value `Image Based Assessment`. Collision Engineers does not perform an on-site inspection. |
-| Physical inspection address | Conditional | Capture the vehicle, claimant, garage, or repairer location when that mode applies. The legacy six-line EVA format is not yet the accepted v2 UI/storage contract. |
+| Physical inspection address | Conditional | Capture the vehicle, claimant, garage, or repairer location when that mode applies. The legacy six-line EVA format is not yet the accepted Pegasus UI/storage contract. |
 | Claimant contact/address | Conditional supporting data | The product may store relevant claimant contact/address details, but the current operator field list does not make every contact element a universal intake requirement. |
 | Repairer/garage/bodyshop | Conditional case party | Link a reusable organisation where known; do not reduce it to only free-text inspection-address content. |
 | Third-party insurer and operational contacts | Conditional case parties | Support deliberate case associations where relevant; not universal intake blockers. |
@@ -89,7 +89,7 @@ These fields must be supportable in intake review and later case editing. “Con
 | `Create for review` | Accepts a complete case into `Review` only after staff separately judge instructions and images complete. |
 | `Retry` | Re-runs a retained blocked item after staff resolve its blocker without losing source identity/history. |
 | Match/link | Staff can confirm a definitive association between instruction-led and image-led material. Uncertain matches remain in `Needs sorting`. |
-| Manual case/evidence upload | Required first-MVP capability using the same Core intake path; allow additional email/document/image evidence to be attached to the intended case. |
+| Manual case/evidence upload | Required `0.1.0-alpha.1` capability using the same Core intake path; allow additional email/document/image evidence to be attached to the intended case. |
 
 `Hold` in the generated intake mockup is not an accepted fourth intake outcome. `Held` is a reasoned state of an existing case, while `Blocked intake` is the pre-case action.
 
@@ -102,8 +102,8 @@ These fields must be supportable in intake review and later case editing. “Con
 | Case queues | `Not ready`, `Review`, `Held` | Not ready = incomplete and being chased; Review = complete and awaiting approval; Held = reasoned pause with due date still visible. |
 | Inbox queues | `Receiving work`, `Queries`, `Other`, `Needs sorting` | `Triage` is reserved for its actual roadworthiness workflow, not a generic inbox label. |
 | Manual inbox filter | `Blocked intake` | Must expose reason, warning, retained source, and retry, and must never resemble a case queue. |
-| Activity labels | `In today`, paired `Sent to Engineer` today/week, paired `Reports sent` today/week | Use Europe/London midnight calendar days and Monday-to-Monday weeks. `In today` counts cases created. `Sent to Engineer` counts once per case from the first successful EVA JSON/image export generation in the first MVP; this proxy does not prove EVA receipt. `Reports sent` counts every successfully sent report. |
-| Due work | Due date, overdue state, seven-day chaser visibility, copyable chaser text | The first chase is due at the same Europe/London local clock time seven calendar days after entering `Not ready`. `Held` preserves the remaining interval; returning to `Not ready` resumes it, while choosing `Review` ends the missing-information chase. No automatic sending in the first MVP. |
+| Activity labels | `In today`, paired `Sent to Engineer` today/week, paired `Reports sent` today/week | Use Europe/London midnight calendar days and Monday-to-Monday weeks. `In today` counts cases created. `Sent to Engineer` counts once per case from the first successful EVA JSON/image export generation in the `0.1.0-alpha.1`; this proxy does not prove EVA receipt. `Reports sent` counts every successfully sent report. |
+| Due work | Due date, overdue state, seven-day chaser visibility, copyable chaser text | The first chase is due at the same Europe/London local clock time seven calendar days after entering `Not ready`. `Held` preserves the remaining interval; returning to `Not ready` resumes it, while choosing `Review` ends the missing-information chase. No automatic sending in the `0.1.0-alpha.1`. |
 | Refresh | `Refresh`, last-updated time, refresh/failure state | Zero, stale, partial, unavailable, and failed are distinct states. Every count links to the exact filtered view it represents. |
 
 `In today` is the required case-created activity label. Keep due/overdue work as a separate operational view rather than conflating due dates with cases received today.
@@ -137,7 +137,7 @@ Queue rows must show enough identity and action context to distinguish cases, in
 | Overview | Confirmed case fields, missing/conflicting indicators, completeness decisions, current gate/next action, origin and provenance. |
 | Documents | Original instructions/email, later correspondence, original Audit report where applicable, Engineer report, and Box-backed document states. |
 | Images | Reviewable images, provenance and image-completeness decision. Automated VRM/image analysis is deferred and must not be presented as current fact. |
-| Report | Report-sent evidence state. There is no pre-send report review gate. Evidence is one exact Outlook Sent item from an approved mailbox; Outlook `sentDateTime` is authoritative. CollisionSpike detects but does not send reports. Automatic matching remains in the combined mailbox/email research decision, with reasoned exact-item linking available when a match is absent or ambiguous. |
+| Report | Report-sent evidence state. There is no pre-send report review gate. Evidence is one exact Outlook Sent item from an approved mailbox; Outlook `sentDateTime` is authoritative. Pegasus detects but does not send reports. Automatic matching remains in the combined mailbox/email research decision, with reasoned exact-item linking available when a match is absent or ambiguous. |
 | Action history | Actor, timestamp, action, prior/new state, reason/context, external outcome, merges/reversals, corrections, closure and reopening. |
 | Box folder | Link plus explicit `Missing`, `Pending creation`, `Inaccessible`, and `Conflict` states rather than a false success. |
 | Chaser | Due/overdue and missing-material context with `Copy message`. Copying never means sent or delivered. |
@@ -149,7 +149,7 @@ Queue rows must show enough identity and action context to distinguish cases, in
 | Enter Held | Required reason. |
 | Leave Held | Required reason plus `Return to <prior state>` or `Review`. Returning to `Not ready` resumes the preserved chase remainder; choosing `Review` ends that chase. |
 | Pre-assignment review | Explicit approval; when the completeness gate is on, both completeness confirmations must already be true. |
-| Report sent evidence | No pre-send review action. Show the exact Outlook Sent item, approved mailbox, Outlook `sentDateTime`, and association state. CollisionSpike detects but never sends the report. When automatic matching is absent or ambiguous, exact-item linking requires a reason. |
+| Report sent evidence | No pre-send review action. Show the exact Outlook Sent item, approved mailbox, Outlook `sentDateTime`, and association state. Pegasus detects but never sends the report. When automatic matching is absent or ambiguous, exact-item linking requires a reason. |
 | Close | `Post report`, `Provider cancellation`, `Collision Engineers rejection`, or `Created in error`; cancellation/rejection require a reason and every outcome records the actor. `Created in error` also requires a replacement-case link. |
 | Reopen | Required reason plus any otherwise-valid nonterminal destination. Apply the normal destination gates, exclude `Held` because it has a separate action, and refuse a case closed as `Created in error`. |
 | Correct a wrong-principal allocation | Do not offer principal/reference reassignment. Close the original as `Created in error` with a required reason and linked new replacement case under the corrected principal; never reuse either reference. |
@@ -200,7 +200,7 @@ Explicitly excluded from the first settings UI:
 - bulk predecessor-data import; and
 - dormant integration or feature switches.
 
-The operator note that some providers are always recorded as `Image Based Assessment` is a useful future principal-setting question, but no current plan authorises that principal-specific default. Inspection-address suggestions are also deferred beyond the first MVP.
+The operator note that some providers are always recorded as `Image Based Assessment` is a useful future principal-setting question, but no current plan authorises that principal-specific default. Inspection-address suggestions are also deferred beyond the `0.1.0-alpha.1`.
 
 ## Required cross-screen states and accessibility
 
@@ -218,21 +218,21 @@ These items still need their named research or implementation design. They do no
 | Missing-material reason choices | Whether this remains reason text or gains a constrained category list. |
 | Current EVA export | Exact versioned JSON field mapping, image rules, readiness/release presentation, and recovery behavior. |
 
-## Legacy findings not promoted into v2 requirements
+## Legacy findings not promoted into Pegasus requirements
 
 The routed legacy reviews raised useful questions but do not establish these current requirements:
 
 | Legacy proposal or field | Current treatment |
 | --- | --- |
 | Exact `X-Api-Key`, EVA/API forms, Base64 upload rules, 50 MB limits, and old error messages | Predecessor contracts only; not internal UI requirements. |
-| EVA fields such as VAT status, mileage unit, Cover Type, In Use, instruction email, and a fixed six-line address | Potential later mapping evidence. They are not a universal first-MVP case form or accepted focused-v1 export contract. |
-| “Vehicle Reg + Principal are the only manual EVA blockers” | Describes predecessor EVA behavior, not v2 case-acceptance rules. |
+| EVA fields such as VAT status, mileage unit, Cover Type, In Use, instruction email, and a fixed six-line address | Potential later mapping evidence. They are not a universal `0.1.0-alpha.1` case form or accepted focused-`0.1.0-alpha.1` export contract. |
+| “Vehicle Reg + Principal are the only manual EVA blockers” | Describes predecessor EVA behavior, not Pegasus case-acceptance rules. |
 | `Inspect on` defaulting to today | Not adopted. Current authority defaults **Instruction date** when absent and treats the stated inspection/equivalent deadline as `Due by`. |
 | `Instructions only`, `Images only`, `Both`, `Merged` as manually configurable case types | Rejected as a field model. Intake origin/association is derived; business work type is separate. |
 | Manually selectable initial status | Not adopted. Intake outcome and Core lifecycle policy determine state. |
-| Single condensed inbox, `Show dismissed`, mailbox chips, `E-mail type` dropdown, and Suggested Outlook action | Legacy design prompts. First-MVP source scope and mailbox-classification/correction policy do not yet authorise this exact control set. |
+| Single condensed inbox, `Show dismissed`, mailbox chips, `E-mail type` dropdown, and Suggested Outlook action | Legacy design prompts. `0.1.0-alpha.1` source scope and mailbox-classification/correction policy do not yet authorise this exact control set. |
 | Bulk Hold/Release/Log chase, exact per-queue columns, quick-peek drawer, notification centre | Not required by current plans. Reconsider only through a real operator flow and caller. |
-| Visible confidence percentages | Not required. Current v2 requires suggestion/confirmation distinction and source provenance; it does not require a numerical score in the operator UI. |
+| Visible confidence percentages | Not required. Current Pegasus requires suggestion/confirmation distinction and source provenance; it does not require a numerical score in the operator UI. |
 | Provider corpus/import administration and last-used statistics | Not part of the bounded QDOS principal/settings slice. |
 | Exact predecessor red/amber/nav/table theme rulings | Historical visual input only. Current application-specific UI principles live in `design/`; the CE website/letterhead kit excludes the internal app. |
 

@@ -15,10 +15,11 @@ predecessor's duplicated rules, drift, ticket machinery, or speculative layers.
 The current repository is a development proof, not a released product or Azure
 deployment.
 
-Detailed settled behavior remains controlled by the
-[project questionnaire](../../PROJECT_DISCOVERY_QUESTIONNAIRE.md), read after the
-authoritative [operator notes](../operator-notes/README.md). This index owns the
-repository-level product profile and routes; it does not weaken those sources.
+Detailed settled behavior is owned by the canonical [product areas](areas/),
+read after the authoritative [operator notes](../operator-notes/README.md).
+The retained [project questionnaire](../history/product/project-discovery-questionnaire.md)
+preserves direct-decision evidence for reconciliation; it is not a second
+living product owner. This index owns the repository-level product profile and routes.
 
 ## Users and outcomes
 
@@ -61,7 +62,7 @@ repository-level product profile and routes; it does not weaken those sources.
 - The current case types are Inspection, standalone Audit, and Inspection + Audit. Audit reference rules fail closed when the required assessment is missing or ambiguous.
 - Core owns each business rule once; Web and Worker call the same use cases through Infrastructure ports.
 - Box owns long-term original files; SQL owns application workflow/identity/history metadata; transient Azure storage is not long-term custody.
-- The full requirement set and first-release boundary are in the [settled questionnaire](../../PROJECT_DISCOVERY_QUESTIONNAIRE.md); the [V1 gap](v1-gap.md) separates current proof from the intended V1 outcome.
+- The canonical [product areas](areas/) own the full requirement set; the retained [questionnaire](../history/product/project-discovery-questionnaire.md) preserves direct-decision evidence, and the [V1 gap](v1-gap.md) separates current proof from the intended V1 outcome.
 
 ## Quality constraints
 

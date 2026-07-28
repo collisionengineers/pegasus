@@ -2,7 +2,7 @@
 
 Status: **Historical** — reviewed and implemented on 2026-07-23.
 
-Supersession/current owners: [plans index](docs/history/plans/README.md), [architecture overview](docs/architecture/README.md), and [validation guidance](docs/agent-guidance/validation.md). This planned tree remains implementation history, not ongoing guidance.
+Supersession/current owners: [plans index](../README.md), [architecture overview](../../../architecture/README.md), and [validation guidance](../../../agent-guidance/validation.md). This planned tree remains implementation history, not ongoing guidance.
 
 ## Objective
 
@@ -13,7 +13,7 @@ Create a small, navigable .NET 10 repository in which every dependency has one d
 ```text
 /
 |-- AGENTS.md
-|-- CollisionSpike.slnx
+|-- Pegasus.slnx
 |-- global.json
 |-- Directory.Build.props
 |-- azure.yaml
