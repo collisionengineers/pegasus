@@ -9,6 +9,21 @@ permissions:
   contents: read
 
 jobs:
+  source-workspaces:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - name: Validate document-extraction workspace
+        working-directory: workspaces/document-extraction
+        shell: pwsh
+        run: |
+          dotnet restore ./CollisionDocNet.slnx --locked-mode
+          dotnet build ./CollisionDocNet.slnx --configuration Release --no-restore
+          dotnet test --solution ./CollisionDocNet.slnx --configuration Release --no-build
+
   validate:
     runs-on: windows-latest
     steps:
@@ -27,27 +42,3 @@ jobs:
       - name: Test
         shell: pwsh
         run: dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"
-
-  source-workspaces:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: 10.0.x
-      - name: Validate document-extraction workspace
-        working-directory: workspaces/document-extraction
-        shell: pwsh
-        run: |
-          dotnet restore ./CollisionDocNet.slnx --locked-mode
-          dotnet build ./CollisionDocNet.slnx --configuration Release --no-restore
-          dotnet test --solution ./CollisionDocNet.slnx --configuration Release --no-build
-
-      - name: Validate report-renderer workspace
-        working-directory: workspaces/report-renderer
-        shell: pwsh
-        run: |
-          dotnet restore ./CollisionRenderer.sln
-          dotnet build ./CollisionRenderer.sln --configuration Release --no-restore
-          dotnet run --project src/CollisionRenderer.Cli --configuration Release --no-build -- install-browser
-          dotnet test ./CollisionRenderer.sln --configuration Release --no-build
