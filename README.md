@@ -36,10 +36,10 @@ Start with [repository documentation](docs/index.md),
 [QDOS alpha gap](docs/product/qdos-alpha-gap.md) records remaining
 `0.1.0-alpha.1` work.
 
-`workspaces/` is the accepted source-only import boundary. The ordered Pegasus
-orientation series adds document extraction, report rendering, AI Centre, and
-Agent Skills sequentially without activating an application caller; see the
-[current workspace delivery notice](workspaces/README.md).
+`workspaces/` contains independently validated, source-only imports for
+document extraction, report rendering, AI strategy, and agent skills. They are
+not application callers or projects in `Pegasus.slnx`; see
+[workspace authority and provenance](workspaces/README.md).
 
 Local genuine inputs remain ignored and immutable under `corpus/`. Generated
 evaluation and build evidence belongs under ignored `artifacts/`.

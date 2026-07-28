@@ -1,0 +1,42 @@
+{
+  "assessment_number": "AI123456",
+  "version": "AI/AB12CDE/1",
+  "printed": "11/06/2026",
+  "calc_date": "11/06/2026",
+  "price_valid": "11/06/2026",
+  "claim_ref": "TEST-REF",
+  "inspection_date": "11/06/2026",
+  "rates": {
+    "labour_rate": 83.28,
+    "paint_rate": 83.28,
+    "sundry_parts_pct": 3.5,
+    "sundry_paint": 120.16,
+    "pre_sundry": 46.43
+  },
+  "vehicle": {
+    "manufacturer": "TOYOTA",
+    "model": "COROLLA",
+    "model_sheet": "123",
+    "engine": "1.8 HYBRID",
+    "reg": "AB12CDE",
+    "vin": "SAMPLE00000000001",
+    "reg_month": "June",
+    "reg_year": "2020",
+    "colour": "BLUE",
+    "paint_code": "8X7",
+    "build_date": "FROM 06/2020",
+    "fuel": "Hybrid",
+    "specs": ["HYBRID"]
+  },
+  "operations": [
+    {
+      "type": "repair",
+      "guide": "1481",
+      "desc": "LEFT FRONT DOOR"
+    },
+    {
+      "type": "unknown_operation",
+      "desc": "BAD"
+    }
+  ]
+}

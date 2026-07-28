@@ -40,6 +40,9 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: workspaces/ai-centre/services/collision-brain/package-lock.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
       - name: Validate document-extraction workspace
         working-directory: workspaces/document-extraction
         shell: pwsh
@@ -65,3 +68,8 @@ jobs:
           npm run typecheck
           npm run build
           npm test
+
+      - name: Validate agent-skill packaging
+        working-directory: workspaces/ai-centre/skills/tools
+        shell: pwsh
+        run: python -m unittest test_pack_skill
