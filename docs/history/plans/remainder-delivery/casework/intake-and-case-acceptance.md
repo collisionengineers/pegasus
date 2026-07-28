@@ -14,7 +14,7 @@ Primary matrix IDs: `AI-05`, `CASE-11`, `CASE-12`, `DATA-01`, `INT-01`, `INT-08`
 
 ## Authority and current boundary
 
-- **Authority:** [source order](../../../../agent-guidance/source-of-truth.md), [questionnaire §§4–6](../../../product/project-discovery-questionnaire.md), [remaining requirements §§1–4](../../../../product/qdos-alpha-gap.md), [ADR-0005](../../../../architecture/decisions/ADR-0005-multiformat-intake-assets.md), and [ADR-0006](../../../../architecture/decisions/ADR-0006-provider-neutral-intake-with-contained-qdos-policy.md).
+- **Authority:** [source order](../../../../agent-guidance/source-of-truth.md), [questionnaire §§4–6](../../../product/project-discovery-questionnaire.md), [remaining requirements §§1–4](../../../../product/qdos-alpha-gap.md), [ADR-0005](../../../../decisions/ADR-0005-multiformat-intake-assets.md), and [ADR-0006](../../../../decisions/ADR-0006-provider-neutral-intake-with-contained-qdos-policy.md).
 - **Policy owner:** `ProcessIntake` is the single Core receive/process use case for Web and later Worker/provider callers. One contained `QdosInstructionExtractionPolicy` owns QDOS recognition and typed suggestions; a planned `AcceptCaseDraft` command owns the one authorised case-creation transaction.
 - **Current implementation:** `ProcessIntake`, the provider-neutral EF intake store, `IntakeReceiptEntity`, and `InstructionDraftEntity` form one local pre-case proof. Channel occurrence identity is idempotent, equal bytes may remain separate occurrences, and this path has no case/reference allocator.
 - **Real callers:** `/Intake/Upload` is the only current real intake caller, and only in Development with `Features:LocalIntake`; Graph Worker, provider API, MCP and authenticated staff intake pages are **planned**.

@@ -2,7 +2,9 @@
 
 ## Stage 0 — Triage
 
-This doesn't count as a case technically, but the e-mails should be stored. A work provider sends a request asking us to assess whether a vehicle is roadworthy or unroadworthy.
+This does not count as a case technically, but the e-mails should be stored. A work provider sends a request asking us to assess whether a vehicle is roadworthy or unroadworthy. Triage may record either or both independently optional findings—Roadworthy/Unroadworthy and Repairable/Total loss—but at least one must be populated for a recorded finding.
+
+Triage is a distinct inbox classification/label plus a separate pre-case reference record; it is never a case state, definitive or final. A case's `has Triage` is Boolean/reference-only, and its findings have no bearing on Case/PO/reference, workflow, final outcome, Engineer report, Audit suffix/allocation, or any other decision.
 
 This stage does not always occur, and it may not progress into a full case. It may be followed by receiving instructions for that vehicle however.
 
@@ -18,7 +20,7 @@ If the case is incomplete, we chase up the relevant party for the required infor
 
 ## Stage 2 — Inspection
 
-An Engineer carries out a desktop inspection, and prepares a report that details the vehicles roadworthiness, along deeming it either repairable, or a total-loss. It also contains an estimate for the repair cost.
+An Engineer carries out a desktop inspection, and prepares a report that details the vehicle's roadworthiness, along deeming it either repairable or a total loss. This Engineer report, not a Triage finding, is definitive for those determinations. It also contains an estimate for the repair cost.
 
 ## Stage 3 — Post-report
 

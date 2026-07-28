@@ -12,8 +12,8 @@ the affected scope only.
    `docs/product/areas/` and current allocation in
    `docs/product/capabilities.md`; the retained questionnaire and worksheet
    under `docs/history/product/` are reconciliation evidence, not active owners.
-4. Accepted technical decisions routed through `docs/decisions/` and retained
-   decisions under `docs/architecture/decisions/`.
+4. Accepted technical decisions, both current and historical, in
+   `docs/decisions/`.
 5. Explicitly accepted executable contracts and tests for the exact release.
 6. Retrospectives for delivery constraints and observed failures.
 7. The local corpus, raw references, and predecessor for real shapes and failure

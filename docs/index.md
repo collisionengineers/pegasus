@@ -39,8 +39,7 @@ do not win automatically.
 | `docs/history/product/project-discovery-questionnaire.md` | historical direct-decision evidence | preserve material source meaning; later explicit decisions are reconciled into canonical product owners | complete distilled questionnaire evidence, not active product authority |
 | `docs/history/product/feature-versioning-worksheet.md` | historical allocation evidence | preserve the 213-row source identity and reconcile active allocation through canonical product owners | canonical allocation remains the 229-ID capability inventory |
 | `docs/history/plans/` | pre-orientation plan evidence | historical; do not activate work or amend current owners here | retained plans not promoted to a canonical destination |
-| `docs/architecture/decisions/` | accepted/historical technical decisions | preserve; supersede explicitly through a reviewed ADR | decisions 0001–0009 |
-| `docs/decisions/` | canonical new decision authority | append or supersede through reviewed ADRs | current and future durable repository decisions |
+| `docs/decisions/` | canonical durable decision authority | append or supersede through a reviewed ADR; preserve historical decision bodies | current and historical repository decisions, including ADR-0001–ADR-0009 and decisions 0010–0013 |
 | `docs/architecture.md` | canonical current architecture | agent-editable with implementation/decision changes | current owners, callers, data, failure, deployment boundaries |
 | `docs/operations.md` | canonical operations authority | agent-editable with verified workflow/operations changes | build, test, deploy, diagnose, recover, GitHub routing |
 | `design/` | durable UI/design authority, product UI contract, and source/runtime map | agent-editable through reviewed UI changes; no synthetic assets | current exercised UI, approved planned rules, traceability, and candidate directions |

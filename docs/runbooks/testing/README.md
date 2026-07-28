@@ -10,7 +10,7 @@ Pegasus has a reproducible Windows-native test environment that proves each deli
 
 ## Authority and boundaries
 
-- Apply the repository [source-of-truth order](../../agent-guidance/source-of-truth.md), the canonical [product requirements](../../product/index.md), the retained [questionnaire evidence](../../history/product/project-discovery-questionnaire.md), the [remaining first-release requirements](../../product/qdos-alpha-gap.md), and accepted [Azure architecture](../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md).
+- Apply the repository [source-of-truth order](../../agent-guidance/source-of-truth.md), the canonical [product requirements](../../product/index.md), the retained [questionnaire evidence](../../history/product/project-discovery-questionnaire.md), the [remaining first-release requirements](../../product/qdos-alpha-gap.md), and accepted [Azure architecture](../../decisions/ADR-0002-dotnet-modular-monolith-on-azure.md).
 - Keep unresolved business rules in the canonical [open-decision register](../../product/open-decisions.md); local tests must not invent normative behavior for a withheld rule.
 - Preserve the material meaning of `docs/operator-notes/`; keep `corpus/` read-only. Corpus evidence remains ignored and local, and no corpus input or derivative may be uploaded to Azure, CI, or a vendor without fresh explicit permission.
 - Local emulators and mocks do not prove managed identity, RBAC, vendor behavior, cloud durability, scaling, alert delivery, recovery objectives, or operator acceptance.

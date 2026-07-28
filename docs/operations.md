@@ -57,7 +57,7 @@ that is host evidence only, not a Worker caller.
 ## Deploy
 
 The target design is in [the deployment plan](../.azure/deployment-plan.md) and
-accepted [ADR-0009](architecture/decisions/ADR-0009-direct-terminal-azure-deployment.md).
+accepted [ADR-0009](decisions/ADR-0009-direct-terminal-azure-deployment.md).
 It is not executable or production-ready. `azd up` is not the production release
 route. Packaging, hashes/provenance, explicit migration, identity resolution,
 preview, Web/Worker deployment order, health/smoke evidence, and prior-artifact

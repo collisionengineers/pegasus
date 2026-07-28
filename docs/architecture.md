@@ -132,6 +132,5 @@ legacy `rg-collisionspike-dev` estate is untouched.
 - Deferred capabilities retain only necessary stable identities and ports; they add no caller, resource, credential, route, schema, flag, or UI placeholder before activation.
 - The predecessor, local corpus, references, plans, tests, and registration each have limited evidence roles and never replace an actual caller or accepted authority.
 
-Detailed accepted decisions 0001–0009 remain in the
-[legacy decision index](architecture/README.md); new durable decisions use
-[docs/decisions](decisions/README.md).
+Detailed current and historical decisions are maintained in the canonical
+[decision index](decisions/README.md).
