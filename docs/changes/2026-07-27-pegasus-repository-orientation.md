@@ -401,6 +401,10 @@ Pull request review validated and remediated the following required findings:
   client errors for unknown templates;
 - preserved configured OIDC issuer validation, staged-upload lifetime and post-commit durability,
   and added renewable ingestion-job leases with interrupted-work reclamation.
+- regenerated every changed imported-source manifest from final committed Git blobs;
+- bounded renderer browser acquisition and page creation by caller cancellation, restricted
+  bundled signature resolution to known keys, reported the actual de-collided artifact filename,
+  and returned per-item validation for null batch entries.
 
 ## Verification and evidence
 
