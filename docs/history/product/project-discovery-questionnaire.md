@@ -127,7 +127,7 @@ These references are entered into EVA and used as the corresponding Box folder n
 
 **Which parts of the current or previous workflow work well and must be retained?**  nothing
 
-**Which parts must not be reproduced in `Next`/`unallocated`?**  huge technical debt, spaghetti code, functions duplicated everywhere so there was so much drift.
+**Which parts must not be reproduced in v2?**  huge technical debt, spaghetti code, functions duplicated everywhere so there was so much drift.
 
 
 ## 5. Case information

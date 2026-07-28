@@ -16,12 +16,12 @@ This classification does not adopt the predecessor wire contract or establish a 
 
 ## Difference from the predecessor material
 
-Legacy ADR-0020 contains the same high-level channel and shared-policy direction, but current `Next`/`unallocated` deliberately withholds details that the predecessor fixed:
+Legacy ADR-0020 contains the same high-level channel and shared-policy direction, but current Pegasus deliberately withholds details that the predecessor fixed:
 
-- The legacy provider contract (`../dealt-with/accepted/0020-provider-api-intake/docs/reference/provider-api-intake-spec.md`) selects `POST /api/provider-intake/cases`, `X-Api-Key`, an `Idempotency-Key` header, Base64-in-JSON attachments, a 50 MB request limit, exact fields and error codes. None of those wire choices or limits is currently accepted for `Next`/`unallocated`.
-- The predecessor contract creates a case immediately and returns `201 { caseId, casePo }`. Current `Next`/`unallocated` defines submission receipt, processing status and resulting Case/PO retrieval; it does not yet approve immediate case creation as the provider response contract.
-- Legacy ADR-0020 specifies salted/peppered credential verification and rate limiting. Current `Next`/`unallocated` accepts hash-only opaque-secret storage, rotation/revocation and bounded failures, but leaves the hashing construction, authentication scheme and throttling policy to the later accepted contract and implementation slice.
-- The predecessor TKT-055 (`../dealt-with/accepted/0020-provider-api-intake/docs/tickets/verify/TKT-055-provider-api-intake/TKT-055-provider-api-intake.md`) describes a TypeScript Data API, database tables, Azure Functions, Blob writes and an Admin key-management UI. Those are old-project implementation records, not `Next`/`unallocated` architecture or delivery evidence.
+- The legacy provider contract (`../dealt-with/accepted/0020-provider-api-intake/docs/reference/provider-api-intake-spec.md`) selects `POST /api/provider-intake/cases`, `X-Api-Key`, an `Idempotency-Key` header, Base64-in-JSON attachments, a 50 MB request limit, exact fields and error codes. None of those wire choices or limits is currently accepted for Pegasus.
+- The predecessor contract creates a case immediately and returns `201 { caseId, casePo }`. Current Pegasus defines submission receipt, processing status and resulting Case/PO retrieval; it does not yet approve immediate case creation as the provider response contract.
+- Legacy ADR-0020 specifies salted/peppered credential verification and rate limiting. Current Pegasus accepts hash-only opaque-secret storage, rotation/revocation and bounded failures, but leaves the hashing construction, authentication scheme and throttling policy to the later accepted contract and implementation slice.
+- The predecessor TKT-055 (`../dealt-with/accepted/0020-provider-api-intake/docs/tickets/verify/TKT-055-provider-api-intake/TKT-055-provider-api-intake.md`) describes a TypeScript Data API, database tables, Azure Functions, Blob writes and an Admin key-management UI. Those are old-project implementation records, not Pegasus architecture or delivery evidence.
 
 ## Current architecture, plan and evidence state
 
@@ -29,7 +29,7 @@ The settled [questionnaire](../../history/product/project-discovery-questionnair
 
 Current [ADR-0004](../../architecture/decisions/ADR-0004-provider-api-and-staff-mcp-authentication.md) owns the provider authentication and MCP separation decision. The [provider submissions delivery plan](../../history/plans/remainder-delivery/integrations/provider-submissions.md) assigns business policy to shared Core intake and principal authorization, with Web translating a later accepted HTTP contract.
 
-The evidence state remains **Planned**. There is no current provider endpoint, credential store, registered caller, live provider client or proven `Next`/`unallocated` submission. The Development-only `/Intake/Upload` path is not a provider API, and predecessor deployment evidence does not change current status.
+The evidence state remains **Planned**. There is no current provider endpoint, credential store, registered caller, live provider client or proven Pegasus submission. The Development-only `/Intake/Upload` path is not a provider API, and predecessor deployment evidence does not change current status.
 
 ## Deferred-capability impact
 

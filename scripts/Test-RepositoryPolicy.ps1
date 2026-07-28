@@ -54,6 +54,18 @@ $matrixRows = foreach ($line in [System.IO.File]::ReadLines($matrixPath)) {
 if ($matrixRows.Count -ne 229) {
     Add-PolicyError "Traceability matrix must contain 229 capability rows; found $($matrixRows.Count)."
 }
+$matrixDuplicates = $matrixRows | Group-Object Id | Where-Object Count -ne 1
+if ($matrixDuplicates) {
+    Add-PolicyError "Traceability matrix capability IDs must be unique: $($matrixDuplicates.Name -join ', ')."
+}
+$matrixIds = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+foreach ($matrixRow in $matrixRows) {
+    $null = $matrixIds.Add($matrixRow.Id)
+}
+$missingMatrixIds = $canonicalHorizons.Keys | Where-Object { -not $matrixIds.Contains($_) } | Sort-Object
+if ($missingMatrixIds) {
+    Add-PolicyError "Traceability matrix is missing canonical capability IDs: $($missingMatrixIds -join ', ')."
+}
 foreach ($matrixRow in $matrixRows) {
     if (-not $canonicalHorizons.ContainsKey($matrixRow.Id)) {
         Add-PolicyError "Traceability matrix contains unknown capability ID: $($matrixRow.Id)."
@@ -158,14 +170,20 @@ foreach ($project in $applicationProjects) {
 
 $forbiddenWorkspaceNames = @('.git', 'node_modules', '.venv', '.pytest_cache', '__pycache__', '_dev', 'dist', 'coverage', 'artifacts', 'outputs', 'runs', 'checkpoints', 'sample-doc-files')
 $forbiddenWorkspaceExtensions = @('.zip', '.skill', '.nupkg', '.snupkg', '.pt', '.pth', '.onnx', '.safetensors', '.ckpt')
-Get-ChildItem -LiteralPath (Join-Path $root 'workspaces') -Recurse -Force | ForEach-Object {
-    if ($forbiddenWorkspaceNames -contains $_.Name -or
-        (-not $_.PSIsContainer -and $forbiddenWorkspaceExtensions -contains $_.Extension)) {
-        Add-PolicyError "Forbidden generated/private workspace material: $($_.FullName)"
+$trackedWorkspaceFiles = @(git -C $root ls-files -- workspaces)
+if ($LASTEXITCODE -ne 0) {
+    Add-PolicyError 'Unable to enumerate tracked workspace files.'
+}
+foreach ($relative in $trackedWorkspaceFiles) {
+    $segments = $relative -split '/'
+    $name = [System.IO.Path]::GetFileName($relative)
+    $extension = [System.IO.Path]::GetExtension($relative)
+    if (($segments | Where-Object { $forbiddenWorkspaceNames -contains $_ }).Count -gt 0 -or
+        $forbiddenWorkspaceExtensions -contains $extension) {
+        Add-PolicyError "Forbidden generated/private workspace material: $relative"
     }
-    if (-not $_.PSIsContainer -and $_.Name -in @('AGENTS.md', 'CLAUDE.md') -and
-        $_.FullName -ne (Join-Path $root 'workspaces/AGENTS.md')) {
-        Add-PolicyError "Upstream agent instruction remains in workspace: $($_.FullName)"
+    if ($name -in @('AGENTS.md', 'CLAUDE.md') -and $relative -ne 'workspaces/AGENTS.md') {
+        Add-PolicyError "Upstream agent instruction remains in workspace: $relative"
     }
 }
 

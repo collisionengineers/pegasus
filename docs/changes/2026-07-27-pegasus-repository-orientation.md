@@ -384,6 +384,24 @@ the retained canonical note rather than discarded.
 | `screenshots/{D40D4374-F9FA-46DA-A042-6DDE90C00D6D}.png` | same | `4e2e552358eec7c6d9f5d5cb27a35f3e01d10faa285e0770fb0e6ecc82f4e48f` | identical |
 | `screenshots/{D9450032-911C-4ED4-BF53-669B626D33DE}.png` | same | `72dbab35bc92b9a1c8f9921159417a410fe204f6231a55a99c8abf37d1b41fda` | identical |
 
+## Independent review remediation
+
+Pull request review validated and remediated the following required findings:
+
+- corrected allocation sequencing, provider-package terminology, retained historical wording,
+  reference-report boundaries, and duplicate capability-ID enforcement;
+- restricted workspace policy scans to tracked source and added the Windows long-path checkout
+  prerequisite;
+- aligned document-extraction CI with locked restore and Microsoft Testing Platform, and made
+  output bundles materialize assets from nested extraction results;
+- removed imported renderer sample case data, its unusable parity gate, and duplicated valuation
+  business policy; generated Core-owned starter drafts now provide the diagnostic rendering path;
+- aligned the renderer container with its Playwright package, blocked remote image retrieval,
+  bounded multipart array indices, trusted only request-created attachment paths, and returned
+  client errors for unknown templates;
+- preserved configured OIDC issuer validation, staged-upload lifetime and post-commit durability,
+  and added renewable ingestion-job leases with interrupted-work reclamation.
+
 ## Verification and evidence
 
 - [x] Canonical product documents and the capability inventory agree with every

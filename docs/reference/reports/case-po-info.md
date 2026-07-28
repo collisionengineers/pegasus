@@ -8,7 +8,7 @@ decision recorded in `docs/history/product/project-discovery-questionnaire.md`.
 present in this worktree. Their former paths are retained as historical labels,
 not current authority or live links.
 
-## Current `Next`/`unallocated` decision
+## Current Pegasus decision
 
 - The normal Case/PO is `{principal code}{YY}{three-digit shared sequence}`.
 - Inspection, Audit, and Inspection + Audit use one shared principal/year
@@ -31,7 +31,7 @@ not current authority or live links.
 
 The predecessor proposal used independent per-provider/year counters for
 standard, `A.`, `AP.`, `D.`, and `C.` markers and rendered different casing for
-different external systems. That design is not a `Next`/`unallocated` requirement and must not be
+different external systems. That design is not a Pegasus requirement and must not be
 used as allocator, schema, UI, Box, EVA, or test authority.
 
 ## Current evidence state

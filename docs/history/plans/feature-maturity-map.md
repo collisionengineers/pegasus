@@ -19,7 +19,7 @@ Normalized allocations appear beside, never instead of, raw answers. Relative an
 | --- | ---: |
 | `0.0.0-development` pre-alpha | 10 |
 | `0.1.0-alpha.1` alpha gate | 116 |
-| `Next`/`unallocated` before `Next`/`unallocated` | 1 |
+| `Next`/`unallocated` with retained V1.x-before-V2 sequence | 1 |
 | pre-`0.1.0-alpha.1` gate | 2 |
 | `Next`/`unallocated` | 29 |
 | `Later`/`unallocated` release work | 9 |
@@ -171,11 +171,11 @@ The `Owning requirement/plan` cell is the single primary planning owner for that
 | OPS-24 | Direct production deployment from an authorised terminal using committed Bicep through `azd` | `0.1.0-alpha.1` | `0.1.0-alpha.1` alpha gate | [Worksheet] | [Primary plan](remainder-delivery/platform/azure-observability-and-release.md#release-immutable-artifacts-safely) | Required and accepted before `0.1.0-alpha.1`. |
 | DATA-01 | One-time preparation of provider reference data from spreadsheets | `0.1.0-alpha.1` | `0.1.0-alpha.1` alpha gate | [Worksheet] | [Primary plan](remainder-delivery/casework/intake-and-case-acceptance.md#prepare-reviewed-provider-reference-data) | Required and accepted before `0.1.0-alpha.1`. |
 
-## `Next`/`unallocated` before `Next`/`unallocated`
+## `Next`/`unallocated` with retained V1.x-before-V2 sequence
 
 | ID | Feature | Raw answer | Allocation | Authority/source | Owning requirement/plan | Activation note |
 | --- | --- | --- | --- | --- | --- | --- |
-| INT-04 | Activate additional providers during `Next`/`unallocated` through the same intake/case workflow using bounded provider reference data and rules | `Next`/`unallocated` (before `Next`/`unallocated`) | `Next`/`unallocated` before `Next`/`unallocated` | [Worksheet] | [Primary plan](later-delivery/integrations/additional-provider-activation.md#activate-an-additional-provider) | Additional providers before `Next`/`unallocated`; shared workflow only. |
+| INT-04 | Activate additional providers during V1.x through the same intake/case workflow using bounded provider reference data and rules | V1.x (before v2) | `Next`/`unallocated` with retained pre-V2 sequence | [Worksheet] | [Primary plan](later-delivery/integrations/additional-provider-activation.md#activate-an-additional-provider) | Additional-provider activation precedes the former V2 mailbox sources INT-05–INT-07 within `Next`/`unallocated`; shared workflow only. |
 
 ## pre-`0.1.0-alpha.1` gate
 
@@ -302,7 +302,7 @@ The worksheet separately states that EVA replacement changes the JSON/API handof
 
 - `0.0.0-development` is local pre-alpha. Its real categorisation caller is the ignored-copy EML evaluator, not Outlook or a mock service.
 - `0.1.0-alpha.1` is a live QDOS alpha gate using staff-forwarded `instructions@` intake and successful EVA JSON/image export as CollisionSpike's `Sent to Engineer` proxy.
-- `Next`/`unallocated` adds providers through the same provider-neutral workflow before `Next`/`unallocated`.
+- V1.x adds providers through the same provider-neutral workflow before V2.
 - `Next`/`unallocated` owns the provider API, four-mailbox email workspace/management, automatic image/instruction matching, DOC/MSG automation, scan-like PDF OCR, post-report query work, and allocated AI/vision assistance.
 - `Later`/`unallocated` contains allocated later automation, EVA replacement, Engineer-function, finance, and AI work. Version alone does not activate an external service.
 - Principal-code immutability, linked replacement, shared sequences, Audit prefixes, registration-led identity, terminal outcomes, reopening, and seven-day chasers retain their settled meanings.

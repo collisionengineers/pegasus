@@ -26,17 +26,17 @@ A future direct integration must remain unavailable until all of the following a
 - separate test and production credentials held in the approved secret store; and
 - an authenticated, version/lease-guarded caller that records actor, case revision and outcome without allowing an Infrastructure adapter to decide workflow.
 
-Any vendor test or production call remains an external data mutation requiring exact target, data, credential and approval scope. A later direct EVA integration requires its own current `Next`/`unallocated` ADR and approval.
+Any vendor test or production call remains an external data mutation requiring exact target, data, credential and approval scope. A later direct EVA integration requires its own current Pegasus ADR and approval.
 
 ## Difference from the predecessor material
 
-Legacy ADR-0005 correctly preserves manual handoff and requires vendor testing, multi-principal support and parity. Current `Next`/`unallocated` differs in these ways:
+Legacy ADR-0005 correctly preserves manual handoff and requires vendor testing, multi-principal support and parity. Current Pegasus differs in these ways:
 
-- The predecessor describes the API as an already selected Sentry path. Current `Next`/`unallocated` prefers the EVA API outcome but does not yet select a usable endpoint, route, payload or authentication contract.
+- The predecessor describes the API as an already selected Sentry path. Current Pegasus prefers the EVA API outcome but does not yet select a usable endpoint, route, payload or authentication contract.
 - The predecessor treats schema-validated JSON as an API fallback. For focused `0.1.0-alpha.1`, JSON plus images is the primary handoff because the API is unavailable.
 - The legacy `contracts/eva-payload.schema.json` and `docs/architecture/eva-field-model.md` paths are review evidence only. The current export plan still requires operator approval of the versioned mapping, image selection, readiness/release gate and error/recovery procedure.
 - The old `docs/architecture/eva-sentry-api.md` path, routes, base64-image format, request digest, credentials and predecessor service are not adopted merely by accepting the preferred API direction.
-- The predecessor `docs/tickets/done/TKT-126-eva-export-zip/TKT-126-eva-export-zip.md` and `docs/tickets/now/TKT-216-eva-sentry-route-body-contract/TKT-216-eva-sentry-route-body-contract.md` paths demonstrate old workflow and contract concerns but do not prove a `Next`/`unallocated` caller or accepted payload.
+- The predecessor `docs/tickets/done/TKT-126-eva-export-zip/TKT-126-eva-export-zip.md` and `docs/tickets/now/TKT-216-eva-sentry-route-body-contract/TKT-216-eva-sentry-route-body-contract.md` paths demonstrate old workflow and contract concerns but do not prove a Pegasus caller or accepted payload.
 
 ## Current architecture, plan and evidence state
 

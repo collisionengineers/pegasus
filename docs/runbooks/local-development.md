@@ -17,6 +17,26 @@ repository-check script.
 | SQL Server Express LocalDB | installed LocalDB runtime | `sqllocaldb versions` |
 | Development HTTPS | trusted .NET development certificate | `dotnet dev-certs https --check --trust` |
 
+### Windows checkout path
+
+Before cloning, either enable Windows long-path support and configure Git for long
+paths, or choose a checkout root whose absolute path is no more than 23 characters
+(for example, `C:\src\pegasus`). The repository contains a tracked 235-character
+relative path; a longer root can exceed the traditional 260-character limit before
+any repository command can run.
+
+Verify long-path support from PowerShell:
+
+```powershell
+(Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem').LongPathsEnabled
+git config --show-origin --get core.longpaths
+```
+
+The first command must report `1` and the Git setting must report `true` when using
+a longer checkout root. These commands are read-only; configure the workstation
+through its approved administrator policy before cloning if either prerequisite is
+missing.
+
 Python 3.11+ is required only when authoring provider-domain reference data; the
 script uses the standard library and installs no package. Playwright browser
 installation is required only for the browser acceptance lane. Cloud/vendor
@@ -25,7 +45,7 @@ tools belong to approved live work, not this baseline.
 ## Step 2 — author provider-domain reference data
 
 The Step 2 command is an offline authoring operation over one immutable
-cumulative source workbook. For `0.1.0-alpha.1` it reads only
+provider package `provider-domains-v1` reads only
 `docs/reference/workproviders-and-repairers/initial.xlsx` and retains only the
 provider code from column A and the final lowercase `@domain` suffix from each
 semicolon-separated column-E observation. It ignores columns B-D and later
@@ -46,7 +66,7 @@ failure as `source-locked`. The helper requires Python 3.11+ and uses only
 environment, pip install, dependency lock, package cache, recursive workbook
 discovery, network operation, or second manifest.
 
-The `0.1.0-alpha.1` command stages beneath ignored
+The `provider-domains-v1` command stages beneath ignored
 `artifacts/reference-data-staging/` and publishes this immutable package:
 
 ```text

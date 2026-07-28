@@ -10,14 +10,14 @@
 
 Current UI direction comes from [design authority](../../../design/README.md), [operator experience requirements](../../../design/product/requirements.md), operator truth, the [settled questionnaire](../../history/product/project-discovery-questionnaire.md), [the `0.1.0-alpha.1` gap](../../product/qdos-alpha-gap.md), product areas, and the [open-decision register](../../product/open-decisions.md). The former UI plan pack is historical evidence only.
 
-The legacy design and review guide (`../guide/04-design-and-reviews.md`) was used to route the predecessor interaction rules (`../docs/design/ui-ux.md`) and dated reviews. Those files supply terminology, pain points, and candidate controls only. Their old screen layouts, completion claims, API/EVA field rules, theme decisions, and configuration model are not `Next`/`unallocated` authority.
+The legacy design and review guide (`../guide/04-design-and-reviews.md`) was used to route the predecessor interaction rules (`../docs/design/ui-ux.md`) and dated reviews. Those files supply terminology, pain points, and candidate controls only. Their old screen layouts, completion claims, API/EVA field rules, theme decisions, and configuration model are not Pegasus authority.
 
 “Required field” has two distinct meanings in this report:
 
 1. a field the relevant screen must display or allow staff to capture when applicable; and
 2. a value that must exist before a particular action can succeed.
 
-`Next`/`unallocated` does **not** have a universal required-field matrix. Cases may be accepted with incomplete ordinary information into `Not ready`. The UI must show missing and contradictory values rather than silently guessing or preventing every incomplete case.
+Pegasus does **not** have a universal required-field matrix. Cases may be accepted with incomplete ordinary information into `Not ready`. The UI must show missing and contradictory values rather than silently guessing or preventing every incomplete case.
 
 ## Actual blocking rules
 
@@ -71,7 +71,7 @@ These fields must be supportable in intake review and later case editing. “Con
 | Instruction date | Defaulted when absent | Use the source value when supplied; otherwise default to the current date and make the default/provenance visible. |
 | Due by | Capture/confirm when available | Extract the inspection date or equivalent deadline from instructions. Show source, missing state, and overdue state. It is not the same field as Instruction date. |
 | Inspection address mode | Required choice when completing the address | `Physical vehicle/repairer address` or the exact valid value `Image Based Assessment`. Collision Engineers does not perform an on-site inspection. |
-| Physical inspection address | Conditional | Capture the vehicle, claimant, garage, or repairer location when that mode applies. The legacy six-line EVA format is not yet the accepted `Next`/`unallocated` UI/storage contract. |
+| Physical inspection address | Conditional | Capture the vehicle, claimant, garage, or repairer location when that mode applies. The legacy six-line EVA format is not yet the accepted Pegasus UI/storage contract. |
 | Claimant contact/address | Conditional supporting data | The product may store relevant claimant contact/address details, but the current operator field list does not make every contact element a universal intake requirement. |
 | Repairer/garage/bodyshop | Conditional case party | Link a reusable organisation where known; do not reduce it to only free-text inspection-address content. |
 | Third-party insurer and operational contacts | Conditional case parties | Support deliberate case associations where relevant; not universal intake blockers. |
@@ -218,7 +218,7 @@ These items still need their named research or implementation design. They do no
 | Missing-material reason choices | Whether this remains reason text or gains a constrained category list. |
 | Current EVA export | Exact versioned JSON field mapping, image rules, readiness/release presentation, and recovery behavior. |
 
-## Legacy findings not promoted into `Next`/`unallocated` requirements
+## Legacy findings not promoted into Pegasus requirements
 
 The routed legacy reviews raised useful questions but do not establish these current requirements:
 
@@ -226,13 +226,13 @@ The routed legacy reviews raised useful questions but do not establish these cur
 | --- | --- |
 | Exact `X-Api-Key`, EVA/API forms, Base64 upload rules, 50 MB limits, and old error messages | Predecessor contracts only; not internal UI requirements. |
 | EVA fields such as VAT status, mileage unit, Cover Type, In Use, instruction email, and a fixed six-line address | Potential later mapping evidence. They are not a universal `0.1.0-alpha.1` case form or accepted focused-`0.1.0-alpha.1` export contract. |
-| “Vehicle Reg + Principal are the only manual EVA blockers” | Describes predecessor EVA behavior, not `Next`/`unallocated` case-acceptance rules. |
+| “Vehicle Reg + Principal are the only manual EVA blockers” | Describes predecessor EVA behavior, not Pegasus case-acceptance rules. |
 | `Inspect on` defaulting to today | Not adopted. Current authority defaults **Instruction date** when absent and treats the stated inspection/equivalent deadline as `Due by`. |
 | `Instructions only`, `Images only`, `Both`, `Merged` as manually configurable case types | Rejected as a field model. Intake origin/association is derived; business work type is separate. |
 | Manually selectable initial status | Not adopted. Intake outcome and Core lifecycle policy determine state. |
 | Single condensed inbox, `Show dismissed`, mailbox chips, `E-mail type` dropdown, and Suggested Outlook action | Legacy design prompts. `0.1.0-alpha.1` source scope and mailbox-classification/correction policy do not yet authorise this exact control set. |
 | Bulk Hold/Release/Log chase, exact per-queue columns, quick-peek drawer, notification centre | Not required by current plans. Reconsider only through a real operator flow and caller. |
-| Visible confidence percentages | Not required. Current `Next`/`unallocated` requires suggestion/confirmation distinction and source provenance; it does not require a numerical score in the operator UI. |
+| Visible confidence percentages | Not required. Current Pegasus requires suggestion/confirmation distinction and source provenance; it does not require a numerical score in the operator UI. |
 | Provider corpus/import administration and last-used statistics | Not part of the bounded QDOS principal/settings slice. |
 | Exact predecessor red/amber/nav/table theme rulings | Historical visual input only. Current application-specific UI principles live in `design/`; the CE website/letterhead kit excludes the internal app. |
 

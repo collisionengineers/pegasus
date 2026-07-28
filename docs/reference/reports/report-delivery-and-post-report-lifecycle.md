@@ -1,12 +1,12 @@
 # Report delivery and post-report lifecycle
 
-**Operator decision:** ADR-0008 was rejected for `Next`/`unallocated` and dealt with on 2026-07-24. Its direct predecessor PLAN-002/TKT-094/095/096 case-done chain was dealt with at the same time.
+**Operator decision:** ADR-0008 was rejected for Pegasus and dealt with on 2026-07-24. Its direct predecessor PLAN-002/TKT-094/095/096 case-done chain was dealt with at the same time.
 
 **Legacy sources dealt with:** ADR-0008 (`../dealt-with/rejected/0008-tool-boundary-ends-at-eva-handoff.md`) and the related case-done lifecycle bundle (`../dealt-with/rejected/0008-case-done-lifecycle/README.md`).
 
-No new legacy finding was accepted. Current `Next`/`unallocated` requirements, architecture, and delivery plans already cover the valid product boundary. The predecessor terminal model and detector mechanics differ materially and are not adopted.
+No new legacy finding was accepted. Current Pegasus requirements, architecture, and delivery plans already cover the valid product boundary. The predecessor terminal model and detector mechanics differ materially and are not adopted.
 
-## Current `Next`/`unallocated` position
+## Current Pegasus position
 
 ### Product boundary already required
 
@@ -14,7 +14,7 @@ No new legacy finding was accepted. Current `Next`/`unallocated` requirements, a
 - The [questionnaire](../../history/product/project-discovery-questionnaire.md) requires the first release to progress through inspection/report preparation and post-report work. A case closes through post-report completion, provider cancellation, Collision Engineers rejection, or the distinct wrong-principal outcome `Created in error`.
 - The [remainder-delivery finish line](../../history/plans/remainder-delivery/README.md) already carries operators through report and post-report activity. This is broader and more precise than stopping at EVA handoff.
 - Triage is optional stored pre-case work that may never become a case. Its states, binary finding, exact reply-chain completion evidence, correction/reopen behavior, and optional later-case association are settled in the questionnaire.
-- EVA remains authoritative for Engineer assignment, estimating, valuation, and report generation in the first release. The planned `Next`/`unallocated` handoff is an operator-approved JSON and image bundle; direct EVA API use and eventual replacement are deferred.
+- EVA remains authoritative for Engineer assignment, estimating, valuation, and report generation in the first release. The planned Pegasus handoff is an operator-approved JSON and image bundle; direct EVA API use and eventual replacement are deferred.
 
 ### Current architecture
 
@@ -28,18 +28,18 @@ Box is authoritative for original-file custody. SQL is authoritative for workflo
 
 ## Differences from the legacy ADR and case-done chain
 
-| Legacy decision | Current `Next`/`unallocated` treatment |
+| Legacy decision | Current Pegasus treatment |
 | --- | --- |
 | Product responsibility continues beyond EVA handoff | Already required, but the current boundary continues through report and post-report work rather than ending at a generic delivery event. |
 | Report delivery immediately creates terminal `done` | Rejected. Report-sent evidence may enter post-report work; principal and reference are already immutable from reference allocation, and terminal post-report completion is a separate business outcome. |
-| One persisted numeric `done` status plus `eva_submitted` and `box_synced` | Rejected. These are predecessor status and persistence choices, not current `Next`/`unallocated` vocabulary or schema authority. |
+| One persisted numeric `done` status plus `eva_submitted` and `box_synced` | Rejected. These are predecessor status and persistence choices, not current Pegasus vocabulary or schema authority. |
 | Staff may directly mark a report delivered and close the case | Not adopted. The authenticated action must associate one exact Outlook Sent item through the single Core lifecycle policy and retain actor/time/reason/outcome in permanent action history. A report-sent event enters post-report work rather than closing the case. There is no pre-send report review gate. |
 | A Box report-named PDF proves delivery | Rejected as settled policy. Box custody and version identity are planned, but report presence is not currently authoritative proof of sending or delivery. |
 | A Sent Items match proves delivery | Partly adopted for sent evidence, not delivery or receipt: one exact item in the Sent Items folder of an Administrator-approved mailbox proves the report-sent event, with Outlook `sentDateTime` authoritative. Automatic matching remains open in the combined mailbox/email research. When it is absent or ambiguous, staff may link the exact item with a required reason. Sent Items access still needs separate security and Graph-scope approval before implementation. |
 | EVA polling proves delivery | Not adopted. The first release has a manual EVA export bundle; direct EVA API use, polling, and replacement are deferred. |
 | Each detector may trigger the terminal transition | Rejected architecturally. Any later evidence adapter must call one Core lifecycle owner; idempotency at an adapter does not grant it workflow authority. |
 | Triage is stored pre-case work that may never become a case | Already current. Its separate mutable workflow and exact reply-chain completion rule are settled; no Triage production caller exists yet. |
-| Report assessment and authoring stay outside `Next`/`unallocated` initially | Already current. EVA remains authoritative for reports until an approved replacement slice exists. |
+| Report assessment and authoring stay outside Pegasus initially | Already current. EVA remains authoritative for reports until an approved replacement slice exists. |
 | Later inbound mail may be linked or reconstructed | Definitive related-correspondence association is required. Retroactive predecessor-case reconstruction was rejected with ADR-0022 (`../dealt-with/rejected/0022-retroactive-case-reconstruction.md`). |
 
 ## Current plans and decision gates

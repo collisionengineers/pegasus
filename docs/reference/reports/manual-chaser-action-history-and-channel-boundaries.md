@@ -18,7 +18,7 @@ A chaser is tracked case work for obtaining missing information, images, or docu
 
 The exact persistence schema, outcome vocabulary, and whether the intended recipient or complete prepared message should be retained are not settled by this finding. Those choices must be justified by the real caller, operational need, privacy and retention requirements rather than copied from the predecessor.
 
-## Current `Next`/`unallocated` position
+## Current Pegasus position
 
 ### Operator truth and requirements
 
@@ -35,7 +35,7 @@ The plan does not yet define the manual chase action's channel, staff-confirmed 
 
 ## Differences from the legacy ADR
 
-| Legacy proposal | Accepted `Next`/`unallocated` treatment |
+| Legacy proposal | Accepted Pegasus treatment |
 | --- | --- |
 | Chasers are assisted, tracked requests | Accepted, within the current seven-day manual-chaser requirement. |
 | Record channel | Accepted for the explicit manual chase action. |
@@ -44,7 +44,7 @@ The plan does not yet define the manual chase action's channel, staff-confirmed 
 | Distinguish prepared from sent | Accepted, narrowed to prepared/copied versus staff-confirmed sent versus externally delivered. Only the first two are `0.1.0-alpha.1` application facts. |
 | Allow free-text Notes alongside structured chasers | Accepted only as an optional note on the manual chase action, not as approval of a generic predecessor Notes feature. |
 | Email may be sent through the approved mail path | Staff may manually paste and send through Outlook. Application-driven sending remains deferred and is not authorised by this finding. |
-| WhatsApp chasers are prepared for manual staff sending | Already aligned with `Next`/`unallocated`. No WhatsApp API, sender, ingestion, scraping, or delivery-status integration is introduced. |
+| WhatsApp chasers are prepared for manual staff sending | Already aligned with Pegasus. No WhatsApp API, sender, ingestion, scraping, or delivery-status integration is introduced. |
 | Audatex sources are await-only | Not adopted. Estimating and valuation integration is deferred, and current authority defines no Audatex-specific no-chase rule. |
 
 ## Real caller and evidence still required

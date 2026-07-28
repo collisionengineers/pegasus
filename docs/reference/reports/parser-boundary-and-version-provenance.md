@@ -1,12 +1,12 @@
 # Parser boundary and version provenance
 
-**Operator decision:** Rejected as `Next`/`unallocated` architecture and dealt with on 2026-07-24. The useful principles are already required by current `Next`/`unallocated`; the predecessor service and engine-ownership mechanics are not adopted.
+**Operator decision:** Rejected as Pegasus architecture and dealt with on 2026-07-24. The useful principles are already required by current Pegasus; the predecessor service and engine-ownership mechanics are not adopted.
 
 **Legacy sources dealt with:** ADR-0004 (`../dealt-with/rejected/0004-parser-as-azure-function-inline.md`), ADR-0018 (`../dealt-with/rejected/0018-cedocumentmapper-dual-target-vendored-engine.md`), and ADR-0035 (`../dealt-with/rejected/0035-cedocumentmapper-engine-repository-consolidation.md`).
 
 ADR-0022 (`../dealt-with/rejected/0022-retroactive-case-reconstruction.md`) was subsequently rejected and dealt with as a separate predecessor workflow decision. It is not an approved parser caller or case-creation path.
 
-## Current `Next`/`unallocated` position
+## Current Pegasus position
 
 ### Accepted architecture
 
@@ -25,7 +25,7 @@ MimeKit, PdfPig, and Open XML remain Infrastructure dependencies. Provider-speci
 
 ## Differences from the legacy ADRs
 
-| Legacy decision | Current `Next`/`unallocated` treatment |
+| Legacy decision | Current Pegasus treatment |
 | --- | --- |
 | Deploy a focused parser Azure Function service | Rejected. The existing Infrastructure reader and Core use case run behind Web now and the planned thin Worker later. No separate parser service or network hop is justified. |
 | Isolate Python/document dependencies | Python is not part of the accepted intake stack. Format libraries are isolated in Infrastructure without creating another runtime. |
@@ -41,7 +41,7 @@ MimeKit, PdfPig, and Open XML remain Infrastructure dependencies. Provider-speci
 
 Current [ADR-0001](../../architecture/decisions/ADR-0001-hybrid-pdf-extraction.md) requires retaining the extractor version and independently versioning provider-specific rules. Current [ADR-0003](../../architecture/decisions/ADR-0003-pdfpig-for-first-qdos-slice.md) also requires the adapter to record its engine and version.
 
-The current PDF reader adds a `pdf-engine` evidence entry whose human-readable detail names `PdfPig 0.1.15`. The persisted Core intake record has no explicit extractor-engine version or provider-rule version field. This is a gap against current `Next`/`unallocated` provenance requirements, not an accepted reason to introduce the predecessor's service, Python engine, vendoring, materialised copies, or cross-language drift machinery.
+The current PDF reader adds a `pdf-engine` evidence entry whose human-readable detail names `PdfPig 0.1.15`. The persisted Core intake record has no explicit extractor-engine version or provider-rule version field. This is a gap against current Pegasus provenance requirements, not an accepted reason to introduce the predecessor's service, Python engine, vendoring, materialised copies, or cross-language drift machinery.
 
 The current owner should eventually provide stable, queryable version provenance through the existing engine-neutral intake contract and persistence path. The exact field shape and migration belong to that implementation slice; this report does not design them.
 

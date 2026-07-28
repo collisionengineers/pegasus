@@ -14,7 +14,7 @@ A repairer, garage, or bodyshop is a reusable organisation identity that can be 
 
 The case must retain the historical inspection-address and role facts used for that case. A later correction to reusable directory information must not silently rewrite historical case evidence.
 
-### Current `Next`/`unallocated` authority and evidence
+### Current Pegasus authority and evidence
 
 - The [questionnaire](../../history/product/project-discovery-questionnaire.md#5-case-information) says a repairer/garage/bodyshop can be connected to a case and requires the physical vehicle/repairer address where applicable.
 - The [operator inspection-address note](../../operator-notes/business-process/inspection-address.md) says staff may need the garage/repairer location and often know which repairer a principal generally uses.
@@ -52,7 +52,7 @@ Principal, Intermediary, Repairer, and Image Source are distinct functions on a 
 - An ambiguous sender must not be treated as the Principal merely because it transmitted the email or images. Strong, unambiguous instruction content takes precedence over a staff-forwarded sender.
 - Operator-facing labels must name the actual role. The ambiguous label `client` must not substitute for Principal, claimant/insured person, Repairer, or another known role.
 
-### Current `Next`/`unallocated` authority and evidence
+### Current Pegasus authority and evidence
 
 - The [operator intake note](../../operator-notes/business-process/intake-and-work-instructions.md) distinguishes instructions sent by or on behalf of a work provider from images supplied by a repairer where the related work provider may be unknown.
 - The [questionnaire](../../history/product/project-discovery-questionnaire.md#5-case-information) already lists the Principal, claimant, Repairer, insurer, and operational contacts as case-connected people and organisations.
@@ -79,7 +79,7 @@ The original `REPAIRER.xls` was examined locally as untrusted historical evidenc
 | Contact evidence | No email-like or telephone-like cells were found |
 | Read limitation | The workbook has no code-page record; the reader fell back to ISO-8859-1, so text fidelity still needs operator review |
 
-The workbook supports the historical existence of a reusable, coded repairer directory and shows incomplete and potentially duplicate business data. It does not prove that any row remains current, that duplicate names identify the same organisation, that the unlabelled column is always a postcode, or that the codes should become `Next`/`unallocated` identifiers. It contains no evidence for principal relationships, contacts, case roles, or figures policy.
+The workbook supports the historical existence of a reusable, coded repairer directory and shows incomplete and potentially duplicate business data. It does not prove that any row remains current, that duplicate names identify the same organisation, that the unlabelled column is always a postcode, or that the codes should become Pegasus identifiers. It contains no evidence for principal relationships, contacts, case roles, or figures policy.
 
 The workbook is now an examined repository evidence input. Before any import or production directory is designed, staff must review its column meaning, duplicate-name groups, current/retired records, address quality, and code semantics. No import, upload, data correction, or external write is authorised by this finding.
 

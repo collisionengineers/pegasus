@@ -7,6 +7,11 @@ not an implementation, deployment, or acceptance claim.
 
 ## Get started on Windows
 
+This repository retains supplied reference paths up to 235 characters. Before
+cloning, enable Windows long-path support and configure Git for Windows with
+`git config --global core.longpaths true`; otherwise checkout can fail before
+the PowerShell workflow starts.
+
 ```powershell
 npm ci
 dotnet restore ./Pegasus.slnx
