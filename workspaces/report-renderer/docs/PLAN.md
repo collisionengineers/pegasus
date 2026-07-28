@@ -155,8 +155,8 @@ means adding a model record, a `.scriban` body, a `TemplateDescriptor` in
 ### Design system
 
 The canonical stylesheet is
-`src/CollisionRenderer.Core/Assets/templates/report.css`. It carries a data register
-at 8.8pt for valuation, evidence and fee documents, and a letter register at 10pt for
+`design/assets/report-renderer/templates/report.css` at the Pegasus repository root.
+It carries a data register at 8.8pt for valuation, evidence and fee documents, and a letter register at 10pt for
 expert reports. The palette is documents red `#C80A32`, warm charcoal `#2C2A27`, grey
 label cells `#F2F2F2`, zebra `#F5F5F5` and grid `#BEBEBE`; body type is Arial /
 Helvetica on A4. Every page carries the master gear-"C" logo letterhead, an
@@ -248,9 +248,9 @@ constant-time.
 
 ### Container
 
-The `Dockerfile` at the repository root is multi-stage. The build stage uses
-`mcr.microsoft.com/dotnet/sdk:8.0`; the runtime stage uses
-`mcr.microsoft.com/playwright/dotnet:v1.49.0-jammy`, which bundles the matching Chromium
+The workspace `Dockerfile` is multi-stage. The build stage uses
+`mcr.microsoft.com/dotnet/sdk:10.0.300`, matching the workspace `global.json`; the
+runtime stage uses `mcr.microsoft.com/playwright/dotnet:v1.61.0-jammy`, which bundles the matching Chromium
 build and its native dependencies. The image adds `fonts-liberation` and
 `fonts-dejavu-core` so Arial-metric body text renders with identical metrics on Linux,
 listens on port 8080, and runs `dotnet CollisionRenderer.Api.dll`. Because Core has no

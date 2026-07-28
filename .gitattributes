@@ -1,6 +1,8 @@
 # Preserve supplied and generated binary assets byte-for-byte.
 docs/reference/imp-docs/** binary
 src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json binary
+design/assets/report-renderer/**/*.css text eol=lf
+design/assets/report-renderer/**/*.scriban text eol=lf
 *.doc binary
 *.docx binary
 *.ico binary

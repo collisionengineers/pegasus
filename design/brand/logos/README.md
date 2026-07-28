@@ -4,7 +4,7 @@
 
 | Relative source path | Variant/use | Current runtime destination/consumer |
 | --- | --- | --- |
-| `design/brand/logos/logo_no_margin.png` | master red gear-C Collision Engineers lockup | none yet; approved source for selected V1 implementation |
+| `design/brand/logos/logo_no_margin.png` | master red gear-C Collision Engineers lockup | embedded by renderer Core and linked by the imported renderer GUI |
 
 The file is an exact copy of `assets/logo_no_margin.png` from the provided
 `collision-engineers-design-dev` source bundle, which is not retained in this
