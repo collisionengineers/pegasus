@@ -7,10 +7,10 @@ defined in `report.css`, and the rule that the logo and signatures are embedded
 assets. It also records the constraint that no "AI" theming is permitted anywhere in
 the output.
 
-The design system has a single source of truth:
-`src/CollisionRenderer.Core/Assets/templates/report.css`. That stylesheet is embedded
-in the Core assembly and inlined into every document, so the look is identical whether
-a page is produced from the CLI, the WinUI 3 desktop app, or the cloud API.
+The Pegasus top-level design system has a single stylesheet source of truth:
+`design/assets/report-renderer/templates/report.css`. The Core project links and embeds
+that stylesheet, then inlines it into every document, so the look is identical whether
+a page is produced from the CLI, the WinUI 3 desktop app or the cloud API.
 
 The system is faithful to two prior bodies of work: the CSS-native
 `collision-engineers-design` system, and the proven `report-renderer`
@@ -255,14 +255,15 @@ then Compact, then Ultra-compact, re-counting PDF pages until they hit the page 
 
 ## Embedded assets rule
 
-The logo and the engineer signatures are **embedded resources**, not files read from
-disk at render time. `BrandAssets` reads them from the Core assembly and inlines them
-as base64 data URIs:
+The logo and the engineer signatures are governed by top-level `design/` sources and
+embedded into Core at build time, not read from disk at render time. `BrandAssets`
+reads them from the Core assembly and inlines them as base64 data URIs:
 
-- The master red gear-"C" logo (`brand/logo.png`) is loaded once into
-  `LogoDataUri` and placed in the letterhead `img.logo`.
-- Engineer signatures resolve by key to `brand/signatures/{key}.png`. The bundled keys
-  are `andy_patterson`, `ed_mawdsley` and `neil_oreilly`. An unknown or missing key
+- The master red gear-"C" logo (`design/brand/logos/logo_no_margin.png`) is loaded
+  once into `LogoDataUri` and placed in the letterhead `img.logo`.
+- Engineer signatures resolve by key to `design/brand/signatures/{key}.png`. The
+  bundled keys are `andy_patterson`, `ed_mawdsley` and `neil_oreilly`. An unknown
+  or missing key
   resolves to `null` and the signature block simply omits the image.
 
 Because these assets travel inside the assembly and are inlined as data URIs, a render
