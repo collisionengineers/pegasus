@@ -19,9 +19,9 @@ project.
 
 | Project | Target | Role |
 | --- | --- | --- |
-| `src/CollisionRenderer.Core` | `net8.0` (class library) | The single rendering engine and source of truth. Typed C# document models to HTML via Scriban + the brand CSS, then to PDF via headless Chromium. Self-contained: templates, stylesheet, logo and signatures are embedded resources. No Windows-only dependencies. |
+| `src/CollisionRenderer.Core` | `net8.0` (class library) | The single rendering engine and source of truth. Typed C# document models to HTML via Scriban + the brand CSS, then to PDF via headless Chromium. The top-level design sources are embedded at build time, so Core is self-contained at runtime. No Windows-only dependencies. |
 | `src/CollisionRenderer.Cli` | `net8.0` console (assembly `collisionrenderer`) | Thin command-line client over Core. |
-| `src/CollisionRenderer.Api` | `net8.0` ASP.NET Core minimal API | Cloud service wrapping Core; `Dockerfile` at repo root. |
+| `src/CollisionRenderer.Api` | `net8.0` ASP.NET Core minimal API | Cloud service wrapping Core; packaged by the workspace `Dockerfile`. |
 | `src/CollisionRenderer.Gui` | `net8.0-windows`, WinUI 3 / Windows App SDK | Desktop thin client; in-process Core; WebView2 preview. |
 | `tests/CollisionRenderer.Core.Tests` | xUnit | 57 tests, including real-Chromium integration renders. |
 
@@ -355,8 +355,9 @@ The request body is `{ templateId, data, density? }`, where `density` is `auto` 
    └──────────────────────────────────────────────┘
 ```
 
-The `Dockerfile` at the repo root is multi-stage: it builds and publishes against the .NET 8 SDK
-image, then copies the output onto the official Playwright .NET runtime image, which ships the
+The workspace `Dockerfile` is multi-stage: from the Pegasus repository root it builds
+and publishes against the .NET 10 SDK image required by `global.json`, then copies the
+output onto the official Playwright .NET runtime image, which ships the
 matching Chromium build and its native dependencies. It adds `fonts-liberation` (and a DejaVu
 fallback) so the documents' Arial-metric body copy renders with identical metrics on Linux. The
 image listens on port 8080 and runs with `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false`. Because
@@ -419,8 +420,9 @@ The architecture is designed so the common changes do not touch the engine.
 - **Add a host.** Build the renderer through `CollisionRendererFactory.CreateRenderer()` and the
   catalog through `CollisionRendererFactory.Catalog`. Any new host inherits identical features by
   construction.
-- **Bundle a signature.** Add `Assets/brand/signatures/{key}.png` as an embedded resource and
-  reference it by key from the payload; `BrandAssets.SignatureDataUri` resolves it to a data URI.
+- **Bundle a signature.** Add `design/brand/signatures/{key}.png` at the Pegasus
+  repository root; the Core project embeds it and `BrandAssets.SignatureDataUri`
+  resolves the key to a data URI.
 
 ## Design constraints
 

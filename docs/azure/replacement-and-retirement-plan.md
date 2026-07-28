@@ -33,7 +33,7 @@ Do not delete either predecessor resource group until all are true:
 3. Establish managed identities, least-privilege roles, health endpoints, telemetry, and SQL Entra access.
 4. Create a fresh Azure SQL database for `0.1.0-alpha.1`. Do not import the predecessor PostgreSQL cases, users, action-history records, or application state.
 5. Keep operational history in its existing authoritative Box, EVA, Outlook, spreadsheet, or network-drive locations. Do not import predecessor evidence blobs into `0.1.0-alpha.1` merely because they exist in Azure; determine their ownership and disposition before deleting their storage.
-6. Replace one integration at a time behind one `0.1.0-alpha.1` adapter: EVA, Box, Graph/mail, embedded PDF extraction, scanned OCR, then any approved enrichment.
+6. Replace one in-scope integration at a time behind one `0.1.0-alpha.1` adapter: EVA, Box, Graph/mail, embedded PDF extraction, then any approved enrichment. Scan-like OCR remains `Next`/`unallocated` and is not an alpha replacement gate.
 7. Shadow or replay a redacted/genuine local corpus cohort through `0.1.0-alpha.1`. Do not upload the local corpus during this step.
 8. Stop old mailbox/intake producers and triggers. The predecessor's pre-release queues, Durable state, and test application data may be discarded after the exact retirement targets are approved.
 9. Cut operator traffic to `0.1.0-alpha.1`. Monitor health, errors, queue age, duplicate actions, database writes, Box/EVA outcomes, and operator acceptance through the rollback period.
@@ -48,7 +48,7 @@ Do not delete either predecessor resource group until all are true:
 | API Function + plan/storage/App Insights | Web/API on App Service | operator/API traffic on `0.1.0-alpha.1`; old requests zero; rollback expired |
 | Orchestrator Function + plan/storage/App Insights | Worker on Flex plus one shared Core | producers stopped; exact old resources approved for retirement |
 | Parser Function + plan/storage/telemetry | embedded-text library inside one extraction adapter | genuine PDF benchmark meets accepted threshold |
-| OCR ACA/Function/environment/storage/telemetry/ACR image | Document Intelligence adapter only for scanned/insufficient inputs | OCR cohort parity, cost measured, shared ACR separated |
+| OCR ACA/Function/environment/storage/telemetry/ACR image | no `0.1.0-alpha.1` replacement; retain only while an old caller still requires it, otherwise retire after caller and ownership proof | old callers zero, exact retirement approved, shared ACR separated; any future scan-like OCR follows a separately accepted `Next` plan |
 | PostgreSQL | fresh Azure SQL with no predecessor import | exact old-server retirement approval after callers are stopped |
 | Evidence storage | decide after a contents/ownership check; no automatic `0.1.0-alpha.1` import | confirmed predecessor-only ownership, explicit disposition, and exact storage retirement approval |
 | EVA Function | manual JSON/image export in the `0.1.0-alpha.1`; direct API adapter deferred | accepted manual export, old callers zero, and credential disposition |

@@ -75,7 +75,7 @@ presentation.
 | 1 | Windows GUI and CLI with feature parity | Both are thin clients over `CollisionRenderer.Core`. Every host builds its renderer through the single composition root `CollisionRendererFactory.CreateRenderer()` and shares `CollisionRendererFactory.Catalog`, so parity holds by construction. The GUI (`src/CollisionRenderer.Gui`, WinUI 3 / Windows App SDK) calls Core in-process; the CLI (`src/CollisionRenderer.Cli`, assembly `collisionrenderer`) wraps the same Core APIs. |
 | 2 | Cloud-portable | `CollisionRenderer.Core` has zero Windows-only dependencies, so it runs in a Linux container. `src/CollisionRenderer.Api` (ASP.NET Core minimal API) wraps Core; the repo-root `Dockerfile` builds on the official Playwright .NET runtime image (bundled Chromium and native dependencies) and adds `fonts-liberation` for Arial-metric body text. The image deploys to any container host. |
 | 3 | New templates without engine changes | Adding a template means adding a model record, a `.scriban` body template, a `TemplateDescriptor` entry in `TemplateCatalog`, and a sample JSON. The rendering engine is not modified. Templates are Scriban body templates rendered into a C#-built letterhead shell. |
-| 4 | Identical style every time | A single engine, a single embedded stylesheet (`Assets/templates/report.css`) and embedded brand assets (logo, signatures) are the one source of truth. Templates, stylesheet, logo and signatures are embedded resources in Core, so every surface renders from the same artefacts. |
+| 4 | Identical style every time | A single engine embeds the top-level `design/assets/report-renderer/templates/report.css` stylesheet and the canonical logo/signatures at build time. Every surface therefore renders from the same artefacts without duplicate source copies. |
 | 5 | Multi-page robustness | Chromium paged media: `@page A4`, running header/footer templates that repeat on every page with page numbers, `thead { display: table-header-group }` so table headers repeat across pages, and `break-inside: avoid` on rows, value boxes and media rows. Validated: a 36-row valuation flows to three pages with repeating header and footer and no garbling. |
 | 6 | Simple for non-technical users | The desktop GUI follows one linear path: pick a document type, start from Core-generated prompts or fill in the data, render, preview (WebView2), save. `AuthoringTemplateCatalog.GetStarterJson(id)` derives the starter from the blank draft and form definition, and `PayloadValidator` reports clear errors and warnings before rendering. |
 | 7 | No AI theming | No sparkle/magic icons, no emoji, no decorative gradients. The tone is calm and factual throughout the product and its output. |
@@ -185,9 +185,9 @@ Request body: `{ templateId, data: { ... }, density?: "auto|normal|compact|ultra
 
 - Source: `collision-engineers-design` (CSS-native) and the proven prior `report-renderer`
   output.
-- Canonical stylesheet: `src/CollisionRenderer.Core/Assets/templates/report.css` — a data
-  register at 8.8pt (valuation / evidence / fee) and a letter register at 10pt (expert
-  reports).
+- Canonical stylesheet: `design/assets/report-renderer/templates/report.css` at the
+  Pegasus repository root — a data register at 8.8pt (valuation / evidence / fee)
+  and a letter register at 10pt (expert reports).
 - Every page: gear-"C" logo letterhead with Our/Your Ref/Date block; centred UPPERCASE
   title (red on newer outputs); UPPERCASE section headings with a red rule under them; a
   running footer (thin red rule, `Collision Engineers Ltd | www.CollisionEngineers.co.uk |
@@ -200,7 +200,7 @@ dotnet build CollisionRenderer.sln -c Release
 dotnet run --project src/CollisionRenderer.Cli -- install-browser   # first-time Chromium (~90MB)
 dotnet test
 dotnet run --project src/CollisionRenderer.Api
-docker build -t collisionrenderer-api .
+docker build -f Dockerfile -t collisionrenderer-api ../..
 dotnet run --project src/CollisionRenderer.Gui                       # needs Windows App SDK runtime
 ```
 

@@ -10,7 +10,7 @@ Primary matrix ID: `OPS-22`, routed through [caller-backed local and live eviden
 
 ## Authority and current boundary
 
-- **Authority:** [Source-of-truth order](../../agent-guidance/source-of-truth.md), [settled product decisions and deferred capabilities](../../history/product/project-discovery-questionnaire.md), [remaining first-release requirements](../../product/qdos-alpha-gap.md), [open decisions](../../product/open-decisions.md), [ADR-0002 Azure modular monolith](../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md), [ADR-0005 multi-format intake assets](../../architecture/decisions/ADR-0005-multiformat-intake-assets.md), and [ADR-0006 provider-neutral intake](../../architecture/decisions/ADR-0006-provider-neutral-intake-with-contained-qdos-policy.md).
+- **Authority:** [Source-of-truth order](../../agent-guidance/source-of-truth.md), canonical [product requirements](../../product/index.md), retained [questionnaire evidence](../../history/product/project-discovery-questionnaire.md), [remaining first-release requirements](../../product/qdos-alpha-gap.md), [open decisions](../../product/open-decisions.md), [ADR-0002 Azure modular monolith](../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md), [ADR-0005 multi-format intake assets](../../architecture/decisions/ADR-0005-multiformat-intake-assets.md), and [ADR-0006 provider-neutral intake](../../architecture/decisions/ADR-0006-provider-neutral-intake-with-contained-qdos-policy.md).
 - **Policy owner:** Each business capability remains owned by its Core use case. This area owns only test-tool lifecycle, evidence profiles, isolation and evidence classification.
 - **Current implementation:** The development-only [manual upload page](../../../src/Pegasus.Web/Pages/Intake/Upload.cshtml.cs) calls `ProcessIntake`; the [Worker composition root](../../../src/Pegasus.Worker/README.md) explicitly has no trigger. Build and test evidence runs through the owning .NET projects.
 - **Real callers:** `/Intake/Upload` is the only current source-mapped intake caller; this planning research did not execute it. Authenticated production Web/API/MCP entry points and Worker timer/queue triggers are intended callers and must remain labelled `Planned` until present and exercised.
@@ -261,7 +261,7 @@ Storage Explorer, SSMS and Postman remain optional conveniences. Do not add Serv
 | Graph webhooks | Signature, replay, expiry and duplicate-notification contract tests | Public callback and Graph subscription in approved shared development | Webhook endpoint or subscription |
 | PDF-engine replacement | Same frozen cohort/holdout and contract parity suite | Licence/security/maintenance review and single-path cutover | Parallel permanent PDF engines |
 
-SMS, Teams, a customer portal, redaction, signatures, legal hold, subject-request workflows and `0.1.0-alpha.1` migration remain exclusions, not positive testing requirements, until separately authorised.
+SMS, Teams, a customer portal, redaction, signatures, legal hold, subject-request workflows and predecessor application/data migration remain exclusions, not positive testing requirements, until separately authorised.
 
 ### Completion evidence
 

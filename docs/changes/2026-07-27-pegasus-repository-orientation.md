@@ -94,6 +94,7 @@ no transcript, archive copy, README or second requirements ledger is created.
 | `DOC-CON-008` | Administrator is the superuser role. Andrew and Alex are initial assignments held as application data/configuration; no person, email address or bypass is compiled into authorization. |
 | `DOC-CON-009` | The current release uses deterministic, operator-approved EVA drag-and-drop JSON, selected custody-confirmed images and a hash manifest. EVA retains engineering authority until each replacement slice is separately contracted, caller-proved and accepted. |
 | `DOC-CON-010` | EVA screenshots are data/decision evidence, not navigation authority. Pegasus uses one case-centred Engineer workbench with progressive sections and no duplicate domain ownership. |
+| `DOC-CON-011` | PdfPig remains the authoritative embedded-PDF extraction path for the current release. The legacy `cedocumentmapper` is not reused; a bespoke extractor may replace PdfPig only after separate hardening, caller proof and acceptance. |
 
 ## Scope
 
@@ -129,6 +130,12 @@ capabilities remain `unallocated` unless their existing target says otherwise.
 This change makes no irreversible vendor transport choice and creates no dormant
 runtime integration. Activation requires a capability-specific change record,
 actual caller, recovery proof and acceptance evidence.
+The deferred renderer integration preserves only the headless rendering seam and
+required service contracts. Activation decommissions every imported renderer GUI
+feature because Pegasus owns the invoking UI, removes the standalone renderer MCPB,
+and exposes any retained renderer tools through the global Pegasus MCP. The GUI and
+MCPB remain in the source-only workspace solely as import/parity evidence until that
+accepted cutover; they are excluded from the future runtime and deployment boundary.
 
 ## Atomic source crosswalk
 

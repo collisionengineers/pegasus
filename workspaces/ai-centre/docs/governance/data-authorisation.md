@@ -9,10 +9,10 @@ subject to separate exact-target access approval, relevant Box and Outlook mater
 does not authorise repository inclusion, publication, bulk archive import, live-system access, or
 external transfer.
 
-Private material remains outside the repository under the ignored, immutable `corpus/` boundary.
-Box and Outlook archives remain in their source systems. Any bounded evaluation extract must retain
-source custody, provenance, case isolation, and the repository's source-role rules; generated
-evaluation results belong under `artifacts/`.
+Private material remains outside Git history under the ignored, immutable repository-root
+`corpus/ai-centre/` boundary. Box and Outlook archives remain in their source systems. Any bounded
+development or evaluation extract must retain source custody, provenance, case isolation, and the
+repository's source-role rules; generated results belong under `artifacts/`.
 
 The authorisation does not make every source statement authoritative or every artifact suitable for
 every model task. Pipelines must still preserve provenance, sender/source role, client and case

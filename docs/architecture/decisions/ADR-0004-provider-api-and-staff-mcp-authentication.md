@@ -36,7 +36,7 @@ The provider API uses separately issued principal-scoped client IDs and opaque
 secrets. Store only each secret's hash, show the clear value once, and support
 rotation and revocation.
 
-The `0.1.0-alpha.1` provider contract is limited to:
+The first activated provider-API contract is limited to:
 
 - idempotent instruction and attachment submission; and
 - retrieval of that principal's own submission receipt, processing status, and
