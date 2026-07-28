@@ -1,0 +1,71 @@
+{
+  "assessment_number": "AI123456",
+  "version": "AI/AB12CDE/1",
+  "printed": "11/06/2026",
+  "calc_date": "11/06/2026",
+  "price_valid": "11/06/2026",
+  "claim_ref": "TEST-REF",
+  "inspection_date": "11/06/2026",
+  "coat_type": "BASECOAT CLEAR",
+  "rates": {
+    "labour_rate": 83.28,
+    "paint_rate": 83.28,
+    "sundry_parts_pct": 3.5,
+    "sundry_paint": 120.16,
+    "pre_sundry": 46.43,
+    "paint_material_base": 385.0
+  },
+  "vehicle": {
+    "manufacturer": "TOYOTA",
+    "model": "COROLLA",
+    "model_sheet": "123",
+    "engine": "1.8 HYBRID",
+    "reg": "AB12CDE",
+    "vin": "SAMPLE00000000001",
+    "reg_month": "June",
+    "reg_year": "2020",
+    "odometer": "45000",
+    "colour": "BLUE",
+    "paint_code": "8X7",
+    "build_date": "FROM 06/2020",
+    "selection": "AudaVIN+",
+    "fuel": "Hybrid",
+    "imported": "No",
+    "specs": ["HYBRID", "5 DOOR", "BASECOAT CLEAR"]
+  },
+  "operations": [
+    {
+      "type": "rnr",
+      "guide": "0110702",
+      "wu": 7.0,
+      "desc": "R + R FRONT BUMPER"
+    },
+    {
+      "type": "repair",
+      "guide": "1481",
+      "wu": 15.0,
+      "desc": "LEFT FRONT DOOR"
+    },
+    {
+      "type": "paint_repair",
+      "guide": "1481",
+      "wu": 8.0,
+      "desc": "LEFT FRONT DOOR"
+    },
+    {
+      "type": "new_part",
+      "guide": "752051",
+      "desc": "FRONT BUMPER",
+      "part_num": "52119-00000",
+      "price": 320.0,
+      "bet": "0%"
+    },
+    {
+      "type": "specialist_fixed",
+      "desc": "ADAS CALIBRATION",
+      "text": "Specialist",
+      "price": 120.0
+    }
+  ],
+  "notes": "Validation fixture for total-loss assessment payload."
+}
