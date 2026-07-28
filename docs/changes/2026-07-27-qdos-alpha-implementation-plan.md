@@ -25,10 +25,10 @@ Offline acceptance is a mandatory implementation checkpoint, not a reduced alpha
 6. **One Core email decision owner.** Transport adapters normalize evidence only. A versioned Core policy owns route selection, provider/type/case evidence, received/sent classification, and the specifically approved report/Triage matchers. The current QDOS extractor remains an inner typed extractor, not a competing orchestrator.
 7. **Triage identification is evidence-gated.** `Triage` is a business pre-case record, distinct from mailbox category, folder destination, and case association. Exact Triage predicates must be learned and approved from genuine positive, negative, ambiguous, forwarded, reply-chain, and untouched holdout examples in the local evaluator. No sender-only, subject-keyword-only, or universal fallback may create Triage.
 8. **The evaluator is a local Web UI.** Replace the planned Worker-only evaluator command with an authenticated Development-only Razor Pages workbench backed by the same parser and Core evaluator used by intake. It supports genuine `.eml` review, human labels, batch comparison, route/policy evidence, Triage analysis, and ignored review artifacts. It never allocates a reference or writes into `corpus/`.
-9. **The existing deployment is stale predecessor state and has no restart window.** Treat `docs/azure/current-inventory.md` as a dated 2026-07-23 snapshot, not a deployment target. The user has confirmed it is not in active use and may be rebuilt from deployment evidence if ever needed. Author a staged teardown runbook now; after offline acceptance, execution may proceed as a separately approved exact-resource operation without waiting for v2 cutover. Refresh inventory first, preserve or separately decide shared/data-bearing assets, record redeployment provenance, and never begin with broad resource-group deletion.
+9. **The existing deployment is stale predecessor state and has no restart window.** Treat `docs/azure/current-inventory.md` as a dated 2026-07-23 snapshot, not a deployment target. The user has confirmed it is not in active use and may be rebuilt from deployment evidence if ever needed. Author a staged teardown runbook now; after offline acceptance, execution may proceed as a separately approved exact-resource operation without waiting for Pegasus cutover. Refresh inventory first, preserve or separately decide shared/data-bearing assets, record redeployment provenance, and never begin with broad resource-group deletion.
 10. **Case identity and external effects remain immutable.** Split intake into durable receive/process/resolve/accept operations, use ID-only queue messages and a SQL outbox, allocate principal/reference once in the acceptance transaction, append policy/history revisions, and never reuse or rewrite an allocated reference.
 
-Evidence-dependent choices remain hard holds: every provider/intermediary policy and disposition, automatic report and Triage predicates, ordinary-image VRM engine, DVLA/DVSA contract and mileage rule, focused-V1 EVA mapping, Graph scope, Box identity/root/operations, and live Azure targets. A missing hold does not justify a placeholder, fabricated fixture, dormant flag, or reduced release scope.
+Evidence-dependent choices remain hard holds: every provider/intermediary policy and disposition, automatic report and Triage predicates, ordinary-image VRM engine, DVLA/DVSA contract and mileage rule, focused-`0.1.0-alpha.1` EVA mapping, Graph scope, Box identity/root/operations, and live Azure targets. A missing hold does not justify a placeholder, fabricated fixture, dormant flag, or reduced release scope.
 
 ### Offline development environment contract
 
@@ -103,11 +103,11 @@ Development registrations are explicit under a single `DevelopmentOffline` profi
 - **Workflow/governance:** `AGENTS.md`, nested current guidance, `docs/index.md`, `docs/agent-guidance/*`, `docs/operations.md`, current product/runbook ownership text, ADR index, and documentation tests. Add one superseding tool-neutral ADR; retain onboarding records as historical/superseded evidence.
 - **Developer tooling:** `package.json`/lock, `scripts/Invoke-Doctor.ps1`, new `scripts/Initialize-LocalDevelopment.ps1`, new `scripts/Invoke-LocalDevelopment.ps1`, dependency-free `scripts/Build-ProviderReferenceData.ps1`, approval-gated `scripts/Invoke-LivePreflight.ps1`, renamed tool-neutral documentation check, `scripts/Invoke-RepoCheck.ps1`, and CI callsites.
 - **Core:** extend `IntakeContracts.cs`; refactor `ProcessIntake`; add receive/process/resolve/accept, organization/route policy, email classification/Triage matching, case/reference/lifecycle, custody, outbox, identity/actor, and MCP-facing use cases. Remove the single-policy path after all callers move.
-- **Infrastructure:** extend the existing `CollisionSpikeDbContext` and single migration stream; add reference seed generation, LocalDB/Azurite stores, local mailbox/case-file/vehicle-replay adapters, then live adapters only after the offline gate.
+- **Infrastructure:** extend the existing `PegasusDbContext` and single migration stream; add reference seed generation, LocalDB/Azurite stores, local mailbox/case-file/vehicle-replay adapters, then live adapters only after the offline gate.
 - **Web:** replace scaffold routes/shell; add Identity/OpenIddict, Operations-first UI, Development-only email evaluation UI, case/Triage/intake/admin workbenches, OAuth metadata/endpoints, and `/mcp`.
 - **Worker:** keep the existing project; add actual timer/queue triggers and outbox processing. No second executable project or Worker evaluator mode.
 - **Tests/evidence:** Core contracts, LocalDB contention, Azurite/Functions host, authenticated Web/MCP, Playwright/accessibility, genuine local evaluator cohort/holdout, adapter contract parity, and negative/recovery lanes.
-- **Azure/IaC:** author `docs/runbooks/predecessor-teardown.md` without touching Azure; defer `infra/`, `azure.yaml`, `.azure/deployment-plan.md`, live settings, and runbook execution until offline acceptance; then refresh approved inventory, tear down exact predecessor-only resources under a separate change/approval, and provision only an isolated v2 target.
+- **Azure/IaC:** author `docs/runbooks/predecessor-teardown.md` without touching Azure; defer `infra/`, `azure.yaml`, `.azure/deployment-plan.md`, live settings, and runbook execution until offline acceptance; then refresh approved inventory, tear down exact predecessor-only resources under a separate change/approval, and provision only an isolated Pegasus target.
 
 ### Delivery sequence
 
@@ -147,8 +147,8 @@ Development registrations are explicit under a single `DevelopmentOffline` profi
   cache, network operation, requirements lock, second manifest, or runtime
   workbook reader.
 - Publish one canonical UTF-8 JSON package with a final newline at
-  `src/CollisionSpike.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json`.
-  The v1 package is `provider-domains-v1` and contains exactly 11 provider
+  `src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json`.
+  The `0.1.0-alpha.1` package is `provider-domains-v1` and contains exactly 11 provider
   codes, 16 code/suffix associations, and 16 distinct suffixes with source-row
   provenance. The package is embedded by Infrastructure and imported through
   one reviewed migration; application runtime reads SQL only.
@@ -162,7 +162,7 @@ Development registrations are explicit under a single `DevelopmentOffline` profi
   0011. Only the separately accepted QDOS direct trait
   `@qdosassist.co.uk` may support the current route; every other imported
   suffix remains inactive evidence.
-- Publication is append-only. The pinned v1 source/version/output is the only
+- Publication is append-only. The pinned `0.1.0-alpha.1` source/version/output is the only
   bootstrap without a previous package. A later version uses a new immutable
   cumulative workbook, a different package version/output, and the previous
   validated package; every prior provider/suffix pair must remain. Existing
@@ -229,7 +229,7 @@ Development registrations are explicit under a single `DevelopmentOffline` profi
 - **VRM:** benchmark candidate local engines against approved genuine ordinary vehicle photos; select on exact-read/false-positive/uncertainty/latency/licence/security/operator evidence. Persist suggestion provenance; staff acceptance creates provisional identity. No engine is added before selection.
 - **Vehicle/MOT:** replay only approved ignored DVLA/DVSA contract material. Results are suggestions and never overwrite confirmed values. Missing fixtures visibly return unavailable. No valuation behavior.
 - **Inspection address/mode:** deterministic precedence is explicit accepted physical address or explicit accepted mode, then the versioned provider historical default, then ambiguity/no match. No geocoding/AI. Surface source counts/version in the case; staff confirmation or reasoned correction remains authoritative and never mutates the reference package.
-- **EVA:** approve focused-V1 mapping/readiness/image order/names/recovery using genuine cases, then produce deterministic JSON/images/SHA-256 manifest. First successful generation records `First sent to Engineer` once; regeneration never duplicates or claims EVA receipt/assignment.
+- **EVA:** approve focused-`0.1.0-alpha.1` mapping/readiness/image order/names/recovery using genuine cases, then produce deterministic JSON/images/SHA-256 manifest. First successful generation records `First sent to Engineer` once; regeneration never duplicates or claims EVA receipt/assignment.
 - For all local implementations, run the exact Core port contract suite. A future live adapter must pass the same suite; any contract change sends the work back through the offline gate.
 
 #### 8. Add real Worker callers against offline dependencies
@@ -244,7 +244,7 @@ Development registrations are explicit under a single `DevelopmentOffline` profi
 - Product routes: `/` Operations; `/Intake` and `/Intake/{id}` plus authenticated upload; `/Triage` and `/Triage/{id}`; `/Cases` and `/Cases/{id}`; Administrator account/principal/configuration/mailbox pages; sign-in/password-change/sign-out/access-denied; OAuth metadata/endpoints; `/mcp`. `/Development/EmailEvaluation` is local-only and absent from production routing/navigation.
 - Header order is `Operations | Intake | Triage | Cases | Administration | Search | User`. Operations exposes exact Not ready/Review/Held/Needs sorting/Blocked intake/Triage/Due today/In today/Sent to Engineer/Reports sent queries with London day/week boundaries and explicit freshness/zero/loading/stale/partial/unavailable/failure states.
 - Case workbench contains typed fields/provenance, parties, documents/images, vehicle/MOT suggestions, address, tasks/chasers/file request, EVA export, report evidence, `Report preparation` work, lifecycle/history, immutable identity, lease/conflict/retry, and reasons. No case/file permanent delete.
-- PageModels bind/authorize/translate only. Use approved design tokens, desktop/constrained-desktop/200%-zoom behavior, keyboard/focus/error semantics, forced colours, reduced motion, and no mobile/saved-view/bulk/calendar/V2 mailbox scope.
+- PageModels bind/authorize/translate only. Use approved design tokens, desktop/constrained-desktop/200%-zoom behavior, keyboard/focus/error semantics, forced colours, reduced motion, and no mobile/saved-view/bulk/calendar/`Next`/`unallocated` mailbox scope.
 - Configure OpenIddict authorization code + S256 PKCE, exact resource/audience, short access/rotating refresh tokens, protected-resource metadata, local development keys, and one Streamable HTTP `/mcp`. Production refuses development keys.
 - MCP exposes only case/intake/Triage/document/EVA/report actions already owned by Core. No accounts, roles, principals, configuration, OAuth clients, cloud actions, arbitrary custody IDs, generic email, or deletion. Prove browser/MCP parity, actor attribution, stale/lease outcomes, and immediate disable/role-change enforcement.
 
@@ -257,7 +257,7 @@ Run from a fresh clone/setup path and record exact results/limits:
    source hash and A/E contract, immutable suffix-only package, 11 providers,
    16 associations, repeat-byte equality, no copied local part/full address,
    exact migration equality, idempotent fresh SQLite/LocalDB migrations, tuple
-   and suffix fail-closed precedence, and monotonic synthetic v2 growth.
+   and suffix fail-closed precedence, and monotonic synthetic `Next`/`unallocated` growth.
 3. Genuine local evaluator cohort + untouched holdout for every route selected
    for activation. Provider-domain presence alone is not a route disposition or
    policy. Exercise QDOS, direct/intermediary conflicts, malformed forwards,
@@ -289,16 +289,16 @@ The offline gate passes only when every implemented live port has a contract-equ
 
 #### 12. Reconcile Azure and tear down the stale deployment
 
-- After the offline gate, obtain explicit read approval for the exact subscription and resource groups, then refresh `docs/azure/current-inventory.md` by resource ID. Classify every resource and dependency as predecessor-only, shared, data-bearing/undecided, or v2; names/tags are not ownership proof and no secret values or application data are read.
+- After the offline gate, obtain explicit read approval for the exact subscription and resource groups, then refresh `docs/azure/current-inventory.md` by resource ID. Classify every resource and dependency as predecessor-only, shared, data-bearing/undecided, or Pegasus/current-target; names/tags are not ownership proof and no secret values or application data are read.
 - Publish `docs/runbooks/predecessor-teardown.md` before cloud execution and open one separate linked teardown change record for the destructive operation. The runbook produces a reviewed exact-resource evidence artifact, never a wildcard/computed delete list or second repository status ledger. Every read, stop, credential change, and deletion remains separately approval-gated to the listed IDs.
 - Preflight records the maximum retained traffic window (at least 30 days where telemetry exists) for public endpoints, Functions, queues, schedules, DNS, and downstream callers; checks locks, policies, backups, managed-resource ownership, role assignments, and cross-resource dependencies; and proves the user-confirmed no-active-use claim. Missing telemetry is an explicit risk in the approval, not inferred zero use.
 - Record rebuild provenance before deletion: predecessor source/IaC/package location and revision, deployment history/template, package hashes where retrievable, non-secret configuration names, domains/certificates, identity and RBAC shape, and required secret names/issuers. Recovery is a fresh redeployment from this evidence; there is no restart/cooldown window and no promise to restore predecessor application state.
-- Give every data-bearing or potentially shared asset an explicit `delete`, `retain in place`, or `move/replace then delete` disposition. The accepted fresh-v2 decision permits deletion of predecessor PostgreSQL case/queue state, but it does not silently authorize capture/evidence storage, Foundry, shared ACR/ValuationBot images, default workspace, Visual Studio accounts, or any other undecided asset.
+- Give every data-bearing or potentially shared asset an explicit `delete`, `retain in place`, or `move/replace then delete` disposition. The accepted fresh-Pegasus decision permits deletion of predecessor PostgreSQL case/queue state, but it does not silently authorize capture/evidence storage, Foundry, shared ACR/ValuationBot images, default workspace, Visual Studio accounts, or any other undecided asset.
 - After exact write approval, fence ingress and schedules, stop callers, resolve queued work according to the approved disposable-state decision, revoke predecessor credentials/role assignments, and delete small dependency-ordered leaf batches: event subscriptions/webhooks and compute callers; app-specific endpoints/compute/plans; approved data stores; app-specific monitoring/alerts; private/network attachments; then identities and residual role assignments. Verify absence and business/platform health after every batch before continuing.
 - Managed child resources are removed only through their owning service. Delete `rg-collisionspike-dev` or the OCR managed child group only as the final separately approved action when the reviewed manifest proves the group contains no retained/shared/undecided resource; otherwise leave the group with only its explicitly retained assets. Never start with resource-group deletion.
 - Post-teardown verification re-runs Resource Graph, role assignments, DNS/endpoints, Key Vault secret-name/expiry inventory, managed identities/service principals, scheduled/event sources, orphan network/storage/monitoring resources, and cost views. Record deleted IDs, retained IDs with owners, failures/retries, irrecoverable state, and the rebuild procedure in the one teardown change record.
-- Select a distinct v2 Development target and naming boundary. Update `.azure/deployment-plan.md`, existing Bicep modules, parameters, and `azure.yaml` only after the refreshed inventory and teardown disposition. Bicep what-if must show no mutation of retained predecessor/shared assets or any unapproved resource.
-- Remove Document Intelligence and its roles/configuration from the new V0/V1 output. Configure Azure SQL Entra-only with distinct deployment/migrator/Web/Worker identities; Web/Worker have no DDL, deployment has no standing app-data role, Web Blob access is only `intake-temporary`, and Worker receives only justified host/business-storage roles.
+- Select a distinct Pegasus Development target and naming boundary. Update `.azure/deployment-plan.md`, existing Bicep modules, parameters, and `azure.yaml` only after the refreshed inventory and teardown disposition. Bicep what-if must show no mutation of retained predecessor/shared assets or any unapproved resource.
+- Remove Document Intelligence and its roles/configuration from the new `0.0.0-development`/`0.1.0-alpha.1` output. Configure Azure SQL Entra-only with distinct deployment/migrator/Web/Worker identities; Web/Worker have no DDL, deployment has no standing app-data role, Web Blob access is only `intake-temporary`, and Worker receives only justified host/business-storage roles.
 - Build immutable Web, Worker, and Linux-x64 migration bundles once with a machine-readable release manifest containing source revision, package/tool provenance, paths, and SHA-256. Shared Development deploy consumes those bytes without rebuild; an authorized migrator applies schema before app packages.
 - After exact-target write approval, run policy/quota checks and Bicep what-if, deploy isolated Development, enable dependencies incrementally, and smoke identity, intake, Functions queue, Blob denial, SQL, Graph/Box/vehicle scopes, health, alerts, recovery, restore, and compatible package rollback. Prove Azure SQL 15-minute RPO/four-hour RTO in an approved temporary target; Production remains a later exact-target approval.
 
@@ -310,15 +310,15 @@ The offline gate passes only when every implemented live port has a contract-equ
 ## Critical files & anchors
 
 - `docs/changes/2026-07-27-qdos-alpha-reference-corpora.md`: one delivery record, 127-capability evidence matrix, status, blockers, approvals, and outcome.
-- `docs/product/capabilities.md`, `docs/product/v1-gap.md`, and `docs/roadmap.md`: current `0.1.0-alpha.1` allocation and the explicit `DATA-02` deferral; no capability may disappear because live evidence is pending.
+- `docs/product/capabilities.md`, `docs/product/qdos-alpha-gap.md`, and `docs/roadmap.md`: current `0.1.0-alpha.1` allocation and the explicit `DATA-02` deferral; no capability may disappear because live evidence is pending.
 - `docs/operator-notes/business-process/intake-and-work-instructions.md`, `inspection-address.md`, `case-types-and-references.md`, and `case-lifecycle.md`: business wording and fail-closed invariants.
 - `docs/decisions/0011-separate-direct-provider-and-intermediary-email-policies.md` plus the superseding tool-neutral ADR: route identity and repository workflow decisions.
-- `src/CollisionSpike.Core/Intake/IntakeContracts.cs`, `ProcessIntake.cs`, and `QdosInstructionExtractionPolicy.cs`: preserve the real Core caller/policy seam while splitting durable operations and adding route/default provenance.
-- `src/CollisionSpike.Infrastructure/Persistence/CollisionSpikeDbContext.cs`, `DependencyInjection.cs`, and the one existing migration stream: all reference, identity, intake, case, history, lease, and outbox persistence.
-- `src/CollisionSpike.Infrastructure/Persistence/ReferenceData/`: immutable cumulative provider-domain packages only; no manifest, full address, location/default data, or workbook access.
-- `src/CollisionSpike.Infrastructure/Intake/MimeKitPdfPigOpenXmlIntakeSourceReader.cs`: retained source parsing and forwarded-message evidence, not route policy.
-- `src/CollisionSpike.Web/Program.cs`, Razor Pages/layout/assets, and `design/product/ui-spec.md` plus `design/brand/logos/logo_no_margin.png`: authenticated Operations-first caller and graphical evaluator.
-- `src/CollisionSpike.Worker/Program.cs`: actual timer/queue callers against the same Core use cases.
+- `src/Pegasus.Core/Intake/IntakeContracts.cs`, `ProcessIntake.cs`, and `QdosInstructionExtractionPolicy.cs`: preserve the real Core caller/policy seam while splitting durable operations and adding route/default provenance.
+- `src/Pegasus.Infrastructure/Persistence/PegasusDbContext.cs`, `DependencyInjection.cs`, and the one existing migration stream: all reference, identity, intake, case, history, lease, and outbox persistence.
+- `src/Pegasus.Infrastructure/Persistence/ReferenceData/`: immutable cumulative provider-domain packages only; no manifest, full address, location/default data, or workbook access.
+- `src/Pegasus.Infrastructure/Intake/MimeKitPdfPigOpenXmlIntakeSourceReader.cs`: retained source parsing and forwarded-message evidence, not route policy.
+- `src/Pegasus.Web/Program.cs`, Razor Pages/layout/assets, and `design/product/ui-spec.md` plus `design/brand/logos/logo_no_margin.png`: authenticated Operations-first caller and graphical evaluator.
+- `src/Pegasus.Worker/Program.cs`: actual timer/queue callers against the same Core use cases.
 - `scripts/Build-ProviderReferenceData.ps1` and `scripts/reference_data/build_provider_reference_data.py`: dependency-free suffix-only provider package authoring; `Invoke-Doctor.ps1`, `Initialize-LocalDevelopment.ps1`, `Invoke-LocalDevelopment.ps1`, and `Invoke-LivePreflight.ps1` retain their separate setup/orchestration/live-preflight roles.
 - `docs/reference/workproviders-and-repairers/initial.xlsx`: immutable current Step 2 evidence only; later growth uses new cumulative immutable workbooks. Application runtime never reads a workbook.
 - `docs/runbooks/developer-workstation.md`, `local-development.md`, `testing/local-testing.md`, and `predecessor-teardown.md`: operator-executable setup, proof limits, and destructive-operation safety.
@@ -329,7 +329,7 @@ The offline gate passes only when every implemented live port has a contract-equ
 ## Verification
 
 1. **Fresh offline setup:** on a clean working copy, run `Invoke-Doctor -Profile Offline`, `Initialize-LocalDevelopment`, then `Invoke-LocalDevelopment` `Start`, `Status`, `Smoke`, `Stop`, and ownership-safe `Reset`; repeat with two parallel run IDs and one induced startup failure.
-2. **Provider-domain reference proof:** run `Build-ProviderReferenceData.ps1` and `-Verify`; assert the pinned source metadata, 11 providers, 16 suffix associations, suffix-only strings, exact package hash, append-only synthetic-v2 behavior, embedded-resource/migration equality, idempotent migrations, and deterministic exact-version catalog outcomes.
+2. **Provider-domain reference proof:** run `Build-ProviderReferenceData.ps1` and `-Verify`; assert the pinned source metadata, 11 providers, 16 suffix associations, suffix-only strings, exact package hash, append-only synthetic package-version behavior, embedded-resource/migration equality, idempotent migrations, and deterministic exact-version catalog outcomes.
 3. **Behavioral proof:** execute the Step 10 evaluator, actual Web/Functions/Azurite/LocalDB, identity/session, MCP, QDOS type, lifecycle, Triage, custody, EVA, concurrency, negative, retry, and recovery scenarios. Each check must observe the real caller and persisted/operator-visible result.
 4. **UI proof:** drive the running Razor Pages application with Playwright at the specified desktop/constrained/200%-zoom/accessibility/multi-session states; screenshots alone do not replace interaction and persisted-result evidence.
 5. **Repository proof:** run `pwsh ./scripts/Invoke-RepoCheck.ps1`, exact-head CI, and an independent exact-head implementation review. The change record maps each of the 127 `Now` capabilities to local proof, live proof pending, or the named unsatisfied release blocker.
@@ -340,7 +340,7 @@ The offline gate passes only when every implemented live port has a contract-equ
 
 Settled assumptions from this revision:
 
-- `initial.xlsx` is the immutable v1 provider-domain source. Later growth uses a new cumulative immutable workbook and new package/migration version; it never edits v1. The provider-domain package excludes inspection locations, defaults, and Case-ID mapping, and application runtime never reads a workbook.
+- `initial.xlsx` is the immutable `0.1.0-alpha.1` provider-domain source. Later growth uses a new cumulative immutable workbook and new package/migration version; it never edits `0.1.0-alpha.1`. The provider-domain package excludes inspection locations, defaults, and Case-ID mapping, and application runtime never reads a workbook.
 - The authoring command rejects the selected workbook's exact sibling Office lock marker and an exclusive-read failure before Python discovery, source hashing/parsing, staging, or output work.
 - Passwords have an eight-character minimum with no composition requirement or persistent account lockout. Login throttling is transient and IP/global, idle expiry is two hours, and original-session absolute expiry is eight hours.
 - The predecessor deployment is not in active use and needs no restart window. That is current user direction, not live telemetry evidence; the runbook must verify it before deletion. Recovery means redeploying from recorded provenance, not retaining predecessor state.
@@ -351,14 +351,14 @@ Release cannot be called complete while any item remains absent:
 
 - explicit implementation activation of issue #3;
 - green, documented offline development acceptance gate from a clean setup;
-- exact source/hash/package/migration/suffix-only proof for the immutable v1 provider-domain snapshot: 11 provider codes, 16 suffix associations, and no retained local part or full address;
+- exact source/hash/package/migration/suffix-only proof for the immutable `0.1.0-alpha.1` provider-domain snapshot: 11 provider codes, 16 suffix associations, and no retained local part or full address;
 - executable evidence and explicit approval for every provider/intermediary route selected for activation; provider-domain presence never substitutes for a route disposition;
 - accepted Triage and report predicates with genuine holdout results;
 - selected/approved VRM engine with representative accuracy and false-positive evidence;
 - accepted DVLA/DVSA contract/licence/target and mileage rule;
-- accepted focused-V1 EVA mapping/readiness/image/recovery contract;
+- accepted focused-`0.1.0-alpha.1` EVA mapping/readiness/image/recovery contract;
 - approved Graph mailbox permission target, installed/pinned Exchange module, positive/negative Application RBAC scope proof, application-enforced Inbox/Sent allowlist, and exact Box identity/root/operations;
-- refreshed approved Azure inventory, completed exact-resource teardown of predecessor-only application assets, explicit owners/dispositions for every retained/shared/data-bearing asset, and an isolated v2 target;
+- refreshed approved Azure inventory, completed exact-resource teardown of predecessor-only application assets, explicit owners/dispositions for every retained/shared/data-bearing asset, and an isolated Pegasus target;
 - green local/full/exact-head CI and independent review;
 - separately approved live Development operations, operator/management acceptance, then production target/migration/deployment/cutover.
 

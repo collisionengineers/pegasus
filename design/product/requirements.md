@@ -1,24 +1,24 @@
 # Operator experience requirements
 
-Status: **Planned V1 requirements with Operations-first shell selected.** This is the canonical publication of the reviewed V1 inventory. Shell selection does not approve every comparison-raster detail or prove a staff caller.
+Status: **Planned `0.1.0-alpha.1` requirements with Operations-first shell selected.** This is the canonical publication of the reviewed `0.1.0-alpha.1` inventory. Shell selection does not approve every comparison-raster detail or prove a staff caller.
 
 ## Evidence state and scope
 
-The actual called UI is the Development-only `/Intake/Upload` pre-case upload/receipt path through `ProcessIntake`, including the retained-asset handler. It is unauthenticated, creates no case/reference, and is not V1 staff UI. Operations, Intake, Triage, Cases and Administration are all Planned V1 staff surfaces.
+The actual called UI is the Development-only `/Intake/Upload` pre-case upload/receipt path through `ProcessIntake`, including the retained-asset handler. It is unauthenticated, creates no case/reference, and is not `0.1.0-alpha.1` staff UI. Operations, Intake, Triage, Cases and Administration are all Planned `0.1.0-alpha.1` staff surfaces.
 
-The intended setting is a small office of approximately eight users. Staff accounts use CollisionSpike-managed usernames and passwords; the authentication and authorisation behaviour remains Planned until an authenticated Web caller exists.
+The intended setting is a small office of approximately eight users. Staff accounts use Pegasus-managed usernames and passwords; the authentication and authorisation behaviour remains Planned until an authenticated Web caller exists.
 
 | Actor | May manage | Must not access or perform |
 | --- | --- | --- |
 | Administrator | staff accounts, disable/access review/roles; principals/successor cutover; configuration; approved mailbox allowlist; all ordinary staff intake, Triage, case and document work | credentials or cloud/release administration through the UI; permanent deletion; a generic mailbox-rule editor before policy resolves |
 | Engineer, User | authorised intake, Triage, case, document, lookup, chaser, evidence and lifecycle work | account/role/access review, principals, configuration, mailbox allowlist, credential/cloud administration or permanent deletion |
 | Automated processing | named Core intake/evidence actions under its durable identity | a UI account, guessed matching or independent business policy |
-| Provider client (V2) | principal-scoped receipt/status/result API only | staff shell, general case workflow or administration |
-| External/customer | no application account | every application surface (`Never`) |
+| Provider client (`Next`/`unallocated`) | principal-scoped receipt/status/result API only | staff shell, general case workflow or administration |
+| External/customer | no application account | every application surface (`Not planned`) |
 
 Every protected route/action has unauthenticated, disabled-session, stale-role, denied, loading and successful outcomes. Route hiding is never authorisation.
 
-## V1 flows
+## `0.1.0-alpha.1` flows
 
 **Intake** retains source and provenance, attachments/images, suggestions, validation, conflicts and origin. A definitive authorised instruction automatically creates exactly one incomplete **Not ready** case through shared fail-closed acceptance; it never automatically creates a **Review** case. Staff-resolved incomplete acceptance creates **Not ready**. Only explicit staff confirmation of both instruction and image completeness moves an existing case to **Review**; staff-resolved complete acceptance may create **Review** only through that confirmation. `Blocked intake` requires a reason and remains pre-case: no case/reference exists while it is blocked. Resolve/retry re-enters the shared fail-closed intake path and may create exactly one case/reference only when the ordinary acceptance gates then pass. Identity/Audit ambiguity, unsupported or incomplete source, limits/custody/persist/retention failure, integrity/replay/occurrence conflict and missing evidence remain pre-case, usually `Needs sorting`.
 
@@ -34,9 +34,9 @@ Case/PO, registration, claimant, claim number, principal, state, Engineer, recei
 
 ## Operations and state boundaries
 
-Operations shows Not ready, Review, Held, Needs sorting, exact `Blocked intake`, separate Triage, Due today, In today, Sent to Engineer today/week, and Reports sent today/week. It uses Europe/London midnight days and Monday-week boundaries. Counts open their exact filtered queues; zero is distinct from stale/unavailable; last updated and manual refresh are visible. Receiving work, Queries and Other are V2 only.
+Operations shows Not ready, Review, Held, Needs sorting, exact `Blocked intake`, separate Triage, Due today, In today, Sent to Engineer today/week, and Reports sent today/week. It uses Europe/London midnight days and Monday-week boundaries. Counts open their exact filtered queues; zero is distinct from stale/unavailable; last updated and manual refresh are visible. Receiving work, Queries and Other are `Next`/`unallocated` only.
 
-### V1 surface inventory
+### `0.1.0-alpha.1` surface inventory
 
 - Intake includes manual upload; definitive/staff-resolved paths; origin/custody; extraction and reviewed VRM suggestion; field provenance, validation, missing/conflict, duplicate/retry and missing/integrity asset/source failures.
 - Case identity covers Inspection, standalone Audit and Inspection + Audit with the secondary Audit identity. Allocated reference/principal never change. Wrong principal closes `Created in error` with a reason and linked replacement; neither reference is reused and the original never reopens.
@@ -58,15 +58,15 @@ Permanent action history records business mutations, accepted external evidence,
 
 ## Accessibility, desktop and data boundary
 
-Use semantic landmarks/headings/tables, labels and associated errors, keyboard operation, visible focus, screen-reader announcements, practical 44px targets, forced-colours and reduced-motion support; state is never colour-only. At 1280px+ use dense multi-pane desktop. At 1024–1279px and 200% zoom, reorder essential desktop content into labelled tabs/drawers/sections without loss. Mobile staff UI is **Never**; a supported-device notice is only for genuinely unsupported devices, never a CSS-width substitute.
+Use semantic landmarks/headings/tables, labels and associated errors, keyboard operation, visible focus, screen-reader announcements, practical 44px targets, forced-colours and reduced-motion support; state is never colour-only. At 1280px+ use dense multi-pane desktop. At 1024–1279px and 200% zoom, reorder essential desktop content into labelled tabs/drawers/sections without loss. Mobile staff UI is **Not planned**; a supported-device notice is only for genuinely unsupported devices, never a CSS-width substitute.
 
 The contained visual boundary is warm off-white ground, white panels, warm-charcoal navigation, near-black text, CE-red primary/urgent accents, amber incomplete/pending, restrained navy Review and green only confirmed completion. Use system-sans 14–16px body text, sharp 2–3px corners, rare shadows and Lucide-style line icons; do not expose Azure, OCR, AI, queues or implementation mechanics in operator copy.
 
-Evaluation and operator review use approved genuine local immutable material only. Do not invent operational inputs. V2/V3/V3+ features have no V1 control, navigation, workflow or placeholder and must re-enter the complete UI route before a later UI change.
+Evaluation and operator review use approved genuine local immutable material only. Do not invent operational inputs. `Next`/`unallocated` and `Later`/`unallocated` features have no `0.1.0-alpha.1` control, navigation, workflow or placeholder and must re-enter the complete UI route before a later UI change.
 
 ## Selected shell and open gates
 
-Operations-first is selected for the V1 landing and navigation strategy. The three comparison rasters remain selection evidence; only Direction A's shell strategy is approved, not every raster detail. Policy-specific email predicates and acceptance evidence still block only their named automatic paths. V2/V3/V3+ UI remains outside this selection.
+Operations-first is selected for the `0.1.0-alpha.1` landing and navigation strategy. The three comparison rasters remain selection evidence; only Direction A's shell strategy is approved, not every raster detail. Policy-specific email predicates and acceptance evidence still block only their named automatic paths. `Next`/`unallocated` and `Later`/`unallocated` UI remains outside this selection.
 
 ## Historical material
 

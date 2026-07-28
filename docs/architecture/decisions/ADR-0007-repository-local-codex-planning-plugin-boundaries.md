@@ -2,11 +2,11 @@
 
 - Status: Superseded by ADR-0008
 - Date: 2026-07-24
-- Owners: Alex and the CollisionSpike v2 development team
+- Owners: Alex and the Pegasus development team
 
 ## Context
 
-CollisionSpike needs a repeatable planning workflow that can persist research,
+Pegasus needs a repeatable planning workflow that can persist research,
 decisions, independent review, open questions, and an implementation-ready plan
 pack across Codex sessions. The workflow is repository tooling, not application
 runtime behavior.
@@ -25,7 +25,7 @@ that can be validated without committing working notes or sensitive payloads.
 ## Decision
 
 1. Add tracked `plugins/repoplugin/` as the repository-local distribution
-   boundary for the CollisionSpike Repository Planning plugin. It owns the
+   boundary for the Pegasus Repository Planning plugin. It owns the
    plugin manifest, nine focused skills, deterministic PowerShell scripts,
    templates, and advisory command hooks.
 2. Add tracked `.agents/plugins/marketplace.json` as the repository-local

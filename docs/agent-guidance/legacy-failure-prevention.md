@@ -1,4 +1,4 @@
-# Preventing a repeat of CollisionSpike v1
+# Preventing a repeat of the predecessor
 
 The predecessor was examined as failure evidence. It is not a source tree to migrate.
 
@@ -12,7 +12,7 @@ The predecessor was examined as failure evidence. It is not a source tree to mig
 - Idealized sender fixtures passed while real staff-forwarded QDOS mail failed.
 - Broad verification proved that repository artifacts agreed with each other, not that the operator workflow worked.
 
-## v2 response
+## Pegasus response
 
 | Failure | Required response |
 |---|---|
