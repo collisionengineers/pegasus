@@ -13,8 +13,8 @@ This report records what is present in the supplied sample and assesses its imme
 ## Quantitative inventory
 
 The source review covered 300 files in total, including two ZIP archives that duplicated extracted
-material. The current `ml-ops/data/private/raw` snapshot retains the 298 working files,
-which divide into:
+material. The approved local `corpus/ai-centre/` snapshot retains the 298 working files, which
+divide into:
 
 | Area | Files | Material observed |
 |---|---:|---|
