@@ -2,7 +2,7 @@
 
 Status: **Historical** — reviewed and implemented on 2026-07-23. This establishes an executable foundation, not a completed business feature.
 
-Supersession/current owners: [plans index](docs/history/plans/README.md), [architecture overview](docs/architecture/README.md), and [validation guidance](docs/agent-guidance/validation.md). This file remains implementation history, not ongoing guidance.
+Supersession/current owners: [plans index](../README.md), [architecture overview](../../../architecture/README.md), and [validation guidance](../../../agent-guidance/validation.md). This file remains implementation history, not ongoing guidance.
 
 ## Scope
 
@@ -41,9 +41,9 @@ Changes made during review:
 
 ## Acceptance checks
 
-- `dotnet restore CollisionSpike.slnx`
-- `dotnet build CollisionSpike.slnx --no-restore --configuration Release`
-- `dotnet test CollisionSpike.slnx --no-build --configuration Release`
+- `dotnet restore Pegasus.slnx`
+- `dotnet build Pegasus.slnx --no-restore --configuration Release`
+- `dotnet test Pegasus.slnx --no-build --configuration Release`
 - `az bicep build --file infra/main.bicep`
 - `pwsh ./scripts/Test-RepositoryStructure.ps1`
 - `pwsh ./scripts/Invoke-RepoCheck.ps1`

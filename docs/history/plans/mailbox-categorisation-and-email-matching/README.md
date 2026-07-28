@@ -2,14 +2,14 @@
 
 > **Archive status — non-authoritative planning evidence.** Revalidate against current product, roadmap, architecture, operations, design, decisions, and code before use.
 
-Pre-conversion status: **Active research — V0/V1 predicates block their allocated callers**
+Pre-conversion status: **Active research — `0.0.0-development`/`0.1.0-alpha.1` predicates block their allocated callers**
 
 Decision owner and rule author: **Alex**  
 Final approver: **Alex**
 
 This dossier keeps the still-open mailbox categorisation and email-matching questions in one place. It is a decision aid, not accepted architecture or authority to add production behavior. The canonical blocking entry remains [open decisions](../../../product/open-decisions.md). The taxonomy and maturity sequence are settled, but exact predicates, precedence, ambiguity, correction, activation, rollback, automatic matching, and acceptance evidence remain open.
 
-V0 runs the real provider-specific instruction-identification policy against ignored working-copy `.eml` files in the local evaluator. V1 reuses the same Core owner for staff-forwarded `instructions@` intake and the allocated exact report/Triage matchers. V2 expands across all four shared mailboxes, full classification and association, suggested actions, staff-confirmed folder moves, and the email workspace. No release replaces the V0 owner with another classifier.
+`0.0.0-development` runs the real provider-specific instruction-identification policy against ignored working-copy `.eml` files in the local evaluator. `0.1.0-alpha.1` reuses the same Core owner for staff-forwarded `instructions@` intake and the allocated exact report/Triage matchers. `Next`/`unallocated` expands across all four shared mailboxes, full classification and association, suggested actions, staff-confirmed folder moves, and the email workspace. No release replaces the `0.0.0-development` owner with another classifier.
 
 ## Outcome this decision must enable
 
@@ -44,7 +44,7 @@ The following behavior is already settled and is not reopened here:
   an entered reason, and derived counts and business events are recomputed;
 - a recorded report-sent event remains final if Outlook later moves or deletes
   the source item; and
-- In V1 CollisionSpike detects report sending and does not send the report. Automatic report sending is a separate V3+ capability and requires its own accepted contract.
+- In `0.1.0-alpha.1` CollisionSpike detects report sending and does not send the report. Automatic report sending is a separate `Later`/`unallocated` capability and requires its own accepted contract.
 
 ## Settled detailed taxonomy
 
@@ -61,9 +61,9 @@ The user selected `docs/reference/CollisionSPikeCurrenttree.txt` as relevant evi
 | `pre-instruction-emails` | Triage, pre-formal-instruction handling requests, and images received before instructions |
 | `internal-cc` | internal copied correspondence |
 
-Sent families are `Report sent`, `case-rejected`, `query-sent`, and `additional-image-request`. Reply is not a standalone recorded type: it mirrors the underlying Received or Sent category with reply context. The V0 evaluator also offers `Other`, requiring a new category name and reasoning.
+Sent families are `Report sent`, `case-rejected`, `query-sent`, and `additional-image-request`. Reply is not a standalone recorded type: it mirrors the underlying Received or Sent category with reply context. The `0.0.0-development` evaluator also offers `Other`, requiring a new category name and reasoning.
 
-Detailed classification, an application queue, Triage routing, and an Outlook folder destination are separate facts. V2 maps them without erasing the original classification, evidence, or policy version.
+Detailed classification, an application queue, Triage routing, and an Outlook folder destination are separate facts. `Next`/`unallocated` maps them without erasing the original classification, evidence, or policy version.
 
 ## Questions still requiring a product decision
 
@@ -200,7 +200,7 @@ Benefits:
 
 Downsides and risks:
 
-- an unclear boundary between code and runtime parameters can make results hard
+- an conditional `Later`/`unallocated` boundary between code and runtime parameters can make results hard
   to explain or reproduce;
 - each new parameter can become a disguised feature flag or provider-specific
   exception;
@@ -359,7 +359,7 @@ components now.
 - **External/customer accounts:** actor and source identities can later
   distinguish external submissions. No external role, mailbox access, or policy
   authoring right is added now.
-- **Malware scanning:** `Never`; no scanner-specific seam, result, quarantine
+- **Malware scanning:** `Not planned`; no scanner-specific seam, result, quarantine
   state, service, activation gate, or release requirement is planned.
 - **Later infrastructure options:** the policy remains inside the approved
   modular monolith until measured scale or reliability evidence justifies
@@ -373,11 +373,11 @@ rule rollback cannot rewrite it.
 
 ## Recommendation for the decision conversation
 
-The recommended direction is a **phased, constrained hybrid**: begin in V0 with
+The recommended direction is a **phased, constrained hybrid**: begin in `0.0.0-development` with
 code-versioned Core predicates, precedence, and safety invariants; allow runtime
 selection only from explicitly approved, finite parameters once the required
 authoring, preview, versioning, security, and rollback evidence exists. This
-keeps V0 and V1 small while preserving a deliberate route to later
+keeps `0.0.0-development` and `0.1.0-alpha.1` small while preserving a deliberate route to later
 Administrator-managed changes. It is a research recommendation only. It does
 not approve a schema, editor, evaluator, configuration key, or production code.
 
@@ -404,7 +404,7 @@ an earlier choice. The sequence should be:
 9. Approve the acceptance cohort, holdout, rollout, and rollback thresholds.
 10. Confirm the Graph mailbox/folder scope in a separate security decision.
 
-Record each accepted answer in `PROJECT_DISCOVERY_QUESTIONNAIRE.md` and narrow
+Record each accepted answer in `docs/history/product/project-discovery-questionnaire.md` and narrow
 the canonical open-decision entry as it is settled. If Alex selects a runtime
 evaluator, general expression model, or another architectural boundary, produce
 and review an ADR before implementation. Only after the complete policy is

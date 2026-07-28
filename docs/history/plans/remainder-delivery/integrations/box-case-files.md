@@ -2,7 +2,7 @@
 
 > **Archive status — non-authoritative planning evidence.** Revalidate against current product, roadmap, architecture, operations, design, decisions, and code before use.
 
-Pre-conversion status: **Ready V1 plan — external writes remain separately approval-gated**
+Pre-conversion status: **Ready `0.1.0-alpha.1` plan — external writes remain separately approval-gated**
 
 ## Purpose
 
@@ -13,12 +13,12 @@ Make Box the long-term original-file custody store while proving every operation
 Primary feature ownership is: `DOC-01`, `DOC-02`, `DOC-03`, `DOC-04`,
 `DOC-05`, `DOC-06`, `DOC-07`, and `EXT-14`. The first seven are scoped Box
 custody/file actions; `EXT-14` is only manually received WhatsApp material as
-V1 document evidence. It is not an automated WhatsApp channel, inbox,
+`0.1.0-alpha.1` document evidence. It is not an automated WhatsApp channel, inbox,
 association engine, or external adapter.
 
 ## Authority and current boundary
 
-- **Authority:** [remaining requirements](../../../../product/v1-gap.md#6-box-vehicle-data-eva-and-email) and [ADR-0002](../../../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md#files-box-and-document-processing). No exact development root is authorised by this plan.
+- **Authority:** [remaining requirements](../../../../product/qdos-alpha-gap.md#6-box-vehicle-data-eva-and-email) and [ADR-0002](../../../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md#files-box-and-document-processing). No exact development root is authorised by this plan.
 - **Policy owner:** Core custody/document use case; Infrastructure owns one guarded Box adapter.
 - **Current implementation:** no Box SDK, adapter, registration, persisted Box identity or production caller exists.
 - **Real callers:** none; Web/Worker/provider/MCP are planned callers through Core only.
@@ -92,7 +92,7 @@ Unknown/missing ancestry, unsupported operation, or root type/name mismatch is t
 
 ### Deferred-capability impact
 
-- **Named capabilities:** live production folders, broader mailbox/WhatsApp, MCP document tools, and future storage/infrastructure choices. Malware scanning is `Never`, with no activation path or seam.
+- **Named capabilities:** live production folders, broader mailbox/WhatsApp, MCP document tools, and future storage/infrastructure choices. Malware scanning is `Not planned`, with no activation path or seam.
 - **Stable seam retained:** immutable Box IDs, root/parent provenance, versions and semantic roles; downstream callers use the same custody use case.
 - **Future migration/replacement:** production-folder enablement needs new allowlist/user decision and separate negative-scope evidence; webhooks need a confined-dedup design.
 - **Activation boundary:** exact action approval, scope smoke and later direct production decision.
@@ -110,7 +110,7 @@ Unknown/missing ancestry, unsupported operation, or root type/name mismatch is t
 
 ### Authority and decision gate
 
-- **Requirement/decision:** [remaining requirements §6](../../../../product/v1-gap.md#6-box-vehicle-data-eva-and-email) requires manual WhatsApp coexistence without a first-MVP WhatsApp integration.
+- **Requirement/decision:** [remaining requirements §6](../../../../product/qdos-alpha-gap.md#6-box-vehicle-data-eva-and-email) requires manual WhatsApp coexistence without a `0.1.0-alpha.1` WhatsApp integration.
 - **Confirmed facts:** staff, not CollisionSpike, receive the material through WhatsApp and decide which case it belongs to; the application must retain the file and its manual source provenance through the same custody boundary as other case material.
 - **Decision required before implementation:** None for authenticated manual upload. Any automated WhatsApp access, network-drive discovery or external Box write remains separately approval-gated.
 
@@ -169,7 +169,7 @@ Unknown/missing ancestry, unsupported operation, or root type/name mismatch is t
 
 ### Deferred-capability impact
 
-- **Named capabilities:** WhatsApp ingestion/automation, guided/mobile capture, AI/vision assistance, and production Box roots. Malware scanning is `Never`, with no activation path or seam.
+- **Named capabilities:** WhatsApp ingestion/automation, guided/mobile capture, AI/vision assistance, and production Box roots. Malware scanning is `Not planned`, with no activation path or seam.
 - **Stable seam retained:** channel/source identity, immutable occurrence provenance, semantic role and custody contract support a later approved adapter without changing case policy.
 - **Future migration/replacement:** automated WhatsApp requires vendor/legal/security approval, stable message identity, consent, matching policy, credentials and a caller-backed adapter.
 - **Activation boundary:** direct product/security decision, approved data flow, vendor terms and independently verified association evidence.
