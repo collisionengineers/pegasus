@@ -18,11 +18,13 @@ Each render runs through three parts, defined in ADR 0004:
 1. **A typed C# model record** (in `src/CollisionRenderer.Core/Models/Documents.cs`) — the payload
    schema. JSON is deserialised into this with camelCase property names, case-insensitive matching,
    trailing commas allowed and enums written as strings (`CrJson.Options` in `Contracts.cs`).
-2. **A Scriban body template** (in `Assets/templates/*.scriban`) — the per-document HTML body. The
-   composer pre-encodes every value, so templates emit content with no further escaping.
-3. **The C#-built letterhead shell** (`HtmlComposer.Shell` and `HtmlComposer.Letterhead`) — wraps
-   the rendered body in the shared letterhead, applies the embedded brand stylesheet
-   (`Assets/templates/report.css`), and hands Chromium the running header/footer templates.
+2. **A Scriban body template** (in `design/assets/report-renderer/templates/*.scriban` at
+   the Pegasus repository root) — the per-document HTML body. The composer pre-encodes
+   every value, so templates emit content with no further escaping.
+3. **The C#-built letterhead shell** (`HtmlComposer.Shell` and `HtmlComposer.Letterhead`) —
+   wraps the rendered body in the shared letterhead, applies the embedded top-level design
+   stylesheet (`design/assets/report-renderer/templates/report.css`), and hands Chromium
+   the running header/footer templates.
 
 Templates, the stylesheet, the logo and the signature images are embedded resources in
 `CollisionRenderer.Core` (see the `.csproj` `EmbeddedResource` items), so the engine is
@@ -434,7 +436,7 @@ public sealed record InspectionSummaryDocument
 
 ### 2. Add a `.scriban` body
 
-Create `Assets/templates/inspection_summary.scriban`. Write only the body — no letterhead, no
+Create `design/assets/report-renderer/templates/inspection_summary.scriban` at the Pegasus repository root. Write only the body — no letterhead, no
 footer, no page furniture; the shell provides all of that. Use the existing CSS classes
 (`doc-p`, `doc-ul`, `data-table`, `kv-table`, `advert-table`, `value-box`, `sec-h`, and so on) so the
 document matches the house style. Values handed to the template are already HTML-encoded, so emit
@@ -474,8 +476,8 @@ Register the template in `AuthoringCatalog` with a Core-owned form definition an
 blank-draft factory. `GetStarterJson` derives overwriteable prompts from those two
 definitions, so the GUI and CLI can start a document without a committed case payload.
 
-The `.csproj` embeds `Assets\templates\**\*`, and `EmbeddedResources` resolves template
-resources by their trailing path, so no `.csproj` edit is needed.
+The Core `.csproj` links and embeds `design\assets\report-renderer\templates\**\*`;
+`EmbeddedResources` resolves templates by their trailing path, so no loader edit is needed.
 
 ### 5. Add a validator case
 

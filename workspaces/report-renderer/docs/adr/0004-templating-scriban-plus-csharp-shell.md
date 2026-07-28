@@ -25,9 +25,9 @@ Compose each document from three parts:
   designer.
 - **A C#-built letterhead shell** — assembled by `HtmlComposer`, which wraps the rendered
   body in the common letterhead, ref block, title and running furniture.
-- **Embedded brand CSS** — the canonical stylesheet
-  (`Assets/templates/report.css`) plus logo and signature assets, all carried as embedded
-  resources in `CollisionRenderer.Core`.
+- **Embedded brand CSS** — the canonical top-level stylesheet
+  (`design/assets/report-renderer/templates/report.css`) plus the canonical logo and
+  signature assets, all linked and embedded in `CollisionRenderer.Core`.
 
 Templates, stylesheet and assets are embedded, so the engine ships as a single self-contained
 library. Adding a template means adding a model record, a `.scriban` body, a
