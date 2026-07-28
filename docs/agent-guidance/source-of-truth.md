@@ -8,17 +8,21 @@ the affected scope only.
 2. `docs/operator-notes/` for operator and business truth. Repository
    maintainers may maintain their documentation and organization under the
    user's standing authorization, but material meaning changes require direct user resolution.
-3. Settled product decisions in `PROJECT_DISCOVERY_QUESTIONNAIRE.md` and the
-   current allocation in `docs/product/capabilities.md`.
-4. Accepted technical decisions under `docs/architecture/decisions/`.
-5. Explicitly accepted executable contracts and tests for this version.
+3. Canonical product behavior in `docs/product/`, with living requirements in
+   `docs/product/areas/` and current allocation in
+   `docs/product/capabilities.md`; the retained questionnaire and worksheet
+   under `docs/history/product/` are reconciliation evidence, not active owners.
+4. Accepted technical decisions routed through `docs/decisions/` and retained
+   decisions under `docs/architecture/decisions/`.
+5. Explicitly accepted executable contracts and tests for the exact release.
 6. Retrospectives for delivery constraints and observed failures.
 7. The local corpus, raw references, and predecessor for real shapes and failure
    modes only.
 
-The corpus, predecessor, and supplied references are not specification
-authorities: they can show what happened, not what v2 must mean. Plans describe
-intended work; implementation evidence describes what a caller currently does.
+The corpus, predecessor, supplied references, and imported source workspaces are
+not specification authorities: they can show shapes, behavior and failure modes,
+not what Pegasus must do. Plans describe intended work; implementation evidence
+describes what a caller currently does.
 Neither replaces the other, and registration or documentation alone is not
 caller evidence.
 

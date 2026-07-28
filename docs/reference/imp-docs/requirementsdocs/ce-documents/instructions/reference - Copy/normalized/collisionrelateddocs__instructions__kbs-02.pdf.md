@@ -1,0 +1,54 @@
+# Normalized Companion: KBS 02.pdf
+
+- Raw source: `docs/reference/raw/collisionrelateddocs/Instructions/KBS 02.pdf`
+- SHA256: `882c6ed6d2c78599b1d5bab4013a25288f1d9cc64b9c3ab0b58b4e68df5e7db8`
+- Extraction method: pypdf-text
+- Extraction confidence: partial-review-required
+- Blocker: No OCR/layout validation in scaffold pass
+
+This companion is a derivative working copy. The raw source remains the source of truth.
+
+---
+
+## Page 1
+
+Collision Engineers 
+77-79 Hoylake Road 
+Wirral 
+CH46 9PY 
+
+Our Ref: AA.506044 
+
+06 May 2026 
+
+Dear Sirs, 
+
+Our Client   :  Mr Obaider Khan 
+Our Client’s Vehicle   : Toyota 
+Registration   : KA58MMM 
+Date of Accident  : 03/05/2026 
+
+We refer to the above matter.  
+
+We are instructed to represent the above-mentioned client who was in a Road Traffic Collision on the 
+above-mentioned date. The circumstances of the accident are that the claimant was correctly 
+stationary at red traffic lights on Hagley Road, Birmingham. When the traffic lights turned green, as 
+the claimant started to drive off, the defendant's vehicle collided into the vehicle to the claimant's 
+right and then did a 90 degree turn and collided into the claimant's vehicle. As a result of the collision, 
+we request that you inspect our client’s vehicle at the address mentioned below and forward to us the 
+report in due course.  
+
+The vehicle is currently located at:   
+7-8 Sydney Rd, Birmingham, B9 4QB 
+
+Please contact the following number to arrange inspection:  
+0121 448 3037 
+
+May we remind you that your overriding duty to the Court and your report should be independent 
+regardless of the source of your instructions. We await your final report in due course together with 
+your fee note.  
+
+Yours faithfully 
+
+
+KNIGHTSBRIDGE SOLICITORS

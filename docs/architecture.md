@@ -14,16 +14,26 @@ authority boundaries.
 
 | Component | Ownership |
 | --- | --- |
-| `src/CollisionSpike.Core/` | business use cases, invariants, models, and ports; depends on no Web, Worker, EF, Azure, Graph, or Box implementation |
-| `src/CollisionSpike.Infrastructure/` | EF persistence and source/artifact adapters implementing Core ports; depends on Core |
-| `src/CollisionSpike.Core/ReferenceData/` | provider-domain package validation, deterministic candidate semantics, and the catalog port; contains no workbook or EF implementation |
-| `src/CollisionSpike.Web/` | Razor Pages/HTTP composition root, request translation, configuration, route gates, health endpoints |
-| `src/CollisionSpike.Worker/` | isolated Functions composition root; currently telemetry host only, with no trigger or Core caller |
+| `src/Pegasus.Core/` | business use cases, invariants, models, and ports; depends on no Web, Worker, EF, Azure, Graph, or Box implementation |
+| `src/Pegasus.Infrastructure/` | EF persistence and source/artifact adapters implementing Core ports; depends on Core |
+| `src/Pegasus.Core/ReferenceData/` | provider-domain package validation, deterministic candidate semantics, and the catalog port; contains no workbook or EF implementation |
+| `src/Pegasus.Web/` | Razor Pages/HTTP composition root, request translation, configuration, route gates, health endpoints |
+| `src/Pegasus.Worker/` | isolated Functions composition root; currently telemetry host only, with no trigger or Core caller |
 
 This four-project modular monolith is the approved production boundary. A new
 project, runtime, store, migration stream, deployment unit, or top-level
 application boundary requires an accepted ADR proving these owners cannot carry
 the change.
+
+`workspaces/` contains three independently buildable source workspaces imported
+from four sources: document extraction, report rendering, and AI Centre with the
+agent-skill source merged under `ai-centre/skills/`. They are not solution
+projects, application dependencies, runtime callers, deployment units, or
+business-policy authorities. `Pegasus.Core` remains the sole business-policy
+owner. A workspace may cross into the application only through a separately
+accepted contract with an actual caller, representative parity and
+security/licence evidence, migration/coexistence and recovery behavior, and
+operator acceptance.
 
 ## Entry points and callers
 
@@ -39,7 +49,7 @@ Current caller details and dated limits remain in the
 ## Data and integrations
 
 - DevelopmentOffline uses SQL Server Express LocalDB and the same committed migration stream as SQL Server/Azure SQL; ignored local files hold current source bytes until the local custody adapter replaces that proof.
-- Azure SQL is the intended deployed application store for case workflow, identity, permanent action history, configuration, and source/file relationships. No live v2 migration has been applied.
+- Azure SQL is the intended deployed application store for case workflow, identity, permanent action history, configuration, and source/file relationships. No Pegasus migration has been applied to a live database.
 - Box is the intended long-term original-file owner. Local artifacts and transient Blob/queues are not Box custody.
 - Outlook owns mailbox content and exact sent-message evidence; the application owns accepted classifications and associations.
 - EVA remains authoritative for named Engineer assignment and downstream engineering until an accepted replacement slice.
@@ -68,21 +78,22 @@ Current caller details and dated limits remain in the
   no direct workbook/package parser and no active caller of this catalog yet.
 - Web/Worker adapters translate transport and configuration; they do not copy business policy.
 - EF migrations under Infrastructure own application schema evolution. Normal Web/Worker startup never applies migrations; the explicit Development command owns LocalDB migration and a release-owned bundle/operation will own deployed migration.
-- `src/CollisionSpike.Web/Program.cs` owns current Web composition, `DevelopmentOffline` isolation, and database provider selection; Development configuration uses LocalDB and an ignored local artifact root.
+- `src/Pegasus.Web/Program.cs` owns current Web composition, `DevelopmentOffline` isolation, and database provider selection; Development configuration uses LocalDB and an ignored local artifact root.
 - `infra/` and `.azure/deployment-plan.md` own target infrastructure/release design. They do not prove a live deployment.
 
 ## Source roles and generated material
 
 | Path | Role | Canonical source/generator | Consumer |
 | --- | --- | --- | --- |
-| `src/CollisionSpike.Infrastructure/Persistence/Migrations/` | live migration source | EF model and reviewed migrations | local/SQL Server schema apply procedures |
-| `docs/reference/workproviders-and-repairers/initial.xlsx` | immutable v1 provider-domain source evidence | owner-supplied workbook | offline authoring command only |
+| `src/Pegasus.Infrastructure/Persistence/Migrations/` | live migration source | EF model and reviewed migrations | local/SQL Server schema apply procedures |
+| `docs/reference/workproviders-and-repairers/initial.xlsx` | immutable `0.1.0-alpha.1` provider-domain source evidence | owner-supplied workbook | offline authoring command only |
 | `scripts/Build-ProviderReferenceData.ps1` and `scripts/reference_data/build_provider_reference_data.py` | offline authoring tool | reviewed standard-library script and source contract | immutable package generation/verification only; never application runtime |
-| `src/CollisionSpike.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json` | canonical immutable v1 provider-domain package | approved workbook through the authoring tool | embedded build resource and reviewed seed migration |
+| `src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json` | canonical immutable `0.1.0-alpha.1` provider-domain package | approved workbook through the authoring tool | embedded build resource and reviewed seed migration |
 | `artifacts/bicep/main.json` | ignored generated output | `az bicep build --file infra/main.bicep` | compile evidence only |
 | `artifacts/test-results/` | ignored generated evidence | owning .NET test projects | local review/diagnosis |
 | `artifacts/local-development/` and LocalDB databases | ignored Development state | explicit migration command and real local callers | local review only; not production custody |
 | `docs/reference/` | preserved supplied evidence | not generated | planning/evaluation after authority reconciliation |
+| `workspaces/` | independently validated, non-caller source imports | provenance and source manifest in `workspaces/README.md` | workspace-specific build/test only until a separately accepted integration |
 | `design/references/mockups/` | approved comparison rasters | linked candidate-direction sources | direction selection only; not runtime/requirements |
 
 ## Failure and recovery
@@ -102,15 +113,17 @@ and 15-minute recovery-point outcomes remain unproved acceptance gates.
 ## Deployment topology
 
 The intended environments are isolated local development, one shared Azure
-development/integration environment, and production. Target Bicep describes a
-.NET 10 Web App, .NET 10 isolated Functions Worker, Azure SQL, Storage,
-Key Vault, Application Insights/Log Analytics, and managed identities. The
-release owner uses an authorized Windows terminal and committed Bicep through
-`azd`; GitHub Actions deployment is not planned.
+development/integration environment, and production. Target Bicep describes
+fresh `rg-pegasus-dev`/`rg-pegasus-prod` resource groups containing a .NET 10
+Web App, .NET 10 isolated Functions Worker, Azure SQL database `pegasus`,
+Storage, Key Vault, Application Insights/Log Analytics, and managed identities.
+The release owner uses an authorized Windows terminal and committed Bicep
+through `azd`; GitHub Actions deployment is not planned.
 
 The route is not runnable: immutable packages, migration bundle, identity/Entra
 resolution, provenance/hashes, and remote-build removal remain gaps. No Azure
-resource is provisioned or changed by repository onboarding.
+resource is provisioned or changed by the Pegasus target definition, and the
+legacy `rg-collisionspike-dev` estate is untouched.
 
 ## Architecture boundaries
 

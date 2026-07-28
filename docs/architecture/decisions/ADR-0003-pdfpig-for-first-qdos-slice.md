@@ -2,7 +2,7 @@
 
 - Status: Accepted for the first local QDOS slice
 - Date: 2026-07-23
-- Owners: CollisionSpike v2 development team
+- Owners: Pegasus development team
 
 ## Context
 
@@ -31,7 +31,7 @@ slice.
 
 The choice is deliberately narrow:
 
-- the package stays in `CollisionSpike.Infrastructure`;
+- the package stays in `Pegasus.Infrastructure`;
 - Core receives an engine-neutral page/text result and never references PdfPig;
 - insufficient embedded text becomes `OCR required` only when the page also has
   a dominant raster image; other low-text pages stay in manual review rather

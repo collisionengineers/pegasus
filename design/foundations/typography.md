@@ -14,6 +14,6 @@ System stack only: `ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
 
 ## Runtime consumers
 
-All current Razor Pages use `src/CollisionSpike.Web/wwwroot/css/site.css`; its
+All current Razor Pages use `src/Pegasus.Web/wwwroot/css/site.css`; its
 shorter system fallback remains compatible. No brand font bundle is copied or
 loaded.

@@ -1,0 +1,72 @@
+# Normalized Companion: ALISON PDF 04.pdf
+
+- Raw source: `docs/reference/raw/collisionrelateddocs/Instructions/ALISON PDF 04.pdf`
+- SHA256: `c9c48af52fbb4fdd8b5d1583d46113ab40e54e3d79372609b4037bd296bb462e`
+- Extraction method: pypdf-text
+- Extraction confidence: partial-review-required
+- Blocker: No OCR/layout validation in scaffold pass
+
+This companion is a derivative working copy. The raw source remains the source of truth.
+
+---
+
+## Page 1
+
+182009 
+
+
+
+
+
+
+
+
+
+
+
+
+Your Reference:  
+Our Ref: KM:HH:BFD/25/42502.001 
+Our Email: khateeb.mohammed@alison-law.co.uk 
+
+
+12 September 2025 
+Sent by email only to:  
+
+Dear  
+
+Our Client:  Patrick Doherty of 129 Fryston Road, Castleford, WF10 3JL 
+Vehicle Reg:  AF15 UHS 
+Accident Date: 02/09/2025 
+
+We act on behalf of our above named client in the recovery of damages resulting an accident 
+which occurred on the above date.  
+
+Please arrange an inspection of our client’s vehicle as soon as possible and provide a report 
+detailing the damage sustained, costs of repair or cost of replacement if beyond repair.  
+
+We have advised our client of your instruction. Please make arrangements for the 
+inspection with our client.  Patrick Doherty is available at: 
+
+Address: 129 Fryston Road, Castleford, WF10 3JL   
+Mobile Tel: 07777499332  
+
+We can confirm that in accordance with the Civil Procedure Rules we have notified the third 
+party of your involvement in this matter on your behalf and confirmed that we will copy them 
+with your report once available. Once they are in receipt of your repor t they may choose to 
+contact you direct with questions concerning my client’s losses. We would be grateful if you 
+could ensure that I receive copies of any such correspondence along with your replies.  
+
+It is vital that you sign your reports, even if that is on an electronic basis.  
+
+Further, in line with the GDPR requirement, we fully expect you to comply with these regulation 
+in dealing and handling our data. We will not be responsible for any misuse of our data.  
+
+Finally having regard to your reasonable fees, we hereby confirm that this firm will be 
+responsible for the same in accordance with our agreement. 
+
+Yours faithfully
+
+## Page 2
+
+ALISON LAW SOLICITORS

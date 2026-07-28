@@ -31,5 +31,5 @@ deployment proof, or operator acceptance. Current caller status belongs in the
 
 Run ordinary verification directly through the owning test project. Corpus
 evidence uses
-`dotnet test ./tests/CollisionSpike.IntegrationTests --filter Category=Corpus`
+`dotnet test ./tests/Pegasus.IntegrationTests --filter Category=Corpus`
 only when the ignored genuine input is present and required.

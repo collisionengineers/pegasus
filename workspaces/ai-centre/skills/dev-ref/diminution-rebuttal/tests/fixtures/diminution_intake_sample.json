@@ -1,0 +1,53 @@
+{
+  "ce_role": "rebutting_third_party",
+  "output_mode": "formal_rebuttal_report",
+  "vehicle": {
+    "registration": "AB12CDE",
+    "make_model": "Toyota Corolla",
+    "variant_or_trim": "Icon",
+    "body_style": "Hatchback",
+    "mileage": "45000",
+    "market_segment": "mainstream"
+  },
+  "claimant_report": {
+    "assessor": "Exclusive Vehicle Assessors",
+    "report_reference": "EVA-TEST",
+    "claimed_diminution": "GBP 1,250.00",
+    "repair_cost": "GBP 4,000.00",
+    "pav": "GBP 12,000.00",
+    "repair_cost_to_pav_ratio": "33.3%",
+    "formula_or_method": "EVA stigma scale",
+    "comparable_count": "8",
+    "statement_of_truth_signed": "unknown",
+    "floating_point_or_arithmetic_issue": false
+  },
+  "evidence": {
+    "documents_reviewed": ["EVA diminution report", "repair assessment", "photos"],
+    "photos_reviewed": true,
+    "physical_inspection_evidence": false,
+    "paint_depth_evidence": false,
+    "estimate_invoice_reconciled": "repair assessment reviewed; no invoice supplied",
+    "prior_history_evidence": "none supplied",
+    "market_value_support": "vehicle-valuation not required for this sample"
+  },
+  "attack_line_assessments": [
+    { "id": 1, "status": "include", "rationale": "Damage appears cosmetic and bolt-on from supplied report.", "evidence_refs": ["repair assessment"] },
+    { "id": 2, "status": "include", "rationale": "Mainstream model with no prestige/provenance sensitivity identified.", "evidence_refs": ["vehicle details"] },
+    { "id": 3, "status": "include", "rationale": "Claimant report is desktop-only and records no physical inspection.", "evidence_refs": ["EVA report"] },
+    { "id": 4, "status": "needs_evidence", "rationale": "Need to confirm whether repair and diminution reports share authorship.", "evidence_refs": [] },
+    { "id": 5, "status": "include", "rationale": "Author designation should be weighed against VDA competence.", "evidence_refs": ["EVA report"] },
+    { "id": 6, "status": "include", "rationale": "Claim is formula-driven and not supported by recognised methodology.", "evidence_refs": ["EVA report"] },
+    { "id": 7, "status": "include", "rationale": "Market multiplier is based on a snapshot count, not observed buyer behaviour.", "evidence_refs": ["EVA report"] },
+    { "id": 8, "status": "include", "rationale": "No accident-repaired comparable evidence is identified.", "evidence_refs": ["EVA report"] },
+    { "id": 9, "status": "include", "rationale": "ABI Cat S benchmark provides proportionality cross-check.", "evidence_refs": ["ABI benchmark"] },
+    { "id": 10, "status": "include", "rationale": "Claimant treats repair cost as severity without analysing repair nature.", "evidence_refs": ["repair assessment"] },
+    { "id": 11, "status": "needs_evidence", "rationale": "Statement of Truth signature status is unknown.", "evidence_refs": [] },
+    { "id": 12, "status": "exclude", "rationale": "No floating-point or arithmetic artefact identified.", "evidence_refs": ["EVA report"] },
+    { "id": 13, "status": "exclude", "rationale": "No pre-existing condition evidence supplied.", "evidence_refs": ["case pack"] },
+    { "id": 14, "status": "exclude", "rationale": "No prior-history or paint-depth assertion in sample.", "evidence_refs": ["EVA report"] }
+  ],
+  "drafting_notes": [
+    "Use formal rebuttal structure.",
+    "Keep needs_evidence points internal unless evidence is later supplied."
+  ]
+}

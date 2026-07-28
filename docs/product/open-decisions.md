@@ -1,51 +1,97 @@
 # Open decisions
 
-Status: **Active material-ambiguity register**
+Status: **Active material-ambiguity and dependency register**
 
-Most product decisions reviewed through 2026-07-25 are settled in `PROJECT_DISCOVERY_QUESTIONNAIRE.md`; allocation is owned by the [capability inventory](capabilities.md), V1 gaps are summarised in [the V1 gap](v1-gap.md), and dependency intent is owned by the [roadmap](../roadmap.md). Conditional and `Unclear` source rows are visible activation states, not unanswered current-scope questions.
+Most product decisions reviewed through 2026-07-25 are preserved in the
+historical [questionnaire](../history/product/project-discovery-questionnaire.md)
+and reconciled into the canonical product areas. Allocation is owned by the
+[capability inventory](capabilities.md), current release gaps by the
+[QDOS-alpha gap](qdos-alpha-gap.md), and dependency intent by the
+[roadmap](../roadmap.md). Deliberately deferred capabilities, including
+conditional and `Unclear` source rows, are not current-scope questions; this
+register records the exact evidence that blocks their activation.
 
-## Mailbox categorisation and all email matching research
+## Mailbox categorisation and matching evidence
 
-The architecture for instruction email interpretation is settled: direct
-provider routes and intermediary routes are separate Core-owned,
-code-versioned policies. A provider can use both. The direct-provider policy
-uses that provider's evidence; the intermediary policy uses the intermediary's
-message shape to determine provider, instruction type, and case association.
-There is no universal association order or transport-specific second
-classifier. Staff forwards preserve the outer transport but route using the
-proved original sender.
+Instruction interpretation architecture is settled: direct-provider and
+intermediary routes are separate Core-owned, code-versioned policies. The
+applicable route owns provider, instruction type, case association and
+precedence. Staff forwards retain outer transport provenance while the proved
+original sender drives route identification.
 
-Remaining research is evidence-specific, not an architecture choice. Each
-direct-provider or intermediary policy still needs genuine examples, exact
-sender/content predicates, provider/type/case precedence and ambiguity tests,
-correction/reversal behavior, and an acceptance cohort. Its pre-conversion
-working evidence is retained in [the mailbox dossier](../history/plans/mailbox-categorisation-and-email-matching/README.md). V2 still expands operational categorisation across all four mailboxes, folder suggestions/moves, general correspondence association, and email management.
+Each activated route still needs genuine examples, exact predicates, ambiguity,
+correction/reversal and holdout evidence. Until accepted, retain stable source
+identity, expose uncertainty through the settled review outcome, and add no
+generic rule engine or transport-specific second classifier.
 
-QDOS direct sender identity is settled: an address ending exactly
-`@qdosassist.co.uk` identifies QDOS. That does not classify message type or
-associate a case until extraction and the QDOS direct-route policy have run,
-and it does not apply when an identified intermediary sent the message.
+QDOS direct sender identity is the exact `@qdosassist.co.uk` suffix. It does not
+classify message type, associate a case or apply to an identified intermediary
+without the remaining route policy.
 
-Until that research is accepted:
+The supplied [Mapped Principals spreadsheet](../reference/imp-docs/requirementsdocs/provider-extra-info/Mapped%20Principals.xlsx)
+identifies additional principals and route candidates beyond QDOS. Preserve
+every listed candidate as evidence; each still needs its exact sender/intermediary
+identity, predicates, precedence, genuine examples and holdout accepted before
+activation.
 
-- retain each source with its stable mailbox identity and make it visible without guessing a category or case;
-- route uncertainty to `Needs sorting` where the settled workflow requires staff review;
-- permit the explicitly settled manual exact-item report link with a required reason and permanent action history; Triage completion still requires the exact reply-chain item found in Sent Items and has no manual-selection fallback;
-- do not enable the affected V0, V1, or V2 automatic decision before that slice's predicates and acceptance evidence are approved; and
-- do not add a generic rule engine, expression language, rule table, configuration screen, dormant service, or transport-specific second classifier.
+## EVA manual handoff mapping
 
-This does not defer V1 automatic creation of one incomplete `Not ready` case from independently definitive accepted instructions, change exact Outlook evidence, or move the V1 automatic report/Triage match requirements to V2. It records why those matchers remain blocked until their predicates are accepted.
+The two observed examples fix the key order to `Work Provider`, `VRM`, `Vehicle
+Model`, `Claimant Name`, `Reference`, `Incident Date`, `Instruction Date`,
+`Inspection Date`, `Inspection Address`, `Accident Circumstances`, `VAT Status`,
+`Mileage`, `Mileage Unit`.
 
-## V1 operator shell detail
+Operator acceptance must still prove every source-field mapping—especially
+whether `Reference` maps to EVA Claim No rather than Case/PO—plus null/empty
+rules, date and mileage normalization, image selection/naming/order and a real
+drag-and-drop run. Until then, generation remains review-gated and no guessed
+mapping may create or alter EVA work.
 
-The direction-neutral V1 requirements and exhaustive feature trace have passed independent planning review. Operations-first is selected for the V1 shell. The retained alternatives remain comparison evidence only:
+## EVA API availability
 
-- [Operations-first](../../design/references/directions/operations-first.md) starts with shared office queues, due work and day/week outcomes;
-- [Worklist-first](../../design/references/directions/worklist-first.md) starts with one bounded case queue; and
-- [Case-first](../../design/references/directions/case-first.md) starts with case search/deep work while retaining a complete Operations route.
+Direct EVA API use remains blocked until the EVA development team supplies a
+usable operation. A separate change must accept the exact operation, contract,
+caller, coexistence/migration, idempotency, recovery and live evidence. The
+manual handoff remains supported if no usable API appears, until each EVA
+function is replaced independently.
 
-All three use the same complete Intake, Triage, Case and Administration flows. The user selected Operations-first on 2026-07-27. Selection approves its landing and navigation strategy, not every raster detail. Any V2/V3/V3+ UI change re-enters the complete design route rather than inheriting the V1 choice.
+## Engineering dependency contracts
 
-Add another entry here only when a material ambiguity remains after applying the repository source-of-truth order. Do not treat deliberately deferred product features or implementation-level contract design as unresolved business policy.
+The following are independent blockers, not one integration decision:
 
-Azure resource ownership and retirement remain separate exact-target decisions under `docs/azure/replacement-and-retirement-plan.md`. They require fresh inventory and explicit approval before any cloud mutation; they are not first-MVP product-scope blockers.
+- Glass's direct repair-estimate licensing, API/embedded access and cost;
+- CAP, Glass's and Cazana direct valuation access and terms;
+- provider submission/delivery API formats and identities;
+- Audatex PDF variants and accepted mapping evidence;
+- the provider/vehicle-history mandatory-check contract; and
+- report wording still owed for salvage Categories N, A, B and N/A, recovery
+  and storage, final statement of truth, and named qualifications.
+
+EVA-observed `VEHICLE DATA`, Parkers and AutoTrader remain evidence rather than
+selected adapters.
+
+## Send-to-AI transport experiment
+
+`AI-09` preserves one Core-owned work-request/proposal/review contract. A later
+activation compares:
+
+1. attended Claude Code, Cowork or Desktop chat consuming scoped MCP work;
+2. supported scheduled Claude Desktop automation polling the MCP queue; and
+3. a future Collision AI Centre harness polling it.
+
+The experiment must prove actual client/tool support, OAuth/actor identity,
+attended versus unattended operation, lease/cancel/recovery, proposal return
+and cost. If a Claude surface cannot satisfy the contract, discard it rather
+than weakening the queue. Direct Anthropic or other model API integration is
+not an assumed candidate or fallback.
+
+## Operator shell
+
+Operations-first is selected for the QDOS-alpha shell. The retained
+Worklist-first and Case-first directions remain comparison evidence only and do
+not override the complete design requirements. Later UI capabilities re-enter
+the complete design route rather than inheriting raster details.
+
+Azure ownership and retirement remain separate exact-target decisions under
+the Azure retirement plan. They require fresh inventory and explicit approval
+before cloud mutation.

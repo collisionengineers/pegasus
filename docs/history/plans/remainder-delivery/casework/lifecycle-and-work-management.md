@@ -2,7 +2,7 @@
 
 > **Archive status — non-authoritative planning evidence.** Revalidate against current product, roadmap, architecture, operations, design, decisions, and code before use.
 
-Pre-conversion status: **Ready V1 plan — post-report disputes V2; automated chasers V3**
+Pre-conversion status: **Ready `0.1.0-alpha.1` plan — post-report disputes `Next`/`unallocated`; automated chasers `Later`/`unallocated`**
 
 ## Purpose
 
@@ -14,7 +14,7 @@ Primary matrix IDs: `CASE-13`, `CASE-14`, `CASE-15`, `CASE-16`, `CASE-17`, `CASE
 
 ## Authority and current boundary
 
-- **Authority:** [source order](../../../../agent-guidance/source-of-truth.md), [questionnaire §§4–7](../../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md), [remaining requirements §§4–5](../../../../product/v1-gap.md), and [open decisions](../../../../product/open-decisions.md).
+- **Authority:** [source order](../../../../agent-guidance/source-of-truth.md), [questionnaire §§4–7](../../../product/project-discovery-questionnaire.md), [remaining requirements §§4–5](../../../../product/qdos-alpha-gap.md), and [open decisions](../../../../product/open-decisions.md).
 - **Policy owner:** planned Core `CaseLifecycle` and `CaseWork` policies.
 - **Current implementation:** there is no lifecycle, transition, review gate, due date, chaser, merge or reopen policy. Existing intake receipt decisions are pre-case processing outcomes, not a case state machine.
 - **Real callers:** `/Intake/Upload` currently creates only a pre-case receipt/draft. Accepted case detail, review actions, Worker reminders and workspace queues are **planned**.
@@ -56,14 +56,14 @@ Administrator, Engineer and User may transition/review; automated actions follow
 
 ### Scope
 
-- **Included:** permitted states, reasoned `Held`, pre-assignment review, all four V1 terminal outcomes, reasoned reopen, completeness semantics, manual image/instruction linking, and action-history-backed reversal.
-- **Excluded:** V2 automatic image/instruction matching and post-report dispute workspace, a pre-send report review gate, principal/reference mutation, document revision implementation, direct EVA assignment, and automatic messaging. Automatic exact report matching remains a separate V1 research-gated dependency.
+- **Included:** permitted states, reasoned `Held`, pre-assignment review, all four `0.1.0-alpha.1` terminal outcomes, reasoned reopen, completeness semantics, manual image/instruction linking, and action-history-backed reversal.
+- **Excluded:** `Next`/`unallocated` automatic image/instruction matching and post-report dispute workspace, a pre-send report review gate, principal/reference mutation, document revision implementation, direct EVA assignment, and automatic messaging. Automatic exact report matching remains a separate `0.1.0-alpha.1` research-gated dependency.
 
 ### Implementation checklist
 
 - [ ] Define one case transition policy and persist state/action-history/review/completeness/association data in the existing migration stream.
 - [ ] Implement the pre-assignment review, Held enter/release, terminal/reopen and explicit association/merge/reversal actions through the planned case-detail caller.
-- [ ] Record report-sent state only from the exact approved-mailbox Sent item; support reasoned staff link/unlink/relink and separate authoritative sent/discovery/link times, then add the allocated V1 automatic exact matcher only after its research predicate is accepted.
+- [ ] Record report-sent state only from the exact approved-mailbox Sent item; support reasoned staff link/unlink/relink and separate authoritative sent/discovery/link times, then add the allocated `0.1.0-alpha.1` automatic exact matcher only after its research predicate is accepted.
 
 ### Validation checklist
 
@@ -114,7 +114,7 @@ Administrator, Engineer and User may transition/review; automated actions follow
 
 - **Requirement/decision:** questionnaire §§5 and 7; remaining requirements §5.
 - **Confirmed facts:** extract inspection/equivalent deadline as `Due by`; missing material needs seven-day chasers; chaser text is copyable and outbound sending is manual. The first chase is due at the same Europe/London local clock time seven calendar days after entry to `Not ready`. `Held` preserves the remaining local-clock interval. On release, staff choose the prior state or `Review`; `Not ready` resumes the preserved remainder and `Review` ends the missing-information chase.
-- **Decision required before implementation:** none for the manual first-MVP cadence. Automated outbound delivery remains deferred.
+- **Decision required before implementation:** none for the manual `0.1.0-alpha.1` cadence. Automated outbound delivery remains deferred.
 
 ### Owner and dependencies
 
@@ -170,7 +170,7 @@ Administrator, Engineer and User may transition/review; automated actions follow
 - **Approval-triggering action and exact scope:** Box file request and any external write require exact-target approval; manual copy requires none.
 - **Rollout/activation:** show due dates, migrate schedules and enable one real Worker caller with bounded retries after focused clock/restart proof.
 - **Rollback/recovery:** disable scheduler/caller, retain scheduled history and reconstruct pending work visibly; never lose a due date.
-- **Irreversible risk:** unwanted chaser activity; first MVP has no automated send.
+- **Irreversible risk:** unwanted chaser activity; `0.1.0-alpha.1` has no automated send.
 
 ### Deferred-capability impact
 

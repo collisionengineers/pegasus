@@ -2,29 +2,29 @@
 
 > **Archive status — non-authoritative planning evidence.** Revalidate against current product, roadmap, architecture, operations, design, decisions, and code before use.
 
-Pre-conversion status: **Ready V1 intake/evidence plan — V2 four-mailbox management separate**
+Pre-conversion status: **Ready `0.1.0-alpha.1` intake/evidence plan — `Next`/`unallocated` four-mailbox management separate**
 
 ## Purpose
 
-Receive V1 staff-forwarded instructions from the approved `instructions@` mailbox through the Worker and preserve exact Outlook Sent-item evidence. V2 four-mailbox management remains a separate expansion of the same Core policy.
+Receive `0.1.0-alpha.1` staff-forwarded instructions from the approved `instructions@` mailbox through the Worker and preserve exact Outlook Sent-item evidence. `Next`/`unallocated` four-mailbox management remains a separate expansion of the same Core policy.
 
 ## Feature coverage
 
 Primary feature ownership is: `INT-02`, `INT-03`, `MAIL-14`, `MAIL-15`, and
-`MAIL-16`. `INT-02` and `INT-03` are the scoped V1 receipt path and forwarded
+`MAIL-16`. `INT-02` and `INT-03` are the scoped `0.1.0-alpha.1` receipt path and forwarded
 provenance; `MAIL-14` and `MAIL-15` cover exact Sent-item evidence and its
 reasoned correction; `MAIL-16` is the separately gated automatic exact-item
-match. V2 mailbox workspace, queues, moves and association have a different
+match. `Next`/`unallocated` mailbox workspace, queues, moves and association have a different
 primary plan.
 
 ## Authority and current boundary
 
-- **Authority:** [remaining requirements](../../../../product/v1-gap.md#3-complete-intake-formats-and-paths), [ADR-0002](../../../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md#outlook-ingestion), and the settled exact-Sent-item/shared-mailbox-allowlist decisions.
+- **Authority:** [remaining requirements](../../../../product/qdos-alpha-gap.md#3-complete-intake-formats-and-paths), [ADR-0002](../../../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md#outlook-ingestion), and the settled exact-Sent-item/shared-mailbox-allowlist decisions.
 - **Policy owner:** `ProcessIntake` remains the single provider-neutral Core intake use case; Worker translates polling/queue delivery only, and the contained QDOS policy owns only QDOS instruction extraction.
 - **Current implementation:** Worker composition contains no intake trigger; Graph adapter, cursor, queue handler and mailbox caller are absent.
 - **Real callers:** Development `/Intake/Upload` only. The intended caller is a thin isolated Functions timer/queue path.
 - **Persistence/adapters:** current SQL receipt store exists; Graph immutable IDs/cursor, outbox and queue processing are planned.
-- **Dependencies:** durable source staging/identity and one shared approved-mailbox allowlist consumed by every Outlook read caller. Automatic categorisation/acceptance additionally requires the [combined mailbox categorisation and email-matching research](../../../../product/open-decisions.md#mailbox-categorisation-and-all-email-matching-research), authenticated actor policy and case acceptance. Automatic Sent-item matching remains deferred to that combined research package.
+- **Dependencies:** durable source staging/identity and one shared approved-mailbox allowlist consumed by every Outlook read caller. Automatic categorisation/acceptance additionally requires the [combined mailbox categorisation and email-matching research](../../../../product/open-decisions.md#mailbox-categorisation-and-matching-evidence), authenticated actor policy and case acceptance. Automatic Sent-item matching remains deferred to that combined research package.
 - **Replaces/consolidates:** no background service in Web and no parallel Graph classifier.
 
 ## Shared failure and observability rules
@@ -37,7 +37,7 @@ Queue messages carry identifiers only. Store attempts, mailbox/folder identity, 
 
 ### Authority and decision gate
 
-- **Requirement/decision:** V1 automatic intake is staff-forwarded work in the `instructions@collisionengineers.co.uk` Inbox. Preserve forwarded provenance and never classify solely from the staff envelope sender. All Outlook readers use one approved-mailbox allowlist. The other three shared mailboxes and direct four-mailbox classification are V2. [Microsoft's Exchange Application RBAC guidance](https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac) remains execution-time authority.
+- **Requirement/decision:** `0.1.0-alpha.1` automatic intake is staff-forwarded work in the `instructions@collisionengineers.co.uk` Inbox. Preserve forwarded provenance and never classify solely from the staff envelope sender. All Outlook readers use one approved-mailbox allowlist. The other three shared mailboxes and direct four-mailbox classification are `Next`/`unallocated`. [Microsoft's Exchange Application RBAC guidance](https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac) remains execution-time authority.
 - **Confirmed facts:** Graph, Exchange RBAC, mailbox cursor and Worker caller are not implemented. Outlook associations live in CollisionSpike; Outlook is not moved/categorised.
 - **Decision required before implementation:** populate and approve the shared mailbox allowlist and exact permitted folder/action set for each enabled environment. Shared development requires a confirmed non-production mailbox plus its exact Inbox folder; production automatic intake is `instructions@collisionengineers.co.uk` plus its exact Inbox. If no non-production scope is supplied, shared-development live Graph testing remains withheld rather than using production.
 
@@ -69,22 +69,22 @@ approval gates.
 
 ### Scope
 
-- **Included:** the V1 `instructions@` Inbox poller, immutable identity, bounded idempotent receipt/recovery, the V0-proved instruction classifier, and exact Sent-item lookup. The allocated V1 automatic report and Triage matchers are added only after their predicates are accepted.
-- **Excluded:** policy inside the transport, the V2 four-mailbox workspace/moves/categories/general association, unapproved mailboxes/folders, `Mail.Send`, webhooks, automated outbound messages, and WhatsApp ingestion. V1 automatic case creation is not excluded.
+- **Included:** the `0.1.0-alpha.1` `instructions@` Inbox poller, immutable identity, bounded idempotent receipt/recovery, the `0.0.0-development`-proved instruction classifier, and exact Sent-item lookup. The allocated `0.1.0-alpha.1` automatic report and Triage matchers are added only after their predicates are accepted.
+- **Excluded:** policy inside the transport, the `Next`/`unallocated` four-mailbox workspace/moves/categories/general association, unapproved mailboxes/folders, `Mail.Send`, webhooks, automated outbound messages, and WhatsApp ingestion. `0.1.0-alpha.1` automatic case creation is not excluded.
 
 ### Withheld categorisation architecture
 
 The direct decision is that long-term mailbox categorisation is a major architectural scope whose approved rules must be extensible and modifiable. It remains one Core-owned policy consumed by Web, Worker, provider API and MCP; Graph and other channel adapters only supply source identity and evidence. An accepted design must retain each decision in permanent action history with policy version and evidence, support correction without rewriting source history, and fall back conservatively to `Needs sorting` when no unambiguous rule applies.
 
-The [category predicates and governance](../../../../product/open-decisions.md#mailbox-categorisation-and-all-email-matching-research) are not yet settled, so no categorisation implementation task is emitted. Deliberately absent are a generic rule engine, expression language, rule/configuration table, authoring UI, dynamic compiler, dormant evaluator, feature flag, and second classifier. Choosing runtime-managed rules or another new architectural boundary requires an accepted ADR. `QdosInstructionExtractionPolicy` assesses QDOS instruction content only and must not be treated as the provisional mailbox classifier.
+The [category predicates and governance](../../../../product/open-decisions.md#mailbox-categorisation-and-matching-evidence) are not yet settled, so no categorisation implementation task is emitted. Deliberately absent are a generic rule engine, expression language, rule/configuration table, authoring UI, dynamic compiler, dormant evaluator, feature flag, and second classifier. Choosing runtime-managed rules or another new architectural boundary requires an accepted ADR. `QdosInstructionExtractor` remains provider-specific extraction, not the generic classification owner; later providers need a direct activation decision and shared model compatibility.
 
-Once the V0/V1 instruction predicates are accepted, an identified authorised instruction invokes the shared definitive predicate and atomic acceptance transaction. Known principal/code, VRM, unambiguous case type, safe complete processing, and no identity/association conflict are required; standalone Audit also requires the original report's clear assessment. Missing non-identity details create `Not ready`. Non-instructions, uncertain items, `Blocked intake`, and Triage never call the allocator through this path. Detailed `Receiving work`/`Queries`/`Other` routing is V2.
+Once the `0.0.0-development`/`0.1.0-alpha.1` instruction predicates are accepted, an identified authorised instruction invokes the shared definitive predicate and atomic acceptance transaction. Known principal/code, VRM, unambiguous case type, safe complete processing, and no identity/association conflict are required; standalone Audit also requires the original report's clear assessment. Missing non-identity details create `Not ready`. Non-instructions, uncertain items, `Blocked intake`, and Triage never call the allocator through this path. Detailed `Receiving work`/`Queries`/`Other` routing is `Next`/`unallocated`.
 
 ### Exact Sent item report evidence
 
 `Report sent` is a stable case action evidenced by one exact Outlook Sent item from a mailbox in the shared approved allowlist. When automatic matching is absent or ambiguous, the first slice is an authenticated case-workspace action available to every staff role: staff select the exact immutable item and enter a reason, the Outlook adapter re-reads it within the permitted Sent folder, and Core records mailbox, immutable item ID, authoritative Outlook `sentDateTime`, separate discovery/link times, actor, reason and case relationship in permanent action history. It counts every successfully sent report and does not add a pre-send review gate. Any staff role may unlink/relink with a reason; Core recomputes dependent report events and dashboard counts without deleting prior history. Once confirmed, a report-sent event remains final if Outlook later moves or deletes the item.
 
-The V1 automatic exact-item candidate/match predicates remain unbuilt pending the combined mailbox/email research package. The settled manual link contract handles absent/ambiguous automatic evidence and reasoned correction in the same V1 release. A fabricated identifier, mismatched case, contradictory immutable identity, item outside the allowlist/folder, missing required reason, or item that cannot be re-read before initial confirmation is refused with no lifecycle mutation. Exact evidence proves that the item existed in the approved Sent folder at confirmation; it does not prove recipient delivery, reading, content correctness or a correct automatically inferred case match.
+The `0.1.0-alpha.1` automatic exact-item candidate/match predicates remain unbuilt pending the combined mailbox/email research package. The settled manual link contract handles absent/ambiguous automatic evidence and reasoned correction in the same `0.1.0-alpha.1` release. A fabricated identifier, mismatched case, contradictory immutable identity, item outside the allowlist/folder, missing required reason, or item that cannot be re-read before initial confirmation is refused with no lifecycle mutation. Exact evidence proves that the item existed in the approved Sent folder at confirmation; it does not prove recipient delivery, reading, content correctness or a correct automatically inferred case match.
 
 ### Exact Triage reply evidence
 
@@ -96,7 +96,7 @@ The planned authenticated [Triage workflow](../casework/triage-workflow.md) comp
 - [ ] Add thin Worker triggers that pass only identifiers to Core receipt processing.
 - [ ] After the accepted category policy and case transaction land, wire the Worker through the combined Core receive/process/automatic-acceptance flow; do not stop definitive `Receiving work` at a draft or add a Worker-specific allocator.
 - [ ] Configure a separate identity and Exchange Application RBAC assignment for each enabled environment as the sole mail grant, verify no unscoped Entra Graph application mail permission remains, and enforce its exact mailbox/Inbox pair before Graph calls.
-- [ ] After the combined research accepts the V1 exact report predicate, make inbound polling and Sent-item lookup consume the same approved-mailbox allowlist; add the automatic matcher plus all-role guarded reasoned link/unlink/relink fallback through the case workspace, with no pre-send review gate.
+- [ ] After the combined research accepts the `0.1.0-alpha.1` exact report predicate, make inbound polling and Sent-item lookup consume the same approved-mailbox allowlist; add the automatic matcher plus all-role guarded reasoned link/unlink/relink fallback through the case workspace, with no pre-send review gate.
 - [ ] After the combined research accepts the exact reply-chain predicate, wire the planned Triage completion caller through the same adapter/allowlist; prove subject/registration/manual-selection fallbacks make zero completion calls.
 
 ### Validation checklist
@@ -131,14 +131,14 @@ The planned authenticated [Triage workflow](../casework/triage-workflow.md) comp
 
 ### Deferred-capability impact
 
-- **Named capabilities:** V1 automatic exact report/Triage matching; V2 broader Outlook intake, association, and email management; V3 WhatsApp/chasers; V3+ automatic reports.
+- **Named capabilities:** `0.1.0-alpha.1` automatic exact report/Triage matching; `Next`/`unallocated` broader Outlook intake, association, and email management; `Later`/`unallocated` WhatsApp/chasers; `Later`/`unallocated` automatic reports.
 - **Stable seam retained:** shared approved-mailbox identity, folder/action scope, immutable item identity and the single `ProcessIntake` use case; extraction policy, mailbox category and associations remain separate application-owned decisions.
 - **Future migration/replacement:** each added mailbox/folder and any matcher, webhook or sending workflow needs separate consent, policy and evidence.
 - **Activation boundary:** explicit exact-scope mailbox approval and live caller evidence.
-- **Deliberately absent:** tenant-wide scope and unapproved folders; V2 mailbox management, V3 WhatsApp/chaser sender, and V3+ report sender remain absent from V1. The allocated V1 exact matchers remain withheld only until their research predicates are accepted.
+- **Deliberately absent:** tenant-wide scope and unapproved folders; `Next`/`unallocated` mailbox management, `Later`/`unallocated` WhatsApp/chaser sender, and `Later`/`unallocated` report sender remain absent from `0.1.0-alpha.1`. The allocated `0.1.0-alpha.1` exact matchers remain withheld only until their research predicates are accepted.
 
 ### Completion evidence
 
 | State/command/input | Result | Boundary exercised | Proves | Does not prove / skipped |
 |---|---|---|---|---|
-| Planned | Not run | planning review | first-MVP Graph boundary and recovery are specified | adapter, RBAC, Worker caller, live mailbox evidence or acceptance |
+| Planned | Not run | planning review | `0.1.0-alpha.1` Graph boundary and recovery are specified | adapter, RBAC, Worker caller, live mailbox evidence or acceptance |

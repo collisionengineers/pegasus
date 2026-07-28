@@ -10,9 +10,9 @@ param sqlAdministratorLogin string
 param documentIntelligenceEnabled bool
 
 var suffix = uniqueString(subscription().subscriptionId, resourceGroup().id, environmentName)
-var prefix = 'cespkv2-${environmentName}'
-var storageName = environmentName == 'prod' ? 'cespkv2prodst${take(suffix, 10)}' : 'cespkv2devst${take(suffix, 10)}'
-var keyVaultName = environmentName == 'prod' ? 'cespkv2prodkv${take(suffix, 8)}' : 'cespkv2devkv${take(suffix, 8)}'
+var prefix = 'pegasus-${environmentName}'
+var storageName = environmentName == 'prod' ? 'pegasusprodst${take(suffix, 10)}' : 'pegasusdevst${take(suffix, 10)}'
+var keyVaultName = environmentName == 'prod' ? 'pegasusprodkv${take(suffix, 8)}' : 'pegasusdevkv${take(suffix, 8)}'
 var webPlanSkuName = environmentName == 'prod' ? 'B1' : 'F1'
 var webPlanSkuTier = environmentName == 'prod' ? 'Basic' : 'Free'
 var sqlSkuName = environmentName == 'prod' ? 'S0' : 'Basic'
@@ -138,7 +138,7 @@ resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
 
 resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
   parent: sqlServer
-  name: 'collisionspike'
+  name: 'pegasus'
   location: location
   tags: tags
   sku: {
@@ -212,8 +212,8 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = {
         }
         {
           // ASP.NET Core maps the Linux-safe double underscore to
-          // ConnectionStrings:CollisionSpike for GetConnectionString().
-          name: 'ConnectionStrings__CollisionSpike'
+          // ConnectionStrings:Pegasus for GetConnectionString().
+          name: 'ConnectionStrings__Pegasus'
           value: sqlConnectionString
         }
         {

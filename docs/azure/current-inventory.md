@@ -15,7 +15,7 @@ Live read-only snapshot taken 2026-07-23. No resources, settings, roles, deploym
 | ARM resources | 56 |
 | Primary old-app estate | 53 resources across `rg-collisionspike-dev` and its generated OCR child group |
 
-Neither CollisionSpike resource group has a resource lock. That is an inventory fact, not deletion approval.
+Neither predecessor resource group has a resource lock. That is an inventory fact, not deletion approval.
 
 ## Resource groups
 

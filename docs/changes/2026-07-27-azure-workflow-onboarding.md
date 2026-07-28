@@ -22,7 +22,7 @@ superseded_by: none
 Convert the existing Azure-oriented repository from its removed local plugin
 suite to the portable Azure Workflow standard without changing product rules,
 application behavior, data, or Azure resources. The result must retain material
-CollisionSpike truth, expose one documentation spine and work taxonomy, adapt
+repository truth, expose one documentation spine and work taxonomy, adapt
 the supplied Collision Engineers design foundation without duplicating its
 marketing system, and end as a green independently reviewed pull request.
 
@@ -48,7 +48,7 @@ marketing system, and end as a green independently reviewed pull request.
 
 ### Excluded
 
-- Product implementation, schema/API changes, a selected V1 shell, synthetic
+- Product implementation, schema/API changes, a selected `0.1.0-alpha.1` shell, synthetic
   operational examples, feature issue generation, and release allocation.
 - Azure reads, deployments, credentials, resource mutations, and live-state
   claims.
@@ -58,7 +58,9 @@ marketing system, and end as a green independently reviewed pull request.
 ## Authorities, current state, and constraints
 
 - Authorities: current user direction, [operator notes](../operator-notes/),
-  [questionnaire](../../PROJECT_DISCOVERY_QUESTIONNAIRE.md), [feature source](../../FEATURE_VERSIONING.md),
+  canonical [product requirements](../product/), retained
+  [questionnaire](../history/product/project-discovery-questionnaire.md) and
+  [feature-source](../history/product/feature-versioning-worksheet.md) evidence,
   accepted historical ADRs, current code/tests/IaC, and supplied design evidence
   in the order declared by [the documentation owner](../index.md).
 - Current implementation: the only mutating product entry point is the
@@ -135,7 +137,7 @@ depth, visible focus, and Lucide-only icons. It excludes marketing/document
 layouts, imagery, signatures, fonts, web motion, WhatsApp, and mobile-product
 patterns. Current CSS differences are recorded, not silently declared aligned.
 
-Deferred-capability impact: V1 shell selection and every V2/V3/V3+ UI
+Deferred-capability impact: `0.1.0-alpha.1` shell selection and every `Next`/`unallocated` and `Later`/`unallocated` UI
 capability remain deferred. Existing stable capability IDs and the approved
 design-to-runtime seam are preserved; no dormant dependency or alternate UI is
 built. Activation requires a selected UI change, caller/source mapping,

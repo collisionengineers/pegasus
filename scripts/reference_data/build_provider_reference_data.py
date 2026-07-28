@@ -22,7 +22,7 @@ BOOTSTRAP_SOURCE = Path("docs/reference/workproviders-and-repairers/initial.xlsx
 BOOTSTRAP_SOURCE_SHA256 = "e4bf89b0aeef3f1106bf34ed50f74dffc44c5ed748e0ad0811b66ee099b6cd29"
 BOOTSTRAP_VERSION = "provider-domains-v1"
 BOOTSTRAP_OUTPUT = Path(
-    "src/CollisionSpike.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json"
+    "src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json"
 )
 
 MAIN_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
