@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Pegasus.Core/Pegasus.Core.csproj" />
+    <Project Path="src/Pegasus.Infrastructure/Pegasus.Infrastructure.csproj" />
+    <Project Path="src/Pegasus.Web/Pegasus.Web.csproj" />
+    <Project Path="src/Pegasus.Worker/Pegasus.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj" />
+    <Project Path="tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj" />
+    <Project Path="tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj" />
+  </Folder>
+</Solution>
