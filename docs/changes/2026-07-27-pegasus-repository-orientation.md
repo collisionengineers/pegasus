@@ -3,7 +3,7 @@
 ```yaml
 id: 2026-07-27-pegasus-repository-orientation
 type: decision
-status: in_progress
+status: in_review
 risk: high
 created: 2026-07-27
 updated: 2026-07-28
@@ -406,8 +406,7 @@ Pull request review validated and remediated the following required findings:
   bundled signature resolution to known keys, reported the actual de-collided artifact filename,
   and returned per-item validation for null batch entries.
 
-## Source-head verification to reproduce on the split series
-The checked evidence below was observed at source head 493189012afee158793d1f5d1602b5708b33e530 and must be reproduced on the reconstructed final head before this record returns to in-review status.
+## Verification and evidence
 
 - [x] Canonical product documents and the capability inventory agree with every
   crosswalk row.
