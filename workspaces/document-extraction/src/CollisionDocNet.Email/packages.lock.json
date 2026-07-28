@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "collisiondocnet.core": {
+        "type": "Project"
+      },
+      "collisiondocnet.model": {
+        "type": "Project",
+        "dependencies": {
+          "CollisionDocNet.Core": "[1.0.0, )"
+        }
+      }
+    }
+  }
+}

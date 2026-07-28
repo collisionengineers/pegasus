@@ -1,0 +1,10 @@
+<Project Sdk="MSTest.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Description>Owned synthetic hostile-input regressions for EXT-SEC-001 across the five-format extraction boundary.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\CollisionDocNet.Conversion\CollisionDocNet.Conversion.csproj" />
+  </ItemGroup>
+</Project>

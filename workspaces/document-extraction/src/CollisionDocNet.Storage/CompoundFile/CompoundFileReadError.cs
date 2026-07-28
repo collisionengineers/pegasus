@@ -1,0 +1,30 @@
+namespace CollisionDocNet.Storage.CompoundFile;
+
+public enum CompoundFileReadError
+{
+    Uninitialized = 0,
+    None,
+    InputLimitExceeded,
+    HeaderInvalid,
+    SectorCountLimitExceeded,
+    SectorOutOfRange,
+    InvalidDifat,
+    DifatCycle,
+    InvalidFat,
+    FatCycle,
+    SectorCrossLinked,
+    InvalidMiniFat,
+    MiniFatCycle,
+    InvalidDirectoryChain,
+    DirectoryEntryLimitExceeded,
+    InvalidDirectoryEntry,
+    InvalidDirectoryTree,
+    DirectoryTreeCycle,
+    DirectoryEntryCrossLinked,
+    StreamLimitExceeded,
+    TotalStreamLimitExceeded,
+    StreamChainLengthMismatch,
+    UnallocatedSectorReferenced,
+    AllocatedSectorUnreferenced,
+    Cancelled,
+}
