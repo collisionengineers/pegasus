@@ -19,9 +19,9 @@ param sqlAdministratorLogin string
 @description('Deploy Document Intelligence only after the PDF benchmark and old F0 ownership decision.')
 param documentIntelligenceEnabled bool = false
 
-var resourceGroupName = 'rg-cespk-v2-${environmentName}'
+var resourceGroupName = 'rg-pegasus-${environmentName}'
 var commonTags = {
-  app: 'collisionspike-v2'
+  app: 'pegasus'
   environment: environmentName
   managedBy: 'azd-bicep'
 }
@@ -33,7 +33,7 @@ resource resourceGroup 'Microsoft.Resources/resourceGroups@2024-11-01' = {
 }
 
 module platform 'modules/platform.bicep' = {
-  name: 'collisionspike-v2-${environmentName}'
+  name: 'pegasus-${environmentName}'
   scope: resourceGroup
   params: {
     environmentName: environmentName

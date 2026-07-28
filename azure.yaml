@@ -1,13 +1,13 @@
-name: collisionspike-v2
+name: pegasus
 metadata:
-  template: collisionspike-v2@0.1.0
+  template: pegasus@0.0.0-development
 services:
   web:
-    project: ./src/CollisionSpike.Web
+    project: ./src/Pegasus.Web
     host: appservice
     language: csharp
   worker:
-    project: ./src/CollisionSpike.Worker
+    project: ./src/Pegasus.Worker
     host: function
     language: csharp
 hooks:

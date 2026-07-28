@@ -2,7 +2,7 @@
 param(
     [string]$SourcePath = "docs/reference/workproviders-and-repairers/initial.xlsx",
     [string]$Version = "provider-domains-v1",
-    [string]$PackagePath = "src/CollisionSpike.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json",
+    [string]$PackagePath = "src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json",
     [string]$PreviousPackagePath,
     [switch]$Verify
 )

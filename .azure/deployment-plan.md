@@ -39,10 +39,10 @@ Last reviewed: 2026-07-23, Europe/London.
 - Worker uses a user-assigned identity because Flex deployment storage needs an identity before the Function App exists.
 - Storage roles are scoped to the new storage account. Shared-key access is disabled.
 - Azure SQL uses a Microsoft Entra administrator and Entra-only authentication. Runtime database users receive `db_datareader` and `db_datawriter` in the post-provision script; no SQL administrator password exists in source or parameters.
-- Private networking is a `Never` boundary. The scaffold therefore uses public
+- Private networking is a `Not planned` boundary. The scaffold therefore uses public
   service endpoints and the Azure SQL `AllowAllWindowsAzureIps` firewall rule so
   App Service and Flex can reach SQL. Authentication remains Entra-only. This
-  broad network reach is an accepted first-MVP trade-off, not a planned future
+  broad network reach is an accepted `0.1.0-alpha.1` trade-off, not a planned future
   private-networking migration.
 - App settings contain resource names, endpoints, and Application Insights connection metadata. Third-party credentials are referenced from Infisical or Key Vault and are never generated into Bicep output.
 
@@ -95,7 +95,7 @@ infrastructure implementation.
    and build-once/deploy-same-artifact provenance. **Not implemented.**
 3. Preflight the authorised terminal identity, `AZURE_PRINCIPAL_NAME`, and the
    least-privilege Entra resolution needed for `CREATE USER ... FROM EXTERNAL
-   PROVIDER`; then preview and provision only the approved new v2 target, never
+   PROVIDER`; then preview and provision only the approved new `0.1.0-alpha.1` target, never
    `rg-collisionspike-dev`. **Identity path unresolved.**
 4. Apply the explicit immutable migration bundle before application deployment.
    **No migration bundle or `azure.yaml` migration step exists.**
@@ -108,10 +108,10 @@ infrastructure implementation.
 ## Deployment blockers
 
 - User approval to create chargeable Azure resources has not been given.
-- The predecessor is pre-release and its test application data is not migrated into v2. Retirement remains a separately approved operation, not a deployment prerequisite.
+- The predecessor is pre-release and its test application data is not migrated into `0.1.0-alpha.1`. Retirement remains a separately approved operation, not a deployment prerequisite.
 - Document Intelligence F0 ownership/reuse has not been decided.
 - SQL Entra administrator name/object ID must be confirmed at deployment time.
-- GitHub Actions/OIDC deployment is a `Never` boundary, not a missing scaffold item.
+- GitHub Actions/OIDC deployment is a `Not planned` boundary, not a missing scaffold item.
 - The direct-terminal packaging, migration, identity, Entra-resolution and
   remote-build-removal work described above is not implemented.
 - External integration credentials and rotation sequence are not prepared.

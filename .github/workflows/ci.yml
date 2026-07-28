@@ -20,10 +20,10 @@ jobs:
           dotnet-version: 10.0.x
       - name: Restore
         shell: pwsh
-        run: dotnet restore ./CollisionSpike.slnx
+        run: dotnet restore ./Pegasus.slnx
       - name: Build
         shell: pwsh
-        run: dotnet build ./CollisionSpike.slnx --configuration Release --no-restore
+        run: dotnet build ./Pegasus.slnx --configuration Release --no-restore
       - name: Test
         shell: pwsh
-        run: dotnet test ./CollisionSpike.slnx --configuration Release --no-build --filter "Category!=Corpus"
+        run: dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"
