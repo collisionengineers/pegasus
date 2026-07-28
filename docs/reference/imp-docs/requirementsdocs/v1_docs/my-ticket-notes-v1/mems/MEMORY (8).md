@@ -1,0 +1,1 @@
+- [V1/V2 app-data collision](v1-v2-appdata-collision.md) — both versions share Documents\CE Document Mapper\providers.json; running V2 migrates it and breaks V1

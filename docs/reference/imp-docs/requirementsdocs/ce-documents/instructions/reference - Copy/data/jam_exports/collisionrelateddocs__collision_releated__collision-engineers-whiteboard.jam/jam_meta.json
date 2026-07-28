@@ -1,0 +1,32 @@
+{
+  "source_path": "docs/reference/raw/collisionrelateddocs/collision_releated/Collision Engineers Whiteboard.jam",
+  "source_sha256": "710a56041e42fb4755838bd90944b2f69d1c8ba819bea0fd030f21f1e5c2fa31",
+  "exported_by": "Codex local .jam ZIP extraction and Figma get_figjam inspection",
+  "exported_at_utc": "2026-05-23T13:29:50.145984+00:00",
+  "jam_meta": {
+    "client_meta": {
+      "background_color": {
+        "r": 0.9607843160629272,
+        "g": 0.9607843160629272,
+        "b": 0.9607843160629272,
+        "a": 1
+      },
+      "thumbnail_size": {
+        "width": 399,
+        "height": 128
+      },
+      "render_coordinates": {
+        "x": -14354,
+        "y": -7104,
+        "width": 36434,
+        "height": 11696
+      }
+    },
+    "file_name": "Collision Engineers Whiteboard",
+    "developer_related_links": [],
+    "exported_at": "2026-05-22T08:29:55.387Z"
+  },
+  "figma_board_url": "https://www.figma.com/board/klGsJGOEG41oP459EbH0ea/Collision-Engineers-Whiteboard?t=1uUOSUp9VtqVuFtN-6",
+  "figma_file_key": "klGsJGOEG41oP459EbH0ea",
+  "figma_inspection_status": "completed"
+}

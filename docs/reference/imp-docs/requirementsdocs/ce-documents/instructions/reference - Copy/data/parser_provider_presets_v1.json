@@ -1,0 +1,1674 @@
+{
+  "version": 1,
+  "source": "docs/reference/raw/collisionrelateddocs/Settings Backup/providers.json",
+  "source_version": "sha256:8b979a7467951c14a60d7cf80725c314a35371c57269046af1238af062d91221",
+  "provider_count": 26,
+  "providers": [
+    {
+      "name": "ALISON",
+      "code": "ALISON",
+      "detect_phrases": [
+        "ALISON LAW SOLICITORS"
+      ],
+      "engineer_report": false,
+      "use_current_date_for_inspection_date": true,
+      "force_postcode_for_inspection_address": false,
+      "field_rules": {
+        "work_provider": {
+          "method": "manual_input",
+          "config": "ALISON"
+        },
+        "vrm": {
+          "method": "two_labels",
+          "config": "Vehicle Reg: || Accident Date:"
+        },
+        "vehicle_model": {
+          "method": "single_label",
+          "config": ""
+        },
+        "claimant_name": {
+          "method": "two_labels",
+          "config": "Our Client: || of"
+        },
+        "reference": {
+          "method": "single_label",
+          "config": "Our Ref:"
+        },
+        "incident_date": {
+          "method": "single_label",
+          "config": "Accident Date:"
+        },
+        "instruction_date": {
+          "method": "single_label_offset",
+          "config": "Sent by email only to: || -1"
+        },
+        "inspection_date": {
+          "method": "manual_input",
+          "config": ""
+        },
+        "inspection_address": {
+          "method": "single_label",
+          "config": "Address:"
+        },
+        "accident_circumstances": {
+          "method": "two_labels",
+          "config": ""
+        },
+        "vat_status": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage_unit": {
+          "method": "single_label",
+          "config": ""
+        }
+      }
+    },
+    {
+      "name": "ALS",
+      "code": "ALS",
+      "detect_phrases": [
+        "Auto Logistic Solutions"
+      ],
+      "engineer_report": false,
+      "use_current_date_for_inspection_date": true,
+      "force_postcode_for_inspection_address": false,
+      "field_rules": {
+        "work_provider": {
+          "method": "manual_input",
+          "config": "ALS"
+        },
+        "vrm": {
+          "method": "single_label_offset",
+          "config": "Third Party Vehicle || +2"
+        },
+        "vehicle_model": {
+          "method": "single_label_offset",
+          "config": "Third Party Vehicle || +6"
+        },
+        "claimant_name": {
+          "method": "single_label",
+          "config": "Name:"
+        },
+        "reference": {
+          "method": "single_label",
+          "config": "Our Reference:"
+        },
+        "incident_date": {
+          "method": "single_label",
+          "config": "Accident Date:"
+        },
+        "instruction_date": {
+          "method": "fixed_position",
+          "config": "1"
+        },
+        "inspection_date": {
+          "method": "manual_input",
+          "config": ""
+        },
+        "inspection_address": {
+          "method": "manual_input",
+          "config": "Image-based Assessment"
+        },
+        "accident_circumstances": {
+          "method": "single_label",
+          "config": "Accident Circumstances:"
+        },
+        "vat_status": {
+          "method": "single_label",
+          "config": "VAT Registered: yes"
+        },
+        "mileage": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage_unit": {
+          "method": "single_label",
+          "config": ""
+        }
+      }
+    },
+    {
+      "name": "AMS",
+      "code": "AMS",
+      "detect_phrases": [
+        "AMS Solicitors"
+      ],
+      "engineer_report": false,
+      "use_current_date_for_inspection_date": true,
+      "force_postcode_for_inspection_address": false,
+      "field_rules": {
+        "work_provider": {
+          "method": "manual_input",
+          "config": "AMS"
+        },
+        "vrm": {
+          "method": "single_label",
+          "config": "Vehicle Reg:"
+        },
+        "vehicle_model": {
+          "method": "single_label",
+          "config": ""
+        },
+        "claimant_name": {
+          "method": "single_label",
+          "config": "Our client:"
+        },
+        "reference": {
+          "method": "single_label",
+          "config": "Our Ref:"
+        },
+        "incident_date": {
+          "method": "single_label",
+          "config": "Accident Date:"
+        },
+        "instruction_date": {
+          "method": "fixed_position_label",
+          "config": "5 || Date:"
+        },
+        "inspection_date": {
+          "method": "manual_input",
+          "config": ""
+        },
+        "inspection_address": {
+          "method": "single_label",
+          "config": "Vehicle Location:"
+        },
+        "accident_circumstances": {
+          "method": "single_label",
+          "config": "The circumstances of the accidents are"
+        },
+        "vat_status": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage_unit": {
+          "method": "single_label",
+          "config": ""
+        }
+      }
+    },
+    {
+      "name": "AX",
+      "code": "AX",
+      "detect_phrases": [
+        "AX Reference"
+      ],
+      "engineer_report": false,
+      "use_current_date_for_inspection_date": false,
+      "force_postcode_for_inspection_address": false,
+      "field_rules": {
+        "work_provider": {
+          "method": "manual_input",
+          "config": "AX"
+        },
+        "vrm": {
+          "method": "single_label",
+          "config": "VRM:"
+        },
+        "vehicle_model": {
+          "method": "single_label",
+          "config": "Vehicle:"
+        },
+        "claimant_name": {
+          "method": "two_labels",
+          "config": "Name || VRM"
+        },
+        "reference": {
+          "method": "single_label",
+          "config": "AX Reference\n:"
+        },
+        "incident_date": {
+          "method": "single_label",
+          "config": "Accident Date:"
+        },
+        "instruction_date": {
+          "method": "fixed_position",
+          "config": "3"
+        },
+        "inspection_date": {
+          "method": "single_label",
+          "config": "Report Due on\n:"
+        },
+        "inspection_address": {
+          "method": "manual_input",
+          "config": "Image-based Assessment"
+        },
+        "accident_circumstances": {
+          "method": "two_labels",
+          "config": "Circumstances || Bodyshop Details"
+        },
+        "vat_status": {
+          "method": "single_label",
+          "config": "VAT Registered: \nYes"
+        },
+        "mileage": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage_unit": {
+          "method": "single_label",
+          "config": ""
+        }
+      }
+    },
+    {
+      "name": "BC",
+      "code": "BC",
+      "detect_phrases": [
+        "Baker & Coleman"
+      ],
+      "engineer_report": false,
+      "use_current_date_for_inspection_date": true,
+      "force_postcode_for_inspection_address": true,
+      "field_rules": {
+        "work_provider": {
+          "method": "manual_input",
+          "config": "BC"
+        },
+        "vrm": {
+          "method": "two_labels",
+          "config": "registered number || ,"
+        },
+        "vehicle_model": {
+          "method": "single_label",
+          "config": ""
+        },
+        "claimant_name": {
+          "method": "single_label",
+          "config": "Re:\tClient:"
+        },
+        "reference": {
+          "method": "fixed_position",
+          "config": "1"
+        },
+        "incident_date": {
+          "method": "single_label",
+          "config": "Accident:"
+        },
+        "instruction_date": {
+          "method": "fixed_position",
+          "config": "3"
+        },
+        "inspection_date": {
+          "method": "manual_input",
+          "config": ""
+        },
+        "inspection_address": {
+          "method": "single_label",
+          "config": "Address:"
+        },
+        "accident_circumstances": {
+          "method": "two_labels",
+          "config": ""
+        },
+        "vat_status": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage_unit": {
+          "method": "single_label",
+          "config": ""
+        }
+      }
+    },
+    {
+      "name": "BLACK",
+      "code": "BLACK",
+      "detect_phrases": [
+        "Blackstone Legal"
+      ],
+      "engineer_report": false,
+      "use_current_date_for_inspection_date": true,
+      "force_postcode_for_inspection_address": false,
+      "field_rules": {
+        "work_provider": {
+          "method": "manual_input",
+          "config": "BLACK"
+        },
+        "vrm": {
+          "method": "fixed_position_label",
+          "config": "36 || -"
+        },
+        "vehicle_model": {
+          "method": "two_labels",
+          "config": "Vehicle: || -"
+        },
+        "claimant_name": {
+          "method": "single_label",
+          "config": "Our client:"
+        },
+        "reference": {
+          "method": "single_label",
+          "config": "Our ref:"
+        },
+        "incident_date": {
+          "method": "single_label",
+          "config": "Accident date:"
+        },
+        "instruction_date": {
+          "method": "fixed_position",
+          "config": "4"
+        },
+        "inspection_date": {
+          "method": "manual_input",
+          "config": ""
+        },
+        "inspection_address": {
+          "method": "single_label",
+          "config": "Address:"
+        },
+        "accident_circumstances": {
+          "method": "two_labels",
+          "config": ""
+        },
+        "vat_status": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage_unit": {
+          "method": "single_label",
+          "config": ""
+        }
+      }
+    },
+    {
+      "name": "CNX (Engineers)",
+      "code": "CNX",
+      "detect_phrases": [
+        "Connexus Vehicle Assessors"
+      ],
+      "engineer_report": true,
+      "use_current_date_for_inspection_date": false,
+      "force_postcode_for_inspection_address": false,
+      "field_rules": {
+        "vrm": {
+          "method": "single_label",
+          "config": ""
+        },
+        "vehicle_model": {
+          "method": "single_label",
+          "config": ""
+        },
+        "claimant_name": {
+          "method": "single_label",
+          "config": ""
+        },
+        "reference": {
+          "method": "single_label",
+          "config": ""
+        },
+        "incident_date": {
+          "method": "single_label",
+          "config": ""
+        },
+        "instruction_date": {
+          "method": "two_labels",
+          "config": "instructions received on || and"
+        },
+        "inspection_date": {
+          "method": "single_label",
+          "config": "Date:"
+        },
+        "inspection_address": {
+          "method": "single_label",
+          "config": ""
+        },
+        "accident_circumstances": {
+          "method": "single_label",
+          "config": ""
+        },
+        "vat_status": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage": {
+          "method": "single_label",
+          "config": "Speedo:"
+        },
+        "mileage_unit": {
+          "method": "single_label",
+          "config": "Miles"
+        },
+        "work_provider": {
+          "method": "manual_input",
+          "config": ""
+        }
+      }
+    },
+    {
+      "name": "DFD",
+      "code": "DFD",
+      "detect_phrases": [
+        "Davison Flynn Duke Solicitors"
+      ],
+      "engineer_report": false,
+      "use_current_date_for_inspection_date": true,
+      "force_postcode_for_inspection_address": false,
+      "field_rules": {
+        "work_provider": {
+          "method": "manual_input",
+          "config": "DFD"
+        },
+        "vrm": {
+          "method": "single_label",
+          "config": "Registration number"
+        },
+        "vehicle_model": {
+          "method": "single_label",
+          "config": ""
+        },
+        "claimant_name": {
+          "method": "single_label",
+          "config": "Client name or vehicle owner"
+        },
+        "reference": {
+          "method": "single_label",
+          "config": "Your Reference"
+        },
+        "incident_date": {
+          "method": "single_label",
+          "config": "Accident date"
+        },
+        "instruction_date": {
+          "method": "single_label",
+          "config": "Date instructed"
+        },
+        "inspection_date": {
+          "method": "manual_input",
+          "config": ""
+        },
+        "inspection_address": {
+          "method": "single_label",
+          "config": "Vehicle location"
+        },
+        "accident_circumstances": {
+          "method": "two_labels",
+          "config": "Accident circumstances || Claim source"
+        },
+        "vat_status": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage_unit": {
+          "method": "single_label",
+          "config": ""
+        }
+      }
+    },
+    {
+      "name": "EVA (Engineers)",
+      "code": "EVA",
+      "detect_phrases": [
+        "Exclusive Vehicle Assessors"
+      ],
+      "engineer_report": true,
+      "use_current_date_for_inspection_date": false,
+      "force_postcode_for_inspection_address": false,
+      "field_rules": {
+        "vrm": {
+          "method": "single_label",
+          "config": ""
+        },
+        "vehicle_model": {
+          "method": "single_label",
+          "config": ""
+        },
+        "claimant_name": {
+          "method": "single_label",
+          "config": ""
+        },
+        "reference": {
+          "method": "single_label",
+          "config": ""
+        },
+        "incident_date": {
+          "method": "single_label",
+          "config": ""
+        },
+        "instruction_date": {
+          "method": "two_labels",
+          "config": "instructions received on || and"
+        },
+        "inspection_date": {
+          "method": "two_labels",
+          "config": "Date || Our Ref"
+        },
+        "inspection_address": {
+          "method": "manual_input",
+          "config": ""
+        },
+        "accident_circumstances": {
+          "method": "two_labels",
+          "config": ""
+        },
+        "vat_status": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage": {
+          "method": "single_label",
+          "config": "Speedo:"
+        },
+        "mileage_unit": {
+          "method": "single_label",
+          "config": "Miles"
+        },
+        "work_provider": {
+          "method": "manual_input",
+          "config": ""
+        }
+      }
+    },
+    {
+      "name": "FW (Garage)",
+      "code": "FW",
+      "detect_phrases": [
+        "fairwaylegal",
+        "Inspection Location:"
+      ],
+      "engineer_report": false,
+      "use_current_date_for_inspection_date": true,
+      "force_postcode_for_inspection_address": true,
+      "field_rules": {
+        "work_provider": {
+          "method": "manual_input",
+          "config": "FW"
+        },
+        "vrm": {
+          "method": "single_label",
+          "config": "Vehicle Registration Number:"
+        },
+        "vehicle_model": {
+          "method": "single_label",
+          "config": "Make/Model:"
+        },
+        "claimant_name": {
+          "method": "single_label",
+          "config": "Our Insured: Name:"
+        },
+        "reference": {
+          "method": "single_label",
+          "config": "Our Ref:"
+        },
+        "incident_date": {
+          "method": "two_labels",
+          "config": "Accident Date || Time"
+        },
+        "instruction_date": {
+          "method": "email_date",
+          "config": "Date:"
+        },
+        "inspection_date": {
+          "method": "single_label",
+          "config": ""
+        },
+        "inspection_address": {
+          "method": "two_labels",
+          "config": "Inspection Location || Should you have"
+        },
+        "accident_circumstances": {
+          "method": "two_labels",
+          "config": "Circumstance || Third Party Name"
+        },
+        "vat_status": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage_unit": {
+          "method": "single_label",
+          "config": ""
+        }
+      }
+    },
+    {
+      "name": "FW (Solicitor)",
+      "code": "FW",
+      "detect_phrases": [
+        "fairwaylegal"
+      ],
+      "engineer_report": false,
+      "use_current_date_for_inspection_date": true,
+      "force_postcode_for_inspection_address": false,
+      "field_rules": {
+        "work_provider": {
+          "method": "manual_input",
+          "config": "FW"
+        },
+        "vrm": {
+          "method": "single_label",
+          "config": "Vehicle Registration Number:"
+        },
+        "vehicle_model": {
+          "method": "single_label",
+          "config": "Make/Model:"
+        },
+        "claimant_name": {
+          "method": "single_label",
+          "config": "Our Insured: Name:"
+        },
+        "reference": {
+          "method": "single_label",
+          "config": "Our Ref:"
+        },
+        "incident_date": {
+          "method": "two_labels",
+          "config": "Accident Date || Time"
+        },
+        "instruction_date": {
+          "method": "email_date",
+          "config": "Date:"
+        },
+        "inspection_date": {
+          "method": "single_label",
+          "config": ""
+        },
+        "inspection_address": {
+          "method": "manual_input",
+          "config": "Image-based Assessment"
+        },
+        "accident_circumstances": {
+          "method": "two_labels",
+          "config": "Circumstance || Third Party Name"
+        },
+        "vat_status": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage_unit": {
+          "method": "single_label",
+          "config": ""
+        }
+      }
+    },
+    {
+      "name": "HDUK",
+      "code": "YML",
+      "detect_phrases": [
+        "HD UK NETWORK"
+      ],
+      "engineer_report": false,
+      "use_current_date_for_inspection_date": true,
+      "force_postcode_for_inspection_address": false,
+      "field_rules": {
+        "work_provider": {
+          "method": "manual_input",
+          "config": "YML"
+        },
+        "vrm": {
+          "method": "single_label",
+          "config": "Registration\n:"
+        },
+        "vehicle_model": {
+          "method": "single_label",
+          "config": "Our Client’s Vehicle\n:"
+        },
+        "claimant_name": {
+          "method": "single_label",
+          "config": "Our Client\n:"
+        },
+        "reference": {
+          "method": "single_label",
+          "config": "Our Ref:"
+        },
+        "incident_date": {
+          "method": "single_label",
+          "config": "Date of Accident\n:"
+        },
+        "instruction_date": {
+          "method": "single_label_offset",
+          "config": "BY EMAIL ONLY || -1"
+        },
+        "inspection_date": {
+          "method": "single_label",
+          "config": ""
+        },
+        "inspection_address": {
+          "method": "single_label",
+          "config": "currently located at:"
+        },
+        "accident_circumstances": {
+          "method": "two_labels",
+          "config": "of the accident are that || The vehicle is currently"
+        },
+        "vat_status": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage_unit": {
+          "method": "single_label",
+          "config": ""
+        }
+      }
+    },
+    {
+      "name": "KBS",
+      "code": "KBS",
+      "detect_phrases": [
+        "KNIGHTSBRIDGE"
+      ],
+      "engineer_report": false,
+      "use_current_date_for_inspection_date": true,
+      "force_postcode_for_inspection_address": false,
+      "field_rules": {
+        "work_provider": {
+          "method": "manual_input",
+          "config": "KBS"
+        },
+        "vrm": {
+          "method": "single_label",
+          "config": "Registration\n:"
+        },
+        "vehicle_model": {
+          "method": "single_label",
+          "config": "Our Client’s Vehicle\n:"
+        },
+        "claimant_name": {
+          "method": "single_label",
+          "config": "Our Client\t\t\t:"
+        },
+        "reference": {
+          "method": "single_label",
+          "config": "Our Ref:"
+        },
+        "incident_date": {
+          "method": "single_label",
+          "config": "Date of Accident\n:"
+        },
+        "instruction_date": {
+          "method": "single_label_offset",
+          "config": "Our Ref: || +1"
+        },
+        "inspection_date": {
+          "method": "manual_input",
+          "config": ""
+        },
+        "inspection_address": {
+          "method": "single_label",
+          "config": "The vehicle is currently located at:"
+        },
+        "accident_circumstances": {
+          "method": "two_labels",
+          "config": "The circumstances of the accident are that || As a result of the collision"
+        },
+        "vat_status": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage_unit": {
+          "method": "single_label",
+          "config": ""
+        }
+      }
+    },
+    {
+      "name": "KERR",
+      "code": "KERR",
+      "detect_phrases": [
+        "kerrbrown"
+      ],
+      "engineer_report": false,
+      "use_current_date_for_inspection_date": true,
+      "force_postcode_for_inspection_address": false,
+      "field_rules": {
+        "work_provider": {
+          "method": "manual_input",
+          "config": "KERR"
+        },
+        "vrm": {
+          "method": "single_label",
+          "config": "Reg:"
+        },
+        "vehicle_model": {
+          "method": "single_label",
+          "config": "Vehicle:"
+        },
+        "claimant_name": {
+          "method": "single_label",
+          "config": "Client:"
+        },
+        "reference": {
+          "method": "single_label",
+          "config": "Our Ref:"
+        },
+        "incident_date": {
+          "method": "single_label",
+          "config": "RTA:"
+        },
+        "instruction_date": {
+          "method": "email_date",
+          "config": "Date:"
+        },
+        "inspection_date": {
+          "method": "manual_input",
+          "config": ""
+        },
+        "inspection_address": {
+          "method": "two_labels",
+          "config": "the above vehicle at || telephone"
+        },
+        "accident_circumstances": {
+          "method": "single_label",
+          "config": ""
+        },
+        "vat_status": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage_unit": {
+          "method": "single_label",
+          "config": ""
+        }
+      }
+    },
+    {
+      "name": "KMR",
+      "code": "KMR",
+      "detect_phrases": [
+        "KMR Law"
+      ],
+      "engineer_report": false,
+      "use_current_date_for_inspection_date": true,
+      "force_postcode_for_inspection_address": false,
+      "field_rules": {
+        "work_provider": {
+          "method": "manual_input",
+          "config": "KMR"
+        },
+        "vrm": {
+          "method": "two_labels",
+          "config": "registration number || ."
+        },
+        "vehicle_model": {
+          "method": "two_labels",
+          "config": "The vehicle is a || registration"
+        },
+        "claimant_name": {
+          "method": "single_label",
+          "config": "Client:"
+        },
+        "reference": {
+          "method": "single_label",
+          "config": "Our Reference:"
+        },
+        "incident_date": {
+          "method": "single_label",
+          "config": "Accident:"
+        },
+        "instruction_date": {
+          "method": "fixed_position",
+          "config": "5"
+        },
+        "inspection_date": {
+          "method": "single_label",
+          "config": ""
+        },
+        "inspection_address": {
+          "method": "two_labels",
+          "config": "Client address, || in order"
+        },
+        "accident_circumstances": {
+          "method": "single_label",
+          "config": ""
+        },
+        "vat_status": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage_unit": {
+          "method": "single_label",
+          "config": ""
+        }
+      }
+    },
+    {
+      "name": "MP (Branded)",
+      "code": "MP",
+      "detect_phrases": [
+        "Rose Hill Works",
+        "Please arrange to inspect the above vehicle at your earliest convenience."
+      ],
+      "engineer_report": false,
+      "use_current_date_for_inspection_date": false,
+      "force_postcode_for_inspection_address": false,
+      "field_rules": {
+        "work_provider": {
+          "method": "manual_input",
+          "config": "MP"
+        },
+        "vrm": {
+          "method": "two_labels",
+          "config": "Vehicle Reg: || ,"
+        },
+        "vehicle_model": {
+          "method": "two_labels",
+          "config": ", || Date of Accident:"
+        },
+        "claimant_name": {
+          "method": "single_label",
+          "config": "Our client:"
+        },
+        "reference": {
+          "method": "single_label",
+          "config": "Our Ref:"
+        },
+        "incident_date": {
+          "method": "single_label",
+          "config": "Date of Accident:"
+        },
+        "instruction_date": {
+          "method": "single_label_offset",
+          "config": "Inspection || -1"
+        },
+        "inspection_date": {
+          "method": "single_label",
+          "config": "Report :"
+        },
+        "inspection_address": {
+          "method": "two_labels",
+          "config": "The vehicle is to be inspected at: || Kind regards"
+        },
+        "accident_circumstances": {
+          "method": "two_labels",
+          "config": ""
+        },
+        "vat_status": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage_unit": {
+          "method": "single_label",
+          "config": ""
+        }
+      }
+    },
+    {
+      "name": "MP (Simple)",
+      "code": "MP",
+      "detect_phrases": [
+        "Please arrange to inspect the above vehicle at your earliest convenience."
+      ],
+      "engineer_report": false,
+      "use_current_date_for_inspection_date": false,
+      "force_postcode_for_inspection_address": false,
+      "field_rules": {
+        "work_provider": {
+          "method": "manual_input",
+          "config": "MP"
+        },
+        "vrm": {
+          "method": "two_labels",
+          "config": "Vehicle Reg: || ,"
+        },
+        "vehicle_model": {
+          "method": "two_labels",
+          "config": ", || Date of Accident:"
+        },
+        "claimant_name": {
+          "method": "single_label",
+          "config": "Our client:"
+        },
+        "reference": {
+          "method": "single_label",
+          "config": "Our Ref:"
+        },
+        "incident_date": {
+          "method": "single_label",
+          "config": "Date of Accident:"
+        },
+        "instruction_date": {
+          "method": "fixed_position",
+          "config": "3"
+        },
+        "inspection_date": {
+          "method": "single_label",
+          "config": "Report :"
+        },
+        "inspection_address": {
+          "method": "two_labels",
+          "config": "The vehicle is to be inspected at: || Kind regards"
+        },
+        "accident_circumstances": {
+          "method": "two_labels",
+          "config": ""
+        },
+        "vat_status": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage_unit": {
+          "method": "single_label",
+          "config": ""
+        }
+      }
+    },
+    {
+      "name": "OAK",
+      "code": "OAK",
+      "detect_phrases": [
+        "Oakwood"
+      ],
+      "engineer_report": false,
+      "use_current_date_for_inspection_date": true,
+      "force_postcode_for_inspection_address": false,
+      "field_rules": {
+        "work_provider": {
+          "method": "manual_input",
+          "config": "OAK"
+        },
+        "vrm": {
+          "method": "single_label",
+          "config": "Client reg:"
+        },
+        "vehicle_model": {
+          "method": "single_label",
+          "config": "Client model:"
+        },
+        "claimant_name": {
+          "method": "single_label",
+          "config": "Our Client:"
+        },
+        "reference": {
+          "method": "single_label",
+          "config": "Date:"
+        },
+        "incident_date": {
+          "method": "single_label",
+          "config": "Accident:"
+        },
+        "instruction_date": {
+          "method": "single_label_offset",
+          "config": "URGENT VEHICLE INSPECTION REQUIRED || -1"
+        },
+        "inspection_date": {
+          "method": "manual_input",
+          "config": ""
+        },
+        "inspection_address": {
+          "method": "two_labels",
+          "config": "Address: || Mobile"
+        },
+        "accident_circumstances": {
+          "method": "single_label",
+          "config": "The circumstances of the accident are"
+        },
+        "vat_status": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage_unit": {
+          "method": "single_label",
+          "config": ""
+        }
+      }
+    },
+    {
+      "name": "PCH (Lawshield)",
+      "code": "PCH",
+      "detect_phrases": [
+        "Lawshield"
+      ],
+      "engineer_report": false,
+      "use_current_date_for_inspection_date": true,
+      "force_postcode_for_inspection_address": false,
+      "field_rules": {
+        "work_provider": {
+          "method": "manual_input",
+          "config": "PCH"
+        },
+        "vrm": {
+          "method": "single_label",
+          "config": "Registration No:"
+        },
+        "vehicle_model": {
+          "method": "single_label",
+          "config": "Vehicle Make:"
+        },
+        "claimant_name": {
+          "method": "single_label",
+          "config": "Policyholder Name:"
+        },
+        "reference": {
+          "method": "single_label",
+          "config": "Claim Number:"
+        },
+        "incident_date": {
+          "method": "single_label",
+          "config": "Incident date:"
+        },
+        "instruction_date": {
+          "method": "two_labels",
+          "config": "Date || From"
+        },
+        "inspection_date": {
+          "method": "manual_input",
+          "config": ""
+        },
+        "inspection_address": {
+          "method": "manual_input",
+          "config": "Image-based Assessment"
+        },
+        "accident_circumstances": {
+          "method": "single_label",
+          "config": "Incident Circumstances:"
+        },
+        "vat_status": {
+          "method": "single_label",
+          "config": "is VAT registered"
+        },
+        "mileage": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage_unit": {
+          "method": "single_label",
+          "config": ""
+        }
+      }
+    },
+    {
+      "name": "PCH (Performance)",
+      "code": "PCH",
+      "detect_phrases": [
+        "Performance Car Hire"
+      ],
+      "engineer_report": false,
+      "use_current_date_for_inspection_date": true,
+      "force_postcode_for_inspection_address": false,
+      "field_rules": {
+        "work_provider": {
+          "method": "manual_input",
+          "config": "PCH"
+        },
+        "vrm": {
+          "method": "single_label",
+          "config": "Registration No:"
+        },
+        "vehicle_model": {
+          "method": "single_label",
+          "config": "Vehicle Make:"
+        },
+        "claimant_name": {
+          "method": "single_label",
+          "config": "Policyholder Name:"
+        },
+        "reference": {
+          "method": "single_label",
+          "config": "Claim Number:"
+        },
+        "incident_date": {
+          "method": "single_label",
+          "config": "Incident date:"
+        },
+        "instruction_date": {
+          "method": "two_labels",
+          "config": "Date || From"
+        },
+        "inspection_date": {
+          "method": "manual_input",
+          "config": ""
+        },
+        "inspection_address": {
+          "method": "manual_input",
+          "config": "Image-based Assessment"
+        },
+        "accident_circumstances": {
+          "method": "single_label",
+          "config": "Incident Circumstances:"
+        },
+        "vat_status": {
+          "method": "single_label",
+          "config": "is VAT registered"
+        },
+        "mileage": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage_unit": {
+          "method": "single_label",
+          "config": ""
+        }
+      }
+    },
+    {
+      "name": "QCL",
+      "code": "QCL",
+      "detect_phrases": [
+        "qc-law"
+      ],
+      "engineer_report": false,
+      "use_current_date_for_inspection_date": true,
+      "force_postcode_for_inspection_address": true,
+      "field_rules": {
+        "work_provider": {
+          "method": "manual_input",
+          "config": "QCL"
+        },
+        "vrm": {
+          "method": "single_label",
+          "config": "Vehicle reg"
+        },
+        "vehicle_model": {
+          "method": "single_label",
+          "config": "Make"
+        },
+        "claimant_name": {
+          "method": "single_label",
+          "config": "Re:"
+        },
+        "reference": {
+          "method": "single_label",
+          "config": "Our Ref:"
+        },
+        "incident_date": {
+          "method": "single_label",
+          "config": "Acc date"
+        },
+        "instruction_date": {
+          "method": "single_label",
+          "config": "Date:"
+        },
+        "inspection_date": {
+          "method": "single_label",
+          "config": "Report Due on\n:"
+        },
+        "inspection_address": {
+          "method": "single_label",
+          "config": "Location"
+        },
+        "accident_circumstances": {
+          "method": "manual_input",
+          "config": ""
+        },
+        "vat_status": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage_unit": {
+          "method": "single_label",
+          "config": ""
+        }
+      }
+    },
+    {
+      "name": "QDOS",
+      "code": "QDOS",
+      "detect_phrases": [
+        "QDOS"
+      ],
+      "engineer_report": false,
+      "use_current_date_for_inspection_date": true,
+      "force_postcode_for_inspection_address": false,
+      "field_rules": {
+        "work_provider": {
+          "method": "manual_input",
+          "config": "QDOS"
+        },
+        "vrm": {
+          "method": "single_label",
+          "config": "Registration:"
+        },
+        "vehicle_model": {
+          "method": "single_label",
+          "config": "Our Client’s Vehicle:"
+        },
+        "claimant_name": {
+          "method": "single_label",
+          "config": "Our Client:"
+        },
+        "reference": {
+          "method": "single_label",
+          "config": "Our Ref:"
+        },
+        "incident_date": {
+          "method": "single_label",
+          "config": "Date of Accident:"
+        },
+        "instruction_date": {
+          "method": "single_label",
+          "config": "Date:"
+        },
+        "inspection_date": {
+          "method": "manual_input",
+          "config": ""
+        },
+        "inspection_address": {
+          "method": "manual_input",
+          "config": "Image-based Assessment"
+        },
+        "accident_circumstances": {
+          "method": "two_labels",
+          "config": "Damage Area || TP Vehicle"
+        },
+        "vat_status": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage_unit": {
+          "method": "single_label",
+          "config": ""
+        }
+      }
+    },
+    {
+      "name": "RJS",
+      "code": "RJS",
+      "detect_phrases": [
+        "Robert James Solicitors"
+      ],
+      "engineer_report": false,
+      "use_current_date_for_inspection_date": true,
+      "force_postcode_for_inspection_address": false,
+      "field_rules": {
+        "work_provider": {
+          "method": "manual_input",
+          "config": "RJS"
+        },
+        "vrm": {
+          "method": "single_label",
+          "config": "Client vehicle registration:"
+        },
+        "vehicle_model": {
+          "method": "single_label",
+          "config": "Client vehicle model:"
+        },
+        "claimant_name": {
+          "method": "single_label",
+          "config": "Our Client:"
+        },
+        "reference": {
+          "method": "single_label",
+          "config": "Our Reference:"
+        },
+        "incident_date": {
+          "method": "single_label",
+          "config": "Accident:"
+        },
+        "instruction_date": {
+          "method": "fixed_position",
+          "config": "14"
+        },
+        "inspection_date": {
+          "method": "manual_input",
+          "config": ""
+        },
+        "inspection_address": {
+          "method": "two_labels",
+          "config": "Address || Work"
+        },
+        "accident_circumstances": {
+          "method": "single_label",
+          "config": "The circumstances of the accident are"
+        },
+        "vat_status": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage_unit": {
+          "method": "single_label",
+          "config": ""
+        }
+      }
+    },
+    {
+      "name": "SBL",
+      "code": "SBL",
+      "detect_phrases": [
+        "Smart Business Link"
+      ],
+      "engineer_report": false,
+      "use_current_date_for_inspection_date": true,
+      "force_postcode_for_inspection_address": false,
+      "field_rules": {
+        "work_provider": {
+          "method": "manual_input",
+          "config": "SBL"
+        },
+        "vrm": {
+          "method": "single_label",
+          "config": "Registration:"
+        },
+        "vehicle_model": {
+          "method": "single_label",
+          "config": "Vehicle Make:"
+        },
+        "claimant_name": {
+          "method": "single_label",
+          "config": "Policyholder Name:"
+        },
+        "reference": {
+          "method": "single_label",
+          "config": "Claim Number:"
+        },
+        "incident_date": {
+          "method": "single_label",
+          "config": "Incident Date:"
+        },
+        "instruction_date": {
+          "method": "two_labels",
+          "config": "Date || From"
+        },
+        "inspection_date": {
+          "method": "manual_input",
+          "config": ""
+        },
+        "inspection_address": {
+          "method": "manual_input",
+          "config": "Image-based Assessment"
+        },
+        "accident_circumstances": {
+          "method": "two_labels",
+          "config": "Incident Circumstances || Agreed Value"
+        },
+        "vat_status": {
+          "method": "single_label",
+          "config": "Policyholder VAT Status:\nVAT Registered"
+        },
+        "mileage": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage_unit": {
+          "method": "single_label",
+          "config": ""
+        }
+      }
+    },
+    {
+      "name": "SWAN",
+      "code": "SWAN",
+      "detect_phrases": [
+        "Swan Solicitors Ltd"
+      ],
+      "engineer_report": false,
+      "use_current_date_for_inspection_date": true,
+      "force_postcode_for_inspection_address": false,
+      "field_rules": {
+        "work_provider": {
+          "method": "manual_input",
+          "config": "SWAN"
+        },
+        "vrm": {
+          "method": "single_label",
+          "config": "Vehicle Reg:"
+        },
+        "vehicle_model": {
+          "method": "single_label",
+          "config": ""
+        },
+        "claimant_name": {
+          "method": "single_label",
+          "config": "Our Client:"
+        },
+        "reference": {
+          "method": "single_label",
+          "config": "Our Ref:"
+        },
+        "incident_date": {
+          "method": "single_label",
+          "config": "RTA"
+        },
+        "instruction_date": {
+          "method": "fixed_position_label",
+          "config": "2 || Date:"
+        },
+        "inspection_date": {
+          "method": "manual_input",
+          "config": ""
+        },
+        "inspection_address": {
+          "method": "two_labels",
+          "config": ""
+        },
+        "accident_circumstances": {
+          "method": "two_labels",
+          "config": ""
+        },
+        "vat_status": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage_unit": {
+          "method": "single_label",
+          "config": ""
+        }
+      }
+    },
+    {
+      "name": "TEN",
+      "code": "TEN",
+      "detect_phrases": [
+        "tenlegal"
+      ],
+      "engineer_report": false,
+      "use_current_date_for_inspection_date": true,
+      "force_postcode_for_inspection_address": false,
+      "field_rules": {
+        "work_provider": {
+          "method": "manual_input",
+          "config": "TEN"
+        },
+        "vrm": {
+          "method": "single_label",
+          "config": "Vehicle Reg:"
+        },
+        "vehicle_model": {
+          "method": "single_label",
+          "config": ""
+        },
+        "claimant_name": {
+          "method": "single_label",
+          "config": "Client:"
+        },
+        "reference": {
+          "method": "two_labels",
+          "config": "Ref: || Client:"
+        },
+        "incident_date": {
+          "method": "single_label",
+          "config": "Accident Date:"
+        },
+        "instruction_date": {
+          "method": "email_date",
+          "config": "Date:"
+        },
+        "inspection_date": {
+          "method": "manual_input",
+          "config": ""
+        },
+        "inspection_address": {
+          "method": "single_label",
+          "config": "currently stored at"
+        },
+        "accident_circumstances": {
+          "method": "two_labels",
+          "config": ""
+        },
+        "vat_status": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage": {
+          "method": "single_label",
+          "config": ""
+        },
+        "mileage_unit": {
+          "method": "single_label",
+          "config": ""
+        }
+      }
+    }
+  ]
+}

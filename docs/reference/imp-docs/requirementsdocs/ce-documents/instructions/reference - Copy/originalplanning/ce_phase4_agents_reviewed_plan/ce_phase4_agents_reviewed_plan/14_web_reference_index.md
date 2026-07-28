@@ -1,0 +1,17 @@
+# Web Reference Index
+
+- [Microsoft Graph mail API](https://learn.microsoft.com/en-us/graph/api/resources/mail-api-overview?view=graph-rest-1.0)
+- [Microsoft Graph shared/delegated mailbox access](https://learn.microsoft.com/en-us/graph/outlook-share-messages-folders)
+- [Microsoft Graph Outlook change notifications](https://learn.microsoft.com/en-us/graph/outlook-change-notifications-overview)
+- [Office 365 Outlook connector](https://learn.microsoft.com/en-us/connectors/office365/)
+- [Box AI structured metadata extraction](https://developer.box.com/reference/post-ai-extract-structured)
+- [Box AI Extract quick start](https://developer.box.com/guides/box-ai/quick-start/box-ai-extract)
+- [DVLA Vehicle Enquiry Service API](https://developer-portal.driver-vehicle-licensing.api.gov.uk/apis/vehicle-enquiry-service/vehicle-enquiry-service-description.html)
+- [DVSA MOT History API](https://documentation.history.mot.api.gov.uk/)
+- [Azure AI Document Intelligence custom extraction](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/train/custom-model?view=doc-intel-4.0.0)
+- [Teams incoming webhooks / Workflows](https://support.microsoft.com/en-gb/office/create-incoming-webhooks-with-workflows-for-microsoft-teams-8ae491c7-0394-4861-ba59-055e33f75498)
+- [WhatsApp Business templates](https://developers.facebook.com/documentation/business-messaging/whatsapp/templates/overview)
+- [Audatex AudaConnect](https://audatex.co.uk/solutions/audaconnect/)
+- [Autovista / Glass's data APIs](https://glass.co.uk/product/data-solutions/)
+- [Autovista vehicle data APIs](https://autovista.com/product/autovista-api/)
+- [cap hpi API](https://api.cap-hpi.co.uk/docs/index.html)

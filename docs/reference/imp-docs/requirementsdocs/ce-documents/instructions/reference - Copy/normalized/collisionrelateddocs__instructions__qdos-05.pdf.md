@@ -1,0 +1,89 @@
+# Normalized Companion: QDOS 05.pdf
+
+- Raw source: `docs/reference/raw/collisionrelateddocs/Instructions/QDOS 05.pdf`
+- SHA256: `080bec20fd211188ca8e19404ff518ed8396c348e381c6d2a2fda53fd0f0af94`
+- Extraction method: pypdf-text
+- Extraction confidence: partial-review-required
+- Blocker: No OCR/layout validation in scaffold pass
+
+This companion is a derivative working copy. The raw source remains the source of truth.
+
+---
+
+## Page 1
+
+Our Ref: /45160/1
+Collision Engineers Ltd
+77-79 Hoylake Road
+Moreton
+Wirral
+CH49 6LH
+Date: 6 May 2026
+Dear Sirs
+Our Client: Mr Jamie Elder
+Our Client’s Vehicle: VAUXHALL CORSA ELITE NAV PREMIUM TURBO
+Registration: FD70 ONU
+Date of Accident: 2 May 2026
+ENGINEER NOTIFICATION (REPORT + AUDIT REPORT)
+CLIENT DETAILS
+Vehicle Registration: Mr Jamie Elder
+49 Bracken Brae
+Lanark
+ML11 0AZ
+Accident Date: VAUXHALL CORSA 
+ELITE NAV PREMIUM 
+TURBO
+Home Tel: FD70 ONU
+Work Tel: 02/05/2026
+Mobile:
+REPAIRER DETAILS
+Tel: 07923629069
+Fax: Gordon Marshall 
+Coachworks
+16a West Langland 
+Street
+Kilmarnock
+KA1 2PY
+Proud Members OfQDOS Accident Assistance Ltd are a claims management company.
+Registered in England and Wales: Company Registration Number 5179995
+Registered Office: Higsons Chartered Accountants – Offices 1 and 2, 1A King Street, 
+Farnworth, Bolton, BL4 7AB
+Call us today on
+0800 093 0982
+enquiries@qdosassist.co.uk
+
+## Page 2
+
+Email: 07902 317534
+Engineer to Estimate
+gwcmarshall@aol.comUnknown
+
+## Page 3
+
+We would be obliged if you could contact the repairing garage and/or the client as appropriate and 
+agree figures with the repairer – do not authorise repairs.  Please do not agree a contract repair in 
+excess of 80% of the vehicle value.  All contract repairs must be fully itemised.
+Please confirm if the vehicle is un-roadworthy and/or illegal to drive.
+Vehicle Status – 
+Damage Area – Undriveable
+Pre-existing Damage: Our client was in their vehicle proceeding on 
+Abbeygreen Road in Lanark, Scotland. This 
+road consists of one lane of travel on each 
+side. Your insured, in their vehicle, was 
+proceeding in the oncoming lane and has 
+veered into our client's lane whilst 
+navigating a bend in the road. This has 
+resulted in a collision with the offside front 
+of our client's vehicle.
+TP Vehicle: Front Offside: Moderate
+damage to offside front bumper, wing, front 
+offside door and wing mirror. Front offside 
+alloy has also been scuffed
+TP Registration:
+TP Representative Name: PEUGEOT EXPERT S STANDARD BLUE HDI
+If you need any further information please contact us on KN19 VSTProtector Insurance C/o Sedgwick 
+International selecting option 2.
+Yours 0800 093 0982faithfullysincerelyfaithfully
+QDOS Assistance
+{{10{sincerely
+On behalf of SBL Recoveries
