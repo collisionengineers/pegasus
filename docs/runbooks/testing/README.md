@@ -15,7 +15,7 @@ Pegasus has a reproducible Windows-native test environment that proves each deli
 - Preserve the material meaning of `docs/operator-notes/`; keep `corpus/` read-only. Corpus evidence remains ignored and local, and no corpus input or derivative may be uploaded to Azure, CI, or a vendor without fresh explicit permission.
 - Local emulators and mocks do not prove managed identity, RBAC, vendor behavior, cloud durability, scaling, alert delivery, recovery objectives, or operator acceptance.
 - No cloud mutation, billed service call, mailbox access, Box change, deployment, or credential change is authorised by this plan.
-- Service Bus, Event Hubs, Cosmos DB, Redis, PostgreSQL, Azure Files, ADLS, and local SMTP infrastructure are excluded because they do not belong to the approved `Next`/`unallocated` target architecture.
+- Service Bus, Event Hubs, Cosmos DB, Redis, PostgreSQL, Azure Files, ADLS, and local SMTP infrastructure are excluded because they do not belong to the approved target architecture at any horizon.
 
 ## Stable invariants
 

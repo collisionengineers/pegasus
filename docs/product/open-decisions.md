@@ -28,6 +28,12 @@ QDOS direct sender identity is the exact `@qdosassist.co.uk` suffix. It does not
 classify message type, associate a case or apply to an identified intermediary
 without the remaining route policy.
 
+The supplied [Mapped Principals spreadsheet](../reference/imp-docs/requirementsdocs/provider-extra-info/Mapped%20Principals.xlsx)
+identifies additional principals and route candidates beyond QDOS. Preserve
+every listed candidate as evidence; each still needs its exact sender/intermediary
+identity, predicates, precedence, genuine examples and holdout accepted before
+activation.
+
 ## EVA manual handoff mapping
 
 The two observed examples fix the key order to `Work Provider`, `VRM`, `Vehicle

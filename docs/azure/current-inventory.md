@@ -24,8 +24,8 @@ Neither predecessor resource group has a resource lock. That is an inventory fac
 | `rg-collisionspike-dev` | UK South | 52 | old application; tags include `app=collisionspike`, `environment=dev`, `managedBy=claude-deploy` |
 | `cespkocr-env-dev_FunctionApps_247f14f1-8d57-491f-a325-a97e99634117` | UK South | 1 | Azure-managed child group for OCR Function/Container App |
 | `DefaultResourceGroup-SUK` | UK South | 1 | shared/default Log Analytics workspace used by API/orchestrator telemetry |
-| `VisualStudioOnline-24D3DE18145149ECA713A2C21F0A74B1` | UK South | 1 | Visual Studio account; no Pegasus ownership established |
-| `VisualStudioOnline-C54F94A5C4C841719773D424E581EAE4` | UK South | 1 | Visual Studio account; no Pegasus ownership established |
+| `VisualStudioOnline-24D3DE18145149ECA713A2C21F0A74B1` | UK South | 1 | Visual Studio account; no CollisionSpike ownership established |
+| `VisualStudioOnline-C54F94A5C4C841719773D424E581EAE4` | UK South | 1 | Visual Studio account; no CollisionSpike ownership established |
 
 ## Complete resource list
 

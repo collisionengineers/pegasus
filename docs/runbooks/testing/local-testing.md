@@ -261,7 +261,7 @@ Storage Explorer, SSMS and Postman remain optional conveniences. Do not add Serv
 | Graph webhooks | Signature, replay, expiry and duplicate-notification contract tests | Public callback and Graph subscription in approved shared development | Webhook endpoint or subscription |
 | PDF-engine replacement | Same frozen cohort/holdout and contract parity suite | Licence/security/maintenance review and single-path cutover | Parallel permanent PDF engines |
 
-SMS, Teams, a customer portal, redaction, signatures, legal hold, subject-request workflows and `0.1.0-alpha.1` migration remain exclusions, not positive testing requirements, until separately authorised.
+SMS, Teams, a customer portal, redaction, signatures, legal hold, subject-request workflows and predecessor application/data migration remain exclusions, not positive testing requirements, until separately authorised.
 
 ### Completion evidence
 

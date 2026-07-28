@@ -79,6 +79,7 @@ no transcript, archive copy, README or second requirements ledger is created.
 | `DOC-CON-008` | Administrator is the superuser role. Andrew and Alex are initial assignments held as application data/configuration; no person, email address or bypass is compiled into authorization. |
 | `DOC-CON-009` | The current release uses deterministic, operator-approved EVA drag-and-drop JSON, selected custody-confirmed images and a hash manifest. EVA retains engineering authority until each replacement slice is separately contracted, caller-proved and accepted. |
 | `DOC-CON-010` | EVA screenshots are data/decision evidence, not navigation authority. Pegasus uses one case-centred Engineer workbench with progressive sections and no duplicate domain ownership. |
+| `DOC-CON-011` | PdfPig remains the authoritative embedded-PDF extraction path for the current release. The legacy `cedocumentmapper` is not reused; a bespoke extractor may replace PdfPig only after separate hardening, caller proof and acceptance. |
 
 ## Scope
 

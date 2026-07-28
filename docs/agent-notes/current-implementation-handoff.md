@@ -4,12 +4,17 @@ Last reconciled: 2026-07-27, Europe/London
 
 Implementation baseline: accepted provider-domain increment
 `d0965e1264dadc8d9942ac54fd68a4b45fd06f28`; verify the exact current head
-before relying on file locations or test counts.
+before relying on file locations or test counts. The Pegasus identity cutover
+renamed its logical embedded resource at
+`f69ea31dfdf0a59b8a2c176da90ae22a538fbc9c`.
 
-That increment carries package version `provider-domains-v1`, embedded logical
-resource `Pegasus.Infrastructure.Persistence.ReferenceData.provider-domains.v1.json`,
-schema version `1`, 11 providers, 16 provider/intermediary associations, and
-package SHA-256 `f6b5ad8ecdd428db4316b23e16aa7e0ffc93562aec33374c03ea68cd4f0370a3`.
+The accepted increment carries package version `provider-domains-v1`, logical
+resource `CollisionSpike.Infrastructure.Persistence.ReferenceData.provider-domains.v1.json`;
+the current name after the identity cutover is
+`Pegasus.Infrastructure.Persistence.ReferenceData.provider-domains.v1.json`.
+It has schema version `1`, 11 providers, 16 provider/intermediary associations,
+and package SHA-256
+`f6b5ad8ecdd428db4316b23e16aa7e0ffc93562aec33374c03ea68cd4f0370a3`.
 The EF adapter materializes a requested provider-domain snapshot with one
 database query. No Web or Worker caller consumes that package. At the accepted
 baseline, Release runs passed 62 Core, 33 Architecture, and 98 Integration

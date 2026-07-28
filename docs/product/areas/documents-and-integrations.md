@@ -66,8 +66,9 @@ valuation and reporting until each slice transfers authority independently.
 
 ## Valuation evidence and Engineer decision
 
-Valuation is a versioned evidence/decision flow, not a vendor call. Every source
-observation retains:
+Pegasus calls supported valuation-vendor APIs to receive observations. The
+resulting valuation remains a versioned evidence/Engineer-decision flow. Every
+source observation retains:
 
 - source key and vehicle identity;
 - mileage and unit;
