@@ -1,0 +1,59 @@
+# Normalized Companion: SBL 01.pdf
+
+- Raw source: `docs/reference/raw/collisionrelateddocs/Instructions/SBL 01.pdf`
+- SHA256: `fa2d7e6abe04830ac29bd5faa7b9452212a6bc91d636cfddf10510c821780fc8`
+- Extraction method: pypdf-text
+- Extraction confidence: partial-review-required
+- Blocker: No OCR/layout validation in scaffold pass
+
+This companion is a derivative working copy. The raw source remains the source of truth.
+
+---
+
+## Page 1
+
+Asquith House, 130 Asquith Avenue
+Morley, Leeds, West Yorkshire
+LS27 9QX
+URGENT NEW INSTRUCTION
+Instruction Details
+To: Collision Engineers
+Date: 06/05/2026
+From: Smart Business Link
+Introducer: C.A.R.S Collision Accident Recovery Service Ltd
+Claim & Policyholder
+Claim Number: SBL-B0470099
+Incident Date: 06/04/2026
+Claim Type: Credit Repair
+Driver: Mr Craig Motorhome Escapes
+Policyholder Name: Mr Craig Motorhome Escapes
+Policyholder VAT Status: Not VAT Registered
+Address: Royston Lodge, Bathgate,  EH48 1JX
+Tel Mobile: 01316000974
+Vehicle & Damage
+Vehicle Make: FORD SWIFT VOYAGER 494 AUTO
+Engine Size:
+Registration: SK24 KYF
+Vehicle Driveable: Yes
+Vehicle Damage:
+Pre-Existing Damage:
+Incident Circumstances: Hit whilst parked occupied 
+Agreed Value:
+Current Vehicle Location: Home address
+Repairer Details
+Repairer Name: Level Up Bodyshop
+Repairer Address: Block 1 Whiteside Industrial Estate, Bathgate EH48 2RX
+Repairer Tel: 07720315785
+Repairer Email: levelupautobody60@gmail.com
+Agreed Labour Rate:
+Insurance & Hire
+Insurance Cover:
+Policy Excess: £0
+Authorise if in order?: Yes
+Hire Supplied:
+Hire Company:
+Hire Out Date:
+Important Notes
+Please confirm by return receipt of instruction. Arrange inspection within 24 hours and provide full report within 48 hours.
+Smart Business Link, Asquith House, 130 Asquith Avenue, Morley, Leeds, West Yorkshire, LS27 9QX
+tel: 01132 898839 | email: claims@smartbusinesslink.com | web: www.smartbusinesslink.com

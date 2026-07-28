@@ -1,0 +1,423 @@
+Received: from LO9P123MB7898.GBRP123.PROD.OUTLOOK.COM (2603:10a6:600:3e6::5)
+ by CWLP123MB1970.GBRP123.PROD.OUTLOOK.COM with HTTPS; Tue, 14 Jul 2026
+ 08:05:25 +0000
+Received: from CW1P123CA0039.GBRP123.PROD.OUTLOOK.COM (2603:10a6:400:290::9)
+ by LO9P123MB7898.GBRP123.PROD.OUTLOOK.COM (2603:10a6:600:3e6::5) with
+ Microsoft SMTP Server (version=TLS1_2,
+ cipher=TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384) id 15.21.202.19; Tue, 14 Jul
+ 2026 08:05:19 +0000
+Received: from CW2PEPF000056BD.GBRP265.PROD.OUTLOOK.COM
+ (2603:10a6:400:290:cafe::16) by CW1P123CA0039.outlook.office365.com
+ (2603:10a6:400:290::9) with Microsoft SMTP Server (version=TLS1_3,
+ cipher=TLS_AES_256_GCM_SHA384) id 15.21.223.9 via Frontend Transport; Tue, 14
+ Jul 2026 08:05:19 +0000
+Authentication-Results: spf=pass (sender IP is 149.72.116.186)
+ smtp.mailfrom=em2410.box.com; dkim=pass (signature was verified)
+ header.d=box.com;dmarc=pass action=none header.from=box.com;compauth=pass
+ reason=100
+Received-SPF: Pass (protection.outlook.com: domain of em2410.box.com
+ designates 149.72.116.186 as permitted sender)
+ receiver=protection.outlook.com; client-ip=149.72.116.186;
+ helo=o8.notify.box.com; pr=C
+Received: from o8.notify.box.com (149.72.116.186) by
+ CW2PEPF000056BD.mail.protection.outlook.com (10.167.240.20) with Microsoft
+ SMTP Server (version=TLS1_3, cipher=TLS_AES_256_GCM_SHA384) id 15.21.223.9
+ via Frontend Transport; Tue, 14 Jul 2026 08:05:18 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=box.com;
+	h=content-transfer-encoding:content-type:date:from:mime-version:subject:
+	to:cc:content-type:date:from:subject:to;
+	s=box; t=1784016317;
+	bh=zgusbwH8yJjv9wy6PoXpoFh92wBL6ZV7i8NykKHCb34=;
+	b=HqVoVwyJQRg2V9tRPOXLM8P6vT0OZogbG/ELXaNMHijsyGnkHHSbylH03ObxRGoyIC0M
+	vMhL5+l7DJL7yV0isxeMgoH+tTX7+IogJJxt8CGzjuFdkhd09p76rGsrLagAV8+7QTxsFL
+	JEwp58mmBWe7I0QH0Jv1EpF/kzelNJcgpssgTUzMy4fGWFhoB6r0TsMOrTLlEQ8H8bgRgz
+	2NmXup5/cDhkXRzvYcRB1QOwuwmofHgFFbpmsekFkTA5wrRsWNUhtYwkRgXq+AKIS9wEDo
+	Rlmp/XiDvF2qF+dh4pVcKGwfWV/O6hsU460tv2biAqo/QV1mAbc1vrXHmRgayuoA==
+Received: by recvd-94dcd5764-7qz5b with SMTP id recvd-94dcd5764-7qz5b-1-6A55EDBD-1D
+	2026-07-14 08:05:17.433971304 +0000 UTC m=+379401.288572003
+Received: from MjEyNTA0ODg (unknown)
+	by geopod-ismtpd-6 (SG) with HTTP
+	id 3aRoT_l9Qrmp4tMSK_Ezhw
+	Tue, 14 Jul 2026 08:05:17.418 +0000 (UTC)
+Content-Transfer-Encoding: quoted-printable
+Content-Type: text/html; charset=us-ascii
+Date: Tue, 14 Jul 2026 08:05:17 +0000 (UTC)
+From: Box <noreply@box.com>
+Message-ID: <3aRoT_l9Qrmp4tMSK_Ezhw@geopod-ismtpd-6>
+Subject: Ed Mawdsley deleted 1 item from ALS26079
+X-SG-EID: =?us-ascii?Q?u001=2E9Q9p4fNIn9O6EiLzatRHICcK6gC1+PK4vIc+0kfv4gHdW1GSb2uk+8CkY?=
+ =?us-ascii?Q?0H27SqDze3TZPSstVbtonXpKdcbj8SL0fSQIzbO?=
+ =?us-ascii?Q?hfGB1ZCRyjH=2FecNJ0KrzaKGKzlaSHxnAjt93b9q?=
+ =?us-ascii?Q?CzLL0nSL8sXa65EHPH4PsArouX0B2pZTn03rmza?=
+ =?us-ascii?Q?YfOprBw1P35wKfZfloxNeNpYrC1xwQhr9wzOPFC?=
+ =?us-ascii?Q?NZuIbI1jf0AVZfgcGB7thU=3D?=
+X-SG-ID: =?us-ascii?Q?u001=2ESdBcvi+Evd=2FbQef8eZF3Bh0J+iD8x=2FJdIrLVKoK8rxi0HiDXeaLi+bOBQ?=
+ =?us-ascii?Q?jY8zUgsBJmttOsK7NA4WoHzBV494kDF0+KNfyZX?=
+ =?us-ascii?Q?Ku0Q7E=2FfSWnCpyWY7ogLfkhq++L13PZdvDQbJZc?=
+ =?us-ascii?Q?ah24DEyb9QlmfIKvdFTMYupshEaCYW=2FXml4IHfa?=
+ =?us-ascii?Q?ZfU+xQ=2FKcSej+Msjr4ObgAd=2FO9hWQi8jEe6oja7?=
+ =?us-ascii?Q?HtXm6clrYZDXhq1bCCvMBW8BbKw9YPwb60AqTby?=
+ =?us-ascii?Q?hmJdIxeYR5TO0jn7KmA5bDn+h7usRB+0adaJ=2FsZ?=
+ =?us-ascii?Q?qRRFneIoU2fuuZfB1yH5XNbemNaH0B7N77NidIs?=
+ =?us-ascii?Q?3Xm8PGBC4bCWmhaFIw6pWw8fg54qKWnfb9NM+t1?=
+ =?us-ascii?Q?fnCit42ECAnA8LuNeyBzxG63ggSgtMnU5D=2Fe2DJ?=
+ =?us-ascii?Q?DNORE34KC0LkfdiGguVgPtNqspIrK+dROjV6Oi+?=
+ =?us-ascii?Q?SSF9YxX59tS+PLqiIs1+ieaDXGRNqBwbNTXMXNL?=
+ =?us-ascii?Q?GpL+3isKYB7Orgrk1Mr2vutvpAMAxKo3pDwGGfn?=
+ =?us-ascii?Q?BPMsznYqw=3D=3D?=
+To: info@collisionengineers.co.uk
+X-Entity-ID: u001.ExE9Jcl5VxpdGcovHuqn4A==
+Return-Path: bounces+21250488-e42c-info=collisionengineers.co.uk@em2410.box.com
+X-MS-Exchange-Organization-ExpirationStartTime: 14 Jul 2026 08:05:19.3439
+ (UTC)
+X-MS-Exchange-Organization-ExpirationStartTimeReason: OriginalSubmit
+X-MS-Exchange-Organization-ExpirationInterval: 1:00:00:00.0000000
+X-MS-Exchange-Organization-ExpirationIntervalReason: OriginalSubmit
+X-MS-Exchange-Organization-Network-Message-Id: 69ede61c-0236-40e2-c666-08dee17ea596
+X-EOPAttributedMessage: 0
+X-EOPTenantAttributedMessage: 858cf5b3-aa0a-47a6-9b40-4851fd0afa94:0
+X-MS-Exchange-Organization-MessageDirectionality: Incoming
+X-MS-PublicTrafficType: Email
+X-MS-TrafficTypeDiagnostic: CW2PEPF000056BD:EE_|LO9P123MB7898:EE_|CWLP123MB1970:EE_
+X-MS-Exchange-Organization-AuthSource: CW2PEPF000056BD.GBRP265.PROD.OUTLOOK.COM
+X-MS-Exchange-Organization-AuthAs: Anonymous
+X-MS-Office365-Filtering-Correlation-Id: 69ede61c-0236-40e2-c666-08dee17ea596
+X-MS-Exchange-Organization-SCL: -1
+X-Microsoft-Antispam: BCL:3;ARA:13230040|704161411799003|12012899012|4092899012|7149299003|13102899012|5062899012|13012899012|29132699027|3092899012|69100299015|3072899012|2092899012|3109299003|5082899009|6062899009|7049299003|18003699003|16102099003|5143699018|56012099006|5063699009|8096899003|19002099009|13003099007;
+X-Forefront-Antispam-Report: CIP:149.72.116.186;CTRY:US;LANG:en;SCL:-1;SRV:;IPV:NLI;SFV:SFE;H:o8.notify.box.com;PTR:o8.notify.box.com;CAT:NONE;SFS:(13230040)(704161411799003)(12012899012)(4092899012)(7149299003)(13102899012)(5062899012)(13012899012)(29132699027)(3092899012)(69100299015)(3072899012)(2092899012)(3109299003)(5082899009)(6062899009)(7049299003)(18003699003)(16102099003)(5143699018)(56012099006)(5063699009)(8096899003)(19002099009)(13003099007);DIR:INB;
+X-MS-Exchange-CrossTenant-OriginalArrivalTime: 14 Jul 2026 08:05:18.8017
+ (UTC)
+X-MS-Exchange-CrossTenant-Network-Message-Id: 69ede61c-0236-40e2-c666-08dee17ea596
+X-MS-Exchange-CrossTenant-Id: 858cf5b3-aa0a-47a6-9b40-4851fd0afa94
+X-MS-Exchange-CrossTenant-AuthSource: CW2PEPF000056BD.GBRP265.PROD.OUTLOOK.COM
+X-MS-Exchange-CrossTenant-AuthAs: Anonymous
+X-MS-Exchange-CrossTenant-FromEntityHeader: Internet
+X-MS-Exchange-Transport-CrossTenantHeadersStamped: LO9P123MB7898
+X-MS-Exchange-Transport-EndToEndLatency: 00:00:06.7893446
+X-MS-Exchange-Processed-By-BccFoldering: 15.21.0202.012
+X-Microsoft-Antispam-Mailbox-Delivery:
+	wl:1;pcwl:1;ucf:0;jmr:0;auth:0;dest:I;ENG:(910005)(944490095)(944506478)(944626604)(920097)(811242)(255002)(410001)(930201)(20251009189)(140003);
+X-Microsoft-Antispam-Message-Info:
+	=?iso-8859-1?Q?Pgeuif1Zo+2QF6qK21+x63f5uQ9vvRvz8Lf0y+6jnAsJJwNYeCIEnhrmas?=
+ =?iso-8859-1?Q?2ybTvBog/oDWaV+gQ1ECNhZE1xqFDM9ek8uh8vjwkELgwT6Vw5Q/V/7XeD?=
+ =?iso-8859-1?Q?IGtDDuHQACWLATyqwAEIKzFJM0Swmk7TMxiYjQUT7jc1QmnTFieOQDzv1M?=
+ =?iso-8859-1?Q?k3NLg50mSP+HvcHSyKTvNsFDuvmHoVxgztR7PzxAEmfsLwwkbDG8tevhqF?=
+ =?iso-8859-1?Q?u3BXXH6snNQL/Rb7fv3Avd/y2veLslfMYE/uN/DL9re4+basP9bFA5YinP?=
+ =?iso-8859-1?Q?cLiUWLXyxR8WLSewXh2KI3IdOPcDgWAF1ADmGSCAsLiN8ZTKij+TJjs2Zn?=
+ =?iso-8859-1?Q?z61c/LCMu2Jzz5GkGJD9TE7g2P+As9ghpCidPzC44ZdsQR1c5jahuSlJYP?=
+ =?iso-8859-1?Q?FC2rGNVcFxMgn5VOMcmD7E5nwsHRYo3wSBWJQDFGdOpPPkkp0whrOqPtR/?=
+ =?iso-8859-1?Q?t/fU7/cnXBXZoKzJHM88QZ5DqjZz3dzRcSMVHYoZaId+QzABJfNW6oCX9o?=
+ =?iso-8859-1?Q?fM+lHwKyAa1T44XRD5N2PbitsuAcIDrCpdUecx/X13e3OXuudpFtaGx2E5?=
+ =?iso-8859-1?Q?nFXxG+XIaQiQkcLs9hu01HHuYXfHd6KA5o6WErag97zcF73k5pIk4aMP1W?=
+ =?iso-8859-1?Q?RYIgILWGxTJ/FP1LpJ9nmpwNmmgvlm8jsozBTx2bpGsNu60EoQgDSJ4GIS?=
+ =?iso-8859-1?Q?wa2cENBTzMmZY7VEbAoZ03ze7yubrKzZI2qTxkkva32PX8NB48iiNBqSxq?=
+ =?iso-8859-1?Q?L1r850XlMiYKXMeHWj92+He+Tex/cXzZhmew1VYzu3DGvMEjjt9hbbd3N9?=
+ =?iso-8859-1?Q?s2B/jU+q0UlMTZZ5eL7mMuk2hb9Oz4iXHazjPAlDzCg3Yk6fJKaqiyvqYv?=
+ =?iso-8859-1?Q?p8/dx24786up3nhN/9duWeW1KQ+6AwJQf3i/Ny9C7BPphpJQ8sf+r1zDTp?=
+ =?iso-8859-1?Q?2qnKXG/cS/7C4EaorxzbkDm7Nf2sS3cKtaRGidOkqyWt0yR51TO6atsA0g?=
+ =?iso-8859-1?Q?3rDL+VPGkU6NWzvs3oHC+TdaF5fEAeYDhRuJh9f4RTfLkKCSRakFHzNeuD?=
+ =?iso-8859-1?Q?gmaK8n/Sr7Q2laIfNzC44xjRMRQMlGODxTmGm+Nq6Z6Lk5BlB+N/YSrZUc?=
+ =?iso-8859-1?Q?UNLA9BSzDY5cdR/hNu5OBDgQoDtCsGd4kdSIB4HqjBOIZIEb4k5et5C6V8?=
+ =?iso-8859-1?Q?fa/00xhJmYOnW7gyh5V5xidbJX+xjsOaHLW8TYRq+ea6i6ZVGgOGtJQxpu?=
+ =?iso-8859-1?Q?S1r6FaqAD65HqQWum2qYe4HNncQLb6oAJjz3ozon/bxE+E8dOX6QyFQDgx?=
+ =?iso-8859-1?Q?Chq3SH/uXHucKjY2Xi7pv1k9OfCVTnpEXfW96ky5KrsiiNVrQxFzjc0t1U?=
+ =?iso-8859-1?Q?ZMpwBalyOR8QN3DUMslAseWcAug3E5fftctV6WaScVjqzMsQvxC3Psigup?=
+ =?iso-8859-1?Q?svluh/DGJc+q2ECGa1gDZBpAa70/GpBWZH4gqnL6whj6C6LtpzgXwyMYH7?=
+ =?iso-8859-1?Q?ZGoNTdRHQdlQTJA8nKUuXwb9ahBIZpR//y4Jg34YMz0cWA3/9NW0tEwUVr?=
+ =?iso-8859-1?Q?iOAQ9m1B2WcTUWKAY6Umh+roJIM+SG+GIEYz8PzpDo0OBkkwKyKsG4NmzU?=
+ =?iso-8859-1?Q?c1Xk3UUl7mkOiMJLqI9uV09ycTJTQMcBhStIr+iKr0DBf11unkfLXpGcWh?=
+ =?iso-8859-1?Q?UfsQB62d+wqtyyF3PeH7tX9Omz/QT2hvzcMzfOdAMu21OI74OtTfkstpXo?=
+ =?iso-8859-1?Q?IAR47HfikLYcpTnaacd6hp2FE4pbTq29fY6th+LkJV3DQM+FeYhkIHN5sV?=
+ =?iso-8859-1?Q?UkZ7nzZ+tVmGCjZCpJxj1rE4/oCk1p7XVyDIgOZghQi2/Ne75N80Sqs9tR?=
+ =?iso-8859-1?Q?TxVZI7YokOlj650UY5XJWHh/axIxJS9Je2iXM3K6VSm4ZztKZZp2HvWpKY?=
+ =?iso-8859-1?Q?0xQc53HKMlSXRSsSO3OJpMTAvcaTPtJrwEjIwqW3j5Vy/AlftgcJJhp3tx?=
+ =?iso-8859-1?Q?E+4xS+D1c49Morlnbd4CsZ1vebFqVOcuNAFAUdXEuofz1OwqajbdIWP7D/?=
+ =?iso-8859-1?Q?hfd884SA0LPLoDBnrTmCK62lgE7Qi8nf1H4WsGcfBh76ssixzDmyAa3Tsw?=
+ =?iso-8859-1?Q?M/q+PlkxzD+/zUOzDarslzky+pF0Ht+aBh7KDapfVDSw+XpX501PFKcDhM?=
+ =?iso-8859-1?Q?kbcEuE5TMA1ZOTlG3zMcw2d6TmKirxlwmeHT1SbdXCRjTEkY4ozKlffWg3?=
+ =?iso-8859-1?Q?Zc4vipNrxrOqhKh/DXJBx5/HB1hLJJwsRdx20A3B+knE8h82q0fcGENS9W?=
+ =?iso-8859-1?Q?XkBniDe94vhnKBHPvrRq0JiYsR0vRDx/sXQB0ceX49Me2l0Oa4pPLwUL/a?=
+ =?iso-8859-1?Q?5nRbP0rJRgKRpn+9Gdm6CAFP8VsrbQnI0pl4DyeKyy32qcya6lEpXrjnT1?=
+ =?iso-8859-1?Q?99EygYyBUf4zRtoSJo41lXPDWveUqV6qoTXFEYNu2sKpQ5wlOhQ41x0Vpa?=
+ =?iso-8859-1?Q?hDPe3Wu/1yBnEXoC7mxHqPYFbxkSfERysNXBOfaoPJHHZjPdtF0YDdkkex?=
+ =?iso-8859-1?Q?uFEBWmuryanwlxYhELO40CEGyqwjue86pOPHfHvBZlElUrWkX0eJJR+fQN?=
+ =?iso-8859-1?Q?CP?=
+MIME-Version: 1.0
+
+<!doctype html><html xmlns=3D"http://www.w3.org/1999/xhtml" xmlns:v=3D"urn:=
+schemas-microsoft-com:vml" xmlns:o=3D"urn:schemas-microsoft-com:office:offi=
+ce"><head>
+<meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3Dus-ascii"=
+><title> An item was deleted from ,[object Object] </title><!--[if !mso]><!=
+--><meta http-equiv=3D"X-UA-Compatible" content=3D"IE=3Dedge"><!--<![endif]=
+--><meta name=3D"viewport" content=3D"width=3Ddevice-width, initial-scale=
+=3D1"><style type=3D"text/css"> #outlook a { padding:0; } body { margin:0;p=
+adding:0;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%; } table, =
+td { border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt; } =
+img { border:0;height:auto;line-height:100%; outline:none;text-decoration:n=
+one;-ms-interpolation-mode:bicubic; } p { display:block;margin:13px 0; } </=
+style><!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:AllowPNG/><o=
+:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscr=
+ipt><![endif]--><!--[if lte mso 11]><style type=3D"text/css"> .mj-outlook-g=
+roup-fix { width:100% !important; } </style><![endif]--><!--[if !mso]><!-->=
+<link href=3D"https://fonts.googleapis.com/css?family=3DLato:wght@400;700" =
+rel=3D"stylesheet" type=3D"text/css"><link href=3D"https://fonts.googleapis=
+.com/css?family=3DRoboto:300,400,500,700" rel=3D"stylesheet" type=3D"text/c=
+ss"><style type=3D"text/css"> @import url(https://fonts.googleapis.com/css?=
+family=3DLato:wght@400;700); @import url(https://fonts.googleapis.com/css?f=
+amily=3DRoboto:300,400,500,700); </style><!--<![endif]--><style type=3D"tex=
+t/css"> @media only screen and (min-width:480px) { .mj-column-per-50 { widt=
+h:50% !important; max-width: 50%; } .mj-column-per-100 { width:100% !import=
+ant; max-width: 100%; } } </style><style media=3D"screen and (min-width:480=
+px)"> .moz-text-html .mj-column-per-50 { width:50% !important; max-width: 5=
+0%; } .moz-text-html .mj-column-per-100 { width:100% !important; max-width:=
+ 100%; } </style><style type=3D"text/css"> @media only screen and (max-widt=
+h:480px) { table.mj-full-width-mobile { width: 100% !important; } td.mj-ful=
+l-width-mobile { width: auto !important; } } </style><style type=3D"text/cs=
+s"></style></head><body style=3D"word-spacing:normal;background-color:#f4f4=
+f4;"><div class=3D"EmailBody-component_main" style=3D"padding: 16px; backgr=
+ound-color: #f4f4f4;"><!--[if mso | IE]><table align=3D"center" border=3D"0=
+" cellpadding=3D"0" cellspacing=3D"0" class=3D"" role=3D"presentation" styl=
+e=3D"width:600px;" width=3D"600" bgcolor=3D"#ffffff" ><tr><td style=3D"line=
+-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]--><div s=
+tyle=3D"background:#ffffff;background-color:#ffffff;margin:0px auto;border-=
+radius:12px 12px 0px 0px;max-width:600px;"><table align=3D"center" border=
+=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"b=
+ackground:#ffffff;background-color:#ffffff;width:100%;border-radius:12px 12=
+px 0px 0px;"><tbody><tr><td style=3D"direction:ltr;font-size:0px;padding:24=
+px 40px;text-align:center;"><!--[if mso | IE]><table role=3D"presentation" =
+border=3D"0" cellpadding=3D"0" cellspacing=3D"0"><tr><td class=3D"Header-co=
+mponent_img-container-outlook" style=3D"vertical-align:top;width:260px;" ><=
+![endif]--><div class=3D"mj-column-per-50 mj-outlook-group-fix Header-compo=
+nent_img-container" style=3D"font-size: 0px; text-align: left; direction: l=
+tr; display: inline-block; vertical-align: top; width: 100%; max-width: 50%=
+;"><table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presenta=
+tion" style=3D"vertical-align:top;" width=3D"100%"><tbody><tr><td align=3D"=
+left" style=3D"font-size:0px;padding:4px 0px;word-break:break-word;"><table=
+ border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" sty=
+le=3D"border-collapse:collapse;border-spacing:0px;"><tbody><tr><td style=3D=
+"width:60px;"><img alt=3D"Box" height=3D"32" src=3D"https://cdn01.boxcdn.ne=
+t/app-assets/notifications/emails/BoxLogo4x.png" style=3D"border:0;display:=
+block;outline:none;text-decoration:none;height:32px;width:100%;font-size:13=
+px;" width=3D"60"></td></tr></tbody></table></td></tr></tbody></table></div=
+><!--[if mso | IE]></td><td class=3D"Header-component_img-container-outlook=
+" style=3D"vertical-align:top;width:260px;" ><![endif]--><div class=3D"mj-c=
+olumn-per-50 mj-outlook-group-fix Header-component_img-container" style=3D"=
+font-size: 0px; text-align: left; direction: ltr; display: inline-block; ve=
+rtical-align: top; width: 100%; max-width: 50%;"><table border=3D"0" cellpa=
+dding=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"border-radius:=
+8px;vertical-align:top;" width=3D"100%"><tbody><tr><td align=3D"right" styl=
+e=3D"font-size:0px;padding:0px;word-break:break-word;"><div style=3D"font-f=
+amily:Lato, Roboto, sans-serif;font-size:13px;line-height:1;text-align:righ=
+t;color:#000000;"><div><!--[if mso]><table cellpadding=3D"0" cellspacing=3D=
+"0" border=3D"0" role=3D"presentation" width=3D"100%" style=3D"width: 100%;=
+"><tr><td align=3D"right" style=3D"text-align: right; padding: 0; line-heig=
+ht: 0; font-size: 0; mso-line-height-rule: exactly;"><img alt=3D"Enterprise=
+ logo" height=3D"32" style=3D"height: 32px; width: auto; border: 0; display=
+: block;" class=3DHeader-component_custom-branding-logo src=3Dhttps://colli=
+sionengineers.app.box.net/index.php?rm=3Dpic_storage_auth&pic=3Deuks!pac3kv=
+01!dYLr_VfoehklxQV1kpY_68-xaMN_hvdCNaS0uJHjF1B7259Mcf93uQWYDgzIX6WcNewcJTPC=
+bcrsTNE5V6EGFv9bnw2jXTxP1oWSzWZWcWORmQA3uGLjf_Os3HVgjlPCIKFZeqP-WJq6IyddAc6=
+hzmfn1WxrniAy2GIgZoL1KgM01spuOBxRQNoFH8KeLpUhY-SZLM-Mvp6c6Q.. /></td></tr><=
+/table><![endif]--><!--[if !mso]><!----><table align=3D"right" style=3D"bor=
+der-radius: 8px; background:linear-gradient(0deg, #ffffff 100%, #000000 100=
+%) "><td style=3D"text-align: right; padding: 0; line-height: 0"><img alt=
+=3D"Enterprise logo" style=3D"height: 32px; width: auto; padding: 4px;" cla=
+ss=3D"Header-component_custom-branding-logo" src=3D"https://collisionengine=
+ers.app.box.net/index.php?rm=3Dpic_storage_auth&amp;pic=3Deuks!pac3kv01!dYL=
+r_VfoehklxQV1kpY_68-xaMN_hvdCNaS0uJHjF1B7259Mcf93uQWYDgzIX6WcNewcJTPCbcrsTN=
+E5V6EGFv9bnw2jXTxP1oWSzWZWcWORmQA3uGLjf_Os3HVgjlPCIKFZeqP-WJq6IyddAc6hzmfn1=
+WxrniAy2GIgZoL1KgM01spuOBxRQNoFH8KeLpUhY-SZLM-Mvp6c6Q.."></td></table><!-- =
+<![endif]--></div></div></td></tr></tbody></table></div><!--[if mso | IE]><=
+/td></tr></table><![endif]--></td></tr></tbody></table></div><!--[if mso | =
+IE]></td></tr></table><table align=3D"center" border=3D"0" cellpadding=3D"0=
+" cellspacing=3D"0" class=3D"Title-component_container-outlook" role=3D"pre=
+sentation" style=3D"width:600px;" width=3D"600" bgcolor=3D"#ffffff" ><tr><t=
+d style=3D"line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![=
+endif]--><div class=3D"Title-component_container" style=3D"background:#ffff=
+ff;background-color:#ffffff;margin:0px auto;max-width:600px;"><table align=
+=3D"center" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presen=
+tation" style=3D"background:#ffffff;background-color:#ffffff;width:100%;"><=
+tbody><tr><td style=3D"direction:ltr;font-size:0px;padding:40px 40px 32px 4=
+0px;text-align:center;"><!--[if mso | IE]><table role=3D"presentation" bord=
+er=3D"0" cellpadding=3D"0" cellspacing=3D"0"><tr><td class=3D"" style=3D"ve=
+rtical-align:top;width:520px;" ><![endif]--><div class=3D"mj-column-per-100=
+ mj-outlook-group-fix" style=3D"font-size:0px;text-align:left;direction:ltr=
+;display:inline-block;vertical-align:top;width:100%;"><table border=3D"0" c=
+ellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"vertical-=
+align:top;" width=3D"100%"><tbody><tr><td align=3D"center" style=3D"font-si=
+ze:0px;padding:0px;word-break:break-word;"><div style=3D"font-family:Lato, =
+Roboto, sans-serif;font-size:21px;font-weight:700;letter-spacing:0.3px;line=
+-height:32px;text-align:center;color:#222222;">An item was deleted from <a =
+href=3D"https://collisionengineers.app.box.com/files/0/f/398594634154?box_s=
+ource=3Dbatched-collaboration-notification&amp;channel=3Demail&amp;notifica=
+tion-version=3D1" style=3D"display:inline-block;color:#0061d5;text-decorati=
+on:none;font-weight:700;line-height:20px;font-size:21px;letter-spacing:0.3p=
+x">ALS26079</a></div></td></tr></tbody></table></div><!--[if mso | IE]></td=
+></tr></table><![endif]--></td></tr></tbody></table></div><!--[if mso | IE]=
+></td></tr></table><table align=3D"center" border=3D"0" cellpadding=3D"0" c=
+ellspacing=3D"0" class=3D"" role=3D"presentation" style=3D"width:600px;" wi=
+dth=3D"600" bgcolor=3D"#ffffff" ><tr><td style=3D"line-height:0px;font-size=
+:0px;mso-line-height-rule:exactly;"><![endif]--><div style=3D"background:#f=
+fffff;background-color:#ffffff;margin:0px auto;max-width:600px;"><table ali=
+gn=3D"center" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"pres=
+entation" style=3D"background:#ffffff;background-color:#ffffff;width:100%;"=
+><tbody><tr><td style=3D"direction:ltr;font-size:0px;padding:0px;text-align=
+:center;"><!--[if mso | IE]><table role=3D"presentation" border=3D"0" cellp=
+adding=3D"0" cellspacing=3D"0"><tr><td class=3D"" style=3D"vertical-align:t=
+op;width:600px;" ><![endif]--><div class=3D"mj-column-per-100 mj-outlook-gr=
+oup-fix" style=3D"font-size:0px;text-align:left;direction:ltr;display:inlin=
+e-block;vertical-align:top;width:100%;"><table border=3D"0" cellpadding=3D"=
+0" cellspacing=3D"0" role=3D"presentation" style=3D"vertical-align:top;" wi=
+dth=3D"100%"><tbody><tr><td align=3D"left" style=3D"font-size:0px;padding:0=
+ 40px;word-break:break-word;"><div style=3D"font-family:Lato, Roboto, sans-=
+serif;font-size:16px;font-weight:700;letter-spacing:0.3px;line-height:24px;=
+text-align:left;color:#000000;"><div>Ed Mawdsley (ed@collisionengineers.co.=
+uk) deleted:</div></div></td></tr></tbody></table></div><!--[if mso | IE]><=
+/td></tr></table><![endif]--></td></tr></tbody></table></div><!--[if mso | =
+IE]></td></tr></table><table align=3D"center" border=3D"0" cellpadding=3D"0=
+" cellspacing=3D"0" class=3D"" role=3D"presentation" style=3D"width:600px;"=
+ width=3D"600" bgcolor=3D"#ffffff" ><tr><td style=3D"line-height:0px;font-s=
+ize:0px;mso-line-height-rule:exactly;"><![endif]--><div style=3D"background=
+:#ffffff;background-color:#ffffff;margin:0px auto;max-width:600px;"><table =
+align=3D"center" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"p=
+resentation" style=3D"background:#ffffff;background-color:#ffffff;width:100=
+%;"><tbody><tr><td style=3D"direction:ltr;font-size:0px;padding:0 0 8px 40p=
+x;text-align:center;"><!--[if mso | IE]><table role=3D"presentation" border=
+=3D"0" cellpadding=3D"0" cellspacing=3D"0"><tr><td class=3D"" style=3D"vert=
+ical-align:top;width:560px;" ><![endif]--><div class=3D"mj-column-per-100 m=
+j-outlook-group-fix" style=3D"font-size:0px;text-align:left;direction:ltr;d=
+isplay:inline-block;vertical-align:top;width:100%;"><table border=3D"0" cel=
+lpadding=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"vertical-al=
+ign:top;" width=3D"100%"><tbody><tr><td align=3D"left" style=3D"font-size:0=
+px;padding:0px;word-break:break-word;"><div style=3D"font-family:Lato, Robo=
+to, sans-serif;font-size:14px;font-weight:400;letter-spacing:0.3px;line-hei=
+ght:20px;text-align:left;color:#6F6F6F;"><span><a href=3D"https://collision=
+engineers.app.box.com/files/0/f/0?box_source=3Dbatched-collaboration-notifi=
+cation&amp;channel=3Demail&amp;notification-version=3D1" style=3D"display:i=
+nline-block;color:#0061d5;text-decoration:none;font-weight:400;line-height:=
+20px;font-size:14px;letter-spacing:0.3px">All Files</a> / </span><span>... =
+/ </span><span><a href=3D"https://collisionengineers.app.box.com/files/0/f/=
+3221031282?box_source=3Dbatched-collaboration-notification&amp;channel=3Dem=
+ail&amp;notification-version=3D1" style=3D"display:inline-block;color:#0061=
+d5;text-decoration:none;font-weight:400;line-height:20px;font-size:14px;let=
+ter-spacing:0.3px">Reports</a> / </span><span><a href=3D"https://collisione=
+ngineers.app.box.com/files/0/f/398594634154?box_source=3Dbatched-collaborat=
+ion-notification&amp;channel=3Demail&amp;notification-version=3D1" style=3D=
+"display:inline-block;color:#0061d5;text-decoration:none;font-weight:400;li=
+ne-height:20px;font-size:14px;letter-spacing:0.3px">ALS26079</a></span></di=
+v></td></tr></tbody></table></div><!--[if mso | IE]></td></tr></table><![en=
+dif]--></td></tr></tbody></table></div><!--[if mso | IE]></td></tr></table>=
+<table align=3D"center" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" cl=
+ass=3D"" role=3D"presentation" style=3D"width:600px;" width=3D"600" bgcolor=
+=3D"#ffffff" ><tr><td style=3D"line-height:0px;font-size:0px;mso-line-heigh=
+t-rule:exactly;"><![endif]--><div style=3D"background:#ffffff;background-co=
+lor:#ffffff;margin:0px auto;max-width:600px;"><table align=3D"center" borde=
+r=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"=
+background:#ffffff;background-color:#ffffff;width:100%;"><tbody><tr><td sty=
+le=3D"direction:ltr;font-size:0px;padding:0 40px;text-align:center;"><!--[i=
+f mso | IE]><table role=3D"presentation" border=3D"0" cellpadding=3D"0" cel=
+lspacing=3D"0"><tr><td class=3D"" style=3D"vertical-align:top;width:520px;"=
+ ><![endif]--><div class=3D"mj-column-per-100 mj-outlook-group-fix" style=
+=3D"font-size:0px;text-align:left;direction:ltr;display:inline-block;vertic=
+al-align:top;width:100%;"><table border=3D"0" cellpadding=3D"0" cellspacing=
+=3D"0" role=3D"presentation" style=3D"vertical-align:top;" width=3D"100%"><=
+tbody><tr><td align=3D"left" style=3D"font-size:0px;padding:10px 25px;word-=
+break:break-word;"><table cellpadding=3D"0" cellspacing=3D"0" width=3D"100%=
+" border=3D"0" style=3D"color:#000000;font-family:Lato, Roboto, sans-serif;=
+font-size:13px;line-height:22px;table-layout:auto;width:100%;border:none;">=
+<tr class=3D"File-component_main"><td style=3D"padding-top:0;padding-bottom=
+:0;padding-right:8px;height:40px;width:32px;line-height:1"><div style=3D"wi=
+dth:0;min-width:0"><img alt=3D"File" height=3D"32" src=3D"https://cdn01.box=
+cdn.net/app-assets/notifications/emails/FileBoxNote64.png" width=3D"32"></d=
+iv></td><td style=3D"padding-top:0;padding-bottom:0"><span class=3D"File-co=
+mponent_file-name" style=3D"color:#222222;font-weight:700;font-size:14px;li=
+ne-height:20px;letter-spacing:0.3px">On hold - see notes on job sheet.boxno=
+te</span></td></tr></table></td></tr></tbody></table></div><!--[if mso | IE=
+]></td></tr></table><![endif]--></td></tr></tbody></table></div><!--[if mso=
+ | IE]></td></tr></table><table align=3D"center" border=3D"0" cellpadding=
+=3D"0" cellspacing=3D"0" class=3D"" role=3D"presentation" style=3D"width:60=
+0px;" width=3D"600" bgcolor=3D"#ffffff" ><tr><td style=3D"line-height:0px;f=
+ont-size:0px;mso-line-height-rule:exactly;"><![endif]--><div class=3D"" sty=
+le=3D"background:#ffffff;background-color:#ffffff;margin:0px auto;max-width=
+:600px;"><table align=3D"center" border=3D"0" cellpadding=3D"0" cellspacing=
+=3D"0" role=3D"presentation" style=3D"background:#ffffff;background-color:#=
+ffffff;width:100%;"><tbody><tr><td style=3D"direction:ltr;font-size:0px;pad=
+ding:24px 40px;text-align:center;"><!--[if mso | IE]><table role=3D"present=
+ation" border=3D"0" cellpadding=3D"0" cellspacing=3D"0"><tr><td class=3D"" =
+style=3D"vertical-align:top;width:520px;" ><![endif]--><div class=3D"mj-col=
+umn-per-100 mj-outlook-group-fix" style=3D"font-size:0px;text-align:left;di=
+rection:ltr;display:inline-block;vertical-align:top;width:100%;"><table bor=
+der=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" style=
+=3D"vertical-align:top;" width=3D"100%"><tbody><tr><td align=3D"center" ver=
+tical-align=3D"middle" class=3D"CallToAction-component_button" style=3D"fon=
+t-size:0px;padding:0px;word-break:break-word;"><table border=3D"0" cellpadd=
+ing=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"border-collapse:=
+separate;line-height:100%;"><tbody><tr><td align=3D"center" bgcolor=3D"#006=
+1D5" role=3D"presentation" style=3D"border:none;border-radius:6px;cursor:au=
+to;mso-padding-alt:10px 16px;background:#0061D5;" valign=3D"middle"><a href=
+=3D"https://app.box.com/trash?box_source=3Dbatched-collaboration-notificati=
+on&amp;channel=3Demail&amp;notification-version=3D1" style=3D"display:inlin=
+e-block;background:#0061D5;color:#ffffff;font-family:Lato, Roboto, sans-ser=
+if;font-size:14px;font-weight:700;line-height:20px;letter-spacing:0.3px;mar=
+gin:0;text-decoration:none;text-transform:none;padding:10px 16px;mso-paddin=
+g-alt:0px;border-radius:6px;" target=3D"_blank"> View Trash </a></td></tr><=
+/tbody></table></td></tr></tbody></table></div><!--[if mso | IE]></td></tr>=
+</table><![endif]--></td></tr></tbody></table></div><!--[if mso | IE]></td>=
+</tr></table><table align=3D"center" border=3D"0" cellpadding=3D"0" cellspa=
+cing=3D"0" class=3D"" role=3D"presentation" style=3D"width:600px;" width=3D=
+"600" bgcolor=3D"#fbfbfb" ><tr><td style=3D"line-height:0px;font-size:0px;m=
+so-line-height-rule:exactly;"><![endif]--><div style=3D"background:#fbfbfb;=
+background-color:#fbfbfb;margin:0px auto;border-radius:0px 0px 12px 12px;ma=
+x-width:600px;"><table align=3D"center" border=3D"0" cellpadding=3D"0" cell=
+spacing=3D"0" role=3D"presentation" style=3D"background:#fbfbfb;background-=
+color:#fbfbfb;width:100%;border-radius:0px 0px 12px 12px;"><tbody><tr><td s=
+tyle=3D"direction:ltr;font-size:0px;padding:64px 40px;text-align:center;"><=
+!--[if mso | IE]><table role=3D"presentation" border=3D"0" cellpadding=3D"0=
+" cellspacing=3D"0"><tr><td class=3D"" style=3D"vertical-align:top;width:52=
+0px;" ><![endif]--><div class=3D"mj-column-per-100 mj-outlook-group-fix" st=
+yle=3D"font-size:0px;text-align:left;direction:ltr;display:inline-block;ver=
+tical-align:top;width:100%;"><table border=3D"0" cellpadding=3D"0" cellspac=
+ing=3D"0" role=3D"presentation" style=3D"vertical-align:top;" width=3D"100%=
+"><tbody><tr><td align=3D"center" class=3D"Footer-component_text" style=3D"=
+font-size:0px;padding:0px;word-break:break-word;"><div style=3D"font-family=
+:Lato, Roboto, sans-serif;font-size:14px;font-weight:400;letter-spacing:0.3=
+px;line-height:20px;text-align:center;color:#6F6F6F;"><div>&copy; <span>202=
+6</span> &middot; 900 Jefferson Avenue, Redwood City, CA 94063, USA</div></=
+div></td></tr><tr><td align=3D"center" style=3D"font-size:0px;padding:0px;w=
+ord-break:break-word;"><div style=3D"font-family:Lato, Roboto, sans-serif;f=
+ont-size:14px;letter-spacing:0.3px;line-height:1;text-align:center;color:#4=
+e4e4e;"><a href=3D"https://www.box.com/about-us?channel=3Demail&amp;box_sou=
+rce=3Dbatched-collaboration-notification&amp;notification-version=3D1" styl=
+e=3D"display:inline-block;color:#0061d5;text-decoration:underline;font-weig=
+ht:400;line-height:20px;font-size:14px;letter-spacing:0.3px" class=3D"Foote=
+r-component_about" rel=3D"noreferrer" target=3D"_blank">About Box</a><span>=
+ &middot; </span><a href=3D"https://cloud.app.box.com/account/notifications=
+?channel=3Demail&amp;box_source=3Dbatched-collaboration-notification&amp;no=
+tification-version=3D1" style=3D"display:inline-block;color:#0061d5;text-de=
+coration:underline;font-weight:400;line-height:20px;font-size:14px;letter-s=
+pacing:0.3px" class=3D"Footer-component_settings" rel=3D"noreferrer" target=
+=3D"_blank">Edit Notification Settings</a><span> &middot; </span><a href=3D=
+"https://www.box.com/legal/privacypolicy?channel=3Demail&amp;box_source=3Db=
+atched-collaboration-notification&amp;notification-version=3D1" style=3D"di=
+splay:inline-block;color:#0061d5;text-decoration:underline;font-weight:400;=
+line-height:20px;font-size:14px;letter-spacing:0.3px" class=3D"Footer-compo=
+nent_policy" rel=3D"noreferrer" target=3D"_blank">Privacy Policy</a></div><=
+/td></tr></tbody></table></div><!--[if mso | IE]></td></tr></table><![endif=
+]--></td></tr></tbody></table></div><!--[if mso | IE]></td></tr></table><![=
+endif]--></div><img src=3D"http://track.box.com/wf/open?upn=3Du001.q-2BV50n=
+D7janaUsuABkK-2BwHGqlF-2FNc0mXKeosD3Cob-2BHTDFrhjSpcu-2BK13hbwiwMUqvaAdbXp4=
+r0sysuyBhACgp8UBfK0zeT51gOUt-2BTzDpWTYuuCncekIjao4Eum4Afk9mLs0WgpYvQOmMWuRt=
+NZRoc3cf4CgvgtFOJq1qt2Oe2uPnGndoRdzXMw2R4OFvEjMC8acyv7emrvrLZTmnfEpcaxz4u-2=
+F4h3d1kQslR3Jo-2FaGkqbOZVb44sTQoM5CXqalpqSF1WjLOrj1A-2Fk0cJHabVTeq-2FcFLhIH=
+dzwQlTR-2BliSXgvWx74Fyr1qUaiJIr2Y6ykEe8dusJCGVYO6P34gT11EPxAfE2P3L6T5IALW-2=
+FlspGJS9qF9nX1vDRuqbh8WlpFHZO2LjU3B6WsDtWXh5B4rxZEMYtKSF4xSN6-2BSeq6dwz-2Bo=
+C09kFirQ9KzAA0bqhwFKEJ0R-2BwY09jxeZwoKIHvB7pFSCoWTYP1U-2BP4mB8mAlZJdPHrfPHA=
+IqyOaTTL1v5VkGBeTyyHPdyJv34UhiXBDRAF7n41rVqkAetA1Tiscsk6GbSfR8AAFYTZZAgsDDa=
+HEWB0YWbMH-2BSRxDmFcwtsvaMX80L65JTjOFCiOLDwLuBfcs9nuFXDwQUSV-2FMtyYIVRHvxRX=
+riQfpaF2DS-2FG0Uo8Z3KRyHhgWvTqO5-2B3rpErDkaia2sUk8CO0qulbDCTcPcnr0VrOHeHPfD=
+ZmRZSR8A-3D-3D" alt=3D"" width=3D"1" height=3D"1" border=3D"0" style=3D"hei=
+ght:1px !important;width:1px !important;border-width:0 !important;margin-to=
+p:0 !important;margin-bottom:0 !important;margin-right:0 !important;margin-=
+left:0 !important;padding-top:0 !important;padding-bottom:0 !important;padd=
+ing-right:0 !important;padding-left:0 !important;"></body></html> =

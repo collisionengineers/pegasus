@@ -1,0 +1,105 @@
+code,principal_name,parser_covered,parser_provider_names,job_sheet_principals_table,actual_jobs_count,mapped_principals_entry,lost_cause,lost_cause_reason,eva_code,box_code,inbox,instructions,drag_into_eva
+ABRAHAMS,Abrahams Solicitors,no,,yes,0,yes,no,,ABRAHAMS,ABRAHAMS,Engineers,Attached to email,No
+ACSP,Accident Specialists (Direct jobs),no,,yes,1,no,yes,OCR quality is too low,ACSP,ACSP,Engineers,Direct they will confirm if in Storage or not - check board,No
+ALISON,Alison Law,yes,ALISON,yes,0,yes,no,,ALISON,ALISON,Andrew/Engineers,Usually get a message in whats app,No
+ALL,Alliance &Cooper,no,,yes,0,yes,no,,ALL,ALL,Engineers,,No
+ALS,Auto Logistic Solutions Ltd,yes,ALS,yes,1,yes,no,,ALS,ALS,Engineers,Usually say if they wat rw/unr and rep or total loss,No
+AMS,AMS Solicitors,yes,AMS,yes,1,yes,no,,AMS,AMS,Engineers,PDF in email ,No
+ARSHED,,no,,no,0,yes,no,,,,,,
+AS,Aman Solicitors Advocates,no,,yes,0,no,no,,AS,AS,Engineers,Instructions in email,No
+ASLS,Affinity Seven Law Solicitors,no,,yes,0,no,no,,ASLS,ASLS,Engineers,Word doc in Email,No
+AVI,Avisons Solicitors,no,,yes,0,yes,no,,AVI,AVI,Engineers,PDF/Word doc in email,No
+AX,AX,yes,AX,yes,21,yes,no,,AX,AX,Info,Usually always repairable - occasion TL have to use AX Salvage Matrix,"Yes - but check Inspection Type, Inspection Location, Case number, Request date"
+BAKER,Baker Hardman,no,,yes,0,no,no,,BAKER,BAKER,Engineers,Most jobs come through Omar,No
+BC,Baker Coleman,yes,BC,yes,1,yes,no,,BC,BC,Engineers,"Rapid Claims (Huddersfield)
+Sometimes instructions state PHYSICAL if so need to instruct Service Certainty
+Complete Injury Claims (Wolverhampton)",No
+BLACK,BlackStone,yes,BLACK,yes,5,yes,no,,BLACK,BLACK,Engineers,Instructions usually come in from Shazad,No
+BROADWAY,,no,,no,0,yes,no,,,,,,
+CAN,,no,,no,0,yes,no,,,,,,
+CASTLE,Castle,no,,yes,0,no,no,,CASTLE,CASTLE,Whatsapp,Always received in Whatsapp,No
+CHECK INSTRUCTIONS,FRAZ,no,,yes,0,no,no,,CHECK INSTRUCTIONS,"FRZ
+(SEARCH CASE ID NOT PRINCIPAL)",On Track Whatsapp,"Different Principals
+e.g Focus, Pebble, Swade
+Client Code/Insured = Owner in full on spreadsheet/Whatsapp message",No
+CLIFTON,,no,,no,0,yes,no,,,,,,
+CNX (ENGINEERS),,yes,CNX (Engineers),no,0,yes,no,,,,,,
+CREATE FOR EACH,Arianna Autos,no,,yes,0,no,no,,CREATE FOR EACH,VRM ARIANNA,Andy's Whatsapp,Instructions in Whatsapp,No
+CW,Countrywide,no,,yes,0,yes,no,,CW,CW,Andrew/Engineers,Details usually in email body,No
+DFD,"DFD (Richard or Joshua)
+Also Car Claims",yes,DFD,yes,2,yes,no,,DFD,DFD,Engineers,"PDF in email
+If SMC, images/instruction may arrive separately.
+If so, log separately and wait - don't chase for images or instructions
+Car2Go - as above don't need to chase until after 7 days",No
+EMPIRE,,no,,no,0,yes,no,,,,,,
+EVA (ENGINEERS),,yes,EVA (Engineers),no,0,yes,no,,,,,,
+FOCUS,,no,,no,0,yes,no,,,,,,
+FW,Fairway Solicitors,yes,FW (Garage); FW (Solicitor),yes,12,yes,no,,FW,FW,Engineers,"Sixways - Most jobs come through Sixways
+Veetec Motor Group - Images usually come with instruction",No
+FW (GARAGE),,yes,FW (Garage),no,0,no,no,,,,,,
+FW (SOLICITOR),,yes,FW (Solicitor),no,0,no,no,,,,,,
+GG,Graham Coffey (GGP),no,,yes,0,yes,no,,GG,GGP,Engineers,Graham Coffey,No
+GRAHAM COFFEY (GGP),Graham Coffey (GGP),no,,yes,0,no,no,,,,Engineers,Raja /Fraz,No
+HALO,,no,,no,0,yes,no,,,,,,
+HDUK,,yes,HDUK,no,0,no,no,,,,,,
+HTU,HTU Assessors Ltd,no,,yes,0,no,no,,HTU,HTU,Ben,Body of email,No
+HVL,,no,,no,0,yes,no,,,,,,
+KBS,Knightsbridge (KBS),yes,KBS,yes,6,yes,no,,KBS,KBS,Engineers,Direct,No
+KERR,Kerr Brown Partnership,yes,KERR,yes,0,yes,no,,KERR,KERR,Engineers,In body of email,No
+KMR,KMR ,yes,KMR,yes,0,yes,no,,KMR,KMR,Engineers,Street Cars - usually jobs are Streetrax Ltd jobs,No
+LEX,LEX Solicitors,no,,yes,0,no,no,,LEX,LEX,Engineers,All jobs come from Hackney Solutions,No
+LPS,LPS Solicitors,no,,yes,0,no,no,,LPS,LPS,Engineers,Don't do many jobs for them - jobs come via Omar,No
+MATT,Matt Rowland Solicitors,no,,yes,0,yes,no,,MATT,MATT,Engineers,Letter of instruction by email,No
+MBH,MBH Solicitors,no,,yes,0,yes,no,,MBH,MBH,Engineers,Most jobs come from Nabeel,No
+MCADE,,no,,no,0,yes,no,,,,,,
+MOORHEY,,no,,no,0,yes,no,,,,,,
+MOTORX,,no,,no,0,yes,no,,,,,,
+MP,Montreal Prestige,yes,MP (Branded); MP (Simple),yes,1,yes,no,,MP,MP,Desk,"Images should come with instruction
+Instruction Date (Use date email arrived not date on instruction)
+Inspection Date (Use hand written date they want report doing on which will be the most recent date - thats what date they want inspection/report completing.",No
+MP (BRANDED),,yes,MP (Branded),no,0,no,no,,,,,,
+MP (SIMPLE),,yes,MP (Simple),no,0,no,no,,,,,,
+N/A,Questgates or Brownsword,no,,yes,0,no,no,,N/A,N/A,Info,"Value via Glass's (or Percayso if not on Glass's)
+Print .PDF and attach to email
+Check TL etc via EVA copy and paste",N/A
+OAK,Oakwoods Solicitors,yes,OAK,yes,8,yes,no,,OAK,OAK,Engineers,Paul Mandy Garages,No
+OAK/AX,,no,,no,1,no,no,,,,,,
+OSMAN,,no,,no,0,yes,no,,,,,,
+PCH,,yes,PCH (Lawshield); PCH (Performance),no,0,yes,no,,,,,,
+PCH (LAWSHIELD),,yes,PCH (Lawshield),no,0,no,no,,,,,,
+PCH (PERFORMANCE),,yes,PCH (Performance),no,0,no,no,,,,,,
+PEBBLE,,no,,no,0,yes,no,,,,,,
+PREMIER,,no,,no,0,yes,no,,,,,,
+PRESTIGE,,no,,no,0,yes,no,,,,,,
+PRINCIPAL,,no,,no,2,no,no,,,,,,
+PROACTIVE,,no,,no,0,yes,no,,,,,,
+QCL,QCL (QCL),yes,QCL,yes,28,yes,no,,QCL,QCL,Engineers,"QCL/Hackney solutions
+Email from vd@complexreports.com",Yes - Only need to check address
+QDOS,QDOS,yes,QDOS,yes,14,yes,no,,QDOS,QDOS,Desk,,Yes - Always Image-based Assessment
+R1AM,,no,,no,0,yes,no,,,,,,
+R1AM/MOTORX,R1AM/MOTORX,no,,yes,0,no,no,,R1AM/MOTORX,R1AM/MOTORX,Engineers,Do not message customer for images. Whatsapp R1AM/MOTORX,No
+RC,,no,,no,0,yes,no,,,,,,
+RELAY,Relay Motor Group,no,,yes,0,yes,no,,RELAY,RELAY,Whatsapp,No instructions - Customers name and accident date,No
+RJS,Robert James Solicitors,yes,RJS,yes,0,yes,no,,RJS,RJS,Engineers,Direct,Yes - Only need to check address
+RL,Regent Law  Ltd,no,,yes,0,yes,no,,RL,RL,Engineers,,No
+ROZZII,ROZZII/Green Destinations,no,,yes,0,yes,no,,ROZZII,ROZZII,Engineers,Images with instruction,No
+SBL,Smart Business Link,yes,SBL,yes,13,yes,no,,SBL,SBL,Info ,PDF in Email,No
+SILVER 100,,no,,no,0,yes,no,,,,,,
+SKY,,no,,no,0,yes,no,,,,,,
+SLUG,,no,,no,0,yes,no,,,,,,
+SS,Savas & Savage,no,,yes,0,yes,no,,SS,SS,Andrew,Instructions come via Andy,No
+STALLION,Stallion,no,,yes,0,yes,no,,STALLION,STALLION,Not Applicable,In Whatsapp - Stallion Bodyworks,No
+SUSSEX,,no,,no,0,yes,no,,,,,,
+SWADE,,no,,no,0,yes,no,,,,,,
+SWAN,Swan,yes,SWAN,yes,2,yes,no,,SWAN,SWAN,Engineers,Claim Specialists or Accident Specialist,No
+TA,Turnams,no,,yes,0,yes,no,,TA,TA,Andrew,Go direct to Andy usually image based but Andy will tell you,No
+TEN,Ten Legal,yes,TEN,yes,4,yes,no,,TEN,TEN,Engineers,Sometimes images go to Andy on Whats App - if he has no record use number in instruction to request images,No
+TP,Taylor Price,no,,yes,0,yes,no,,TP,TP,Engineers,PDF in email,No
+VOGUE,,no,,no,0,yes,no,,,,,,
+WATERMANS,,no,,no,0,yes,no,,,,,,
+WHITELINE,,no,,no,0,yes,no,,,,,,
+WIL,Williams & Co,no,,yes,0,yes,no,,WIL,WIL,Andy to Engineers,Word doc in Email,No
+WLS,Woodlands,no,,yes,0,yes,no,,WLS,WLS,Engineers,Complete Injury Claims,No
+WOODLANDS,,no,,no,2,no,no,,,,,,
+YML,NETWORK HD UK / YM Law,yes,HDUK,yes,4,yes,no,,YML,YML,Engineers,PDF in email,No
+ZEN,Zenith Lawyers,no,,yes,0,no,no,,ZEN,ZEN,Engineers,,No

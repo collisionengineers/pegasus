@@ -1,0 +1,36 @@
+# Generated File Index
+
+- `00_README.md`
+- `01_PLAN_REVIEW.md`
+- `02_SOURCE_REGISTER.md`
+- `03_CURRENT_TOOL_AUDIT.md`
+- `04_GROUND_UP_REBUILD_BASE_FUNCTIONALITY.md`
+- `05_BASE_ARCHITECTURE_SPEC.md`
+- `06_DATA_MODEL_PROVIDER_RULES_AND_JSON.md`
+- `07_TESTING_QA_AND_MIGRATION.md`
+- `08_PHASE_2_AUTOMATION_ENHANCEMENT_PLAN.md`
+- `09_PHASE_3_EVA_API_ENHANCEMENT_PLAN.md`
+- `10_DELIVERY_ROADMAP_AND_BACKLOG.md`
+- `11_RISKS_DECISIONS_OPEN_QUESTIONS.md`
+- `automation_enhancement/02_SOURCE_REGISTER.md`
+- `automation_enhancement/08_PHASE_2_AUTOMATION_ENHANCEMENT_PLAN.md`
+- `automation_enhancement/10_DELIVERY_ROADMAP_AND_BACKLOG.md`
+- `automation_enhancement/11_RISKS_DECISIONS_OPEN_QUESTIONS.md`
+- `automation_enhancement/PROVIDER_AND_OPERATIONS_NOTES.md`
+- `automation_enhancement/README.md`
+- `base_rebuild/01_PLAN_REVIEW.md`
+- `base_rebuild/02_SOURCE_REGISTER.md`
+- `base_rebuild/03_CURRENT_TOOL_AUDIT.md`
+- `base_rebuild/04_GROUND_UP_REBUILD_BASE_FUNCTIONALITY.md`
+- `base_rebuild/05_BASE_ARCHITECTURE_SPEC.md`
+- `base_rebuild/06_DATA_MODEL_PROVIDER_RULES_AND_JSON.md`
+- `base_rebuild/07_TESTING_QA_AND_MIGRATION.md`
+- `base_rebuild/10_DELIVERY_ROADMAP_AND_BACKLOG.md`
+- `base_rebuild/11_RISKS_DECISIONS_OPEN_QUESTIONS.md`
+- `base_rebuild/README.md`
+- `eva_api_enhancement/02_SOURCE_REGISTER.md`
+- `eva_api_enhancement/09_PHASE_3_EVA_API_ENHANCEMENT_PLAN.md`
+- `eva_api_enhancement/10_DELIVERY_ROADMAP_AND_BACKLOG.md`
+- `eva_api_enhancement/11_RISKS_DECISIONS_OPEN_QUESTIONS.md`
+- `eva_api_enhancement/README.md`
+- `reference/PROVIDER_AND_OPERATIONS_NOTES.md`

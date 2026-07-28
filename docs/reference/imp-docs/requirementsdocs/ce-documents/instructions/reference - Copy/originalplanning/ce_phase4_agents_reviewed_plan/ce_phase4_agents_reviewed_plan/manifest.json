@@ -1,0 +1,23 @@
+{
+  "title": "Reviewed Phase 4 AI Agents and Workflow Assistance Plan",
+  "created_for": "Collision Engineers Final",
+  "format": "markdown zip folder",
+  "files": [
+    "00_README.md",
+    "01_context_review_and_plan_corrections.md",
+    "02_agent_vs_automation_decision_framework.md",
+    "03_intake_and_case_association.md",
+    "04_missing_information_and_communication.md",
+    "05_valuation_vehicle_data_and_uplift.md",
+    "06_engineer_support_report_drafting_and_eva.md",
+    "07_image_review_evidence_quality_and_matching.md",
+    "08_operations_management_intelligence.md",
+    "09_technical_architecture_integrations.md",
+    "10_security_governance_audit.md",
+    "11_delivery_roadmap_and_acceptance_tests.md",
+    "12_open_questions_decision_log.md",
+    "13_source_review_log.md",
+    "14_web_reference_index.md"
+  ],
+  "principle": "Automation-first; controlled AI agents only where warranted; human approval for expert/external actions."
+}
