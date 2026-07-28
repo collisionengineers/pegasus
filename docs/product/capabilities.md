@@ -6,8 +6,8 @@ Semantic Version or `unallocated`. GitHub issues exist only when work is
 activated; this table is not a backlog or implementation-status ledger.
 
 The retained [feature maturity map](../history/plans/feature-maturity-map.md) and
-[worksheet](../../FEATURE_VERSIONING.md) preserve the source wording and old
-V0/V1/V2/V3 allocation evidence. Their labels no longer act as release
+[worksheet](../history/product/feature-versioning-worksheet.md) preserve the
+source identity and normalized V0/V1/V2/V3 allocation evidence. Their labels no longer act as release
 versions. Active timing uses `Now`, `Next`, `Later`, or `Not planned`; every
 exact target release remains `unallocated` until release planning assigns it.
 The 127 `Now` capabilities are assigned to `0.1.0-alpha.1` by the coupled

@@ -2,7 +2,7 @@
 
 > **Archive status — non-authoritative planning evidence.** Revalidate against current product, roadmap, architecture, operations, design, decisions, and code before use.
 
-Pre-conversion status: **Ready V1 plan — settled CASE-27; not implementation evidence**
+Pre-conversion status: **Ready `0.1.0-alpha.1` plan — settled CASE-27; not implementation evidence**
 
 ## Purpose
 
@@ -14,7 +14,7 @@ Primary matrix ID: `CASE-27`, routed through [one case edit lease](#acquire-rene
 
 ## Authority and current boundary
 
-- **Authority:** [remaining requirements §5](../../../../product/v1-gap.md#5-work-management-and-operator-ui) and the [questionnaire first-release case-editing requirement](../../../../../PROJECT_DISCOVERY_QUESTIONNAIRE.md#15-first-release-scope). `CASE-27` is a settled V1 requirement: exclusive editing and stale-write refusal are required; implementation remains planned.
+- **Authority:** [remaining requirements §5](../../../../product/qdos-alpha-gap.md#5-work-management-and-operator-ui) and the [questionnaire first-release case-editing requirement](../../../product/project-discovery-questionnaire.md#15-first-release-scope). `CASE-27` is a settled `0.1.0-alpha.1` requirement: exclusive editing and stale-write refusal are required; implementation remains planned.
 - **Policy owner:** planned Core `CaseEditing` lease and mutation guard; Web/MCP translate sessions or commands but never decide ownership.
 - **Current implementation:** there is no accepted-case edit page, case edit lease, row-version contract or production caller. Current receipt review is development-only and does not prove concurrent editing safety.
 - **Real callers:** planned authenticated case-detail edit mode first; later staff MCP mutations use the same guard. Read-only case views do not acquire a lease.
@@ -90,7 +90,7 @@ Lock acquisition is atomic and server-authoritative. Exact lease/renewal timings
 - **Approval-triggering action and exact scope:** production migration and enabling case editing require release/operator acceptance; no cloud or external-system mutation is authorised here.
 - **Rollout/activation:** migrate lease/version data, deploy read-only lock state, enable acquisition for one case-edit caller, then require the guard on all staff mutations before broader editing is enabled.
 - **Rollback/recovery:** disable edit entry points and retain case/lease/action-history data; expired rows are harmless and may be cleared only by a recorded maintenance operation after confirming no valid lease.
-- **Irreversible risk:** no forced takeover in the first MVP; a stale submit is refused rather than merged or overwritten.
+- **Irreversible risk:** no forced takeover in the `0.1.0-alpha.1`; a stale submit is refused rather than merged or overwritten.
 
 ### Deferred-capability impact
 
