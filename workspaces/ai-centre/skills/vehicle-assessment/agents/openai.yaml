@@ -1,0 +1,4 @@
+interface:
+  display_name: "Vehicle Assessment"
+  short_description: "Line-by-line justified repair estimates, plus damage, ABP, and salvage triage"
+  default_prompt: "Use $vehicle-assessment to build a justified line-by-line repair estimate from photos and documents, with damage catalogue, ABP rate basis, economics, and salvage flags."

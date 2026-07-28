@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "name": "salvage-category-decision-table",
+  "supported_categories": {
+    "A": "Entire vehicle and all parts should be crushed; no parts reuse.",
+    "B": "Body shell should be crushed; controlled parts reuse may be possible.",
+    "S": "Repairable salvage with structural damage.",
+    "N": "Repairable salvage without structural damage, where non-structural damage or economics make it salvage."
+  },
+  "decision_inputs": {
+    "entire_vehicle_destroy_required": "True where severe damage, contamination, identity, fire, water, or safety evidence means the whole vehicle and all parts should be destroyed.",
+    "bodyshell_crush_required": "True where the body shell should be crushed but some parts may be suitable for controlled reuse.",
+    "repairable": "True where the vehicle is repairable salvage rather than A/B parts-only disposal.",
+    "structural_damage": "True/false when structural involvement is evidenced; null when not proven.",
+    "non_structural_salvage_reason": "Reason Cat N remains under consideration despite no structural damage, such as uneconomic repair, theft, electrical, interior, cosmetic, or mechanical damage.",
+    "special_factors": "List of fire, water, contamination, HV battery, motorcycle, identity, or parts-reuse factors.",
+    "evidence_quality": "strong, weak, or unknown."
+  },
+  "rules": [
+    {
+      "id": "cat-a-whole-vehicle-destroy",
+      "category": "A",
+      "when": { "entire_vehicle_destroy_required": true },
+      "reason": "Whole-vehicle destruction is required; do not assess as ordinary repairable salvage.",
+      "review_required": true
+    },
+    {
+      "id": "cat-b-bodyshell-crush",
+      "category": "B",
+      "when": { "bodyshell_crush_required": true },
+      "reason": "Body shell destruction is required, with controlled parts reuse only where safe.",
+      "review_required": true
+    },
+    {
+      "id": "cat-s-structural-repairable",
+      "category": "S",
+      "when": { "repairable": true, "structural_damage": true },
+      "reason": "Repairable salvage with evidenced structural damage.",
+      "review_required": false
+    },
+    {
+      "id": "cat-n-non-structural-repairable",
+      "category": "N",
+      "when": { "repairable": true, "structural_damage": false, "non_structural_salvage_reason": "present" },
+      "reason": "Repairable salvage with no evidenced structural damage and a non-structural salvage/economic basis.",
+      "review_required": false
+    }
+  ],
+  "review_triggers": [
+    "structural_damage_unknown",
+    "cat_a_or_b_candidate",
+    "fire",
+    "water",
+    "contamination",
+    "hv_battery",
+    "motorcycle",
+    "identity",
+    "parts_reuse",
+    "weak_evidence"
+  ]
+}
