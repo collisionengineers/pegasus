@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-07-23
-- Owners: Alex and the CollisionSpike v2 development team
+- Owners: Alex and the Pegasus development team
 
 ## Context
 
@@ -15,7 +15,7 @@ machine integration. The product decisions are now narrower and distinct:
   actions must use the staff member's current application role and permanent
   action-history identity.
 
-CollisionSpike staff accounts remain application-managed ASP.NET Core Identity
+Pegasus staff accounts remain application-managed ASP.NET Core Identity
 accounts rather than Microsoft Entra accounts. The Web project remains the HTTP,
 API, MCP, authentication, and composition boundary; business behaviour remains
 in shared Core use cases.
@@ -24,11 +24,11 @@ in shared Core use cases.
 
 ### Maturity and activation
 
-The provider API is a V2 capability: this ADR fixes its security and contract
-boundary but does not claim a V1 implementation. Staff MCP is a V1 capability,
+The provider API is a `Next`/`unallocated` capability: this ADR fixes its security and contract
+boundary but does not claim a `0.1.0-alpha.1` implementation. Staff MCP is a `0.1.0-alpha.1` capability,
 limited initially to intake-oriented actions through the same Core use cases.
 Categorised-email queues, the broader email workspace, and broader MCP email
-actions wait for V2. These allocations are not caller or deployment evidence.
+actions wait for `Next`/`unallocated`. These allocations are not caller or deployment evidence.
 
 ### Provider HTTP API
 
@@ -36,7 +36,7 @@ The provider API uses separately issued principal-scoped client IDs and opaque
 secrets. Store only each secret's hash, show the clear value once, and support
 rotation and revocation.
 
-The first-MVP provider contract is limited to:
+The first activated provider-API contract is limited to:
 
 - idempotent instruction and attachment submission; and
 - retrieval of that principal's own submission receipt, processing status, and
@@ -48,7 +48,7 @@ Worker paths and records the principal client as the action actor in permanent a
 
 ### Internal staff MCP
 
-Expose MCP as a remote Streamable HTTP surface from `CollisionSpike.Web`. It is
+Expose MCP as a remote Streamable HTTP surface from `Pegasus.Web`. It is
 an internal staff interface, not a provider interface.
 
 Use an OAuth 2.1-compatible authorization-code flow with S256 PKCE. For the first
@@ -65,7 +65,7 @@ scopes. OAuth scopes restrict access to the MCP surface; the current application
 role and named authorization policy still decide each tool action. Do not accept
 or pass through a token issued for another resource.
 
-Each staff member authorizes the connector using their CollisionSpike account.
+Each staff member authorizes the connector using their Pegasus account.
 Access tokens identify that staff account; every request checks the account is
 still enabled and applies its current Administrator, Engineer, or User role.
 Disabling an account or changing its role therefore affects subsequent MCP calls
@@ -92,12 +92,12 @@ boundary; the server enforces every permission and invariant.
 
 - Provider credentials and staff OAuth clients/tokens have separate ownership,
   scopes, administration, and action-history identities.
-- Claude Desktop actions can be attributed to the actual CollisionSpike staff
+- Claude Desktop actions can be attributed to the actual Pegasus staff
   account rather than a shared bearer actor.
 - The Web application must provide OAuth authorization-server capability in
   addition to ASP.NET Core Identity sign-in. Library selection and endpoint code
   belong to the implementation slice and must preserve this contract.
-- Pre-registering the custom connector avoids first-MVP DCR/CIMD implementation
+- Pre-registering the custom connector avoids `0.1.0-alpha.1` DCR/CIMD implementation
   while retaining individual user consent and authorization.
 - A shared static request header was rejected because Anthropic documents it as
   beta and organization-shared, which cannot provide the required per-user role

@@ -2,20 +2,20 @@
 
 Status: **Ready evidence-profile plan — implementation remains caller-scoped**
 
-Current owners: [operations](../../operations.md), [validation guidance](../../agent-guidance/validation.md), and the feature-specific change/caller contracts. V0 includes local working-copy EML evaluation; later profiles activate only with their allocated real caller.
+Current owners: [operations](../../operations.md), [validation guidance](../../agent-guidance/validation.md), and the feature-specific change/caller contracts. `0.0.0-development` includes local working-copy EML evaluation; later profiles activate only with their allocated real caller.
 
 ## Finish line
 
-CollisionSpike has a reproducible Windows-native test environment that proves each delivered capability through its real Web or Worker entry point, separates local evidence from approved live-service evidence, and can expand with named deferred capabilities without introducing dormant services. The owned requirements and evidence matrix are in [Local testing and service evidence](local-testing.md).
+Pegasus has a reproducible Windows-native test environment that proves each delivered capability through its real Web or Worker entry point, separates local evidence from approved live-service evidence, and can expand with named deferred capabilities without introducing dormant services. The owned requirements and evidence matrix are in [Local testing and service evidence](local-testing.md).
 
 ## Authority and boundaries
 
-- Apply the repository [source-of-truth order](../../agent-guidance/source-of-truth.md), the canonical [product requirements](../../product/index.md), the retained [questionnaire evidence](../../history/product/project-discovery-questionnaire.md), the [remaining first-release requirements](../../product/v1-gap.md), and accepted [Azure architecture](../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md).
+- Apply the repository [source-of-truth order](../../agent-guidance/source-of-truth.md), the canonical [product requirements](../../product/index.md), the retained [questionnaire evidence](../../history/product/project-discovery-questionnaire.md), the [remaining first-release requirements](../../product/qdos-alpha-gap.md), and accepted [Azure architecture](../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md).
 - Keep unresolved business rules in the canonical [open-decision register](../../product/open-decisions.md); local tests must not invent normative behavior for a withheld rule.
 - Preserve the material meaning of `docs/operator-notes/`; keep `corpus/` read-only. Corpus evidence remains ignored and local, and no corpus input or derivative may be uploaded to Azure, CI, or a vendor without fresh explicit permission.
 - Local emulators and mocks do not prove managed identity, RBAC, vendor behavior, cloud durability, scaling, alert delivery, recovery objectives, or operator acceptance.
 - No cloud mutation, billed service call, mailbox access, Box change, deployment, or credential change is authorised by this plan.
-- Service Bus, Event Hubs, Cosmos DB, Redis, PostgreSQL, Azure Files, ADLS, and local SMTP infrastructure are excluded because they do not belong to the approved v2 target architecture.
+- Service Bus, Event Hubs, Cosmos DB, Redis, PostgreSQL, Azure Files, ADLS, and local SMTP infrastructure are excluded because they do not belong to the approved target architecture at any horizon.
 
 ## Stable invariants
 
@@ -50,7 +50,7 @@ CollisionSpike has a reproducible Windows-native test environment that proves ea
 | Send a document to OCR, vision, AI, or another allocated external processor | Named service, region, model and input class | Data/licence/cost approval; corpus material remains prohibited unless separately authorised |
 | Run deployment, restore, failover or retirement evidence | Exact non-production environment and recoverable target | Explicit operation approval, fresh inventory, rollback path and retained source data |
 
-Malware scanning is a permanent `Never` boundary. This plan creates no scanner profile, fixture, port, quarantine state, activation gate, or release claim.
+Malware scanning is a permanent `Not planned` boundary. This plan creates no scanner profile, fixture, port, quarantine state, activation gate, or release claim.
 
 ## Evidence language
 

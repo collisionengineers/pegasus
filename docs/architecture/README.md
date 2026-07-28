@@ -1,4 +1,4 @@
-# CollisionSpike v2 decision index
+# Pegasus decision index
 
 The canonical current architecture is [docs/architecture.md](../architecture.md).
 This directory retains accepted and historical ADRs plus their detailed context.
@@ -13,20 +13,20 @@ Business requirements remain under `docs/operator-notes/` and are not edited her
 
 ```mermaid
 flowchart LR
-    Staff[Staff] --> Web[CollisionSpike.Web\nRazor Pages and HTTP]
-    Provider[Provider API - V2] --> Web
-    Mcp[Staff MCP - V1] --> Web
-    Web --> Core[CollisionSpike.Core\nuse cases and policy]
-    Worker[CollisionSpike.Worker\nplanned trigger host] --> Core
-    Core --> Infrastructure[CollisionSpike.Infrastructure\nSQL and external adapters]
+    Staff[Staff] --> Web[Pegasus.Web\nRazor Pages and HTTP]
+    Provider[Provider API - Next / unallocated] --> Web
+    Mcp[Staff MCP - 0.1.0-alpha.1] --> Web
+    Web --> Core[Pegasus.Core\nuse cases and policy]
+    Worker[Pegasus.Worker\nplanned trigger host] --> Core
+    Core --> Infrastructure[Pegasus.Infrastructure\nSQL and external adapters]
     Infrastructure --> Sql[(Azure SQL)]
     Infrastructure --> Blob[Transient Blob and queues]
     Infrastructure --> Box[Box source custody]
 ```
 
-The four production projects are `CollisionSpike.Core`,
-`CollisionSpike.Infrastructure`, `CollisionSpike.Web`, and
-`CollisionSpike.Worker`. Web and Worker are the two composition roots; Core owns
+The four production projects are `Pegasus.Core`,
+`Pegasus.Infrastructure`, `Pegasus.Web`, and
+`Pegasus.Worker`. Web and Worker are the two composition roots; Core owns
 business policy and must not depend on Azure, EF Core, Graph, Box, or Web.
 Infrastructure implements Core ports. SQL owns workflow, action history, and
 source/file relationships; Box owns long-term original files; Blob and queues
@@ -56,7 +56,7 @@ ready. [ADR-0009](decisions/ADR-0009-direct-terminal-azure-deployment.md) and
 | [ADR-0001](decisions/ADR-0001-hybrid-pdf-extraction.md) | Accepted | Hybrid PDF extraction boundary. |
 | [ADR-0002](decisions/ADR-0002-dotnet-modular-monolith-on-azure.md) | Accepted, partially superseded | Modular-monolith and runtime decisions remain; API/MCP is superseded by ADR-0004 and release mechanism by ADR-0009. |
 | [ADR-0003](decisions/ADR-0003-pdfpig-for-first-qdos-slice.md) | Accepted for the local slice | PdfPig selection still needs genuine-corpus cohort and holdout evidence before production use. |
-| [ADR-0004](decisions/ADR-0004-provider-api-and-staff-mcp-authentication.md) | Accepted | Provider API is V2; staff MCP is V1 but intake-only until V2 email work. |
+| [ADR-0004](decisions/ADR-0004-provider-api-and-staff-mcp-authentication.md) | Accepted | Provider API is `Next`/`unallocated`; staff MCP is `0.1.0-alpha.1` but intake-only until `Next`/`unallocated` email work. |
 | [ADR-0005](decisions/ADR-0005-multiformat-intake-assets.md) | Accepted for the local slice | Multi-format assets; each visible DOCX placement is retained as an occurrence. |
 | [ADR-0006](decisions/ADR-0006-provider-neutral-intake-with-contained-qdos-policy.md) | Accepted for the pre-release local slice | Provider-neutral intake with a contained QDOS policy. |
 | [ADR-0007](decisions/ADR-0007-repository-local-codex-planning-plugin-boundaries.md) | Superseded by ADR-0008 | Historical workflow-plugin decision. |
@@ -74,4 +74,4 @@ ready. [ADR-0009](decisions/ADR-0009-direct-terminal-azure-deployment.md) and
 4. Build and prove the separate migration, package, identity, and release path
    recorded by ADR-0009; do not infer it from the current Bicep or `azure.yaml`.
 
-The complete product gap is maintained in `docs/product/v1-gap.md`.
+The complete product gap is maintained in `docs/product/qdos-alpha-gap.md`.

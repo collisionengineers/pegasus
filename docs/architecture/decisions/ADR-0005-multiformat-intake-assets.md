@@ -1,6 +1,6 @@
 # ADR-0005: Multi-format intake and review assets
 
-Status: **Accepted for the local first-MVP slice**
+Status: **Accepted for the local `0.1.0-alpha.1` slice**
 
 Date: 2026-07-23
 
@@ -15,7 +15,7 @@ scan.
 
 The application needs one extraction route with visible provenance. Extracted
 or duplicate evidence must never replace the authoritative source occurrence.
-The first MVP does not need automated interpretation of every historical file
+The `0.1.0-alpha.1` does not need automated interpretation of every historical file
 container.
 
 ## Decision
@@ -25,7 +25,7 @@ container.
 2. Use MimeKit for bounded recursive EML traversal, PdfPig 0.1.15 for PDF
    embedded text and discrete image streams, and Open XML SDK 3.5.1 for DOCX
    text and internal image parts. PyMuPDF is not part of the application stack.
-3. Support direct EML, PDF, DOCX, JPEG, and PNG in the first MVP. Retain legacy
+3. Support direct EML, PDF, DOCX, JPEG, and PNG in the `0.1.0-alpha.1`. Retain legacy
    DOC and MSG sources with an explicit deferred-format reason in `Needs
    sorting`; do not allocate a case or reference from those containers.
 4. Bound EML processing to eight nested attached-message levels, 128 MIME
