@@ -1,7 +1,7 @@
 # Collision Engineers — AI/ML Strategy
 ## 01 · Data Asset Assessment
 
-*What you hold, what it's worth for AI, and what is dangerous in it. Grounded in a direct inspection of the 8 example cases in the authorised `data/private/raw/Reports-selected/` snapshot and the 183-file reference library in `data/private/raw/Documents/`. You have thousands more cases and the full email archive on the same patterns.*
+*What you hold, what it's worth for AI, and what is dangerous in it. Grounded in a direct inspection of the 8 example cases in the authorised `corpus/ai-centre/raw/Reports-selected/` snapshot and the 183-file reference library in `corpus/ai-centre/raw/Documents/`. You have thousands more cases and the full email archive on the same patterns.*
 
 ---
 

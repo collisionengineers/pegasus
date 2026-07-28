@@ -1,7 +1,3 @@
 # Local build dependencies and outputs
 **/node_modules/
 **/dist/
-
-# Known credential-bearing manufacturer-portal source. It must remain local until
-# an authorised owner has rotated and removed the credentials.
-ml-ops/data/private/raw/**/Manufacturers.ods

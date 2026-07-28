@@ -4,11 +4,11 @@
 - **Status:** Repository foundation; only Collision Brain is implemented
 - **Product:** Windows desktop workstation for Collision Engineers
 
-> **Imported source plan — non-authoritative and non-caller.** This document preserves the
-> source workspace's ML sequencing only. Pegasus application behavior is owned by
-> `docs/product/`, case policy by `Pegasus.Core`, UI by `design/`, and document rendering by
-> `workspaces/report-renderer`. The desktop/case/report workstreams below are historical
-> proposals, not permission to build parallel owners.
+> **Imported source plan — retained long-term direction, not an activated caller.** This document
+> preserves the source workspace's ML sequencing and desktop objective. Pegasus application
+> behavior is owned by `docs/product/`, case policy by `Pegasus.Core`, UI by `design/`, and
+> document rendering by `workspaces/report-renderer`. The workstreams below may inform a future
+> desktop composition but do not permit parallel policy, application-state, UI, or renderer owners.
 
 ## Outcome
 
@@ -23,7 +23,7 @@ prove one safe end-to-end case workflow with traceable evidence and measurable e
 
 | Workstream | First durable outcome | Gate |
 |---|---|---|
-| Product and desktop | Consume the accepted Pegasus UI and Core contracts; no parallel workstation | Accepted Pegasus caller and design mapping |
+| Product and desktop | Define a long-term desktop composition of accepted Pegasus UI, Core, API, and renderer contracts | Accepted root allocation, caller, decision, and design mapping |
 | Case platform | Consume versioned `Pegasus.Core` case/evidence contracts | No duplicate case schema or mutation policy |
 | Agents and skills | Narrow agents for assessment support, correspondence, reports, and QA | Tool allow-lists and scenario evaluations pass |
 | Connectors | AI-specific adapters behind accepted Pegasus ports | Least privilege, case isolation, audit, and revoke paths proven |
@@ -35,8 +35,8 @@ prove one safe end-to-end case workflow with traceable evidence and measurable e
 ## Phase 0 — Foundation and decisions
 
 - Preserve this imported repository map and its AI data boundaries.
-- Keep private evaluation material outside the repository under the ignored, immutable `corpus/`
-  boundary; do not import Box or Outlook archives.
+- Keep private evaluation material under the ignored, immutable repository-root
+  `corpus/ai-centre/` boundary; do not import complete Box or Outlook archives.
 - Resolve any credential-bearing evaluation source before processing it.
 - Assign AI product, engineering, domain, data-protection, security, and release owners.
 - Record permitted users, data sources, prohibited outputs, and success measures for each accepted
@@ -103,9 +103,9 @@ safety, calibration, abstention, licensing, privacy, and reproducibility gates.
 
 ## Permitted evaluation-data boundary
 
-Management's historical authorisation permits bounded evaluation use of approved source material.
-It does not permit copying the corpus or complete Box/Outlook archives into this repository.
-Private inputs remain externally held under the root repository's ignored, immutable `corpus/`
+Management's recorded authorisation permits bounded development and evaluation use of approved
+source material. It does not permit copying the corpus or complete Box/Outlook archives into Git
+history. Private inputs remain under the repository's ignored, immutable `corpus/ai-centre/`
 boundary; only manifests, schemas, synthetic fixtures, and generated results may be tracked.
 
 See [the controlling boundary](docs/governance/data-authorisation.md).
