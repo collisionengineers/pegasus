@@ -241,7 +241,98 @@ Complete the required integrations and identify the system that remains authorit
 
 **What are the provider API and MCP boundaries?**  The `Next`/`unallocated` provider HTTP API uses separately issued principal-scoped client IDs and opaque secrets. It accepts idempotent instruction/attachment submissions and lets a principal retrieve only its own receipt, processing status, and resulting Case/PO. It never creates external application accounts or exposes general case reads/workflow mutation.
 
-[…9858B elided…]
+MCP is a separate V1 internal staff surface, primarily for Claude Desktop. Each staff member authorises it through CollisionSpike using OAuth, and every call uses that person's current role and permanent action-history identity. V1 MCP covers role-authorised case, document, and intake-queue actions through the same Core use cases as the staff UI; broader classified-email actions are V2. It never exposes account/role administration, principal configuration, credential management, cloud operations, or permanent deletion.
+
+
+## 9. Existing data and migration
+
+**Must any data from the previous application be migrated?**  No. CollisionSpike v2 starts fresh and does not import legacy application cases.
+
+**Which cases, users, documents, emails, action-history records, or reference data must be retained?**  No legacy application cases, users, action-history records, or application state are migrated into v2. Existing historical documents and operational records remain in their existing Box, EVA, Outlook, spreadsheet, or network-drive locations. Required principal codes and other operational reference data are recreated cleanly for v2 rather than migrated wholesale.
+
+**Where is the existing data currently stored?**  Box stores long-term case files; EVA stores current case-management, estimating, valuation, and report data; Outlook stores email; Excel acts as the current ready/not-ready holding pen; and unmatched WhatsApp images may temporarily be stored on the network drive.
+
+**Approximately how much data is involved?**  No legacy dataset is being migrated, so a migration volume estimate is not required. New v2 storage capacity is addressed by the scale and growth questions.
+
+**Can the old system be made read-only after cutover?**  No read-only legacy service is required. The previous CollisionSpike application will be shut down completely when v2 cuts over.
+
+**How long must the old system remain available?**  Only until the agreed v2 cutover. It can be shut down after cutover validation.
+
+**Who will validate that migrated data is complete and correct?**  Not applicable because no legacy data migration will occur. Collision Engineers will validate the fresh v2 workflow before cutover.
+
+
+## 10. Data protection and governance
+
+**What categories of personal, sensitive, financial, or legally privileged data will be stored?**  Operational case content can include claimant names and contact/address information, provider and insurer details, claim references, vehicle registrations and details, accident circumstances and dates, inspection locations, emails, documents, vehicle images, Engineer reports, and post-report correspondence. Repair estimates, valuations, and invoice amounts are planned for later. No special data-classification feature is required for the first MVP.
+
+**What is the retention period for cases, documents, logs, backups, and action-history records?**  No application-enforced retention or automatic deletion period is required for the first MVP. Box remains the long-term document store, and v2 case and action-history records are retained unless Collision Engineers defines a later policy.
+
+**When may data be deleted, and who can authorise deletion?**  Cases are never permanently deleted through the application and may only be archived. File removals are logical and retain version history. Closed cases must be reopened by authorised staff before changes can be made, and all such actions are recorded in permanent action history.
+
+**Are legal holds or litigation holds required?**  No legal-hold feature is required for development or the first MVP.
+
+**Is a Data Protection Impact Assessment required or already available?**  No DPIA deliverable is in scope for application development or the first MVP.
+
+**How should subject-access, correction, export, and erasure requests be handled?**  No dedicated in-application workflow is required for the first MVP. Any external legal or management process remains outside the development scope unless Collision Engineers later adds a requirement.
+
+**Which activities require security or compliance alerts?**  Use standard operational security alerts for authentication or authorisation failures, privileged role/configuration changes, ingestion/integration failures, application availability, and unexpected Azure cost. Automated malware scanning is `Never`, so no scanner-specific detection or alert workflow is planned. No additional data-compliance alert workflow is required for V1.
+
+**Are there contractual, insurer, solicitor, ISO, Cyber Essentials, or other compliance requirements?**  No additional compliance implementation requirement has been supplied for development or the first MVP. This development-scope decision does not replace any external legal or organisational obligations managed by Collision Engineers.
+
+
+## 11. Scale, performance, and availability
+
+**Expected number of users at launch:**  Approximately 8 Collision Engineers staff users.
+
+**Expected concurrent users:**  Design for all 8 launch users to be active concurrently.
+
+**Expected new cases per day or month:**  Approximately 2,000 new cases per month (about 24,000 per year).
+
+**Expected annual data growth:**  Plan for approximately 24,000 new case records and roughly 48,000 to 480,000+ associated files per year based on the stated 2-3 to 20+ files per case. At the supplied 10 MB maximum per file, the conservative upper storage envelope is about 4.8 TB per year before allowing for versions. Box remains the long-term file store; Azure application storage should primarily hold structured metadata, processing state, action-history records, and any necessary transient artifacts. Measure actual case-folder sizes after launch and adjust the forecast.
+
+**Required operating hours:**  Automated mailbox ingestion and case processing operate continuously. Staff-facing use is expected primarily during Collision Engineers business hours, but the application should remain available outside those hours unless undergoing planned maintenance.
+
+**Maximum acceptable planned downtime:**  A short planned interruption during a production release is acceptable for V1. Validate in the shared development/integration environment, deploy directly to production B1 outside office hours, wait for health checks, and run smoke tests. Keep the previous immutable artifact for rollback and notify staff. Standard S1 and deployment slots are `Never` under the current product boundary.
+
+**Maximum acceptable unplanned downtime:**  Target restoration of service within four hours for the first MVP.
+
+**Maximum acceptable data loss after a failure (recovery point objective):**  At most 15 minutes of recent application updates after a severe database failure requiring restore. Normal application restarts or deployments must not lose committed data. Source emails and files remain available in Outlook and Box for recovery or reconciliation.
+
+**Maximum acceptable time to restore service (recovery time objective):**  Four hours for the first MVP.
+
+**Are there seasonal or deadline-driven workload peaks?**  No predictable seasonal, calendar, weather-related, or deadline-driven intake peaks are expected.
+
+
+## 12. Environments, networking, and access
+
+**Required environments:**
+
+- [x] Local development
+- [x] Shared development
+- [ ] Test or QA
+- [ ] User acceptance testing
+- [ ] Staging
+- [x] Production
+- [ ] Training or demonstration
+
+Use one shared Azure development/test environment for unfinished cloud integration work. Its F1 App Service may sleep when idle and is subject to the Free-tier CPU quota. The first MVP has no separate staging environment or production deployment slot; approved releases deploy directly to production B1 outside office hours.
+
+**Should production and non-production use separate Azure subscriptions?**  Not for the first MVP. Use the same approved Azure subscription with separate development and production resource groups, identities, configuration, data stores, budgets, and access boundaries.
+
+**Will the application be public on the internet, restricted by organisation/network, or accessed through a private connection?**  The application is reachable over the public internet so Collision Engineers staff can use it from anywhere. Staff pages use self-managed CollisionSpike usernames and passwords; the provider API uses principal-scoped machine credentials; and MCP uses staff-authorised OAuth tokens. Only narrowly defined technical endpoints such as health checks are anonymous. Access is not limited to the office network.
+
+**Is a custom domain already owned? If so, what is it?**  No custom application domain is planned for the first MVP. Use the stable Azure App Service hostname and have staff bookmark it. Preserve support for adding a Collision Engineers subdomain later without changing application behaviour or authentication.
+
+**Are there fixed office IP addresses, VPNs, firewalls, or third-party allowlists to consider?**  No office-IP, VPN, or private-network restriction applies to staff access. The application is accessible from anywhere after application authentication. Any outbound allowlist requirements discovered for third-party APIs will be handled per integration.
+
+**Who needs emergency operational access to production?**  Alex initially, plus any specifically designated Administrator or Azure operator added later. Emergency application and Azure actions must remain attributable in the relevant permanent action history, security logs, or Azure activity logs.
+
+
+## 13. Monitoring, support, and operations
+
+**Who will support the application during business hours?**  Alex provides first-line application support.
+
+**Who should receive security, availability, failure, and cost alerts?**  Alex initially. Additional recipients may be added later through monitoring configuration without code changes.
 
 **What response times are expected for critical incidents?**  Critical incidents should be acknowledged immediately while Alex is in the staffed office. Outside staffed hours, respond as soon as reasonably possible. The `0.1.0-alpha.1` service-restoration target remains four hours.
 

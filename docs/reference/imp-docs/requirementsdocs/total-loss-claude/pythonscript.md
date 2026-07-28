@@ -30,7 +30,7 @@ screenshots. The PDF parser is working correctly.
 
 &#x20;
 
-Changes from `Later`/`unallocated`:
+Changes from v3:
 
 &#x20; - Dynamic pagination via PageWriter — tables flow across any number of pages
 

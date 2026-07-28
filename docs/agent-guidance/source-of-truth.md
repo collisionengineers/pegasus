@@ -8,8 +8,10 @@ the affected scope only.
 2. `docs/operator-notes/` for operator and business truth. Repository
    maintainers may maintain their documentation and organization under the
    user's standing authorization, but material meaning changes require direct user resolution.
-3. Canonical product behavior in `docs/product/`, reconciled to explicit user
-   decisions and the distilled historical questionnaire evidence.
+3. Canonical product behavior in `docs/product/`, with living requirements in
+   `docs/product/areas/` and current allocation in
+   `docs/product/capabilities.md`; the retained questionnaire and worksheet
+   under `docs/history/product/` are reconciliation evidence, not active owners.
 4. Accepted technical decisions routed through `docs/decisions/` and retained
    decisions under `docs/architecture/decisions/`.
 5. Explicitly accepted executable contracts and tests for the exact release.

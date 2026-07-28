@@ -9,12 +9,14 @@ Operations-first is the selected `0.1.0-alpha.1` shell strategy.
 
 The provided `collision-engineers-design-dev` bundle was the upstream Collision
 Engineers visual foundation. It explicitly excludes an internal command-centre
-application, so this repository adopts only the shared brand essentials the
-user requested: the exact master logo, website red, warm charcoal, near-black,
-system UI type, 2px geometry, border-first depth, visible focus, and Lucide-only
-icon rule. Marketing layouts, imagery, fonts, WhatsApp, document/letterhead
-systems, signatures, scroll reveals, and mobile navigation are not imported.
-The source bundle is not retained as a second design system.
+application, so this repository adopts only approved shared brand essentials and
+document-rendering assets: the exact master logo, website red, warm charcoal,
+near-black, system UI type, 2px geometry, border-first depth, visible focus,
+Lucide-only icon rule, renderer templates, document stylesheet and supplied engineer
+signatures. The report-renderer import also retains its temporary Windows package
+assets here until that GUI is decommissioned during Pegasus integration. Marketing
+layouts, imagery, fonts, WhatsApp, scroll reveals, and mobile navigation are not
+imported. The source bundle is not retained as a second design system.
 
 ## Authority and source map
 
@@ -22,6 +24,9 @@ The source bundle is not retained as a second design system.
 | --- | --- | --- |
 | product interaction/accessibility | [`product/requirements.md`](product/requirements.md), [`ui-spec.md`](product/ui-spec.md), and [`traceability-matrix.md`](product/traceability-matrix.md) | planned `0.1.0-alpha.1` Razor Pages; current proof is narrower |
 | brand/style and master logo | [`brand/style.md`](brand/style.md), [`brand/logos/README.md`](brand/logos/README.md) | approved source for future `0.1.0-alpha.1` UI; current Development layout has not adopted it |
+| report templates/style | [`assets/report-renderer/templates/`](assets/report-renderer/templates/) | embedded by `workspaces/report-renderer/src/CollisionRenderer.Core` |
+| engineer signatures | [`brand/signatures/`](brand/signatures/) | embedded by `workspaces/report-renderer/src/CollisionRenderer.Core` |
+| temporary renderer GUI assets | [`assets/report-renderer/gui/`](assets/report-renderer/gui/) | linked by `workspaces/report-renderer/src/CollisionRenderer.Gui`; removed with that GUI at integration |
 | adapted tokens | [`tokens/README.md`](tokens/README.md) | approved design values; current `src/Pegasus.Web/wwwroot/css/site.css` is recorded divergence |
 | components/patterns | [`components/index.md`](components/index.md), [`patterns/index.md`](patterns/index.md) | current Razor Pages under `src/Pegasus.Web/Pages/` |
 | comparison references | [`references/README.md`](references/README.md) | selection aids only; no runtime output |

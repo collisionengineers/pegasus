@@ -26,7 +26,7 @@ installations; install the Evergreen runtime separately if it is missing.
 | --- | --- | --- |
 | `src/CollisionRenderer.Core` | `net8.0` (class library) | The single rendering engine. Typed document models to HTML (Scriban + brand CSS) to PDF (headless Chromium via Microsoft.Playwright). Templates, stylesheet, logo and signatures are embedded resources. |
 | `src/CollisionRenderer.Cli` | `net8.0` console (assembly `collisionrenderer`) | Thin command-line client over Core. |
-| `src/CollisionRenderer.Api` | `net8.0` ASP.NET Core minimal API | Cloud service wrapping Core. `Dockerfile` at repo root. |
+| `src/CollisionRenderer.Api` | `net8.0` ASP.NET Core minimal API | Cloud service wrapping Core. Packaged by the workspace `Dockerfile`. |
 | `src/CollisionRenderer.Gui` | `net8.0-windows` (WinUI 3 / Windows App SDK) | Desktop client; in-process Core; WebView2 preview. |
 | `tests/CollisionRenderer.Core.Tests` | `net8.0` (xUnit) | 57 tests, including real-Chromium integration renders. |
 
@@ -188,28 +188,20 @@ a `TemplateDescriptor` in the template catalogue, and a sample JSON payload.
 
 ### How the embedded assets work
 
-`CollisionRenderer.Core` is self-contained. The templates, stylesheet, brand logo and
-expert signatures are compiled into the assembly as embedded resources, declared in
-`src/CollisionRenderer.Core/CollisionRenderer.Core.csproj`:
+`CollisionRenderer.Core` is self-contained at runtime. The top-level Pegasus design
+sources are compiled into the assembly as embedded resources, declared in
+`src/CollisionRenderer.Core/CollisionRenderer.Core.csproj` with linked items.
 
-```xml
-<ItemGroup>
-  <EmbeddedResource Include="Assets\templates\**\*" />
-  <EmbeddedResource Include="Assets\samples\**\*" />
-  <EmbeddedResource Include="Assets\brand\logo.png" />
-  <EmbeddedResource Include="Assets\brand\signatures\**\*" />
-</ItemGroup>
-```
+The on-disk sources are centralized at the Pegasus repository root:
 
-The on-disk source for these assets lives under
-`src/CollisionRenderer.Core/Assets/`:
-
-- `templates/report.css` — the canonical stylesheet (a data register at 8.8pt for
-  valuation/evidence/fee documents, a letter register at 10pt for expert reports).
-- `templates/*.scriban` — the body templates (`market_valuation_evidence.scriban`,
-  `advert_evidence_pack.scriban`, `fee_note.scriban`, `expert_report.scriban`).
-- `brand/logo.png`, `brand/signatures/*.png` — letterhead logo and expert
-  signatures.
+- `design/assets/report-renderer/templates/report.css` — the canonical stylesheet
+  (a data register at 8.8pt for valuation/evidence/fee documents, a letter register
+  at 10pt for expert reports).
+- `design/assets/report-renderer/templates/*.scriban` — the body templates
+  (`market_valuation_evidence.scriban`, `advert_evidence_pack.scriban`,
+  `fee_note.scriban`, `expert_report.scriban`).
+- `design/brand/logos/logo_no_margin.png` and `design/brand/signatures/*.png` —
+  the letterhead logo and expert signatures.
 
 At runtime the loader (`EmbeddedResources`) matches resources by their trailing path,
 so code reads natural relative paths such as `templates/report.css` regardless of how
@@ -259,16 +251,17 @@ is set, add `-H "Authorization: Bearer <token>"`.
 
 ## Container build and run (API)
 
-The `Dockerfile` at the repository root is multi-stage. It builds with the .NET 8 SDK
-image and runs on the official Playwright .NET image, which bundles the matching
-Chromium build and its native dependencies; the final stage also installs
-`fonts-liberation` and `fonts-dejavu-core` so the documents' Arial-metric body copy
-renders with the correct metrics on Linux.
+The workspace `Dockerfile` is multi-stage. From the Pegasus repository root, it
+builds with the .NET 10 SDK image required by `global.json` and runs on the official
+Playwright .NET image, which bundles the matching Chromium build and its native
+dependencies; the final stage also installs `fonts-liberation` and
+`fonts-dejavu-core` so the documents' Arial-metric body copy renders with the
+correct metrics on Linux.
 
 Build the image:
 
 ```
-docker build -t collisionrenderer-api .
+docker build -f Dockerfile -t collisionrenderer-api ../..
 ```
 
 Run it. The image sets `ASPNETCORE_URLS=http://+:8080` and exposes port 8080:

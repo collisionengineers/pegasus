@@ -2,11 +2,14 @@
 
 Status: **Active material-ambiguity and dependency register**
 
-Allocation is owned by the [capability inventory](capabilities.md), current
-release gaps by the [QDOS-alpha gap](qdos-alpha-gap.md), and dependency intent
-by the [roadmap](../roadmap.md). Deliberately deferred capabilities are not
-current-scope questions; this register records the exact evidence that blocks
-their activation.
+Most product decisions reviewed through 2026-07-25 are preserved in the
+historical [questionnaire](../history/product/project-discovery-questionnaire.md)
+and reconciled into the canonical product areas. Allocation is owned by the
+[capability inventory](capabilities.md), current release gaps by the
+[QDOS-alpha gap](qdos-alpha-gap.md), and dependency intent by the
+[roadmap](../roadmap.md). Deliberately deferred capabilities, including
+conditional and `Unclear` source rows, are not current-scope questions; this
+register records the exact evidence that blocks their activation.
 
 ## Mailbox categorisation and matching evidence
 

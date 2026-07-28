@@ -13,7 +13,7 @@ This document says what remains between the current local proof and the `0.1.0-a
 Requirements come from, in order:
 
 1. `docs/operator-notes/` (authoritative operator truth; documentation and organization are maintainer-editable under user authorization);
-2. settled answers in `docs/history/product/project-discovery-questionnaire.md`;
+2. canonical product areas reconciled with direct-decision evidence in `docs/history/product/project-discovery-questionnaire.md`;
 3. accepted ADRs under `docs/architecture/decisions/`;
 4. executable behavior that has been independently checked.
 
