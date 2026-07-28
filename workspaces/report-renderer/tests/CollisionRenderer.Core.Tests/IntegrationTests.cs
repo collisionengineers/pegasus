@@ -1,4 +1,5 @@
 using System.Text;
+using CollisionRenderer.Core.Rendering;
 using Xunit;
 
 namespace CollisionRenderer.Core.Tests;
@@ -34,6 +35,31 @@ public class IntegrationTests
         Assert.True(result.PageCount >= 1);
         Assert.Equal("%PDF", Encoding.ASCII.GetString(result.Pdf, 0, 4));
         Assert.Equal(64, result.Sha256.Length);
+    }
+
+    [Fact]
+    public async Task Cold_browser_startup_honors_cancellation()
+    {
+        await using var engine = new ChromiumPdfEngine();
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+
+        try
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                engine.RenderHtmlToPdfAsync(
+                    "<!doctype html><html><body>probe</body></html>",
+                    new PdfPageSettings(),
+                    cancellation.Token));
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("Chromium"))
+        {
+            return;
+        }
+
+        Assert.True(
+            elapsed.Elapsed < TimeSpan.FromSeconds(5),
+            $"Cancellation took {elapsed.Elapsed}.");
     }
 
     public static IEnumerable<object[]> AllTemplateIds() =>

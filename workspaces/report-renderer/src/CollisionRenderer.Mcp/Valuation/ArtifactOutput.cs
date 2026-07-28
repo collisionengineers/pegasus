@@ -30,7 +30,7 @@ public static class ArtifactOutput
         {
             ["artifact_id"] = "cr_" + Guid.NewGuid().ToString("N"),
             ["kind"] = kind,
-            ["filename"] = result.SuggestedFileName,
+            ["filename"] = Path.GetFileName(path),
             ["media_type"] = "application/pdf",
             ["bytes"] = result.Pdf.Length,
             ["sha256"] = result.Sha256,

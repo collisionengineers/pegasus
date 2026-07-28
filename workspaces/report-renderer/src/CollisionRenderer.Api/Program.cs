@@ -222,6 +222,19 @@ app.MapPost("/v1/render/batch", async (BatchRenderApiRequest req, IDocumentRende
     for (var i = 0; i < req.Items.Count; i++)
     {
         var item = req.Items[i];
+        if (item is null)
+        {
+            allOk = false;
+            results.Add(new
+            {
+                index = i,
+                ok = false,
+                templateId = (string?)null,
+                errors = new[] { "render request must not be null" },
+            });
+            continue;
+        }
+
         try
         {
             var result = await renderer.RenderAsync(item.ToRenderRequest());
@@ -370,7 +383,7 @@ public sealed record RenderApiRequest(string TemplateId, JsonElement Data, strin
 }
 
 /// <summary>Batch render request body: { items: [{ templateId, data: {...}, density? }] }.</summary>
-public sealed record BatchRenderApiRequest(IReadOnlyList<RenderApiRequest> Items);
+public sealed record BatchRenderApiRequest(IReadOnlyList<RenderApiRequest?> Items);
 
 internal sealed class ApiAuthOptions
 {

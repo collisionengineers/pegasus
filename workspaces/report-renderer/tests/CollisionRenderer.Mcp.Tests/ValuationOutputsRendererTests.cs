@@ -42,6 +42,35 @@ public class ValuationOutputsRendererTests
     }
 
     [Fact]
+    public void Artifact_filename_matches_the_decollided_output_path()
+    {
+        var suggested = $"artifact-{Guid.NewGuid():N}.pdf";
+        var renderResult = new RenderResult
+        {
+            Pdf = StubPdfEngine.MakeOnePagePdf(),
+            Sha256 = "test-sha256",
+            EngineVersion = "test-engine",
+            SuggestedFileName = suggested,
+        };
+
+        var first = ArtifactOutput.Write(renderResult, "test", includeBase64: false);
+        var second = ArtifactOutput.Write(renderResult, "test", includeBase64: false);
+        var firstPath = new Uri(first["uri"]!.GetValue<string>()).LocalPath;
+        var secondPath = new Uri(second["uri"]!.GetValue<string>()).LocalPath;
+        try
+        {
+            Assert.Equal(suggested, first["filename"]!.GetValue<string>());
+            Assert.Equal(Path.GetFileName(secondPath), second["filename"]!.GetValue<string>());
+            Assert.NotEqual(first["filename"]!.GetValue<string>(), second["filename"]!.GetValue<string>());
+        }
+        finally
+        {
+            File.Delete(firstPath);
+            File.Delete(secondPath);
+        }
+    }
+
+    [Fact]
     public async Task Evidence_pack_appends_one_page_per_capture()
     {
         // Stub report + pack table are each 1 page; the pack then appends 3 captured PDFs.

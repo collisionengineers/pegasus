@@ -49,8 +49,11 @@ public sealed class ChromiumPdfEngine : IPdfEngine
     public async Task<byte[]> RenderHtmlToPdfAsync(string html, PdfPageSettings s, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        var browser = await GetBrowserAsync().ConfigureAwait(false);
-        var page = await browser.NewPageAsync().ConfigureAwait(false);
+        var browser = await GetBrowserAsync(ct).ConfigureAwait(false);
+        var page = await AwaitWithCleanupOnCancellationAsync(
+            browser.NewPageAsync(),
+            ct,
+            static createdPage => createdPage.CloseAsync()).ConfigureAwait(false);
 
         // Closing the page aborts an in-flight SetContent/Pdf call so the token is honoured.
         using var registration = ct.Register(() =>
@@ -96,7 +99,7 @@ public sealed class ChromiumPdfEngine : IPdfEngine
 
     public int CountPages(byte[] pdf) => PdfPageCounter.Count(pdf);
 
-    private async Task<IBrowser> GetBrowserAsync()
+    private async Task<IBrowser> GetBrowserAsync(CancellationToken ct)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -105,7 +108,7 @@ public sealed class ChromiumPdfEngine : IPdfEngine
             return _browser;
         }
 
-        await _gate.WaitAsync().ConfigureAwait(false);
+        await _gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -113,7 +116,7 @@ public sealed class ChromiumPdfEngine : IPdfEngine
             // Drop a crashed/disconnected browser so a transient failure can recover.
             if (_browser is { IsConnected: false })
             {
-                try { await _browser.CloseAsync().ConfigureAwait(false); } catch { /* already gone */ }
+                try { await _browser.CloseAsync().WaitAsync(ct).ConfigureAwait(false); } catch (PlaywrightException) { /* already gone */ }
                 _browser = null;
             }
 
@@ -121,7 +124,21 @@ public sealed class ChromiumPdfEngine : IPdfEngine
             {
                 try
                 {
-                    _playwright ??= await Playwright.CreateAsync().ConfigureAwait(false);
+                    if (_playwright is null)
+                    {
+                        _playwright = await AwaitWithCleanupOnCancellationAsync(
+                            Playwright.CreateAsync(),
+                            ct,
+                            static createdPlaywright =>
+                            {
+                                createdPlaywright.Dispose();
+                                return Task.CompletedTask;
+                            }).ConfigureAwait(false);
+                    }
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    throw;
                 }
                 catch (Exception ex)
                 {
@@ -143,12 +160,15 @@ public sealed class ChromiumPdfEngine : IPdfEngine
                 {
                     try
                     {
-                        _browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
-                        {
-                            Headless = true,
-                            Channel = candidate.Channel,
-                            Args = new[] { "--no-sandbox", "--font-render-hinting=none" },
-                        }).ConfigureAwait(false);
+                        _browser = await AwaitWithCleanupOnCancellationAsync(
+                            _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+                            {
+                                Headless = true,
+                                Channel = candidate.Channel,
+                                Args = new[] { "--no-sandbox", "--font-render-hinting=none" },
+                            }),
+                            ct,
+                            static createdBrowser => createdBrowser.CloseAsync()).ConfigureAwait(false);
                         _resolution = new BrowserResolution(candidate.Kind, candidate.Channel, attempts.ToArray());
                         break;
                     }
@@ -171,6 +191,36 @@ public sealed class ChromiumPdfEngine : IPdfEngine
         }
 
         return _browser!;
+    }
+
+    private static async Task<T> AwaitWithCleanupOnCancellationAsync<T>(
+        Task<T> operation,
+        CancellationToken cancellationToken,
+        Func<T, Task> cleanup)
+    {
+        try
+        {
+            return await operation.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _ = operation.ContinueWith(
+                async completed =>
+                {
+                    if (completed.IsCompletedSuccessfully)
+                    {
+                        try { await cleanup(completed.Result).ConfigureAwait(false); } catch { /* best effort cleanup */ }
+                    }
+                    else
+                    {
+                        _ = completed.Exception;
+                    }
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default).Unwrap();
+            throw;
+        }
     }
 
     /// <summary>First line of a (typically multi-line) Playwright error, for compact diagnostics.</summary>

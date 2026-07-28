@@ -400,7 +400,7 @@ public sealed class HtmlComposer : IHtmlComposer
             ("closing", Enc(Coalesce(s.Closing, "Yours faithfully,"))),
             // Attribute-encode the resolved URI so a payload-supplied data:image value
             // cannot break out of src="..."; base64 of bundled bytes is unaffected.
-            ("image", AttrUri(_brand.SignatureDataUri(s.CustomSignaturePath ?? s.SignatureImage))),
+            ("image", AttrUri(BrandAssets.CustomSignatureDataUri(s.CustomSignaturePath) ?? _brand.SignatureDataUri(s.SignatureImage))),
             // Name, role and org lines render only when non-empty: null falls back to the
             // firm default, an explicit empty string suppresses the line so a firm-only
             // sign-off ("Yours faithfully, / Collision Engineers Ltd") is expressible.

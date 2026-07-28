@@ -23,9 +23,8 @@ public sealed class BrandAssets
     public string Css { get; }
 
     /// <summary>
-    /// Resolve an engineer signature image to a data URI. Keys map to
-    /// <c>Assets/brand/signatures/{key}.png</c> (e.g. "andy_patterson"). Returns null
-    /// when no key is supplied or the named signature is not bundled.
+    /// Resolve an allowlisted bundled engineer signature key to a data URI. Returns null
+    /// when no key is supplied or the key is not one of <see cref="AvailableSignatures"/>.
     /// </summary>
     public string? SignatureDataUri(string? key)
     {
@@ -35,21 +34,9 @@ public sealed class BrandAssets
         }
 
         var trimmed = key.Trim();
-        if (trimmed.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
+        if (!AvailableSignatures.Contains(trimmed, StringComparer.Ordinal))
         {
-            return trimmed;
-        }
-
-        if (File.Exists(trimmed))
-        {
-            var ext = Path.GetExtension(trimmed).TrimStart('.').ToLowerInvariant();
-            var mime = ext switch
-            {
-                "jpg" or "jpeg" => "image/jpeg",
-                "webp" => "image/webp",
-                _ => "image/png",
-            };
-            return $"data:{mime};base64," + Convert.ToBase64String(File.ReadAllBytes(trimmed));
+            return null;
         }
 
         var rel = $"brand/signatures/{trimmed}.png";
@@ -58,9 +45,39 @@ public sealed class BrandAssets
             : null;
     }
 
-    /// <summary>Keys of the engineer signatures bundled with the renderer.</summary>
-    public IReadOnlyList<string> AvailableSignatures { get; } = new[]
+    /// <summary>
+    /// Resolve a validated custom signature image path or data URI. Render requests reach
+    /// this method only after attachment-path policy has accepted the custom field.
+    /// </summary>
+    public static string? CustomSignatureDataUri(string? value)
     {
-        "andy_patterson", "ed_mawdsley", "neil_oreilly",
-    };
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        if (trimmed.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
+        {
+            return trimmed;
+        }
+
+        if (!File.Exists(trimmed))
+        {
+            return null;
+        }
+
+        var ext = Path.GetExtension(trimmed).TrimStart('.').ToLowerInvariant();
+        var mime = ext switch
+        {
+            "jpg" or "jpeg" => "image/jpeg",
+            "webp" => "image/webp",
+            _ => "image/png",
+        };
+        return $"data:{mime};base64," + Convert.ToBase64String(File.ReadAllBytes(trimmed));
+    }
+
+    /// <summary>Keys of the engineer signatures bundled with the renderer.</summary>
+    public IReadOnlyList<string> AvailableSignatures { get; } =
+        new[] { "andy_patterson", "ed_mawdsley", "neil_oreilly" };
 }

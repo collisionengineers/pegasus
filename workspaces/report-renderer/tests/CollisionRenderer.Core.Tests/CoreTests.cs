@@ -295,6 +295,25 @@ public class ValidationTests
     }
 
     [Fact]
+    public void Market_valuation_api_context_rejects_raw_custom_signature_paths()
+    {
+        var model = new MarketValuationEvidenceDocument
+        {
+            Subject = new SubjectVehicle { Registration = "AB12 CDE", Make = "Test" },
+            AssessedRetailValue = "12000",
+            Signature = new SignatureBlock { CustomSignaturePath = @"C:\private\signature.png" },
+        };
+
+        var result = new PayloadValidator().Validate(
+            "market-valuation-evidence",
+            model,
+            allowLocalFilePaths: false);
+
+        Assert.False(result.Ok);
+        Assert.Contains(result.Errors, error => error.Contains("signature.customSignaturePath"));
+    }
+
+    [Fact]
     public void Malformed_pdf_data_uri_fails_validation()
     {
         var model = new AdvertEvidencePackDocument
@@ -420,6 +439,30 @@ public class ComposerTests
             var composed = Composer.Compose(TemplateCatalog.Default.Get("expert-report"), model, Density.Normal);
 
             Assert.Contains("data:image/png;base64,iVBORwECAwQ=", composed.Html);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Bundled_signature_key_cannot_read_a_local_file()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"ce_signature_{Guid.NewGuid():N}.png");
+        File.WriteAllBytes(path, new byte[] { 0x89, 0x50, 0x4E, 0x47, 1, 2, 3, 4 });
+        try
+        {
+            var model = new ExpertReportDocument
+            {
+                Title = "Signature Test",
+                Sections = { new ReportSection { Heading = "Body", Blocks = { new ContentBlock { Text = "Test." } } } },
+                Signature = new SignatureBlock { SignatureImage = path },
+            };
+
+            var composed = Composer.Compose(TemplateCatalog.Default.Get("expert-report"), model, Density.Normal);
+
+            Assert.DoesNotContain("data:image/png;base64,iVBORwECAwQ=", composed.Html);
         }
         finally
         {

@@ -43,6 +43,8 @@ public sealed class PayloadValidator : IPayloadValidator
                     r.Warnings.Add("No conclusion paragraph supplied.");
                 }
 
+                ValidateSignature(d.Signature, r, allowLocalFilePaths, trustedLocalFilePaths);
+
                 break;
 
             case AdvertEvidencePackDocument d:
@@ -120,7 +122,7 @@ public sealed class PayloadValidator : IPayloadValidator
                     }
                 }
 
-                ValidateImagePath(d.Signature?.CustomSignaturePath, "signature.customSignaturePath", r, allowLocalFilePaths, trustedLocalFilePaths);
+                ValidateSignature(d.Signature, r, allowLocalFilePaths, trustedLocalFilePaths);
                 break;
 
             default:
@@ -147,6 +149,20 @@ public sealed class PayloadValidator : IPayloadValidator
         "data:image/jpeg;base64,",
         "data:image/webp;base64,",
     };
+
+    private static void ValidateSignature(
+        SignatureBlock? signature,
+        ValidationResult r,
+        bool allowLocalFilePaths,
+        IReadOnlySet<string>? trustedLocalFilePaths)
+    {
+        ValidateImagePath(
+            signature?.CustomSignaturePath,
+            "signature.customSignaturePath",
+            r,
+            allowLocalFilePaths,
+            trustedLocalFilePaths);
+    }
 
     private static void RequireSubject(SubjectVehicle subject, ValidationResult r)
     {
