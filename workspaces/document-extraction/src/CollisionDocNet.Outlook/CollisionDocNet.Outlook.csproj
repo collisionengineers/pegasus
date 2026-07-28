@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CollisionDocNet.Core\CollisionDocNet.Core.csproj" />
+    <ProjectReference Include="..\CollisionDocNet.Model\CollisionDocNet.Model.csproj" />
+    <ProjectReference Include="..\CollisionDocNet.Storage\CollisionDocNet.Storage.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,12 @@
+root = true
+
+[*.cs]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+indent_size = 4
+
+[tests/**/*.cs]
+# Behaviour-style test names use separators to keep condition and outcome clear.
+dotnet_diagnostic.CA1707.severity = none

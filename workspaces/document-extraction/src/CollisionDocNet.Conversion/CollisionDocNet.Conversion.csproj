@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>CollisionDocNet.Extraction</AssemblyName>
+    <RootNamespace>CollisionDocNet.Extraction</RootNamespace>
+    <Description>The EXT-API-001 public extraction boundary. The physical project path is retained to avoid an unreviewed solution restructure.</Description>
+    <PackageId>CollisionDocNet.Extraction</PackageId>
+    <PackageDescription>The public managed extraction API for PDF, DOC, DOCX, MSG and EML evidence.</PackageDescription>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\docs\schemas\extraction-result.v1.schema.json"
+          Pack="true"
+          PackagePath="schemas/" />
+    <None Include="..\..\docs\schemas\evidence-bundle-manifest.v1.schema.json"
+          Pack="true"
+          PackagePath="schemas/" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CollisionDocNet.Core\CollisionDocNet.Core.csproj" />
+    <ProjectReference Include="..\CollisionDocNet.Model\CollisionDocNet.Model.csproj" />
+    <ProjectReference Include="..\CollisionDocNet.Storage\CollisionDocNet.Storage.csproj" />
+    <ProjectReference Include="..\CollisionDocNet.Email\CollisionDocNet.Email.csproj" />
+    <ProjectReference Include="..\CollisionDocNet.Outlook\CollisionDocNet.Outlook.csproj" />
+    <ProjectReference Include="..\CollisionDocNet.Pdf\CollisionDocNet.Pdf.csproj" />
+    <ProjectReference Include="..\CollisionDocNet.Writer\CollisionDocNet.Writer.csproj" />
+    <ProjectReference Include="..\CollisionDocNet.Writer.OpenXml\CollisionDocNet.Writer.OpenXml.csproj" />
+  </ItemGroup>
+</Project>

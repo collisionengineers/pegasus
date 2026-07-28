@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.collisiondocnet.local/extraction-result.v1.schema.json",
+  "title": "CollisionDocNetExtractor extraction result version 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "detectedContainer",
+    "detectedFormat",
+    "outcome",
+    "sourceHash",
+    "extractorVersion",
+    "specificationIdentity",
+    "policyIdentity",
+    "measurements",
+    "content",
+    "metadata",
+    "participants",
+    "relationships",
+    "assets",
+    "issues",
+    "nestedResults"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "collisiondocnet-result/1" },
+    "detectedContainer": { "enum": ["Unknown", "FlatBinary", "CompoundFile", "ZipPackage", "InternetMessage"] },
+    "detectedFormat": { "enum": ["Unknown", "Pdf", "WordBinary", "WordprocessingMl", "OutlookItem", "InternetMessage"] },
+    "outcome": { "$ref": "#/$defs/outcome" },
+    "sourceHash": { "$ref": "#/$defs/sha256" },
+    "extractorVersion": { "type": "string", "minLength": 1 },
+    "specificationIdentity": { "type": "string", "minLength": 1 },
+    "policyIdentity": { "type": "string", "minLength": 1 },
+    "measurements": { "type": "object" },
+    "content": { "description": "Deterministic ordered Unicode text segments only.", "type": "array", "items": { "type": "object" } },
+    "metadata": { "type": "array", "items": { "type": "object" } },
+    "participants": { "type": "array", "items": { "type": "object" } },
+    "relationships": { "type": "array", "items": { "type": "object" } },
+    "assets": { "description": "Image assets only. Non-image attachments and embedded-object bytes are prohibited.", "type": "array", "items": { "$ref": "#/$defs/imageAsset" } },
+    "issues": { "type": "array", "items": { "type": "object" } },
+    "nestedResults": { "description": "Supported nested inputs whose emitted payload remains text and images only.", "type": "array", "items": { "$ref": "#" } }
+  },
+  "$defs": {
+    "outcome": {
+      "enum": [
+        "Complete",
+        "Partial",
+        "Encrypted",
+        "Corrupt",
+        "UnsupportedFormat",
+        "UnsupportedFeature",
+        "ResourceLimitExceeded",
+        "Cancelled",
+        "TimedOut",
+        "TechnicalFailure"
+      ]
+    },
+    "sha256": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hex"],
+      "properties": {
+        "hex": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "imageAsset": {
+      "type": "object",
+      "required": ["stableId", "kind", "mediaType", "content", "contentHash", "length"],
+      "properties": {
+        "stableId": { "type": "string", "pattern": "^[a-z0-9-]{1,97}$" },
+        "kind": { "const": "image" },
+        "mediaType": { "enum": ["image/png", "image/jpeg", "image/gif", "image/tiff", "image/bmp", "image/webp", "image/x-icon", "image/wmf", "image/emf"] },
+        "content": { "type": "array", "items": { "type": "integer", "minimum": 0, "maximum": 255 } },
+        "contentHash": { "$ref": "#/$defs/sha256" },
+        "length": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}
