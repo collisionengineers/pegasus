@@ -1,5 +1,8 @@
 # Applications
 
-This imported application proposal is superseded. User-facing Pegasus applications remain in the
-root Web composition boundary and consume `Pegasus.Core`; no application or desktop runtime may be
-created here without a separately accepted root decision and caller.
+Applications remain documentation-only today. The very-long-term direction is an installed desktop
+composition of accepted Pegasus capabilities, not a parallel case application. Any implementation
+must consume `Pegasus.Core`, the root UI/design contract, accepted service APIs, and the existing
+renderer boundary, and requires a separately accepted root decision and real caller.
+
+See [the desktop application direction](../docs/architecture/desktop-application-direction.md).

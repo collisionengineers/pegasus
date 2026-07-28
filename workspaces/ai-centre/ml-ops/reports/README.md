@@ -2,11 +2,11 @@
 
 **Prepared:** 19 July 2026  
 **Scope:** Remote, image-based independent vehicle-damage assessment  
-**Source reviewed:** an external private snapshot formerly described as `ml-ops/data/private/raw`
+**Source reviewed:** the approved local snapshot addressed as repository-root `corpus/ai-centre/`
 **Status:** Historical opportunity assessment and delivery research. This library is evidence, not
 Pegasus product, architecture, data-custody, or runtime authority. `Pegasus.Core`, root `design/`,
-and `workspaces/report-renderer` retain their canonical ownership; private corpus and complete
-Box/Outlook archives remain external under the ignored `corpus/` boundary.
+and `workspaces/report-renderer` retain their canonical ownership; corpus inputs remain ignored and
+immutable, and complete Box/Outlook archives remain in their source systems.
 
 ## Executive conclusion
 
@@ -34,8 +34,8 @@ The best first product is a **remote-assessment evidence system**: it checks whe
 
 ## What was found in the sample
 
-The retained local snapshot contains 298 working files. The source inventory also recorded two ZIP
-archives that duplicated extracted material; those archives are not present in the current snapshot:
+The approved local `corpus/ai-centre/` snapshot contains 298 working files. The source inventory
+also recorded two ZIP archives that duplicated extracted material; those archives are not present:
 
 - 115 files in eight case folders;
 - 84 standalone case images;
@@ -117,8 +117,9 @@ Every proposed system in this library follows the same principles:
 - **Abstention is a valid outcome.** “Insufficient evidence” is preferable to an unsupported confident answer.
 - **Portable evidence.** Promotion research may identify checkpoints and exports, but binaries remain
   in an approved external artifact store; this repository tracks manifests, hashes and evaluation results.
-- **Use bounded source authorisation deliberately.** Approved extracts remain externally held and
-  preserve provenance, source roles, client boundaries, licences, and deletion lineage.
+- **Use bounded source authorisation deliberately.** Approved inputs remain under the local
+  `corpus/ai-centre/` boundary and preserve provenance, source roles, client boundaries, licences,
+  and deletion lineage.
 
 ## Primary external references
 
