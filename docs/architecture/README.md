@@ -1,9 +1,10 @@
-# Pegasus decision index
+# Architecture context
 
 The canonical current architecture is [docs/architecture.md](../architecture.md).
-This directory retains accepted and historical ADRs plus their detailed context.
+Durable current and historical decisions are indexed in the
+[canonical decision index](../decisions/README.md). This page provides
+architecture context only; it does not duplicate decision ownership.
 
-This directory records stable technical decisions and the intended system shape.
 It is not the current implementation inventory: dated caller evidence lives in
 [the implementation handoff](../agent-notes/current-implementation-handoff.md),
 and live Azure facts live in [the Azure inventory](../azure/current-inventory.md).
@@ -46,22 +47,13 @@ The intended Azure environments are isolated local development, Azure
 development/integration, and production. The release design is an authorised
 terminal using committed Bicep and `azd`; it requires an explicit migration
 before application deployment. It is documented, not runnable or production
-ready. [ADR-0009](decisions/ADR-0009-direct-terminal-azure-deployment.md) and
+ready. [ADR-0009](../decisions/ADR-0009-direct-terminal-azure-deployment.md) and
 [the Azure release plan](../azure/README.md) own the route and its gaps.
 
 ## Architecture decisions
 
-| Decision | Status | Summary |
-| --- | --- | --- |
-| [ADR-0001](decisions/ADR-0001-hybrid-pdf-extraction.md) | Accepted | Hybrid PDF extraction boundary. |
-| [ADR-0002](decisions/ADR-0002-dotnet-modular-monolith-on-azure.md) | Accepted, partially superseded | Modular-monolith and runtime decisions remain; API/MCP is superseded by ADR-0004 and release mechanism by ADR-0009. |
-| [ADR-0003](decisions/ADR-0003-pdfpig-for-first-qdos-slice.md) | Accepted for the local slice | PdfPig selection still needs genuine-corpus cohort and holdout evidence before production use. |
-| [ADR-0004](decisions/ADR-0004-provider-api-and-staff-mcp-authentication.md) | Accepted | Provider API is `Next`/`unallocated`; staff MCP is `0.1.0-alpha.1` but intake-only until `Next`/`unallocated` email work. |
-| [ADR-0005](decisions/ADR-0005-multiformat-intake-assets.md) | Accepted for the local slice | Multi-format assets; each visible DOCX placement is retained as an occurrence. |
-| [ADR-0006](decisions/ADR-0006-provider-neutral-intake-with-contained-qdos-policy.md) | Accepted for the pre-release local slice | Provider-neutral intake with a contained QDOS policy. |
-| [ADR-0007](decisions/ADR-0007-repository-local-codex-planning-plugin-boundaries.md) | Superseded by ADR-0008 | Historical workflow-plugin decision. |
-| [ADR-0008](decisions/ADR-0008-focused-repository-workflow-plugins.md) | Superseded by [0010](../decisions/0010-adopt-azure-workflow.md) | Historical focused repository workflow plugins. |
-| [ADR-0009](decisions/ADR-0009-direct-terminal-azure-deployment.md) | Accepted | Direct authorised-terminal Azure release; no GitHub Actions/OIDC deployment. |
+For every decision's status, historical context, and supersession chain, use the
+[canonical decision index](../decisions/README.md).
 
 ## Architecture work still required
 

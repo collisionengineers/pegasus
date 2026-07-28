@@ -172,7 +172,7 @@ foreach ($file in $activeFiles | Sort-Object FullName -Unique) {
             $isAllowedRetainedIdentity =
                 ($relative -eq 'docs/agent-notes/current-implementation-handoff.md' -and
                     $line -cmatch 'CollisionSpike\.Infrastructure\.Persistence\.ReferenceData\.provider-domains\.v1\.json') -or
-                ($relative -eq 'docs/architecture/decisions/ADR-0007-repository-local-codex-planning-plugin-boundaries.md' -and
+                ($relative -eq 'docs/decisions/ADR-0007-repository-local-codex-planning-plugin-boundaries.md' -and
                     $line -cmatch 'Owners: Alex and the CollisionSpike v2 development team') -or
                 ($relative -eq 'docs/azure/current-inventory.md' -and
                     $line -cmatch 'no CollisionSpike ownership established')

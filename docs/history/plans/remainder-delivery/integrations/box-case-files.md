@@ -18,7 +18,7 @@ association engine, or external adapter.
 
 ## Authority and current boundary
 
-- **Authority:** [remaining requirements](../../../../product/qdos-alpha-gap.md#6-box-vehicle-data-eva-and-email) and [ADR-0002](../../../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md#files-box-and-document-processing). No exact development root is authorised by this plan.
+- **Authority:** [remaining requirements](../../../../product/qdos-alpha-gap.md#6-box-vehicle-data-eva-and-email) and [ADR-0002](../../../../decisions/ADR-0002-dotnet-modular-monolith-on-azure.md#files-box-and-document-processing). No exact development root is authorised by this plan.
 - **Policy owner:** Core custody/document use case; Infrastructure owns one guarded Box adapter.
 - **Current implementation:** no Box SDK, adapter, registration, persisted Box identity or production caller exists.
 - **Real callers:** none; Web/Worker/provider/MCP are planned callers through Core only.

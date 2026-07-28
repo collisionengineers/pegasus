@@ -18,7 +18,7 @@ external adapter or AI suggestion is implied by the deterministic path.
 
 ## Authority and current boundary
 
-- **Authority:** [remaining requirements](../../../../product/qdos-alpha-gap.md#6-box-vehicle-data-eva-and-email), [ADR-0002](../../../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md), and the authoritative [EVA operator note](../../../../operator-notes/systems-and-integrations/eva.md).
+- **Authority:** [remaining requirements](../../../../product/qdos-alpha-gap.md#6-box-vehicle-data-eva-and-email), [ADR-0002](../../../../decisions/ADR-0002-dotnet-modular-monolith-on-azure.md), and the authoritative [EVA operator note](../../../../operator-notes/systems-and-integrations/eva.md).
 - **Policy owner:** case/intake policy owns missing-field need, staff confirmation and export readiness. Future Infrastructure adapters translate an accepted vehicle contract or EVA bundle schema.
 - **Current implementation/callers:** no DVLA/DVSA or EVA adapter, export serializer, credential, registered caller or accepted mapping exists.
 - **Persistence boundary:** SQL remains authoritative for confirmed typed case data/provenance; custody supplies persisted image identities; EVA remains authoritative for assignment, estimating, valuation and reports.

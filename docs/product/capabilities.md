@@ -76,10 +76,14 @@ Total: **229 capabilities; 229 unique IDs**.
 | MAIL-15 | Manually link, unlink, or relink an exact Sent item with a reason | Now | 0.1.0-alpha.1 | [Area](areas/intake-and-casework.md) | Required and accepted before 0.1.0-alpha.1. |
 | MAIL-16 | Automatically match the exact report Sent item to its case | Now | 0.1.0-alpha.1 | [Area](areas/intake-and-casework.md) | Required and accepted before 0.1.0-alpha.1. |
 | MAIL-18 | Generate copyable chaser messages for staff to send manually | Now | 0.1.0-alpha.1 | [Area](areas/intake-and-casework.md) | Required and accepted before 0.1.0-alpha.1. |
-| TRI-01 | Separate pre-case Triage record and workflow | Now | 0.1.0-alpha.1 | [Area](areas/intake-and-casework.md) | Required and accepted before 0.1.0-alpha.1. |
+| TRI-01 | Distinct inbox Triage label and separate pre-case record/workflow | Now | 0.1.0-alpha.1 | [Area](areas/intake-and-casework.md) | Required and accepted before 0.1.0-alpha.1. |
 | TRI-02 | Vehicle-registration gate and `Needs sorting` fallback | Now | 0.1.0-alpha.1 | [Area](areas/intake-and-casework.md) | Required and accepted before 0.1.0-alpha.1. |
 | TRI-03 | Open, Awaiting information, Finding recorded, Completed, and Cancelled states | Now | 0.1.0-alpha.1 | [Area](areas/intake-and-casework.md) | Required and accepted before 0.1.0-alpha.1. |
+<<<<<<< HEAD
 | TRI-04 | Two independently optional findings, with at least one required: Roadworthiness = Roadworthy/Unroadworthy; Assessment = Repairable/Total loss; reasoned replacement | Now | 0.1.0-alpha.1 | [Area](areas/intake-and-casework.md) | Required and accepted before 0.1.0-alpha.1. |
+=======
+| TRI-04 | Roadworthy/Unroadworthy and optional Repairable/Total loss findings with reasoned replacement | Now | 0.1.0-alpha.1 | [Area](areas/intake-and-casework.md) | Required and accepted before 0.1.0-alpha.1. |
+>>>>>>> b13aad0 (moved ADRs)
 | TRI-05 | Exact reply-chain Sent-item evidence required for completion | Now | 0.1.0-alpha.1 | [Area](areas/intake-and-casework.md) | Required and accepted before 0.1.0-alpha.1. |
 | TRI-06 | Reopen and superseding-finding behavior with permanent history | Now | 0.1.0-alpha.1 | [Area](areas/intake-and-casework.md) | Required and accepted before 0.1.0-alpha.1. |
 | TRI-07 | Optional later case link, unlink, and relink | Now | 0.1.0-alpha.1 | [Area](areas/intake-and-casework.md) | Required and accepted before 0.1.0-alpha.1. |

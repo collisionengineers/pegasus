@@ -12,7 +12,7 @@ Primary matrix IDs: `ACC-11`, `OPS-01`, `OPS-02`, `OPS-03`, `OPS-04`, `OPS-05`, 
 
 ## Authority and current boundary
 
-- **Authority:** [ADR-0002](../../../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md), [ADR-0009](../../../../architecture/decisions/ADR-0009-direct-terminal-azure-deployment.md), [remaining requirements](../../../../product/qdos-alpha-gap.md#7-azure-and-release-readiness), [current inventory](../../../../azure/current-inventory.md), and [replacement/retirement plan](../../../../azure/replacement-and-retirement-plan.md).
+- **Authority:** [ADR-0002](../../../../decisions/ADR-0002-dotnet-modular-monolith-on-azure.md), [ADR-0009](../../../../decisions/ADR-0009-direct-terminal-azure-deployment.md), [remaining requirements](../../../../product/qdos-alpha-gap.md#7-azure-and-release-readiness), [current inventory](../../../../azure/current-inventory.md), and [replacement/retirement plan](../../../../azure/replacement-and-retirement-plan.md).
 - **Policy owner:** Infrastructure definitions and Web/Worker composition own Azure translation; Core remains free of Azure dependencies.
 - **Current implementation:** `infra/main.bicep`, `infra/modules/platform.bicep`, `azure.yaml`, and `.github/workflows/ci.yml` are source only. The tracked `azure.yaml` names Web/Worker services and a post-provision database script, but neither it nor Bicep supplies the accepted dedicated migrator/immutable-artifact release path. The Web App still sets `SCM_DO_BUILD_DURING_DEPLOYMENT=true`. These files do not establish a deployed or verified `Next`/`unallocated` environment.
 - **Real callers:** Local Web health endpoints exist. `azd` has a tracked but unexercised service manifest; Azure-hosted Web/Worker and release paths remain planned until the manifest is reconciled and exercised.
@@ -38,7 +38,7 @@ Current Microsoft guidance was refreshed read-only on 2026-07-23: [.NET isolated
 
 ### Authority and decision gate
 
-- **Requirement/decision:** Use the accepted [.NET 10 modular-monolith Azure architecture](../../../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md), implement the [ADR-0009 direct-terminal package/migration sequence](../../../../architecture/decisions/ADR-0009-direct-terminal-azure-deployment.md), and refresh the [current Azure inventory](../../../../azure/current-inventory.md) before design or implementation.
+- **Requirement/decision:** Use the accepted [.NET 10 modular-monolith Azure architecture](../../../../decisions/ADR-0002-dotnet-modular-monolith-on-azure.md), implement the [ADR-0009 direct-terminal package/migration sequence](../../../../decisions/ADR-0009-direct-terminal-azure-deployment.md), and refresh the [current Azure inventory](../../../../azure/current-inventory.md) before design or implementation.
 - **Confirmed facts:** Region and initial topology are accepted; SKU availability, API versions, quotas, policies, target-group existence and prices are volatile.
 - **Decision required before implementation:** None for local Bicep correction. Every Azure preview or mutation requires a fresh, exact approval.
 

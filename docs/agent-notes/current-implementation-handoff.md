@@ -156,9 +156,9 @@ operator acceptance.
 | Stable persistence and unsupported-source evidence | `tests/Pegasus.IntegrationTests/IntakeStablePersistenceTests.cs` |
 | SQLite baseline refusal evidence | `tests/Pegasus.IntegrationTests/IntakeSqliteBaselineGuardTests.cs` |
 | Architecture boundary evidence | `tests/Pegasus.ArchitectureTests/DependencyDirectionTests.cs` |
-| Embedded PDF decision | `docs/architecture/decisions/ADR-0003-pdfpig-for-first-qdos-slice.md` |
-| Multi-format/asset decision | `docs/architecture/decisions/ADR-0005-multiformat-intake-assets.md` |
-| Provider-neutral intake decision | `docs/architecture/decisions/ADR-0006-provider-neutral-intake-with-contained-qdos-policy.md` |
+| Embedded PDF decision | `docs/decisions/ADR-0003-pdfpig-for-first-qdos-slice.md` |
+| Multi-format/asset decision | `docs/decisions/ADR-0005-multiformat-intake-assets.md` |
+| Provider-neutral intake decision | `docs/decisions/ADR-0006-provider-neutral-intake-with-contained-qdos-policy.md` |
 
 ## Important limits
 

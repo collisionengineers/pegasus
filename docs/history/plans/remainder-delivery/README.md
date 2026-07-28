@@ -8,7 +8,7 @@ Pre-conversion status: **Ready `0.1.0-alpha.1` delivery spine — later work is 
 
 Deliver the `0.1.0-alpha.1` live QDOS alpha described in [Remaining requirements](../../../product/qdos-alpha-gap.md): every active QDOS case type enters through approved channels, one Core policy creates and manages the case, long-term files remain in Box, operators reach successful EVA export and the `0.1.0-alpha.1` terminal/reopen outcomes, and the release is independently verified and accepted. [The maturity map](../feature-maturity-map.md) owns allocation.
 
-This pack is the `0.1.0-alpha.1` delivery spine, not another product specification or status ledger. Requirements remain in the [operator notes](../../../operator-notes/README.md), [project questionnaire](../../product/project-discovery-questionnaire.md), accepted [architecture decisions](../../../architecture/decisions/), and [remaining-requirements baseline](../../../product/qdos-alpha-gap.md). Route later-horizon sequencing through the [delivery roadmap](../delivery-roadmap.md) and the [later-delivery index](../later-delivery/README.md); do not extend this `0.1.0-alpha.1` spine into a second roadmap.
+This pack is the `0.1.0-alpha.1` delivery spine, not another product specification or status ledger. Requirements remain in the [operator notes](../../../operator-notes/README.md), [project questionnaire](../../product/project-discovery-questionnaire.md), accepted [architecture decisions](../../../decisions/), and [remaining-requirements baseline](../../../product/qdos-alpha-gap.md). Route later-horizon sequencing through the [delivery roadmap](../delivery-roadmap.md) and the [later-delivery index](../later-delivery/README.md).
 
 ## Authority and boundaries
 
