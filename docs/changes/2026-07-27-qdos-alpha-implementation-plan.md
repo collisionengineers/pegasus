@@ -4,7 +4,7 @@
 
 The branch is clean at `b2f40a2`, identical to `main`, with no implementation commits. Issue #3 and merged PR #4 are planning evidence only. This revision does not authorize implementation, an Azure read/write, deployment, or retirement.
 
-The finish line remains the complete `0.1.0-alpha.1` outcome in `docs/changes/2026-07-27-qdos-alpha-reference-corpora.md`: all 127 `Now` capabilities, with only QDOS activated for case creation, through the shared evaluator, durable intake, authenticated Operations-first Web caller, real Worker triggers, staff MCP, immutable references, case/Triage/lifecycle work, document custody, EVA handoff, report evidence, recovery, and operator acceptance.
+The finish line remains the complete `0.1.0-alpha.1` outcome in `docs/changes/2026-07-27-qdos-alpha-reference-corpora.md`: all 128 `Now` capabilities, with only QDOS activated for case creation, through the shared evaluator, durable intake, bounded request-scoped uploads, authenticated Operations-first Web caller, real Worker triggers, staff MCP, immutable references, case/Triage/lifecycle work, document custody, EVA handoff, report evidence, recovery, and operator acceptance.
 
 Delivery now has two hard stages:
 
@@ -117,7 +117,7 @@ Development registrations are explicit under a single `DevelopmentOffline` profi
 - Add a canonical decision superseding `docs/decisions/0010-adopt-azure-workflow.md`: preserve repository-native change records, authority order, exact-target cloud approval, proportional validation, independent exact-head review, and no-agent-merge; remove all current plugin route tokens and plugin ownership claims.
 - Replace `docs/agent-guidance/agent-routing.md` with tool-neutral request/change/review/cloud-operation routing. Rewrite current source-role wording from “Azure Workflow-maintained” to role-based maintainership. Rename `Test-AzureWorkflowDocumentation.ps1` to a tool-neutral name and update `Invoke-RepoCheck`, CI, and documentation callsites.
 - Keep dated onboarding change/ADR/history as superseded historical evidence with clear current links. The guard must fail if `$azure-workflow:` tokens reappear in active guidance, while allowing quoted historical evidence.
-- Re-run the pinned provider-domain source hash/counts and freeze the 127-capability-to-evidence index in the existing change record. No cloud or vendor read occurs in this step.
+- Re-run the pinned provider-domain source hash/counts and freeze the 128-capability-to-evidence index in the existing change record. No cloud or vendor read occurs in this step.
 
 #### 1. Make the offline platform reproducible before feature code
 
@@ -309,8 +309,8 @@ The offline gate passes only when every implemented live port has a contract-equ
 
 ## Critical files & anchors
 
-- `docs/changes/2026-07-27-qdos-alpha-reference-corpora.md`: one delivery record, 127-capability evidence matrix, status, blockers, approvals, and outcome.
-- `docs/product/capabilities.md`, `docs/product/qdos-alpha-gap.md`, and `docs/roadmap.md`: current `0.1.0-alpha.1` allocation and the explicit `DATA-02` deferral; no capability may disappear because live evidence is pending.
+- `docs/changes/2026-07-27-qdos-alpha-reference-corpora.md`: one delivery record, 128-capability evidence matrix, status, blockers, approvals, and outcome.
+- `docs/product/capabilities.md`, `docs/product/qdos-alpha-gap.md`, and `docs/roadmap.md`: current `0.1.0-alpha.1` allocation, including the `INT-31` request-scoped upload contract, and the explicit `DATA-02` deferral; no capability may disappear because live evidence is pending.
 - `docs/operator-notes/business-process/intake-and-work-instructions.md`, `inspection-address.md`, `case-types-and-references.md`, and `case-lifecycle.md`: business wording and fail-closed invariants.
 - `docs/decisions/0011-separate-direct-provider-and-intermediary-email-policies.md` plus the superseding tool-neutral ADR: route identity and repository workflow decisions.
 - `src/Pegasus.Core/Intake/IntakeContracts.cs`, `ProcessIntake.cs`, and `QdosInstructionExtractionPolicy.cs`: preserve the real Core caller/policy seam while splitting durable operations and adding route/default provenance.
@@ -332,7 +332,7 @@ The offline gate passes only when every implemented live port has a contract-equ
 2. **Provider-domain reference proof:** run `Build-ProviderReferenceData.ps1` and `-Verify`; assert the pinned source metadata, 11 providers, 16 suffix associations, suffix-only strings, exact package hash, append-only synthetic package-version behavior, embedded-resource/migration equality, idempotent migrations, and deterministic exact-version catalog outcomes.
 3. **Behavioral proof:** execute the Step 10 evaluator, actual Web/Functions/Azurite/LocalDB, identity/session, MCP, QDOS type, lifecycle, Triage, custody, EVA, concurrency, negative, retry, and recovery scenarios. Each check must observe the real caller and persisted/operator-visible result.
 4. **UI proof:** drive the running Razor Pages application with Playwright at the specified desktop/constrained/200%-zoom/accessibility/multi-session states; screenshots alone do not replace interaction and persisted-result evidence.
-5. **Repository proof:** run `pwsh ./scripts/Invoke-RepoCheck.ps1`, exact-head CI, and an independent exact-head implementation review. The change record maps each of the 127 `Now` capabilities to local proof, live proof pending, or the named unsatisfied release blocker.
+5. **Repository proof:** run `pwsh ./scripts/Invoke-RepoCheck.ps1`, exact-head CI, and an independent exact-head implementation review. The change record maps each of the 128 `Now` capabilities to local proof, live proof pending, or the named unsatisfied release blocker.
 6. **Approved live proof:** after the offline gate and exact approvals, run `Invoke-Doctor -Profile Cloud`, the permitted/denied Exchange scope preflight, every live adapter contract/smoke pair, Bicep validation/what-if, deployment/health/restore checks, and genuine operator journeys. Local parity never substitutes for live scope or delivery evidence.
 7. **Teardown proof:** before deletion, compare the reviewed manifest to fresh exact IDs and capture no-active-use/rebuild/data-disposition evidence; after each batch and at completion, prove deleted IDs are absent, retained IDs still have owners, no caller/role/DNS/scheduled/orphan/cost path remains, and redeployment instructions identify exact source/package/configuration provenance.
 
@@ -362,4 +362,4 @@ Release cannot be called complete while any item remains absent:
 - green local/full/exact-head CI and independent review;
 - separately approved live Development operations, operator/management acceptance, then production target/migration/deployment/cutover.
 
-If a checkpoint cannot be satisfied, keep the corresponding live caller absent/disabled and the release blocked. Do not infer a rule, fabricate data, silently fall back to a local adapter, revive plugin-specific guidance, expose the stale deployment, or reduce the 127-capability contract.
+If a checkpoint cannot be satisfied, keep the corresponding live caller absent/disabled and the release blocked. Do not infer a rule, fabricate data, silently fall back to a local adapter, revive plugin-specific guidance, expose the stale deployment, or reduce the 128-capability contract.

@@ -135,10 +135,10 @@ the living product model.
 
 ## Supported contracts
 
-None yet. Development-mode behavior, deployment interfaces, data shapes and
-extension points are not compatibility promises. The observed 13-key EVA
-drag-and-drop shape is a current operator-approved handoff, not a vendor schema
-promoted into Core.
+The required current external output contract is the observed 13-key EVA
+drag-and-drop shape. It remains the operator-approved handoff format until a
+replacement is separately accepted. Infrastructure owns its exact serialization;
+Core owns the typed handoff values rather than the vendor shape.
 
 ## Functional areas
 
