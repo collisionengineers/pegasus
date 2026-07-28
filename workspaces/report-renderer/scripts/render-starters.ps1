@@ -1,11 +1,11 @@
 #requires -Version 5.1
 <#
 .SYNOPSIS
-  Render every bundled sample document to artifacts/rendered-samples/ for a quick visual check.
+  Render every generated starter document to artifacts/rendered-starters/ for a quick visual check.
 .DESCRIPTION
   Builds the CLI if needed, ensures the Chromium engine is installed, then renders
-  each template from its sample payload. Useful after changing a template or the
-  stylesheet to confirm the house style is intact.
+  each template from its generated overwriteable starter. Useful after changing a
+  template or the stylesheet to confirm the house style is intact.
 #>
 param(
     [string]$Configuration = 'Debug'
@@ -24,8 +24,7 @@ if (-not (Test-Path $exe)) {
 # Ensure Chromium is present (no-op if already installed).
 & $exe install-browser | Out-Null
 
-$samples = Join-Path $root 'src/CollisionRenderer.Core/Assets/samples'
-$out = Join-Path $root 'artifacts/rendered-samples'
+$out = Join-Path $root 'artifacts/rendered-starters'
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 
 $templates = @(
@@ -37,7 +36,9 @@ $templates = @(
 
 foreach ($t in $templates) {
     $file = $t.Replace('-', '_')
-    & $exe render --template $t --data (Join-Path $samples "$file.json") --out (Join-Path $out "$file.pdf")
+    $payload = Join-Path $out "$file.json"
+    & $exe forms starter --template $t --out $payload
+    & $exe render --template $t --data $payload --out (Join-Path $out "$file.pdf")
 }
 
 Write-Host "Done. PDFs are in $out" -ForegroundColor Green

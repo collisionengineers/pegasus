@@ -64,9 +64,14 @@ public static class StarterComposer
                 FillQuestionAnswer(root, path);
                 break;
 
-            // Money / Number / Checkbox / Select / SignatureSelect / image + pdf upload
-            // are left at their blank defaults — a guillemet string would break the typed
-            // model (decimals/bools) or has no sensible textual prompt.
+            case FormFieldKind.Money:
+                // Money fields are JSON strings in the render models. Use a render-safe neutral
+                // value rather than a textual prompt so a generated starter can be previewed.
+                SetIfEmptyString(root, path, "0");
+                break;
+
+                // Number / Checkbox / Select / SignatureSelect / image + pdf upload retain their
+                // blank defaults; a textual prompt would break the typed model or has no useful shape.
         }
     }
 

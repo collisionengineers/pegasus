@@ -4,7 +4,7 @@
   "display_name": "Collision Engineers — Document Renderer",
   "version": "0.2.6",
   "description": "Local renderer for Collision Engineers branded PDFs (valuation report, advert evidence pack, fee note, expert reports) via the .NET CollisionRenderer engine.",
-  "long_description": "Local Claude Desktop build of the CollisionRenderer engine. Exposes the document renderer over stdio: render_health preflight, list_templates/get_template_sample/validate/render for any of the 12 templates, plus render_valuation_outputs — a drop-in for the legacy report-renderer that renders the market-valuation report and advert evidence pack from one valuation payload (+ captured advert PDFs, attached by evidence_path file reference or inline base64). Rendering is HTML/Scriban → a Chromium headless shell that is BUNDLED inside the bundle (no runtime download or install), with automatic fallback to the system Microsoft Edge or Google Chrome if the bundled shell cannot launch. Self-contained: the .NET runtime, templates, brand assets, signatures and the headless Chromium shell are all shipped in the bundle. Windows-only.",
+  "long_description": "Local Claude Desktop build of the CollisionRenderer engine. Exposes the document renderer over stdio: render_health preflight and list_templates/validate/render for any of the 12 templates, plus render_valuation_outputs — a drop-in for the legacy report-renderer that renders the market-valuation report and advert evidence pack from one valuation payload (+ captured advert PDFs, attached by evidence_path file reference or inline base64). Rendering is HTML/Scriban → a Chromium headless shell that is BUNDLED inside the bundle (no runtime download or install), with automatic fallback to the system Microsoft Edge or Google Chrome if the bundled shell cannot launch. Self-contained: the .NET runtime, templates, brand assets, signatures and the headless Chromium shell are all shipped in the bundle. Windows-only.",
   "author": {
     "name": "Collision Engineers"
   },
@@ -34,7 +34,6 @@
   "tools": [
     { "name": "render_health", "description": "Preflight health check: launches the PDF browser and prints a probe PDF; reports how the browser resolved. Call before starting a valuation." },
     { "name": "list_templates", "description": "List the document templates this renderer can produce." },
-    { "name": "get_template_sample", "description": "Return the bundled starter payload (JSON) for a template id." },
     { "name": "validate", "description": "Validate a payload against a template's schema/policy without rendering." },
     { "name": "render", "description": "Render any template to PDF; returns an artifact descriptor with a file:// uri." },
     { "name": "render_valuation_outputs", "description": "Render the market-valuation report and advert evidence pack from one valuation payload (+ captures via evidence_path file references or inline base64). Drop-in for the legacy report-renderer." },

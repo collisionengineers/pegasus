@@ -49,7 +49,7 @@ function Get-TemplateIds {
     return $ids
 }
 
-function Render-Sample {
+function Render-Starter {
     param([string]$TemplateId)
 
     $templateRenderDir = Join-Path $renderRoot $TemplateId
@@ -57,14 +57,14 @@ function Render-Sample {
     $payload = Join-Path $templateRenderDir "payload.json"
     $pdf = Join-Path $templateRenderDir "$TemplateId.pdf"
 
-    dotnet run --no-restore --project $cliProject -- sample --template $TemplateId --out $payload | Out-Null
+    dotnet run --no-restore --project $cliProject -- forms starter --template $TemplateId --out $payload | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        throw "Could not write sample payload for '$TemplateId'."
+        throw "Could not write starter payload for '$TemplateId'."
     }
 
     dotnet run --no-restore --project $cliProject -- render --template $TemplateId --data $payload --out $pdf | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        throw "Could not render sample payload for '$TemplateId'."
+        throw "Could not render starter payload for '$TemplateId'."
     }
 
     return $pdf
@@ -172,7 +172,7 @@ if ($ReferenceMap) {
     }
 } else {
     foreach ($id in Get-TemplateIds) {
-        $pdf = Render-Sample $id
+        $pdf = Render-Starter $id
         $actualDir = Join-Path $candidateRoot $id
         $expectedDir = Join-Path $approvedRoot $id
         Rasterize-Pdf -Pdf $pdf -OutputDir $actualDir -Prefix $id

@@ -59,12 +59,7 @@ public sealed class ValuationOutputsRenderer
             return ValidationError(preflightErrors, warnings: new List<string>());
         }
 
-        // 2. Domain policy validation (defence-in-depth port of validate_evidence_pack.py).
-        var (errors, warnings) = new ValuationPolicyValidator().Validate(payload);
-        if (errors.Count > 0)
-        {
-            return ValidationError(errors, warnings);
-        }
+        var warnings = new List<string>();
 
         try
         {

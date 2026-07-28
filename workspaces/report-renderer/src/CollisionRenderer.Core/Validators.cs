@@ -5,14 +5,22 @@ namespace CollisionRenderer.Core;
 /// <summary>Schema/policy checks run before a payload is rendered.</summary>
 public interface IPayloadValidator
 {
-    ValidationResult Validate(string templateId, object model, bool allowLocalFilePaths = true);
+    ValidationResult Validate(
+        string templateId,
+        object model,
+        bool allowLocalFilePaths = true,
+        IReadOnlySet<string>? trustedLocalFilePaths = null);
 }
 
 public sealed class PayloadValidator : IPayloadValidator
 {
     private const long DefaultMaxAttachmentBytes = 15_000_000;
 
-    public ValidationResult Validate(string templateId, object model, bool allowLocalFilePaths = true)
+    public ValidationResult Validate(
+        string templateId,
+        object model,
+        bool allowLocalFilePaths = true,
+        IReadOnlySet<string>? trustedLocalFilePaths = null)
     {
         var r = new ValidationResult();
 
@@ -46,8 +54,8 @@ public sealed class PayloadValidator : IPayloadValidator
 
                 foreach (var (advert, i) in d.Adverts.Select((a, i) => (a, i)))
                 {
-                    ValidateImagePath(advert.ScreenshotPath, $"adverts[{i}].screenshotPath", r, allowLocalFilePaths);
-                    ValidatePdfPath(advert.CapturedPdfPath, $"adverts[{i}].capturedPdfPath", r, allowLocalFilePaths);
+                    ValidateImagePath(advert.ScreenshotPath, $"adverts[{i}].screenshotPath", r, allowLocalFilePaths, trustedLocalFilePaths);
+                    ValidatePdfPath(advert.CapturedPdfPath, $"adverts[{i}].capturedPdfPath", r, allowLocalFilePaths, trustedLocalFilePaths);
                 }
 
                 break;
@@ -106,13 +114,13 @@ public sealed class PayloadValidator : IPayloadValidator
                         {
                             foreach (var (media, k) in block.Media.Select((m, k) => (m, k)))
                             {
-                                ValidateImagePath(media.ImagePath, $"sections[{i}].blocks[{j}].media[{k}].imagePath", r, allowLocalFilePaths);
+                                ValidateImagePath(media.ImagePath, $"sections[{i}].blocks[{j}].media[{k}].imagePath", r, allowLocalFilePaths, trustedLocalFilePaths);
                             }
                         }
                     }
                 }
 
-                ValidateImagePath(d.Signature?.CustomSignaturePath, "signature.customSignaturePath", r, allowLocalFilePaths);
+                ValidateImagePath(d.Signature?.CustomSignaturePath, "signature.customSignaturePath", r, allowLocalFilePaths, trustedLocalFilePaths);
                 break;
 
             default:
@@ -153,7 +161,12 @@ public sealed class PayloadValidator : IPayloadValidator
         }
     }
 
-    private static void ValidateImagePath(string? value, string path, ValidationResult r, bool allowLocalFilePaths)
+    private static void ValidateImagePath(
+        string? value,
+        string path,
+        ValidationResult r,
+        bool allowLocalFilePaths,
+        IReadOnlySet<string>? trustedLocalFilePaths)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -167,11 +180,18 @@ public sealed class PayloadValidator : IPayloadValidator
 
         if (IsRemoteUrl(value))
         {
-            r.Warnings.Add($"{path} is a remote image URL; local existence and size could not be checked before render.");
+            if (!allowLocalFilePaths)
+            {
+                r.Errors.Add($"{path} must be an uploaded file or a data: image URI; remote image URLs are not accepted here.");
+            }
+            else
+            {
+                r.Warnings.Add($"{path} is a remote image URL; local existence and size could not be checked before render.");
+            }
             return;
         }
 
-        if (!allowLocalFilePaths)
+        if (!allowLocalFilePaths && trustedLocalFilePaths?.Contains(value) != true)
         {
             r.Errors.Add($"{path} must be an uploaded file or a data: image URI; raw local file paths are not accepted here.");
             return;
@@ -180,7 +200,12 @@ public sealed class PayloadValidator : IPayloadValidator
         ValidateLocalFile(value, path, ImageExtensions, "PNG, JPEG or WebP image", r);
     }
 
-    private static void ValidatePdfPath(string? value, string path, ValidationResult r, bool allowLocalFilePaths)
+    private static void ValidatePdfPath(
+        string? value,
+        string path,
+        ValidationResult r,
+        bool allowLocalFilePaths,
+        IReadOnlySet<string>? trustedLocalFilePaths)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -207,7 +232,7 @@ public sealed class PayloadValidator : IPayloadValidator
             return;
         }
 
-        if (!allowLocalFilePaths)
+        if (!allowLocalFilePaths && trustedLocalFilePaths?.Contains(value) != true)
         {
             r.Errors.Add($"{path} must be an uploaded file or a data:application/pdf base64 value; raw local file paths are not accepted here.");
             return;

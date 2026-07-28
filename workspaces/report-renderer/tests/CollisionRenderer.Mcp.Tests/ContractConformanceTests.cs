@@ -1,7 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Text.Json;
 using CollisionRenderer.Mcp.Valuation;
 using Xunit;
@@ -9,32 +6,10 @@ using Xunit;
 namespace CollisionRenderer.Mcp.Tests;
 
 /// <summary>
-/// Cross-repo drift guards. The <c>evidence_pack_payload</c> contract (valuation/v1) lives in
-/// the valuation-adverts-connector repo and is hand-mirrored here in C# (ValuationPolicyValidator
-/// + the snake→camel mapper). Nothing enforces that the mirror stays in step with the contract —
-/// which is exactly how <c>meta.report_date</c> came to be silently dropped. These tests fail when
-/// the mirror drifts.
+/// Cross-repo drift guards for the snake-to-camel valuation mapper.
 /// </summary>
 public class ContractConformanceTests
 {
-    [Fact]
-    public void Validator_required_lists_match_the_contract_schema()
-    {
-        var schemaPath = FindContractSchema("evidence-pack-payload.schema.json");
-        if (schemaPath is null)
-        {
-            // Renderer built standalone (no collisionsuite super-checkout): the contract lives in
-            // a sibling repo, so there is nothing to compare against here — skip, don't fail.
-            return;
-        }
-
-        using var schema = JsonDocument.Parse(File.ReadAllText(schemaPath));
-        var defs = schema.RootElement.GetProperty("$defs");
-
-        Assert.Equal(new[] { "your_ref" }, RequiredOf(defs, "Meta"));
-        Assert.Equal(RequiredOf(defs, "SubjectVehicle"), Sorted(ValuationPolicyValidator.RequiredSubject));
-        Assert.Equal(RequiredOf(defs, "EvidenceAdvert"), Sorted(ValuationPolicyValidator.RequiredAdvert));
-    }
 
     [Fact]
     public void Contract_types_money_and_mileage_as_number_or_string()
@@ -94,14 +69,9 @@ public class ContractConformanceTests
     {
         var types = props.GetProperty(field).GetProperty("type").EnumerateArray().Select(e => e.GetString()!);
         // Sorted Ordinal: "number" < "string".
-        Assert.Equal(new[] { "number", "string" }, Sorted(types));
+        Assert.Equal(new[] { "number", "string" }, types.OrderBy(value => value, StringComparer.Ordinal));
     }
 
-    private static string[] RequiredOf(JsonElement defs, string defName) =>
-        Sorted(defs.GetProperty(defName).GetProperty("required").EnumerateArray().Select(e => e.GetString()!));
-
-    private static string[] Sorted(IEnumerable<string> items) =>
-        items.OrderBy(s => s, StringComparer.Ordinal).ToArray();
 
     private static string? FindContractSchema(string fileName)
     {

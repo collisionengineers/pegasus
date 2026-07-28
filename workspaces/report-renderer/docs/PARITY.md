@@ -17,7 +17,7 @@ validation logic.
 | List templates | `CollisionRendererFactory.Catalog.List()` | `list` (alias `templates`) | Document-type rail bound to the catalog | `GET /v1/templates` |
 | List blank authoring templates | `CollisionRendererFactory.AuthoringCatalog.List()` | `forms list` | Blank-template rail bound to the authoring catalog | `GET /v1/authoring-templates` |
 | Get blank draft/form schema | `AuthoringCatalog.GetBlankJson/GetForm` | `forms blank`, `forms schema` | **New blank** and generated form | `GET /v1/authoring-templates/{id}/blank`, `/form` |
-| Scaffold sample payload | `Catalog.GetSampleJson(id)` | `sample` (alias `new`), optional `--out` | **Load Sample** populates the editor | `GET /v1/templates/{id}/sample` |
+| Generate starter draft | `AuthoringCatalog.GetStarterJson(id)` | `forms starter`, optional `--out` | **New document** populates generated prompts | Not exposed |
 | Validate payload | `PayloadValidator.Validate(id, model)` | `validate` | Runs as part of render; failures surface in the validation bar | `POST /v1/validate` |
 | Render to PDF | `IDocumentRenderer.RenderAsync(request)` | `render` | **Render** button | `POST /v1/render`, `POST /v1/render.pdf`, `POST /v1/render.multipart` |
 | Batch render | `IDocumentRenderer.RenderAsync(request)` per item | `batch --manifest` | **Batch...** command | `POST /v1/render/batch` |

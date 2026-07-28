@@ -1,7 +1,7 @@
 # Template authoring guide
 
-This guide explains the JSON payload shape for each of the four built-in templates, the
-content-block catalogue used by the expert report, and the recipe for adding a new template. It is
+This guide explains the JSON payload shape for each of the four base render-template families,
+the eight expert-report authoring presets, the content-block catalogue used by expert reports,
 written for engineers extending `CollisionRenderer.Core`. New documents must follow the existing
 style exactly; the sections below set out what that means in practice.
 
@@ -68,7 +68,7 @@ These apply to every template:
 
 ## Template payloads
 
-The four built-in templates and their identifiers:
+The four base render templates and their identifiers:
 
 | Id | Model record | Body template | Density profile |
 | --- | --- | --- | --- |
@@ -77,10 +77,9 @@ The four built-in templates and their identifiers:
 | `fee-note` | `FeeNoteDocument` | `fee_note.scriban` | `None` |
 | `expert-report` | `ExpertReportDocument` | `expert_report.scriban` | `None` |
 
-You can always obtain a known-good starting payload with the CLI
-(`collisionrenderer sample --template <id>`) or the API (`GET /v1/templates/{id}/sample`). The
-shapes below are abbreviated; the bundled samples under `Assets/samples/` are the canonical, full
-examples.
+Use `collisionrenderer forms starter --template <id>` to generate an overwriteable
+starting payload from the Core-owned blank draft and form definition. The shapes
+below are abbreviated contract references; no case payload examples are committed.
 
 ### `market-valuation-evidence`
 
@@ -460,7 +459,6 @@ new TemplateDescriptor
     Description = "Concise summary of inspection findings.",
     ModelType = typeof(InspectionSummaryDocument),
     TemplateResource = "templates/inspection_summary.scriban",
-    SampleResource = "samples/inspection_summary.json",
     DensityProfile = DensityFitProfile.None,
     FileNameSuffix = "inspection_summary",
 },
@@ -470,16 +468,14 @@ Set `DensityProfile = DensityFitProfile.FitToPages` (with `FitTargetPages`) only
 should auto-shrink to a page target, as the valuation does; otherwise leave it `None` and let content
 flow. `FileNameSuffix` becomes the trailing part of the generated file name.
 
-### 4. Add a sample JSON
+### 4. Add an authoring definition
 
-Create `Assets/samples/inspection_summary.json` with a complete, realistic payload. This is what
-`ITemplateCatalog.GetSampleJson`, the CLI `sample` command, the GUI "load sample" action and the API
-`GET /v1/templates/{id}/sample` return, so it doubles as the worked example and the new-document
-starting point. Keep it free of real customer data — sample payloads use illustrative values only.
+Register the template in `AuthoringCatalog` with a Core-owned form definition and
+blank-draft factory. `GetStarterJson` derives overwriteable prompts from those two
+definitions, so the GUI and CLI can start a document without a committed case payload.
 
-Both the template and the sample are picked up automatically: the `.csproj` embeds
-`Assets\templates\**\*` and `Assets\samples\**\*`, and `EmbeddedResources` resolves them by their
-trailing path, so no `.csproj` edit is needed.
+The `.csproj` embeds `Assets\templates\**\*`, and `EmbeddedResources` resolves template
+resources by their trailing path, so no `.csproj` edit is needed.
 
 ### 5. Add a validator case
 
@@ -514,9 +510,9 @@ Build and exercise the new template through the existing surfaces:
 ```bash
 dotnet build CollisionRenderer.sln -c Release
 collisionrenderer list
-collisionrenderer sample   --template inspection-summary --out sample.json
-collisionrenderer validate --template inspection-summary --data sample.json
-collisionrenderer render   --template inspection-summary --data sample.json --out out.pdf
+collisionrenderer forms starter --template inspection-summary --out starter.json
+collisionrenderer validate --template inspection-summary --data starter.json
+collisionrenderer render   --template inspection-summary --data starter.json --out out.pdf
 dotnet test
 ```
 

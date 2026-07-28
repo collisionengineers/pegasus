@@ -64,7 +64,7 @@ public class AdvertEvidencePackCompositionTests
 
     private static AdvertEvidencePackDocument Load() =>
         JsonSerializer.Deserialize<AdvertEvidencePackDocument>(
-            TemplateCatalog.Default.GetSampleJson("advert-evidence-pack"), CrJson.Options)!;
+            AuthoringTemplateCatalog.Default.GetStarterJson("advert-evidence-pack"), CrJson.Options)!;
 
     private static string Compose(AdvertEvidencePackDocument model)
     {

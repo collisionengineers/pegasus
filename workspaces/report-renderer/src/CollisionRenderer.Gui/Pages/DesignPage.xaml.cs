@@ -288,7 +288,6 @@ public sealed partial class DesignPage : Page
 
     private void OnNewBlankClick(object sender, RoutedEventArgs e) => ResetDraft(ViewModel.LoadBlank);
 
-    private void OnLoadSampleClick(object sender, RoutedEventArgs e) => ResetDraft(ViewModel.LoadSample);
 
     private void ResetDraft(Action load)
     {

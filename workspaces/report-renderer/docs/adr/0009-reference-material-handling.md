@@ -41,10 +41,10 @@ so nothing in the build depends on these folders being present.
 
 - **Commit the examples for convenience:** would place PII in Git history permanently and is
   unacceptable on data-protection grounds. Rejected outright.
-- **Commit redacted/synthetic copies instead:** useful in principle, but redaction is error-prone
-  for binders of real reports and risks leaking residual PII; the canonical sample payloads
-  needed for tests are instead embedded as sanitised samples in Core. Rejected for the reference
-  folders, which stay local and ignored.
+- **Commit redacted/synthetic case payloads instead:** rejected. Redaction is error-prone
+  for binders of real reports and risks leaking residual PII; tests and authoring flows use
+  Core-generated blank or starter drafts rather than committed case payloads. The reference
+  folders stay local and ignored.
 - **Vendor the design-system and prior-renderer folders:** would blur product source with prior
   art and make the root harder to understand. The required assets and CSS have already been
   brought into Core deliberately. Rejected.

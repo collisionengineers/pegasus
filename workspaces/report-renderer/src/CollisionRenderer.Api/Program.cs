@@ -44,12 +44,6 @@ app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 app.MapGet("/v1/templates", () => Results.Ok(
     CollisionRendererFactory.Catalog.List().Select(t => new { t.Id, t.Name, t.Description })));
 
-app.MapGet("/v1/templates/{id}/sample", (string id) =>
-{
-    return CollisionRendererFactory.Catalog.TryGet(id, out _)
-        ? Results.Text(CollisionRendererFactory.Catalog.GetSampleJson(id), "application/json")
-        : Results.NotFound(new { error = $"unknown template '{id}'" });
-});
 
 app.MapGet("/v1/authoring-templates", () => Results.Ok(
     CollisionRendererFactory.AuthoringCatalog.List()));
@@ -110,6 +104,10 @@ app.MapPost("/v1/render", async (RenderApiRequest req, IDocumentRenderer rendere
     {
         return Results.BadRequest(new { error = "validation_failed", details = ex.Errors });
     }
+    catch (KeyNotFoundException ex)
+    {
+        return Results.NotFound(new { error = ex.Message });
+    }
 });
 
 // Returns the raw PDF stream (browser/download friendly).
@@ -123,6 +121,10 @@ app.MapPost("/v1/render.pdf", async (RenderApiRequest req, IDocumentRenderer ren
     catch (RenderValidationException ex)
     {
         return Results.BadRequest(new { error = "validation_failed", details = ex.Errors });
+    }
+    catch (KeyNotFoundException ex)
+    {
+        return Results.NotFound(new { error = ex.Message });
     }
 });
 
@@ -155,7 +157,8 @@ app.MapPost("/v1/render.multipart", async (HttpRequest http, IDocumentRenderer r
         return Results.BadRequest(new { error = "validation_failed", details = new[] { $"Invalid data JSON: {ex.Message}" } });
     }
 
-    var tempFiles = new List<string>();
+    var tempFiles = new HashSet<string>(
+        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
     try
     {
         foreach (var file in form.Files)
@@ -179,6 +182,7 @@ app.MapPost("/v1/render.multipart", async (HttpRequest http, IDocumentRenderer r
             Json = root.ToJsonString(CrJson.Options),
             Options = RenderApiRequest.ParseOptions(First(form, "density") ?? "auto"),
             AllowLocalAttachmentPaths = false, // Cloud API: never trust client-supplied local file paths for attachments.
+            TrustedLocalAttachmentPaths = tempFiles,
         });
 
         return Results.Ok(RenderArtifact(result));
@@ -322,9 +326,9 @@ static void EnsureBoundedPath(string path)
 {
     foreach (var segment in JsonPath.Parse(path))
     {
-        if (segment.Index is { } index && index > 4095)
+        if (segment.Index is { } index && (index < 0 || index > 4095))
         {
-            throw new RenderValidationException(new[] { $"Upload target array index {index} is out of the allowed range (max 4095)." });
+            throw new RenderValidationException(new[] { $"Upload target array index {index} is out of the allowed range (min 0, max 4095)." });
         }
     }
 }

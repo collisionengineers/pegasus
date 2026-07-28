@@ -54,6 +54,12 @@ public sealed record RenderRequest
     /// sets this false so a caller cannot make the server read arbitrary local files.
     /// </summary>
     public bool AllowLocalAttachmentPaths { get; init; } = true;
+
+    /// <summary>
+    /// Exact server-generated attachment paths accepted when arbitrary local paths are
+    /// disabled. Cloud callers cannot populate this set; composition roots own it.
+    /// </summary>
+    public IReadOnlySet<string>? TrustedLocalAttachmentPaths { get; init; }
 }
 
 public sealed record RenderResult
@@ -102,8 +108,6 @@ public sealed record TemplateDescriptor
     /// <summary>Embedded Scriban body template, e.g. "templates/fee_note.scriban".</summary>
     public required string TemplateResource { get; init; }
 
-    /// <summary>Embedded sample payload, e.g. "samples/fee_note.json".</summary>
-    public required string SampleResource { get; init; }
 
     public DensityFitProfile DensityProfile { get; init; } = DensityFitProfile.None;
 

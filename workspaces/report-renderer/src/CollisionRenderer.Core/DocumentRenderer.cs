@@ -45,7 +45,11 @@ public sealed class DocumentRenderer : IDocumentRenderer
         var descriptor = _catalog.Get(request.TemplateId);
         var model = Deserialize(request.Json, descriptor.ModelType);
 
-        var validation = _validator.Validate(descriptor.Id, model, request.AllowLocalAttachmentPaths);
+        var validation = _validator.Validate(
+            descriptor.Id,
+            model,
+            request.AllowLocalAttachmentPaths,
+            request.TrustedLocalAttachmentPaths);
         if (!validation.Ok)
         {
             throw new RenderValidationException(validation.Errors);

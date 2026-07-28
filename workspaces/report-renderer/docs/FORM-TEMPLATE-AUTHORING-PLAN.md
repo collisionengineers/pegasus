@@ -86,7 +86,7 @@ Specific non-sensitive reference files that drive the implementation:
 The GUI originally exposed the renderer as:
 
 - A document-type rail backed by `CollisionRendererFactory.Catalog`.
-- A "Load sample" button.
+- A Core-generated starter draft.
 - A raw JSON editor.
 - A Render button and WebView2 PDF preview.
 
@@ -357,8 +357,7 @@ The desktop app now works as a document authoring workspace:
 3. Tables/repeaters: add/remove rows for adverts, fee items, findings, sections and questions.
 4. Upload slots: file picker, thumbnail or file badge, caption/note fields, remove/replace.
 5. Render controls: density, Render, Save PDF, Open PDF.
-6. Draft controls: New blank, Open draft, Save draft. "Load sample" moves to an advanced/developer
-   menu, not the primary authoring flow.
+6. Draft controls: New starter, New blank, Open draft, Save draft.
 7. Preview pane/tab: existing WebView2 PDF preview after render.
 8. Validation: field-level messages for missing required fields and a summary bar before render.
 

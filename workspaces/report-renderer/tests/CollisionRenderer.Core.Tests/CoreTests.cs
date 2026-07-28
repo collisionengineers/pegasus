@@ -1,7 +1,7 @@
 using System.Text.Json;
 using CollisionRenderer.Core.Design;
-using CollisionRenderer.Core.Rendering;
 using CollisionRenderer.Core.Models;
+using CollisionRenderer.Core.Rendering;
 using CollisionRenderer.Core.Templating;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.IO;
@@ -33,7 +33,7 @@ public class CatalogTests
     public void Every_sample_payload_deserialises_and_validates(string id)
     {
         var descriptor = CollisionRendererFactory.Catalog.Get(id);
-        var json = CollisionRendererFactory.Catalog.GetSampleJson(id);
+        var json = CollisionRendererFactory.AuthoringCatalog.GetStarterJson(id);
 
         var model = JsonSerializer.Deserialize(json, descriptor.ModelType, CrJson.Options);
         Assert.NotNull(model);
@@ -245,6 +245,56 @@ public class ValidationTests
     }
 
     [Fact]
+    public void Api_context_rejects_remote_image_urls()
+    {
+        var model = new AdvertEvidencePackDocument
+        {
+            Subject = new SubjectVehicle { Registration = "AB12 CDE", Make = "Test" },
+            Adverts = { new Advert { ScreenshotPath = "http://169.254.169.254/latest/meta-data/" } },
+        };
+
+        var result = new PayloadValidator().Validate(
+            "advert-evidence-pack",
+            model,
+            allowLocalFilePaths: false);
+
+        Assert.False(result.Ok);
+        Assert.Contains(result.Errors, error => error.Contains("remote image URLs are not accepted"));
+    }
+
+    [Fact]
+    public void Api_context_accepts_only_server_trusted_local_attachment_paths()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.png");
+        File.WriteAllBytes(path, new byte[] { 1, 2, 3 });
+        try
+        {
+            var model = new AdvertEvidencePackDocument
+            {
+                Subject = new SubjectVehicle { Registration = "AB12 CDE", Make = "Test" },
+                Adverts = { new Advert { ScreenshotPath = path } },
+            };
+            var trusted = new HashSet<string>(
+                OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal)
+            {
+                path,
+            };
+
+            var result = new PayloadValidator().Validate(
+                "advert-evidence-pack",
+                model,
+                allowLocalFilePaths: false,
+                trustedLocalFilePaths: trusted);
+
+            Assert.DoesNotContain(result.Errors, error => error.Contains("screenshotPath"));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void Malformed_pdf_data_uri_fails_validation()
     {
         var model = new AdvertEvidencePackDocument
@@ -267,8 +317,11 @@ public class ComposerTests
     public void Valuation_html_carries_brand_and_values()
     {
         var descriptor = TemplateCatalog.Default.Get("market-valuation-evidence");
-        var json = TemplateCatalog.Default.GetSampleJson("market-valuation-evidence");
-        var model = JsonSerializer.Deserialize(json, descriptor.ModelType, CrJson.Options)!;
+        var model = new MarketValuationEvidenceDocument
+        {
+            Subject = new SubjectVehicle { Registration = "AB12 CDE" },
+            AssessedRetailValue = "24750",
+        };
 
         var composed = Composer.Compose(descriptor, model, Density.Normal);
 
@@ -332,8 +385,12 @@ public class ComposerTests
     public void Fee_note_footer_carries_vat_number()
     {
         var descriptor = TemplateCatalog.Default.Get("fee-note");
-        var json = TemplateCatalog.Default.GetSampleJson("fee-note");
-        var model = JsonSerializer.Deserialize(json, descriptor.ModelType, CrJson.Options)!;
+        var model = new FeeNoteDocument
+        {
+            Items = { new FeeLineItem { Description = "Inspection", Amount = 350m } },
+            VatRate = 0.20m,
+            VatNumber = "GB 123 4567 89",
+        };
 
         var composed = Composer.Compose(descriptor, model, Density.Normal);
 
@@ -448,7 +505,31 @@ public class ComposerTests
 
 public class RendererTests
 {
-    private static string Sample(string id) => CollisionRendererFactory.Catalog.GetSampleJson(id);
+    private static string Sample(string id) => id switch
+    {
+        "market-valuation-evidence" => JsonSerializer.Serialize(
+            new MarketValuationEvidenceDocument
+            {
+                Subject = new SubjectVehicle { Registration = "AB12 CDE" },
+                AssessedRetailValue = "24750",
+            },
+            CrJson.Options),
+        "advert-evidence-pack" => JsonSerializer.Serialize(
+            new AdvertEvidencePackDocument
+            {
+                Subject = new SubjectVehicle { Registration = "AB12 CDE", Make = "Example" },
+                Adverts =
+                {
+                    new Advert
+                    {
+                        Url = "https://example.test/advert",
+                        Price = "12000",
+                    },
+                },
+            },
+            CrJson.Options),
+        _ => CollisionRendererFactory.AuthoringCatalog.GetStarterJson(id),
+    };
 
     [Fact]
     public async Task Auto_fit_shrinks_density_until_it_fits()

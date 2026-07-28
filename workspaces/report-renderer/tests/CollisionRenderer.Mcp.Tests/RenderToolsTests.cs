@@ -45,7 +45,7 @@ public class RenderToolsTests
     }
 
     private static JsonObject SamplePayload() =>
-        (JsonObject)JsonNode.Parse(CollisionRendererFactory.Catalog.GetSampleJson(TemplateId))!;
+        (JsonObject)JsonNode.Parse(CollisionRendererFactory.AuthoringCatalog.GetStarterJson(TemplateId))!;
 
     private static JsonElement Data(JsonNode payload) =>
         JsonSerializer.SerializeToElement(payload);

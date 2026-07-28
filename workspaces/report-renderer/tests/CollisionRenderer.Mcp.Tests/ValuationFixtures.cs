@@ -6,8 +6,7 @@ namespace CollisionRenderer.Mcp.Tests;
 /// <summary>
 /// Shared snake_case valuation fixtures, mirroring the shape the vehicle-valuation skill
 /// emits. The payload is fully populated (every subject + advert field set) so the mapper
-/// round-trip test can prove no field is dropped, and it satisfies the full policy
-/// validator (3 supportive/comparable adverts, guide-supported, evidence assessment).
+/// round-trip test can prove no field is dropped.
 /// </summary>
 internal static class ValuationFixtures
 {

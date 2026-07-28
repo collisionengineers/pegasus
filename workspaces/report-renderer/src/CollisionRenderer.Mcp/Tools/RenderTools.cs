@@ -30,19 +30,6 @@ public static class RenderTools
         return arr;
     }
 
-    [McpServerTool(Name = "get_template_sample", Title = "Get template sample",
-        ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Return the bundled starter payload (JSON) for a template id.")]
-    public static string GetTemplateSample(
-        [Description("Template id, e.g. 'market-valuation-evidence'.")] string templateId)
-    {
-        if (!CollisionRendererFactory.Catalog.TryGet(templateId, out _))
-        {
-            throw new ArgumentException($"unknown template '{templateId}'");
-        }
-
-        return CollisionRendererFactory.Catalog.GetSampleJson(templateId);
-    }
 
     [McpServerTool(Name = "validate", Title = "Validate payload",
         ReadOnly = true, Idempotent = true, OpenWorld = false)]

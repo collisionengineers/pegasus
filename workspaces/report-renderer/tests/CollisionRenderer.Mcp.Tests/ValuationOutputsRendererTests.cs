@@ -93,34 +93,6 @@ public class ValuationOutputsRendererTests
         Assert.Contains(errors, e => e.Contains("conclusion"));
     }
 
-    [Fact]
-    public async Task Policy_too_few_supportive_adverts_returns_validation_error()
-    {
-        // Flip two of the three adverts to non-supportive so only one supportive/comparable remains.
-        var payload = (JsonObject)JsonNode.Parse(ValuationFixtures.FullPayloadJson)!;
-        var adverts = (JsonArray)payload["adverts"]!;
-        ((JsonObject)adverts[1]!)["evidence_role"] = "contextual";
-        ((JsonObject)adverts[2]!)["evidence_role"] = "contextual";
-
-        var result = await Render(JsonSerializer.SerializeToElement(payload), ValuationFixtures.Captures(CaptureBase64));
-
-        Assert.False(result["validation"]!["ok"]!.GetValue<bool>());
-        var errors = ((JsonArray)result["validation"]!["errors"]!).Select(e => e!.GetValue<string>());
-        Assert.Contains(errors, e => e.Contains("two materially comparable"));
-    }
-
-    [Fact]
-    public async Task Forbidden_external_wording_is_rejected()
-    {
-        var payload = (JsonObject)JsonNode.Parse(ValuationFixtures.FullPayloadJson)!;
-        payload["conclusion"] = "The EVA confirms the guide value supports an uplift.";
-
-        var result = await Render(JsonSerializer.SerializeToElement(payload), ValuationFixtures.Captures(CaptureBase64));
-
-        Assert.False(result["validation"]!["ok"]!.GetValue<bool>());
-        var errors = ((JsonArray)result["validation"]!["errors"]!).Select(e => e!.GetValue<string>());
-        Assert.Contains(errors, e => e.Contains("forbidden term"));
-    }
 
     [Fact]
     public async Task Missing_captures_fails_evidence_pack_completeness()

@@ -10,7 +10,7 @@ COPY . .
 RUN dotnet restore src/CollisionRenderer.Api/CollisionRenderer.Api.csproj \
  && dotnet publish src/CollisionRenderer.Api/CollisionRenderer.Api.csproj -c Release -o /app /p:UseAppHost=false
 
-FROM mcr.microsoft.com/playwright/dotnet:v1.49.0-jammy AS final
+FROM mcr.microsoft.com/playwright/dotnet:v1.61.0-jammy AS final
 WORKDIR /app
 
 # Arial-metric (Liberation/Arimo) + DejaVu fallback for the document body face.

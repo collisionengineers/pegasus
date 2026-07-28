@@ -23,7 +23,7 @@ public class IntegrationTests
             result = await renderer.RenderAsync(new RenderRequest
             {
                 TemplateId = id,
-                Json = CollisionRendererFactory.Catalog.GetSampleJson(id),
+                Json = CollisionRendererFactory.AuthoringCatalog.GetStarterJson(id),
             });
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("Chromium"))

@@ -103,11 +103,10 @@ Package references: `Scriban` 5.12.1, `Microsoft.Playwright` 1.49.0.
 ### Public surface
 
 - `ITemplateCatalog` (`CollisionRendererFactory.Catalog`): `List()` returning
-  `TemplateDescriptor { Id, Name, Description, ... }`, `Get(id)`, `TryGet(id, out)`,
-  `GetSampleJson(id)`.
+  `TemplateDescriptor { Id, Name, Description, ... }`, `Get(id)`, and `TryGet(id, out)`.
 - `IAuthoringTemplateCatalog` (`CollisionRendererFactory.AuthoringCatalog`): lists the blank
-  reference-backed authoring templates, returns Core-owned form definitions, and returns blank
-  draft JSON for each selectable document type.
+  reference-backed authoring templates, returns Core-owned form definitions, and generates blank
+  or overwriteable starter draft JSON for each selectable document type.
 - `IDocumentRenderer` (`CollisionRendererFactory.CreateRenderer(IPdfEngine? engine = null)`):
   `RenderAsync(RenderRequest { TemplateId, Json, Options })` returning
   `RenderResult { Pdf (byte[]), PageCount, Sha256, Density, EngineVersion,
@@ -198,7 +197,7 @@ collisionrenderer list
 collisionrenderer forms list
 collisionrenderer forms blank  --template <authoring-id> [--out draft.json]
 collisionrenderer forms schema --template <authoring-id> [--out schema.json]
-collisionrenderer sample   --template <id> [--out f.json]
+collisionrenderer forms starter --template <id> [--out f.json]
 collisionrenderer validate --template <id> --data f.json
 collisionrenderer render   --template <id> --data f.json [--out f.pdf]
                            [--density auto|normal|compact|ultra] [--open]
@@ -230,7 +229,6 @@ instance) and serialises with camelCase and string enums.
 | --- | --- | --- |
 | GET | `/healthz` | Liveness check (unauthenticated). |
 | GET | `/v1/templates` | List templates (`Id`, `Name`, `Description`). |
-| GET | `/v1/templates/{id}/sample` | Starter JSON for a template. |
 | GET | `/v1/authoring-templates` | List selectable blank authoring templates. |
 | GET | `/v1/authoring-templates/{id}/form` | Return the Core-owned form definition. |
 | GET | `/v1/authoring-templates/{id}/blank` | Return the blank draft payload. |

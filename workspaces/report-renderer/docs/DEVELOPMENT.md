@@ -102,7 +102,7 @@ Commands:
 | `forms list` | List blank authoring templates. |
 | `forms blank --template <id> [--out <file.json>]` | Print or save a blank draft payload. |
 | `forms schema --template <id> [--out <file.json>]` | Print or save a Core-owned form schema. |
-| `sample --template <id> [--out <file.json>]` | Print a starter payload, or write it to a file. |
+| `forms starter --template <id> [--out <file.json>]` | Generate an overwriteable starter draft. |
 | `validate --template <id> --data <file.json>` | Check a payload without rendering. |
 | `render --template <id> --data <file.json> [--out <file.pdf>] [--density <mode>] [--open]` | Render a document to PDF. |
 | `batch --manifest <file.json> [--out <folder>]` | Render many manifest items. |
@@ -137,7 +137,6 @@ Endpoints:
 | --- | --- |
 | `GET /healthz` | Liveness check (`{ "status": "ok" }`). Never authenticated. |
 | `GET /v1/templates` | List templates (`id`, `name`, `description`). |
-| `GET /v1/templates/{id}/sample` | Sample payload JSON for a template. |
 | `GET /v1/authoring-templates` | List blank authoring templates. |
 | `GET /v1/authoring-templates/{id}/form` | Return a Core-owned form schema. |
 | `GET /v1/authoring-templates/{id}/blank` | Return blank draft JSON. |
@@ -209,8 +208,6 @@ The on-disk source for these assets lives under
   valuation/evidence/fee documents, a letter register at 10pt for expert reports).
 - `templates/*.scriban` — the body templates (`market_valuation_evidence.scriban`,
   `advert_evidence_pack.scriban`, `fee_note.scriban`, `expert_report.scriban`).
-- `samples/*.json` — the starter payloads served by `sample` and
-  `GET /v1/templates/{id}/sample`.
 - `brand/logo.png`, `brand/signatures/*.png` — letterhead logo and expert
   signatures.
 
@@ -224,33 +221,33 @@ No brand font files ship in the repo. Document body copy uses Arial /
 metric-compatible faces, supplied by the operating system or, on Linux, by the
 Liberation fonts installed in the container image.
 
-## Render a sample
+## Render a generated starter
 
 The quickest end-to-end check. First ensure Chromium is installed
 ([above](#first-time-browser-install)), then:
 
 ```
-dotnet run --project src/CollisionRenderer.Cli -- sample --template market-valuation-evidence --out val.json
+dotnet run --project src/CollisionRenderer.Cli -- forms starter --template market-valuation-evidence --out val.json
 dotnet run --project src/CollisionRenderer.Cli -- render --template market-valuation-evidence --data val.json --out val.pdf --open
 ```
 
 On success the render command prints the page count, the chosen density, the SHA-256
 of the PDF and the engine version, then opens `val.pdf`. With the default `auto`
-density the sample valuation fits to one page (it auto-fits to Compact).
+density the generated valuation starter fits to one page (it auto-fits to Compact).
 
-To regenerate example PDFs for all bundled templates, run:
+To regenerate example PDFs from Core-generated starters, run:
 
 ```
-scripts/render-samples.ps1
+scripts/render-starters.ps1
 ```
 
-The script writes to `artifacts/rendered-samples/`, which is ignored and can be
+The script writes to `artifacts/rendered-starters/`, which is ignored and can be
 deleted or regenerated at any time.
 
-You can also drive a render against the running API:
+You can also generate a starter with the CLI and drive its render against the running API:
 
 ```
-curl -s http://localhost:5000/v1/templates/market-valuation-evidence/sample > val.json
+dotnet run --project src/CollisionRenderer.Cli -- forms starter --template market-valuation-evidence --out val.json
 curl -s -X POST http://localhost:5000/v1/render.pdf \
   -H "Content-Type: application/json" \
   -d "{\"templateId\":\"market-valuation-evidence\",\"data\":$(cat val.json)}" \
@@ -336,7 +333,7 @@ expected.
 ### Generated artifacts
 
 Generated PDFs and GUI UI-test output belong under `artifacts/`. The helper scripts
-write to `artifacts/rendered-samples/` and `artifacts/gui-ui-tests/`; both are ignored.
+write to `artifacts/rendered-starters/` and `artifacts/gui-ui-tests/`; both are ignored.
 Do not commit regenerated PDFs, screenshots or UI-test JSON output.
 
 ### Reference data folders

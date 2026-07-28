@@ -18,7 +18,6 @@
        Core renders identically from a CLI, a desktop app, or a Linux container. -->
   <ItemGroup>
     <EmbeddedResource Include="Assets\templates\**\*" />
-    <EmbeddedResource Include="Assets\samples\**\*" />
     <EmbeddedResource Include="Assets\brand\logo.png" />
     <EmbeddedResource Include="Assets\brand\signatures\**\*" />
   </ItemGroup>

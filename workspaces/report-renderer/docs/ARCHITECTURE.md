@@ -108,7 +108,7 @@ The contract a host programs against is small.
 
 | Type | Purpose |
 | --- | --- |
-| `ITemplateCatalog` | `List()` → `TemplateDescriptor`; `Get(id)`; `TryGet(id, out)`; `GetSampleJson(id)`. |
+| `ITemplateCatalog` | `List()` → `TemplateDescriptor`; `Get(id)`; `TryGet(id, out)`. |
 | `IDocumentRenderer` | `RenderAsync(RenderRequest)` → `RenderResult`. `IAsyncDisposable`. |
 | `RenderRequest` | `{ TemplateId, Json, Options }`. |
 | `RenderOptions` | `{ Fit: DensityFit, Density: Density, IncludeBase64, Base64Limit }`. |
@@ -122,9 +122,9 @@ overflow policy is `DensityFitProfile` (`None | FitToPages`).
 
 ### Templates and the catalog
 
-`TemplateCatalog.Default` registers 11 render templates, each described by a `TemplateDescriptor`
+`TemplateCatalog.Default` registers 12 render templates, each described by a `TemplateDescriptor`
 holding the id, display name, description, model `Type`, the embedded Scriban body resource, the
-embedded sample payload resource, the density profile and the file-name suffix.
+density profile and the file-name suffix.
 
 | Id | Model | Density profile |
 | --- | --- | --- |
@@ -322,7 +322,6 @@ guarded).
 | --- | --- | --- |
 | `GET` | `/healthz` | Liveness; always unauthenticated. |
 | `GET` | `/v1/templates` | List id, name and description for each template. |
-| `GET` | `/v1/templates/{id}/sample` | Return the bundled sample payload for a template. |
 | `GET` | `/v1/authoring-templates` | List blank authoring templates. |
 | `GET` | `/v1/authoring-templates/{id}/form` | Return the Core-owned form definition. |
 | `GET` | `/v1/authoring-templates/{id}/blank` | Return blank draft JSON. |

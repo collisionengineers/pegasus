@@ -28,7 +28,6 @@ public static class Program
             {
                 "list" or "templates" => ListTemplates(),
                 "forms" => Forms(rest),
-                "sample" or "new" => WriteSample(rest),
                 "validate" => Validate(rest),
                 "render" => await RenderAsync(rest),
                 "batch" => await BatchAsync(rest),
@@ -64,25 +63,6 @@ public static class Program
         return 0;
     }
 
-    private static int WriteSample(string[] args)
-    {
-        var opts = Options.Parse(args);
-        var id = opts.Require("template", "t");
-        var json = CollisionRendererFactory.Catalog.GetSampleJson(id);
-
-        var outPath = opts.Get("out", "o");
-        if (string.IsNullOrWhiteSpace(outPath))
-        {
-            Console.WriteLine(json);
-        }
-        else
-        {
-            File.WriteAllText(outPath, json);
-            Console.WriteLine($"Wrote starter payload for '{id}' to {outPath}");
-        }
-
-        return 0;
-    }
 
     private static int Forms(string[] args)
     {
@@ -100,6 +80,7 @@ public static class Program
             "list" => ListForms(),
             "blank" => WriteBlank(rest),
             "schema" or "form" => WriteFormSchema(rest),
+            "starter" => WriteStarter(rest),
             _ => Unknown($"forms {subcommand}"),
         };
     }
@@ -124,6 +105,15 @@ public static class Program
         var id = opts.Require("template", "t");
         var json = CollisionRendererFactory.AuthoringCatalog.GetBlankJson(id);
         WriteTextOrFile(json, opts.Get("out", "o"), $"Wrote blank draft for '{id}'");
+        return 0;
+    }
+
+    private static int WriteStarter(string[] args)
+    {
+        var opts = Options.Parse(args);
+        var id = opts.Require("template", "t");
+        var json = CollisionRendererFactory.AuthoringCatalog.GetStarterJson(id);
+        WriteTextOrFile(json, opts.Get("out", "o"), $"Wrote starter draft for '{id}'");
         return 0;
     }
 
@@ -371,9 +361,10 @@ public static class Program
               forms list                 List blank authoring templates.
               forms blank --template <id>
                                          Print a blank draft payload.
+              forms starter --template <id>
+                                         Print a draft with overwriteable prompts.
               forms schema --template <id>
                                          Print the Core-owned form schema.
-              sample   --template <id>   Print a starter payload (use --out to save a file).
               validate --template <id> --data <file>
                                          Check a payload without rendering.
               render   --template <id> --data <file> [--out <file.pdf>]
@@ -393,7 +384,7 @@ public static class Program
             Examples:
               collisionrenderer list
               collisionrenderer forms blank --template total-loss-report --out draft.json
-              collisionrenderer sample --template fee-note --out fee.json
+              collisionrenderer forms starter --template fee-note --out fee.json
               collisionrenderer render --template market-valuation-evidence --data val.json --out val.pdf --open
               collisionrenderer batch --manifest batch.json --out artifacts/batch
             """);
@@ -403,12 +394,13 @@ public static class Program
     {
         Console.WriteLine(
             """
-            Collision Renderer forms - blank document authoring templates.
+            Collision Renderer forms - document authoring templates.
 
             Usage:
               collisionrenderer forms list
-              collisionrenderer forms blank  --template <id> [--out draft.json]
-              collisionrenderer forms schema --template <id> [--out schema.json]
+              collisionrenderer forms blank   --template <id> [--out draft.json]
+              collisionrenderer forms starter --template <id> [--out draft.json]
+              collisionrenderer forms schema  --template <id> [--out schema.json]
             """);
     }
 

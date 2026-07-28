@@ -3,10 +3,10 @@ using System.Reflection;
 namespace CollisionRenderer.Core.Design;
 
 /// <summary>
-/// Loads files embedded in the Core assembly (templates, stylesheet, brand images,
-/// sample payloads). Resources are matched by their trailing path so callers can use
-/// natural relative paths (e.g. "templates/report.css") regardless of how MSBuild
-/// mangles the manifest resource name.
+/// Loads files embedded in the Core assembly (templates, stylesheet, and brand images).
+/// Resources are matched by their trailing path so callers can use natural relative
+/// paths (e.g. "templates/report.css") regardless of how MSBuild mangles the manifest
+/// resource name.
 /// </summary>
 internal static class EmbeddedResources
 {

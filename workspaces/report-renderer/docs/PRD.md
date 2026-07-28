@@ -77,9 +77,9 @@ presentation.
 | 3 | New templates without engine changes | Adding a template means adding a model record, a `.scriban` body template, a `TemplateDescriptor` entry in `TemplateCatalog`, and a sample JSON. The rendering engine is not modified. Templates are Scriban body templates rendered into a C#-built letterhead shell. |
 | 4 | Identical style every time | A single engine, a single embedded stylesheet (`Assets/templates/report.css`) and embedded brand assets (logo, signatures) are the one source of truth. Templates, stylesheet, logo and signatures are embedded resources in Core, so every surface renders from the same artefacts. |
 | 5 | Multi-page robustness | Chromium paged media: `@page A4`, running header/footer templates that repeat on every page with page numbers, `thead { display: table-header-group }` so table headers repeat across pages, and `break-inside: avoid` on rows, value boxes and media rows. Validated: a 36-row valuation flows to three pages with repeating header and footer and no garbling. |
-| 6 | Simple for non-technical users | The desktop GUI follows one linear path: pick a document type, load the sample or fill in the data, render, preview (WebView2), save. Each template ships a starter payload via `GetSampleJson(id)`, and `PayloadValidator` reports clear errors and warnings before rendering. |
+| 6 | Simple for non-technical users | The desktop GUI follows one linear path: pick a document type, start from Core-generated prompts or fill in the data, render, preview (WebView2), save. `AuthoringTemplateCatalog.GetStarterJson(id)` derives the starter from the blank draft and form definition, and `PayloadValidator` reports clear errors and warnings before rendering. |
 | 7 | No AI theming | No sparkle/magic icons, no emoji, no decorative gradients. The tone is calm and factual throughout the product and its output. |
-| 8 | Faithful brand fidelity | The design system is CSS-native and the preferred sample outputs were produced by an HTML/CSS renderer. Reusing that CSS through headless Chromium reproduces the brand exactly (documents red `#C80A32`, warm charcoal `#2C2A27`, grey label cells `#F2F2F2`, zebra `#F5F5F5`, grid `#BEBEBE`, Arial/Helvetica on A4). |
+| 8 | Faithful brand fidelity | The design system is CSS-native and the preferred reference outputs were produced by an HTML/CSS renderer. Reusing that CSS through headless Chromium reproduces the brand exactly (documents red `#C80A32`, warm charcoal `#2C2A27`, grey label cells `#F2F2F2`, zebra `#F5F5F5`, grid `#BEBEBE`, Arial/Helvetica on A4). |
 | 9 | Strongest stack, not a copy | One language (.NET) for Core, CLI, GUI and API gives true parity, a clean WinUI 3 desktop app and a Linux cloud container. Chromium/Playwright is cross-platform and self-contained, unlike the prior WeasyPrint native-library dependency. QuestPDF and PdfSharp were rejected because they would discard the CSS design system. |
 
 > Requirements 1–7 are stated as the seven explicit product requirements; 8 and 9 capture
@@ -96,8 +96,8 @@ It is the single rendering entry point for the CLI, GUI and API.
 Public surface:
 
 - `ITemplateCatalog` (`CollisionRendererFactory.Catalog`): `List()` →
-  `TemplateDescriptor { Id, Name, Description, ... }`, `Get(id)`, `TryGet(id, out)`,
-  `GetSampleJson(id)`.
+  `TemplateDescriptor { Id, Name, Description, ... }`, `Get(id)`, and `TryGet(id, out)`.
+- `IAuthoringTemplateCatalog` generates blank and starter drafts from Core-owned form definitions.
 - `IDocumentRenderer` (`CollisionRendererFactory.CreateRenderer(IPdfEngine? engine = null)`):
   `RenderAsync(RenderRequest { TemplateId, Json, Options })` → `RenderResult { Pdf (byte[]),
   PageCount, Sha256, Density, EngineVersion, SuggestedFileName, Warnings, Base64? }`. It is
@@ -111,7 +111,7 @@ Public surface:
 
 ### 5.2 Templates
 
-Four built-in templates:
+Four base render templates support eight additional expert-report authoring presets:
 
 | Id | Document | Notes |
 |---|---|---|
@@ -124,7 +124,7 @@ Four built-in templates:
 
 ```
 collisionrenderer list
-collisionrenderer sample   --template <id> [--out f.json]
+collisionrenderer forms starter --template <id> [--out f.json]
 collisionrenderer validate --template <id> --data f.json
 collisionrenderer render   --template <id> --data f.json [--out f.pdf]
                            [--density auto|normal|compact|ultra] [--open]
@@ -138,7 +138,7 @@ SHA-256 and engine version, and exits non-zero on validation failure.
 ### 5.4 Desktop GUI (`CollisionRenderer.Gui`)
 
 WinUI 3 / Windows App SDK desktop client, Core in-process, WebView2 preview. Flow: pick a
-document type, load the sample or fill in the data, render, preview, save.
+document type, start from generated prompts or fill in the data, render, preview, save.
 
 ### 5.5 Cloud API (`CollisionRenderer.Api`)
 
@@ -149,7 +149,6 @@ Optional bearer auth via raw or SHA-256 token environment variables (all paths e
 |---|---|---|
 | GET | `/healthz` | Liveness check |
 | GET | `/v1/templates` | List templates (id, name, description) |
-| GET | `/v1/templates/{id}/sample` | Starter payload for a template |
 | GET | `/v1/authoring-templates` | Blank authoring template catalogue |
 | GET | `/v1/authoring-templates/{id}/form` | Core-owned form schema |
 | GET | `/v1/authoring-templates/{id}/blank` | Blank draft JSON |

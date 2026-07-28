@@ -134,7 +134,7 @@ public class PreviewComposerTests
     [Fact]
     public void Valid_sample_renders_faithful_html()
     {
-        var json = CollisionRendererFactory.Catalog.GetSampleJson("market-valuation-evidence");
+        var json = CollisionRendererFactory.AuthoringCatalog.GetStarterJson("market-valuation-evidence");
         var result = Preview.ComposePreview("market-valuation-evidence", json, Density.Normal);
 
         Assert.False(result.IsBestEffort);

@@ -174,7 +174,6 @@
                                 <MenuFlyoutItem x:Name="OpenDraftItem" Text="Open draft…" Click="OnOpenFileClick" />
                                 <MenuFlyoutItem x:Name="SaveDraftItem" Text="Save draft…" Click="OnSaveDraftClick" />
                                 <MenuFlyoutSeparator />
-                                <MenuFlyoutItem x:Name="LoadSampleItem" Text="Load sample data" Click="OnLoadSampleClick" />
                                 <MenuFlyoutItem x:Name="LoadBlankItem" Text="Clear to blank" Click="OnNewBlankClick" />
                                 <MenuFlyoutSeparator />
                                 <MenuFlyoutItem x:Name="BatchItem" Text="Batch render…" Click="OnBatchRenderClick" />

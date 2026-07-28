@@ -33,7 +33,6 @@ public sealed record RenderOutcome
 /// </summary>
 public partial class DesignViewModel : ObservableObject
 {
-    private readonly ITemplateCatalog _renderCatalog = CollisionRendererFactory.Catalog;
     private readonly IAuthoringTemplateCatalog _authoringCatalog = CollisionRendererFactory.AuthoringCatalog;
 
     public DesignViewModel()
@@ -111,17 +110,6 @@ public partial class DesignViewModel : ObservableObject
         StatusText = $"Started a blank {SelectedTemplate.Name} draft.";
     }
 
-    /// <summary>Load the bundled render-template sample. Kept as an advanced diagnostic path.</summary>
-    public void LoadSample()
-    {
-        if (SelectedTemplate is null)
-        {
-            return;
-        }
-
-        PayloadJson = _renderCatalog.GetSampleJson(SelectedTemplate.RenderTemplateId);
-        StatusText = $"Loaded the sample payload for {SelectedTemplate.RenderTemplateId}.";
-    }
 
     /// <summary>
     /// Run the Core render pipeline off the calling context. Translates the exception

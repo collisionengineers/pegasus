@@ -13,7 +13,7 @@ API, which means each host produces the same document, identically styled, from 
 - One shared rendering engine (`CollisionRenderer.Core`) is the single source of truth; the
   CLI, desktop app and API are thin clients over it, so they have identical feature parity by
   construction.
-- Four built-in document templates with bundled sample payloads (see the table below).
+- Twelve built-in document templates with Core-generated blank and starter drafts (see the table below).
 - Typed C# document models rendered to HTML via Scriban templates and the brand CSS design
   system, then to PDF via headless Chromium (Microsoft.Playwright).
 - Self-contained Core: templates, stylesheet, logo and signatures are embedded resources, with
@@ -39,8 +39,8 @@ dotnet build CollisionRenderer.sln -c Release
 # First-time setup: download the Chromium engine (~90 MB)
 dotnet run --project src/CollisionRenderer.Cli -- install-browser
 
-# Print a starter payload for a template, then render it to PDF
-dotnet run --project src/CollisionRenderer.Cli -- sample --template fee-note --out fee.json
+# Generate a starter draft for a template, then render it to PDF
+dotnet run --project src/CollisionRenderer.Cli -- forms starter --template fee-note --out fee.json
 dotnet run --project src/CollisionRenderer.Cli -- render --template fee-note --data fee.json --out fee.pdf
 ```
 
@@ -48,7 +48,7 @@ The CLI assembly is named `collisionrenderer`. Once built or installed, the comm
 
 ```
 collisionrenderer list
-collisionrenderer sample   --template <id> [--out <file.json>]
+collisionrenderer forms starter --template <id> [--out <file.json>]
 collisionrenderer validate --template <id> --data <file.json>
 collisionrenderer render   --template <id> --data <file.json> [--out <file.pdf>]
                            [--density auto|normal|compact|ultra] [--open]
@@ -62,8 +62,8 @@ When `--out` is omitted, `render` writes `<REG>_<type>.pdf` to the current folde
 ## MCP server (.mcpb)
 
 `src/CollisionRenderer.Mcp` exposes the renderer to Claude Desktop as
-`collisionrenderer-mcp`. It registers six tools: `list_templates`,
-`get_template_sample`, `validate`, `render`, `render_valuation_outputs`, and
+`collisionrenderer-mcp`. It registers seven tools: `render_health`, `list_templates`,
+`validate`, `render`, `render_valuation_outputs`, `open_valuation_output`, and
 `install_browser`.
 
 Build the Windows stdio bundle with:
@@ -127,14 +127,14 @@ collisionrenderer/
 ├── tests/
 │   └── CollisionRenderer.Core.Tests/   xUnit tests (57 tests, incl. integration renders)
 └── scripts/
-    ├── render-samples.ps1          Render bundled samples to ignored artifacts/
+    ├── render-starters.ps1         Render generated starters to ignored artifacts/
     └── visual-regression.ps1       Rasterise/compare rendered PDFs under ignored artifacts/
 ```
 
 ## Templates
 
 The catalogue is defined in `src/CollisionRenderer.Core/TemplateCatalog.cs`. Each template is a
-Scriban body plus a C#-built letterhead shell, with a bundled sample payload.
+Scriban body plus a C#-built letterhead shell; the authoring catalogue generates blank and starter drafts.
 
 | Id | Name | Purpose | Auto-fit |
 | --- | --- | --- | --- |
@@ -154,7 +154,7 @@ The expert report is assembled from content blocks: `paragraph`, `bullets`, `dat
 `keyvalue`, `evidencetable`, `valuebox` and `mediarow`.
 
 Adding a template requires no engine change: add a model record, a `.scriban` body, a
-`TemplateDescriptor` in `TemplateCatalog`, and a sample JSON payload.
+`TemplateDescriptor` in `TemplateCatalog`, and a Core-owned authoring form and blank-draft factory.
 
 ## Cloud API
 
@@ -164,7 +164,6 @@ The API wraps Core and exposes:
 | --- | --- | --- |
 | `GET` | `/healthz` | Service health |
 | `GET` | `/v1/templates` | Template list (id, name, description) |
-| `GET` | `/v1/templates/{id}/sample` | The bundled sample payload |
 | `GET` | `/v1/authoring-templates` | Blank authoring template catalogue |
 | `GET` | `/v1/authoring-templates/{id}/form` | Core-owned form schema |
 | `GET` | `/v1/authoring-templates/{id}/blank` | Blank draft JSON |
@@ -200,8 +199,8 @@ Long documents keep that look through paged-media rules rather than chance:
 - `break-inside: avoid` on table rows, value boxes and media rows, so blocks are never split.
 - Density auto-fit for fit-to-page templates: the engine renders Normal, then Compact, then
   Ultra-compact, counting the PDF pages until it meets the target. A 36-row valuation flows to
-  three pages with a repeating header and footer and no garbling; the sample valuation auto-fits
-  to Compact to stay on one page.
+  three pages with a repeating header and footer and no garbling; the generated valuation starter
+  auto-fits to Compact to stay on one page.
 
 ## Documentation
 
@@ -209,5 +208,5 @@ Long documents keep that look through paged-media rules rather than chance:
   Playwright stack and the handling of Scriban advisories.
 - `CollisionRendererFactory.cs` — the composition root used by every host; start here to follow
   how a render request flows through Core.
-- `scripts/render-samples.ps1` — renders example PDFs into `artifacts/rendered-samples/`, which is
-  ignored and can be regenerated at any time.
+- `scripts/render-starters.ps1` — renders generated starter PDFs into `artifacts/rendered-starters/`,
+  which is ignored and can be regenerated at any time.

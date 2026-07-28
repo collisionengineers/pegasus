@@ -26,7 +26,6 @@ Endpoints:
 
 - `GET /healthz`
 - `GET /v1/templates`
-- `GET /v1/templates/{id}/sample`
 - `POST /v1/validate`
 - `POST /v1/render` (artifact JSON with optional base64)
 - `POST /v1/render.pdf` (raw PDF bytes)
