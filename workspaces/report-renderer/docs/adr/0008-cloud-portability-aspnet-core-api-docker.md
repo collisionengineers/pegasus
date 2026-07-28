@@ -16,8 +16,9 @@ simple optional access control for hosted deployments.
 ## Decision
 
 Ship `CollisionRenderer.Api`, an ASP.NET Core minimal API wrapping the shared Core renderer,
-packaged by a multi-stage `Dockerfile` at the repository root. The runtime stage uses the
-official Playwright .NET image (`mcr.microsoft.com/playwright/dotnet`), which bundles the
+packaged by the workspace multi-stage `Dockerfile` with the Pegasus repository root as its
+build context. The runtime stage uses the official Playwright .NET image
+(`mcr.microsoft.com/playwright/dotnet`), which bundles the
 matching Chromium build and its native dependencies; the image additionally installs
 `fonts-liberation` (with a `fonts-dejavu-core` fallback) so the Arial-metric body copy
 renders identically on Linux.

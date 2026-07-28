@@ -13,7 +13,7 @@ This document says what remains between the current local proof and the `0.1.0-a
 Requirements come from, in order:
 
 1. `docs/operator-notes/` (authoritative operator truth; documentation and organization are maintainer-editable under user authorization);
-2. settled answers in `docs/history/product/project-discovery-questionnaire.md`;
+2. canonical product areas reconciled with direct-decision evidence in `docs/history/product/project-discovery-questionnaire.md`;
 3. accepted ADRs under `docs/architecture/decisions/`;
 4. executable behavior that has been independently checked.
 
@@ -42,7 +42,7 @@ The first thin slice has a source-mapped Web caller at `/Intake/Upload`. In Deve
 - produce explicit `Draft ready`, `Needs sorting`, `OCR required`, `Unsupported`, and retryable technical-failure outcomes; `Draft ready` means the QDOS extraction policy produced a reviewable instruction draft, not that mailbox category or definitive acceptance has been decided;
 - identify each manual upload by a stable channel occurrence token while retaining the SHA-256 value as integrity and possible-duplicate evidence;
 - persist provider-neutral receipts, a relational read-only instruction draft, assets, evidence, field candidates, and the extraction policy key/version through EF Core without creating a case or reference;
-- initialise a fresh provider-neutral SQLite schema at `artifacts/local/pegasus-development.db`; refuse old or mismatched local migration/schema baselines before mutation and leave the former local database path untouched;
+- initialise and migrate the default `PegasusDevelopment` SQL Server LocalDB database through EF Core; when an alternate SQLite provider is explicitly configured for isolated testing, refuse an old or mismatched SQLite migration/schema baseline before mutation;
 - render persisted dashboard counts, queues, and a review page;
 - return the existing receipt for replay of the same occurrence while retaining equal bytes under different occurrence identities as separate review evidence; and
 - deny every `/Intake` route outside Development or when the feature flag is not enabled, and keep the retired `/Intake/Qdos` route unavailable even when local intake is enabled.
@@ -83,6 +83,7 @@ The development-only manual intake route must remain unavailable in a deployed e
 - Require the exact reply-chain Outlook Sent item from an approved mailbox to complete Triage; do not fall back to subject, registration, or manual message selection. Before send, finding replacement requires a reason. After send, store a superseding finding, require a new response, and keep full history. Reopen always to `Open`.
 - Keep each Triage separate when linked to a later case. Auto-link only after the combined research accepts a definitive shared match; otherwise staff confirm. A Triage links to at most one case, a case may link multiple Triage records, and any staff role may unlink/relink with a reason.
 - Support manual case/instruction/image upload through the same Core use cases rather than a parallel rule engine.
+- Let authenticated staff create temporary, revocable, request-scoped links for clients, bodyshops or storage yards to upload images/documents without an account. The unauthenticated caller may see only the bounded upload form and immediate result, never case/request state or upload history. Define and prove token, limit, custody, retry, revocation, abuse and cross-request isolation contracts before release.
 - Preserve the principal-scoped provider API contract for `Next`/`unallocated`: separately issued client IDs and opaque secrets, secret hashes only, rotation/revocation, idempotent submission, and own receipt/status/result retrieval. It is not a `0.1.0-alpha.1` release gate.
 - Deliver the `0.1.0-alpha.1` remote staff MCP, primarily through Claude Desktop, with per-staff OAuth, current roles, and permanent attribution. `0.1.0-alpha.1` tools cover case, document, and intake-queue actions through the same Core use cases as the UI; broader classified-email actions are `Next`/`unallocated`. Exclude administration, configuration, credential management, cloud operations, and permanent deletion.
 - Send uncertain associations to `Needs sorting`; never guess. Automatic email and image/instruction association is `Next`/`unallocated`, except the separately allocated `0.1.0-alpha.1` exact report and Triage evidence matchers after the combined research is accepted.

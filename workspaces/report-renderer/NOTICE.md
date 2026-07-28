@@ -14,8 +14,9 @@ following third-party components.
 
 ## Brand assets
 
-- The master gear-"C" logo (`Assets/brand/logo.png`) and the engineer signature
-  images are **Collision Engineers Ltd** property. Do not redraw the gear.
+- The master gear-"C" logo (`design/brand/logos/logo_no_margin.png`) and the
+  engineer signatures (`design/brand/signatures/`) are **Collision Engineers Ltd**
+  property. Do not redraw the gear.
 - The client-supplied **Tw Cen MT Std** and **Futura** typefaces (and the white
   reverse logo) were removed from the repo in July 2026 as unused — no template
   referenced them. Rendered documents use Arial (Windows) or a metric-compatible

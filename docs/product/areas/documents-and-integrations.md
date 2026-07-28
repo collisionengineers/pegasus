@@ -66,8 +66,9 @@ valuation and reporting until each slice transfers authority independently.
 
 ## Valuation evidence and Engineer decision
 
-Valuation is a versioned evidence/decision flow, not a vendor call. Every source
-observation retains:
+Pegasus calls supported valuation-vendor APIs to receive observations. The
+resulting valuation remains a versioned evidence/Engineer-decision flow. Every
+source observation retains:
 
 - source key and vehicle identity;
 - mileage and unit;
@@ -97,14 +98,6 @@ status, plus Engineer cost/payment inputs with role-restricted visibility.
 Invoice generation consumes accepted per-principal report events and fee rules.
 Screenshots are field evidence, not authority for formulas or permissions.
 
-## Data-handling activation boundary
-
-Personal data and vehicle images retain role-based access protection across
-email, request-scoped upload, AI processing and Box. Before each external flow
-is activated, its owning change must record the applicable retention rule and
-confirm processor terms. Until those inputs are accepted, that external flow
-remains off. This policy does not activate the `DOC-12` automated-retention or
-`DOC-15` dedicated-compliance workflows; both remain `Not planned` boundaries.
 
 ## Current state and activation
 

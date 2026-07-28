@@ -2,11 +2,14 @@
 
 Status: **Active material-ambiguity and dependency register**
 
-Allocation is owned by the [capability inventory](capabilities.md), current
-release gaps by the [QDOS-alpha gap](qdos-alpha-gap.md), and dependency intent
-by the [roadmap](../roadmap.md). Deliberately deferred capabilities are not
-current-scope questions; this register records the exact evidence that blocks
-their activation.
+Most product decisions reviewed through 2026-07-25 are preserved in the
+historical [questionnaire](../history/product/project-discovery-questionnaire.md)
+and reconciled into the canonical product areas. Allocation is owned by the
+[capability inventory](capabilities.md), current release gaps by the
+[QDOS-alpha gap](qdos-alpha-gap.md), and dependency intent by the
+[roadmap](../roadmap.md). Deliberately deferred capabilities, including
+conditional and `Unclear` source rows, are not current-scope questions; this
+register records the exact evidence that blocks their activation.
 
 ## Mailbox categorisation and matching evidence
 
@@ -24,6 +27,12 @@ generic rule engine or transport-specific second classifier.
 QDOS direct sender identity is the exact `@qdosassist.co.uk` suffix. It does not
 classify message type, associate a case or apply to an identified intermediary
 without the remaining route policy.
+
+The supplied [Mapped Principals spreadsheet](../reference/imp-docs/requirementsdocs/provider-extra-info/Mapped%20Principals.xlsx)
+identifies additional principals and route candidates beyond QDOS. Preserve
+every listed candidate as evidence; each still needs its exact sender/intermediary
+identity, predicates, precedence, genuine examples and holdout accepted before
+activation.
 
 ## EVA manual handoff mapping
 

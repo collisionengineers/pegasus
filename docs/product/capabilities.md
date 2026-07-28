@@ -5,13 +5,14 @@ settled ID and durable outcome, has one canonical owner, and uses an exact
 Semantic Version or `unallocated`. GitHub issues exist only when work is
 activated; this table is not a backlog or implementation-status ledger.
 
-Historical maturity maps and the
+The retained [feature maturity map](../history/plans/feature-maturity-map.md) and
 [feature-versioning worksheet](../history/product/feature-versioning-worksheet.md)
-preserve old allocation evidence. Those labels are not active releases. Active
-timing uses `Now`, `Next`, `Later`, or `Not planned`; every exact target remains
-`unallocated` until release planning assigns it. The 128 `Now` capabilities are
-assigned to `0.1.0-alpha.1`. Source incorporation, registration, build, deploy
-and acceptance remain separate evidence states.
+preserve source identity and normalized V0/V1/V2/V3 allocation evidence. Those
+labels are not active releases. Active timing uses `Now`, `Next`, `Later`, or
+`Not planned`; every exact target remains `unallocated` until release planning
+assigns it. The 128 `Now` capabilities are assigned to `0.1.0-alpha.1`.
+`DATA-02` remains explicitly deferred to `Next`. Source incorporation,
+registration, build, deploy and acceptance remain separate evidence states.
 
 ## Allocation summary
 

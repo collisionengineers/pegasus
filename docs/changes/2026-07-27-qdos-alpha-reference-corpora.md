@@ -148,7 +148,7 @@ adapter, Azure, deployment, or acceptance work.
 
 ## Capability evidence index
 
-This immutable index accounts for all 127 `Now` capability IDs after the
+This immutable index accounts for all 128 `Now` capability IDs after the
 explicit deferral of `DATA-02`. The delivery steps are the owning
 implementation/evidence slices; this table records allocation, not a claim that
 pending evidence has passed. Each row later records local proof, live proof
@@ -166,6 +166,7 @@ where required, or the exact release blocker without removing the capability.
 | `MAIL-18` | 6, 9, 10 | Core chaser policy and authenticated copyable Web output |
 | `ACC-01`, `ACC-02`, `ACC-03`, `ACC-04`, `ACC-05`, `ACC-06`, `ACC-07`, `ACC-08`, `ACC-09`, `ACC-10`, `ACC-11` | 3, 9, 10 | Identity/OpenIddict, authorization, history, authenticated browser/MCP |
 | `INT-01`, `INT-02`, `INT-03`, `INT-08`, `INT-09`, `INT-10`, `INT-11`, `INT-12`, `INT-13`, `INT-17`, `INT-18`, `INT-19`, `INT-20`, `INT-21`, `INT-22`, `INT-23`, `INT-24`, `INT-25`, `INT-26`, `INT-27`, `INT-29`, `INT-30` | 4–10 | shared evaluator, durable receipt/outbox/Worker, acceptance and negative recovery smoke |
+| `INT-31` | 7, 9, 10 | request-scoped upload token/limit/custody/retry/revocation/abuse contract, real authenticated staff creator, bounded unauthenticated upload caller, negative isolation proof, and operator acceptance; release remains blocked until implemented |
 | `TRI-01`, `TRI-02`, `TRI-03`, `TRI-04`, `TRI-05`, `TRI-06`, `TRI-07`, `TRI-08`, `TRI-09` | 4, 6, 8–10 | approved matcher evidence, Core transitions, Worker Sent evidence, UI/MCP |
 | `CASE-01`, `CASE-02`, `CASE-03`, `CASE-04`, `CASE-07`, `CASE-08`, `CASE-09`, `CASE-10`, `CASE-11`, `CASE-12`, `CASE-13`, `CASE-14`, `CASE-15`, `CASE-16`, `CASE-17`, `CASE-18`, `CASE-19`, `CASE-20`, `CASE-21`, `CASE-24`, `CASE-25`, `CASE-26`, `CASE-27`, `CASE-28`, `CASE-29`, `CASE-30` | 6–10 | Core/persistence contract, local adapters, Worker, UI/MCP, lifecycle smoke |
 | `UI-01`, `UI-02`, `UI-03`, `UI-04`, `UI-05`, `UI-06`, `UI-07`, `UI-08`, `UI-09`, `UI-11`, `UI-13` | 9, 10 | authenticated Razor Pages caller and Playwright/accessibility acceptance |
@@ -174,7 +175,7 @@ where required, or the exact release blocker without removing the capability.
 | `MCP-01`, `MCP-02`, `MCP-03`, `MCP-04` | 3, 9, 10, 13 | OpenIddict actor enforcement and real Streamable HTTP caller |
 | `DATA-01` | 2, 10 | deterministic cumulative provider-domain package/migration and exact count/hash/suffix-only proof |
 
-Count assertion: **127 distinct IDs; no duplicate and no omitted `Now` row**.
+Count assertion: **128 distinct IDs; no duplicate and no omitted `Now` row**.
 
 ## Plan
 

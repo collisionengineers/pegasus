@@ -8,6 +8,25 @@ CPR-compliant, so the output has to be predictable, accurate and on-brand on eve
 single rendering engine sits behind a Windows desktop app, a command-line tool and a cloud
 API, which means each host produces the same document, identically styled, from the same data.
 
+## Pegasus integration disposition
+
+This directory is retained as a source-only, non-caller workspace during import. Its
+standalone hosts remain available for source review and parity evidence only. When the
+renderer is integrated into Pegasus:
+
+- every `CollisionRenderer.Gui` desktop feature will be decommissioned; Pegasus already
+  owns the user interface that invokes rendering;
+- only the headless rendering engine and the required service contracts/endpoints will
+  be integrated;
+- the standalone `CollisionRenderer.Mcp` MCPB host and package will be removed; renderer
+  tools that remain relevant will be exposed through the global Pegasus MCP surface; and
+- activation requires an accepted integration contract, an actual Pegasus caller,
+  migration/recovery proof and operator acceptance. This import creates none of them.
+
+The top-level [`design/`](../../design/) system owns the imported templates, stylesheet,
+logo, signatures and temporary GUI package assets. The renderer projects link those
+sources and embed/copy them at build time; they do not carry duplicate asset copies.
+
 ## Features
 
 - One shared rendering engine (`CollisionRenderer.Core`) is the single source of truth; the
@@ -16,8 +35,8 @@ API, which means each host produces the same document, identically styled, from 
 - Twelve built-in document templates with Core-generated blank and starter drafts (see the table below).
 - Typed C# document models rendered to HTML via Scriban templates and the brand CSS design
   system, then to PDF via headless Chromium (Microsoft.Playwright).
-- Self-contained Core: templates, stylesheet, logo and signatures are embedded resources, with
-  no Windows-only dependencies, so the engine also runs in a Linux container.
+- Build-time links to the top-level design system embed the templates, stylesheet, logo
+  and signatures in Core, so the headless engine remains self-contained at runtime.
 - Auto-fit density for fit-to-page templates: render Normal, then Compact, then Ultra-compact
   until the page target is met.
 - Multi-page robustness: repeating table headers, repeating running header/footer with page
@@ -94,7 +113,7 @@ dotnet test
 # Cloud API (ASP.NET Core minimal API)
 dotnet run --project src/CollisionRenderer.Api
 # or build the container image
-docker build -t collisionrenderer-api .
+docker build -f Dockerfile -t collisionrenderer-api ../..
 
 # Windows desktop app (WinUI 3; needs the Windows App SDK runtime)
 dotnet run --project src/CollisionRenderer.Gui
@@ -112,7 +131,7 @@ collisionrenderer/
 │   └── adr/                        Architecture decision records
 ├── src/
 │   ├── CollisionRenderer.Core/     net8.0 class library — the rendering engine
-│   │   ├── Assets/                 Embedded templates, report.css, brand logo and signatures, sample JSON
+│   │   ├── Assets/                 Build-time links to top-level design assets
 │   │   ├── CollisionRendererFactory.cs   Composition root (CreateRenderer, Catalog)
 │   │   ├── Contracts.cs            RenderRequest/RenderResult/RenderOptions and related types
 │   │   ├── TemplateCatalog.cs      The four template descriptors
@@ -184,8 +203,9 @@ image deploys to any container host.
 The brand design system is CSS-native and the preferred sample outputs were produced by an
 HTML/CSS renderer, so Collision Renderer reuses that CSS through headless Chromium for exact
 fidelity. The canonical stylesheet is
-`src/CollisionRenderer.Core/Assets/templates/report.css`: a data register at 8.8pt for
-valuation, evidence and fee documents, and a letter register at 10pt for expert reports. Every
+`design/assets/report-renderer/templates/report.css` at the Pegasus repository root: a data
+register at 8.8pt for valuation, evidence and fee documents, and a letter register at 10pt
+for expert reports. Every
 page carries the gear-"C" logo letterhead with an Our / Your Ref / Date block, a centred
 uppercase title, uppercase section headings underlined by a red rule, and a running footer with
 the Collision Engineers strapline and an `— n of N —` page marker (fee notes swap the email for
