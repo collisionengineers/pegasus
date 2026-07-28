@@ -8,8 +8,9 @@ the affected scope only.
 2. `docs/operator-notes/` for operator and business truth. Repository
    maintainers may maintain their documentation and organization under the
    user's standing authorization, but material meaning changes require direct user resolution.
-3. Settled product decisions in `PROJECT_DISCOVERY_QUESTIONNAIRE.md` and the
-   current allocation in `docs/product/capabilities.md`.
+3. Settled product behavior in `docs/product/areas/`, with current allocation
+   in `docs/product/capabilities.md`; the retained questionnaire and worksheet
+   under `docs/history/product/` are reconciliation evidence, not active owners.
 4. Accepted technical decisions under `docs/architecture/decisions/`.
 5. Explicitly accepted executable contracts and tests for this version.
 6. Retrospectives for delivery constraints and observed failures.

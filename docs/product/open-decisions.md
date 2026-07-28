@@ -2,7 +2,7 @@
 
 Status: **Active material-ambiguity register**
 
-Most product decisions reviewed through 2026-07-25 are settled in `PROJECT_DISCOVERY_QUESTIONNAIRE.md`; allocation is owned by the [capability inventory](capabilities.md), V1 gaps are summarised in [the V1 gap](v1-gap.md), and dependency intent is owned by the [roadmap](../roadmap.md). Conditional and `Unclear` source rows are visible activation states, not unanswered current-scope questions.
+Most product decisions reviewed through 2026-07-25 are preserved in the historical [questionnaire](../history/product/project-discovery-questionnaire.md) and reconciled into the canonical product areas; allocation is owned by the [capability inventory](capabilities.md), V1 gaps are summarised in [the V1 gap](v1-gap.md), and dependency intent is owned by the [roadmap](../roadmap.md). Conditional and `Unclear` source rows are visible activation states, not unanswered current-scope questions.
 
 ## Mailbox categorisation and all email matching research
 
