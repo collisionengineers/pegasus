@@ -17,7 +17,7 @@ superseded material; there is no documentation archive in the checked-out tree.
 | [Reference](./reference/README.md) | Current external contracts and extracted reference material |
 | [Reviews](./reviews/README.md) | Binding user review input; later review wins for the area it covers |
 | [Tickets](./tickets/README.md) | Sole work-status authority and ticket plans |
-| [Categories](./categories/README.md) | Categorized inventory maps of all 1,363 repository markdown files |
+| [Categories](../categories/README.md) | Categorized inventory maps of all 1,363 repository markdown files |
 
 Root entry points are [README.md](../README.md), [AGENTS.md](../AGENTS.md), the domain
 [glossary](../CONTEXT.md), and the machine-readable [live facts](../LIVE_FACTS.json).

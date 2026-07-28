@@ -48,7 +48,7 @@ known baseline.
 **Downstream filename-consumer sweep (required by the fix):** grep across engine + parser wrapper +
 orchestration + api + SPA for `_img_\d+_\d+` parsing or `__`-splitting found **no code consumer that
 parses these names** — evidence rows dedup on `(case_id, storage_path)`, `extractImages.ts` only
-CONCATENATES (`<source-doc-stem>__<engine filename>`), and role/classification `Not planned` keys on the
+CONCATENATES (`<source-doc-stem>__<engine filename>`), and role/classification never keys on the
 filename shape. The format change is deploy-safe. Only ad-hoc KQL/SQL sweep patterns that grep for
 `RJS_UnknownVRM` (e.g. TKT-089's verification queries) need updating for post-deploy rows.
 
