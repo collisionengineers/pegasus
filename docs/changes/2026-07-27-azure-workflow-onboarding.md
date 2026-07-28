@@ -58,7 +58,9 @@ marketing system, and end as a green independently reviewed pull request.
 ## Authorities, current state, and constraints
 
 - Authorities: current user direction, [operator notes](../operator-notes/),
-  [questionnaire](../history/product/project-discovery-questionnaire.md), [feature source](../history/product/feature-versioning-worksheet.md),
+  canonical [product requirements](../product/), retained
+  [questionnaire](../history/product/project-discovery-questionnaire.md) and
+  [feature-source](../history/product/feature-versioning-worksheet.md) evidence,
   accepted historical ADRs, current code/tests/IaC, and supplied design evidence
   in the order declared by [the documentation owner](../index.md).
 - Current implementation: the only mutating product entry point is the

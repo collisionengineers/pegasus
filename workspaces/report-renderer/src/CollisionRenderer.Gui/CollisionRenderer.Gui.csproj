@@ -23,23 +23,16 @@
 
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
+    <ApplicationIcon>$(MSBuildThisFileDirectory)..\..\..\..\design\assets\report-renderer\gui\AppIcon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="Assets\SplashScreen.scale-200.png" />
-    <Content Include="Assets\LockScreenLogo.scale-200.png" />
-    <Content Include="Assets\Square150x150Logo.scale-200.png" />
-    <Content Include="Assets\Square44x44Logo.scale-200.png" />
-    <Content Include="Assets\Square44x44Logo.targetsize-24_altform-unplated.png" />
-    <Content Include="Assets\Square44x44Logo.targetsize-48_altform-lightunplated.png" />
-    <Content Include="Assets\StoreLogo.png" />
-    <Content Include="Assets\AppIcon.ico" />
-    <Content Include="Assets\Wide310x150Logo.scale-200.png" />
-    <Content Include="Assets\brand\logo.png" />
-    <Content Include="Assets\brand\mark.png" />
-    <Content Include="Assets\brand\mark-32.png" />
-    <Content Include="Assets\brand\mark-48.png" />
+    <Content Include="$(MSBuildThisFileDirectory)..\..\..\..\design\assets\report-renderer\gui\**\*">
+      <Link>Assets\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Content>
+    <Content Include="$(MSBuildThisFileDirectory)..\..\..\..\design\brand\logos\logo_no_margin.png">
+      <Link>Assets\brand\logo.png</Link>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

@@ -114,6 +114,12 @@ capabilities remain `unallocated` unless their existing target says otherwise.
 This change makes no irreversible vendor transport choice and creates no dormant
 runtime integration. Activation requires a capability-specific change record,
 actual caller, recovery proof and acceptance evidence.
+The deferred renderer integration preserves only the headless rendering seam and
+required service contracts. Activation decommissions every imported renderer GUI
+feature because Pegasus owns the invoking UI, removes the standalone renderer MCPB,
+and exposes any retained renderer tools through the global Pegasus MCP. The GUI and
+MCPB remain in the source-only workspace solely as import/parity evidence until that
+accepted cutover; they are excluded from the future runtime and deployment boundary.
 
 ## Atomic source crosswalk
 

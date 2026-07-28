@@ -16,8 +16,8 @@ The dependency direction proposed by this imported ADR is therefore not active. 
 adapter must consume a Core port and cannot introduce a desktop, case-domain package, report
 renderer, audit model, or connector owner here.
 
-Private corpus and archive material remains external under the root repository's ignored,
-immutable `corpus/` boundary. Git may contain code, schemas, manifests, model cards, synthetic
+Private corpus inputs remain outside Git history under the root repository's ignored, immutable
+`corpus/ai-centre/` boundary. Git may contain code, schemas, manifests, model cards, synthetic
 fixtures, evaluation definitions, and immutable artifact references—not private source archives
 or binary model payloads.
 

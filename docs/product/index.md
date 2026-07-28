@@ -101,7 +101,11 @@ the living product model.
   reference.
 - Cases are never permanently deleted. Reopening needs a reason and normal
   destination gates; `Created in error` never reopens.
-- `Triage`, `Needs sorting` and `Blocked intake` remain distinct.
+- `Triage` is a separate pre-case roadworthiness record; `Needs sorting` and
+  `Blocked intake` are distinct intake outcomes.
+- The current case types are Inspection, standalone Audit, and Inspection +
+  Audit. Audit reference rules fail closed when the required assessment is
+  missing or ambiguous.
 - Core owns each business rule once. Web, Worker, future workspace adapters and
   AI workers call Core-owned use cases and cannot write accepted case truth
   directly.
@@ -109,6 +113,10 @@ the living product model.
   transient storage is not long-term custody.
 - Engineer acceptance is explicit, logged and attributable for valuation,
   repair specification, outcome, salvage, roadworthiness and any AI proposal.
+- The canonical [product areas](areas/) own the full requirement set; the
+  retained [questionnaire](../history/product/project-discovery-questionnaire.md)
+  preserves direct-decision evidence, and the [QDOS-alpha gap](qdos-alpha-gap.md)
+  separates current proof from the intended alpha outcome.
 
 ## Quality constraints
 

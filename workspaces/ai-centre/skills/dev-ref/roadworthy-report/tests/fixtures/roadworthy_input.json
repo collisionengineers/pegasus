@@ -1,0 +1,12 @@
+{
+  "registration": "AB12CDE",
+  "your_ref": "TEST-REF",
+  "header_date": "11/06/2026",
+  "accident_date": "02/04/2026",
+  "instructions_received_date": "11/06/2026",
+  "make": "TOYOTA",
+  "model": "Corolla",
+  "vin": "SAMPLE00000000001",
+  "cat_s": false,
+  "damage_location": "left hand rear"
+}

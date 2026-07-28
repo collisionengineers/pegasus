@@ -1,9 +1,10 @@
 # Data Governance, Privacy, Confidentiality and Licensing
 
-> **Pegasus custody boundary:** Management's historical authorisation permits bounded evaluation of
-> approved source material. It does not permit repository inclusion or bulk import of the corpus or
-> complete Box/Outlook archives. Private inputs remain externally held under ignored `corpus/`;
-> tracked content is limited to schemas, manifests, synthetic fixtures, and generated results.
+> **Pegasus custody boundary:** Management's recorded authorisation permits bounded development and
+> evaluation of approved source material. It does not permit repository inclusion or bulk import of
+> the corpus or complete Box/Outlook archives. Private inputs remain under ignored
+> `corpus/ai-centre/`; tracked content is limited to schemas, manifests, synthetic fixtures, and
+> generated results.
 
 ## Executive conclusion
 
