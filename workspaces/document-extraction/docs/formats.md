@@ -10,7 +10,7 @@ This document is the sole intended-format contract for CollisionDocNetExtractor.
 
 It specifies intended scope and acceptance evidence; it does not by itself prove implementation, use by a real caller, deployment, or acceptance. Source-recorded implementation observations are evidence limitations, not accepted behaviour. Current support is reported only in the [feature matrix](compatibility/feature-matrix.md).
 
-The wider product, architecture, engineering, operations, and decision context remains owned by [documentation index](../../../docs/index.md), [requirements](../../../docs/requirements.md), [capabilities](../../../docs/capabilities.md), [architecture](architecture.md), [engineering](../../../docs/engineering.md), [operations](../../../docs/operations.md), [operator notes](../../../docs/operator-notes.md), [open decisions](../../../docs/open-decisions.md), and the [decision index](../../../docs/adr/README.md).
+The wider product, architecture, repository-development, operations, and decision context remains owned by the [documentation index](../../../docs/index.md), [requirements](../../../docs/requirements.md), [capabilities](../../../docs/capabilities.md), [architecture](architecture.md), the [installed skills](../../../.agents/skills/ask-matt/SKILL.md), [operations](../../../docs/operations.md), [operator notes](../../../docs/operator-notes.md), [open decisions](../../../docs/open-decisions.md), and the [decision index](../../../docs/adr/README.md).
 
 ## Common contract
 

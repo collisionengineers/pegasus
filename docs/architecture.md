@@ -55,6 +55,32 @@ Web and Worker may translate transport, identity, and configuration. They must n
 
 A new project, runtime, store, migration stream, deployment unit, or top-level application boundary requires an accepted ADR demonstrating that these owners cannot carry the change. Decision status and supersession are maintained in the [decision index](adr/README.md).
 
+## Architecture invariants
+
+`Pegasus.Core` is the single owner of business policy. Each business rule,
+classifier, allocator, parser, workflow transition, and external effect has
+one implementation; a third implementation is a stop condition requiring
+consolidation and removal of the replaced path.
+
+Organize source by business capability and Collision Engineers' business
+language. Do not introduce horizontal `Common`, `Helpers`, `Utilities`, or
+undifferentiated `Services` folders, or names such as `V2`, `New`, `Manager`,
+`Helper`, or `Util` as a substitute for a capability boundary. `Audit` and
+`Triage` retain their reserved business meanings, and operator UI must not
+expose internal deployment, extraction, or orchestration mechanics.
+
+Add an abstraction only for a real external boundary, two concrete callers or
+implementations, or an accepted architecture decision. Deferred capabilities
+remain in capability allocation, an accepted decision, or open decisions until
+a current caller exists; do not express them as dormant registration,
+disabled flags, placeholders, or speculative compatibility shims.
+
+Classifier and extraction precedence must be explicit, ordered, documented, and
+covered by contradiction tests. External clients and catch paths distinguish
+`terminal`, `transient`, and `unknown`; terminal outcomes stop retries,
+unknown outcomes remain unknown, and metrics count successful effects rather
+than attempts.
+
 ## Current callers and entry points
 
 ### Current local entry point and dated caller proof
@@ -554,4 +580,4 @@ These results do not prove:
 - Do not treat local artifacts or transient Blob storage as Box custody.
 - Do not treat accepted design as implementation, implementation as caller proof, caller proof as deployment, or deployment as operator acceptance.
 
-Product behavior is governed by [requirements](requirements.md), capability scope by [capabilities](capabilities.md), unresolved gates by [open decisions](open-decisions.md), operational procedures by [operations](operations.md), engineering practice by [engineering](engineering.md), and business authority by [operator notes](operator-notes.md). Repository navigation is maintained by the [documentation index](index.md), and durable change history by the [change index](changes/README.md).
+Product behavior is governed by [requirements](requirements.md), capability scope by [capabilities](capabilities.md), unresolved gates by [open decisions](open-decisions.md), operational procedures by [operations](operations.md), repository-development workflow by the [installed skills](../.agents/skills/ask-matt/SKILL.md), and business authority by [operator notes](operator-notes.md). Repository navigation is maintained by the [documentation index](index.md), and durable change history by the [change index](changes/README.md).

@@ -1,10 +1,11 @@
 # Decision index
 
-`docs/adr/` is the canonical durable-decision authority. Published ADR
-bodies, including their decision clauses, rationale, and dated provenance, are
-immutable. Reviewed navigation, current status, and supersession metadata is
-maintained in this index without changing a decision's meaning; a changed choice
-is recorded by a dated addendum or superseding decision.
+Published ADR bodies, including their decision clauses, rationale, and dated
+provenance, are normally immutable. An explicit direct user instruction may
+authorize an in-place amendment for the affected decision; otherwise reviewed
+navigation, current status, and supersession metadata is maintained in this
+index without changing a decision's meaning, and a changed choice is recorded
+by a dated addendum or superseding decision.
 
 Acceptance of a decision is design authority within its scope. It does not prove
 implementation, a real caller, deployment, live verification, or operator
@@ -27,7 +28,7 @@ acceptance.
 | Decision | Current status and qualification |
 | --- | --- |
 | [ADR-0008: Separate direct-provider and intermediary email policies](0008-separate-direct-provider-and-intermediary-email-policies.md) | Accepted route-policy authority. Design/alpha target only until registry, selectors, policies, Worker, case model, and callers are exercised. |
-| [ADR-0009: Adopt Pegasus monorepo source workspaces](0009-adopt-pegasus-monorepo-workspaces.md) | Accepted. Workspaces are independently buildable source imports and never application callers, dynamic dependencies, deployment units, or business-policy owners without a separately accepted integration contract and caller proof. |
+| [ADR-0009: Adopt Pegasus monorepo source workspaces](0009-adopt-pegasus-monorepo-workspaces.md) | Accepted. `.agents/skills/` is the repository-development workflow authority; `workspaces/ai-centre/skills/` contains application-facing AI-agent skills. All workspaces remain independently buildable source imports and never application callers, dynamic dependencies, deployment units, or business-policy owners without a separately accepted integration contract and caller proof. |
 | [ADR-0010: Adopt single-context domain documentation](0010-adopt-single-context-domain-documentation.md) | Accepted. Root `CONTEXT.md` is the domain glossary and `docs/adr/` is the sole root durable-decision store; existing source roles and workspace-local decisions remain unchanged. |
 
 New durable decisions use `NNNN-purpose.md`. Reviewed navigation, current

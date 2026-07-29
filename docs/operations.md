@@ -1,6 +1,6 @@
 # Operations
 
-This document is the sole procedure owner for developing, testing, running, deploying, diagnosing, and recovering Pegasus. Product policy remains owned by [requirements](requirements.md), capability allocation by [capabilities](capabilities.md), unresolved rules by [open decisions](open-decisions.md), system boundaries by [architecture](architecture.md), and implementation conventions by [engineering](engineering.md).
+This document is the sole procedure owner for developing, testing, running, deploying, diagnosing, and recovering Pegasus. Product policy remains owned by [requirements](requirements.md), capability allocation by [capabilities](capabilities.md), unresolved rules by [open decisions](open-decisions.md), and system boundaries by [architecture](architecture.md).
 
 ## Evidence and authority
 
@@ -564,7 +564,7 @@ The Web exposes:
 
 Readiness requires the database and all committed migrations.
 
-Core contains local `ActivitySource` instrumentation, but the current Web host registers no telemetry exporter. Application Insights packages are registered for the Worker, but there is no Worker caller to observe. There is no deployed Pegasus telemetry, alert delivery, live incident record, or current recovery/deletion incident evidence; the source-labelled predecessor incidents in [engineering](engineering.md#historical-evidence-behind-these-rules) do not establish current Pegasus behavior.
+Core contains local `ActivitySource` instrumentation, but the current Web host registers no telemetry exporter. Application Insights packages are registered for the Worker, but there is no Worker caller to observe. There is no deployed Pegasus telemetry, alert delivery, live incident record, or current recovery/deletion incident evidence; historical predecessor incidents do not establish current Pegasus behavior.
 
 A releasable implementation requires correlated Web/Worker telemetry and alerts for:
 

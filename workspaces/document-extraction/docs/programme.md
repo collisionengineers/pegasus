@@ -11,7 +11,7 @@ Canonical ownership is split as follows:
 - [Open decisions](../../../docs/open-decisions.md) own unresolved choices.
 - [Architecture](architecture.md) owns technical contracts and design rationale.
 - [Operations](../../../docs/operations.md) owns executable operational procedures.
-- [Engineering](../../../docs/engineering.md) owns implementation and test practice.
+- [Installed skills](../../../.agents/skills/ask-matt/SKILL.md) own repository-development and test practice.
 - [Operator notes](../../../docs/operator-notes.md) own approved local-data handling.
 - [Decision index](../../../docs/adr/README.md) owns ADRs and supersession.
 - [Change index](../../../docs/changes/README.md) owns accepted change records.

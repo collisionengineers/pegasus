@@ -23,4 +23,4 @@ Public payloads are ordered text and discrete independently recognized images. M
 
 The script owns locked restore, build, tests, links, and package-schema checks. Local release candidates under ignored `artifacts/` are inspection evidence, not authorized releases. `sample-doc-files/` is sensitive copied-profile material, not an approved fixture corpus, and must not be recursively processed.
 
-This workspace is not referenced or loaded by Pegasus, is not a Pegasus caller or deployment unit, and owns no Pegasus business policy. Integration requires a separately accepted contract and real application caller.
+This workspace is not referenced or loaded by Pegasus, is not a Pegasus caller or deployment unit, and owns no Pegasus business policy. Its current integration status and activation conditions are recorded in the [workspace integration register](../README.md#integration-status-register). Integration requires the separately accepted contract and real application caller listed there.

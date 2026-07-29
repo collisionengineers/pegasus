@@ -69,7 +69,7 @@ The reason should be durable. Avoid referencing temporary circumstances ("we're 
 
 ## When to check `.out-of-scope/`
 
-During triage (Step 1: Gather context), read all files in `.out-of-scope/`. When evaluating a new issue:
+During vetting (Step 1: Gather context), read all files in `.out-of-scope/`. When evaluating a new issue:
 
 - Check if the request matches an existing out-of-scope concept
 - Matching is by concept similarity, not keyword — "night theme" matches `dark-mode.md`
@@ -78,8 +78,8 @@ During triage (Step 1: Gather context), read all files in `.out-of-scope/`. When
 The maintainer may:
 
 - **Confirm** — the new issue gets added to the existing file's "Prior requests" list, then closed
-- **Reconsider** — the out-of-scope file gets deleted or updated, and the issue proceeds through normal triage
-- **Disagree** — the issues are related but distinct, proceed with normal triage
+- **Reconsider** — the out-of-scope file gets deleted or updated, and the issue proceeds through normal vetting
+- **Disagree** — the issues are related but distinct, proceed with normal vetting
 
 ## When to write to `.out-of-scope/`
 
@@ -102,4 +102,4 @@ If the maintainer changes their mind about a previously rejected concept:
 
 - Delete the `.out-of-scope/` file
 - The skill does not need to reopen old issues — they're historical records
-- The new issue that triggered the reconsideration proceeds through normal triage
+- The new issue that triggered the reconsideration proceeds through normal vetting

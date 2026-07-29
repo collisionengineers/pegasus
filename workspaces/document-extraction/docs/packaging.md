@@ -276,7 +276,7 @@ A support or security report should include:
 
 Reports and logs must not contain extracted content or sensitive filenames. Retain the original input privately. Do not attach it to an issue or upload it without explicit data-handling authorisation.
 
-Operational handling remains subject to the [operations guidance](../../../docs/operations.md) and [operator notes](../../../docs/operator-notes.md). Architecture and implementation changes must follow the [architecture](architecture.md), [engineering guidance](../../../docs/engineering.md), and applicable [decision records](../../../docs/adr/README.md).
+Operational handling remains subject to the [operations guidance](../../../docs/operations.md) and [operator notes](../../../docs/operator-notes.md). Architecture and implementation changes must follow the [architecture](architecture.md), the [installed skills](../../../.agents/skills/ask-matt/SKILL.md), and applicable [decision records](../../../docs/adr/README.md).
 
 ## Open release gates and non-claims
 

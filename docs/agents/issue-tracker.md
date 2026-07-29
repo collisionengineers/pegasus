@@ -13,7 +13,7 @@ Issues and PRDs for this repo live as GitHub issues. Use the `gh` CLI for all op
 
 Infer the repository from `git remote -v`; inside this clone it is `collisionengineers/pegasus`.
 
-## Pull requests as a triage surface
+## Pull requests as a vetting surface
 
 **PRs as a request surface: no.**
 
