@@ -1,98 +1,127 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)]
-    [ValidateSet('Offline', 'Cloud')]
-    [string]$Profile
+    [string]$ApprovalPath,
+    [switch]$RequireQdosAlphaActivation
 )
 
-Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 
-$failures = [System.Collections.Generic.List[string]]::new()
-
-function Test-CommandVersion {
+function Test-SourceMarkers {
     param(
-        [Parameter(Mandatory)] [string]$Name,
-        [Parameter(Mandatory)] [string]$Command,
-        [Parameter(Mandatory)] [string[]]$Arguments,
-        [Parameter(Mandatory)] [string]$ExpectedPattern,
-        [Parameter(Mandatory)] [string]$Repair
+        [Parameter(Mandatory)]
+        [string]$Path,
+        [Parameter(Mandatory)]
+        [string[]]$Markers
     )
 
-    $executable = Get-Command -Name $Command -CommandType Application -ErrorAction SilentlyContinue
-    if ($null -eq $executable) {
-        $failures.Add("$Name is unavailable. Repair: $Repair")
-        return
+    if (-not [System.IO.File]::Exists($Path)) {
+        return $false
+    }
+
+    $content = [System.IO.File]::ReadAllText($Path)
+    return @($Markers | Where-Object { -not $content.Contains($_, [System.StringComparison]::Ordinal) }).Count -eq 0
+}
+
+function Test-ActivationApproval {
+    param([string]$Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return [pscustomobject]@{ IsApproved = $false; Detail = 'No activation approval was supplied.' }
+    }
+
+    $fullPath = [System.IO.Path]::GetFullPath($Path)
+    $excludedRoot = [System.IO.Path]::GetFullPath((Join-Path $repositoryRoot 'docs/reference/imp-docs'))
+    if ($fullPath.Equals($excludedRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+        $fullPath.StartsWith($excludedRoot + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Activation approval must not be read from docs/reference/imp-docs.'
+    }
+    if (-not [System.IO.File]::Exists($fullPath)) {
+        throw "Activation approval does not exist: $fullPath"
     }
 
     try {
-        $output = (& $Command @Arguments 2>&1 | Out-String).Trim()
-        if ($LASTEXITCODE -ne 0 -or $output -notmatch $ExpectedPattern) {
-            $failures.Add("$Name does not match the selected profile. Observed: '$output'. Repair: $Repair")
-        }
+        $approval = [System.IO.File]::ReadAllText($fullPath) | ConvertFrom-Json
     }
     catch {
-        $failures.Add("$Name could not be checked. Repair: $Repair")
+        throw "Activation approval is not valid JSON: $fullPath"
+    }
+
+    if ($approval.schemaVersion -ne 1 -or
+        $approval.kind -ne 'Pegasus.QdosAlpha.ActivationApproval' -or
+        $approval.scope -ne 'offline-qdos-alpha-acceptance-capacity' -or
+        $approval.decision -ne 'Approved' -or
+        [string]::IsNullOrWhiteSpace([string]$approval.approvalId) -or
+        [string]::IsNullOrWhiteSpace([string]$approval.approvedUtc)) {
+        throw "Activation approval does not satisfy the Pegasus QDOS alpha approval contract: $fullPath"
+    }
+
+    $approvedUtc = [DateTimeOffset]::MinValue
+    if (-not [DateTimeOffset]::TryParse([string]$approval.approvedUtc, [ref]$approvedUtc)) {
+        throw "Activation approval has an invalid approvedUtc value: $fullPath"
+    }
+
+    return [pscustomobject]@{
+        IsApproved = $true
+        Detail = "Approved by $($approval.approvalId) at $($approvedUtc.ToUniversalTime().ToString('O'))."
     }
 }
 
-function Test-LocalDb {
-    $executable = Get-Command -Name 'sqllocaldb' -CommandType Application -ErrorAction SilentlyContinue
-    if ($null -eq $executable) {
-        $failures.Add('SQL Server Express LocalDB is unavailable. Repair: Install SQL Server Express LocalDB for the current Windows user, then run sqllocaldb versions.')
-        return
-    }
+$webProgram = Join-Path $repositoryRoot 'src/Pegasus.Web/Program.cs'
+$workerProgram = Join-Path $repositoryRoot 'src/Pegasus.Worker/Program.cs'
+$qdosReplayTests = Join-Path $repositoryRoot 'tests/Pegasus.IntegrationTests/QdosIntakeWebTests.cs'
+$capacityProject = Join-Path $repositoryRoot 'tests/Pegasus.PerformanceTests/Pegasus.PerformanceTests.csproj'
+$capacitySoak = Join-Path $repositoryRoot 'tests/Pegasus.PerformanceTests/CapacitySoakTests.cs'
+$failureInjection = Join-Path $repositoryRoot 'tests/Pegasus.PerformanceTests/FailureInjectionTests.cs'
 
-    $versions = (& sqllocaldb versions 2>&1 | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($versions)) {
-        $failures.Add('SQL Server Express LocalDB is unavailable. Repair: Install SQL Server Express LocalDB for the current Windows user, then run sqllocaldb versions.')
+$offlineStartupImplemented = Test-SourceMarkers -Path $webProgram -Markers @(
+    'DevelopmentOffline',
+    '--migrate-development',
+    'Features:LocalIntake',
+    'UseSqlite'
+)
+$replayImplemented = Test-SourceMarkers -Path $qdosReplayTests -Markers @(
+    'GenuineQdosCorpusFact',
+    'ParallelDistinctConfirmedInputsPersistUniquePreCaseReceiptsInFileBackedSqlite'
+)
+$workerHostImplemented = Test-SourceMarkers -Path $workerProgram -Markers @('ConfigureFunctionsWorkerDefaults')
+$capacityRunnerImplemented = (Test-Path -LiteralPath $capacityProject -PathType Leaf) -and
+    (Test-Path -LiteralPath $capacitySoak -PathType Leaf) -and
+    (Test-Path -LiteralPath $failureInjection -PathType Leaf)
+$approval = Test-ActivationApproval -Path $ApprovalPath
+
+$activationGate = $null
+if (-not $offlineStartupImplemented -or -not $replayImplemented) {
+    $activationGate = 'QDOS-OFFLINE-REPLAY-CONTRACT-MISSING'
+}
+elseif (-not $capacityRunnerImplemented) {
+    $activationGate = 'QDOS-ALPHA-CAPACITY-RUNNER-MISSING'
+}
+elseif (-not $approval.IsApproved) {
+    $activationGate = 'QDOS-ALPHA-EXTERNAL-APPROVAL-MISSING'
+}
+
+$report = [pscustomobject][ordered]@{
+    schemaVersion = 1
+    kind = 'Pegasus.LocalDevelopment.Doctor'
+    offlineReplay = [ordered]@{
+        status = $(if ($offlineStartupImplemented -and $replayImplemented) { 'Ready' } else { 'Blocked' })
+        webStartupImplemented = $offlineStartupImplemented
+        qdosReplayImplemented = $replayImplemented
+        workerHostImplemented = $workerHostImplemented
+        workerStartsForOfflineReplay = $false
+    }
+    alphaActivation = [ordered]@{
+        status = $(if ($null -eq $activationGate) { 'Ready' } else { 'Blocked' })
+        activationAllowed = $null -eq $activationGate
+        gate = $activationGate
+        capacityRunnerImplemented = $capacityRunnerImplemented
+        approval = $approval.Detail
     }
 }
 
-function Test-DevelopmentCertificate {
-    try {
-        & dotnet dev-certs https --check | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            $failures.Add('The Development HTTPS certificate is not trusted. Repair: dotnet dev-certs https --trust')
-        }
-    }
-    catch {
-        $failures.Add('The Development HTTPS certificate could not be checked. Repair: dotnet dev-certs https --trust')
-    }
+if ($RequireQdosAlphaActivation -and $activationGate) {
+    throw "QDOS alpha activation is blocked by $activationGate."
 }
 
-if ($Profile -eq 'Offline') {
-    Test-CommandVersion -Name 'PowerShell' -Command 'pwsh' -Arguments @('-NoLogo', '-NoProfile', '-Command', '$PSVersionTable.PSVersion.ToString()') -ExpectedPattern '^7\.6\.3$' -Repair 'Install PowerShell 7.6.3 for the current user.'
-    Test-CommandVersion -Name '.NET SDK' -Command 'dotnet' -Arguments @('--version') -ExpectedPattern '^10\.0\.302$' -Repair 'Install .NET SDK 10.0.302 for the current user.'
-    Test-CommandVersion -Name 'Python' -Command 'python' -Arguments @('--version') -ExpectedPattern '^Python 3\.(1[1-9]|[2-9][0-9])\.' -Repair 'Install Python 3.11 or later for the current user.'
-    Test-CommandVersion -Name 'Node.js' -Command 'node' -Arguments @('--version') -ExpectedPattern '^v24\.' -Repair 'Install Node.js 24 for the current user.'
-    Test-CommandVersion -Name 'npm' -Command 'npm' -Arguments @('--version') -ExpectedPattern '^11\.' -Repair 'Install npm 11 with Node.js 24 for the current user.'
-    Test-CommandVersion -Name 'Azurite' -Command 'npx' -Arguments @('--no-install', 'azurite', '--version') -ExpectedPattern '^3\.36\.0' -Repair 'Run npm ci from the repository root.'
-    Test-CommandVersion -Name 'Azure Functions Core Tools' -Command 'func' -Arguments @('--version') -ExpectedPattern '^4\.12\.1' -Repair 'Install Azure Functions Core Tools 4.12.1 for the current user.'
-    Test-LocalDb
-    Test-DevelopmentCertificate
-}
-else {
-    Test-CommandVersion -Name 'Azure CLI' -Command 'az' -Arguments @('version', '--output', 'tsv') -ExpectedPattern 'azure-cli\s+2\.88\.' -Repair 'Install Azure CLI 2.88 for the current user.'
-    Test-CommandVersion -Name 'Azure Developer CLI' -Command 'azd' -Arguments @('version') -ExpectedPattern 'azd version 1\.28\.0' -Repair 'Install Azure Developer CLI 1.28.0 for the current user.'
-    Test-CommandVersion -Name 'Bicep CLI' -Command 'bicep' -Arguments @('--version') -ExpectedPattern '0\.45\.15' -Repair 'Install Bicep CLI 0.45.15 for the current user.'
-    Test-CommandVersion -Name 'GitHub CLI' -Command 'gh' -Arguments @('--version') -ExpectedPattern '^gh version 2\.88\.' -Repair 'Install GitHub CLI 2.88 for the current user.'
-    Test-CommandVersion -Name 'Infisical CLI' -Command 'infisical' -Arguments @('--version') -ExpectedPattern '0\.43\.104' -Repair 'Install Infisical CLI 0.43.104 for the current user.'
-    Test-CommandVersion -Name 'Box CLI' -Command 'box' -Arguments @('--version') -ExpectedPattern '4\.9\.2' -Repair 'Install Box CLI 4.9.2 for the current user.'
-    Test-CommandVersion -Name 'sqlcmd' -Command 'sqlcmd' -Arguments @('--version') -ExpectedPattern '1\.10\.0' -Repair 'Install Microsoft Go sqlcmd 1.10.0 for the current user.'
-
-    if ($null -eq (Get-Module -ListAvailable -Name SqlServer | Where-Object { $_.Version -eq [version]'22.4.5.1' })) {
-        $failures.Add('SqlServer PowerShell module 22.4.5.1 is unavailable. Repair: Install-Module SqlServer -Scope CurrentUser -RequiredVersion 22.4.5.1 -Force -AllowClobber -Repository PSGallery')
-    }
-    if ($null -eq (Get-Module -ListAvailable -Name ExchangeOnlineManagement | Where-Object { $_.Version -eq [version]'3.10.0' })) {
-        $failures.Add('ExchangeOnlineManagement PowerShell module 3.10.0 is unavailable. Repair: Install-Module ExchangeOnlineManagement -Scope CurrentUser -RequiredVersion 3.10.0 -Force -AllowClobber -Repository PSGallery')
-    }
-}
-
-if ($failures.Count -gt 0) {
-    [Console]::Error.WriteLine("Doctor profile '$Profile' failed:")
-    $failures | ForEach-Object { [Console]::Error.WriteLine(" - $_") }
-    exit 1
-}
-
-Write-Output "Doctor profile '$Profile' is ready. No install, authentication, cloud, or vendor operation was performed."
+$report

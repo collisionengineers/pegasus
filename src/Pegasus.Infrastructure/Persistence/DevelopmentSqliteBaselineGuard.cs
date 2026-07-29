@@ -10,7 +10,8 @@ public static class DevelopmentSqliteBaselineGuard
     [
         "20260724104624_InitialProviderNeutralIntake",
         "20260727170804_ProviderDomainReferenceSnapshotV1",
-        "20260729150000_DocumentCustodyAndRequests"
+        "20260729150000_DocumentCustodyAndRequests",
+        "20260729152105_WorkflowTriageEmailEvidence"
     ];
 
     private static readonly Dictionary<string, ColumnDefinition[]> ExpectedColumns =
@@ -32,6 +33,33 @@ public static class DevelopmentSqliteBaselineGuard
                 new("ManifestSha256", "TEXT", true, 0),
                 new("MigrationId", "TEXT", true, 0),
                 new("CompletedAtUtc", "TEXT", true, 0)
+            ],
+            ["ActionHistory"] =
+            [
+                new("Id", "TEXT", true, 1),
+                new("AggregateType", "TEXT", true, 0),
+                new("AggregateId", "TEXT", true, 0),
+                new("EventKind", "TEXT", true, 0),
+                new("ActorKind", "TEXT", true, 0),
+                new("ActorSubjectId", "TEXT", true, 0),
+                new("ActorRolesJson", "TEXT", true, 0),
+                new("OccurredAtUtc", "TEXT", true, 0),
+                new("Outcome", "TEXT", true, 0),
+                new("CorrelationId", "TEXT", true, 0),
+                new("Reason", "TEXT", false, 0),
+                new("BeforeJson", "TEXT", false, 0),
+                new("AfterJson", "TEXT", false, 0),
+                new("PolicyVersion", "TEXT", false, 0)
+            ],
+            ["SecurityEvents"] =
+            [
+                new("Id", "TEXT", true, 1),
+                new("Type", "TEXT", true, 0),
+                new("Outcome", "TEXT", true, 0),
+                new("SubjectId", "TEXT", true, 0),
+                new("OccurredAtUtc", "TEXT", true, 0),
+                new("CorrelationId", "TEXT", true, 0),
+                new("ReasonCode", "TEXT", false, 0)
             ],
             ["AspNetRoles"] =
             [
@@ -439,6 +467,90 @@ public static class DevelopmentSqliteBaselineGuard
                 new("RecordedAtUtc", "TEXT", true, 0),
                 new("OperationKey", "TEXT", true, 0)
             ],
+            ["Triage"] =
+            [
+                new("Id", "TEXT", true, 1),
+                new("OriginReceiptId", "TEXT", true, 0),
+                new("SourceChannel", "TEXT", true, 0),
+                new("ExternalReceiptToken", "TEXT", true, 0),
+                new("SourceHash", "TEXT", true, 0),
+                new("EvaluationRevisionId", "TEXT", true, 0),
+                new("NormalizedVehicleRegistration", "TEXT", true, 0),
+                new("State", "TEXT", true, 0),
+                new("AssigneeId", "TEXT", false, 0),
+                new("LinkedCaseId", "TEXT", false, 0),
+                new("CreatedAtUtc", "TEXT", true, 0),
+                new("CreationOperationKey", "TEXT", true, 0),
+                new("Version", "INTEGER", true, 0),
+                new("RowVersion", "BLOB", true, 0),
+                new("EditLeaseTokenHash", "TEXT", false, 0),
+                new("EditLeaseHolder", "TEXT", false, 0),
+                new("EditLeaseOperationKey", "TEXT", false, 0),
+                new("EditLeaseExpiresAtUtc", "TEXT", false, 0)
+            ],
+            ["SentEmailEvidence"] =
+            [
+                new("Id", "TEXT", true, 1),
+                new("TriageId", "TEXT", true, 0),
+                new("MessageIdentity", "TEXT", true, 0),
+                new("Subject", "TEXT", true, 0),
+                new("RecipientsJson", "TEXT", true, 0),
+                new("MimeSha256", "TEXT", true, 0),
+                new("SentAtUtc", "TEXT", true, 0),
+                new("ChaseDueAtUtc", "TEXT", true, 0),
+                new("Actor", "TEXT", true, 0),
+                new("OperationKey", "TEXT", true, 0),
+                new("RequestHash", "TEXT", true, 0),
+                new("Version", "INTEGER", true, 0)
+            ],
+            ["TriageFindings"] =
+            [
+                new("Id", "TEXT", true, 1),
+                new("TriageId", "TEXT", true, 0),
+                new("Roadworthiness", "TEXT", false, 0),
+                new("Assessment", "TEXT", false, 0),
+                new("SupersedesFindingId", "TEXT", false, 0),
+                new("Actor", "TEXT", true, 0),
+                new("OperationKey", "TEXT", true, 0),
+                new("Reason", "TEXT", true, 0),
+                new("RecordedAtUtc", "TEXT", true, 0)
+            ],
+            ["TriageHistory"] =
+            [
+                new("Id", "TEXT", true, 1),
+                new("TriageId", "TEXT", true, 0),
+                new("EventType", "TEXT", true, 0),
+                new("Actor", "TEXT", true, 0),
+                new("Reason", "TEXT", true, 0),
+                new("OperationKey", "TEXT", true, 0),
+                new("RequestHash", "TEXT", true, 0),
+                new("OccurredAtUtc", "TEXT", true, 0),
+                new("BeforeVersion", "INTEGER", true, 0),
+                new("AfterVersion", "INTEGER", true, 0),
+                new("AfterState", "TEXT", true, 0),
+                new("AfterAssigneeId", "TEXT", false, 0),
+                new("AfterLinkedCaseId", "TEXT", false, 0)
+            ],
+            ["EmailResponseEvidence"] =
+            [
+                new("Id", "TEXT", true, 1),
+                new("SentEvidenceId", "TEXT", true, 0),
+                new("MessageIdentity", "TEXT", true, 0),
+                new("MimeSha256", "TEXT", true, 0),
+                new("ReceivedAtUtc", "TEXT", true, 0),
+                new("Actor", "TEXT", true, 0),
+                new("OperationKey", "TEXT", true, 0),
+                new("RequestHash", "TEXT", true, 0)
+            ],
+            ["TriageResponseEvidenceLinks"] =
+            [
+                new("TriageId", "TEXT", true, 1),
+                new("SentEvidenceId", "TEXT", true, 2),
+                new("Actor", "TEXT", true, 0),
+                new("OperationKey", "TEXT", true, 0),
+                new("Reason", "TEXT", true, 0),
+                new("LinkedAtUtc", "TEXT", true, 0)
+            ],
             ["RequestUploadReceipts"] =
             [
                 new("Id", "TEXT", true, 1),
@@ -457,6 +569,19 @@ public static class DevelopmentSqliteBaselineGuard
             ["__EFMigrationsLock"] = [],
             ["__EFMigrationsHistory"] = [new(null, true, "pk", ["MigrationId"])],
             ["ApplicationInitializations"] = [new(null, true, "pk", ["Id"])],
+            ["ActionHistory"] =
+            [
+                new(null, true, "pk", ["Id"]),
+                new("IX_ActionHistory_AggregateType_AggregateId_OccurredAtUtc", false, "c", ["AggregateType", "AggregateId", "OccurredAtUtc"]),
+                new("IX_ActionHistory_AggregateType_CorrelationId", false, "c", ["AggregateType", "CorrelationId"]),
+                new("IX_ActionHistory_OccurredAtUtc", false, "c", ["OccurredAtUtc"])
+            ],
+            ["SecurityEvents"] =
+            [
+                new(null, true, "pk", ["Id"]),
+                new("IX_SecurityEvents_OccurredAtUtc", false, "c", ["OccurredAtUtc"]),
+                new("IX_SecurityEvents_SubjectId_OccurredAtUtc", false, "c", ["SubjectId", "OccurredAtUtc"])
+            ],
             ["AspNetRoles"] =
             [
                 new(null, true, "pk", ["Id"]),
@@ -630,6 +755,49 @@ public static class DevelopmentSqliteBaselineGuard
                 new("IX_DocumentOccurrences_DocumentId", false, "c", ["DocumentId"]),
                 new("IX_DocumentOccurrences_VersionId", false, "c", ["VersionId"])
             ],
+            ["Triage"] =
+            [
+                new(null, true, "pk", ["Id"]),
+                new("IX_Triage_CreationOperationKey", true, "c", ["CreationOperationKey"]),
+                new("IX_Triage_LinkedCaseId", false, "c", ["LinkedCaseId"]),
+                new("IX_Triage_OriginReceiptId", true, "c", ["OriginReceiptId"]),
+                new("IX_Triage_SourceChannel_ExternalReceiptToken", true, "c", ["SourceChannel", "ExternalReceiptToken"]),
+                new("IX_Triage_State_CreatedAtUtc", false, "c", ["State", "CreatedAtUtc"])
+            ],
+            ["SentEmailEvidence"] =
+            [
+                new(null, true, "pk", ["Id"]),
+                new("IX_SentEmailEvidence_ChaseDueAtUtc_TriageId", false, "c", ["ChaseDueAtUtc", "TriageId"]),
+                new("IX_SentEmailEvidence_MessageIdentity", true, "c", ["MessageIdentity"]),
+                new("IX_SentEmailEvidence_OperationKey", true, "c", ["OperationKey"]),
+                new("IX_SentEmailEvidence_TriageId", false, "c", ["TriageId"])
+            ],
+            ["TriageFindings"] =
+            [
+                new(null, true, "pk", ["Id"]),
+                new("IX_TriageFindings_OperationKey", true, "c", ["OperationKey"]),
+                new("IX_TriageFindings_SupersedesFindingId", true, "c", ["SupersedesFindingId"]),
+                new("IX_TriageFindings_TriageId_RecordedAtUtc", false, "c", ["TriageId", "RecordedAtUtc"])
+            ],
+            ["TriageHistory"] =
+            [
+                new(null, true, "pk", ["Id"]),
+                new("IX_TriageHistory_OperationKey", true, "c", ["OperationKey"]),
+                new("IX_TriageHistory_TriageId_OccurredAtUtc", false, "c", ["TriageId", "OccurredAtUtc"])
+            ],
+            ["EmailResponseEvidence"] =
+            [
+                new(null, true, "pk", ["Id"]),
+                new("IX_EmailResponseEvidence_MessageIdentity", true, "c", ["MessageIdentity"]),
+                new("IX_EmailResponseEvidence_OperationKey", true, "c", ["OperationKey"]),
+                new("IX_EmailResponseEvidence_SentEvidenceId", true, "c", ["SentEvidenceId"])
+            ],
+            ["TriageResponseEvidenceLinks"] =
+            [
+                new(null, true, "pk", ["TriageId", "SentEvidenceId"]),
+                new("IX_TriageResponseEvidenceLinks_OperationKey", true, "c", ["OperationKey"]),
+                new("IX_TriageResponseEvidenceLinks_SentEvidenceId", false, "c", ["SentEvidenceId"])
+            ],
             ["RequestUploadReceipts"] =
             [
                 new(null, true, "pk", ["Id"]),
@@ -645,6 +813,8 @@ public static class DevelopmentSqliteBaselineGuard
             ["__EFMigrationsLock"] = [],
             ["__EFMigrationsHistory"] = [],
             ["ApplicationInitializations"] = [],
+            ["ActionHistory"] = [],
+            ["SecurityEvents"] = [],
             ["AspNetRoles"] = [],
             ["AspNetUsers"] = [],
             ["AspNetRoleClaims"] = [new("RoleId", "AspNetRoles", "Id", "CASCADE")],
@@ -716,6 +886,25 @@ public static class DevelopmentSqliteBaselineGuard
                 new("CaseId", "Cases", "Id", "RESTRICT"),
                 new("DocumentId", "CaseDocuments", "Id", "RESTRICT"),
                 new("VersionId", "DocumentVersions", "Id", "RESTRICT")
+            ],
+            ["Triage"] =
+            [
+                new("LinkedCaseId", "Cases", "Id", "RESTRICT"),
+                new("OriginReceiptId", "IntakeReceipts", "Id", "RESTRICT")
+            ],
+            ["SentEmailEvidence"] = [new("TriageId", "Triage", "Id", "RESTRICT")],
+            ["TriageFindings"] =
+            [
+                new("SupersedesFindingId", "TriageFindings", "Id", "RESTRICT"),
+                new("TriageId", "Triage", "Id", "RESTRICT")
+            ],
+            ["TriageHistory"] = [new("TriageId", "Triage", "Id", "RESTRICT")],
+            ["EmailResponseEvidence"] =
+                [new("SentEvidenceId", "SentEmailEvidence", "Id", "RESTRICT")],
+            ["TriageResponseEvidenceLinks"] =
+            [
+                new("SentEvidenceId", "SentEmailEvidence", "Id", "RESTRICT"),
+                new("TriageId", "Triage", "Id", "RESTRICT")
             ],
             ["RequestUploadReceipts"] =
             [

@@ -1,12 +1,14 @@
 using System.Net;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
-using Microsoft.Data.Sqlite;
+using Deque.AxeCore.Playwright;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Playwright;
 
 namespace Pegasus.IntegrationTests;
 
@@ -173,6 +175,72 @@ public sealed class SqliteReadinessEndpointTests
             SqliteConnection.ClearAllPools();
             Directory.Delete(workingDirectory, recursive: true);
         }
+    }
+}
+
+[Trait("Category", "Browser")]
+public sealed class OfflineBrowserReadinessTests
+{
+    [Fact]
+    public async Task PinnedChromiumAndAxeRunWithoutNetworkDependency()
+    {
+        const string readinessDocument =
+            """
+            <!doctype html>
+            <html lang="en">
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <title>Pegasus offline browser readiness</title>
+            </head>
+            <body>
+                <main>
+                    <h1>Browser dependencies ready</h1>
+                </main>
+            </body>
+            </html>
+            """;
+
+        var violationIds = await OfflineBrowserAxe.FindViolationIdsAsync(readinessDocument);
+
+        Assert.Empty(violationIds);
+    }
+}
+
+internal static class OfflineBrowserAxe
+{
+    public static async Task<IReadOnlyList<string>> FindViolationIdsAsync(string html)
+    {
+        using var playwright = await Playwright.CreateAsync();
+        await using var browser = await playwright.Chromium.LaunchAsync(
+            new BrowserTypeLaunchOptions
+            {
+                Headless = true
+            });
+        var page = await browser.NewPageAsync(
+            new BrowserNewPageOptions
+            {
+                ColorScheme = ColorScheme.Light,
+                ReducedMotion = ReducedMotion.Reduce,
+                ViewportSize = new ViewportSize
+                {
+                    Width = 1280,
+                    Height = 720
+                }
+            });
+
+        await page.SetContentAsync(
+            html,
+            new PageSetContentOptions
+            {
+                WaitUntil = WaitUntilState.DOMContentLoaded
+            });
+        var axeResult = await page.RunAxe();
+
+        return axeResult.Violations?
+            .Select(violation => violation.Id)
+            .Order(StringComparer.Ordinal)
+            .ToArray() ?? [];
     }
 }
 

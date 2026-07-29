@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+
 using Pegasus.Core.Intake;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -7,6 +9,7 @@ namespace Pegasus.Web.Pages.Intake;
 public sealed class EmailEvaluationModel(
     IIntakeSourceReader sourceReader,
     IInstructionExtractionPolicy extractionPolicy,
+    IMailRoutePolicy mailRoutePolicy,
     TimeProvider timeProvider) : PageModel
 {
     private const long MaximumFileLength = 10 * 1024 * 1024;
@@ -15,8 +18,14 @@ public sealed class EmailEvaluationModel(
     public IFormFile? Upload { get; set; }
 
     public IntakeSourceReadResult? ReadResult { get; private set; }
+    public MailRouteEvaluationResult? RouteResult { get; private set; }
+
 
     public InstructionExtractionResult? ExtractionResult { get; private set; }
+    public string? ReplayIdentity { get; private set; }
+
+    public bool ActivationBlocked => ReadResult is not null;
+
 
     public void OnGet()
     {
@@ -51,13 +60,15 @@ public sealed class EmailEvaluationModel(
 
         await using var memory = new MemoryStream((int)Upload.Length);
         await Upload.CopyToAsync(memory, cancellationToken);
+        var content = memory.ToArray();
+        ReplayIdentity = $"local-email-evaluation:{Convert.ToHexString(SHA256.HashData(content))}";
         var source = new IntakeSource(
             fileName,
             "message/rfc822",
-            memory.ToArray(),
+            content,
             timeProvider.GetUtcNow(),
             "Local email evaluation",
-            new(IntakeSourceChannel.ManualUpload, Guid.NewGuid().ToString("N")));
+            new(IntakeSourceChannel.ManualUpload, ReplayIdentity));
 
         try
         {
@@ -71,7 +82,19 @@ public sealed class EmailEvaluationModel(
 
         if (ReadResult.Status == IntakeSourceReadStatus.Readable && !ReadResult.IsIncomplete)
         {
-            ExtractionResult = extractionPolicy.Extract(ReadResult, timeProvider.GetUtcNow());
+            RouteResult = mailRoutePolicy.Evaluate(ReadResult);
+            if (RouteResult is
+                {
+                    Disposition: MailRouteDisposition.Accepted,
+                    SelectedRoute: not null
+                })
+            {
+                ExtractionResult = extractionPolicy.Extract(ReadResult, timeProvider.GetUtcNow());
+            }
+            else
+            {
+                ModelState.AddModelError(string.Empty, RouteResult.Reason);
+            }
         }
 
         return Page();

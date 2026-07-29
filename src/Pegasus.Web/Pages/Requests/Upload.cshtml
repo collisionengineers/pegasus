@@ -1,0 +1,32 @@
+@page "/requests/{token}"
+@model Pegasus.Web.Pages.Requests.UploadModel
+@{
+    ViewData["Title"] = "Upload requested documents";
+}
+
+<header class="page-heading">
+    <div>
+        <p class="eyebrow">Secure document request</p>
+        <h1>Upload requested documents</h1>
+        <p class="lede">Documents submitted here are retained directly in the requesting case. Do not upload material unrelated to the request you received.</p>
+    </div>
+</header>
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="status-card" role="status">@Model.StatusMessage</div>
+}
+
+<section class="panel form-panel" aria-labelledby="request-upload-title">
+    <h2 id="request-upload-title" class="section-label">Choose a document</h2>
+    <p>Maximum file size: @Model.MaximumFileSize.</p>
+    <form method="post" enctype="multipart/form-data">
+        <input asp-for="Token" type="hidden" />
+        <input asp-for="OperationKey" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+        <label asp-for="Upload">Document</label>
+        <input asp-for="Upload" type="file" accept="@Model.AcceptedMediaTypes" />
+        <span asp-validation-for="Upload" class="field-validation"></span>
+        <button type="submit" class="primary-action">Upload document</button>
+    </form>
+</section>

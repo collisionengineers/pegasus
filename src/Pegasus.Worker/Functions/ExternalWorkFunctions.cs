@@ -1,9 +1,9 @@
 using Microsoft.Azure.Functions.Worker;
-using Pegasus.Core.Vehicle;
+using Pegasus.Core.Custody;
 
 namespace Pegasus.Worker.Functions;
 
-public sealed class ExternalWorkFunction(ProcessQueuedVehicleLookup processQueuedVehicleLookup)
+public sealed class ExternalWorkFunction(IProcessQueuedCustody processQueuedCustody)
 {
     [Function(nameof(ExternalWorkFunction))]
     public Task RunAsync(
@@ -13,14 +13,14 @@ public sealed class ExternalWorkFunction(ProcessQueuedVehicleLookup processQueue
         if (!Guid.TryParse(message, out var workItemId) || workItemId == Guid.Empty)
         {
             throw new InvalidDataException(
-                "The external work message does not contain a vehicle lookup work item identifier.");
+                "The external work message does not contain a custody work item identifier.");
         }
 
-        return processQueuedVehicleLookup.ExecuteAsync(workItemId, cancellationToken);
+        return processQueuedCustody.ExecuteAsync(workItemId, cancellationToken);
     }
 }
 
-public sealed class ExternalPoisonFunction(ReconcilePoisonedVehicleLookup reconcilePoisonedVehicleLookup)
+public sealed class ExternalPoisonFunction(IProcessQueuedCustody processQueuedCustody)
 {
     [Function(nameof(ExternalPoisonFunction))]
     public Task RunAsync(
@@ -30,9 +30,10 @@ public sealed class ExternalPoisonFunction(ReconcilePoisonedVehicleLookup reconc
         if (!Guid.TryParse(message, out var workItemId) || workItemId == Guid.Empty)
         {
             throw new InvalidDataException(
-                "The external poison message does not contain a vehicle lookup work item identifier.");
+                "The external poison message does not contain a custody work item identifier.");
         }
 
-        return reconcilePoisonedVehicleLookup.ExecuteAsync(workItemId, cancellationToken);
+        return processQueuedCustody.ExecuteAsync(workItemId, cancellationToken);
     }
 }
+

@@ -43,6 +43,35 @@ public sealed partial class MultiFormatIntakeWebTests
         Assert.Contains("Instruction draft", reviewHtml, StringComparison.Ordinal);
     }
 
+    [Fact]
+    [Trait("Category", "Browser")]
+    public async Task PinnedChromiumRendersActualIntakeReviewWithoutAutomatedAxeViolations()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory);
+        var docx = CreateDocx(
+            "QDOS instruction",
+            "Claim Number: SYN-BROWSER-001",
+            "Vehicle Registration: AB12 CDE",
+            "Claimant Name: Synthetic Person");
+
+        var result = await UploadAsync(
+            client,
+            "synthetic-browser-instruction.docx",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            docx);
+        var reviewHtml = await GetReviewHtmlAsync(client, result);
+        var stylesheet = await client.GetStringAsync("/css/site.css");
+        var styledReviewHtml = reviewHtml.Replace(
+            "</head>",
+            $"<style>{stylesheet}</style></head>",
+            StringComparison.Ordinal);
+
+        var violationIds = await OfflineBrowserAxe.FindViolationIdsAsync(styledReviewHtml);
+
+        Assert.Empty(violationIds);
+    }
+
     [Theory]
     [InlineData("legacy-instruction.doc", "application/msword")]
     [InlineData("outlook-message.msg", "application/vnd.ms-outlook")]

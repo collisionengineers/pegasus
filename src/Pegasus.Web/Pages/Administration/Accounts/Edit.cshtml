@@ -1,0 +1,54 @@
+@page "{id:guid}"
+@model Pegasus.Web.Pages.Administration.Accounts.EditModel
+@using Pegasus.Core.Identity
+@{
+    ViewData["Title"] = "Manage staff account";
+}
+
+@if (Model.Account is not null)
+{
+    <h1>Manage @Model.Account.UserName</h1>
+    <p><a asp-page="Index">Back to Staff accounts</a></p>
+
+    @if (TempData["AdministrationStatus"] is string status)
+    {
+        <div role="status">@status</div>
+    }
+
+    <dl>
+        <dt>Status</dt><dd>@(Model.Account.IsEnabled ? "Enabled" : "Disabled")</dd>
+        <dt>First password change</dt><dd>@(Model.Account.MustChangePassword ? "Required" : "Complete")</dd>
+        <dt>Last access review</dt><dd>@(Model.Account.LastAccessReviewAtUtc?.ToString("u") ?? "Not recorded")</dd>
+    </dl>
+
+    <form method="post">
+        <div asp-validation-summary="ModelOnly"></div>
+        <input asp-for="OperationKey" type="hidden" />
+        <fieldset>
+            <legend>Roles</legend>
+            @foreach (var role in StaffRoleNames.All)
+            {
+                <label>
+                    <input type="checkbox" name="SelectedRoles" value="@role" checked="@Model.SelectedRoles.Contains(role)" />
+                    @role
+                </label>
+            }
+            <span asp-validation-for="SelectedRoles"></span>
+        </fieldset>
+        <div>
+            <label asp-for="Reason">Reason</label>
+            <textarea asp-for="Reason" rows="3"></textarea>
+            <span asp-validation-for="Reason"></span>
+        </div>
+        <button type="submit" asp-page-handler="Roles">Save roles</button>
+        @if (Model.Account.IsEnabled)
+        {
+            <button type="submit" asp-page-handler="Disable">Disable account</button>
+        }
+        else
+        {
+            <button type="submit" asp-page-handler="Enable">Enable account</button>
+        }
+    </form>
+    <p>Account and role changes invalidate existing browser sessions. The staff member must sign in again.</p>
+}

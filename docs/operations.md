@@ -49,10 +49,10 @@ For a longer checkout root, the first command must return `1` and the Git settin
 Pegasus supports a reproducible `Offline` profile on Windows with PowerShell
 7.6.3, .NET SDK 10.0.302, Python 3.11+, Node 24/npm 11, the repository-pinned
 Azurite 3.36.0, Functions Core Tools 4.12.1, SQL Server Express LocalDB, a
-trusted Development HTTPS certificate, and the committed Playwright browsers.
-It requires no Azure, Graph, Box, DVLA/DVSA, EVA, Infisical, Docker, cloud
-login, or vendor authentication. Package and browser restoration may use
-package feeds; an initialized run's Start and Smoke paths do not.
+trusted Development HTTPS certificate, and the package-pinned Playwright
+Chromium browser. It requires no Azure, Graph, Box, DVLA/DVSA, EVA, Infisical,
+Docker, cloud login, or vendor authentication. Package and browser restoration
+may use package feeds; an initialized run's Start and Smoke paths do not.
 
 Use the owned commands rather than manually composing service terminals:
 
@@ -69,8 +69,9 @@ pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Reset
 Doctor checks only its selected profile. It never installs software, trusts a
 certificate, signs in, calls a cloud/vendor endpoint, or creates resources; a
 failed check prints its exact repair command. Initialization restores the
-committed tool/package locks, installs the committed browser binaries, checks
-the Offline profile, starts LocalDB, and creates only ignored local state.
+committed tool/package locks, installs the Playwright Chromium binary selected
+by the pinned package, checks the Offline profile, starts LocalDB, and creates
+only ignored local state.
 
 `Cloud` is a separate static prerequisite profile for an already-approved live
 operation. `pwsh ./scripts/Invoke-Doctor.ps1 -Profile Cloud` checks the pinned
@@ -80,6 +81,27 @@ write, deployment, or SQL bootstrap.
 Python creates no virtual environment and installs no package. Playwright
 binaries are an Offline browser-acceptance prerequisite, not an application
 runtime.
+
+Run the deterministic browser dependency and accessibility gate after
+initialization:
+
+```powershell
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --no-restore --filter 'Category=Browser'
+```
+
+This lane launches the package-pinned headless Chromium with fixed viewport,
+light colour scheme, and reduced motion. It runs axe first against an embedded
+network-free readiness document, then uploads a controlled synthetic DOCX
+through the actual Web intake HTTP caller, renders the returned review markup
+with the served Pegasus stylesheet, and runs axe again. A missing browser,
+launch failure, intake failure, or reported automated axe violation fails the
+lane; only axe rule identifiers enter assertion output.
+
+This is reproducible local caller evidence, not production-browser acceptance.
+It does not activate or prove Microsoft Edge Stable, Windows Narrator, manual
+keyboard/focus/200% zoom review, authenticated critical journeys, external
+services, deployment, or operator acceptance. Until those separately required
+evidence gates exist, their release claims remain fail closed.
 
 ## Optional approved live-work profile
 
@@ -358,17 +380,19 @@ Controlled synthetic fixtures may prove protocols, security controls, and resour
 
 ## Evidence profiles
 
-The current operational baseline is the offline profile above. The following long-term caller-scoped profile model is planned and must not be represented as implemented merely because tools are installed.
+The current operational baseline is the offline profile above. The following
+caller-scoped profile model distinguishes implemented local gates from planned
+activation; installing a tool never establishes a caller.
 
-| Profile | Planned tool boundary and purpose |
+| Profile | Current gate and planned boundary |
 | --- | --- |
 | `Baseline` | Windows, PowerShell 7, Git/GitHub CLI, pinned .NET 10 SDK, Azure CLI with Bicep, Azure Developer CLI, Node/npm, Python, Infisical CLI, and Box CLI for build, test, Bicep validation, and approved administration. Cloud/vendor tools remain optional in the current offline baseline. |
 | `SqlServer` | SQL Server Express LocalDB and `sqlcmd` for migrations, constraints, transactions, allocation concurrency, outbox atomicity, and local backup/restore. |
 | `StorageWorker` | Repository-pinned npm Azurite and Functions Core Tools v4 for real Blob/Queue SDK, trigger, retry, poison, and restart paths. Activate only with the first real storage adapter and Worker trigger. |
-| `Browser` | Microsoft Playwright for .NET, pinned Chromium/Firefox/WebKit, axe-core, and trusted Development HTTPS for authenticated rendering, multi-session behavior, and automated accessibility rules. |
+| `Browser` | The current `Browser` trait pins Microsoft Playwright for .NET, Chromium, and Deque axe-core for the deterministic readiness and synthetic intake-review gate described above. Authenticated rendering, multi-session behavior, the accepted Edge Stable channel, and manual accessibility review remain separate later gates. |
 | `Graph` | Microsoft Dev Proxy and mocked Kiota request adapters for paging, throttling, 401/403, 429, 5xx, timeout, authentication, and retry. |
 | `Observability` | OpenTelemetry in-memory exporter and an optional native Collector for correlation, attributes, health signals, OTLP, and redaction. |
-| `Performance` | Pinned k6 for eight-user concurrency, burst, average-load, stress, and soak evidence. |
+| `Performance` | `Invoke-QdosAlphaAcceptance.ps1 -Profile CiPressure` compiles the two bounded pressure sources through the existing integration-test host, exercises eight concurrent DevelopmentOffline Web callers, and retains content-safe TRX and hashed run evidence. It installs no load-test framework and makes no alpha-capacity claim. |
 | `Security` | .NET dependency vulnerability checks and OWASP ZAP; ZAP uses the conditional container profile. |
 | `Containers` | Docker Desktop in Linux-container mode, conditionally for ZAP, optional telemetry, optional SQL compatibility, or a specifically approved licensed Document Intelligence container. Docker is never required merely for Azurite. |
 | `LiveIntegration` | The existing approved developer identity/secret tooling and exact SDK/CLI owned by the feature. Never part of the default local check. |
@@ -377,7 +401,17 @@ Storage Explorer, SSMS, and Postman are optional conveniences.
 
 Do not add Service Bus, Event Hubs, Cosmos DB, Redis, PostgreSQL, Azure Files, ADLS, local SMTP infrastructure, Testcontainers, or related emulators without a later accepted architectural need.
 
-A future run-scoped orchestrator may validate tools, allocate isolated resources, start selected dependencies, wait for readiness, execute one exact lane, stop only owned processes, and retain diagnostics on failure. It is planned, not an implemented current wrapper. When delivered, it must be invoked through the owning test project and must not duplicate product policy.
+`scripts/Invoke-QdosAlphaAcceptance.ps1` is the current narrow Checkpoint 12 pressure orchestrator. `CiPressure` temporarily stages `tests/Pegasus.PerformanceTests/CapacitySoakTests.cs` and `FailureInjectionTests.cs` into the existing `Pegasus.IntegrationTests` compilation, runs only `Category=QdosPressure`, removes that owned staging directory unconditionally, and writes content-safe evidence beneath `artifacts/qdos-alpha-acceptance/<run-id>/`. Supply the exact 40-character checked-out source revision:
+
+```powershell
+./scripts/Invoke-QdosAlphaAcceptance.ps1 `
+  -Profile CiPressure `
+  -SourceRevision $env:GITHUB_SHA
+```
+
+This lane proves bounded in-process Web-caller concurrency, latency, antiforgery denial, cancellation recovery, and idempotent replay against controlled fixtures. It does **not** prove the approved 30-minute workload, 2,000-case/source distribution, Worker/Azurite queue recovery, LocalDB restore, full case/EVA/report journeys, deployment, or acceptance.
+
+`-Profile OfflineCandidate` is deliberately fail closed. It first requires a schema-version-1 local manifest naming an operator approval reference, exactly 2,000 cases, an immutable dataset path, and its matching SHA-256; it then reports the remaining concrete source gate: the Core `QdosAlphaAcceptanceGate` and complete 128-capability caller-observation map are not implemented. The script never promotes `CiPressure` evidence to `OfflineCandidate`, `ImplementationCandidate`, deployed, live-verified, or accepted evidence.
 
 Stable planned traits are:
 
@@ -425,6 +459,69 @@ Run policy tests first, adapter contracts second, persistence/transaction tests 
 Managed identity itself is unavailable locally. LocalDB does not prove Azure SQL Entra, throttling, backup, restore, RPO, or RTO. Azurite does not prove Azure Files, ADLS, Entra/RBAC, managed identity, durability, replication, quotas, networking, scale, or production timing.
 
 Graph Sent-item evidence does not prove recipient delivery or automatic case matching.
+
+### Staff MCP OAuth offline replay and activation gate
+
+The OAuth/OpenIddict slice is active only in the `DevelopmentOffline` profile
+while the host environment is `Development`. Its deterministic issuer is
+`https://localhost:7139/` and its exact protected resource is
+`https://localhost:7139/mcp`; either value may be replaced for an isolated local
+HTTPS run through `OpenIddict:Issuer` and `OpenIddict:StaffMcpResource`, but the
+resource must remain `/mcp` on the issuer authority. This local contract performs
+no cloud read or write and is not deployment or remote-client evidence.
+
+After applying the Development database migration, register the reviewed local
+public client idempotently:
+
+```powershell
+dotnet run --project ./src/Pegasus.Web -- --register-development-mcp-client
+```
+
+The command registers public client `pegasus-development-mcp`, the RFC 8252
+loopback redirect `http://127.0.0.1:7890/callback`, authorization-code and
+refresh-token grants, S256 PKCE, explicit consent, and only
+`pegasus.mcp.read`/`pegasus.mcp.write`. It emits no token or credential. Exercise
+the real HTTPS protocol rather than calling a PageModel or manager directly:
+
+1. Read `/.well-known/openid-configuration`,
+   `/.well-known/oauth-authorization-server` and both
+   `/.well-known/oauth-protected-resource` and
+   `/.well-known/oauth-protected-resource/mcp`.
+2. Send an authorization request to `/connect/authorize` with the registered
+   client and redirect, response type `code`, S256 challenge, exact
+   `https://localhost:7139/mcp` resource, and the least scopes required.
+3. Approve or deny on the Pegasus consent page. Approval persists a grant for
+   exactly the current staff subject, client and scopes; denial returns the
+   standard OAuth error and creates no grant or token.
+4. Redeem the code at `/connect/token` with its verifier and exact resource.
+   Repeat through refresh-token rotation, then confirm a disabled or missing
+   staff account is rejected before a new token is issued.
+
+Authorization and token callers are bounded to ten requests per minute per
+transport source. Rejection is `429` with `Retry-After: 60` and a content-safe
+`oauth_rate_limited` security event; it reaches no token or Core mutation.
+
+Revoke the complete local client boundary idempotently with:
+
+```powershell
+dotnet run --project ./src/Pegasus.Web -- --revoke-development-mcp-client
+```
+
+Deletion revokes the client boundary and its dependent authorizations/tokens.
+Confirm the old refresh token and a new authorization request no longer succeed.
+This is also the local emergency-disable procedure; do not edit OpenIddict rows
+manually or retain a compatibility client.
+
+Production and remote-client activation deliberately fail closed. Setting
+`Features:StaffMcpOAuth=true` outside the exact DevelopmentOffline/Development
+combination stops startup. The concrete release gate is separately approved,
+target-specific evidence for the canonical HTTPS issuer and MCP resource, the
+reviewed public client id/redirect metadata, and Web-only signing/encryption
+certificate custody (including rotation and denial) in the approved Key Vault
+boundary. Production certificate loading and an audited production
+register/revoke command must be delivered against that evidence before removing
+the gate. A reachable deployment and approved hosted callback journey remain
+separate acceptance evidence; no current setting activates them.
 
 ## Live-operation approval matrix
 
@@ -577,25 +674,51 @@ The Azure inventory owned through [Azure documentation](azure/README.md) include
 
 The accepted direct-terminal Azure design is indexed by [architecture](architecture.md) and the [decision register](decisions/README.md). The target files are `infra/`, `azure.yaml`, and `.azure/deployment-plan.md`.
 
-The deployment route is not yet executable or production-ready. `azd up` is not the production release procedure. GitHub Actions/OIDC deployment is `Not planned`.
+`azd up` is not the release procedure. GitHub Actions/OIDC deployment is `Not planned`.
 
-Before a production release procedure can be accepted, it must implement and review:
+### Offline/replay release artifacts
 
-1. exact-target preflight and fresh inventory;
-2. immutable package creation;
-3. hashes and provenance;
-4. explicit migration identity and execution;
-5. identity and RBAC resolution;
-6. Bicep preview;
-7. explicit Web/Worker deployment order;
-8. health and caller-backed smoke evidence;
-9. correlated telemetry checks;
-10. retention of the prior immutable application artifact;
-11. rollback by redeploying the prior artifact without deleting source evidence or shared cloud resources.
+The implemented release slice is local only. From the checked-out approved green
+revision, create a new release directory and validate it:
 
-Apply migrations explicitly before application packages. Application startup must never silently migrate a non-Development database.
+```powershell
+pwsh ./scripts/Build-ReleaseArtifacts.ps1 `
+  -SourceRevision 1c2fa19 `
+  -OutputDirectory ./artifacts/release/1c2fa19
 
-Deployment does not itself prove live behavior or acceptance.
+pwsh ./scripts/Test-AzureDeploymentPlan.ps1 `
+  -ArtifactDirectory ./artifacts/release/1c2fa19
+```
+
+The build uses source-cleared, cache-only locked package and tool restore, publishes the existing Web and
+Worker projects once, creates the existing idempotent EF migration script, and
+writes deterministic `web.zip`, `worker.zip`, and `migration.zip` archives.
+`release-manifest.json` records the supplied source revision and each artifact's
+length and SHA-256 hash. The output path must not exist before the build; this
+prevents a replay from mixing stale and newly generated bytes.
+
+The test re-hashes those archives, verifies the required publish/migration
+contents and fixed ZIP metadata, and compiles `infra/main.bicep` locally. Neither
+script signs in, invokes `az` or `azd`, provisions a resource, applies a
+migration, deploys a package, or contacts a cloud control plane.
+
+### Azure activation remains fail-closed
+
+`infra/main.bicep` accepts only `deploymentMode=offline-replay`. Its Azure
+resource declarations require the unreachable `approved-live-deployment` value,
+so this revision cannot provision or deploy to Azure. This is deliberate:
+there is no approval or current evidence for activation.
+
+The concrete activation gate is a separately recorded approval for the exact
+subscription, resource group, principal, cost scope, data boundary, and
+migration/deployment sequence, followed by a fresh authorised-terminal check of
+availability, quota, pricing, role-assignment authority, target names, SQL Entra
+administrator, and external credential readiness. A separate infrastructure
+change must then remove the fail-closed mode and remove
+`SCM_DO_BUILD_DURING_DEPLOYMENT=true` before immutable package deployment can be
+authorised.
+
+Apply migrations explicitly before application packages. Application startup must never silently migrate a non-Development database. Deployment does not itself prove live behavior or acceptance.
 
 ## Recovery
 

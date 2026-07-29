@@ -15,11 +15,15 @@
 
 @if (TempData["IntakeQueueStatus"] is string queueStatus)
 {
-    <div class="notice" role="status">
-        @(queueStatus == "duplicate"
-            ? "This instruction was already queued; no duplicate work was created."
-            : "The instruction has been retained and queued for processing.")
-    </div>
+    var acceptedCaseReference = TempData["AcceptedCaseReference"] as string;
+    var statusMessage = queueStatus switch
+    {
+        "accepted" => $"Case {acceptedCaseReference} was accepted and its custody work was queued.",
+        "acceptance_duplicate" => $"This intake receipt was already accepted as case {acceptedCaseReference}; no second reference was allocated.",
+        "duplicate" => "This instruction was already queued; no duplicate work was created.",
+        _ => "The instruction has been retained and queued for processing."
+    };
+    <div class="notice" role="status">@statusMessage</div>
 }
 
 <nav class="queue-filters" aria-label="Intake filters">
