@@ -1246,19 +1246,27 @@ foreach ($matrixRow in $matrixRows) {
     }
 }
 
-$allocationAuthorityPaths = @(
+$currentAllocationAuthorityPaths = @(
     'design/README.md',
+    'design/product/requirements.md',
+    'design/product/traceability-matrix.md',
+    'design/product/ui-spec.md',
     'docs/architecture.md',
+    'docs/azure/replacement-and-retirement-plan.md',
+    'docs/capabilities.md',
+    'docs/engineering.md',
+    'docs/open-decisions.md',
     'docs/operations.md',
-    'docs/azure/replacement-and-retirement-plan.md'
+    'docs/requirements.md'
 )
-$stalePlannedAllocationPattern = '(?i)\b(?:Next|Later)\b\s*`?\s*/\s*`?\s*unallocated\b'
-foreach ($relative in $allocationAuthorityPaths) {
+$allowedUnallocatedAuthorityPattern = '(?i)\bNot planned\b|\bpermanent boundar(?:y|ies)\b|\bSemantic Version or\b|\bthen\s+`?unallocated`?'
+foreach ($relative in $currentAllocationAuthorityPaths) {
     $lineNumber = 0
     foreach ($line in [System.IO.File]::ReadLines((Join-Path $root $relative))) {
         $lineNumber++
-        if ($line -match $stalePlannedAllocationPattern) {
-            Add-PolicyError "Current allocation authority uses a stale planned/unallocated label at ${relative}:$lineNumber."
+        if ($line -match '(?i)\bunallocated\b' -and
+            $line -notmatch $allowedUnallocatedAuthorityPattern) {
+            Add-PolicyError "Current allocation authority uses an unallocated label outside a permanent boundary at ${relative}:$lineNumber."
         }
     }
 }

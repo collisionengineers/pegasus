@@ -598,7 +598,9 @@ does not activate a route, choose a principal, or define an API client.
 
 Direct-provider and intermediary policies may differ, but both call the same
 Core intake contract and fail closed when route identity, enabled policy,
-principal, or mandatory evidence is missing.
+principal, or mandatory evidence is missing. The [capability
+inventory](capabilities.md) owns the exact targets for additional-provider
+routes and provider APIs.
 
 ### Provider API principal and contract boundary
 
