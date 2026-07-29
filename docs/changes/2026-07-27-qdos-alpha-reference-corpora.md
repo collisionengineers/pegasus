@@ -24,7 +24,7 @@ Deliver the two coupled `Now` outcomes:
 1. an immutable provider-domain evidence foundation that grows through cumulative snapshots; and
 2. the first complete QDOS alpha through intake, acceptance, immutable identity, custody, work, review, EVA handoff, report evidence, lifecycle, recovery, deployment, and operator acceptance.
 
-The provider-domain Step 2 implementation and local verification are complete. The complete offline application, genuine route evaluation, live adapters, Azure reconciliation, deployment, operator acceptance, management acceptance, and release remain unproved. Code present, caller-proved, deployed, and accepted are distinct states.
+The provider-domain Step 2 implementation and local verification are complete. The complete offline application, accepted genuine route evidence supplied by the separate evaluator, live adapters, Azure reconciliation, deployment, operator acceptance, management acceptance, and release remain unproved. Code present, caller-proved, deployed, and accepted are distinct states.
 
 Issue #3 remains open until both mandatory delivery stages complete:
 
@@ -71,13 +71,13 @@ The four-project modular monolith remains: Core owns policy and ports; Infrastru
 - Keep columns B–D and later columns opaque inside the immutable workbook and source hash. They have no authoring or runtime meaning.
 - Publish additions only through new immutable cumulative workbook, package, and migration versions. Earlier versions remain queryable and are never updated or deleted.
 - Keep provider-domain evidence distinct from direct-provider and intermediary route identities. A stored suffix is candidate evidence only; it neither activates a route nor resolves a provider by itself.
-- Add explicit, stable, code-versioned Core policies for direct-provider and intermediary routes, mirrored by tests and genuine-input evaluation.
+- Add explicit, stable, code-versioned Core policies for direct-provider and intermediary routes, mirrored by tests and accepted genuine-input evidence supplied by separately owned evaluation.
 - Model an organization once and assign `WorkProvider`, `InstructionIntermediary`, or both roles. A route result separately records route owner, route kind, and resolved work provider; route owner and provider may be the same organization.
 - Reconstruct a proved original sender for approved Collision Engineers staff-forward shapes while retaining the outer message as transport provenance.
 - Activate only genuinely evidenced routes. The only currently accepted QDOS direct identity is the exact suffix `@qdosassist.co.uk`.
 - Implement the sole live alpha mailbox caller for `instructions@collisionengineers.co.uk`.
 - Complete QDOS Inspection, standalone Audit, and Inspection + Audit through durable intake, fail-closed acceptance, immutable identity, Box custody, work and review, EVA JSON/image handoff, exact report evidence, lifecycle, observability, recovery, deployment, and acceptance.
-- Implement the selected Operations-first `0.1.0-alpha.1` staff UI, local evaluator, authenticated staff MCP, and all workflow, error, stale, denied, retry, and accessibility states required by the active flow.
+- Implement the selected Operations-first `0.1.0-alpha.1` staff UI, authenticated staff MCP, and all workflow, error, stale, denied, retry, and accessibility states required by the active flow.
 - Support authenticated manual intake and bounded request-scoped unauthenticated uploads through the same Core use cases.
 
 ### Excluded or deferred
@@ -89,6 +89,7 @@ The four-project modular monolith remains: Core owns policy and ports; Infrastru
 - `Not planned` external/customer accounts, malware scanning, SMS, Teams, portal, predecessor application reuse/import after cutover, separate QA/UAT/staging/demo/training environments, GitHub Actions/OIDC deployment, slots/S1, private networking, zone or multi-region resilience, and quarterly recovery exercises.
 - Live-service client construction, Azure/IaC mutation, cloud reads or writes, deployment, predecessor retirement, or production cutover before complete offline acceptance and separate exact-target authorization.
 - Dormant services, speculative projects, duplicate engines, or deferred features treated as current release gates.
+- The Development/local email evaluator, `/Development/EmailEvaluation`, its `unchecked`/`checked` workspaces, reviewer workflow, evaluator command, report campaign, and UI/checkpoint acceptance mechanics. These are separately owned prerequisites under `DOC-CON-052`, not QDOS delivery.
 
 Clean seams for deferred work are permitted; dormant implementations are not.
 
@@ -103,6 +104,7 @@ Clean seams for deferred work are permitted; dormant implementations are not.
 7. **Immutable case identity and external effects.** Intake is split into durable receive, process, resolve, and accept operations. Queue messages carry IDs only. SQL outbox operations have stable identities. Principal and reference allocate once in the acceptance transaction and are never reused or rewritten.
 8. **The predecessor is stale evidence, not a target.** The 2026-07-23 Azure inventory is a dated snapshot. Owner direction says the predecessor is not in active use and needs no restart window, but that is not live telemetry proof. Any deletion requires refreshed exact-resource evidence and separate approval.
 9. **No guessed evidence.** Missing genuine evidence blocks the corresponding policy, matcher, adapter, or release slice. It does not justify fabricated fixtures, placeholder rules, silent local fallback, or reduced release scope.
+10. **Separate evaluator ownership (`DOC-CON-052`).** The Development/local email evaluation harness and review/report mechanics are delivered separately. QDOS alpha has no evaluator route, command, workspace UI, report campaign, or checkpoint acceptance owner. Accepted evidence from that delivery may satisfy genuine-evidence prerequisites, but the shared Core mail policy, production intake, Graph replay/live adapters, and their caller and activation proof remain QDOS scope. The inventory allocations for `OPS-22`, `EVAL-01` through `EVAL-05`, and `MAIL-20` remain unchanged pending an authorised replacement target and must not be read as QDOS implementation commitments.
 
 ## Provider-domain reference contract
 
@@ -165,7 +167,7 @@ The first package is the only bootstrap without a previous package. A later vers
 
 Corrections or removals require new accepted authority and a new explicit contract. Published snapshots are irreversibly append-only.
 
-## Route, evaluator, and intake acceptance
+## Route and intake acceptance
 
 - Direct-provider and intermediary route identities are distinct from provider identity.
 - Tests must prove that one provider can be resolved through its own direct policy and independently through an intermediary policy without sharing message-specific predicates.
@@ -185,31 +187,27 @@ Corrections or removals require new accepted authority and a new explicit contra
 - Zero or multiple applicable routes, contradictory provider/type/case evidence, extraction incompleteness, unknown policy version, or dependency ambiguity remain visible before case creation and allocate nothing.
 - Spreadsheet presence creates reference identity only. No route exists without genuine positive, negative, ambiguous, forward/intermediary, retry, and untouched holdout evidence plus explicit approval.
 - Only the separately accepted QDOS direct trait `@qdosassist.co.uk` may support current route work. `@qdosassists.co.uk`, `@qdoslaw.co.uk`, and all other imported suffixes remain inactive evidence.
-- Non-QDOS policies may be exercised by the genuine-input evaluator, but the alpha activation gate prevents them from creating a case or reference.
+- Non-QDOS policies may be exercised by separately owned evaluation, but the alpha activation gate prevents them from creating a case or reference.
 - Triage and automatic report predicates require their own genuine positive, negative, ambiguous, forwarded, reply-chain, and untouched holdout evidence.
 - No mailbox destination, folder, category, provider name, sender alone, subject keyword alone, or historical frequency is business classification authority.
 
-### Local graphical evaluator
+### Separately owned evaluation prerequisite
 
-`/Development/EmailEvaluation` is a Development-only authenticated Administrator Razor Pages workbench. It must be absent from production routing and navigation.
+The Development/local email evaluator is not implemented or accepted by this
+QDOS change. Its owner supplies any required reviewed genuine-input evidence;
+QDOS defines no `/Development/EmailEvaluation` route, `unchecked`/`checked`
+workspace workflow, evaluator command, reviewer report campaign, Administrator
+approval, or evaluator UI acceptance checkpoint.
 
-It uses the same source reader and Core evaluator as intake, Worker, Web, and MCP. It may import genuine `.eml` files only into ignored, path-guarded run workspaces and may review configured `unchecked` items. It refuses `corpus/`, tracked paths, arbitrary server paths, symlinks, and reparse-point escapes.
+Route, Triage, and automatic-report policies still require genuine positive,
+negative, ambiguous, forwarded, reply-chain, and untouched holdout evidence
+before activation. Consuming accepted source-labelled results does not make the
+separate harness or its review mechanics a QDOS caller. The shared Core policy,
+production intake, local Graph replay contract, live Graph adapter, and their
+real-caller evidence remain in this change.
 
-The UI exposes:
-
-- MIME/source hash and retained source references;
-- transport, root, normalized, and proved forwarded sender chain;
-- recipients, subject, body/document/attachment occurrences, completeness, and issues;
-- matched and nonmatched route predicates;
-- selected organization roles, route owner, route kind, and resolved provider;
-- instruction type and case evidence;
-- received/sent family;
-- separate Triage classification;
-- policy key/version, ambiguity, duration, and automated versus human outcome.
-
-Human review uses the settled received/sent taxonomy plus `Other`, which requires a name and reason. Route, Triage, provider, type, or case corrections require a reason. Review evidence is appended to ignored JSONL/CSV artifacts. A working copy moves to `checked` only after durable review. Evaluation never creates product intake, a case, or a reference and never mutates the source corpus.
-
-The provider/intermediary route-disposition inventory remains outside Git. Only aggregate counts, hashes, policy versions, and evidence limits may be committed.
+The provider/intermediary route-disposition inventory remains outside Git. Only
+aggregate counts, hashes, policy versions, and evidence limits may be committed.
 
 ## Durable intake and caller acceptance
 
@@ -237,7 +235,7 @@ The provider/intermediary route-disposition inventory remains outside Git. Only 
 - Use ASP.NET Core Identity and OpenIddict in the existing DbContext and migration stream.
 - Roles are `Administrator`, `Engineer`, and `User`; there is no public registration, MFA, or external/customer account in this release.
 - All active staff roles may perform case, intake, document, transition, and pre-Engineer review work.
-- Administrators alone manage accounts, roles, principals, workflow configuration, approved mailboxes, OAuth clients, and evaluator approvals.
+- Administrators alone manage accounts, roles, principals, workflow configuration, approved mailboxes, and OAuth clients.
 - Passwords use secure non-reversible hashes, require at least eight characters, and impose no digit, uppercase, lowercase, or non-alphanumeric composition requirement.
 - Persistent account lockout is disabled.
 - Login throttling uses:
@@ -277,7 +275,7 @@ The provider/intermediary route-disposition inventory remains outside Git. Only 
 
 - Support Inspection, standalone Audit, and Inspection + Audit. Diminution and Commercial remain deferred.
 - Definitive intake creates exactly one QDOS case idempotently through shared fail-closed acceptance.
-- The fixed delivery workflow creates the case in incomplete `Not ready`. `Review` requires explicit instruction-completeness and image-completeness confirmation. This supersedes the earlier baseline that allowed direct creation in `Review`.
+- The accepted case enters `Review` only when instruction and image completeness both pass or staff explicitly confirm both; otherwise that same case enters `Not ready`. This follows the canonical [intake transition contract](../requirements.md#matching-conflicts-and-reversible-association) and does not add a universal manual-creation gate.
 - Completeness and review gates are configurable backend gates and do not encode a hard-coded provider field matrix.
 - Standalone Audit allocates nothing until the original Engineer report and a staff-confirmed Repairable/Total-loss assessment are retained.
 - Inspection + Audit derives its Audit identity only after the later Engineer finding exists.
@@ -300,7 +298,7 @@ The provider/intermediary route-disposition inventory remains outside Git. Only 
 - Entering `Held` preserves the prior state and remaining interval.
 - Releasing to `Not ready` resumes the remaining interval; releasing to `Review` ends chasing.
 - Material arrival or terminal closure ends future chasing.
-- Generate clickable, copyable chaser text and a Box file-request link.
+- Generate clickable, copyable chaser text and an in-house request-scoped upload link created by authenticated staff.
 - Preparing or copying text sends nothing. Recording a manual send is an actor assertion, not delivery evidence.
 - Automated outbound chasers remain deferred.
 
@@ -373,6 +371,7 @@ The unauthenticated caller may see only the bounded upload form and immediate re
 - First successful generation records `First sent to Engineer` exactly once.
 - Regeneration does not duplicate that event and does not claim EVA receipt or named Engineer assignment.
 - EVA remains authoritative for Engineer assignment, estimating, valuation, and report generation until an accepted replacement exists.
+- The source-labelled saved-email/image/valuation/instruction readiness set, Experian boundary, and image eligibility/order/duplication/video-screenshot observations remain pinned through the canonical [focused handoff contract](../requirements.md#focused-eva-manual-handoff) and its retained administration-overview evidence; their presence does not prove an EVA caller or acceptance.
 
 ## Operations-first Web, MCP, and UI acceptance
 
@@ -388,7 +387,6 @@ Required routes are:
 - sign-in, forced password change, sign-out, and access denied;
 - OAuth metadata and authorization endpoints;
 - `/mcp`;
-- Development-only `/Development/EmailEvaluation`.
 
 The shell uses the approved adapted Collision Engineers logo at `design/brand/logos/logo_no_margin.png`; the scaffold `CE` CSS logo, Privacy page, and scaffold navigation are removed.
 
@@ -447,20 +445,21 @@ Internal parser and policy names are not operator language. The selected adapted
 
 ## Capability evidence index
 
-This allocation accounts for all 128 `Now` capability IDs after explicit deferral of `DATA-02`. It assigns implementation and evidence ownership; it does not claim pending evidence has passed.
+This index accounts for all 128 `Now` capability IDs after explicit deferral of `DATA-02`. It assigns QDOS implementation/evidence ownership except where `DOC-CON-052` marks a separately owned evaluator prerequisite; it does not claim pending evidence has passed or change canonical allocation.
 
 | Capability IDs | Delivery steps | Required evidence |
 | --- | --- | --- |
 | `OPS-10` | 12, 13 | approved isolated Azure Development deployment and direct-terminal release evidence |
-| `OPS-22` | 4, 10 | genuine-input graphical evaluator and cohort/holdout evidence |
+| `OPS-22` | separate delivery | separately owned genuine-input harness evidence; no QDOS route, caller, report campaign, or acceptance checkpoint |
 | `OPS-01`, `OPS-02`, `OPS-03`, `OPS-04`, `OPS-05`, `OPS-06`, `OPS-07`, `OPS-08`, `OPS-09`, `OPS-11`, `OPS-13`, `OPS-14`, `OPS-20`, `OPS-24` | 1, 5, 8, 10, 12, 13 | offline platform/caller/concurrency proof followed by approved Azure, resilience, capacity, deployment, and recovery proof |
 | `OPS-23`, `OPS-25` | 13 | operator journey and Collision Engineers management release approval |
-| `EVAL-01`, `EVAL-02`, `EVAL-03`, `EVAL-04`, `EVAL-05` | 4, 10 | local evaluator UI, persisted review evidence, cohort/holdout |
-| `MAIL-20`, `MAIL-21`, `MAIL-22` | 4, 10, 11 | shared Core taxonomy/route evidence, local caller proof, then approved Graph parity |
+| `EVAL-01`, `EVAL-02`, `EVAL-03`, `EVAL-04`, `EVAL-05` | separate delivery | separately owned reviewer workflow and evidence; no QDOS implementation or acceptance checkpoint |
+| `MAIL-20` | separate delivery | separately owned local evaluator caller; no QDOS implementation or acceptance checkpoint |
+| `MAIL-21`, `MAIL-22` | 4, 10, 11 | shared Core taxonomy/route evidence and production-intake caller proof, then approved Graph replay/live parity |
 | `MAIL-14`, `MAIL-15`, `MAIL-16` | 6–8, 10, 11 | exact local Sent evidence/linking and approved automatic matcher holdout, then Graph parity |
 | `MAIL-18` | 6, 9, 10 | Core chaser policy and authenticated copyable Web output |
 | `ACC-01`, `ACC-02`, `ACC-03`, `ACC-04`, `ACC-05`, `ACC-06`, `ACC-07`, `ACC-08`, `ACC-09`, `ACC-10`, `ACC-11` | 3, 9, 10 | Identity/OpenIddict, authorization, history, authenticated browser/MCP |
-| `INT-01`, `INT-02`, `INT-03`, `INT-08`, `INT-09`, `INT-10`, `INT-11`, `INT-12`, `INT-13`, `INT-17`, `INT-18`, `INT-19`, `INT-20`, `INT-21`, `INT-22`, `INT-23`, `INT-24`, `INT-25`, `INT-26`, `INT-27`, `INT-29`, `INT-30` | 4–10 | shared evaluator, durable receipt/outbox/Worker, acceptance and negative recovery smoke |
+| `INT-01`, `INT-02`, `INT-03`, `INT-08`, `INT-09`, `INT-10`, `INT-11`, `INT-12`, `INT-13`, `INT-17`, `INT-18`, `INT-19`, `INT-20`, `INT-21`, `INT-22`, `INT-23`, `INT-24`, `INT-25`, `INT-26`, `INT-27`, `INT-29`, `INT-30` | 4–10 | shared Core classification/extraction, separately supplied accepted evidence where required, durable receipt/outbox/Worker, acceptance and negative recovery smoke |
 | `INT-31` | 7, 9, 10 | request-scoped upload token/limit/custody/retry/revocation/abuse contract, real authenticated staff creator, bounded unauthenticated upload caller, negative isolation proof, and operator acceptance; release remains blocked until implemented |
 | `TRI-01`, `TRI-02`, `TRI-03`, `TRI-04`, `TRI-05`, `TRI-06`, `TRI-07`, `TRI-08`, `TRI-09` | 4, 6, 8–10 | approved matcher evidence, Core transitions, Worker Sent evidence, UI/MCP |
 | `CASE-01`, `CASE-02`, `CASE-03`, `CASE-04`, `CASE-07`, `CASE-08`, `CASE-09`, `CASE-10`, `CASE-11`, `CASE-12`, `CASE-13`, `CASE-14`, `CASE-15`, `CASE-16`, `CASE-17`, `CASE-18`, `CASE-19`, `CASE-20`, `CASE-21`, `CASE-24`, `CASE-25`, `CASE-26`, `CASE-27`, `CASE-28`, `CASE-29`, `CASE-30` | 6–10 | Core/persistence contract, local adapters, Worker, UI/MCP, lifecycle smoke |
@@ -470,7 +469,7 @@ This allocation accounts for all 128 `Now` capability IDs after explicit deferra
 | `MCP-01`, `MCP-02`, `MCP-03`, `MCP-04` | 3, 9, 10, 13 | OpenIddict actor enforcement and real Streamable HTTP caller |
 | `DATA-01` | 2, 10 | deterministic cumulative provider-domain package/migration and exact count/hash/suffix-only proof |
 
-**Count assertion: 128 distinct IDs; no duplicate and no omitted `Now` capability.**
+**Count assertion: 128 distinct allocated IDs; no duplicate or omission. `DOC-CON-052` separately owns seven of those IDs and creates no QDOS delivery step.**
 
 ## Dependency-ordered delivery sequence
 
@@ -480,7 +479,7 @@ This allocation accounts for all 128 `Now` capability IDs after explicit deferra
 - Preserve repository-native authority, exact-head review, proportional validation, exact-target cloud approval, and no-agent-merge while removing active plugin-specific routing and ownership claims.
 - Historical onboarding and decision material remains historical rather than being rewritten.
 - Active guidance must reject reintroduction of plugin route tokens while permitting quoted historical evidence.
-- Reconfirm the provider source hash/counts and the 128-capability allocation without cloud or vendor access.
+- Reconfirm the 128-capability allocation and the `DOC-CON-052` non-QDOS evaluator boundary without cloud or vendor access.
 
 Implementation was approved on 2026-07-27. Obsolete workflow-specific repository, doctor, and documentation wrappers were removed by direct owner instruction; current completed verification uses owning executables. The tool-neutral local entry points below remain delivery requirements unless explicitly superseded by another owner decision.
 
@@ -541,14 +540,14 @@ Application runtime reads SQL only. Provider-domain evidence does not activate a
 
 Implement the Identity/OpenIddict, roles, session limits, login throttles, bootstrap, OAuth-client registration, `StaffActor`, account revocation, business history, edit lease, and optimistic-version contracts above in the existing DbContext and migration stream.
 
-### 4. Build the shared evaluator and genuine evidence workbench
+### 4. Build the shared classification policy and consume genuine evidence
 
 - Extend neutral evidence to transport sender, normalized source sender, proved forwarded sender, recipients, subject, body, document/attachment fragments, occurrence labels, reply/thread identifiers, completeness, and source references.
 - Update the existing Infrastructure MIME reader to expose nested-forward sender evidence without losing provenance or relaxing limits.
 - Replace the one-policy assumption with a stable direct/intermediary policy catalog.
 - Persist route kind, route owner, stable key/version, provider, classification/case outcome, and evidence on versioned evaluations.
-- Remove the superseded selector path after all callers move; retain no compatibility path in development mode.
-- Build the authenticated Development evaluator and genuine route/Triage/report cohorts and untouched holdouts.
+- Remove the superseded selector path after all production callers move; retain no compatibility path in development mode.
+- Consume accepted genuine route, Triage, and report cohorts and untouched holdouts supplied by the separately owned evaluator. Do not build its route, command, workspace review flow, report campaign, or UI acceptance checkpoint here.
 - Do not infer routes from provider names or generate operational email fixtures.
 
 ### 5. Make intake durable and idempotent
@@ -595,7 +594,7 @@ Each trigger claims persisted work, invokes one Core use case, and acknowledges 
 
 ### 9. Complete the authenticated Web and local MCP
 
-Build the Operations-first routes, queues, evaluator, intake, Triage, case, document, administration, authentication, OAuth, MCP, error, stale, retry, lease, and accessibility behavior above.
+Build the Operations-first routes, queues, intake, Triage, case, document, administration, authentication, OAuth, MCP, error, stale, retry, lease, and accessibility behavior above.
 
 PageModels bind, authorize, and translate only. Business decisions remain in Core. Prove browser/MCP parity through real HTTP endpoints.
 
@@ -605,7 +604,7 @@ Run from a fresh setup:
 
 1. Offline doctor, initialization, start/status/smoke/stop/reset, a second parallel run, induced startup failure, recovery, and proof that no cloud credential, login, client, hostname, or stale Azure resource was used.
 2. Provider generation from the pinned source: exact hash and A/E contract, 11 providers, 16 associations, suffix-only bytes, repeat-byte equality, exact package/migration equality, fresh SQLite and LocalDB migration idempotency, tuple/suffix fail-closed behavior, and monotonic synthetic later-version growth.
-3. Genuine evaluator cohorts and untouched holdouts for every activated route, including QDOS, direct/intermediary collision, malformed forwards, Triage positives/negatives/ambiguities/replies, report candidates, human correction, determinism, and no source/corpus mutation.
+3. Automated Core-policy proof against accepted genuine route evidence for every activated route, including QDOS, direct/intermediary collision, malformed forwards, Triage positives/negatives/ambiguities/replies, report predicates, determinism, and source/corpus immutability. The separately owned evaluator supplies reviewed cohorts and holdouts; this gate creates no QDOS evaluator UI, report campaign, or acceptance checkpoint.
 4. Actual Web, Functions host, Azurite, LocalDB, local mailbox, and local custody smoke for QDOS Inspection, standalone Audit repairable/total loss, and Inspection + Audit. Duplicate, retry, and crash must still produce one immutable case/reference/evaluation/custody/outbox result.
 5. Negative and recovery smoke for unsupported, corrupt, oversized, incomplete, unknown/non-QDOS, route overlap, missing Audit assessment, unavailable dependency, identity/hash conflict, sequence 999, poison exhaustion, stale lease/version, unauthorized actor, and terminal external failure.
 6. Full local lifecycle through `Not ready`, chasing, `Held`, `Review`, `Report preparation`, custody, selected VRM/address/vehicle suggestions, one-time EVA event, exact local Sent evidence, `Post report`, terminal outcomes, valid reopen, created-in-error replacement, archive/read-only, and Triage exact-reply completion/correction.
@@ -617,8 +616,16 @@ Run from a fresh setup:
    - clock-test two-hour idle and eight-hour absolute expiry;
    - reject disabled or role-changed users;
    - complete actual MCP calls with the public PKCE client.
-8. Playwright interaction evidence for Operations, evaluator, intake, Triage, case, administration, authentication, and MCP-visible effects at 1280+, constrained desktop, 200% zoom, keyboard-only, focus/error handling, forced colours, reduced motion, and multi-session conflicts.
-9. Canonical repository checks, exact-head CI, independent implementation review, clean-operator runbook execution, and proof that all locally exercisable `Now` capabilities have real caller evidence.
+8. Playwright interaction evidence for Operations, intake, Triage, case, administration, authentication, and MCP-visible effects at 1280+, constrained desktop, 200% zoom, keyboard-only, focus/error handling, forced colours, reduced motion, and multi-session conflicts.
+9. Active repository checks that perform validation, exact-head CI, independent implementation review, clean-operator runbook execution, and proof that every QDOS-owned locally exercisable `Now` capability has real caller evidence. `scripts/Test-RepositoryPolicy.ps1` and its repository-language caller are excluded as described below. The seven `DOC-CON-052` evaluator allocations are separately owned prerequisites and have no QDOS checkpoint.
+
+Repository-policy enforcement is temporarily disabled and deferred until after
+`0.1.0-alpha.1`. `scripts/Test-RepositoryPolicy.ps1`, whether invoked directly
+or through `scripts/Test-RepositoryLanguage.ps1`, is a successful no-op. Record
+that outcome as **skipped/deferred**, not **passed**: it proves no repository-
+policy property, cannot be cited as green evidence, and is not an alpha-required
+gate. Post-alpha activation requires a reviewed re-enable change, reproducible
+proof inputs, a clean-checkout pass, and independent review.
 
 Do not tag, release, deploy, or call the alpha accepted when this gate passes. Every live-only capability remains pending live evidence.
 
@@ -903,7 +910,7 @@ The following remain absent or unaccepted:
 - accepted DVLA/DVSA and mileage behavior;
 - focused EVA mapping, import, receipt, or assignment;
 - Graph permission, delta, mailbox, throttling, and folder behavior;
-- Box identity, scope, SDK, retention, file-request delivery, or production custody;
+- Box identity, scope, SDK, per-flow retention rules, in-house upload custody handoff, or production custody;
 - Azure identity, RBAC, SQL behavior, platform queues, scale, durability, telemetry, alerts, restore, RPO/RTO, capacity, or cost;
 - deployment, predecessor retirement, production cutover, operator acceptance, management approval, or release acceptance.
 
@@ -932,7 +939,7 @@ The principal-scoped provider API remains `Next`/`unallocated`. Its preserved co
 
 ### Future email and workflow work
 
-The shared Core evaluator and policy catalog are the seam for future providers, four-mailbox management, detailed categories, queues, folder actions, and general email/image association. Deferred work must reuse that owner rather than add a parallel classifier or rules engine.
+The shared Core classification policy and policy catalog are the seam for future providers, four-mailbox management, detailed categories, queues, folder actions, and general email/image association. Deferred work must reuse that owner rather than add a parallel classifier or rules engine. The separately owned evaluator may exercise the policy but does not own it.
 
 ## Blockers and unresolved evidence choices
 
@@ -954,7 +961,7 @@ No unresolved architecture or product decision remains for the provider-domain s
 
 The stale Office lock marker that previously blocked provider authoring was removed with exact owner approval; its absence was observed and Step 2 authoring completed. It is no longer an active blocker.
 
-If any hold cannot be satisfied, keep the corresponding caller absent or disabled and keep the release blocked. Do not infer a rule, fabricate data, silently fall back, expose the predecessor, or reduce the 128-capability contract.
+If any hold cannot be satisfied, keep the corresponding caller absent or disabled and keep the release blocked. Do not infer a rule, fabricate data, silently fall back, expose the predecessor, treat a `DOC-CON-052` evaluator allocation as QDOS implementation, or silently reduce the remaining QDOS contract.
 
 ## Verification commands and evidence gates
 
@@ -982,8 +989,8 @@ pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Reset
 ### Repository and behavioral evidence
 
 - Restore and Release-build the complete solution.
-- Run all Architecture, Core, Integration, Web, provider-package, LocalDB concurrency, Azurite/Functions, browser, accessibility, evaluator, adapter-contract, negative, retry, and recovery tests.
-- Run the canonical repository check through its current owning executable; obsolete workflow-specific wrappers are not acceptance authority.
+- Run all Architecture, Core, Integration, Web, provider-package, LocalDB concurrency, Azurite/Functions, browser, accessibility, adapter-contract, negative, retry, and recovery tests. Separately owned evaluator tests and report campaigns are not QDOS gates.
+- Treat `scripts/Test-RepositoryPolicy.ps1` and its `scripts/Test-RepositoryLanguage.ps1` caller as deferred no-ops, not alpha-required repository evidence; do not cite their successful exit as green evidence.
 - Exercise actual Web, Functions, SQL, storage, OAuth, MCP, and Worker callers. Direct service invocation is insufficient.
 - Record exact-head CI and obtain independent exact-head review after the final tracked change.
 - Preserve source and corpus immutability and keep generated evidence beneath ignored `artifacts/`.

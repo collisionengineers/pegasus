@@ -10,7 +10,13 @@ Status: **Planned `0.1.0-alpha.1` specification with Operations-first selected f
 4. Named workflow/evidence/lease/exception state and consequential action.
 5. Provenance, external identity, permanent business history and limitation.
 
-The Planned `0.1.0-alpha.1` routes are Operations, Intake, Triage, Cases and authorised Administration. Each candidate direction uses the same focused-flow set. `Next`/`unallocated` email appears only after its gates; `Later`/`unallocated` has no placeholder route or control.
+The Planned `0.1.0-alpha.1` routes are Operations, Intake, Triage, Cases and authorised Administration. Each comparison direction uses the same focused-flow set. Every `Next` or `Later` capability is currently `unallocated` in the [capability inventory](../../docs/capabilities.md#capabilities) and has no alpha placeholder route or control; [traceability](traceability-matrix.md) mirrors that allocation.
+
+The Development/local email evaluator is separately owned and has no QDOS-alpha
+route, navigation, control, `unchecked`/`checked` workbench, review-report
+mechanic, or UI acceptance checkpoint. This does not remove the shared mail
+policy, production-intake surfaces, Graph replay/live adapters, or the genuine
+evidence required to activate them.
 
 ## Contracts
 
@@ -19,7 +25,8 @@ The Planned `0.1.0-alpha.1` routes are Operations, Intake, Triage, Cases and aut
 | Shell/access | Sign-in and disabled/stale-role/denied outcomes; permitted-route visibility plus server authorisation. |
 | Metric/queue | Label, value or unavailable state, last-good time, current refresh state, and exact destination filter. `0`, loading, current, stale, partial, unavailable, and failed remain distinct. Operations includes exact `Blocked intake`, Due today, and day/week Sent to Engineer and Reports sent. |
 | Intake workbench | Persistent source identity; `All`/`Instructions`/`Images` evidence filter; evidence/candidate; fact versus suggestion versus confirmed value; provenance/missing/conflict; acceptance path and no-case failure consequence. |
-| Request-scoped upload | Isolated upload fields and immediate request-local success/failure only; expired/revoked/limit/custody/replay failures reveal no case, reference, request history, or other material. |
+| Supporting detail navigation | Opening source evidence or other supporting detail preserves list/detail position, the current Intake or Case-detail context, and every unsaved edit; returning never silently discards or replaces proposed values. |
+| Request-scoped in-house upload | Authenticated staff create a temporary token bound to one request/operation and server-enforced expiry. The isolated public edge exposes bound upload fields and an immediate request-local result only; expiry, revocation, cross-request isolation, limits, custody, retry, abuse, and non-disclosing failures are explicit. |
 | State action | Permitted transition, prerequisite, consequence, required reason, recovery and history link; never generic Close. |
 | Identity header | Read-only Case/PO/principal, registration, type/secondary Audit identity, workflow state, `Due by`/overdue state, and EVA proxy limitation. |
 | Due/chaser panel | Missing-material reason, next chase, last recorded channel/outcome, optional note, and next permitted action together. Copy/preparation is not sent or delivered; Triage has no such panel. |
@@ -54,12 +61,17 @@ path and may create exactly one case/reference only if its ordinary gates then
 pass. Manual image/instruction link and reasoned reversal retain original
 origins.
 
-The request-scoped upload route is a distinct public edge of that intake flow:
-authenticated staff create the temporary link; the isolated unauthenticated
-surface uploads only to its bound request and returns immediate request-local
-success/failure. Expired, revoked, cross-request, limit, custody, and retry
-outcomes are explicit. No result exposes or implies a case, reference, request
-history, other upload, EVA handoff, or report delivery.
+Opening evidence or supporting detail from Intake preserves the active `All`/`Instructions`/`Images` filter, selected record, scroll/list-detail position, and every unsaved candidate edit. Return restores the originating Intake or Case-detail context without reloading over proposed values.
+
+The request-scoped in-house upload route is a distinct public edge of that
+intake flow. Authenticated staff create a temporary token bound to one request,
+its allowed operation, and a server-enforced expiry; staff can revoke it. The
+isolated unauthenticated surface uploads only to that request and returns an
+immediate structured result. Expired, revoked, cross-request, type/count/size
+limit, custody, retry, and abuse outcomes reveal no case, reference, request
+history, other upload, token-management function, or external account. Success
+proves request-local custody only, not case creation, Box custody, EVA handoff,
+report generation, or external delivery.
 
 **Triage:** distinct inbox classification/label plus dedicated pre-case
 list/detail; never a case state. Missing registration goes to `Needs sorting`;
@@ -80,7 +92,7 @@ Case/PO, principal, registration, type/secondary Audit identity, state,
 missing-material reason, next chase, last recorded channel/outcome, optional
 note, and next action together; due/chaser work is separate from `In today`.
 Overview, data, provenance, documents/images, vehicle/MOT, tasks/reminders,
-request-scoped upload link, EVA export, report evidence, and history remain
+request-scoped in-house upload token, EVA export, report evidence, and history remain
 focused sections.
 
 Inspection address is one explicit choice: physical vehicle/repairer address
@@ -143,4 +155,4 @@ When implemented:
 - each visible trace row and state needs authenticated Web-caller and named Core-owner evidence;
 - keyboard, screen-reader, focus/error, forced-colours, reduced-motion, 1280+ desktop, constrained desktop and 200%-zoom inspection must be recorded;
 - operator review uses approved genuine local immutable material only; generated imagery or synthetic operational material cannot prove acceptance; and
-- every `Next`/`unallocated` and `Later`/`unallocated` UI change re-enters inventory, specification, alternatives, independent review, explicit approval, visual generation and manual visual review.
+- every UI capability allocated after `0.1.0-alpha.1` re-enters inventory, specification, alternatives, independent review, explicit approval, visual generation and manual visual review before its exact target can be implemented.

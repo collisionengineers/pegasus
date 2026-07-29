@@ -64,7 +64,7 @@ no transcript, archive copy, README or second requirements ledger is created.
 
 ## Authorities and current evidence
 
-- Canonical intended behavior is owned by [product requirements](../requirements.md); stable capability IDs, allocation, and activation boundaries are owned separately by the [capability inventory](../capabilities.md).
+- Canonical intended behavior and activation gates are owned by [product requirements](../requirements.md); stable capability IDs, horizons, and exact release allocation are owned separately by the [capability inventory](../capabilities.md).
 - `Pegasus.Core` remains the single owner of business policy and accepted case
   truth. Infrastructure adapts external systems; Web and Worker remain
   composition roots.
@@ -130,6 +130,16 @@ capabilities remain `unallocated` unless their existing target says otherwise.
 This change makes no irreversible vendor transport choice and creates no dormant
 runtime integration. Activation requires a capability-specific change record,
 actual caller, recovery proof and acceptance evidence.
+
+Release precedence now has one current owner in [Delivery
+dependencies](../requirements.md#delivery-dependencies). The complete restored
+prerequisite graph, `Next` parallel branches, rejoin evidence, and independently
+gated `Later` continuations remain retained as source-labelled detail in the
+[dependency-ordered delivery
+roadmap](../history/plans/delivery-roadmap.md), with operator execution routed
+through [Release dependency order](../operations.md#release-dependency-order).
+The history route owns neither current behavior nor status, and the
+[capability inventory](../capabilities.md) remains allocation-only.
 The deferred renderer integration preserves only the headless rendering seam and
 required service contracts. Activation decommissions every imported renderer GUI
 feature because Pegasus owns the invoking UI, removes the standalone renderer MCPB,
@@ -335,7 +345,8 @@ not product requirements.
 | `S8-L156a` | Every AI-produced assessment, response or report must be assigned to and reviewed and approved by a named Engineer before external release because the output carries expert responsibility. | `AI-09` | Later/unallocated | `intended` |
 | `S8-L156b` | The vendor-neutral review transport must make approval explicit, logged and attributable before the approved proposal can leave Pegasus. | `AI-09` | Later/unallocated | `intended` |
 | `S8-L158a` | Apply role-based access protection to personal data and vehicle images across email, request-scoped upload, AI processing and Box flows. | `ACC-04` | Now/0.1.0-alpha.1 | `intended` |
-| `S8-L158c` | Confirm applicable processor terms before activating any external email, upload, AI or Box processor. | `docs/requirements.md#quality-capacity-security-and-evidence` | accepted authority | `intended` |
+| `S8-L158b` | Resolve and record the retention rules for personal data and vehicle images before activating each external flow; this does not create an automated retention workflow. | [Requirements](../requirements.md#quality-capacity-security-and-evidence) | accepted authority | `intended` |
+| `S8-L158c` | Confirm applicable processor terms before activating any external email, upload, AI or Box processor. | [Requirements](../requirements.md#quality-capacity-security-and-evidence) | accepted authority | `intended` |
 | `S8-L160a1` | EVA and the manual Pegasus handoff should run in parallel during migration, accepting temporary double-keying. | `EXT-03` | Now/0.1.0-alpha.1 | `intended` |
 | `S8-L160a2` | Move one provider or job type at a time through the deferred EVA-replacement migration. | `CASE-22` | Later/unallocated | `intended` |
 | `S8-L160b` | The deferred EVA replacement slice should shorten and ultimately end double-keying after each migrated flow is stable. | `CASE-22` | Later/unallocated | `intended` |
@@ -356,7 +367,7 @@ not product requirements.
 | `S9-L182a` | The operating end state should reduce administration to one person monitoring an exception queue and let Engineers focus on judgement rather than filing. | `docs/requirements.md` | accepted authority | `intended` |
 | `S9-L182b` | Pegasus’s accepted product vision is to own the system and retain the ability to build newly identified ideas rapidly. | `docs/requirements.md` | accepted authority | `accepted` |
 
-Crosswalk assertion: **202 atomic rows cover all 86 non-empty
+Crosswalk assertion: **203 atomic rows cover all 86 non-empty
 source paragraphs, bullets, metadata rows and table rows; no source item is
 unmapped.** The source also contains 21 heading/separator lines that carry
 structure only and therefore require no capability disposition.
@@ -477,8 +488,8 @@ this remediation relies on that subtree.
 Pull request 18 remains an in-review consolidation from baseline
 `467284f23b268e199d7fbe77dbb2163b50f00e23`. Its earlier exact-census,
 material-claim, and callsite assertions are withdrawn because their baseline
-was unsound. Green structural checks remain link/build/policy evidence only;
-they do not establish semantic preservation or acceptance.
+was unsound. Green structural checks remain link/build evidence only; they do
+not establish repository-policy proof, semantic preservation, or acceptance.
 
 ### Pull request 18 review remediation
 
@@ -505,6 +516,16 @@ and its imported-source addendum found 39 required findings. This remediation:
 - updates capability and design links to the canonical clauses without changing
   capability IDs, horizons, or release allocation.
 
+`scripts/Test-RepositoryPolicy.ps1` is temporarily disabled and deferred until
+after `0.1.0-alpha.1`. Its direct invocation and its
+`scripts/Test-RepositoryLanguage.ps1` caller are successful no-ops, so their
+result is **skipped/deferred**, not **passed**, proves no repository-policy
+property, and cannot be cited as green evidence. Repository policy is excluded
+from the alpha-required gates; other independently operating language, build,
+and test gates remain unchanged. Post-alpha activation requires a reviewed
+re-enable change, reproducible proof inputs, a clean-checkout pass, and
+independent review.
+
 Fresh exact-head checks and independent review are still required. This record
 does not infer acceptance from implementation or green checks.
 
@@ -517,8 +538,8 @@ does not infer acceptance from implementation or green checks.
 - [x] EVA examples retain the exact ordered 13 keys and all 12 Engineer screens
   have reviewed findings.
 - [x] The Pegasus source directory and duplicate EVA source directory are absent.
-- [x] Semantic-version, language, solution-boundary and provider-package checks
-  pass.
+- [x] Semantic-version, solution-boundary and provider-package checks pass;
+  this claim excludes repository policy and its deferred language wrapper.
 - [x] Main solution and each imported workspace pass their documented independent
   build/test/smoke route.
 - [x] Development-only Web smoke proves the Pegasus UI and health endpoints;

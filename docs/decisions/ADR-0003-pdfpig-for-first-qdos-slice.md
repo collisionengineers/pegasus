@@ -21,8 +21,8 @@ PdfPig and iText both opened every document, identified the same 12 documents as
 having insufficient embedded text, and produced identical document-level
 coverage for the business markers measured by the harness. Aspose opened every
 document but found fewer claim and mileage markers and ran under its evaluation
-restriction. Full results are retained in the
-[QDOS reference-corpora change record](../changes/2026-07-27-qdos-alpha-reference-corpora.md#embedded-pdf-benchmark-identity).
+restriction. Full results are in
+`docs/evaluation/qdos-pdf-engine-benchmark.md`.
 
 ## Decision
 

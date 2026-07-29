@@ -13,13 +13,17 @@ support and configure Git for Windows before cloning:
 ```powershell
 git config --global core.longpaths true
 npm ci
-dotnet restore ./Pegasus.slnx --locked-mode
+dotnet restore ./Pegasus.slnx
 sqllocaldb start MSSQLLocalDB
 dotnet build ./Pegasus.slnx --configuration Release --no-restore
 dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"
-dotnet run --project ./src/Pegasus.Web --launch-profile https --no-build -- --migrate-development
-dotnet run --project ./src/Pegasus.Web --launch-profile https --no-build
+dotnet run --project ./src/Pegasus.Web --configuration Release --launch-profile https --no-build -- --migrate-development
+dotnet run --project ./src/Pegasus.Web --configuration Release --launch-profile https --no-build
 ```
+
+The first `dotnet run` applies every committed Development migration and exits;
+the second starts Web against the migrated database. Normal Web startup never
+applies migrations.
 
 Exact prerequisites, initialization, migration, test profiles, and evidence
 limits are in [operations](docs/operations.md). Start with the

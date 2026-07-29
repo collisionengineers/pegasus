@@ -8,17 +8,17 @@ Pre-conversion status: **Ready dependency route — planning only**
 
 This is the sole dependency-ordered route from the present repository state through `Later`/`unallocated` and the separately activation-gated `Later`/`unallocated` continuation. It orders bounded plans, decision gates, safe parallel work and integrated acceptance journeys. It is not an implementation-status board, release ledger or second requirements owner.
 
-- The [feature maturity map](feature-maturity-map.md) alone owns the 213 allocations and each row's primary plan link.
+- The [capability inventory](../../capabilities.md) alone owns every stable ID, horizon, exact release target, and canonical behavior owner; historical plan links do not allocate work.
 - The linked capability plans own intended behavior, callers, negative cases, validation, rollout/recovery and deferred-capability impact.
 - Current implementation evidence belongs in source, tests and dated task/validation artifacts. `Planned`, `Implemented`, `Called`, `Locally verified`, `Deployed`, `Live verified` and `Accepted` remain distinct.
 - A plan link does not activate a feature, external service, migration, Azure change or UI direction.
-- [Permanent and conditional boundaries](../../product/boundaries.md) are not backlog work.
+- [Permanent boundaries](../../requirements.md#permanent-boundaries) are not backlog work; the [capability inventory](../../capabilities.md) remains the sole authority for conditional or deferred horizons and exact targets.
 
 ## Present repository boundary
 
 As source-mapped on 2026-07-26, the only mutating business caller is the Development-only `POST /Intake/Upload` Razor Page calling Core `ProcessIntake` when `Features:LocalIntake` is enabled. Dashboard, queue, review and asset handlers query retained intake receipts. The Worker has no trigger or Core caller. Identity, cases/references, lifecycle, Triage, Box, Graph, EVA, staff MCP, provider API and the `0.1.0-alpha.1` staff UI are still intended rather than called.
 
-The current intake slice proves provider-neutral receipt, bounded source reading, retained local occurrences, typed read-only QDOS draft/evidence and explicit pre-case outcomes. It does not prove case creation, reference allocation, production custody, a deployed environment or operator acceptance. [Remaining requirements](../../product/qdos-alpha-gap.md) owns that `0.1.0-alpha.1` gap baseline.
+The current intake slice proves provider-neutral receipt, bounded source reading, retained local occurrences, typed read-only QDOS draft/evidence and explicit pre-case outcomes. It does not prove case creation, reference allocation, production custody, a deployed environment or operator acceptance. Canonical [requirements](../../requirements.md) own intended `0.1.0-alpha.1` behavior; the [capability inventory](../../capabilities.md) owns allocation.
 
 ## Dependency shape
 
@@ -39,7 +39,7 @@ No horizon creates a second intake engine, allocator, lifecycle, classifier, sen
 
 | Order | Plan | Requires | Intended real caller and outcome | Gate / proof limit |
 | ---: | --- | --- | --- | --- |
-| 1 | [Caller-backed local evidence](../../runbooks/testing/local-testing.md#caller-backed-local-and-live-evidence-gates) | Current repository checks and immutable local inputs | Repository and actual delivered callers produce reproducible evidence | Local checks do not prove cloud, operator or production behavior |
+| 1 | [Local and live evidence boundaries](../../operations.md#local-and-live-evidence-boundaries) | Current repository checks and immutable local inputs | Repository and actual delivered callers produce reproducible evidence | Local checks do not prove cloud, operator or production behavior |
 | 2 | [Local EML evaluator and classification foundation](mailbox-categorisation-and-email-matching/development-classification-foundation-and-evaluator.md) | Accepted `0.0.0-development` predicates/evidence from the [combined dossier](mailbox-categorisation-and-email-matching/README.md) | Local folder evaluator calls one versioned Core classification policy and compares human/rule evidence | No Outlook, Graph or mock future caller; corpus originals remain immutable/local |
 | 3 | [ADR-0009 local deployment foundation](remainder-delivery/platform/azure-observability-and-release.md#reconcile-infrastructure-and-identity-boundaries) | Caller-backed application slice and local repository checks | Local procedure produces separately hashed Web, Worker and migration bundles with pinned tool/runtime provenance and defines separated deployment, migrator and runtime identities | Local package/identity proof authorises no Azure read or write; the later production release section still depends on shared-development proof |
 | 4 | [`0.0.0-development` shared-development target](remainder-delivery/platform/azure-observability-and-release.md#provision-and-prove-shared-development) | Order 3 complete, then exact subscription/tenant/environment/resource-group/SKU/cap approval | Authorised terminal previews/provisions, applies the immutable migration bundle, then deploys the same hashed Web/Worker packages through `azd` service routes | Planning does not authorise Azure read/write; deployment does not prove production acceptance |
