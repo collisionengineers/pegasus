@@ -8,7 +8,7 @@ risk: high
 created: 2026-07-27
 updated: 2026-07-29
 issue: https://github.com/collisionengineers/pegasus/issues/6
-pull_request: https://github.com/collisionengineers/pegasus/pull/17
+pull_request: https://github.com/collisionengineers/pegasus/pull/18
 baseline: d0965e1264dadc8d9942ac54fd68a4b45fd06f28
 target_release: 0.1.0-alpha.1
 roadmap_horizon: Now
@@ -31,6 +31,7 @@ superseded_by: none
 | 08 | https://github.com/collisionengineers/pegasus/pull/15 | Normalize imported reference terminology |
 | 09 | https://github.com/collisionengineers/pegasus/pull/16 | Orient canonical Pegasus documentation |
 | 10 | https://github.com/collisionengineers/pegasus/pull/17 | Enforce Pegasus repository integration |
+| 11 | https://github.com/collisionengineers/pegasus/pull/18 | Centralize repository documentation authority |
 
 ## Summary
 
@@ -487,10 +488,13 @@ benchmark path in ADR-0003; each remains tied to its exact baseline blob.
 | DOC-CON-041–046 | EVA material is reference evidence, historical external-party roles stay temporal, confidence display remains open, workspaces are source-only, nonexistent Codex hooks are removed, and renderer signatures remain separate from Web decorative imagery. |
 | DOC-CON-047–051 | Planned design divergences remain explicit; exact amber/navy target values stay open; absent design checkouts are provenance only; Core decisions map distinctly to operator labels/persistence; the orphan jquery-validation licence is removed only after dependency absence is reconfirmed. |
 
-This change remains `in_review`. Implementation, local caller proof, deployment,
-live verification, and acceptance remain distinct. Pull-request URL, exact base,
-exact head, check run, final manifest hashes, and independent-review outcome are
-recorded only after the repository head is frozen.
+The documentation consolidation is published in pull request 18 from baseline
+`467284f23b268e199d7fbe77dbb2163b50f00e23`; its initial implementation commit
+is `296bc47`. Local exact-census, disposition, material-claim, callsite, link,
+anchor, reachability, language, source-boundary, and workspace-manifest checks
+pass. The change remains `in_review`; the PR's final exact head, check run, and
+independent-review outcome are recorded against the frozen PR head rather than
+inferred from this implementation commit.
 
 ## Verification and evidence
 
@@ -511,6 +515,8 @@ recorded only after the repository head is frozen.
 
 ## Outcome
 
-Implementation and local caller evidence are complete. Pull request 7 remains
-the retained source review at `493189012afee158793d1f5d1602b5708b33e530`;
-pull request 17 is the delivery under green CI and independent exact-head review.
+Implementation and local caller evidence from the orientation series remain
+complete. Pull request 7 retains the source review at
+`493189012afee158793d1f5d1602b5708b33e530`; pull request 17 is the completed
+integration delivery; pull request 18 is the documentation-centralization
+prerequisite under exact-head checks and independent review.
