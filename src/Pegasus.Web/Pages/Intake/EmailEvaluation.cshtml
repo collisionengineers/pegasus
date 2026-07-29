@@ -24,6 +24,17 @@
         <button type="submit" class="primary-action">Evaluate email</button>
     </form>
 </section>
+@if (Model.ActivationBlocked)
+{
+    <section class="panel section-gap" aria-labelledby="offline-evaluation-title">
+        <h2 id="offline-evaluation-title" class="section-label">Offline replay only</h2>
+        <p class="empty-state">This evaluation is not retained and cannot activate triage or send email. A separately approved, persisted evidence record and a live triage edit lease are required.</p>
+        <dl class="detail-list">
+            <div><dt>Replay identity</dt><dd>@Model.ReplayIdentity</dd></div>
+        </dl>
+    </section>
+}
+
 
 @if (Model.ReadResult is { } readResult)
 {

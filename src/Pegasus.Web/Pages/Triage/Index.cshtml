@@ -1,0 +1,47 @@
+@page
+@model Pegasus.Web.Pages.Triage.IndexModel
+@{
+    ViewData["Title"] = "Triage queue";
+}
+
+<header class="page-heading">
+    <div>
+        <p class="eyebrow">Triage</p>
+        <h1>@(Model.State is null ? "Triage queue" : IndexModel.StateLabel(Model.State.Value))</h1>
+        <p class="lede">Intake-backed vehicle assessments requiring review or follow-up.</p>
+    </div>
+</header>
+
+<nav class="queue-filters" aria-label="Triage filters">
+    <a asp-page="/Triage/Index">All</a>
+    <a asp-page="/Triage/Index" asp-route-state="open">Open</a>
+    <a asp-page="/Triage/Index" asp-route-state="awaiting_information">Awaiting information</a>
+    <a asp-page="/Triage/Index" asp-route-state="finding_recorded">Finding recorded</a>
+    <a asp-page="/Triage/Index" asp-route-state="completed">Completed</a>
+    <a asp-page="/Triage/Index" asp-route-state="cancelled">Cancelled</a>
+</nav>
+
+<section class="panel">
+    @if (Model.Items.Count == 0)
+    {
+        <p class="empty-state">No triage records match this view.</p>
+    }
+    else
+    {
+        <div class="queue-list">
+            @foreach (var item in Model.Items)
+            {
+                <a asp-page="/Triage/Detail" asp-route-id="@item.Id">
+                    <span>
+                        <strong>@item.NormalizedVehicleRegistration</strong>
+                        <small>Opened @item.CreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</small>
+                    </span>
+                    <span>
+                        <strong>@IndexModel.StateLabel(item.State)</strong>
+                        <small>@(item.AssigneeId is null ? "Unassigned" : $"Assigned: {item.AssigneeId}")</small>
+                    </span>
+                </a>
+            }
+        </div>
+    }
+</section>

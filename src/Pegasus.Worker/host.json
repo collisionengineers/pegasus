@@ -14,7 +14,8 @@
       "batchSize": 4,
       "newBatchThreshold": 2,
       "visibilityTimeout": "00:05:00",
-      "maxDequeueCount": 5
+      "maxDequeueCount": 5,
+      "messageEncoding": "none"
     }
   }
 }

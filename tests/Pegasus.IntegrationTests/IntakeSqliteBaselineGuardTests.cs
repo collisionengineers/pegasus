@@ -21,7 +21,8 @@ public sealed class IntakeSqliteBaselineGuardTests
         Assert.Equal(
             "20260724104624_InitialProviderNeutralIntake|" +
             "20260727170804_ProviderDomainReferenceSnapshotV1|" +
-            "20260729150000_DocumentCustodyAndRequests",
+            "20260729150000_DocumentCustodyAndRequests|" +
+            "20260729152105_WorkflowTriageEmailEvidence",
             await ScalarAsync<string>(
                 connection,
                 """

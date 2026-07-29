@@ -31,6 +31,24 @@ jobs:
         shell: pwsh
         run: dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"
 
+  qdos-pressure:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - name: QDOS deterministic caller pressure
+        shell: pwsh
+        run: ./scripts/Invoke-QdosAlphaAcceptance.ps1 -Profile CiPressure -SourceRevision '${{ github.sha }}'
+      - name: Retain content-safe pressure evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: qdos-pressure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/qdos-alpha-acceptance/
+          if-no-files-found: error
+
   source-workspaces:
     runs-on: windows-latest
     steps:

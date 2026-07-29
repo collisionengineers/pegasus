@@ -1,0 +1,19 @@
+@page
+@model Pegasus.Web.Pages.Administration.IndexModel
+@{
+    ViewData["Title"] = "Administration";
+}
+
+<h1>Administration</h1>
+<p>Manage staff access using the authenticated, permanently recorded administration routes.</p>
+
+<div class="admin-workspaces">
+    <section>
+        <h2><a asp-page="/Administration/Accounts/Index">Staff accounts and roles</a></h2>
+        <p>Create staff accounts, disable or re-enable access, and assign the Administrator, Engineer, and User roles.</p>
+    </section>
+    <section>
+        <h2><a asp-page="/Administration/Access/Index">Access review</a></h2>
+        <p>Review current staff access and record an attributable review decision.</p>
+    </section>
+</div>

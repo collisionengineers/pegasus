@@ -1,6 +1,6 @@
 # Azure deployment plan
 
-Status: **Target design only — not runnable, not production-ready, and not approved for validation deployment or provisioning.**
+Status: **Offline/replay release contract is runnable; Azure activation is fail-closed, not approved for validation deployment or provisioning.**
 
 Last reviewed: 2026-07-23, Europe/London.
 
@@ -58,52 +58,53 @@ Before provisioning, recheck:
 - two storage accounts per environment;
 - role-assignment authority for the provisioning principal.
 
-## Intended authorised-terminal route (not runnable)
+## Runnable offline/replay route
 
-The release owner uses an authorised terminal with committed Bicep and `azd`.
-This is not a GitHub Actions/OIDC route, and `azd up` must not be used for a
-production release because it merges provision, package, and deployment without
-the required migration boundary.
+The release owner may create reproducible, local-only artifacts from a clean
+output path. This route uses source-cleared, cache-only locked .NET and tool restore, publishes the
+existing Web and Worker projects once, generates the existing EF idempotent
+migration script, writes deterministic ZIP metadata, and records SHA-256 hashes
+with the supplied source revision. It does not authenticate to Azure, create
+resources, apply migrations, or deploy packages.
 
-The intended order is local validation; one-time Web, Worker, and migration
-bundle creation with recorded hashes; approved preview/provision; explicit
-immutable migration; Web package deployment; live/ready probes; Worker package
-deployment; then smoke evidence. Prior application packages are retained for
-redeployment; schema rollback is not a down-migration.
+From the repository root, use the approved green revision as provenance:
 
-The current scaffold cannot perform that order. `azure.yaml` has no migration
-step; `dotnet ef` is not pinned or available; `AZURE_PRINCIPAL_NAME` needs a
-preflight; the least-privilege Entra directory-resolution path for `CREATE USER
-... FROM EXTERNAL PROVIDER` is unresolved; package paths, target runtimes,
-pinned tools/dependencies, hashes/provenance, and build-once/deploy-same-artifact
-proof are absent; and `SCM_DO_BUILD_DURING_DEPLOYMENT=true` conflicts with
-immutable package deployment. A separate infrastructure implementation must
-close these gaps before any command below is treated as executable.
+```powershell
+pwsh ./scripts/Build-ReleaseArtifacts.ps1 `
+  -SourceRevision 1c2fa19 `
+  -OutputDirectory ./artifacts/release/1c2fa19
 
-## Target release order (not executable)
+pwsh ./scripts/Test-AzureDeploymentPlan.ps1 `
+  -ArtifactDirectory ./artifacts/release/1c2fa19
+```
 
-This is the ADR-0009 order, not a command runbook. Every cloud action requires
-separate exact approval for its target, scope, cost, and data boundary. The
-placeholders below cannot be resolved until the listed gaps have a separate
-infrastructure implementation.
+`Build-ReleaseArtifacts.ps1` refuses an existing output directory so a replay
+cannot mix stale bytes with a new manifest. Its three deployable inputs are
+`web.zip`, `worker.zip`, and `migration.zip`; `release-manifest.json` binds
+their names, lengths, hashes, runtimes, and source revision. The test script
+re-hashes all inputs, verifies required archive contents and fixed ZIP timestamps,
+then compiles Bicep locally.
 
-1. Validate locally and review the dated inventory; an authorised refresh is
-   required before relying on any live fact.
-2. Create Web, Worker, and migration bundles once from the approved revision,
-   recording package paths, target runtimes, tool/dependency versions, hashes,
-   and build-once/deploy-same-artifact provenance. **Not implemented.**
-3. Preflight the authorised terminal identity, `AZURE_PRINCIPAL_NAME`, and the
-   least-privilege Entra resolution needed for `CREATE USER ... FROM EXTERNAL
-   PROVIDER`; then preview and provision only the approved new `0.1.0-alpha.1` target, never
-   `rg-collisionspike-dev`. **Identity path unresolved.**
-4. Apply the explicit immutable migration bundle before application deployment.
-   **No migration bundle or `azure.yaml` migration step exists.**
-5. Deploy the hashed Web package; record live and ready probe evidence. **Package
-   route and remote-build removal are not implemented.**
-6. Deploy the hashed Worker package and record smoke evidence. Do not connect
-   genuine corpus data or live Outlook, Box, or EVA until each integration
-   cutover is separately approved.
+The Bicep entrypoint permits only `deploymentMode=offline-replay`. Its resource
+group and platform module are conditioned on the unreachable
+`approved-live-deployment` value, so parameter validation prevents Azure resource
+creation from this revision. This is deliberate fail-closed behavior, not a
+deployment switch.
 
+## Azure activation gate
+
+No runnable Azure activation route exists. The concrete gate is separate,
+recorded approval that names the exact subscription, resource group, principal,
+cost scope, data boundary, and migration/deployment sequence, plus a fresh
+authorised-terminal recheck of service availability, quota, pricing,
+role-assignment authority, target names, SQL Entra administrator, and external
+credential readiness.
+
+Only after that evidence exists may a separate infrastructure change replace the
+fail-closed Bicep mode and address the remaining platform gap:
+`SCM_DO_BUILD_DURING_DEPLOYMENT=true` must be removed before immutable package
+deployment can be authorised. Applying the idempotent migration bundle remains
+an explicit pre-application step; schema rollback is not a down-migration.
 ## Deployment blockers
 
 - User approval to create chargeable Azure resources has not been given.
@@ -111,8 +112,7 @@ infrastructure implementation.
 - Document Intelligence F0 ownership/reuse has not been decided.
 - SQL Entra administrator name/object ID must be confirmed at deployment time.
 - GitHub Actions/OIDC deployment is a `Not planned` boundary, not a missing scaffold item.
-- The direct-terminal packaging, migration, identity, Entra-resolution and
-  remote-build-removal work described above is not implemented.
+- Offline Web, Worker, and migration artifact creation and hash verification are implemented; Azure deployment remains blocked because no activation approval exists, the Entra identity/resolution route is unresolved, and remote-build removal has not been implemented.
 - External integration credentials and rotation sequence are not prepared.
 
 This file must not be changed to `Ready for Validation` merely because Bicep compiles.

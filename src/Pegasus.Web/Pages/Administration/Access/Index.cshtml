@@ -1,0 +1,49 @@
+@page
+@model Pegasus.Web.Pages.Administration.Access.IndexModel
+@{
+    ViewData["Title"] = "Access review";
+}
+
+<h1>Access review</h1>
+<p><a asp-page="/Administration/Index">Back to Administration</a></p>
+
+@if (TempData["AdministrationStatus"] is string status)
+{
+    <div role="status">@status</div>
+}
+
+<div asp-validation-summary="ModelOnly"></div>
+@if (Model.Accounts.Count == 0)
+{
+    <p>No staff accounts are available for review.</p>
+}
+else
+{
+    <table>
+        <thead>
+            <tr><th>Username</th><th>Status</th><th>Roles</th><th>Last reviewed (UTC)</th><th>Record review</th></tr>
+        </thead>
+        <tbody>
+        @foreach (var account in Model.Accounts)
+        {
+            <tr>
+                <td>@account.UserName</td>
+                <td>@(account.IsEnabled ? "Enabled" : "Disabled")</td>
+                <td>@string.Join(", ", account.Roles)</td>
+                <td>@(account.LastAccessReviewAtUtc?.ToString("u") ?? "Not recorded")</td>
+                <td>
+                    <form method="post" asp-page-handler="Review">
+                        <input type="hidden" name="StaffId" value="@account.Id" />
+                        <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
+                        <label>
+                            Reason
+                            <input name="Reason" required maxlength="1000" />
+                        </label>
+                        <button type="submit">Record reviewed</button>
+                    </form>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}

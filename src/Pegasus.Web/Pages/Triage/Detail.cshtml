@@ -1,0 +1,85 @@
+@page "{id:guid}"
+@model Pegasus.Web.Pages.Triage.DetailModel
+@{
+    ViewData["Title"] = "Triage detail";
+    var record = Model.Triage.Record;
+}
+
+<header class="page-heading">
+    <div>
+        <p class="eyebrow">Triage</p>
+        <h1>@record.NormalizedVehicleRegistration</h1>
+        <p class="lede">@DetailModel.StateLabel(record.State)</p>
+    </div>
+    <a class="secondary-action" asp-page="/Triage/Index">Back to queue</a>
+</header>
+
+<div class="review-grid">
+    <section class="panel" aria-labelledby="triage-title">
+        <h2 id="triage-title" class="section-label">Triage record</h2>
+        <dl class="detail-list">
+            <div><dt>State</dt><dd>@DetailModel.StateLabel(record.State)</dd></div>
+            <div><dt>Assignee</dt><dd>@(record.AssigneeId?.ToString() ?? "Unassigned")</dd></div>
+            <div><dt>Linked case</dt><dd>@(record.LinkedCaseId?.ToString() ?? "Not linked")</dd></div>
+            <div><dt>Opened</dt><dd>@Model.Triage.CreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd></div>
+            <div><dt>Version</dt><dd>@record.Version</dd></div>
+        </dl>
+    </section>
+
+    <section class="panel" aria-labelledby="origin-title">
+        <h2 id="origin-title" class="section-label">Intake source mapping</h2>
+        <dl class="detail-list">
+            <div><dt>Channel</dt><dd>@DetailModel.SourceChannelLabel(record.Origin.SourceIdentity.Channel)</dd></div>
+            <div><dt>Source receipt</dt><dd>@record.Origin.SourceIdentity.ExternalReceiptToken</dd></div>
+            <div><dt>Receipt ID</dt><dd>@record.Origin.ReceiptId</dd></div>
+            <div><dt>Evaluation revision</dt><dd>@record.Origin.EvaluationRevisionId</dd></div>
+            <div><dt>Source SHA-256</dt><dd><code>@record.Origin.SourceHash</code></dd></div>
+        </dl>
+    </section>
+</div>
+
+<section class="panel section-gap" aria-labelledby="findings-title">
+    <h2 id="findings-title" class="section-label">Recorded findings</h2>
+    @if (Model.Triage.Findings.Count == 0)
+    {
+        <p class="empty-state">No findings have been recorded.</p>
+    }
+    else
+    {
+        <div class="field-grid">
+            @foreach (var finding in Model.Triage.Findings)
+            {
+                <article class="field-card">
+                    <h3>@finding.RecordedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</h3>
+                    <strong>@(finding.Roadworthiness?.ToString() ?? "No roadworthiness finding")</strong>
+                    <small>@(finding.Assessment?.ToString() ?? "No assessment finding")</small>
+                    <small>@finding.Reason</small>
+                    @if (finding.SupersedesFindingId is { } priorFinding)
+                    {
+                        <small>Supersedes finding @priorFinding</small>
+                    }
+                </article>
+            }
+        </div>
+    }
+</section>
+
+<section class="panel section-gap" aria-labelledby="evidence-title">
+    <h2 id="evidence-title" class="section-label">Response evidence</h2>
+    @if (Model.Triage.ResponseEvidence.Count == 0)
+    {
+        <p class="empty-state">No response evidence has been linked.</p>
+    }
+    else
+    {
+        <ul class="evidence-list">
+            @foreach (var evidence in Model.Triage.ResponseEvidence)
+            {
+                <li>
+                    <strong>@evidence.LinkedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</strong>
+                    <span>Evidence @evidence.SentEvidenceId: @evidence.Reason</span>
+                </li>
+            }
+        </ul>
+    }
+</section>

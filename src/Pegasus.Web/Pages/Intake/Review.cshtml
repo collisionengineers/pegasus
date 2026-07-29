@@ -17,6 +17,11 @@
 {
     <div class="notice" role="status">This source receipt was already processed. The existing intake record is shown.</div>
 }
+@if (TempData["InspectionAddressStatus"] is string inspectionAddressStatus)
+{
+    <div class="notice" role="status">@inspectionAddressStatus</div>
+}
+
 
 <div class="review-grid">
     <section class="panel" aria-labelledby="result-title">
@@ -70,6 +75,119 @@
             <div><dt>Instruction date</dt><dd>@(draft.InstructionDate?.ToString("dd MMM yyyy") ?? "Not resolved")</dd></div>
             <div><dt>Inspection address</dt><dd>@(draft.InspectionAddress ?? "Not resolved")</dd></div>
         </dl>
+    </section>
+}
+<section class="panel form-panel section-gap" aria-labelledby="inspection-address-title">
+    <h2 id="inspection-address-title" class="section-label">Inspection-address confirmation</h2>
+    @if (Model.AddressResolution.Evaluation.Suggestion is { } addressSuggestion)
+    {
+        <dl class="detail-list">
+            <div><dt>Suggestion</dt><dd>@addressSuggestion.Value</dd></div>
+            <div><dt>Evidence type</dt><dd>@(addressSuggestion.Kind == Pegasus.Core.Address.InspectionAddressEvidenceKind.ImageBasedAssessment ? "Image Based Assessment instruction" : "Extracted physical address")</dd></div>
+            <div><dt>Status</dt><dd>@Model.AddressResolution.State</dd></div>
+            @if (Model.AddressResolution.ResolvedValue is not null)
+            {
+                <div><dt>Confirmed value</dt><dd>@Model.AddressResolution.ResolvedValue</dd></div>
+                <div><dt>Confirmed</dt><dd>@Model.AddressResolution.ResolvedAtUtc?.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd></div>
+                <div><dt>Confirmed by</dt><dd>Staff @Model.AddressResolution.ResolvedByStaffId</dd></div>
+            }
+        </dl>
+        <h3 class="section-label">Source provenance</h3>
+        <ul class="plain-list">
+            @foreach (var provenance in addressSuggestion.Provenance)
+            {
+                <li>@provenance.SourceLabel · @provenance.Source · @provenance.PolicyKey v@provenance.PolicyVersion</li>
+            }
+        </ul>
+
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+        <form method="post" asp-page-handler="AcceptAddress" asp-route-id="@Model.Receipt.Id">
+            <input asp-for="ExpectedAddressReceiptVersion" type="hidden" />
+            <input asp-for="AddressSuggestionFingerprint" type="hidden" />
+            <input asp-for="AddressOperationId" type="hidden" />
+            <button type="submit" class="primary-action">Accept suggestion</button>
+        </form>
+
+        <form method="post" asp-page-handler="CorrectAddress" asp-route-id="@Model.Receipt.Id">
+            <input asp-for="ExpectedAddressReceiptVersion" type="hidden" />
+            <input asp-for="AddressSuggestionFingerprint" type="hidden" />
+            <input asp-for="AddressOperationId" type="hidden" />
+            <label asp-for="CorrectedInspectionAddress">Corrected inspection address</label>
+            <textarea asp-for="CorrectedInspectionAddress" maxlength="1000" rows="3"></textarea>
+            <span asp-validation-for="CorrectedInspectionAddress" class="field-validation"></span>
+            <button type="submit" class="secondary-action">Record correction</button>
+        </form>
+    }
+    else
+    {
+        <p class="failure-detail">
+            Missing or conflicting physical-address evidence remains unresolved. Pegasus will not infer an address from a provider, spreadsheet, geocoder or model.
+        </p>
+        @if (Model.AddressResolution.Evaluation.ConflictingEvidence.Count > 0)
+        {
+            <ul class="evidence-list">
+                @foreach (var evidence in Model.AddressResolution.Evaluation.ConflictingEvidence)
+                {
+                    <li>
+                        <strong>@evidence.Value</strong>
+                        <span>@evidence.Provenance.SourceLabel · @evidence.Provenance.Source · @evidence.Provenance.PolicyKey v@evidence.Provenance.PolicyVersion</span>
+                    </li>
+                }
+            </ul>
+        }
+    }
+</section>
+
+
+@if (Model.Receipt.Decision == Pegasus.Core.Intake.IntakeDecision.DraftReady)
+{
+    <section class="panel form-panel section-gap" aria-labelledby="accept-title">
+        <h2 id="accept-title" class="section-label">Accept as case</h2>
+        <p>Confirm the principal, case type and evidence completeness before allocating an immutable case reference.</p>
+        <form method="post" asp-page-handler="Accept" asp-route-id="@Model.Receipt.Id">
+            <input asp-for="AcceptanceOperationKey" type="hidden" />
+            <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+
+            <label asp-for="PrincipalCode">Confirmed principal code</label>
+            <input asp-for="PrincipalCode" maxlength="20" autocomplete="off" />
+            <span asp-validation-for="PrincipalCode" class="field-validation"></span>
+
+            <label asp-for="CaseType">Case type</label>
+            <select asp-for="CaseType">
+                <option value="@Pegasus.Core.Cases.CaseType.Inspection">Inspection</option>
+                <option value="@Pegasus.Core.Cases.CaseType.Audit">Standalone Audit</option>
+                <option value="@Pegasus.Core.Cases.CaseType.InspectionAndAudit">Inspection and Audit</option>
+            </select>
+            <span asp-validation-for="CaseType" class="field-validation"></span>
+
+            <label asp-for="StandaloneAuditAssessment">Standalone Audit assessment</label>
+            <select asp-for="StandaloneAuditAssessment">
+                <option value="">Not applicable</option>
+                <option value="@Pegasus.Core.Cases.AuditAssessment.Repairable">Repairable</option>
+                <option value="@Pegasus.Core.Cases.AuditAssessment.TotalLoss">Total loss</option>
+            </select>
+            <span asp-validation-for="StandaloneAuditAssessment" class="field-validation"></span>
+            <small>This must be confirmed for a standalone Audit and left blank for every other case type.</small>
+
+            <label>
+                <input asp-for="InstructionComplete" />
+                Instruction evidence is complete
+            </label>
+            <label>
+                <input asp-for="InstructionConfirmedByStaff" />
+                I have confirmed the instruction evidence
+            </label>
+            <label>
+                <input asp-for="ImagesComplete" />
+                Image evidence is complete
+            </label>
+            <label>
+                <input asp-for="ImagesConfirmedByStaff" />
+                I have confirmed the image evidence
+            </label>
+
+            <button type="submit" class="primary-action">Accept and allocate case reference</button>
+        </form>
     </section>
 }
 

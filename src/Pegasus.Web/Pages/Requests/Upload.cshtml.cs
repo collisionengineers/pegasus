@@ -1,0 +1,218 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Pegasus.Core.Documents;
+
+namespace Pegasus.Web.Pages.Requests;
+
+[AllowAnonymous]
+[ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
+public sealed partial class UploadModel(
+    IGetRequestUpload getRequestUpload,
+    IUploadToRequest uploadToRequest,
+    RequestUploadAttemptLimiter attemptLimiter,
+    ILogger<UploadModel> logger) : PageModel
+{
+    [BindProperty(SupportsGet = true)]
+    public string Token { get; set; } = string.Empty;
+
+    [BindProperty]
+    public IFormFile? Upload { get; set; }
+
+    [BindProperty]
+    public string OperationKey { get; set; } = string.Empty;
+
+    public RequestUploadPublicView? UploadPolicy { get; private set; }
+
+    public string? StatusMessage { get; private set; }
+
+    public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
+    {
+        UploadPolicy = await getRequestUpload.ExecuteAsync(Token, cancellationToken);
+        if (UploadPolicy is null)
+        {
+            return NotFound();
+        }
+
+        OperationKey = NewOperationKey();
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
+    {
+        UploadPolicy = await getRequestUpload.ExecuteAsync(Token, cancellationToken);
+        if (UploadPolicy is null)
+        {
+            return NotFound();
+        }
+
+        if (!Guid.TryParseExact(OperationKey, "N", out var operationId))
+        {
+            ModelState.AddModelError(string.Empty, "The upload operation is invalid. Reload the link and try again.");
+        }
+
+        if (Upload is null)
+        {
+            ModelState.AddModelError(nameof(Upload), "Choose a document to upload.");
+        }
+        else if (Upload.Length == 0)
+        {
+            ModelState.AddModelError(nameof(Upload), "The selected document is empty.");
+        }
+        else if (Upload.Length > UploadPolicy.MaximumFileBytes || Upload.Length > int.MaxValue)
+        {
+            ModelState.AddModelError(nameof(Upload), $"The selected document is larger than the {FormatBytes(Math.Min(UploadPolicy.MaximumFileBytes, int.MaxValue))} limit.");
+        }
+
+        if (!ModelState.IsValid)
+        {
+            return Page();
+        }
+
+        if (!attemptLimiter.TryAcquire(Token, out var attemptsInCurrentWindow))
+        {
+            Response.StatusCode = StatusCodes.Status429TooManyRequests;
+            ModelState.AddModelError(string.Empty, "Too many upload attempts were made. Wait before trying again.");
+            return Page();
+        }
+
+        await using var content = new MemoryStream((int)Upload!.Length);
+        await Upload.CopyToAsync(content, cancellationToken);
+
+        try
+        {
+            var result = await uploadToRequest.ExecuteAsync(
+                new(
+                    Token,
+                    new(
+                        Path.GetFileName(Upload.FileName),
+                        string.IsNullOrWhiteSpace(Upload.ContentType)
+                            ? "application/octet-stream"
+                            : Upload.ContentType,
+                        content.ToArray(),
+                        operationId.ToString("N")),
+                    attemptsInCurrentWindow),
+                cancellationToken);
+
+            switch (result.Decision)
+            {
+                case RequestUploadDecision.Accepted:
+                case RequestUploadDecision.Replay:
+                    StatusMessage = "Your document was received and retained securely.";
+                    OperationKey = NewOperationKey();
+                    Upload = null;
+                    UploadPolicy = await getRequestUpload.ExecuteAsync(Token, cancellationToken);
+                    return UploadPolicy is null
+                        ? Content("Your document was received and retained securely.", "text/plain")
+                        : Page();
+                case RequestUploadDecision.RateLimited:
+                    Response.StatusCode = StatusCodes.Status429TooManyRequests;
+                    ModelState.AddModelError(string.Empty, "Too many upload attempts were made. Wait before trying again.");
+                    break;
+                case RequestUploadDecision.InvalidFile:
+                    ModelState.AddModelError(nameof(Upload), "This file type cannot be accepted. Choose one of the permitted document types.");
+                    break;
+                case RequestUploadDecision.LimitExceeded:
+                    ModelState.AddModelError(nameof(Upload), "This request has reached its document or size limit.");
+                    break;
+                case RequestUploadDecision.OperationConflict:
+                    ModelState.AddModelError(string.Empty, "This upload operation was already used for different content. Reload the link and try again.");
+                    break;
+                default:
+                    return NotFound();
+            }
+
+            return Page();
+        }
+        catch (Exception exception) when (exception is ArgumentException
+            or InvalidOperationException
+            or IOException
+            or UnauthorizedAccessException
+            or Microsoft.EntityFrameworkCore.DbUpdateException)
+        {
+            LogPublicRequestUploadFailure(logger, exception);
+            ModelState.AddModelError(string.Empty, "The document could not be retained. Try again using the same upload operation.");
+            return Page();
+        }
+    }
+
+    public string AcceptedMediaTypes => UploadPolicy is null
+        ? string.Empty
+        : string.Join(',', UploadPolicy.AllowedMediaTypes.Order(StringComparer.OrdinalIgnoreCase));
+
+    public string MaximumFileSize => UploadPolicy is null
+        ? string.Empty
+        : FormatBytes(UploadPolicy.MaximumFileBytes);
+
+    private static string FormatBytes(long bytes) => bytes % (1024 * 1024) == 0
+        ? $"{bytes / (1024 * 1024)} MB"
+        : $"{bytes / 1024} KB";
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "A public document request upload failed.")]
+    private static partial void LogPublicRequestUploadFailure(ILogger logger, Exception exception);
+
+    private static string NewOperationKey() => Guid.NewGuid().ToString("N");
+}
+
+public sealed class RequestUploadAttemptLimiter(RequestUploadLimits limits, TimeProvider timeProvider)
+{
+    private readonly object sync = new();
+    private readonly Dictionary<string, AttemptWindow> windows = new(StringComparer.Ordinal);
+
+    public bool TryAcquire(string token, out int attemptsInCurrentWindow)
+    {
+        string digest;
+        try
+        {
+            digest = RequestUploadToken.ComputeDigest(token);
+        }
+        catch (ArgumentException)
+        {
+            attemptsInCurrentWindow = limits.RateLimit;
+            return false;
+        }
+
+        lock (sync)
+        {
+            var now = timeProvider.GetUtcNow();
+            if (!windows.TryGetValue(digest, out var window)
+                || now - window.StartedAtUtc >= limits.RateLimitWindow)
+            {
+                attemptsInCurrentWindow = 0;
+                windows[digest] = new(now, 1);
+                RemoveExpiredWindows(now, digest);
+                return true;
+            }
+
+            attemptsInCurrentWindow = window.Attempts;
+            if (window.Attempts >= limits.RateLimit)
+            {
+                return false;
+            }
+
+            windows[digest] = window with { Attempts = checked(window.Attempts + 1) };
+            return true;
+        }
+    }
+
+    private void RemoveExpiredWindows(DateTimeOffset now, string currentDigest)
+    {
+        if (windows.Count < 1024)
+        {
+            return;
+        }
+
+        foreach (var entry in windows.ToArray())
+        {
+            if (!string.Equals(entry.Key, currentDigest, StringComparison.Ordinal)
+                && now - entry.Value.StartedAtUtc >= limits.RateLimitWindow)
+            {
+                windows.Remove(entry.Key);
+            }
+        }
+    }
+
+    private sealed record AttemptWindow(DateTimeOffset StartedAtUtc, int Attempts);
+}

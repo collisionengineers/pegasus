@@ -1,0 +1,78 @@
+@page "/cases/{caseId:guid}/documents"
+@model Pegasus.Web.Pages.Documents.CaseModel
+@{
+    ViewData["Title"] = "Case documents";
+}
+
+<header class="page-heading">
+    <div>
+        <p class="eyebrow">Case custody</p>
+        <h1>Case documents</h1>
+        <p class="lede">Retain a staff document or create a one-time link for a third party to upload directly to this case.</p>
+    </div>
+</header>
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="status-card" role="status">@Model.StatusMessage</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(Model.RequestUploadUrl))
+{
+    <section class="panel form-panel" aria-labelledby="request-link-title">
+        <h2 id="request-link-title" class="section-label">Secret upload link</h2>
+        <label for="request-upload-url">Copy this link now</label>
+        <input id="request-upload-url" value="@Model.RequestUploadUrl" readonly />
+    </section>
+}
+
+@if (Model.RequestId != Guid.Empty)
+{
+    <section class="panel form-panel" aria-labelledby="revoke-request-title">
+        <h2 id="revoke-request-title" class="section-label">Revoke this request</h2>
+        <form method="post" asp-page-handler="RevokeRequest">
+            <input asp-for="CaseId" type="hidden" />
+            <input asp-for="UploadOperationKey" type="hidden" />
+            <input asp-for="RequestOperationKey" type="hidden" />
+            <input asp-for="RequestId" type="hidden" />
+            <input asp-for="RequestVersion" type="hidden" />
+            <input asp-for="RevokeOperationKey" type="hidden" />
+            <label asp-for="RevokeReason">Reason</label>
+            <textarea asp-for="RevokeReason" rows="3" maxlength="2000"></textarea>
+            <span asp-validation-for="RevokeReason" class="field-validation"></span>
+            <button type="submit" class="secondary-action">Revoke upload request</button>
+        </form>
+    </section>
+}
+
+<section class="panel form-panel" aria-labelledby="staff-upload-title">
+    <h2 id="staff-upload-title" class="section-label">Retain a document</h2>
+    <form method="post" enctype="multipart/form-data" asp-page-handler="Upload">
+        <input asp-for="CaseId" type="hidden" />
+        <input asp-for="UploadOperationKey" type="hidden" />
+        <input asp-for="RequestOperationKey" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+        <label asp-for="Upload">Document</label>
+        <input asp-for="Upload" type="file" />
+        <span asp-validation-for="Upload" class="field-validation"></span>
+        <label asp-for="SemanticRole">Document type</label>
+        <select asp-for="SemanticRole">
+            @foreach (var role in Model.SemanticRoles)
+            {
+                <option value="@role">@role</option>
+            }
+        </select>
+        <button type="submit" class="primary-action">Retain document</button>
+    </form>
+</section>
+
+<section class="panel form-panel" aria-labelledby="request-title">
+    <h2 id="request-title" class="section-label">Request documents</h2>
+    <p>The generated URL contains a secret token. Share it only with the intended recipient.</p>
+    <form method="post" asp-page-handler="CreateRequest">
+        <input asp-for="CaseId" type="hidden" />
+        <input asp-for="UploadOperationKey" type="hidden" />
+        <input asp-for="RequestOperationKey" type="hidden" />
+        <button type="submit" class="primary-action">Create upload request</button>
+    </form>
+</section>

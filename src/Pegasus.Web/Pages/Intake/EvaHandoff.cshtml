@@ -1,0 +1,86 @@
+@page "{id:guid}"
+@model Pegasus.Web.Pages.Intake.EvaHandoffModel
+@{
+    ViewData["Title"] = "EVA handoff";
+}
+
+<header class="page-heading">
+    <div>
+        <p class="eyebrow">Manual EVA handoff</p>
+        <h1>@Model.Preparation.Reference</h1>
+        <p class="lede">Review the deterministic JSON, retained image, and SHA-256 manifest boundary before a manual drag-and-drop.</p>
+    </div>
+    <a class="secondary-action" asp-page="/Intake/Review" asp-route-id="@Model.Preparation.CaseId">Back to intake review</a>
+</header>
+
+@if (!Model.Preparation.CanGenerate)
+{
+    <section class="panel" aria-labelledby="activation-gate-title">
+        <h2 id="activation-gate-title" class="section-label">Generation unavailable</h2>
+        <div class="notice" role="status">
+            Pegasus will not create or send an EVA handoff until every listed gate is satisfied. No EVA network call or Engineer assignment is attempted.
+        </div>
+        <ul class="plain-list">
+            @foreach (var reason in Model.Preparation.BlockingReasons)
+            {
+                <li>@reason</li>
+            }
+        </ul>
+    </section>
+}
+
+<section class="panel section-gap" aria-labelledby="bundle-contract-title">
+    <h2 id="bundle-contract-title" class="section-label">Deterministic bundle contract</h2>
+    <p>The offline/replay format contains UTF-8 <code>eva.json</code>, explicitly ordered retained images, and <code>manifest.sha256</code>. Repeating the same approved inputs produces the same bytes and hash.</p>
+    <p>The observed JSON key order is:</p>
+    <ol>
+        <li>Work Provider</li>
+        <li>VRM</li>
+        <li>Vehicle Model</li>
+        <li>Claimant Name</li>
+        <li>Reference</li>
+        <li>Incident Date</li>
+        <li>Instruction Date</li>
+        <li>Inspection Date</li>
+        <li>Inspection Address</li>
+        <li>Accident Circumstances</li>
+        <li>VAT Status</li>
+        <li>Mileage</li>
+        <li>Mileage Unit</li>
+    </ol>
+</section>
+
+<section class="panel section-gap" aria-labelledby="images-title">
+    <h2 id="images-title" class="section-label">Retained image selection</h2>
+    @if (Model.Preparation.Images.Count == 0)
+    {
+        <p class="empty-state">No retained JPEG or PNG image occurrences are available.</p>
+    }
+    else
+    {
+        <form method="post" asp-page-handler="Generate">
+            <div asp-validation-summary="All" class="failure-detail" role="alert"></div>
+            <input asp-for="ExpectedCaseVersion" type="hidden" />
+            <input asp-for="OperationKey" type="hidden" />
+            <div class="field-grid">
+                @foreach (var image in Model.Preparation.Images)
+                {
+                    <article class="field-card">
+                        <label>
+                            <input name="SelectedImageIds"
+                                   type="checkbox"
+                                   value="@image.AssetId"
+                                   checked="@Model.SelectedImageIds.Contains(image.AssetId)"
+                                   disabled="@(!image.CustodyConfirmed)" />
+                            <strong>@image.FileName</strong>
+                        </label>
+                        <small>@image.MediaType · @image.ContentLength.ToString("N0") bytes</small>
+                        <small>SHA-256 @image.Sha256</small>
+                        <small>@(image.CustodyConfirmed ? "Custody confirmed" : "Custody confirmation required")</small>
+                    </article>
+                }
+            </div>
+            <button class="primary-action" type="submit" disabled="@(!Model.Preparation.CanGenerate)">Generate download bundle</button>
+        </form>
+    }
+</section>

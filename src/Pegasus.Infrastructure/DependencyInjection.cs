@@ -21,7 +21,11 @@ public static class DependencyInjection
     {
         ArgumentNullException.ThrowIfNull(configureDatabase);
 
-        services.AddDbContextFactory<PegasusDbContext>(configureDatabase);
+        services.AddDbContextFactory<PegasusDbContext>((serviceProvider, options) =>
+        {
+            options.UseOpenIddict();
+            configureDatabase(serviceProvider, options);
+        });
 
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<EfIntakeReceiptStore>();

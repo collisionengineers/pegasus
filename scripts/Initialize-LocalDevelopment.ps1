@@ -1,47 +1,68 @@
 [CmdletBinding()]
-param()
+param(
+    [ValidatePattern('^[a-z0-9][a-z0-9-]{0,63}$')]
+    [string]$RunId = 'qdos-alpha-local',
+    [string]$ApprovalPath
+)
 
-Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-
 $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-$doctorScript = Join-Path $repositoryRoot 'scripts/Invoke-Doctor.ps1'
-$playwrightScript = Join-Path $HOME '.nuget/packages/microsoft.playwright/1.61.0/tools/net8.0/any/playwright.ps1'
+$runRoot = Join-Path $repositoryRoot (Join-Path 'artifacts/local-development' $RunId)
+$manifestPath = Join-Path $runRoot 'run-manifest.json'
 
-function Invoke-RequiredCommand {
+function ConvertTo-DeterministicJson {
+    param([Parameter(Mandatory)][object]$Value)
+
+    $json = $Value | ConvertTo-Json -Depth 20
+    return (($json -replace "`r`n?", "`n").TrimEnd([char[]]@("`n")) + "`n")
+}
+
+function Write-DeterministicJson {
     param(
-        [Parameter(Mandatory)] [string]$Description,
-        [Parameter(Mandatory)] [scriptblock]$Command
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][object]$Value
     )
 
-    & $Command
-    if ($LASTEXITCODE -ne 0) {
-        throw "$Description failed with exit code $LASTEXITCODE."
-    }
+    [System.IO.Directory]::CreateDirectory((Split-Path -Parent $Path)) | Out-Null
+    [System.IO.File]::WriteAllText(
+        $Path,
+        (ConvertTo-DeterministicJson -Value $Value),
+        [System.Text.UTF8Encoding]::new($false))
 }
 
-Push-Location $repositoryRoot
-try {
-    Invoke-RequiredCommand -Description 'dotnet tool restore' -Command { dotnet tool restore }
-    Invoke-RequiredCommand -Description 'locked .NET restore' -Command { dotnet restore ./Pegasus.slnx --locked-mode }
-    Invoke-RequiredCommand -Description 'npm ci' -Command { npm ci }
+$doctor = & (Join-Path $PSScriptRoot 'Invoke-Doctor.ps1') -ApprovalPath $ApprovalPath
 
-    if (-not (Test-Path -LiteralPath $playwrightScript -PathType Leaf)) {
-        throw "Microsoft.Playwright 1.61.0 was not restored at '$playwrightScript'. Restore must retain the committed Playwright package before browser installation."
+$databaseDirectory = Join-Path $runRoot 'state'
+$artifactDirectory = Join-Path $runRoot 'intake'
+[System.IO.Directory]::CreateDirectory($databaseDirectory) | Out-Null
+[System.IO.Directory]::CreateDirectory($artifactDirectory) | Out-Null
+
+$webLocalDatabasePath = "../../artifacts/local-development/$RunId/state/pegasus.db"
+$webLocalArtifactPath = "../../artifacts/local-development/$RunId/intake"
+$manifest = [pscustomobject][ordered]@{
+    schemaVersion = 1
+    kind = 'Pegasus.LocalDevelopment.Run'
+    runId = $RunId
+    runtime = [ordered]@{
+        profile = 'DevelopmentOffline'
+        environment = 'Development'
+        webLaunchProfile = 'http'
+        url = 'http://localhost:5233'
     }
-    Invoke-RequiredCommand -Description 'pinned Playwright browser installation' -Command { & $playwrightScript install }
-
-    & $doctorScript -Profile Offline
-    if ($LASTEXITCODE -ne 0) {
-        throw "Offline doctor failed with exit code $LASTEXITCODE. Apply only its printed repair commands and rerun initialization."
+    database = [ordered]@{
+        provider = 'Sqlite'
+        localPath = $webLocalDatabasePath
     }
-
-    Invoke-RequiredCommand -Description 'LocalDB startup' -Command { sqllocaldb start MSSQLLocalDB }
-
-    $localDevelopmentRoot = Join-Path $repositoryRoot 'artifacts/local-development'
-    [System.IO.Directory]::CreateDirectory($localDevelopmentRoot) | Out-Null
-    Write-Output "Local development prerequisites are initialized. Run state will be created under '$localDevelopmentRoot'."
+    intake = [ordered]@{
+        localArtifactPath = $webLocalArtifactPath
+    }
+    replay = [ordered]@{
+        mode = 'deterministic-offline'
+        cloudOperations = 'disabled'
+        workerStarts = $false
+    }
+    alphaActivation = $doctor.alphaActivation
 }
-finally {
-    Pop-Location
-}
+
+Write-DeterministicJson -Path $manifestPath -Value $manifest
+$manifestPath

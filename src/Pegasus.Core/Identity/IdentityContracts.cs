@@ -58,6 +58,12 @@ public sealed class ActionActor
 
         ArgumentNullException.ThrowIfNull(roles);
         var roleSet = roles.ToFrozenSet();
+        if (roleSet.Any(role => !Enum.IsDefined(role)))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(roles),
+                "A staff actor requires recognized current roles.");
+        }
         if (roleSet.Count == 0)
         {
             throw new ArgumentException("An enabled staff actor requires at least one current role.", nameof(roles));

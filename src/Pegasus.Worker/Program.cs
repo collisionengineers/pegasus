@@ -47,9 +47,7 @@ var host = new HostBuilder()
             }
 
             throw new InvalidOperationException($"Unsupported database provider '{databaseProvider}'.");
-        }, serviceProvider => Path.Combine(
-            serviceProvider.GetRequiredService<IHostEnvironment>().ContentRootPath,
-            ".unused-local-intake-artifacts"));
+        }, GetOfflineReplayCustodyRoot);
         services.AddSingleton<IIntakeArtifactStore, AzureBlobIntakeArtifactStore>();
         services.AddScoped<IIntakeWorkStore, EfIntakeWorkStore>();
         services.AddSingleton<IIntakeWorkEnqueuer, AzureQueueIntakeWorkQueue>();
@@ -64,3 +62,25 @@ var host = new HostBuilder()
     .Build();
 
 host.Run();
+
+static string GetOfflineReplayCustodyRoot(IServiceProvider serviceProvider)
+{
+    var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+    if (!string.Equals(
+            configuration["Runtime:Profile"],
+            "DevelopmentOffline",
+            StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "The local custody adapter is disabled. Runtime:Profile must be DevelopmentOffline.");
+    }
+
+    var environment = serviceProvider.GetRequiredService<IHostEnvironment>();
+    var localPath = configuration["Custody:OfflineRootPath"];
+    if (string.IsNullOrWhiteSpace(localPath))
+    {
+        throw new InvalidOperationException(
+            "Custody:OfflineRootPath is required for deterministic offline custody.");
+    }
+    return Path.GetFullPath(Path.Combine(environment.ContentRootPath, localPath));
+}
