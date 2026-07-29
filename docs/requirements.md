@@ -6,6 +6,8 @@ This document is the sole owner of Pegasus intended product requirements. The [c
 
 The [operator notes](operator-notes.md) are the binding source for Collision Engineers’ business process and current-system knowledge. [Architecture](architecture.md) owns what is currently implemented and called. [Operations](operations.md) owns procedures and evidence profiles. [Open decisions](open-decisions.md) owns unresolved material questions. [Design](../design/README.md) owns the durable UI contract.
 
+The accepted [QDOS alpha implementation addendum](decisions/ADR-0014-qdos-alpha-implementation-contract.md) fixes checkpoint 1's clause-specific implementation and Razor/Worker/MCP caller boundary. The existing [QDOS change record](changes/2026-07-27-qdos-alpha-reference-corpora.md) remains the sole delivery/evidence owner. Neither document changes capability allocation or promotes an intended caller to implementation, caller, deployment, or acceptance evidence.
+
 Evidence states remain distinct:
 
 1. allocated to `Now` or a version;
@@ -567,15 +569,17 @@ An Outlook/Graph route must, before activation:
 
 ### QDOS-alpha evaluation boundary
 
-The Development/local email evaluation workbench is delivered separately and is
-not a QDOS-alpha product surface or acceptance checkpoint. QDOS alpha defines
-no `/Development/EmailEvaluation` route, `unchecked`/`checked` workspace
-workflow, evaluator command, reviewer report, or Administrator evaluator
-approval. Separately produced accepted evidence remains a prerequisite where
-the shared mail policy requires it, but the evaluation implementation and
-review mechanics are not QDOS delivery. Shared Core mail policy, production
-intake, Graph replay/live adapters, and their genuine-evidence and caller
-requirements remain in scope.
+The Development/local email evaluation workbench is a separately delivered
+evidence harness and is not a QDOS-alpha product surface, caller, or acceptance
+checkpoint. QDOS adds and claims no evaluator route, `unchecked`/`checked`
+workspace workflow, evaluator command, reviewer report campaign, or
+Administrator evaluator approval. A separately delivered evaluator may exercise
+shared policy and produce accepted, source-labelled evidence where the shared
+mail policy requires it; that call and its review mechanics remain evaluator
+evidence, not QDOS delivery or activation proof. The capability inventory's
+`DOC-CON-052` boundary owns the unchanged evaluator allocations. Shared Core
+mail policy, production intake, Graph replay/live adapters, and their
+genuine-evidence and caller requirements remain in QDOS scope.
 
 ### Outbound correspondence evidence
 
@@ -636,6 +640,8 @@ operator acceptance exist.
 ## Staff MCP and automation
 
 Staff MCP is an authenticated staff caller over the same Core use cases as the Web UI. It must expose only the approved capability/tool inventory, enforce OAuth scopes and Core authorization, return stable resource identities, preserve actor/history, and avoid administration, credential, mailbox-configuration, destructive, or live-send behavior unless separately allocated and accepted.
+
+The exact `0.1.0-alpha.1` Razor, Worker, and `MCP-01`–`MCP-04` caller allocation is recorded in [ADR-0014](decisions/ADR-0014-qdos-alpha-implementation-contract.md#decision). It adds no Development evaluator or broader classified-email MCP caller and does not itself prove any caller.
 
 MCP registration, a tool schema, or an endpoint file is not proof. Each tool requires an exercised real caller, expected success result, authorization failure, validation failure, and audit-history proof.
 

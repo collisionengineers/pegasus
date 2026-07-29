@@ -6,6 +6,8 @@ Intended, implemented, caller-proved, deployed, and accepted are separate eviden
 
 Accepted decisions should move to the appropriate [decision](decisions/README.md) or [change](changes/README.md) record. Delivery status does not belong in this register.
 
+[ADR-0014](decisions/ADR-0014-qdos-alpha-implementation-contract.md) settles checkpoint 1's clause-specific QDOS implementation and Razor/Worker/MCP caller boundary, the separately owned `DOC-CON-052` evaluator boundary, and the post-alpha repository-policy deferral. It does not close the evidence-dependent questions below or prove implementation, a caller, deployment, live verification, or acceptance.
+
 Staff roles and access, principal and historical case-party identity, the Case/PO and case-type rules, Triage’s normal workflow, named terminal outcomes and reasoned reopen, exclusive one-case edit actions, immutable source-occurrence/dispatch identity, and reasoned source/Case or outbound-evidence reassociation are settled. Their canonical clauses are [principal and case-party identity](requirements.md#principal-reference-organisation-and-case-party-identity), [source occurrence and dispatch](requirements.md#source-occurrence-and-dispatch-identity), [matching and reversible association](requirements.md#matching-conflicts-and-reversible-association), [Triage](requirements.md#normal-workflow-and-completion-evidence), [case lifecycle](requirements.md#lifecycle-closure-and-correspondence), [case edit authority](requirements.md#case-edit-authority-and-recovery), [staff role access](requirements.md#staff-role-access-matrix), and [outbound correspondence evidence](requirements.md#outbound-correspondence-evidence). This register may block only the named automatic predicate, transport, credential, or activation detail; it must not reopen those settled behaviors.
 
 ## Mailbox rule activation, automatic matching, and confidence display
@@ -45,6 +47,8 @@ display. None should be inferred.
 The first additional-provider route cohort is allocated to `0.2.0`; the broader
 classified-email workspace and email MCP cohort is allocated to `0.3.0`.
 Neither target closes this evidence gate.
+
+Accepted source-labelled results from the separately delivered evaluator may satisfy a named cohort or holdout prerequisite. Its route, command, reviewer workflow, and UI mechanics are not QDOS callers or checkpoint evidence and do not close route activation, production-intake, Worker, Graph, or operator-acceptance proof.
 
 | Evidence needed | Impact | Recommended default | Decision question |
 |---|---|---|---|
