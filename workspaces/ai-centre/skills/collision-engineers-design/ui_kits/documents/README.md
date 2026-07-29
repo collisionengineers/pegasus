@@ -1,5 +1,8 @@
 # Collision Engineers — Documents & Reports UI Kit
 
+> **Source-workspace boundary:** Retain component/runtime map, replace stale WRITING.md §7 pointer with ce-house-style and root design links; mark examples as sample evidence. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+
+
 Faithful, print-ready recreations of Collision Engineers' **expert report and invoice templates**,
 built from supplied PDFs and the authoritative `collision-engineers-design` visual assets
 (`colors_and_type.css` and `references/document-letterhead.md`). `ce-house-style` remains the

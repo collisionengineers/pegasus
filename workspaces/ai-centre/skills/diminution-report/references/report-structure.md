@@ -1,5 +1,8 @@
 # Report Structure
 
+> **Source-workspace boundary:** Retain output-shape experiment, remove formal/legal policy ownership and final-opinion implication. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+
+
 ## Full expert diminution report
 
 Use this order unless the user supplies a house template:

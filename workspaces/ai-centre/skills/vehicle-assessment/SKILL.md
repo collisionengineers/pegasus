@@ -15,12 +15,14 @@ description: >-
   total-loss-assessment.
 ---
 
+## Authority boundary
+
+This package may produce evidence, candidates, or draft output only. `Pegasus.Core` and an authorised human own every accepted case fact, cost, category, outcome, legal position, and approval.
 # Vehicle Assessment
 
-The broad Collision Engineers front door for photo/document-led vehicle assessment — the
+A source-workspace evidence and candidate-estimate experiment for photo/document-led vehicle assessment — the
 engineer supplies whatever they have: photos, documents, registration/VIN, estimate lines, PAV,
-incident notes. This skill builds the line-by-line costed repair estimate to full defensible
-scope — operations, WUs, labour rate, parts, paint, extras, each line justified — and wraps it
+incident notes. This skill drafts a source-labelled candidate line-by-line repair estimate for human review — operations, WUs, labour rate, parts, paint, extras, each line justified — and wraps it
 in an evidence-led engineer pack. The deliverables rule is stated once, in the Deliverables section below.
 
 **Target voice** (use it throughout): *"The photographs show X. The likely impact path means Y
@@ -181,7 +183,7 @@ other renderer.
 - `references/photo-and-evidence-intake.md` — instruction fields, photo/document checklists, evidence labels, privacy
 - `references/source-governance.md` — conclusion labels, source hierarchy, stale-source and date-scoped-rate rules
 - `references/damage-cataloguing.md` — photo walkthrough, side determination, non-obvious damage, unroadworthy phrases
-- `references/estimate-construction.md` — the estimate spec: costing posture (maximum defensible), canonical table, status flags, justification standard, ceiling rule, sanity checks
+- `references/estimate-construction.md` — the estimate spec: candidate costing posture, canonical table, status flags, justification standard, ceiling rule, sanity checks
 - `references/labour-rates.md` — ABP 2026 rates prose guide
 - `references/extras-package.md` — ABP 2026 extras and conditions
 - `references/abp-reference-data.2026.json` — structured ABP 2026 rates, extras, parts charges, exclusions

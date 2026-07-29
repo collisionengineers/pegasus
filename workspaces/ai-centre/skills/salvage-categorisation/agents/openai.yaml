@@ -1,4 +1,4 @@
 interface:
   display_name: "Salvage Categorisation"
-  short_description: "ABI salvage category decision support"
-  default_prompt: "Use $salvage-categorisation to assess Cat A, B, S, or N evidence and draft a defensible category recommendation."
+  short_description: "Evidence-support experiment for candidate ABI salvage categories"
+  default_prompt: "Use $salvage-categorisation to assemble source-labelled Cat A/B/S/N evidence and a candidate category for Core/operator-approved human review; never accept, decide, approve, or mutate a Pegasus outcome."

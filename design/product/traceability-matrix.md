@@ -1,7 +1,25 @@
 
 # Complete feature traceability matrix
 
-Status: **Planned exhaustive source trace published from the independently reviewed task matrix; no direction approved.** Exactly one row appears for every ID in the canonical [capability inventory](../../docs/product/capabilities.md) (229 total). Horizon is copied from that inventory. Intended owner/caller is Planned unless stated current elsewhere; it is not runtime-call evidence.
+Status: **Planned exhaustive source trace for the selected Operations-first `0.1.0-alpha.1` direction.** Exactly one row appears for every ID in the canonical [capability inventory](../../docs/capabilities.md) (229 total). Horizon is copied from that inventory. Intended owner/caller is Planned unless stated current elsewhere; it is not runtime-call evidence.
+
+## Selected shell and rejected directions
+
+Operations-first was selected on 2026-07-27 because office-wide receiving,
+requests, Triage, due work, queries, and stale-work visibility must precede deep
+case navigation. Its count tiles link to the exact filtered queue, with
+day/week ranges and no stale zero placeholders.
+
+Worklist-first was rejected because one named queue weakened whole-office
+day/week scanning. Case-first was rejected because search/deep context could not
+be the earliest shell and weakened queue visibility. Their comparison rationale
+is retained here; the candidate files and rasters have no runtime payload.
+
+Current Development runtime divergences remain explicit until the QDOS change
+exercises the selected UI: receiving/query/other zero-value tiles, non-link
+cards, Unicode glyphs, and 3px radii differ from the accepted target. Current
+`site.css` amber `#B87A00` and navy `#173B5F` are evidence only; pending/Review
+semantics are accepted, but their exact target values remain open.
 
 | ID and feature | Horizon | Role / state | Intended owner / caller | Negative rule | UI destination |
 |---|---|---|---|---|---|

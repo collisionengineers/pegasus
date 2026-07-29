@@ -1,5 +1,8 @@
 # AQP Competence Boundaries
 
+> **Source-workspace boundary:** Retain useful escalation boundary, but call it source-pack evaluation guidance rather than AQP authority. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+
+
 What this skill may conclude on its own, what stays provisional pending engineer/AQP review, and
 the escalation triggers. The AQP (Approved Qualified Person under the ABI Code of Practice)
 framework is used here as **scope and evaluation guidance, not technical authority** — check

@@ -1,5 +1,8 @@
 # Canonical Query Responses
 
+> **Source-workspace boundary:** Keep as labelled example templates, remove assertions of liability/entitlement as canonical policy, require current operator/Core evidence and approval. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+
+
 Backbone scripts for common TPI/insurer challenges. Fill `[bracketed]` figures from the case and
 use the relevant specialist skill for the technical position before drafting. Keep the independence
 line where appropriate. Add only what the specific query needs - do not paste these blind.

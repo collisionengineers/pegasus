@@ -1,5 +1,8 @@
 # Gotchas — Real Mistakes from Previous Sessions
 
+> **Source-workspace boundary:** Replace historical session anecdotes with a link/index to validator tests and current package checks; delete stale narrative after distillation. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+
+
 These are verified errors. Check each one before building any output. Items 5, 6, 10, 11, 12,
 and 13 apply to the Audatex/EVA payload and PDF; items 14–15 apply to document rendering; the
 rest apply to every assessment.

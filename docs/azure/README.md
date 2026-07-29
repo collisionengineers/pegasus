@@ -1,19 +1,20 @@
 # Azure documentation
 
-This directory separates target architecture from dated live evidence. Nothing
-here authorises a cloud query, provision, deployment, credential change, or
-resource deletion.
+This route separates target design, predecessor transition, dated live evidence,
+and executable operations. Nothing here authorizes a cloud read, provision,
+deployment, credential/account change, data mutation, or resource deletion.
+Every external operation requires separate explicit approval for its exact
+target, scope, cost, and data boundary.
 
-| Question | Owner |
+| Question | Owner and evidence state |
 | --- | --- |
-| What currently exists | [current-inventory.md](current-inventory.md), dated and read-only until an authorised refresh |
-| Target resource/release design | [ADR-0009](../decisions/ADR-0009-direct-terminal-azure-deployment.md) and [`.azure/deployment-plan.md`](../../.azure/deployment-plan.md) |
-| Predecessor retirement | [replacement-and-retirement-plan.md](replacement-and-retirement-plan.md) |
-| Platform delivery work | [operations](../operations.md), [deployment plan](../../.azure/deployment-plan.md), and a current change record when activated |
+| What existed when last inspected? | [Current inventory](current-inventory.md), immutable dated 2026-07-23 live-read evidence; stale until an authorized refresh |
+| What is the intended target topology and release route? | [Deployment plan](../../.azure/deployment-plan.md) and [ADR-0009](../decisions/ADR-0009-direct-terminal-azure-deployment.md); target design only |
+| How is the predecessor replaced and retired? | [Replacement and retirement plan](replacement-and-retirement-plan.md); intent and destructive gates, not execution authority |
+| How are source, validation, deployment, diagnosis, rollback, and recovery performed? | [Operations](../operations.md) plus the active change record; commands are run only in the separately approved evidence state |
 
-The intended route is a direct authorised terminal using committed Bicep and
-`azd`, with an explicit immutable migration before deploying the Web and Worker
-packages. It is not runnable or production-ready: packaging, migration-bundle,
-identity, Entra-resolution, build-provenance, and remote-build-removal gaps are
-listed in the deployment plan. `azd up` is not the production release route, and
-GitHub Actions/OIDC deployment is `Not planned`.
+The intended route is a direct authorized terminal using committed Bicep and
+`azd`, with build-once/deploy-same-artifact provenance and an immutable database
+migration before Web and Worker rollout. `azd up` is not the production
+shortcut. Target names remain unresolved in [open decisions](../open-decisions.md);
+predecessor names and resources are not reused by implication.

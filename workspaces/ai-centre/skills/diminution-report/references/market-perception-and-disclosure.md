@@ -1,5 +1,8 @@
 # Market Perception And Disclosure
 
+> **Source-workspace boundary:** Retain dated market-evidence reasoning only; remove legal/claim entitlement language. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+
+
 Use this when assessing whether repaired accident history would affect market value.
 
 ## Core principle

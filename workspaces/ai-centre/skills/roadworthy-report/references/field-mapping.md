@@ -1,5 +1,15 @@
 # Field Mapping — HS Roadworthy Report
 
+Status: **Inactive — renderer source change required.**
+
+This is a prepared-template mapping, not case evidence, roadworthiness policy,
+or an activation contract. Every fallback and fixed value below is template
+behavior only. In particular, `Legal Status=Roadworthy`, `Status=Repaired`,
+`Passed MOT (taxi)=TBC`, dates, locations, and Cat S values must never be
+inferred as accepted facts. The package remains non-invocable until a separately
+accepted renderer change stops unless a cited source artifact contains the
+named Engineer's approved roadworthy/legal-status fact.
+
 ## The 14 fields — fill these and only these
 
 | # | HS field | Source | Fallback |

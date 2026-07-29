@@ -1,12 +1,10 @@
 ---
 name: total-loss-assessment
 description: >-
-  Use this skill when a Collision Engineers engineer needs the Audatex-format
-  EVA-import PDF as the sole deliverable and the outcome is already decided:
+  Use this source-workspace rendering experiment only when an authorised human has supplied an accepted payload for an Audatex-format
+  EVA-import draft:
   transcription of an existing estimate ("transcription job", "match this
-  estimate to the penny"), rendering already-decided operations, or a
-  cost-targeted build from photos ("go hard", "clear total loss", "keep it
-  under £X"). Triggers on: "transcribe this estimate", "build the assessment
+  estimate to the penny"), rendering already-approved operations. Triggers on: "transcribe this estimate", "build the assessment
   PDF", "Audatex PDF", "EVA import", "cost target". When an engineering
   opinion is wanted — a repair estimate or damage assessment from photos or a
   brief, panel assessment, repair scope, repairability or total-loss opinion,
@@ -17,12 +15,15 @@ description: >-
   only reads existing reports from the EVA Sentry API.
 ---
 
+## Authority boundary
+
+This package may produce evidence, candidates, or draft output only. `Pegasus.Core` and an authorised human own every accepted case fact, cost, category, outcome, legal position, and approval.
 # Total Loss / Damage Assessment
 
-Generate Audatex-format PDFs from damage photos, bypassing the per-job Audatex cost on decided outcomes — clear total losses, decided minor jobs, and transcription work.
+Render a draft Audatex-format PDF from an already accepted source payload. This package does not assess damage, choose operations, target a cost, or decide total loss.
 
 **Architecture — two-stage, do not blur:**
-1. **You (Claude)** look at photos, identify the vehicle, decide what's damaged and what to do about each panel, and build the Python operations dict. This is where judgement is required.
+1. An authorised human supplies accepted vehicle facts and operations; the package projects them into the validated payload. It does not infer or decide them.
 2. **`scripts/validate_assessment_payload.py`** validates that dict against the generator's required shape and routing rules.
 3. **`scripts/audatex_gen_v4.py`** takes the validated dict and produces the byte-identical EVA-compatible PDF. Pure deterministic code — **never modify it**.
 
@@ -85,9 +86,7 @@ Generate Audatex-format PDFs from damage photos, bypassing the per-job Audatex c
 
 ## On cost targeting
 
-- "Go as hard as you like" / "clear total loss" → be thorough; build a total that comfortably exceeds the threshold (typically 66% or 80% of PAV).
-- Engineer gives a target → match by adjusting WUs, part values, and conditional extras. **Do not bend the labour rate to hit a target** — that looks suspicious.
-- "Be conservative" / "under £X" → lean cheaper on every defensible call. Repair not renew where possible. Skip optional ABP extras. Lower-end part estimates.
+- Cost-targeting, threshold-seeking, and instructions to inflate or suppress a total are prohibited. Stop and request an accepted source payload.
 
 ## References
 

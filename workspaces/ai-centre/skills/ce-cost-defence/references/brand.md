@@ -1,5 +1,8 @@
 # Collision Engineers — Brand Facts (fixed)
 
+> **Source-workspace boundary:** Reduce to pointer to collision-engineers-design/root design; delete duplicated brand constants after link updates. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+
+
 These are baked into `scripts/build_report.js`. You normally never touch them; this file exists so the styling can be explained or re-applied if the generator is ever rebuilt. **Do not change the generator to alter these.**
 
 ## Identity

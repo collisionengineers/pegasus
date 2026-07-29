@@ -1,5 +1,8 @@
 # Document-Type Tone Notes
 
+> **Source-workspace boundary:** Retain tone/register examples, remove fixed legal/sign-off requirements that belong to approved product/legal owners. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+
+
 Per-document register, length defaults, and sign-off rules.
 
 ---

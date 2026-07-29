@@ -1,5 +1,8 @@
 # Source Material — What to Examine
 
+> **Source-workspace boundary:** Retain generic source-extraction checklist, remove advocacy language and 'strongest source-supported evidence' instructions. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+
+
 The case files supplied with each job are **examples only and change every time**. Do not reuse any figure, name, registration, rate or operation from a previous job or from the documents that happen to be in front of you as "the answer" — always read the current job's files and extract this job's facts. This guide tells you *which areas to look in*, not what you will find.
 
 The instructing party usually supplies up to four documents. File names vary; match them by content.

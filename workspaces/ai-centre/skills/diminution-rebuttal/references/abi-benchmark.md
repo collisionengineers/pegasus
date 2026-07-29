@@ -1,5 +1,8 @@
 # ABI 20% Benchmark — The Strongest Standalone Point
 
+> **Source-workspace boundary:** Retain as a dated benchmark hypothesis, remove 'always include' and strongest-argument prescriptions. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+
+
 Include this argument in every rebuttal. It survives cross-examination because both the ABI guidance and the EVA scale's outputs are matters of record.
 
 ---

@@ -3,6 +3,9 @@ name: salvage-categorisation
 description: Provides ABI Code of Practice salvage category decision support for Cat A, Cat B, Cat S, and Cat N, including structural/non-structural damage, high-voltage battery, fire, water, motorcycle, repairability, AQP, salvage value/rate disputes, and category-dispute reasoning. Use when the user asks for salvage category, write-off category, Cat S/Cat N/Cat B/Cat A, AQP support, structural versus non-structural categorisation, salvage value, salvage rate, contracted salvage rate, a TPI imposing salvage, or a response to a salvage-category or salvage-rate challenge.
 ---
 
+## Authority boundary
+
+This package may produce evidence, candidates, or draft output only. `Pegasus.Core` and an authorised human own every accepted case fact, cost, category, outcome, legal position, and approval.
 # Salvage Categorisation
 
 ## Overview

@@ -26,37 +26,36 @@ Last reviewed: 2026-07-23, Europe/London.
 | Web App | 1 | .NET 10 | .NET 10 | Razor Pages/API and app-managed user accounts |
 | Functions plan | 1 | Flex Consumption FC1 | Flex Consumption FC1 | .NET 10 isolated background work |
 | Function App | 1 | .NET 10 isolated | .NET 10 isolated | mailbox/queue composition root |
-| User-assigned identity | 1 | Worker | Worker | Flex package and host storage lifecycle |
+| User-assigned identities | 2 | Web and Worker | Web and Worker | stable least-privilege identities; Worker identity also owns Flex host/package lifecycle |
 | Azure SQL logical server/database | 1/1 | Basic | S0 | application plus ASP.NET Core Identity data |
-| Storage account | 1 | Standard LRS | Standard LRS | Functions host/package, queues, temporary intake |
-| Key Vault | 1 | Standard | Standard | third-party credentials only where identity cannot replace them |
-| Log Analytics/Application Insights | 1/1 | 30 days | 30 days initially | correlated Web/Worker telemetry |
-| Document Intelligence | 0 or 1 | disabled until benchmark/old F0 decision | S0 when required | OCR only for scanned/insufficient PDFs |
+| Functions transport/deployment storage | 1 | Standard LRS | Standard LRS | host internals, deployment package, ID-only work/poison queues |
+| Application custody/protection storage | 1 | Standard LRS | Standard LRS | transient intake, Web authentication ring, Box-link ring; Worker is denied the authentication ring |
+| Key Vault | 1 | Standard | Standard | third-party credentials only where managed identity cannot replace them |
+| Log Analytics/Application Insights | 1/1 | 30 days | 30 days initially | correlated Web/Worker telemetry with local authentication disabled |
 
 ## Identity and secret design
 
-- Web uses a system-assigned identity.
-- Worker uses a user-assigned identity because Flex deployment storage needs an identity before the Function App exists.
-- Storage roles are scoped to the new storage account. Shared-key access is disabled.
-- Azure SQL uses a Microsoft Entra administrator and Entra-only authentication. Runtime database users receive `db_datareader` and `db_datawriter` in the post-provision script; no SQL administrator password exists in source or parameters.
+- Web and Worker use distinct user-assigned identities.
+- The Worker identity exists before the Function App so Flex deployment and host storage can use identity-based access.
+- Storage roles are separated between Functions transport/deployment and application custody/protection accounts. Shared-key access is disabled; roles are container/queue scoped except the Function host roles that Azure Functions requires at account scope.
+- Azure SQL uses a Microsoft Entra administrator and Entra-only authentication. Runtime contained users are created by client ID with `SID` and `TYPE = E`; runtime principals receive data access only. A temporary migrator group owns schema changes and has no standing runtime use.
 - Private networking is a `Not planned` boundary. The scaffold therefore uses public
   service endpoints and the Azure SQL `AllowAllWindowsAzureIps` firewall rule so
   App Service and Flex can reach SQL. Authentication remains Entra-only. This
   broad network reach is an accepted `0.1.0-alpha.1` trade-off, not a planned future
   private-networking migration.
-- App settings contain resource names, endpoints, and Application Insights connection metadata. Third-party credentials are referenced from Infisical or Key Vault and are never generated into Bicep output.
+- App settings contain resource names, endpoints, client IDs, and Application Insights connection metadata. Third-party credentials are referenced from Key Vault and are never generated into Bicep output.
 
 ## Quota and availability evidence
 
-The Azure quota extension returned no usable rows for Storage, Web, SQL, or Cognitive Services in this subscription, so this plan uses the live inventory plus Microsoft service-limit documentation. The subscription currently has 10 storage accounts, one Azure SQL alternative is not yet deployed, multiple FC1 plans, and one existing Document Intelligence F0 resource. F0 availability is therefore a known deployment decision: reuse the old resource temporarily, retire/recreate it after cutover, or accept S0 cost.
+The 2026-07-23 live inventory is dated evidence only. It does not approve target resource reuse. Immediately before any separately authorised validation or provisioning, recheck service availability, quota, pricing, role-assignment authority, and the exact approved target names. Alpha includes no Document Intelligence/OCR resource.
 
-Immediately before provisioning, recheck:
+Before provisioning, recheck:
 
 - F1 App Service plan availability in UK South;
 - Flex Consumption and regional app quota;
 - SQL logical-server quota;
-- storage-account quota;
-- Document Intelligence SKU availability;
+- two storage accounts per environment;
 - role-assignment authority for the provisioning principal.
 
 ## Intended authorised-terminal route (not runnable)

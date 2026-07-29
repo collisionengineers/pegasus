@@ -6,7 +6,7 @@ type: decision
 status: in_review
 risk: high
 created: 2026-07-27
-updated: 2026-07-28
+updated: 2026-07-29
 issue: https://github.com/collisionengineers/pegasus/issues/6
 pull_request: https://github.com/collisionengineers/pegasus/pull/17
 baseline: d0965e1264dadc8d9942ac54fd68a4b45fd06f28
@@ -63,8 +63,8 @@ no transcript, archive copy, README or second requirements ledger is created.
 
 ## Authorities and current evidence
 
-- Canonical product requirements remain under `docs/product/`; stable allocation
-  remains solely in `docs/product/capabilities.md` and `docs/roadmap.md`.
+- Canonical product requirements remain under `docs/requirements.md and docs/capabilities.md (centralized owners; former product subtree)`; stable allocation
+  remains solely in `docs/capabilities.md` and `docs/capabilities.md`.
 - `Pegasus.Core` remains the single owner of business policy and accepted case
   truth. Infrastructure adapts external systems; Web and Worker remain
   composition roots.
@@ -159,10 +159,10 @@ not product requirements.
 | `Smetadata-L3` | The source is a system plan for Collision Engineers Ltd. | `this change record` | provenance | `accepted` |
 | `Smetadata-L5` | The plan was prepared for Andrew in the owner role, Alex in the developer role, and the CE team. | `this change record` | provenance | `accepted` |
 | `Smetadata-L7` | The source is dated 26 July 2026 and has status “Draft for discussion”. | `this change record` | provenance | `accepted` |
-| `S1-L11a` | Pegasus is Collision Engineers’ case-management and reporting product and is intended to become the place where jobs are created, assessed, reported, and tracked. | `docs/product/index.md` | accepted authority | `accepted` |
+| `S1-L11a` | Pegasus is Collision Engineers’ case-management and reporting product and is intended to become the place where jobs are created, assessed, reported, and tracked. | `docs/requirements.md` | accepted authority | `accepted` |
 | `S1-L11b1` | Keep EVA and the current manual handoff available in parallel while Pegasus capabilities are introduced. | `EXT-03` | Now/0.1.0-alpha.1 | `intended` |
 | `S1-L11b2` | Replace EVA inspection and report-preparation work only through the deferred replacement slice. | `CASE-22` | Later/unallocated | `intended` |
-| `S1-L11b3` | Replace surrounding spreadsheets and manual steps with owner-controlled Pegasus workflows as their capabilities are accepted. | `docs/product/index.md` | accepted authority | `intended` |
+| `S1-L11b3` | Replace surrounding spreadsheets and manual steps with owner-controlled Pegasus workflows as their capabilities are accepted. | `docs/requirements.md` | accepted authority | `intended` |
 | `S1-L11c` | Box remains the backing file store for Pegasus-managed case files. | `DOC-02` | Now/0.1.0-alpha.1 | `accepted` |
 | `S1-L13` | Capture each job once as structured canonical data and render the assessment report, fee note, audit report, diminution report, addendum, query response, invoice, and management statistic from that source so outputs require no retyping and cannot disagree. | `CASE-31` | Later/unallocated | `intended` |
 | `S1-L15a1` | Use relevant instruction evidence to propose extracted assessment inputs for operator review. | `AI-04` | Later/unallocated | `intended` |
@@ -170,14 +170,14 @@ not product requirements.
 | `S1-L15a3` | Carry every AI assessment proposal through durable named-Engineer review and approval before outward use. | `AI-09` | Later/unallocated | `intended` |
 | `S1-L15b` | Generate query-response proposals for engineer review and approval rather than allowing autonomous outward responses. | `AI-08` | Later/unallocated | `intended` |
 | `S1-L15c` | An existing deterministic report-renderer source implements computed-once figures and stable output rendering, but it has no production caller. | `workspaces/report-renderer` | implemented/non-caller | `implemented` |
-| `S2-L19` | The planning baseline is 1,000–1,200 jobs per month, at which volume the current workflow exhibits the three documented problem classes. | `docs/product/areas/platform-and-operator-experience.md` | accepted authority | `accepted` |
-| `S2-L21` | The current EVA-era manual bundle consumes two to three administrators on spreadsheet logging, missing-half chasing, WhatsApp downloads, EVA uploads, manual Box-folder creation, and reference-number selection, with attendant error risk. | `docs/product/areas/platform-and-operator-experience.md` | accepted authority | `accepted` |
-| `S2-L23` | The current EVA-era completion workflow makes Engineers export PDFs, file them in Box, find the original instruction email, send and delete messages, and mark jobs complete after their expert work is finished. | `docs/product/areas/platform-and-operator-experience.md` | accepted authority | `accepted` |
-| `S2-L25a` | EVA vendor dependence currently delays or prevents owner-controlled product changes. | `docs/product/index.md` | accepted authority | `accepted` |
+| `S2-L19` | The planning baseline is 1,000–1,200 jobs per month, at which volume the current workflow exhibits the three documented problem classes. | `docs/requirements.md` | accepted authority | `accepted` |
+| `S2-L21` | The current EVA-era manual bundle consumes two to three administrators on spreadsheet logging, missing-half chasing, WhatsApp downloads, EVA uploads, manual Box-folder creation, and reference-number selection, with attendant error risk. | `docs/requirements.md` | accepted authority | `accepted` |
+| `S2-L23` | The current EVA-era completion workflow makes Engineers export PDFs, file them in Box, find the original instruction email, send and delete messages, and mark jobs complete after their expert work is finished. | `docs/requirements.md` | accepted authority | `accepted` |
+| `S2-L25a` | EVA vendor dependence currently delays or prevents owner-controlled product changes. | `docs/requirements.md` | accepted authority | `accepted` |
 | `S2-L25b` | Support an Engineer-selected contract-repair target in the canonical repair specification. | `ENG-01` | Later/unallocated | `intended` |
 | `S2-L25c` | Generate a diminution report from accepted case data and the Engineer-entered percentage. | `RPT-04` | Later/unallocated | `intended` |
 | `S2-L25d` | Offer a vendor-neutral AI assessment action through the durable proposal and review contract. | `AI-09` | Later/unallocated | `intended` |
-| `S2-L27` | Pegasus is intended to turn product changes into owner-controlled work and shift administration from routine entry to exception monitoring. | `docs/product/index.md` | accepted authority | `accepted` |
+| `S2-L27` | Pegasus is intended to turn product changes into owner-controlled work and shift administration from routine entry to exception monitoring. | `docs/requirements.md` | accepted authority | `accepted` |
 | `S3-L31a1` | Accept structured instruction intake through the principal-scoped provider API. | `API-01` | Next/unallocated | `intended` |
 | `S3-L31a2` | Accept non-API instruction intake through the single instructions inbox. | `INT-02` | Now/0.1.0-alpha.1 | `intended` |
 | `S3-L31a3` | Read the instruction source and expose extracted details for review. | `INT-19` | Now/0.1.0-alpha.1 | `intended` |
@@ -197,7 +197,7 @@ not product requirements.
 | `S3-L35c` | Generate any required addendum from the data already held for the job. | `RPT-05` | Later/unallocated | `intended` |
 | `S4.1-L41a` | Treat an instruction and an image set as order-independent job halves, place each arrival in a holding pen, and pair the halves automatically when both are available. | `INT-28` | Next/unallocated | `intended` |
 | `S4.1-L41b` | Keep every unpaired item visible with its age and chase status, and notify the team when the second half makes the job complete. | `INT-32` | Next/unallocated | `intended` |
-| `S4.1-L43` | Constrain supported intake to the three declared channels rather than allowing an open-ended channel set. | `docs/product/areas/intake-and-casework.md` | accepted authority | `intended` |
+| `S4.1-L43` | Constrain supported intake to the three declared channels rather than allowing an open-ended channel set. | `docs/requirements.md` | accepted authority | `intended` |
 | `S4.1-L45` | Accept structured instructions from larger work providers through a provider API without email-reading steps. | `API-01` | Next/unallocated | `intended` |
 | `S4.1-L47a` | Ingest non-API work from the single instructions inbox. | `INT-02` | Now/0.1.0-alpha.1 | `intended` |
 | `S4.1-L47b` | Retain each instruction email and its attachments under a stable source occurrence. | `INT-09` | Now/0.1.0-alpha.1 | `intended` |
@@ -221,10 +221,10 @@ not product requirements.
 | `S4.2-L55b2` | File the instruction, images, and notes into the Box case folder as part of automated setup. | `DOC-02` | Now/0.1.0-alpha.1 | `intended` |
 | `S4.2-L55c1` | Provide external adapters for CAP, Glass’s, and Cazana guide-value retrieval, including optional prefetch before a user opens the job. | `EXT-13` | Later/unallocated | `intended` |
 | `S4.2-L55c2` | Provide DVLA registration lookup for make, model, year, engine, and fuel, including optional prefetch before a user opens the job. | `EXT-01` | Now/0.1.0-alpha.1 | `intended` |
-| `S4.2-L57` | Design queue operations so one team member can monitor and resolve unmatched images, unmapped instructions, and unusual cases instead of requiring two to three people for data entry. | `docs/product/areas/platform-and-operator-experience.md` | accepted authority | `intended` |
+| `S4.2-L57` | Design queue operations so one team member can monitor and resolve unmatched images, unmapped instructions, and unusual cases instead of requiring two to three people for data entry. | `docs/requirements.md` | accepted authority | `intended` |
 | `S4.3-L61` | Arrange the engineer workspace around expert decisions and expose exactly the three declared repair-specification entry routes without unrelated administration. | `UI-15` | Later/unallocated | `intended` |
 | `S4.3-L63a` | Support Glass’s as a repair-specification route equivalent to the traditional EVA-integrated route. | `ENG-01` | Later/unallocated | `intended` |
-| `S4.3-L63b` | Glass’s integration is an external dependency that must remain explicit until its access and wording are resolved. | `docs/product/open-decisions.md` | unallocated blocker | `accepted` |
+| `S4.3-L63b` | Glass’s integration is an external dependency that must remain explicit until its access and wording are resolved. | `docs/open-decisions.md` | unallocated blocker | `accepted` |
 | `S4.3-L65` | Support an Audatex route in which the estimate is built in Audatex, printed to PDF, attached to the job, and mapped into Pegasus’s standard repair-specification format. | `EXT-12` | Later/unallocated | `intended` |
 | `S4.3-L67a1` | Propose an image-based repair specification, including for clear-total-loss cases. | `AI-05` | Next/unallocated | `intended` |
 | `S4.3-L67a2` | Allow an approved AI proposal to become the canonical repair specification with route provenance. | `ENG-01` | Later/unallocated | `intended` |
@@ -254,7 +254,7 @@ not product requirements.
 | `S4.6-L91b` | For a defendant-engineer challenge, dispute, requested adjustment, or similar query, propose a job-aware CE-house-style letterhead response for the engineer to accept or amend before sending. | `AI-08` | Later/unallocated | `intended` |
 | `S4.6-L91c` | The existing AI/skills source contains the earlier cost-defence rebuttal format and house-style rules, but it has no production caller. | `workspaces/ai-centre` | implemented/non-caller | `implemented` |
 | `S4.6-L93` | Tag every query with a maintained taxonomy, including supplementary request, repair-cost challenge, and valuation dispute, so query-type training statistics can be produced. | `CASE-23` | Next/unallocated | `intended` |
-| `S4.7-L97` | Pegasus should track every practicable event so management statistics are produced as a by-product of normal case activity rather than through separate manual work. | `docs/product/areas/platform-and-operator-experience.md` | accepted authority | `intended` |
+| `S4.7-L97` | Pegasus should track every practicable event so management statistics are produced as a by-product of normal case activity rather than through separate manual work. | `docs/requirements.md` | accepted authority | `intended` |
 | `S4.7-L99` | Per-engineer MI should show reports per day, jobs completed, query rate, query types and audit-report uplift, and support coaching using patterns such as supplementaries from missed hidden damage or excessive repair-cost challenges. | `MI-01` | Later/unallocated | `intended` |
 | `S4.7-L101` | Per-principal MI should show report counts by type and period and feed those figures directly into invoice generation. | `MI-02` | Later/unallocated | `intended` |
 | `S4.7-L103` | Operational MI should show holding-pen age, instruction-to-images time, ready-to-sent time and overall turnaround. | `MI-03` | Later/unallocated | `intended` |
@@ -278,26 +278,26 @@ not product requirements.
 | `S5-L120b` | The query-response proposal workflow should use the cost-defence capability as the basis for formal query responses. | `AI-08` | Later/unallocated | `intended` |
 | `S5-L121` | The codified CE house-style authority defines tone, wording and banned terms for outbound letters, emails and rebuttals drafted with AI assistance. | `design/` | accepted authority | `accepted` |
 | `S5-L122` | The existing CE design assets provide brand tokens, fonts, letterhead and document layout for Pegasus screens and outputs. | `design/` | accepted authority | `implemented` |
-| `S6-L126` | External-dependency conversations should begin immediately because their answers block or shape build decisions. | `docs/product/open-decisions.md` | unallocated blocker | `intended` |
+| `S6-L126` | External-dependency conversations should begin immediately because their answers block or shape build decisions. | `docs/open-decisions.md` | unallocated blocker | `intended` |
 | `S6-L128` | Structural table header: Dependency \| What we need to find out. | `this change record provenance` | provenance | `accepted` |
-| `S6-L130a` | The team must resolve whether Glass’s repair estimating can be integrated directly outside EVA, including licensing, API or embedded access and cost. | `docs/product/open-decisions.md` | unallocated blocker | `intended` |
+| `S6-L130a` | The team must resolve whether Glass’s repair estimating can be integrated directly outside EVA, including licensing, API or embedded access and cost. | `docs/open-decisions.md` | unallocated blocker | `intended` |
 | `S6-L130b` | A direct Glass’s estimating replacement should be provided only if access and commercial terms are viable. | `EXT-06` | Later/unallocated | `intended` |
 | `S6-L130c` | If Glass’s is unavailable, Engineers should retain the Audatex-import and Send-to-AI repair-specification routes. | `ENG-01` | Later/unallocated | `intended` |
-| `S6-L131a` | API access, licensing and terms for CAP, Glass’s and Cazana outside EVA must be confirmed. | `docs/product/open-decisions.md` | unallocated blocker | `intended` |
+| `S6-L131a` | API access, licensing and terms for CAP, Glass’s and Cazana outside EVA must be confirmed. | `docs/open-decisions.md` | unallocated blocker | `intended` |
 | `S6-L131b` | Pegasus should replace EVA-mediated valuation access with supported direct valuation integrations where terms permit. | `EXT-07` | Later/unallocated | `intended` |
 | `S6-L132` | The provider API capability must establish which larger work providers can submit instructions by API and which formats they use. | `API-01` | Next/unallocated | `intended` |
 | `S6-L133a1` | Box API access should support case-folder creation. | `DOC-01` | Now/0.1.0-alpha.1 | `intended` |
 | `S6-L133a2` | Box API access should support automated filing. | `DOC-02` | Now/0.1.0-alpha.1 | `intended` |
 | `S6-L133b` | The source treats the Box API as mature and the proposed integration as straightforward. | `this change record provenance` | provenance | `accepted` |
 | `S6-L134a` | An external adapter should provide DVLA vehicle-detail lookup. | `EXT-01` | Now/0.1.0-alpha.1 | `intended` |
-| `S6-L134b` | A provider lookup such as Experian AutoCheck should support the mandatory vehicle-history check. | `docs/product/open-decisions.md` | unallocated blocker | `intended` |
+| `S6-L134b` | A provider lookup such as Experian AutoCheck should support the mandatory vehicle-history check. | `docs/open-decisions.md` | unallocated blocker | `intended` |
 | `S6-L135` | The Audatex integration must confirm that its PDF mapping covers the variants Engineers produce so drag-in import is reliable. | `EXT-12` | Later/unallocated | `intended` |
-| `S7-L139a1` | Each build phase should be independently useful. | `docs/roadmap.md` | accepted authority | `intended` |
+| `S7-L139a1` | Each build phase should be independently useful. | `docs/capabilities.md` | accepted authority | `intended` |
 | `S7-L139a2` | Keep the current manual EVA handoff available in parallel during phased delivery. | `EXT-03` | Now/0.1.0-alpha.1 | `intended` |
 | `S7-L139b` | After Pegasus covers the full flow, work should migrate from EVA provider by provider through a deferred replacement slice. | `CASE-22` | Later/unallocated | `intended` |
 | `S7-L139c` | The source assigns Alex as build lead and records AI-assisted development throughout the build. | `this change record provenance` | provenance | `accepted` |
 | `S7-L141` | Structural table header: Phase \| Build \| Why this order. | `this change record provenance` | provenance | `accepted` |
-| `S7-L143a` | Phase 0 should run dependency enquiries before build decisions, especially for Glass’s and valuation APIs. | `docs/product/open-decisions.md` | unallocated blocker | `intended` |
+| `S7-L143a` | Phase 0 should run dependency enquiries before build decisions, especially for Glass’s and valuation APIs. | `docs/open-decisions.md` | unallocated blocker | `intended` |
 | `S7-L143b` | Phase 0 should confirm the structured job data model, using the substantially completed report specification as its basis. | `CASE-31` | Later/unallocated | `intended` |
 | `S7-L144a` | Phase 1 should provide a request-scoped image-upload portal that can operate while cases continue through EVA. | `INT-31` | Now/0.1.0-alpha.1 | `intended` |
 | `S7-L144b1` | Phase 1 should automate the single instructions inbox. | `INT-02` | Now/0.1.0-alpha.1 | `intended` |
@@ -327,22 +327,22 @@ not product requirements.
 | `S7-L148c1` | Individual staff sign-in should be available before Phase 5. | `ACC-01` | Now/0.1.0-alpha.1 | `intended` |
 | `S7-L148c2` | Phase 5 should complete the Administrator, Engineer, and User role model. | `ACC-02` | Now/0.1.0-alpha.1 | `intended` |
 | `S7-L148c3` | Phase 5 should apply fine-grained role protection, including the superuser-only reporting boundary. | `ACC-04` | Now/0.1.0-alpha.1 | `intended` |
-| `S8-L152a` | Whether direct Glass’s access will be refused or priced out must be resolved early. | `docs/product/open-decisions.md` | unallocated blocker | `intended` |
+| `S8-L152a` | Whether direct Glass’s access will be refused or priced out must be resolved early. | `docs/open-decisions.md` | unallocated blocker | `intended` |
 | `S8-L152b` | The direct Glass’s estimating replacement is contingent on acceptable access and price. | `EXT-06` | Later/unallocated | `intended` |
 | `S8-L152c` | Audatex import and Send to AI should mitigate the loss of the Glass’s route if direct integration is unavailable. | `ENG-01` | Later/unallocated | `intended` |
-| `S8-L154a` | Budget, contracts and licensing terms for CAP, Glass’s and Cazana outside EVA must be confirmed. | `docs/product/open-decisions.md` | unallocated blocker | `intended` |
+| `S8-L154a` | Budget, contracts and licensing terms for CAP, Glass’s and Cazana outside EVA must be confirmed. | `docs/open-decisions.md` | unallocated blocker | `intended` |
 | `S8-L154b` | The valuation replacement must accommodate the terms under which each supported valuation provider licenses direct use. | `EXT-07` | Later/unallocated | `intended` |
 | `S8-L156a` | Every AI-produced assessment, response or report must be assigned to and reviewed and approved by a named Engineer before external release because the output carries expert responsibility. | `AI-09` | Later/unallocated | `intended` |
 | `S8-L156b` | The vendor-neutral review transport must make approval explicit, logged and attributable before the approved proposal can leave Pegasus. | `AI-09` | Later/unallocated | `intended` |
 | `S8-L158a` | Apply role-based access protection to personal data and vehicle images across email, request-scoped upload, AI processing and Box flows. | `ACC-04` | Now/0.1.0-alpha.1 | `intended` |
-| `S8-L158b` | Resolve and record the retention rules for personal data and vehicle images before activating each external flow; this does not create an automated retention workflow. | `docs/product/areas/documents-and-integrations.md` | accepted authority | `intended` |
-| `S8-L158c` | Confirm applicable processor terms before activating any external email, upload, AI or Box processor. | `docs/product/areas/documents-and-integrations.md` | accepted authority | `intended` |
+| `S8-L158b` | Resolve and record the retention rules for personal data and vehicle images before activating each external flow; this does not create an automated retention workflow. | `docs/requirements.md and docs/capabilities.md (centralized owners; former product subtree)areas/documents-and-integrations.md` | accepted authority | `intended` |
+| `S8-L158c` | Confirm applicable processor terms before activating any external email, upload, AI or Box processor. | `docs/requirements.md and docs/capabilities.md (centralized owners; former product subtree)areas/documents-and-integrations.md` | accepted authority | `intended` |
 | `S8-L160a1` | EVA and the manual Pegasus handoff should run in parallel during migration, accepting temporary double-keying. | `EXT-03` | Now/0.1.0-alpha.1 | `intended` |
 | `S8-L160a2` | Move one provider or job type at a time through the deferred EVA-replacement migration. | `CASE-22` | Later/unallocated | `intended` |
 | `S8-L160b` | The deferred EVA replacement slice should shorten and ultimately end double-keying after each migrated flow is stable. | `CASE-22` | Later/unallocated | `intended` |
-| `S8-L162` | Capacity planning should size phases honestly for one developer using AI assistance and retain EVA until each phase is genuinely stable. | `docs/product/areas/platform-and-operator-experience.md` | accepted authority | `intended` |
-| `S8-L164` | The open wording blockers are salvage paragraphs for Categories N, A, B and N/A; the recovery-and-storage paragraph; final statement-of-truth wording; and qualifications for E Mawdsley and N O’Reilly. | `docs/product/open-decisions.md` | unallocated blocker | `intended` |
-| `S9-L168` | The accepted planning volume is 1,000–1,200 jobs per month. | `docs/product/areas/platform-and-operator-experience.md` | accepted authority | `accepted` |
+| `S8-L162` | Capacity planning should size phases honestly for one developer using AI assistance and retain EVA until each phase is genuinely stable. | `docs/requirements.md` | accepted authority | `intended` |
+| `S8-L164` | The open wording blockers are salvage paragraphs for Categories N, A, B and N/A; the recovery-and-storage paragraph; final statement-of-truth wording; and qualifications for E Mawdsley and N O’Reilly. | `docs/open-decisions.md` | unallocated blocker | `intended` |
+| `S9-L168` | The accepted planning volume is 1,000–1,200 jobs per month. | `docs/requirements.md` | accepted authority | `accepted` |
 | `S9-L170` | Structural table header: Person \| Role. | `this change record provenance` | provenance | `accepted` |
 | `S9-L172a` | Andrew is recorded as owner and head engineer. | `this change record provenance` | provenance | `accepted` |
 | `S9-L172b` | Andrew is the initial Pegasus superuser/Administrator assignment. | `ACC-02` | Now/0.1.0-alpha.1 | `intended` |
@@ -354,8 +354,8 @@ not product requirements.
 | `S9-L178` | Lisa is recorded as administration staff. | `this change record provenance` | provenance | `accepted` |
 | `S9-L179` | Fay is recorded as part-time administration staff. | `this change record provenance` | provenance | `accepted` |
 | `S9-L180` | Alex is recorded as Developer and Automations Engineer and as Pegasus build lead. | `this change record provenance` | provenance | `accepted` |
-| `S9-L182a` | The operating end state should reduce administration to one person monitoring an exception queue and let Engineers focus on judgement rather than filing. | `docs/product/areas/platform-and-operator-experience.md` | accepted authority | `intended` |
-| `S9-L182b` | Pegasus’s accepted product vision is to own the system and retain the ability to build newly identified ideas rapidly. | `docs/product/index.md` | accepted authority | `accepted` |
+| `S9-L182a` | The operating end state should reduce administration to one person monitoring an exception queue and let Engineers focus on judgement rather than filing. | `docs/requirements.md` | accepted authority | `intended` |
+| `S9-L182b` | Pegasus’s accepted product vision is to own the system and retain the ability to build newly identified ideas rapidly. | `docs/requirements.md` | accepted authority | `accepted` |
 
 Crosswalk assertion: **202 atomic rows cover all 86 non-empty
 source paragraphs, bullets, metadata rows and table rows; no source item is
@@ -427,6 +427,70 @@ Pull request review validated and remediated the following required findings:
 - bounded renderer browser acquisition and page creation by caller cancellation, restricted
   bundled signature resolution to known keys, reported the actual de-collided artifact filename,
   and returned per-item validation for null batch entries.
+
+## Approved documentation consolidation
+
+The accepted documentation-centralization plan is identified by SHA-256
+`9efd6e39b6f01dfbb449e8d0f39533b63b1cac2f5b6120cd7c63e4428fcb66d7`.
+The executable baseline is commit
+`467284f23b268e199d7fbe77dbb2163b50f00e23` plus the pre-consolidation
+working-tree bytes of the exact 512-path disposition census. The exact
+`docs/reference/imp-docs/` prefix remained opaque: it was excluded before
+enumeration and produced `excludedOperations=0`.
+
+The independently hashed temporary proof inputs are outside the repository:
+
+| Proof input | SHA-256 |
+| --- | --- |
+| Disposition manifest | `4d0ddab6f49e17a053b07df7e2433e60971c653aadf5e1fe4ed74d722129f658` |
+| Baseline manifest | `1114bcc81d139772defca1fc09589e15bdf2276a3d0aaf63982725c6aeec1d3b` |
+| Material-claim inventory | `b05bcad14ab14e41b9e0655024983e71019941fabe0a87e35343d56c776ca8ba` |
+| Callsite inventory | `8cdb9adecba87ebba2bec18c0b214e16c5eab0110537cf19ad02797b7845fbc0` |
+
+The accepted disposition is exact: 512 baseline artifacts (`K=131`, `R=92`,
+`M=2`, `D=287`) plus 13 created owners produce a 238-artifact head, a
+274-artifact (53.5%) reduction. Domain totals are:
+
+| Domain | Before | After |
+| --- | ---: | ---: |
+| Canonical product/architecture/operations | 20 | 6 |
+| Engineering guidance/change/evaluation | 18 | 6 |
+| Historical product/plans | 45 | 0 |
+| Durable decisions | 14 | 14 |
+| Operator authority | 17 | 1 |
+| Design authority | 24 | 4 |
+| Supplied reference | 66 | 48 |
+| Azure | 4 | 4 |
+| Repository/workspace/executable miscellany | 17 | 14 |
+| Document-extraction workspace | 79 | 22 |
+| Report-renderer workspace | 21 | 17 |
+| AI Centre workspace | 187 | 102 |
+
+Grouped retention exceptions are limited to immutable published decision
+bodies; uniquely reviewed change provenance; legal notices beside retained
+dependencies or assets; executable skill instructions; machine-readable
+contracts; unique raw evidence; and source-workspace provenance needed to
+reproduce a current decision. Historical prose is distilled and deleted rather
+than moved to another archive. The only baseline-local-route exceptions are the
+seven links in the immutable Azure onboarding record and the one literal
+benchmark path in ADR-0003; each remains tied to its exact baseline blob.
+
+### Accepted contradiction resolutions
+
+| IDs | Resolution |
+| --- | --- |
+| DOC-CON-012–016 | TRI-04 uses independently optional findings with at least one populated; operations owns tool profiles and planned evaluator status; `docs/index.md` alone owns authority order. |
+| DOC-CON-017–021 | Corpus counts remain dated/scope-qualified; old exact-head evidence is invalidated; provider/domain terminology is exact; QDOS owns one change record; tool-neutral Decision 0012 supersedes plugin authority without rewriting immutable bodies. |
+| DOC-CON-022–027 | `MAIL-12` remains Later/unallocated; detailed mailbox taxonomy stays unresolved; ADR-0005 occurrence identity wins; dormant OCR is removed; historical readiness wording is deleted; cedocumentmapper is predecessor evidence only. |
+| DOC-CON-028–033 | Desktop-only location evidence outranks defaults; image-led intake remains pre-case; Box custody is distinct from staging; Operations-first is selected; route catalog is design, not caller proof; alpha has no OCR replacement. |
+| DOC-CON-034–040 | AI packages are evidence/proposal experiments below Core and human approval; extractor and renderer current-state inventories follow executable evidence; proposed extractor ADR-0006 is removed; renderer ADR-0011 supersedes only ADR-0008 authentication detail. |
+| DOC-CON-041–046 | EVA material is reference evidence, historical external-party roles stay temporal, confidence display remains open, workspaces are source-only, nonexistent Codex hooks are removed, and renderer signatures remain separate from Web decorative imagery. |
+| DOC-CON-047–051 | Planned design divergences remain explicit; exact amber/navy target values stay open; absent design checkouts are provenance only; Core decisions map distinctly to operator labels/persistence; the orphan jquery-validation licence is removed only after dependency absence is reconfirmed. |
+
+This change remains `in_review`. Implementation, local caller proof, deployment,
+live verification, and acceptance remain distinct. Pull-request URL, exact base,
+exact head, check run, final manifest hashes, and independent-review outcome are
+recorded only after the repository head is frozen.
 
 ## Verification and evidence
 

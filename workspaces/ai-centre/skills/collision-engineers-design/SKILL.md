@@ -13,9 +13,14 @@ description: >-
   skill.
 ---
 
+> **Source-workspace boundary:** Retain visual token/asset lookup, but replace 'production'/'official surfaces' with source-workspace design evidence and point to root design as canonical. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
 Read `references/document-letterhead.md` when working on any A4 document or report template. Read
 `references/website-system.md` when building website components. For full design token detail, see
 `references/palette-and-type.md`. For iconography rules, see `references/iconography.md`.
+The retained implementation maps are the
+[website UI-kit index](ui_kits/website/README.md) and
+[document UI-kit index](ui_kits/documents/README.md).
+
 
 **For voice, tone, or any written copy — use the `ce-house-style` skill, not this one.**
 
