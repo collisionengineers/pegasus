@@ -13,7 +13,7 @@ The intended setting is a small office of approximately eight users. Staff accou
 | Administrator | Staff shell plus Administration surfaces for accounts/access/roles, principals, configuration, and approved mailbox allowlist. |
 | Engineer, User | Staff shell without Administration surfaces. The ordinary case/action controls are the same for both roles. |
 | Automated processing | No UI account or interactive control. |
-| Provider API client ([API-01–API-04, `Next / unallocated`](../../docs/capabilities.md#capabilities)) | No staff shell or Administration surface. |
+| Provider API client ([API-01–API-04, `Next / 0.4.0`](../../docs/capabilities.md#capabilities)) | No staff shell or Administration surface. |
 | External/customer | No application account or application surface (`Not planned`). |
 
 Every protected route and action visibly handles unauthenticated, disabled-session, stale-role, denied, loading, and successful outcomes. Route or control hiding is never authorisation. The UI offers neither permanent deletion, credential/cloud/release administration, a generic mailbox-rule editor, bulk case editing, nor external direct Case editing.
@@ -34,7 +34,7 @@ Case/PO, registration, claimant, claim number, principal, state, Engineer, recei
 
 ## Operations and state boundaries
 
-Operations shows Not ready, Review, Held, Needs sorting, exact `Blocked intake`, separate Triage, Due today, In today, Sent to Engineer today/week, and Reports sent today/week. It uses Europe/London midnight days and Monday-week boundaries. Counts open their exact filtered queues; zero is distinct from stale/unavailable; last updated and manual refresh are visible. Receiving work, Queries and Other are `Next / unallocated` in the [capability inventory](../../docs/capabilities.md#capabilities), with no `0.1.0-alpha.1` surface.
+Operations shows Not ready, Review, Held, Needs sorting, exact `Blocked intake`, separate Triage, Due today, In today, Sent to Engineer today/week, and Reports sent today/week. It uses Europe/London midnight days and Monday-week boundaries. Counts open their exact filtered queues; zero is distinct from stale/unavailable; last updated and manual refresh are visible. Receiving work, Queries and Other are `Next / 0.3.0` in the [capability inventory](../../docs/capabilities.md#capabilities), with no `0.1.0-alpha.1` surface.
 
 ### `0.1.0-alpha.1` surface inventory
 
@@ -62,11 +62,11 @@ Use semantic landmarks/headings/tables, labels and associated errors, keyboard o
 
 The contained visual boundary is warm off-white ground, white panels, warm-charcoal navigation, near-black text, CE-red primary/urgent accents, amber incomplete/pending, restrained navy Review and green only confirmed completion. Use system-sans 14–16px body text, sharp 2–3px corners, rare shadows and Lucide-style line icons; do not expose Azure, OCR, AI, queues or implementation mechanics in operator copy.
 
-Evaluation and operator review use approved genuine local immutable material only. Do not invent operational inputs. Every `Next` or `Later` capability is currently `unallocated` in the [capability inventory](../../docs/capabilities.md#capabilities) and has no alpha control, navigation, workflow, or placeholder; [traceability](traceability-matrix.md) mirrors that allocation. Every later UI change must re-enter the complete design route.
+Evaluation and operator review use approved genuine local immutable material only. Do not invent operational inputs. Every deferred `Next` or `Later` capability carries its exact target in the [capability inventory](../../docs/capabilities.md#capabilities) and has no `0.1.0-alpha.1` control, navigation, workflow, or placeholder; [traceability](traceability-matrix.md) mirrors that allocation. Every later UI change must re-enter the complete design route.
 
 ## Selected shell and open gates
 
-Operations-first is selected for the `0.1.0-alpha.1` landing and navigation strategy. The three retained comparison rasters are selection evidence; Direction A's shell strategy is approved, but no raster is pixel-level authority or runtime proof. Policy-specific email predicates and acceptance evidence still block only their named automatic paths. Exact future allocations remain outside this alpha selection.
+Operations-first is selected for the `0.1.0-alpha.1` landing and navigation strategy. The three retained comparison rasters are selection evidence; Direction A's shell strategy is approved, but no raster is pixel-level authority or runtime proof. Policy-specific email predicates and acceptance evidence still block only their named automatic paths. Deferred `Next` and `Later` UI remains outside this selection regardless of its exact allocated target.
 
 ## Historical material
 

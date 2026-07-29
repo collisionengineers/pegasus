@@ -17,6 +17,54 @@ Evidence states remain distinct:
 
 A lower state never implies a higher one.
 
+## Ordered release sequence
+
+`Target release` is the first intended release containing a capability. The
+sequence is dependency-qualified, not a calendar schedule: no release has an
+invented date, and allocation never activates or proves a caller, route, schema,
+credential, external operation, deployment, or acceptance. The
+[capability inventory](capabilities.md) remains the sole ID-to-target owner.
+
+| Order | Target release | Stage and dependency intent | Count |
+| ---: | --- | --- | ---: |
+| 01 | `0.1.0-alpha.1` | Existing QDOS-alpha scope; allocation unchanged, not a completion claim | 128 |
+| 02 | `0.2.0` | Provider expansion and intake fidelity after QDOS acceptance | 8 |
+| 03 | `0.3.0` | Four-mailbox classification, association, folder actions, email workspace and email MCP | 19 |
+| 04 | `0.4.0` | Principal-scoped provider API and post-report query/dispute casework | 5 |
+| 05 | `0.5.0` | Extended case types and staff/outbound communication channels | 5 |
+| 06 | `0.6.0` | Individually approved operator AI assistance | 5 |
+| 07 | `0.7.0` | Optional direct EVA API coexistence before replacement | 1 |
+| 08 | `1.0.0` | Pegasus-owned engineering record/workbench and transfer of EVA assignment, estimating, valuation and report-preparation authority | 12 |
+| 09 | `1.1.0` | Deterministic report and fee-note rendering | 6 |
+| 10 | `1.2.0` | Targeted report distribution, accounts/invoicing and management information | 5 |
+| 11 | `1.3.0` | Vendor-neutral AI work requests, Engineer-reviewed query proposals and staff-selected AI Assessor | 3 |
+| 12 | `1.4.0` | Conditional capture and domain outcomes after direct promotion decisions | 3 |
+
+The 200 planned capabilities use these twelve targets; 29 permanent boundaries
+remain `Not planned / unallocated`.
+
+Sequence constraints:
+
+- accepted `0.1.0-alpha.1` evidence precedes activation of later releases;
+- `INT-04` precedes `INT-05`, `INT-06`, and `INT-07`;
+- `INT-28` precedes `INT-32` within `0.2.0`;
+- accepted `CASE-31`, `ENG-01`, and `ENG-02` data/workflow precede
+  `EXT-08` and `RPT-01`–`RPT-05` rendering;
+- accepted report events/rendering precede `MAIL-17` and the `MI-*`
+  consumption path;
+- within `1.3.0`, `AI-09` transport, lease, and recovery are proved before any
+  AI proposal caller, and `AI-07` remains blocked on assignment authority;
+- `AI-02`–`AI-04` and `AI-06` remain blocked until evidence shows deterministic
+  rules are insufficient;
+- `0.7.0` / `EXT-04` is optional and non-blocking, not a prerequisite for
+  `1.0.0`;
+- `EXT-16`, `EXT-17`, and `EXT-19` remain non-blocking Triage allocations and
+  prohibited from implementation until their direct promotion decisions.
+
+All mailbox, WhatsApp, EVA, Box, provider, AI, and other source-specific
+approval gates remain mandatory. A target never authorises an external read or
+write, credential, vendor contract, or product caller.
+
 ## Purpose, users, and outcomes
 
 Pegasus is Collision Engineers’ clean-room case-management and reporting application. It must replace fragmented intake, case tracking, document custody, correspondence, engineering workflow, and reporting with one auditable system while preserving operator authority and human approval.
@@ -550,7 +598,9 @@ does not activate a route, choose a principal, or define an API client.
 
 Direct-provider and intermediary policies may differ, but both call the same
 Core intake contract and fail closed when route identity, enabled policy,
-principal, or mandatory evidence is missing.
+principal, or mandatory evidence is missing. The [capability
+inventory](capabilities.md) owns the exact targets for additional-provider
+routes and provider APIs.
 
 ### Provider API principal and contract boundary
 
