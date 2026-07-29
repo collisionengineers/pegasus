@@ -1,9 +1,14 @@
 using System.Diagnostics;
 using System.Data;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Tasks;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -60,15 +65,18 @@ public sealed class EfCaseAcceptanceStore(
             throw new ArgumentException("The principal code cannot exceed 20 characters.", nameof(request));
         }
 
+        var principalCode = NormalizePrincipalCode(request.PrincipalCode);
+        var command = CreateAcceptanceCommand(request, principalCode);
+
         for (var attempt = 1; attempt <= 3; attempt++)
         {
             try
             {
-                return await AcceptOnceAsync(request, cancellationToken);
+                return await AcceptOnceAsync(request, principalCode, command, cancellationToken);
             }
             catch (Exception exception) when (attempt < 3 && IsRetryableConcurrencyFailure(exception))
             {
-                var duplicate = await FindAcceptedAsync(request.IntakeReceiptId, cancellationToken);
+                var duplicate = await FindAcceptedAsync(request, principalCode, command, cancellationToken);
                 if (duplicate is not null)
                 {
                     return duplicate with { IsDuplicate = true };
@@ -83,6 +91,8 @@ public sealed class EfCaseAcceptanceStore(
 
     private async Task<CaseAcceptanceOutcome> AcceptOnceAsync(
         CaseAcceptanceRequest request,
+        string principalCode,
+        AcceptanceCommand command,
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -97,6 +107,7 @@ public sealed class EfCaseAcceptanceStore(
             .SingleOrDefaultAsync(item => item.IntakeReceiptId == request.IntakeReceiptId, cancellationToken);
         if (existingLink is not null)
         {
+            EnsureExactReplay(existingLink, request, principalCode, command);
             return Map(existingLink.Case, existingLink.CustodyWorkId, true);
         }
 
@@ -113,7 +124,6 @@ public sealed class EfCaseAcceptanceStore(
             throw new InvalidOperationException("Only a ready intake receipt can be accepted as a case.");
         }
 
-        var principalCode = request.PrincipalCode.Trim().ToUpperInvariant();
         var principal = await context.Principals
             .SingleOrDefaultAsync(
                 item => item.Code == principalCode && item.IsActive,
@@ -174,10 +184,29 @@ public sealed class EfCaseAcceptanceStore(
             InstructionConfirmedByStaff = request.Completeness.InstructionConfirmedByStaff,
             ImagesConfirmedByStaff = request.Completeness.ImagesConfirmedByStaff,
             CreatedAtUtc = acceptedAtUtc,
-            Version = 0,
-            RowVersion = []
+            Version = 0
         };
         context.Cases.Add(caseEntity);
+        var workflowEntity = new CaseWorkflowEntity
+        {
+            Case = caseEntity,
+            CaseId = caseId,
+            State = CaseInitialWorkflowState.From(initialState).ToString(),
+            Version = 0
+        };
+        context.CaseWorkflows.Add(workflowEntity);
+        if (initialState == CaseInitialState.NotReady)
+        {
+            context.CaseDueWork.Add(new()
+            {
+                CaseId = caseId,
+                Workflow = workflowEntity,
+                MissingMaterialReason = "Accepted intake is incomplete",
+                State = CaseDueWorkState.Scheduled.ToString(),
+                NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(acceptedAtUtc),
+                Version = 0
+            });
+        }
         context.CaseIntakeLinks.Add(new()
         {
             IntakeReceiptId = receipt.Id,
@@ -186,7 +215,10 @@ public sealed class EfCaseAcceptanceStore(
             CustodyWorkId = custodyWorkId,
             LinkedAtUtc = acceptedAtUtc,
             Actor = request.Actor,
-            OperationKey = request.OperationKey
+            OperationKey = request.OperationKey,
+            ExpectedIntakeVersion = request.ExpectedIntakeVersion,
+            AcceptanceCommandMaterialJson = command.MaterialJson,
+            AcceptanceCommandFingerprint = command.Fingerprint
         });
         context.CaseHistory.Add(new()
         {
@@ -220,7 +252,9 @@ public sealed class EfCaseAcceptanceStore(
     }
 
     private async Task<CaseAcceptanceOutcome?> FindAcceptedAsync(
-        Guid receiptId,
+        CaseAcceptanceRequest request,
+        string principalCode,
+        AcceptanceCommand command,
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -228,8 +262,53 @@ public sealed class EfCaseAcceptanceStore(
             .AsNoTracking()
             .Include(item => item.Case)
             .ThenInclude(item => item.Principal)
-            .SingleOrDefaultAsync(item => item.IntakeReceiptId == receiptId, cancellationToken);
-        return link is null ? null : Map(link.Case, link.CustodyWorkId, true);
+            .SingleOrDefaultAsync(
+                item => item.IntakeReceiptId == request.IntakeReceiptId,
+                cancellationToken);
+        if (link is null)
+        {
+            return null;
+        }
+
+        EnsureExactReplay(link, request, principalCode, command);
+        return Map(link.Case, link.CustodyWorkId, true);
+    }
+
+    private static void EnsureExactReplay(
+        CaseIntakeLinkEntity link,
+        CaseAcceptanceRequest request,
+        string principalCode,
+        AcceptanceCommand command)
+    {
+        var assessment = request.StandaloneAuditAssessment is null
+            ? null
+            : ToCode(request.StandaloneAuditAssessment.Value);
+        if (!string.Equals(link.OperationKey, request.OperationKey, StringComparison.Ordinal)
+            || link.ExpectedIntakeVersion != request.ExpectedIntakeVersion
+            || !string.Equals(
+                link.AcceptanceCommandMaterialJson,
+                command.MaterialJson,
+                StringComparison.Ordinal)
+            || !string.Equals(
+                link.AcceptanceCommandFingerprint,
+                command.Fingerprint,
+                StringComparison.Ordinal)
+            || !string.Equals(link.Actor, request.Actor, StringComparison.Ordinal)
+            || !string.Equals(link.Case.Type, ToCode(request.CaseType), StringComparison.Ordinal)
+            || !string.Equals(link.Case.Principal.Code, principalCode, StringComparison.Ordinal)
+            || link.Case.InstructionComplete != request.Completeness.InstructionComplete
+            || link.Case.ImagesComplete != request.Completeness.ImagesComplete
+            || link.Case.InstructionConfirmedByStaff != request.Completeness.InstructionConfirmedByStaff
+            || link.Case.ImagesConfirmedByStaff != request.Completeness.ImagesConfirmedByStaff
+            || !string.Equals(
+                link.Case.StandaloneAuditAssessment,
+                assessment,
+                StringComparison.Ordinal))
+        {
+            throw new CaseAcceptanceOperationConflictException(
+                request.IntakeReceiptId,
+                request.OperationKey);
+        }
     }
 
     private static CaseAcceptanceOutcome Map(CaseEntity entity, Guid custodyWorkId, bool isDuplicate) => new(
@@ -241,7 +320,7 @@ public sealed class EfCaseAcceptanceStore(
             entity.Reference,
             entity.AuditReference),
         ParseInitialState(entity.InitialState),
-        ParseCustodyState(entity.CustodyState),
+        CaseCustodyState.Pending,
         custodyWorkId,
         isDuplicate);
 
@@ -289,13 +368,50 @@ public sealed class EfCaseAcceptanceStore(
         _ => throw new InvalidOperationException($"Unknown CaseCustodyState value '{(int)value}'.")
     };
 
-    private static CaseCustodyState ParseCustodyState(string value) => value switch
+
+    private static string NormalizePrincipalCode(string principalCode) =>
+        principalCode.Trim().ToUpperInvariant();
+
+    private static AcceptanceCommand CreateAcceptanceCommand(
+        CaseAcceptanceRequest request,
+        string principalCode)
     {
-        "pending" => CaseCustodyState.Pending,
-        "confirmed" => CaseCustodyState.Confirmed,
-        "failed" => CaseCustodyState.Failed,
-        _ => throw new InvalidDataException($"Unknown persisted case custody state '{value}'.")
-    };
+        var materialJson = JsonSerializer.Serialize(new AcceptanceCommandMaterial(
+            1,
+            request.IntakeReceiptId,
+            request.ExpectedIntakeVersion,
+            request.Actor,
+            ToCode(request.CaseType),
+            principalCode,
+            request.Completeness.InstructionComplete,
+            request.Completeness.ImagesComplete,
+            request.Completeness.InstructionConfirmedByStaff,
+            request.Completeness.ImagesConfirmedByStaff,
+            request.StandaloneAuditAssessment is null
+                ? null
+                : ToCode(request.StandaloneAuditAssessment.Value)));
+        var fingerprint = Convert.ToHexString(
+                SHA256.HashData(Encoding.UTF8.GetBytes(materialJson)))
+            .ToLowerInvariant();
+        return new(materialJson, fingerprint);
+    }
+
+    private sealed record AcceptanceCommand(
+        string MaterialJson,
+        string Fingerprint);
+
+    private sealed record AcceptanceCommandMaterial(
+        int SchemaVersion,
+        Guid IntakeReceiptId,
+        long ExpectedIntakeVersion,
+        string Actor,
+        string CaseType,
+        string PrincipalCode,
+        bool InstructionComplete,
+        bool ImagesComplete,
+        bool InstructionConfirmedByStaff,
+        bool ImagesConfirmedByStaff,
+        string? StandaloneAuditAssessment);
 
     private static bool IsRetryableConcurrencyFailure(Exception exception) => exception switch
     {

@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore;
 using Pegasus.Infrastructure;
@@ -14,6 +15,7 @@ using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Web.Health;
 using Pegasus.Web.Mcp;
+using Pegasus.Web.Authentication;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -21,7 +23,6 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
 using Pegasus.Core.Identity;
@@ -37,24 +38,63 @@ const string StaffMcpOAuthRateLimitPolicy = "StaffMcpOAuth";
 const string StaffMcpRequestRateLimitPolicy = "StaffMcpRequest";
 const string RegisterDevelopmentMcpClientArgument = "--register-development-mcp-client";
 const string RevokeDevelopmentMcpClientArgument = "--revoke-development-mcp-client";
-const string DevelopmentMcpClientId = "pegasus-development-mcp";
-const string DevelopmentMcpRedirectUri = "http://127.0.0.1:7890/callback";
+const string InitializeDevelopmentArgument = "--initialize-development";
+const string BuildDiagnosticsArgument = "--diagnostics-version";
+var informationalVersion = typeof(Program).Assembly
+    .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+    .InformationalVersion
+    ?? throw new InvalidOperationException("Assembly informational version is required.");
+var buildMetadataSeparator = informationalVersion.IndexOf('+', StringComparison.Ordinal);
+if (buildMetadataSeparator <= 0 || buildMetadataSeparator == informationalVersion.Length - 1)
+{
+    throw new InvalidOperationException(
+        "Assembly informational version must contain the product version and source SHA.");
+}
+
+var productVersion = informationalVersion[..buildMetadataSeparator];
+var sourceSha = informationalVersion[(buildMetadataSeparator + 1)..].ToLowerInvariant();
+if (sourceSha.Length != 40 || sourceSha.Any(character => !char.IsAsciiHexDigit(character)))
+{
+    throw new InvalidOperationException(
+        "Assembly informational version must contain a 40-character hexadecimal source SHA.");
+}
+
+if (args.Contains(BuildDiagnosticsArgument, StringComparer.Ordinal))
+{
+    if (args.Length != 1)
+    {
+        throw new InvalidOperationException(
+            $"{BuildDiagnosticsArgument} must be run without application or maintenance arguments.");
+    }
+
+    Console.WriteLine(JsonSerializer.Serialize(new
+    {
+        schemaVersion = 1,
+        version = productVersion,
+        sourceSha
+    }));
+    return;
+}
+var initializeDevelopment =
+    args.Contains(InitializeDevelopmentArgument, StringComparer.Ordinal);
 var migrateDevelopment = args.Contains("--migrate-development", StringComparer.Ordinal);
 var registerDevelopmentMcpClient =
     args.Contains(RegisterDevelopmentMcpClientArgument, StringComparer.Ordinal);
 var revokeDevelopmentMcpClient =
     args.Contains(RevokeDevelopmentMcpClientArgument, StringComparer.Ordinal);
-if ((migrateDevelopment ? 1 : 0)
+if ((initializeDevelopment ? 1 : 0)
+    + (migrateDevelopment ? 1 : 0)
     + (registerDevelopmentMcpClient ? 1 : 0)
     + (revokeDevelopmentMcpClient ? 1 : 0) > 1)
 {
     throw new InvalidOperationException(
-        "Development migration and MCP client commands must be run separately.");
+        "Development initialization, migration, and MCP client commands must be run separately.");
 }
 
 var applicationArgs = args
     .Where(argument =>
-        !argument.Equals("--migrate-development", StringComparison.Ordinal)
+        !argument.Equals(InitializeDevelopmentArgument, StringComparison.Ordinal)
+        && !argument.Equals("--migrate-development", StringComparison.Ordinal)
         && !argument.Equals(RegisterDevelopmentMcpClientArgument, StringComparison.Ordinal)
         && !argument.Equals(RevokeDevelopmentMcpClientArgument, StringComparison.Ordinal))
     .ToArray();
@@ -123,24 +163,6 @@ if (localDocumentCustodyConfigured)
             section.GetValue<int>("RateLimit"),
             TimeSpan.FromMinutes(section.GetValue<double>("RateLimitWindowMinutes")));
     };
-}
-var informationalVersion = typeof(Program).Assembly
-    .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?
-    .InformationalVersion
-    ?? throw new InvalidOperationException("Assembly informational version is required.");
-var buildMetadataSeparator = informationalVersion.IndexOf('+', StringComparison.Ordinal);
-if (buildMetadataSeparator <= 0 || buildMetadataSeparator == informationalVersion.Length - 1)
-{
-    throw new InvalidOperationException(
-        "Assembly informational version must contain the product version and source SHA.");
-}
-
-var productVersion = informationalVersion[..buildMetadataSeparator];
-var sourceSha = informationalVersion[(buildMetadataSeparator + 1)..];
-if (sourceSha.Length != 40 || sourceSha.Any(character => !char.IsAsciiHexDigit(character)))
-{
-    throw new InvalidOperationException(
-        "Assembly informational version must contain a 40-character hexadecimal source SHA.");
 }
 
 
@@ -406,6 +428,7 @@ if (staffMcpOAuth is not null)
         .AddServer(options =>
         {
             options.SetIssuer(staffMcpOAuth.Issuer);
+            options.RegisterResources(staffMcpOAuth.Resource.AbsoluteUri);
             options.SetAuthorizationEndpointUris("/connect/authorize")
                 .SetRevocationEndpointUris("/connect/revoke")
                 .SetTokenEndpointUris("/connect/token");
@@ -456,16 +479,11 @@ builder.Services.AddPegasusInfrastructure((serviceProvider, options) =>
             ?? throw new InvalidOperationException("Database:LocalPath is required for SQLite.");
         var fullPath = Path.GetFullPath(Path.Combine(environment.ContentRootPath, localPath));
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
-        options.UseSqlite(new SqliteConnectionStringBuilder
+        options.UsePegasusSqlite(new SqliteConnectionStringBuilder
         {
             DataSource = fullPath,
             ForeignKeys = true
         }.ToString());
-        // The canonical migration snapshot targets SQL Server. Local SQLite uses the
-        // same provider-aware migrations, while SQL Server integration tests retain
-        // the pending-model guard for the release schema.
-        options.ConfigureWarnings(warnings =>
-            warnings.Ignore(RelationalEventId.PendingModelChangesWarning));
         return;
     }
 
@@ -508,11 +526,6 @@ builder.Services.AddScoped<ISecurityEventWriter>(serviceProvider =>
 builder.Services.AddScoped<IActionHistoryWriter>(serviceProvider =>
     serviceProvider.GetRequiredService<EfIdentityAuditStore>());
 builder.Services.AddScoped<IStaffAccountAdministration, EfStaffAccountAdministration>();
-builder.Services.AddScoped<EfTriageStore>();
-builder.Services.AddScoped<ITriageStore>(serviceProvider =>
-    serviceProvider.GetRequiredService<EfTriageStore>());
-builder.Services.AddScoped<ITriageQueries>(serviceProvider =>
-    serviceProvider.GetRequiredService<EfTriageStore>());
 builder.Services.AddScoped<ICaseAcceptanceStore, EfCaseAcceptanceStore>();
 builder.Services.AddScoped<IAcceptIntake, AcceptIntake>();
 builder.Services.AddScoped<IInspectionAddressResolutionStore, InspectionAddressResolutionStore>();
@@ -524,6 +537,7 @@ builder.Services.AddScoped<IMailRoutePolicy>(serviceProvider =>
         "The configured instruction extraction policy must implement the mail-route policy contract."));
 builder.Services.AddScoped<IIntakeWorkStore, EfIntakeWorkStore>();
 builder.Services.AddScoped<ReceiveIntake>();
+builder.Services.AddScoped<ProcessQueuedIntake>();
 builder.Services.AddScoped<ProcessIntakeSubmission>();
 builder.Services.AddScoped<IIntakeSubmission>(serviceProvider =>
 {
@@ -567,101 +581,30 @@ if (localDocumentCustodyConfigured && !developmentOffline)
 var localIntakeEnabled = developmentOffline && localIntakeConfigured;
 if (migrateDevelopment)
 {
-    if (!developmentOffline)
-    {
-        throw new InvalidOperationException(
-            "--migrate-development requires the DevelopmentOffline runtime profile.");
-    }
-
     await using var scope = app.Services.CreateAsyncScope();
-    var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-    await using var context = await contextFactory.CreateDbContextAsync();
-    if (context.Database.IsSqlite())
-    {
-        await DevelopmentSqliteBaselineGuard.ValidateAsync(context);
-    }
-
-    await context.Database.MigrateAsync();
+    await DevelopmentOfflineInitialization.MigrateAsync(scope.ServiceProvider);
     Console.WriteLine("Development database migrations applied.");
+    return;
+}
+if (initializeDevelopment)
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    await DevelopmentOfflineInitialization.InitializeAsync(scope.ServiceProvider);
+    Console.WriteLine(
+        "DevelopmentOffline database, local test identity, roles, and public PKCE MCP client initialized.");
     return;
 }
 if (registerDevelopmentMcpClient || revokeDevelopmentMcpClient)
 {
-    if (!developmentOfflineOAuth)
-    {
-        throw new InvalidOperationException(
-            "Development MCP client commands require the DevelopmentOffline runtime profile " +
-            "and Development environment.");
-    }
-
     await using var scope = app.Services.CreateAsyncScope();
-    var applicationManager =
-        scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
-    var securityEvents = scope.ServiceProvider.GetRequiredService<ISecurityEventWriter>();
-    var application = await applicationManager.FindByClientIdAsync(DevelopmentMcpClientId);
     if (revokeDevelopmentMcpClient)
     {
-        if (application is not null)
-        {
-            await applicationManager.DeleteAsync(application);
-            await securityEvents.AppendAsync(
-                new(
-                    Guid.NewGuid(),
-                    SecurityEventType.Client,
-                    SecurityEventOutcome.Succeeded,
-                    DevelopmentMcpClientId,
-                    scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow(),
-                    "development-mcp-client-command",
-                    "development_mcp_client_revoked"),
-                CancellationToken.None);
-        }
-
+        await DevelopmentOfflineInitialization.RevokeMcpClientAsync(scope.ServiceProvider);
         Console.WriteLine("The deterministic DevelopmentOffline MCP client is revoked.");
         return;
     }
 
-    var descriptor = new OpenIddictApplicationDescriptor
-    {
-        ClientId = DevelopmentMcpClientId,
-        ClientType = OpenIddictConstants.ClientTypes.Public,
-        ConsentType = OpenIddictConstants.ConsentTypes.Explicit,
-        DisplayName = "Pegasus Development MCP client"
-    };
-    descriptor.RedirectUris.Add(new Uri(DevelopmentMcpRedirectUri));
-    descriptor.Permissions.UnionWith(
-    [
-        OpenIddictConstants.Permissions.Endpoints.Authorization,
-        OpenIddictConstants.Permissions.Endpoints.Revocation,
-        OpenIddictConstants.Permissions.Endpoints.Token,
-        OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
-        OpenIddictConstants.Permissions.GrantTypes.RefreshToken,
-        OpenIddictConstants.Permissions.ResponseTypes.Code,
-        OpenIddictConstants.Permissions.Scopes.Profile,
-        OpenIddictConstants.Permissions.Prefixes.Scope + StaffMcpOAuthOptions.ReadScope,
-        OpenIddictConstants.Permissions.Prefixes.Scope + StaffMcpOAuthOptions.WriteScope
-    ]);
-    descriptor.Requirements.Add(
-        OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange);
-
-    if (application is null)
-    {
-        await applicationManager.CreateAsync(descriptor);
-    }
-    else
-    {
-        await applicationManager.UpdateAsync(application, descriptor);
-    }
-    await securityEvents.AppendAsync(
-        new(
-            Guid.NewGuid(),
-            SecurityEventType.Client,
-            SecurityEventOutcome.Succeeded,
-            DevelopmentMcpClientId,
-            scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow(),
-            "development-mcp-client-command",
-            "development_mcp_client_registered"),
-        CancellationToken.None);
-
+    await DevelopmentOfflineInitialization.RegisterMcpClientAsync(scope.ServiceProvider);
     Console.WriteLine(
         "The deterministic DevelopmentOffline public PKCE MCP client is registered.");
     return;
@@ -788,11 +731,15 @@ if (!localDocumentCustodyEnabled)
 app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
     Predicate = _ => false
-}).AllowAnonymous();
+})
+    .AllowAnonymous()
+    .ShortCircuit();
 app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
     Predicate = registration => registration.Tags.Contains("ready")
-}).AllowAnonymous();
+})
+    .AllowAnonymous()
+    .ShortCircuit();
 
 app.MapStaticAssets()
     .AllowAnonymous();
@@ -804,19 +751,24 @@ app.MapGet("/diagnostics/version", () => Results.Ok(new
 if (staffMcpOAuth is not null)
 {
     app.MapPegasusStaffMcp(StaffMcpRequestRateLimitPolicy);
+    var protectedResourceMetadata = new
+    {
+        resource = staffMcpOAuth.Resource.AbsoluteUri,
+        authorization_servers = new[] { staffMcpOAuth.Issuer.AbsoluteUri },
+        scopes_supported = new[]
+        {
+            StaffMcpOAuthOptions.ReadScope,
+            StaffMcpOAuthOptions.WriteScope
+        },
+        bearer_methods_supported = Program.BearerMethodsSupported
+    };
     app.MapGet(
         "/.well-known/oauth-protected-resource",
-        () => Results.Json(new
-        {
-            resource = staffMcpOAuth.Resource.AbsoluteUri,
-            authorization_servers = new[] { staffMcpOAuth.Issuer.AbsoluteUri },
-            scopes_supported = new[]
-            {
-                StaffMcpOAuthOptions.ReadScope,
-                StaffMcpOAuthOptions.WriteScope
-            },
-            bearer_methods_supported = Program.BearerMethodsSupported
-        }))
+        () => Results.Json(protectedResourceMetadata))
+        .AllowAnonymous();
+    app.MapGet(
+        "/.well-known/oauth-protected-resource/mcp",
+        () => Results.Json(protectedResourceMetadata))
         .AllowAnonymous();
     app.MapPost(
         "/connect/token",
@@ -892,7 +844,7 @@ if (staffMcpOAuth is not null)
             principal.SetAuthorizationId(authenticationPrincipal.GetAuthorizationId());
             return Results.SignIn(
                 principal,
-                authentication.Properties,
+                properties: null,
                 OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         })
         .AllowAnonymous()
@@ -930,30 +882,41 @@ internal sealed class DevelopmentOfflineAuthenticationHandler(
     ILoggerFactory logger,
     System.Text.Encodings.Web.UrlEncoder encoder,
     IConfiguration configuration,
-    IHostEnvironment environment)
+    IHostEnvironment environment,
+    UserManager<PegasusIdentityUser> userManager,
+    IUserClaimsPrincipalFactory<PegasusIdentityUser> claimsPrincipalFactory)
     : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
 {
-    private const string AdministratorId = "d47fbbae-ea22-4ca6-b983-01e2ed1fbd13";
-
-    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         if (!environment.IsDevelopment()
             || configuration["Runtime:Profile"]?.Equals(
                 "DevelopmentOffline",
                 StringComparison.Ordinal) != true)
         {
-            return Task.FromResult(AuthenticateResult.NoResult());
+            return AuthenticateResult.NoResult();
         }
 
-        var identity = new System.Security.Claims.ClaimsIdentity(
-            [
-                new(System.Security.Claims.ClaimTypes.NameIdentifier, AdministratorId),
-                new(System.Security.Claims.ClaimTypes.Name, "DevelopmentOffline Administrator"),
-                new(System.Security.Claims.ClaimTypes.Role, StaffRoleNames.Administrator)
-            ],
-            Scheme.Name);
-        var principal = new System.Security.Claims.ClaimsPrincipal(identity);
-        var ticket = new AuthenticationTicket(principal, Scheme.Name);
-        return Task.FromResult(AuthenticateResult.Success(ticket));
+        var user = await userManager.FindByIdAsync(
+            DevelopmentOfflineIdentity.AdministratorId.ToString("D"));
+        if (user is null
+            || !user.IsEnabled
+            || user.MustChangePassword
+            || user.PasswordHash is not null
+            || !string.Equals(
+                user.UserName,
+                DevelopmentOfflineIdentity.UserName,
+                StringComparison.Ordinal))
+        {
+            return AuthenticateResult.NoResult();
+        }
+
+        var principal = await claimsPrincipalFactory.CreateAsync(user);
+        if (!principal.IsInRole(StaffRoleNames.Administrator))
+        {
+            return AuthenticateResult.NoResult();
+        }
+
+        return AuthenticateResult.Success(new AuthenticationTicket(principal, Scheme.Name));
     }
 }

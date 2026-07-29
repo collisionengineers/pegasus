@@ -369,6 +369,9 @@ public sealed class IntakeWebNegativeTests
 
     private sealed class FailOnceArtifactStore : IIntakeArtifactStore
     {
+        private ReadOnlyMemory<byte>? retainedContent;
+        private string? retainedStorageKey;
+
         public int Attempts { get; private set; }
 
         public Task<string> StoreAsync(
@@ -382,12 +385,17 @@ public sealed class IntakeWebNegativeTests
                 throw new IOException("controlled first retention failure");
             }
 
-            return Task.FromResult($"sha256/{contentHash[..2]}/{contentHash}");
+            retainedContent = content;
+            retainedStorageKey = $"sha256/{contentHash[..2]}/{contentHash}";
+            return Task.FromResult(retainedStorageKey);
         }
 
         public Task<ReadOnlyMemory<byte>?> ReadAsync(
             string storageKey,
             CancellationToken cancellationToken) =>
-            Task.FromResult<ReadOnlyMemory<byte>?>(null);
+            Task.FromResult(
+                string.Equals(storageKey, retainedStorageKey, StringComparison.Ordinal)
+                    ? retainedContent
+                    : null);
     }
 }

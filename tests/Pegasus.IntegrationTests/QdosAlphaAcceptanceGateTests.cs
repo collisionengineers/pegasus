@@ -129,6 +129,20 @@ public sealed class QdosAlphaAcceptanceGateTests
         Assert.NotNull(expectedRevision);
         Assert.Matches("^[a-f0-9]{40}$", expectedRevision);
 
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        using (var diagnosticResponse = await client.GetAsync("/diagnostics/version"))
+        {
+            Assert.True(
+                diagnosticResponse.IsSuccessStatusCode,
+                $"Compiled Web build diagnostic failed with status {(int)diagnosticResponse.StatusCode}.");
+            using var diagnostic = JsonDocument.Parse(
+                await diagnosticResponse.Content.ReadAsByteArrayAsync());
+            Assert.Equal(
+                expectedRevision,
+                diagnostic.RootElement.GetProperty("sourceSha").GetString());
+        }
+
         await using var stream = File.OpenRead(manifestPath);
         var request = await JsonSerializer.DeserializeAsync<QdosAlphaAcceptanceRequest>(
             stream,
@@ -149,7 +163,6 @@ public sealed class QdosAlphaAcceptanceGateTests
             AssertEvidenceHash(manifestDirectory, evidence.EvidenceReference, evidence.EvidenceSha256);
         }
 
-        using var factory = new IntakeWebApplicationFactory();
         var gate = factory.Services.GetRequiredService<QdosAlphaAcceptanceGate>();
         var decision = gate.Evaluate(request);
 

@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Pegasus.Core.Triage;
 
 namespace Pegasus.Core.Intake;
 
@@ -38,6 +39,13 @@ public sealed record IntakeWorkItem(
 
 public sealed record ReceivedIntake(Guid StagedReceiptId, bool IsDuplicate);
 
+public sealed record IntakeEvaluationRevision(
+    Guid Id,
+    Guid StagedReceiptId,
+    Guid ProcessedReceiptId,
+    int Revision,
+    DateTimeOffset EvaluatedAtUtc);
+
 public enum IntakeSubmissionDisposition
 {
     Processed = 1,
@@ -57,18 +65,32 @@ public interface IIntakeSubmission
         CancellationToken cancellationToken = default);
 }
 
-public sealed class ProcessIntakeSubmission(ProcessIntake processIntake) : IIntakeSubmission
+public sealed class ProcessIntakeSubmission(
+    ReceiveIntake receiveIntake,
+    ProcessQueuedIntake processQueuedIntake,
+    IIntakeWorkStore workStore) : IIntakeSubmission
 {
     public async Task<IntakeSubmissionResult> ExecuteAsync(
         IntakeSource source,
         string operationKey,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(source);
         ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
-        var receipt = await processIntake.ExecuteAsync(source, cancellationToken);
+
+        var received = await receiveIntake.ExecuteInlineAsync(
+            source,
+            operationKey,
+            cancellationToken);
+        await processQueuedIntake.ExecuteAsync(received.StagedReceiptId, cancellationToken);
+        var evaluation = await workStore.GetCompletedEvaluationAsync(
+            received.StagedReceiptId,
+            cancellationToken)
+            ?? throw new InvalidOperationException(
+                "Inline intake processing did not persist a completed evaluation revision.");
         return new(
-            receipt.Id,
-            receipt.IsDuplicate,
+            evaluation.ProcessedReceiptId,
+            received.IsDuplicate,
             IntakeSubmissionDisposition.Processed);
     }
 }
@@ -76,7 +98,16 @@ public sealed class ProcessIntakeSubmission(ProcessIntake processIntake) : IInta
 
 public interface IIntakeWorkStore
 {
+    Task<IntakeStagedReceipt?> FindBySourceIdentityAsync(
+        IntakeSourceIdentity sourceIdentity,
+        CancellationToken cancellationToken);
+
     Task<ReceivedIntake> ReceiveAsync(
+        IntakeStagedReceipt receipt,
+        string operationKey,
+        CancellationToken cancellationToken);
+
+    Task<ReceivedIntake> ReceiveForProcessingAsync(
         IntakeStagedReceipt receipt,
         string operationKey,
         CancellationToken cancellationToken);
@@ -104,11 +135,15 @@ public interface IIntakeWorkStore
         TimeSpan leaseDuration,
         CancellationToken cancellationToken);
 
-    Task CompleteProcessingAsync(
+    Task<IntakeEvaluationRevision> CompleteProcessingAsync(
         Guid workItemId,
         string leaseToken,
         Guid processedReceiptId,
         DateTimeOffset completedAtUtc,
+        CancellationToken cancellationToken);
+
+    Task<IntakeEvaluationRevision?> GetCompletedEvaluationAsync(
+        Guid stagedReceiptId,
         CancellationToken cancellationToken);
 
     Task RetryProcessingAsync(
@@ -152,10 +187,23 @@ public sealed class ReceiveIntake(
     private const int MaximumExternalReceiptTokenLength = 200;
     private const int MaximumOperationKeyLength = 100;
 
-    public async Task<ReceivedIntake> ExecuteAsync(
+    public Task<ReceivedIntake> ExecuteAsync(
         IntakeSource source,
         string operationKey,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        ReceiveCoreAsync(source, operationKey, processInline: false, cancellationToken);
+
+    public Task<ReceivedIntake> ExecuteInlineAsync(
+        IntakeSource source,
+        string operationKey,
+        CancellationToken cancellationToken = default) =>
+        ReceiveCoreAsync(source, operationKey, processInline: true, cancellationToken);
+
+    private async Task<ReceivedIntake> ReceiveCoreAsync(
+        IntakeSource source,
+        string operationKey,
+        bool processInline,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(source.SourceIdentity);
@@ -195,6 +243,27 @@ public sealed class ReceiveIntake(
                 "The intake source channel is not supported.")
         };
         var sourceHash = Convert.ToHexString(SHA256.HashData(source.Content.Span));
+        var existing = await workStore.FindBySourceIdentityAsync(
+            source.SourceIdentity,
+            cancellationToken);
+        if (existing is not null)
+        {
+            if (!string.Equals(existing.SourceHash, sourceHash, StringComparison.Ordinal))
+            {
+                throw new IntakeSourceIdentityConflictException();
+            }
+
+            return processInline
+                ? await workStore.ReceiveForProcessingAsync(
+                    existing,
+                    operationKey,
+                    cancellationToken)
+                : await workStore.ReceiveAsync(
+                    existing,
+                    operationKey,
+                    cancellationToken);
+        }
+
         string storageKey;
         try
         {
@@ -206,20 +275,26 @@ public sealed class ReceiveIntake(
         }
 
         var nowUtc = timeProvider.GetUtcNow();
-        return await workStore.ReceiveAsync(
-            new(
-                Guid.NewGuid(),
-                safeFileName,
-                source.MediaType,
-                source.Content.Length,
-                sourceHash,
-                source.SourceIdentity,
-                source.ReceivedAtUtc,
-                source.Actor,
-                storageKey,
-                nowUtc),
-            operationKey,
-            cancellationToken);
+        var stagedReceipt = new IntakeStagedReceipt(
+            Guid.NewGuid(),
+            safeFileName,
+            source.MediaType,
+            source.Content.Length,
+            sourceHash,
+            source.SourceIdentity,
+            source.ReceivedAtUtc,
+            source.Actor,
+            storageKey,
+            nowUtc);
+        return processInline
+            ? await workStore.ReceiveForProcessingAsync(
+                stagedReceipt,
+                operationKey,
+                cancellationToken)
+            : await workStore.ReceiveAsync(
+                stagedReceipt,
+                operationKey,
+                cancellationToken);
     }
 
     async Task<IntakeSubmissionResult> IIntakeSubmission.ExecuteAsync(
@@ -294,8 +369,11 @@ public sealed class ProcessQueuedIntake(
     IIntakeWorkStore workStore,
     IIntakeArtifactStore artifactStore,
     ProcessIntake processIntake,
+    IIntakeReceiptQueries receiptQueries,
+    ICreateTriageFromIntake createTriage,
     TimeProvider timeProvider)
 {
+    private const string SystemActor = "system-worker:intake-processing";
     private static readonly TimeSpan ProcessingLeaseDuration = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan[] RetryDelays =
     [
@@ -315,35 +393,55 @@ public sealed class ProcessQueuedIntake(
             cancellationToken);
         if (claimed is null)
         {
+            var completedEvaluation = await workStore.GetCompletedEvaluationAsync(
+                stagedReceiptId,
+                cancellationToken);
+            if (completedEvaluation is null)
+            {
+                return;
+            }
+
+            var completedReceipt = await receiptQueries.GetAsync(
+                completedEvaluation.ProcessedReceiptId,
+                cancellationToken)
+                ?? throw new InvalidDataException(
+                    "The completed intake evaluation does not identify a persisted receipt.");
+            await CreateTriageIfQualifyingAsync(
+                completedReceipt,
+                completedEvaluation,
+                cancellationToken);
             return;
         }
 
-        var (workItem, receipt) = claimed.Value;
+        var (workItem, stagedReceipt) = claimed.Value;
         if (workItem.LeaseToken is null)
         {
             throw new InvalidOperationException("A claimed intake work item must have a lease token.");
         }
 
+        IntakeReceipt processed;
+        IntakeEvaluationRevision evaluation;
         try
         {
-            var content = await artifactStore.ReadAsync(receipt.StorageKey, cancellationToken)
+            var content = await artifactStore.ReadAsync(stagedReceipt.StorageKey, cancellationToken)
                 ?? throw new IntakeArtifactIntegrityException();
             var actualHash = Convert.ToHexString(SHA256.HashData(content.Span));
-            if (!string.Equals(actualHash, receipt.SourceHash, StringComparison.Ordinal))
+            if (!string.Equals(actualHash, stagedReceipt.SourceHash, StringComparison.Ordinal))
             {
                 throw new IntakeArtifactIntegrityException();
             }
 
-            var processed = await processIntake.ExecuteAsync(
+            processed = await processIntake.ExecuteRetainedAsync(
                 new(
-                    receipt.SourceFileName,
-                    receipt.MediaType,
+                    stagedReceipt.SourceFileName,
+                    stagedReceipt.MediaType,
                     content,
-                    receipt.ReceivedAtUtc,
-                    receipt.Actor,
-                    receipt.SourceIdentity),
+                    stagedReceipt.ReceivedAtUtc,
+                    stagedReceipt.Actor,
+                    stagedReceipt.SourceIdentity),
+                stagedReceipt.StorageKey,
                 cancellationToken);
-            await workStore.CompleteProcessingAsync(
+            evaluation = await workStore.CompleteProcessingAsync(
                 workItem.Id,
                 workItem.LeaseToken,
                 processed.Id,
@@ -363,7 +461,37 @@ public sealed class ProcessQueuedIntake(
                 FailureCode(exception),
                 terminal,
                 cancellationToken);
+            return;
         }
+
+        await CreateTriageIfQualifyingAsync(processed, evaluation, cancellationToken);
+    }
+
+    private async Task CreateTriageIfQualifyingAsync(
+        IntakeReceipt receipt,
+        IntakeEvaluationRevision evaluation,
+        CancellationToken cancellationToken)
+    {
+        var registration = receipt.InstructionDraft?.VehicleRegistration;
+        if (receipt.Decision != IntakeDecision.DraftReady
+            || string.IsNullOrWhiteSpace(receipt.ExtractionPolicyKey)
+            || receipt.ExtractionPolicyVersion is null or <= 0
+            || string.IsNullOrWhiteSpace(registration))
+        {
+            return;
+        }
+
+        await createTriage.ExecuteAsync(
+            new(
+                new(
+                    receipt.Id,
+                    receipt.SourceIdentity,
+                    receipt.SourceHash,
+                    evaluation.Id),
+                registration,
+                SystemActor,
+                $"triage-from-intake-evaluation:{evaluation.Id:N}"),
+            cancellationToken);
     }
 
     private static string FailureCode(Exception exception) => exception switch

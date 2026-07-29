@@ -77,6 +77,10 @@ public sealed record MailRoutePredicateResult(
     string Key,
     bool Matched,
     string Detail);
+public sealed record MailRouteIdentity(
+    string Address,
+    string SourceLabel);
+
 
 public sealed record MailRouteSelection(
     string RouteOwnerCode,
@@ -89,7 +93,10 @@ public sealed record MailRouteEvaluationResult(
     IReadOnlyList<MailRoutePredicateResult> Predicates,
     string Reason,
     string PolicyKey,
-    int PolicyVersion);
+    int PolicyVersion,
+    IReadOnlyList<MailRouteIdentity> TransportIdentities,
+    IReadOnlyList<MailRouteIdentity> OriginalIdentities,
+    MailRouteIdentity? EffectiveSender);
 
 public interface IMailRoutePolicy
 {
@@ -129,9 +136,17 @@ public sealed record IntakeContentFragment(
     string SourceLabel,
     string Text);
 
+public enum IntakeSenderIdentityKind
+{
+    Transport,
+    AttachedOriginal
+}
+
 public sealed record IntakeTransportEvidence(
     IntakeEvidenceSource Source,
-    string Value);
+    string Value,
+    IntakeSenderIdentityKind SenderIdentityKind = IntakeSenderIdentityKind.Transport,
+    string? SourceLabel = null);
 
 public sealed record IntakeSourceIssue(
     string Code,
@@ -265,7 +280,8 @@ public sealed record IntakeReceipt(
     string? ExtractionPolicyKey,
     int? ExtractionPolicyVersion,
     IReadOnlyList<IntakeAssetRecord>? Assets = null,
-    IReadOnlyList<ScannedPdfOcrCandidate>? OcrCandidates = null)
+    IReadOnlyList<ScannedPdfOcrCandidate>? OcrCandidates = null,
+    MailRouteEvaluationResult? MailRouteDecision = null)
 {
     public IReadOnlyList<IntakeAssetRecord> AssetRecords => Assets ?? [];
 
@@ -294,7 +310,8 @@ public sealed record IntakeReceiptDraft(
     string? ExtractionPolicyKey,
     int? ExtractionPolicyVersion,
     IReadOnlyList<IntakeAssetRecord>? Assets = null,
-    IReadOnlyList<ScannedPdfOcrCandidate>? OcrCandidates = null)
+    IReadOnlyList<ScannedPdfOcrCandidate>? OcrCandidates = null,
+    MailRouteEvaluationResult? MailRouteDecision = null)
 {
     public IReadOnlyList<IntakeAssetRecord> AssetRecords => Assets ?? [];
 

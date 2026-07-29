@@ -92,7 +92,11 @@ Assert-Condition -Condition ([System.IO.File]::Exists($manifestPath)) -Message '
 $manifest = [System.IO.File]::ReadAllText($manifestPath) | ConvertFrom-Json -Depth 10
 Assert-Condition -Condition ($manifest.schemaVersion -eq 1) -Message 'Release manifest schemaVersion must be 1.'
 Assert-Condition -Condition ($manifest.releaseMode -eq 'offline-replay') -Message 'Release manifest is not an offline replay artifact.'
-Assert-Condition -Condition ([string]$manifest.sourceRevision -match '^[0-9a-f]{7,64}$') -Message 'Release manifest sourceRevision is invalid.'
+Assert-Condition -Condition ([string]$manifest.sourceRevision -cmatch '^[0-9a-f]{40}$') -Message 'Release manifest sourceRevision must be the exact lowercase 40-character checkout revision.'
+Assert-Condition -Condition ($manifest.PSObject.Properties.Name -contains 'webDiagnostic') -Message 'Release manifest is missing the verified Web build diagnostic.'
+Assert-Condition -Condition ($manifest.webDiagnostic.schemaVersion -eq 1) -Message 'Release manifest Web build diagnostic schemaVersion must be 1.'
+Assert-Condition -Condition (-not [string]::IsNullOrWhiteSpace([string]$manifest.webDiagnostic.version)) -Message 'Release manifest Web build diagnostic version is missing.'
+Assert-Condition -Condition ([string]$manifest.webDiagnostic.sourceSha -ceq [string]$manifest.sourceRevision) -Message 'Release manifest Web source SHA does not match its exact sourceRevision.'
 Assert-Condition -Condition (@($manifest.artifacts).Count -eq 3) -Message 'Release manifest must contain Web, Worker, and migration artifacts only.'
 
 $webArtifact = Get-ExpectedArtifact -Manifest $manifest -Name 'web.zip'

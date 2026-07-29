@@ -74,7 +74,8 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
         string sourceLabel,
         ReadAccumulator result,
         CancellationToken cancellationToken,
-        bool isRoot = false)
+        bool isRoot = false,
+        IntakeSenderIdentityKind? emailSenderIdentityKind = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var format = DetectFormat(fileName, mediaType);
@@ -83,7 +84,14 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
             case SourceFormat.Pdf:
                 return ReadPdf(bytes, sourceLabel, result, isRoot, cancellationToken);
             case SourceFormat.Email:
-                return await ReadEmailAsync(bytes, sourceLabel, result, isRoot, cancellationToken);
+                return await ReadEmailAsync(
+                    bytes,
+                    sourceLabel,
+                    result,
+                    emailSenderIdentityKind
+                        ?? (isRoot ? IntakeSenderIdentityKind.Transport : null),
+                    isRoot,
+                    cancellationToken);
             case SourceFormat.Docx:
                 return ReadDocx(bytes, sourceLabel, result, isRoot);
             case SourceFormat.Image:
@@ -535,6 +543,7 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
         ReadOnlyMemory<byte> bytes,
         string sourceLabel,
         ReadAccumulator result,
+        IntakeSenderIdentityKind? senderIdentityKind,
         bool isRoot,
         CancellationToken cancellationToken)
     {
@@ -576,7 +585,14 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
         }
 
         var limits = result.MimeLimits ??= new MimeLimitState();
-        await ReadMessageAsync(message, sourceLabel, result, limits, 0, addTransport: isRoot, cancellationToken);
+        await ReadMessageAsync(
+            message,
+            sourceLabel,
+            result,
+            limits,
+            0,
+            senderIdentityKind,
+            cancellationToken);
         return ReadOutcome.Readable;
     }
 
@@ -586,21 +602,33 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
         ReadAccumulator result,
         MimeLimitState limits,
         int nestedDepth,
-        bool addTransport,
+        IntakeSenderIdentityKind? senderIdentityKind,
         CancellationToken cancellationToken)
     {
-        if (addTransport)
+        if (senderIdentityKind is { } identityKind)
         {
             foreach (var mailbox in message.From.Mailboxes)
             {
-                AddSenderTransportEvidence(mailbox.Address, result);
+                AddSenderTransportEvidence(
+                    mailbox.Address,
+                    identityKind,
+                    sourceLabel,
+                    result);
             }
 
-            AddSenderTransportEvidence(message.Sender?.Address, result);
+            AddSenderTransportEvidence(
+                message.Sender?.Address,
+                identityKind,
+                sourceLabel,
+                result);
 
-            if (!string.IsNullOrWhiteSpace(message.Subject))
+            if (identityKind == IntakeSenderIdentityKind.Transport
+                && !string.IsNullOrWhiteSpace(message.Subject))
             {
-                result.Transport.Add(new(IntakeEvidenceSource.Subject, message.Subject));
+                result.Transport.Add(new(
+                    IntakeEvidenceSource.Subject,
+                    message.Subject,
+                    SourceLabel: sourceLabel));
             }
         }
 
@@ -623,17 +651,24 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
                 result,
                 limits,
                 nestedDepth,
+                senderIdentityKind == IntakeSenderIdentityKind.Transport,
                 cancellationToken);
         }
     }
 
     private static void AddSenderTransportEvidence(
         string? address,
+        IntakeSenderIdentityKind senderIdentityKind,
+        string sourceLabel,
         ReadAccumulator result)
     {
         if (!string.IsNullOrWhiteSpace(address))
         {
-            result.Transport.Add(new(IntakeEvidenceSource.Sender, address));
+            result.Transport.Add(new(
+                IntakeEvidenceSource.Sender,
+                address,
+                senderIdentityKind,
+                sourceLabel));
         }
     }
 
@@ -643,6 +678,7 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
         ReadAccumulator result,
         MimeLimitState limits,
         int nestedDepth,
+        bool allowAttachedOriginal,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -657,7 +693,14 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
         {
             foreach (var child in multipart)
             {
-                await ReadMimeEntityAsync(child, sourceLabel, result, limits, nestedDepth, cancellationToken);
+                await ReadMimeEntityAsync(
+                    child,
+                    sourceLabel,
+                    result,
+                    limits,
+                    nestedDepth,
+                    allowAttachedOriginal,
+                    cancellationToken);
                 if (limits.EntityCount > MaximumMimeEntities || limits.DecodedBytes > MaximumDecodedMimeBytes)
                 {
                     break;
@@ -712,7 +755,9 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
                     result,
                     limits,
                     nestedDepth + 1,
-                    addTransport: false,
+                    allowAttachedOriginal && nestedDepth == 0
+                        ? IntakeSenderIdentityKind.AttachedOriginal
+                        : null,
                     cancellationToken);
             }
             catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
@@ -786,7 +831,10 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
                 part.ContentType.MimeType,
                 attachmentLabel,
                 result,
-                cancellationToken);
+                cancellationToken,
+                emailSenderIdentityKind: allowAttachedOriginal && nestedDepth == 0
+                    ? IntakeSenderIdentityKind.AttachedOriginal
+                    : null);
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {

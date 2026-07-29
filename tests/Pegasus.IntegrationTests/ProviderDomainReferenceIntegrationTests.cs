@@ -59,10 +59,8 @@ public sealed class ProviderDomainReferenceIntegrationTests
         var services = new ServiceCollection();
         services.AddPegasusInfrastructure((_, options) =>
             options
-                .UseSqlite(connection)
-                .AddInterceptors(commandCounter)
-                .ConfigureWarnings(warnings =>
-                    warnings.Ignore(RelationalEventId.PendingModelChangesWarning)));
+                .UsePegasusSqlite(connection)
+                .AddInterceptors(commandCounter));
         await using var serviceProvider = services.BuildServiceProvider(validateScopes: true);
 
         var contextFactory = serviceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();

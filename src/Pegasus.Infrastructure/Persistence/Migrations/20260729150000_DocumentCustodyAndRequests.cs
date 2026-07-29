@@ -33,7 +33,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 {
                     "bigint" or "bit" or "int" => "INTEGER",
                     "datetime2" or "datetimeoffset" or "uniqueidentifier" => "TEXT",
-                    "rowversion" => "BLOB",
                     _ when sqlServerType.StartsWith("nchar", StringComparison.Ordinal)
                         || sqlServerType.StartsWith("nvarchar", StringComparison.Ordinal) => "TEXT",
                     _ => throw new InvalidOperationException($"Unsupported SQLite column type mapping for '{sqlServerType}'.")
@@ -513,7 +512,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     ImagesConfirmedByStaff = table.Column<bool>(type: SqlType("bit"), nullable: false),
                     CreatedAtUtc = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: false),
                     Version = table.Column<long>(type: SqlType("bigint"), nullable: false),
-                    RowVersion = table.Column<byte[]>(type: SqlType("rowversion"), rowVersion: true, nullable: false),
+                    ConcurrencyToken = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
                     CustodyRootRemoteId = table.Column<string>(type: SqlType("nvarchar(200)"), maxLength: 200, nullable: true),
                     CustodySourceRemoteId = table.Column<string>(type: SqlType("nvarchar(200)"), maxLength: 200, nullable: true),
                     CustodySourceContentHash = table.Column<string>(type: SqlType("nvarchar(64)"), maxLength: 64, nullable: true),

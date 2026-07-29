@@ -127,6 +127,7 @@ internal sealed class EfDocumentCustodyStore(
                 && version.Id == query.VersionId
                 && version.DocumentId == occurrence.DocumentId
                 && version.CustodyStatus == DocumentCustodyStatus.Confirmed
+                && !version.IsLogicallyRemoved
             select new { Occurrence = occurrence, Version = version })
             .SingleOrDefaultAsync(cancellationToken);
         if (item is null)
@@ -178,6 +179,7 @@ internal sealed class EfDocumentCustodyStore(
                     && occurrence.Id == selection.OccurrenceId
                     && version.Id == selection.VersionId
                     && version.CustodyStatus == DocumentCustodyStatus.Confirmed
+                    && !version.IsLogicallyRemoved
                 select new ExportItem(occurrence, version))
                 .SingleOrDefaultAsync(cancellationToken)
                 ?? throw new InvalidOperationException("A selected document version is unavailable.");

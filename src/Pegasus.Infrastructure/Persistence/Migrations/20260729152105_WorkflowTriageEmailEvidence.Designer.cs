@@ -550,6 +550,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(43)
                         .HasColumnType("nvarchar(43)");
 
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -604,12 +608,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion");
 
                     b.Property<int>("Sequence")
                         .HasColumnType("int");
@@ -1909,6 +1907,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("AssigneeId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -1951,12 +1953,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("OriginReceiptId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion");
 
                     b.Property<string>("SourceChannel")
                         .IsRequired()

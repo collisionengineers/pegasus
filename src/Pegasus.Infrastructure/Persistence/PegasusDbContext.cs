@@ -29,6 +29,12 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<EmailResponseEvidenceEntity> EmailResponseEvidence => Set<EmailResponseEvidenceEntity>();
     internal DbSet<ActionHistoryEntity> ActionHistory => Set<ActionHistoryEntity>();
     internal DbSet<SecurityEventEntity> SecurityEvents => Set<SecurityEventEntity>();
+    internal DbSet<CaseWorkflowEntity> CaseWorkflows => Set<CaseWorkflowEntity>();
+    internal DbSet<CaseWorkflowEventEntity> CaseWorkflowEvents => Set<CaseWorkflowEventEntity>();
+    internal DbSet<CaseReportApprovalEntity> CaseReportApprovals => Set<CaseReportApprovalEntity>();
+    internal DbSet<CaseReportSentEvidenceEntity> CaseReportSentEvidence => Set<CaseReportSentEvidenceEntity>();
+    internal DbSet<CaseDueWorkEntity> CaseDueWork => Set<CaseDueWorkEntity>();
+    internal DbSet<CaseManualChaseEntity> CaseManualChases => Set<CaseManualChaseEntity>();
 
 
     internal DbSet<IntakeReceiptEntity> IntakeReceipts => Set<IntakeReceiptEntity>();
@@ -42,6 +48,11 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
 
     internal DbSet<IntakeWorkItemEntity> IntakeWorkItems => Set<IntakeWorkItemEntity>();
     internal DbSet<IntakeEvaluationEntity> IntakeEvaluations => Set<IntakeEvaluationEntity>();
+    internal DbSet<ApprovedInboxPollStateEntity> ApprovedInboxPollStates =>
+        Set<ApprovedInboxPollStateEntity>();
+    internal DbSet<IntakeMailRouteDecisionEntity> IntakeMailRouteDecisions =>
+        Set<IntakeMailRouteDecisionEntity>();
+
 
 
 
@@ -51,10 +62,36 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
 
     internal DbSet<ProviderDomainEvidenceEntity> ProviderDomainEvidence => Set<ProviderDomainEvidenceEntity>();
 
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        RegenerateConcurrencyTokens();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(
+        bool acceptAllChangesOnSuccess,
+        CancellationToken cancellationToken = default)
+    {
+        RegenerateConcurrencyTokens();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void RegenerateConcurrencyTokens()
+    {
+        foreach (var entry in ChangeTracker.Entries<IApplicationManagedConcurrencyToken>())
+        {
+            if (entry.State is EntityState.Added or EntityState.Modified)
+            {
+                entry.Entity.ConcurrencyToken = Guid.NewGuid();
+            }
+        }
+    }
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
         CustodyModelConfiguration.Configure(builder);
+        MailboxModelConfiguration.Configure(builder);
 
         builder.Entity<PegasusIdentityUser>(entity =>
         {
@@ -285,7 +322,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.CustodyState).HasMaxLength(40).IsRequired();
             entity.Property(item => item.StandaloneAuditAssessment).HasMaxLength(40);
             entity.Property(item => item.Version).IsConcurrencyToken();
-            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.Property(item => item.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();
             entity.Property(item => item.CustodyRootRemoteId).HasMaxLength(200);
             entity.Property(item => item.CustodySourceRemoteId).HasMaxLength(200);
             entity.Property(item => item.CustodySourceContentHash).HasMaxLength(64);
@@ -330,6 +367,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasKey(item => item.IntakeReceiptId);
             entity.Property(item => item.Actor).HasMaxLength(200).IsRequired();
             entity.Property(item => item.OperationKey).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.AcceptanceCommandMaterialJson).HasMaxLength(2048);
+            entity.Property(item => item.AcceptanceCommandFingerprint).HasMaxLength(64).IsFixedLength();
             entity.HasIndex(item => item.CustodyWorkId).IsUnique();
             entity.HasIndex(item => item.OperationKey).IsUnique();
             entity.HasOne(item => item.Case)
@@ -374,7 +413,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.State).HasMaxLength(40).IsRequired();
             entity.Property(item => item.CreationOperationKey).HasMaxLength(100).IsRequired();
             entity.Property(item => item.Version).IsConcurrencyToken();
-            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.Property(item => item.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();
             entity.Property(item => item.EditLeaseTokenHash).HasMaxLength(64).IsFixedLength();
             entity.Property(item => item.EditLeaseHolder).HasMaxLength(200);
             entity.Property(item => item.EditLeaseOperationKey).HasMaxLength(100);
@@ -563,6 +602,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.DomainSuffix).HasMaxLength(254).IsRequired();
             entity.HasIndex(item => new { item.Version, item.DomainSuffix });
         });
+        CaseWorkflowModelConfiguration.Configure(builder);
     }
 }
 
@@ -632,7 +672,12 @@ internal sealed class CaseSequenceEntity
     public int LastAllocatedSequence { get; set; }
 }
 
-internal sealed class CaseEntity
+internal interface IApplicationManagedConcurrencyToken
+{
+    Guid ConcurrencyToken { get; set; }
+}
+
+internal sealed class CaseEntity : IApplicationManagedConcurrencyToken
 {
     public Guid Id { get; set; }
     public Guid PrincipalId { get; set; }
@@ -653,7 +698,7 @@ internal sealed class CaseEntity
     public bool ImagesConfirmedByStaff { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }
     public long Version { get; set; }
-    public byte[] RowVersion { get; set; } = [];
+    public Guid ConcurrencyToken { get; set; }
     public string? CustodyRootRemoteId { get; set; }
     public string? CustodySourceRemoteId { get; set; }
     public string? CustodySourceContentHash { get; set; }
@@ -674,6 +719,9 @@ internal sealed class CaseIntakeLinkEntity
     public DateTimeOffset LinkedAtUtc { get; set; }
     public required string Actor { get; set; }
     public required string OperationKey { get; set; }
+    public long? ExpectedIntakeVersion { get; set; }
+    public string? AcceptanceCommandMaterialJson { get; set; }
+    public string? AcceptanceCommandFingerprint { get; set; }
 }
 
 internal sealed class CaseHistoryEntity
@@ -708,7 +756,7 @@ internal sealed class ExternalWorkItemEntity
     public DateTimeOffset? CompletedAtUtc { get; set; }
 }
 
-internal sealed class TriageEntity
+internal sealed class TriageEntity : IApplicationManagedConcurrencyToken
 {
     public Guid Id { get; set; }
     public Guid OriginReceiptId { get; set; }
@@ -723,7 +771,7 @@ internal sealed class TriageEntity
     public DateTimeOffset CreatedAtUtc { get; set; }
     public required string CreationOperationKey { get; set; }
     public long Version { get; set; }
-    public byte[] RowVersion { get; set; } = [];
+    public Guid ConcurrencyToken { get; set; }
     public string? EditLeaseTokenHash { get; set; }
     public string? EditLeaseHolder { get; set; }
     public string? EditLeaseOperationKey { get; set; }
@@ -864,6 +912,7 @@ internal sealed class IntakeReceiptEntity
     public string? FailureReason { get; set; }
     public required string OcrCandidatesJson { get; set; }
     public InstructionDraftEntity? InstructionDraft { get; set; }
+    public IntakeMailRouteDecisionEntity? MailRouteDecision { get; set; }
     public List<IntakeAssetEntity> Assets { get; set; } = [];
 }
 

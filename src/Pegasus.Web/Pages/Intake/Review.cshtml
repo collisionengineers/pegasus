@@ -146,6 +146,7 @@
         <p>Confirm the principal, case type and evidence completeness before allocating an immutable case reference.</p>
         <form method="post" asp-page-handler="Accept" asp-route-id="@Model.Receipt.Id">
             <input asp-for="AcceptanceOperationKey" type="hidden" />
+            <input asp-for="ReviewedReceiptVersion" type="hidden" />
             <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
 
             <label asp-for="PrincipalCode">Confirmed principal code</label>

@@ -6,7 +6,13 @@
     "Runtime__Profile": "DevelopmentOffline",
     "Database__Provider": "Sqlite",
     "Database__LocalPath": "../../artifacts/pegasus.worker.db",
+    "Intake__LocalArtifactPath": "../../artifacts/local-development/default/intake",
     "IntakeWorkDispatchSchedule": "0 * * * * *",
-    "IntakeStagedArtifactReconciliationSchedule": "30 * * * * *"
+    "ExternalWorkDispatchSchedule": "15 * * * * *",
+    "IntakeStagedArtifactReconciliationSchedule": "30 * * * * *",
+    "ApprovedInboxPollSchedule": "45 * * * * *",
+    "ApprovedInbox__MailboxId": "instructions",
+    "ApprovedInbox__MailboxAddress": "instructions@collisionengineers.co.uk",
+    "ApprovedInbox__LocalRootPath": "../../artifacts/local-development/default/approved-inbox"
   }
 }

@@ -7,11 +7,10 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Intake;
-using Pegasus.Infrastructure.Persistence;
+using Pegasus.Web.Authentication;
 
 namespace Pegasus.IntegrationTests;
 
@@ -87,10 +86,9 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     {
         var host = base.CreateHost(builder);
         using var scope = host.Services.CreateScope();
-        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        using var context = contextFactory.CreateDbContext();
-        DevelopmentSqliteBaselineGuard.ValidateAsync(context).GetAwaiter().GetResult();
-        context.Database.Migrate();
+        DevelopmentOfflineInitialization.InitializeAsync(scope.ServiceProvider)
+            .GetAwaiter()
+            .GetResult();
         return host;
     }
 
@@ -116,7 +114,7 @@ internal static partial class IntakeWebDriver
         new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost")
+            BaseAddress = new Uri("https://localhost:7139")
         });
 
     public static async Task<UploadResult> UploadAsync(

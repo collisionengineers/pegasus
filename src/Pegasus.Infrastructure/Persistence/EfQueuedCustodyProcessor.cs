@@ -19,10 +19,11 @@ internal sealed class EfQueuedCustodyProcessor(
 
         var leaseToken = Guid.NewGuid().ToString("N");
         WorkPayload payload;
-        await using (var context = await dbContextFactory.CreateDbContextAsync(cancellationToken))
-        await using (var transaction = await context.Database.BeginTransactionAsync(cancellationToken))
+        while (true)
         {
-            var work = await context.Set<ExternalWorkItemEntity>()
+            await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            var work = await context.ExternalWorkItems
+                .AsNoTracking()
                 .SingleOrDefaultAsync(value => value.Id == workId, cancellationToken)
                 ?? throw new InvalidOperationException("The custody work item is unavailable.");
             if (!string.Equals(work.Kind, "create_case_custody", StringComparison.Ordinal))
@@ -30,7 +31,7 @@ internal sealed class EfQueuedCustodyProcessor(
                 throw new InvalidDataException("The external work item is not a supported custody operation.");
             }
 
-            if (string.Equals(work.State, "completed", StringComparison.Ordinal))
+            if (work.State is "completed" or "failed")
             {
                 return;
             }
@@ -42,32 +43,49 @@ internal sealed class EfQueuedCustodyProcessor(
                 throw new InvalidOperationException("The custody work item is already leased.");
             }
 
-            var caseEntity = await context.Set<CaseEntity>()
-                .AsNoTracking()
-                .SingleAsync(value => value.Id == work.CaseId, cancellationToken);
-            var source = await context.Set<IntakeStagedReceiptEntity>()
-                .AsNoTracking()
-                .SingleAsync(value => value.Id == caseEntity.OriginIntakeReceiptId, cancellationToken);
+            if (work.State is not ("pending" or "dispatching" or "queued" or "processing"))
+            {
+                throw new InvalidDataException(
+                    $"The custody work item has unknown state '{work.State}'.");
+            }
 
-            work.State = "processing";
-            work.AttemptCount = checked(work.AttemptCount + 1);
-            work.LeaseToken = leaseToken;
-            work.LeaseExpiresAtUtc = now.Add(LeaseDuration);
-            work.FailureCode = null;
-            work.FailureReason = null;
-            await context.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
+            var claimed = await context.ExternalWorkItems
+                .Where(value => value.Id == work.Id
+                    && value.State == work.State
+                    && value.LeaseToken == work.LeaseToken
+                    && value.LeaseExpiresAtUtc == work.LeaseExpiresAtUtc)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(value => value.State, "processing")
+                    .SetProperty(value => value.AttemptCount, value => value.AttemptCount + 1)
+                    .SetProperty(value => value.LeaseToken, leaseToken)
+                    .SetProperty(value => value.LeaseExpiresAtUtc, now.Add(LeaseDuration))
+                    .SetProperty(value => value.FailureCode, (string?)null)
+                    .SetProperty(value => value.FailureReason, (string?)null),
+                    cancellationToken);
+            if (claimed == 0)
+            {
+                continue;
+            }
 
-            payload = new(
-                work.CaseId,
-                caseEntity.Reference,
-                caseEntity.AuditReference,
-                caseEntity.OriginIntakeReceiptId,
-                source.SourceFileName,
-                source.MediaType,
-                source.SourceHash,
-                source.StorageKey,
-                work.OperationKey);
+            try
+            {
+                payload = await LoadPayloadAsync(
+                    context,
+                    work.CaseId,
+                    work.OperationKey,
+                    cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                await ReleaseLeaseAsync(
+                    workId,
+                    leaseToken,
+                    GetFailureCode(exception),
+                    CancellationToken.None);
+                throw;
+            }
+
+            break;
         }
 
         try
@@ -84,7 +102,7 @@ internal sealed class EfQueuedCustodyProcessor(
                     payload.SourceFileName,
                     payload.MediaType,
                     payload.SourceHash,
-                    payload.StagedObjectKey),
+                    payload.SourceObjectKey),
                 $"{payload.OperationKey}:source",
                 cancellationToken);
             if (!string.IsNullOrWhiteSpace(payload.AuditReference))
@@ -110,6 +128,75 @@ internal sealed class EfQueuedCustodyProcessor(
         }
     }
 
+    private static async Task<WorkPayload> LoadPayloadAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        var caseEntity = await context.Cases
+            .AsNoTracking()
+            .SingleAsync(value => value.Id == caseId, cancellationToken);
+        var receipt = await context.IntakeReceipts
+            .AsNoTracking()
+            .SingleAsync(value => value.Id == caseEntity.OriginIntakeReceiptId, cancellationToken);
+
+        var source = await context.IntakeWorkItems
+            .AsNoTracking()
+            .Where(value => value.ProcessedReceiptId == receipt.Id)
+            .Select(value => new SourcePayload(
+                value.StagedReceipt.SourceFileName,
+                value.StagedReceipt.MediaType,
+                value.StagedReceipt.SourceLength,
+                value.StagedReceipt.SourceHash,
+                value.StagedReceipt.StorageKey))
+            .SingleOrDefaultAsync(cancellationToken);
+        if (source is null)
+        {
+            source = await context.IntakeAssets
+                .AsNoTracking()
+                .Where(value => value.IntakeReceiptId == receipt.Id
+                    && value.Kind == "source"
+                    && value.Disposition == "source")
+                .Select(value => new SourcePayload(
+                    value.FileName,
+                    value.MediaType,
+                    value.ContentLength,
+                    value.ContentHash,
+                    value.StorageKey))
+                .SingleOrDefaultAsync(cancellationToken)
+                ?? throw new InvalidDataException(
+                    "The processed intake receipt has no retained source lineage.");
+        }
+
+        EnsureSourceMatchesReceipt(receipt, source);
+        return new(
+            caseEntity.Id,
+            caseEntity.Reference,
+            caseEntity.AuditReference,
+            receipt.Id,
+            receipt.SourceFileName,
+            receipt.MediaType,
+            receipt.SourceHash,
+            source.StorageKey,
+            operationKey);
+    }
+
+    private static void EnsureSourceMatchesReceipt(
+        IntakeReceiptEntity receipt,
+        SourcePayload source)
+    {
+        if (source.ContentLength != receipt.SourceLength
+            || !string.Equals(source.SourceHash, receipt.SourceHash, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(source.SourceFileName, receipt.SourceFileName, StringComparison.Ordinal)
+            || !string.Equals(source.MediaType, receipt.MediaType, StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(source.StorageKey))
+        {
+            throw new InvalidDataException(
+                "The retained intake source lineage does not match the processed receipt.");
+        }
+    }
+
     private async Task CompleteAsync(
         Guid workId,
         string leaseToken,
@@ -119,14 +206,28 @@ internal sealed class EfQueuedCustodyProcessor(
     {
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
-        var work = await context.Set<ExternalWorkItemEntity>()
-            .SingleAsync(value => value.Id == workId && value.LeaseToken == leaseToken, cancellationToken);
-        var caseEntity = await context.Set<CaseEntity>()
-            .SingleAsync(value => value.Id == work.CaseId, cancellationToken);
-        if (string.Equals(work.State, "completed", StringComparison.Ordinal))
+        var work = await context.ExternalWorkItems
+            .SingleOrDefaultAsync(
+                value => value.Id == workId && value.LeaseToken == leaseToken,
+                cancellationToken);
+        if (work is null)
         {
-            return;
+            var state = await context.ExternalWorkItems
+                .AsNoTracking()
+                .Where(value => value.Id == workId)
+                .Select(value => value.State)
+                .SingleOrDefaultAsync(cancellationToken);
+            if (string.Equals(state, "completed", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            throw new InvalidOperationException(
+                "The custody work item lease was lost before completion could be persisted.");
         }
+
+        var caseEntity = await context.Cases
+            .SingleAsync(value => value.Id == work.CaseId, cancellationToken);
 
         var now = timeProvider.GetUtcNow();
         var beforeVersion = caseEntity.Version;
@@ -142,6 +243,8 @@ internal sealed class EfQueuedCustodyProcessor(
         work.ExternalReceipt = version.RemoteId;
         work.LeaseToken = null;
         work.LeaseExpiresAtUtc = null;
+        work.FailureCode = null;
+        work.FailureReason = null;
         context.Set<CaseHistoryEntity>().Add(new()
         {
             Id = Guid.NewGuid(),
@@ -174,7 +277,7 @@ internal sealed class EfQueuedCustodyProcessor(
             return;
         }
 
-        work.State = "pending";
+        work.State = "queued";
         work.FailureCode = failureCode;
         work.FailureReason = "Custody dependency did not confirm the operation.";
         work.DueAtUtc = timeProvider.GetUtcNow();
@@ -200,6 +303,13 @@ internal sealed class EfQueuedCustodyProcessor(
         string SourceFileName,
         string MediaType,
         string SourceHash,
-        string StagedObjectKey,
+        string SourceObjectKey,
         string OperationKey);
+
+    private sealed record SourcePayload(
+        string SourceFileName,
+        string MediaType,
+        long ContentLength,
+        string SourceHash,
+        string StorageKey);
 }

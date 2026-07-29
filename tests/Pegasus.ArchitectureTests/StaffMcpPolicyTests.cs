@@ -7,6 +7,7 @@ public sealed class StaffMcpPolicyTests
 {
     private static readonly string[] ApprovedToolNames =
     [
+        "pegasus_case_workflow_get",
         "pegasus_document_download",
         "pegasus_document_export",
         "pegasus_document_upload",

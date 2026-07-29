@@ -12,6 +12,22 @@ public sealed class EfEmailEvidenceStore(
     TimeProvider? timeProvider = null)
     : IRecordSentEmailEvidence, IRecordEmailResponseEvidence, IEmailEvidenceChaseReadModel
 {
+    private static readonly IComparer<EmailEvidenceChaseRow> ChaseDueComparer =
+        Comparer<EmailEvidenceChaseRow>.Create(static (left, right) =>
+        {
+            var dueComparison = left.ChaseDueAtUtc.CompareTo(right.ChaseDueAtUtc);
+            return dueComparison != 0 ? dueComparison : left.Id.CompareTo(right.Id);
+        });
+
+    private sealed record EmailEvidenceChaseRow(
+        Guid Id,
+        Guid TriageId,
+        string MessageIdentity,
+        string Subject,
+        string RecipientsJson,
+        DateTimeOffset SentAtUtc,
+        DateTimeOffset ChaseDueAtUtc);
+
     public async Task<SentEmailEvidence> ExecuteAsync(
         RecordSentEmailEvidenceRequest request,
         CancellationToken cancellationToken)
@@ -196,21 +212,48 @@ public sealed class EfEmailEvidenceStore(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var rows = await context.SentEmailEvidence
+        if (!context.Database.IsSqlite())
+        {
+            var rows = await context.SentEmailEvidence
+                .AsNoTracking()
+                .Where(item => item.ChaseDueAtUtc <= asOfUtc && item.Response == null)
+                .OrderBy(item => item.ChaseDueAtUtc)
+                .ThenBy(item => item.Id)
+                .Take(maximumResults)
+                .ToListAsync(cancellationToken);
+            return rows.Select(MapChaseProjection).ToArray();
+        }
+
+        // SQLite cannot translate DateTimeOffset comparison or ordering. Stream unanswered rows
+        // and retain at most the requested number while applying instant ordering in memory.
+        var dueRows = new SortedSet<EmailEvidenceChaseRow>(ChaseDueComparer);
+        await foreach (var row in context.SentEmailEvidence
             .AsNoTracking()
-            .Where(item => item.ChaseDueAtUtc <= asOfUtc && item.Response == null)
-            .OrderBy(item => item.ChaseDueAtUtc)
-            .ThenBy(item => item.Id)
-            .Take(maximumResults)
-            .ToListAsync(cancellationToken);
-        return rows.Select(item => new EmailEvidenceChaseProjection(
-            item.Id,
-            item.TriageId,
-            item.MessageIdentity,
-            item.Subject,
-            DeserializeRecipients(item.RecipientsJson),
-            item.SentAtUtc,
-            item.ChaseDueAtUtc)).ToArray();
+            .Where(item => item.Response == null)
+            .Select(item => new EmailEvidenceChaseRow(
+                item.Id,
+                item.TriageId,
+                item.MessageIdentity,
+                item.Subject,
+                item.RecipientsJson,
+                item.SentAtUtc,
+                item.ChaseDueAtUtc))
+            .AsAsyncEnumerable()
+            .WithCancellation(cancellationToken))
+        {
+            if (row.ChaseDueAtUtc > asOfUtc)
+            {
+                continue;
+            }
+
+            dueRows.Add(row);
+            if (dueRows.Count > maximumResults)
+            {
+                dueRows.Remove(dueRows.Max!);
+            }
+        }
+
+        return dueRows.Select(MapChaseProjection).ToArray();
     }
 
     private static void Validate(RecordSentEmailEvidenceRequest request)
@@ -315,6 +358,24 @@ public sealed class EfEmailEvidenceStore(
         entity.SentAtUtc,
         entity.ChaseDueAtUtc,
         entity.Version);
+
+    private static EmailEvidenceChaseProjection MapChaseProjection(SentEmailEvidenceEntity entity) => new(
+        entity.Id,
+        entity.TriageId,
+        entity.MessageIdentity,
+        entity.Subject,
+        DeserializeRecipients(entity.RecipientsJson),
+        entity.SentAtUtc,
+        entity.ChaseDueAtUtc);
+
+    private static EmailEvidenceChaseProjection MapChaseProjection(EmailEvidenceChaseRow row) => new(
+        row.Id,
+        row.TriageId,
+        row.MessageIdentity,
+        row.Subject,
+        DeserializeRecipients(row.RecipientsJson),
+        row.SentAtUtc,
+        row.ChaseDueAtUtc);
 
     private static string[] DeserializeRecipients(string json) =>
         JsonSerializer.Deserialize<string[]>(json)

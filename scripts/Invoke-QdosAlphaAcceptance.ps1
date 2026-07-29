@@ -31,7 +31,53 @@ $evidenceTempPath = Join-Path $evidenceRoot 'evidence.json.tmp'
 $resultsRoot = Join-Path $evidenceRoot 'test-results'
 $startedUtc = [DateTimeOffset]::UtcNow
 
+function Resolve-RepositorySourceRevision {
+    param([Parameter(Mandatory)][string]$RequestedRevision)
+
+    $git = Get-Command -Name git -CommandType Application -ErrorAction SilentlyContinue
+    if ($null -eq $git) {
+        throw 'Git is required to bind acceptance evidence to the executed checkout.'
+    }
+
+    $headOutput = @(& $git.Source -C $repositoryRoot rev-parse --verify 'HEAD^{commit}' 2>$null)
+    if ($LASTEXITCODE -ne 0 -or $headOutput.Count -ne 1) {
+        throw "The repository HEAD could not be resolved at '$repositoryRoot'."
+    }
+
+    $headRevision = ([string]$headOutput[0]).Trim().ToLowerInvariant()
+    if ($headRevision -notmatch '^[0-9a-f]{40}$') {
+        throw "The repository HEAD is not a 40-character Git source revision: '$headRevision'."
+    }
+
+    $requested = $RequestedRevision.ToLowerInvariant()
+    $requestedOutput = @(
+        & $git.Source -C $repositoryRoot rev-parse --verify "$requested^{commit}" 2>$null
+    )
+    if ($LASTEXITCODE -ne 0 -or $requestedOutput.Count -ne 1) {
+        throw "SourceRevision '$RequestedRevision' does not identify a commit in the executed checkout."
+    }
+
+    $resolvedRequested = ([string]$requestedOutput[0]).Trim().ToLowerInvariant()
+    if ($resolvedRequested -cne $headRevision) {
+        throw "SourceRevision '$RequestedRevision' identifies '$resolvedRequested', but the executed checkout HEAD is '$headRevision'."
+    }
+
+    $workingTreeState = @(
+        & $git.Source -C $repositoryRoot status --porcelain=v1 --untracked-files=all -- . 2>$null
+    )
+    if ($LASTEXITCODE -ne 0) {
+        throw "The working-tree state could not be verified at '$repositoryRoot'."
+    }
+    if ($workingTreeState.Count -ne 0) {
+        throw "The executed checkout has tracked or untracked changes. Commit or remove them before producing revision-bound acceptance evidence."
+    }
+
+    return $headRevision
+}
+
 function Assert-OfflineCandidatePrerequisites {
+    param([Parameter(Mandatory)][string]$ExpectedSourceRevision)
+
     if ([string]::IsNullOrWhiteSpace($CapacityDatasetManifest)) {
         throw 'OfflineCandidate is blocked: -CapacityDatasetManifest is required for the operator-approved immutable 2,000-case dataset.'
     }
@@ -92,7 +138,7 @@ function Assert-OfflineCandidatePrerequisites {
         throw "OfflineCandidate is blocked: caller evidence manifest must use schemaVersion 1 and kind 'Pegasus.QdosAlpha.AcceptanceEvidence'."
     }
 
-    if ([string]$callerManifest.sourceRevision -ne $SourceRevision.ToLowerInvariant() -or
+    if ([string]$callerManifest.sourceRevision -cne $ExpectedSourceRevision -or
         [string]$callerManifest.runId -ne $RunId) {
         throw 'OfflineCandidate is blocked: caller evidence manifest sourceRevision and runId must identify this exact acceptance invocation.'
     }
@@ -128,25 +174,36 @@ function Assert-OfflineCandidatePrerequisites {
     }
 }
 
+$resolvedSourceRevision = Resolve-RepositorySourceRevision -RequestedRevision $SourceRevision
+$previousProfile = [Environment]::GetEnvironmentVariable('PEGASUS_QDOS_PRESSURE_PROFILE', 'Process')
+$previousAcceptanceManifest = [Environment]::GetEnvironmentVariable('PEGASUS_QDOS_ACCEPTANCE_MANIFEST', 'Process')
+$previousAcceptanceRevision = [Environment]::GetEnvironmentVariable('PEGASUS_QDOS_ACCEPTANCE_SOURCE_REVISION', 'Process')
+if (-not [string]::IsNullOrWhiteSpace($previousAcceptanceRevision)) {
+    $environmentRevision = $previousAcceptanceRevision.ToLowerInvariant()
+    if ($environmentRevision -notmatch '^[0-9a-f]{40}$' -or
+        $environmentRevision -cne $resolvedSourceRevision) {
+        throw "PEGASUS_QDOS_ACCEPTANCE_SOURCE_REVISION identifies '$previousAcceptanceRevision', but the executed checkout HEAD is '$resolvedSourceRevision'."
+    }
+}
+
+$offlinePrerequisites = $null
+if ($Profile -eq 'OfflineCandidate') {
+    $offlinePrerequisites = Assert-OfflineCandidatePrerequisites -ExpectedSourceRevision $resolvedSourceRevision
+}
+$sourceRevisionProperty = "/p:SourceRevisionId=$resolvedSourceRevision"
+$includeSourceRevisionProperty = '/p:IncludeSourceRevisionInInformationalVersion=true'
+
 if (Test-Path -LiteralPath $evidenceRoot) {
     throw "Refusing to overwrite the immutable acceptance run '$RunId' at '$evidenceRoot'. Use a new RunId."
 }
 [System.IO.Directory]::CreateDirectory($evidenceRoot) | Out-Null
-$previousProfile = [Environment]::GetEnvironmentVariable('PEGASUS_QDOS_PRESSURE_PROFILE', 'Process')
-$previousAcceptanceManifest = [Environment]::GetEnvironmentVariable('PEGASUS_QDOS_ACCEPTANCE_MANIFEST', 'Process')
-$previousAcceptanceRevision = [Environment]::GetEnvironmentVariable('PEGASUS_QDOS_ACCEPTANCE_SOURCE_REVISION', 'Process')
 $failure = $null
 $result = 'failed'
 $testResultHash = $null
 $acceptanceResultHash = $null
-$offlinePrerequisites = $null
 $stagingCreated = $false
 
 try {
-    if ($Profile -eq 'OfflineCandidate') {
-        $offlinePrerequisites = Assert-OfflineCandidatePrerequisites
-    }
-
     if (-not (Test-Path -LiteralPath $integrationProject -PathType Leaf)) {
         throw "Integration test project '$integrationProject' does not exist."
     }
@@ -154,8 +211,8 @@ try {
     [System.IO.Directory]::CreateDirectory($resultsRoot) | Out-Null
     if ($Profile -eq 'OfflineCandidate') {
         Set-Item -Path 'Env:PEGASUS_QDOS_ACCEPTANCE_MANIFEST' -Value $offlinePrerequisites.CallerManifestPath
-        Set-Item -Path 'Env:PEGASUS_QDOS_ACCEPTANCE_SOURCE_REVISION' -Value $SourceRevision.ToLowerInvariant()
-        & dotnet test $integrationProject --configuration Release --filter 'Category=QdosAlphaAcceptance' --results-directory $resultsRoot --logger 'trx;LogFileName=qdos-alpha-acceptance.trx'
+        Set-Item -Path 'Env:PEGASUS_QDOS_ACCEPTANCE_SOURCE_REVISION' -Value $resolvedSourceRevision
+        & dotnet test $integrationProject --configuration Release --filter 'Category=QdosAlphaAcceptance' --results-directory $resultsRoot --logger 'trx;LogFileName=qdos-alpha-acceptance.trx' $includeSourceRevisionProperty $sourceRevisionProperty
         if ($LASTEXITCODE -ne 0) {
             throw "QDOS Core acceptance gate failed with exit code $LASTEXITCODE."
         }
@@ -188,7 +245,7 @@ try {
     }
     Set-Item -Path 'Env:PEGASUS_QDOS_PRESSURE_PROFILE' -Value 'CiPressure'
 
-    & dotnet test $integrationProject --configuration Release --filter 'Category=QdosPressure' --results-directory $resultsRoot --logger 'trx;LogFileName=qdos-pressure.trx'
+    & dotnet test $integrationProject --configuration Release --filter 'Category=QdosPressure' --results-directory $resultsRoot --logger 'trx;LogFileName=qdos-pressure.trx' $includeSourceRevisionProperty $sourceRevisionProperty
     if ($LASTEXITCODE -ne 0) {
         throw "QDOS caller pressure tests failed with exit code $LASTEXITCODE."
     }
@@ -259,7 +316,7 @@ finally {
         runId = $RunId
         profile = $Profile
         evidenceState = $result
-        sourceRevision = $SourceRevision.ToLowerInvariant()
+        sourceRevision = $resolvedSourceRevision
         startedUtc = $startedUtc.ToString('O')
         completedUtc = [DateTimeOffset]::UtcNow.ToString('O')
         testResultSha256 = $testResultHash

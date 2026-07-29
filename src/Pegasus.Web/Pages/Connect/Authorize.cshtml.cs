@@ -36,6 +36,8 @@ public sealed class AuthorizeModel(
     public string Resource => oauthOptions.Resource.AbsoluteUri;
 
     public IReadOnlyList<RequestedScope> RequestedScopes { get; private set; } = [];
+    public IReadOnlyList<KeyValuePair<string, string>> AuthorizationParameters { get; private set; } = [];
+
 
     public async Task<IActionResult> OnGetAsync()
     {
@@ -81,6 +83,27 @@ public sealed class AuthorizeModel(
                 ScopeLabels.TryGetValue(scope, out var label) ? label : scope))
             .OrderBy(scope => scope.Name, StringComparer.Ordinal)
             .ToArray();
+        var authorizationParameters =
+            new List<KeyValuePair<string, string>>(Request.Query.Count);
+        foreach (var (name, values) in Request.Query)
+        {
+            if (name.Equals("decision", StringComparison.OrdinalIgnoreCase)
+                || name.Equals(
+                    "__RequestVerificationToken",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            foreach (var value in values)
+            {
+                authorizationParameters.Add(
+                    KeyValuePair.Create(name, value ?? string.Empty));
+            }
+        }
+
+        AuthorizationParameters = authorizationParameters;
+
 
         return Page();
     }

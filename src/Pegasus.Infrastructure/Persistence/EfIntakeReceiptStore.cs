@@ -87,6 +87,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             .AsNoTracking()
             .Include(item => item.Assets)
             .Include(item => item.InstructionDraft)
+            .Include(item => item.MailRouteDecision)
             .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
         return entity is null ? null : Map(entity, false);
     }
@@ -101,6 +102,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             .AsNoTracking()
             .Include(item => item.Assets)
             .Include(item => item.InstructionDraft)
+            .Include(item => item.MailRouteDecision)
             .SingleOrDefaultAsync(
                 item => item.SourceChannel == channelCode
                     && item.ExternalReceiptToken == sourceIdentity.ExternalReceiptToken,
@@ -135,7 +137,8 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         var existingQuery = context.IntakeReceipts
             .AsNoTracking()
             .Include(item => item.Assets)
-            .Include(item => item.InstructionDraft);
+            .Include(item => item.InstructionDraft)
+            .Include(item => item.MailRouteDecision);
         if (context.Database.IsSqlServer())
         {
             existingQuery = context.IntakeReceipts
@@ -147,7 +150,8 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 """)
                 .AsNoTracking()
                 .Include(item => item.Assets)
-                .Include(item => item.InstructionDraft);
+                .Include(item => item.InstructionDraft)
+                .Include(item => item.MailRouteDecision);
         }
 
         var existing = await existingQuery.SingleOrDefaultAsync(
@@ -201,6 +205,11 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 InstructionDate = draft.InstructionDraft.InstructionDate,
                 InspectionAddress = draft.InstructionDraft.InspectionAddress
             };
+        }
+
+        if (draft.MailRouteDecision is not null)
+        {
+            receipt.MailRouteDecision = MapMailRouteDecision(draft.MailRouteDecision, receipt);
         }
 
         receipt.Assets.AddRange(draft.AssetRecords.Select(asset => new IntakeAssetEntity
@@ -267,7 +276,8 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             entity.ExtractionPolicyKey,
             entity.ExtractionPolicyVersion,
             entity.Assets.OrderBy(asset => asset.Id).Select(MapAsset).ToArray(),
-            DeserializeEnvelope<IReadOnlyList<ScannedPdfOcrCandidate>>(entity.OcrCandidatesJson) ?? []);
+            DeserializeEnvelope<IReadOnlyList<ScannedPdfOcrCandidate>>(entity.OcrCandidatesJson) ?? [],
+            entity.MailRouteDecision is null ? null : MapMailRouteDecision(entity.MailRouteDecision));
     }
 
     private static InstructionDraft MapInstructionDraft(InstructionDraftEntity entity) => new(
@@ -282,6 +292,71 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         entity.DateOfIncident,
         entity.InstructionDate,
         entity.InspectionAddress);
+
+    private static IntakeMailRouteDecisionEntity MapMailRouteDecision(
+        MailRouteEvaluationResult decision,
+        IntakeReceiptEntity receipt) =>
+        new()
+        {
+            IntakeReceiptId = receipt.Id,
+            IntakeReceipt = receipt,
+            Disposition = ToCode(decision.Disposition),
+            RouteOwnerCode = decision.SelectedRoute?.RouteOwnerCode,
+            RouteKind = decision.SelectedRoute is null ? null : ToCode(decision.SelectedRoute.Kind),
+            WorkProviderCode = decision.SelectedRoute?.WorkProviderCode,
+            PredicatesJson = SerializeEnvelope(decision.Predicates),
+            Reason = decision.Reason,
+            PolicyKey = decision.PolicyKey,
+            PolicyVersion = decision.PolicyVersion,
+            TransportIdentitiesJson = SerializeEnvelope(decision.TransportIdentities),
+            OriginalIdentitiesJson = SerializeEnvelope(decision.OriginalIdentities),
+            EffectiveSenderAddress = decision.EffectiveSender?.Address,
+            EffectiveSenderSourceLabel = decision.EffectiveSender?.SourceLabel
+        };
+
+    private static MailRouteEvaluationResult MapMailRouteDecision(
+        IntakeMailRouteDecisionEntity entity)
+    {
+        var hasAnySelectionValue = entity.RouteOwnerCode is not null
+            || entity.RouteKind is not null
+            || entity.WorkProviderCode is not null;
+        var hasCompleteSelection = entity.RouteOwnerCode is not null
+            && entity.RouteKind is not null
+            && entity.WorkProviderCode is not null;
+        if (hasAnySelectionValue != hasCompleteSelection)
+        {
+            throw new InvalidDataException(
+                "The persisted mail-route selection is incomplete.");
+        }
+
+        var hasAnyEffectiveSenderValue = entity.EffectiveSenderAddress is not null
+            || entity.EffectiveSenderSourceLabel is not null;
+        var hasCompleteEffectiveSender = entity.EffectiveSenderAddress is not null
+            && entity.EffectiveSenderSourceLabel is not null;
+        if (hasAnyEffectiveSenderValue != hasCompleteEffectiveSender)
+        {
+            throw new InvalidDataException(
+                "The persisted effective sender identity is incomplete.");
+        }
+
+        return new(
+            ParseMailRouteDisposition(entity.Disposition),
+            hasCompleteSelection
+                ? new(
+                    entity.RouteOwnerCode!,
+                    ParseMailRouteKind(entity.RouteKind!),
+                    entity.WorkProviderCode!)
+                : null,
+            DeserializeEnvelope<IReadOnlyList<MailRoutePredicateResult>>(entity.PredicatesJson),
+            entity.Reason,
+            entity.PolicyKey,
+            entity.PolicyVersion,
+            DeserializeEnvelope<IReadOnlyList<MailRouteIdentity>>(entity.TransportIdentitiesJson),
+            DeserializeEnvelope<IReadOnlyList<MailRouteIdentity>>(entity.OriginalIdentitiesJson),
+            hasCompleteEffectiveSender
+                ? new(entity.EffectiveSenderAddress!, entity.EffectiveSenderSourceLabel!)
+                : null);
+    }
 
     private static IntakeAssetRecord MapAsset(IntakeAssetEntity entity) => new(
         entity.Id,
@@ -355,6 +430,36 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         return envelope.Data
             ?? throw new InvalidDataException("The persisted intake JSON envelope has no data.");
     }
+
+    private static string ToCode(MailRouteDisposition value) => value switch
+    {
+        MailRouteDisposition.Accepted => "accepted",
+        MailRouteDisposition.NoMatch => "no_match",
+        MailRouteDisposition.NeedsSorting => "needs_sorting",
+        _ => throw UnknownEnum(value)
+    };
+
+    private static MailRouteDisposition ParseMailRouteDisposition(string value) => value switch
+    {
+        "accepted" => MailRouteDisposition.Accepted,
+        "no_match" => MailRouteDisposition.NoMatch,
+        "needs_sorting" => MailRouteDisposition.NeedsSorting,
+        _ => throw UnknownCode("mail-route disposition", value)
+    };
+
+    private static string ToCode(MailRouteKind value) => value switch
+    {
+        MailRouteKind.DirectProvider => "direct_provider",
+        MailRouteKind.Intermediary => "intermediary",
+        _ => throw UnknownEnum(value)
+    };
+
+    private static MailRouteKind ParseMailRouteKind(string value) => value switch
+    {
+        "direct_provider" => MailRouteKind.DirectProvider,
+        "intermediary" => MailRouteKind.Intermediary,
+        _ => throw UnknownCode("mail-route kind", value)
+    };
 
     private static string ToCode(IntakeDecision value) => value switch
     {
