@@ -112,7 +112,7 @@ adapters.
 | DVLA/DVSA vehicle and MOT lookup | Selected provider/API and licence; exact make/model/year/engine/fuel and MOT/mileage fields; credentials; limits/rates; error and stale-data behavior; target; mileage-estimation rule; and caller proof. | A guessed field or stale/failed result could overwrite confirmed vehicle data or present an estimate as supplied fact. | Keep live lookup disabled. Preserve source-labelled suggestions and return `Unavailable` when approved local replay evidence is absent. | Is the exact lookup and mileage contract accepted for the named provider and caller? |
 | Post-report query and dispute lifecycle | Allowed states/transitions and actors; case/report/reply-chain evidence; correction/reopen and due/chaser interaction; response proof; closure; and dispute resolution. | A mailbox event could silently change case state, close work prematurely, lose a correction, or create a duplicate case/reference. | Preserve the correspondence against the existing case for staff review; let no Outlook adapter decide lifecycle or closure. | What exact CASE-23 lifecycle governs a received query/dispute through Engineer response and reasoned completion? |
 | Audatex PDF ingestion | Representative PDF variants and accepted field-mapping evidence. | Variant layouts could produce incomplete or incorrect extraction. | Do not activate generic Audatex PDF mapping from unrepresentative examples. | Have the supported Audatex PDF variants and their mappings been accepted from representative evidence? |
-| Mandatory provider and vehicle-history checks | An exact contract defining which checks are mandatory, for which provider or route, when they run, and how failures or unavailable results are handled. | Cases could proceed without required checks or be blocked by checks that were never mandated. | Do not infer a universal mandatory-check policy. Keep activation gated on an exact contract. | Has the provider-specific mandatory-check contract, including vehicle-history handling, been accepted? |
+| Mandatory global vehicle checks | Global requirements are settled as vehicle identity/specification, vehicle-history/risk, and market valuation. All three require a result or explicit exception before Engineers-queue eligibility. The authorised staff reviewer records each exception as a named, reasoned Case action. Each provider/route still needs its exact source, required result, and unavailable/failure contract. | A Case could proceed to an Engineer without a globally required result, or a provider-specific behavior could silently override the common baseline. | Preserve the global checks; use source-labelled `Unavailable` or approved local replay while live callers are unaccepted; retain unmet checks as `Not ready` rather than inventing a result. | What unavailable/failure contract applies to each global check for each provider/route? |
 | Report wording | Accepted wording for salvage Categories N, A, B, and N/A; recovery and storage; the final statement of truth; and named qualifications. | Reports could contain incomplete, unauthorized, or inconsistent statements. | Keep the affected wording review-gated and do not invent missing text or qualifications. | Has the complete wording and qualification set been accepted for report generation? |
 
 ## Send-to-AI transport experiment (`1.3.0` / `AI-09`)
@@ -121,17 +121,28 @@ adapters.
 proposal, and review contract. The target does not activate a transport; any
 transport must conform to that contract rather than weakening the queue.
 
-A later experiment may compare:
+The current direction distinguishes these tracks:
 
-1. attended Claude Code, Cowork, or Desktop chat consuming scoped MCP work;
-2. supported scheduled Claude Desktop automation polling the MCP queue; and
-3. a future Collision AI Centre harness polling the queue.
+1. a management/development-controlled Claude Automation Actor performing ordinary operational Core actions through approved MCP tools, with Pegasus attribution and history;
+2. a user-triggered `Send to Claude` assessment request that may return only a proposed repair specification, never a report document or direct Case mutation; and
+3. Microsoft Foundry as the intended candidate, pending evaluation, for later AI query-response proposals.
 
-Direct Anthropic or other model API integration is neither an assumed candidate nor a fallback.
+Direct Anthropic or other model API integration is neither an assumed candidate nor a fallback. The separate Send to Claude transport must still satisfy the Core work-request, proposal, review, identity, recovery, and cost contract.
 
 | Evidence needed | Impact | Recommended default | Decision question |
 |---|---|---|---|
-| Actual client and tool support; OAuth and actor identity; attended versus unattended behaviour; leasing, cancellation, and recovery; proposal return; and cost. | An unsupported client could weaken actor accountability, queue recovery, or proposal review and could create an unintended direct-model dependency. | Run the experiment without changing the Core contract. Discard any Claude surface that cannot satisfy it. | Which candidate, if any, proves the complete Core queue contract with acceptable identity, recovery, proposal return, and cost? |
+| Actual Claude-client and Foundry support; OAuth and Automation Actor identity; the exact approved operational MCP inventory; user-triggered assessment selection; leasing, cancellation, recovery, proposal return, cost, model evaluation, and named Engineer review. | An unsupported client or model could weaken actor accountability, queue recovery, proposal review, or create an unintended direct-model dependency. | Retain one Core contract; permit only the documented operational MCP and proposal paths; do not activate either AI transport until it proves that contract. | Which specific Claude-client and Foundry model/transport choices prove the complete Core contract with acceptable identity, recovery, proposal return, evaluation, and cost? |
+
+## Future custom assessor
+
+A future fine-tuned custom assessor is an explicit unallocated deferral. Its
+model choice and hosting—locally operated or rented infrastructure—remain
+unresolved. No imported workspace, experiment, model, prompt, or evaluation
+selects a Pegasus runtime, caller, deployment, or business-policy owner.
+
+| Evidence needed | Impact | Recommended default | Decision question |
+|---|---|---|---|
+| Accepted model purpose and evaluation suite; source-data and human-approval contract; selected local or rented hosting boundary; cost, licence, capacity, security, recovery, deployment, and real Pegasus-caller evidence. | A premature model or hosting choice could create an unsupported runtime, unreviewed data flow, or duplicate Core policy owner. | Preserve the deferred seam only. Do not scaffold a model integration, hosting target, or deployment unit. | Which evaluated custom-assessor model and hosting boundary should Pegasus adopt, if any? |
 
 ## Later operator UI capabilities
 

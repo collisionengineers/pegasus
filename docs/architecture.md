@@ -20,7 +20,7 @@ Pegasus is a four-project modular monolith:
 flowchart LR
     Staff[Collision Engineers staff] --> Web[Pegasus.Web]
     Provider[Provider API\nplanned] -. separate Web boundary .-> Web
-    MCP[Staff MCP\nplanned] -. separate Web boundary .-> Web
+    MCP[Claude Automation\nMCP planned] -. separate Web boundary .-> Web
 
     Web --> Core[Pegasus.Core]
     Worker[Pegasus.Worker\nno trigger or Core caller] -. target .-> Core
@@ -37,7 +37,7 @@ flowchart LR
     Infra -. target .-> OCR[Document Intelligence]
 ```
 
-The current repository exposes an ASP.NET Core Razor Pages host, and dated local HTTP integration evidence exercises one Development-only manual intake mutation. That evidence does not show staff use of a deployed Pegasus application, a supported non-Development intake route, live traffic, or operator acceptance. Future accepted provider API and staff MCP calls would enter through separate Web boundaries. The .NET 10 isolated Azure Functions Worker is the intended mailbox and background composition root, but currently has no trigger, input, or Core caller.
+The current repository exposes an ASP.NET Core Razor Pages host, and dated local HTTP integration evidence exercises one Development-only manual intake mutation. That evidence does not show staff use of a deployed Pegasus application, a supported non-Development intake route, live traffic, or operator acceptance. Future accepted provider API and Claude Automation MCP calls would enter through separate Web boundaries. The .NET 10 isolated Azure Functions Worker is the intended mailbox and background composition root, but currently has no trigger, input, or Core caller.
 
 The repository identifies itself as `0.0.0-development`; it is local-only, with no Pegasus Azure deployment.
 
@@ -116,7 +116,7 @@ The following are planned or absent, not merely unverified:
 - DVLA/DVSA lookup;
 - EVA export;
 - provider API, which is deferred to the exact target owned by the [capability inventory](capabilities.md);
-- staff MCP, identified as a `0.1.0-alpha.1` target;
+- management/development-controlled Claude Automation MCP, identified as a `0.1.0-alpha.1` target;
 - authenticated case lifecycle actions;
 - live Azure telemetry and deployed Azure callers.
 
@@ -363,9 +363,9 @@ The current QDOS extraction policy must not be reinterpreted as mailbox categori
 
 A first Document Intelligence caller may submit only persisted scan-like PDF page candidates. Ordinary images and vehicle photographs are outside that slice. Vehicle-registration OCR/VLM recognition and DVLA/DVSA lookup require separate accepted callers and evidence.
 
-### Provider API and staff MCP
+### Provider API and Automation MCP
 
-Provider API and staff MCP are separate Web ingress boundaries. They must invoke the same Core business actions as staff UI or Worker callers rather than introducing parallel policy engines.
+Provider API and Claude Automation MCP are separate Web ingress boundaries. They must invoke the same Core business actions as staff UI or Worker callers rather than introducing parallel policy engines.
 
 ### EVA and case lifecycle
 
@@ -405,7 +405,7 @@ Workspace provenance and source manifests are owned by [the workspace index](../
 
 Exact release allocation in [capabilities](capabilities.md) does not by itself define implementation order. The restored [dependency-ordered delivery roadmap](history/plans/delivery-roadmap.md) is subordinate, source-labelled pre-conversion planning evidence retained because it uniquely records prerequisite edges, safe parallel branches, and rejoin gates. Its historical `CollisionSpike` labels do not name a current caller, and every edge must be revalidated against current requirements, allocation, decisions, architecture, and code before use.
 
-The retained alpha spine orders relational intake state before staff identity and action history; those before principal/configuration, durable custody, image/address evidence, and the allocator; those before definitive acceptance; and acceptance before case files, edit leases, lifecycle, UI, the real Outlook Worker, Triage, vehicle/EVA work, staff MCP, Azure/recovery evidence, and operator acceptance. Provider activation and later parallel branches rejoin only after their shared actor, source, case, Worker, and history contracts are stable. This summary neither activates a capability nor proves implementation, deployment, recovery, or acceptance.
+The retained alpha spine orders relational intake state before staff identity and action history; those before principal/configuration, durable custody, image/address evidence, and the allocator; those before definitive acceptance; and acceptance before case files, edit leases, lifecycle, UI, the real Outlook Worker, Triage, vehicle/EVA work, Claude Automation MCP, Azure/recovery evidence, and operator acceptance. Provider activation and later parallel branches rejoin only after their shared actor, source, case, Worker, and history contracts are stable. This summary neither activates a capability nor proves implementation, deployment, recovery, or acceptance.
 
 ## Failure and recovery boundaries
 

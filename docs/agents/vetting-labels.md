@@ -10,4 +10,6 @@ The skills use five canonical vetting roles. This table maps each role to the la
 | `ready-for-human` | `ready-for-human` | Requires human implementation |
 | `wontfix` | `wontfix` | Will not be actioned |
 
+The existing `bug` and `enhancement` labels are the two category labels. Every vetted issue carries exactly one of those category labels and exactly one state label from the table above.
+
 When a skill names a canonical role, use the corresponding tracker label from this table.
