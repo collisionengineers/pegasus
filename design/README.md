@@ -230,7 +230,7 @@ Staff accounts, authentication, and authorisation remain planned until an authen
 | Administrator | Staff shell plus Administration surfaces for accounts/access/roles, principals, configuration, and approved mailbox allowlist. |
 | Engineer, User | Staff shell without Administration surfaces. Their ordinary Intake, Triage, Case, document, evidence, and lifecycle controls are identical. |
 | Automated processing | No UI account or interactive control. |
-| Provider API client ([API-01–API-04, `Next / unallocated`](../docs/capabilities.md#capabilities)) | No staff shell, Case workspace, or Administration surface. |
+| Provider API client ([API-01–API-04, `Next / 0.4.0`](../docs/capabilities.md#capabilities)) | No staff shell, Case workspace, or Administration surface. |
 | External/customer | No application account or application surface. |
 
 Every protected route and action must handle unauthenticated, disabled-session, stale-role, denied, loading, and successful outcomes. Hiding a route or control never replaces server authorisation. Administration has no generic rules editor, credential/cloud/release operation, bulk predecessor import, or bulk Case-edit tool. No surface permits permanent deletion or direct external/customer Case editing.
@@ -264,7 +264,7 @@ Rules:
 - Day boundaries use Europe/London midnight.
 - Week boundaries begin Monday.
 - At constrained desktop width or 200% zoom, the selected summary becomes an ordered, labelled section after the results without losing identity, state or action context.
-- Receiving work, Queries and Other are `Next / unallocated` in the [capability inventory](../docs/capabilities.md#capabilities), with no `0.1.0-alpha.1` surface.
+- Receiving work, Queries and Other are `Next / 0.3.0` in the [capability inventory](../docs/capabilities.md#capabilities), with no `0.1.0-alpha.1` surface.
 - There are no `0.1.0-alpha.1` saved views, bulk actions, inline mutation, calendar, personal assignments or general email queues.
 
 The selection rationale is strongest shared-office awareness and truthful day/week visibility. Its risk is density and dependence on independent, accurate queries.
@@ -448,7 +448,7 @@ report correction never implies a fee/invoice change.
 
 Report generation, PDF custody, Outlook Sent evidence, and external receipt are
 separate. Report sent enters post-report work rather than closing the Case.
-`CASE-23` query/dispute controls are `Next / unallocated` in the [capability inventory](../docs/capabilities.md#capabilities); the alpha UI invents no reply state machine.
+`CASE-23` query/dispute controls are `Next / 0.4.0` in the [capability inventory](../docs/capabilities.md#capabilities); the alpha UI invents no reply state machine.
 
 Lifecycle actions use only the named [Core lifecycle and correspondence contract](../docs/requirements.md#lifecycle-closure-and-correspondence): Post-report completion, Provider cancellation, Collision Engineers rejection, and Created in error remain distinct from acknowledgements, information requests, report-Sent evidence, queries, and other correspondence. The interface never substitutes a generic Close action. A closed Case is read-only; only a permitted reasoned reopen to a valid nonterminal state restores mutation controls, and `Created in error` offers only its linked-replacement route.
 
@@ -543,15 +543,44 @@ Each visible capability/state also needs authenticated Web-caller and named Core
 
 Exact horizon and first-introduction release remain owned by the [capability inventory](../docs/capabilities.md#capabilities). The [ID-by-ID design mapping](product/traceability-matrix.md) mirrors those allocations. No future allocation creates an alpha route, control, workflow, placeholder or dormant implementation.
 
-### Future horizons and unallocated targets
+### Deferred integration and intake surfaces
 
-Every future capability currently has exact target `unallocated` in the
-[capability inventory](../docs/capabilities.md#capabilities):
+There is no alpha control, route or placeholder for:
 
-- **Next / `unallocated`:** `DATA-02`; `INT-04`–`INT-07`, `INT-14`–`INT-16`, `INT-28`, and `INT-32`; `MAIL-01`–`MAIL-11`, `MAIL-13`, and `MAIL-23`; `CASE-23`; `UI-10` and `UI-14`; `API-01`–`API-04`; `MCP-05`; and `AI-05`.
-- **Later / `unallocated`:** `MAIL-12`, `MAIL-17`, and `MAIL-19`; `CASE-05`, `CASE-06`, `CASE-22`, and `CASE-31`; `EXT-04`–`EXT-13`, `EXT-15`–`EXT-17`, and `EXT-19`; `AI-01`–`AI-04` and `AI-06`–`AI-09`; `ENG-01` and `ENG-02`; `UI-15`; `RPT-01`–`RPT-05`; and `MI-01`–`MI-03`.
+- additional provider activation beyond the alpha source policy;
+- `desk@`, `engineers@` or `info@` automatic ingestion;
+- legacy DOC, MSG or scan-like PDF OCR extraction;
+- automatic image-led/instruction-led matching;
+- broader mailbox identity, taxonomy mapping, folder recommendation/move, suggested actions, case association or mailbox browsing;
+- Receiving work, Queries, Other or a full email-management workspace;
+- post-report query/dispute work;
+- provider submission/status/result APIs;
+- broader classified-email MCP actions;
+- AI/vision assistance for vehicle images or damage evidence;
+- separate-age instruction/image pairing and readiness notification;
+- spreadsheet preparation of future inspection-address/repairer reference data.
 
-Provider APIs and MCP are non-browser boundaries and do not create staff-shell destinations. Deferred AI may propose but must not mutate, accept or send autonomously. Future deterministic outputs must use one accepted structured case/engineering record, validate accepted data, calculate once and avoid duplicate truth owners or output-specific source forks.
+Provider APIs and MCP are non-browser boundaries and do not create staff-shell destinations.
+
+### Deferred casework and advanced surfaces
+
+There is no alpha control, route or placeholder for:
+
+- automatic chaser or report sending;
+- authenticated compose/reply/forward/send in Pegasus;
+- Diminution or Commercial case workflows;
+- automated WhatsApp ingestion;
+- an in-app AI assistant or AI-assisted identification, action, extraction or address suggestion;
+- replacing EVA assignment, estimating, valuation, report preparation or engineering workflow;
+- direct EVA, Audatex, valuation, finance or invoicing integrations;
+- guided mobile image capture or third-party guided-capture integration;
+- a custom application domain;
+- a canonical Engineer workbench, repair specification, valuation, salvage or deterministic report-output workflow;
+- AI-generated query-response proposals or durable `Send to AI` work;
+- management information for Engineer throughput, query rates, Audit uplift, principal report/invoice measures or turnaround;
+- `AI Assessor`.
+
+Deferred AI may propose but must not mutate, accept or send autonomously. Future deterministic outputs must use one accepted structured case/engineering record, validate accepted data, calculate once and avoid duplicate truth owners or output-specific source forks.
 
 ### Not planned
 

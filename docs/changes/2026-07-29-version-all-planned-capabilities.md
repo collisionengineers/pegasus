@@ -56,7 +56,7 @@ The accepted documentation predecessor is exact commit
    post-alpha targets while retaining all 128 `Now` rows at
    `0.1.0-alpha.1` and all 29 permanent boundaries as `unallocated`.
 3. Mirror the ordered release sequence into requirements and operations,
-   preserve the roadmap as horizon-only, and synchronize the design matrix.
+   keep the capability inventory's horizon summary authoritative, and synchronize the design matrix.
 4. Create or update only the exact twelve open, dateless release milestones;
    assign the active alpha delivery issue and this allocation issue to the
    existing alpha milestone.
@@ -153,6 +153,11 @@ data, or other external-service operation was performed by this change.
 - Saved Project view presentation and visual samples are deliberately
   unverified under the 2026-07-29 user scope update. They are not repository,
   implementation, deployment, or acceptance evidence.
+- Independent review of head `8bd432828ad1bff9d84842168236ff17ef25cafd`
+  required removal of stale planned/unallocated labels from current owners,
+  conditional-allocation wording for the three `1.4.0` rows, replacement of the
+  deleted roadmap owner, and a drift guard. The findings were remediated in the
+  current pull request; repository policy and language checks passed afterward.
 
 ## Outcome
 
