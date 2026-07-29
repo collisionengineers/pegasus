@@ -566,7 +566,11 @@ index manifests for document extraction, AI Centre, and AI Centre skills.
   build/test/smoke route.
 - [x] Development-only Web smoke proves the Pegasus UI and health endpoints;
   no non-Development intake route is introduced.
-- [ ] Exact-head independent review has no unresolved blocker or required finding.
+- [x] Exact-head independent review has no unresolved blocker or required finding.
+
+Independent review of head `70c3b581d0ed31a76274b263cfd62d9c1653ac9b`
+found no blocker, required, or advisory correctness finding and concluded that
+the documentation head is safe as the capability-allocation predecessor.
 
 ## Outcome
 
