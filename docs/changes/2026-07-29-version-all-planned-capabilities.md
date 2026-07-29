@@ -158,6 +158,11 @@ data, or other external-service operation was performed by this change.
   conditional-allocation wording for the three `1.4.0` rows, replacement of the
   deleted roadmap owner, and a drift guard. The findings were remediated in the
   current pull request; repository policy and language checks passed afterward.
+- Follow-up exact-head review found one stale provider-API sentence in the
+  current requirements owner and an incomplete current-authority guard. The
+  sentence now delegates target ownership to the capability inventory, and the
+  guard rejects non-boundary `unallocated` labels across every mutable
+  allocation-bearing owner.
 
 ## Outcome
 
