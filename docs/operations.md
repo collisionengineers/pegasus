@@ -46,39 +46,40 @@ For a longer checkout root, the first command must return `1` and the Git settin
 
 ## Offline development profile
 
-Pegasus runs locally without Azure, Graph, Box, DVLA/DVSA, EVA, Infisical, Docker, cloud login, or vendor authentication. Use the owning executables directly; there is no implemented generic workstation-doctor or repository-check wrapper.
+Pegasus supports a reproducible `Offline` profile on Windows with PowerShell
+7.6.3, .NET SDK 10.0.302, Python 3.11+, Node 24/npm 11, the repository-pinned
+Azurite 3.36.0, Functions Core Tools 4.12.1, SQL Server Express LocalDB, a
+trusted Development HTTPS certificate, and the committed Playwright browsers.
+It requires no Azure, Graph, Box, DVLA/DVSA, EVA, Infisical, Docker, cloud
+login, or vendor authentication. Package and browser restoration may use
+package feeds; an initialized run's Start and Smoke paths do not.
 
-| Tool | Supported version or presence | Purpose |
-| --- | --- | --- |
-| PowerShell | 7.6.3 | Development shell |
-| Git | Current supported client | Source control and path checks |
-| .NET SDK | 10.0.302 from `global.json` | Build, migration command, Web, Worker, and tests |
-| Python | 3.11+ | Standard-library provider-reference authoring only |
-| Node/npm | Node 24 / npm 11 | Restore the pinned Azurite package |
-| Azurite | 3.36.0 from `package-lock.json` | Local Blob, Queue, and Table services |
-| Azure Functions Core Tools | 4.12.1 | Actual local isolated Functions host |
-| SQL Server Express LocalDB | Installed LocalDB runtime | Full local relational database |
-| Development HTTPS | Trusted .NET development certificate | Web and local OAuth/MCP |
-| Playwright browsers | Only when the Browser lane is selected | Browser acceptance; not an application runtime |
-
-Direct checks:
+Use the owned commands rather than manually composing service terminals:
 
 ```powershell
-pwsh --version
-git --version
-dotnet --version
-python --version
-node --version
-npm --version
-npx --no-install azurite --version
-func --version
-sqllocaldb versions
-dotnet dev-certs https --check --trust
+pwsh ./scripts/Invoke-Doctor.ps1 -Profile Offline
+pwsh ./scripts/Initialize-LocalDevelopment.ps1
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Status
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Smoke
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Stop
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Reset
 ```
 
-Package feeds are needed for `npm ci` and `dotnet restore`; ordinary local start and smoke must not need a cloud or vendor network.
+Doctor checks only its selected profile. It never installs software, trusts a
+certificate, signs in, calls a cloud/vendor endpoint, or creates resources; a
+failed check prints its exact repair command. Initialization restores the
+committed tool/package locks, installs the committed browser binaries, checks
+the Offline profile, starts LocalDB, and creates only ignored local state.
 
-Python creates no virtual environment and installs no package. Playwright browser binaries are needed only for browser acceptance.
+`Cloud` is a separate static prerequisite profile for an already-approved live
+operation. `pwsh ./scripts/Invoke-Doctor.ps1 -Profile Cloud` checks the pinned
+CLI/module versions only; passing it neither signs in nor authorizes a read,
+write, deployment, or SQL bootstrap.
+
+Python creates no virtual environment and installs no package. Playwright
+binaries are an Offline browser-acceptance prerequisite, not an application
+runtime.
 
 ## Optional approved live-work profile
 
@@ -104,7 +105,25 @@ Install-Module ExchangeOnlineManagement -Scope CurrentUser -RequiredVersion 3.10
 
 `az login`, `azd auth login`, Exchange connection, Box login, credential changes, deployment, and Azure operations each retain a separate exact-target approval boundary.
 
-The intended application staff accounts are Pegasus Identity accounts; the current Development caller has no authentication or role enforcement, and Entra users must not be assumed. Third-party credentials must never enter tracked settings, command-line arguments, prompts that may be retained, terminal output, telemetry, or business history.
+Application staff identity initialization remains a separately controlled application operation; Entra users must not be assumed. Third-party credentials must never enter tracked settings, command-line arguments, prompts that may be retained, terminal output, telemetry, or business history.
+
+### Approved Azure SQL runtime-role bootstrap
+
+`Invoke-AzureDatabaseBootstrap.ps1` is a post-provision, post-migration
+boundary for the exact approved Azure SQL server and database. It uses the
+already-approved terminal identity through `sqlcmd`'s
+`ActiveDirectoryDefault` authentication, strict TLS, and no password or secret
+argument. It does not log in, create Azure resources, apply migrations, or
+create permissions beyond membership of the two existing schema-managed runtime
+roles.
+
+The operator must supply the approved server/database, distinct Web and Worker
+managed-identity client IDs, deterministic user/role names, approval reference,
+and `-ApprovedOperation`; missing roles, mismatched existing users, shared
+identities/roles, absent approval, or any SQL error fail closed. The command
+does not bootstrap staff accounts or public clients; that one-shot,
+concealed-input application command remains a separately controlled release
+step.
 
 ## Locked restore, build, and test
 
@@ -219,105 +238,74 @@ Successful completion proves deterministic authoring bytes only. It does not act
 
 ## Local setup and run
 
-### First setup
-
-From PowerShell 7 at the repository root:
+Run these commands from PowerShell 7 at the repository root:
 
 ```powershell
-npm ci
-dotnet restore ./Pegasus.slnx
-dotnet dev-certs https --trust
-dotnet dev-certs https --check --trust
-sqllocaldb start MSSQLLocalDB
-dotnet run --project ./src/Pegasus.Web --launch-profile https -- --migrate-development
+pwsh ./scripts/Invoke-Doctor.ps1 -Profile Offline
+pwsh ./scripts/Initialize-LocalDevelopment.ps1
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start
 ```
 
-Windows displays a current-user trust confirmation for the certificate trust command; the operator must accept it. The check command is read-only and must return zero.
+`Start` prints a generated 32-character run ID. It creates
+`artifacts/local-development/<run-id>/` with its ownership manifest, logs,
+Azurite store, intake/mailbox/case-file roots, dynamic loopback ports, and a
+`PegasusDevelopment_<run-id>` LocalDB database. It starts Azurite first, runs
+the explicit Development migration path, waits for Web readiness, and then
+starts and checks the actual Functions host. Normal Web and Worker startup
+never applies migrations.
 
-The migration command applies the committed migration stream and exits. Normal Web or Worker startup never applies migrations.
+The run-specific Web readiness URL and Functions status URL are printed by
+`Start`. All development settings are process-scoped; no tracked configuration
+file, `corpus/`, Azure resource, or another run is changed.
 
-Checked-in Development configuration uses only:
-
-- `Runtime:Profile=DevelopmentOffline`;
-- `(localdb)\MSSQLLocalDB`, database `PegasusDevelopment`;
-- ignored files beneath `artifacts/local-development/default/`; and
-- loopback HTTP/HTTPS endpoints.
-
-`DevelopmentOffline` or `Features:LocalIntake=true` outside the Development environment fails startup. Production configuration never resolves the local filesystem adapter as a fallback.
-
-No non-Development intake path is supported. With the Development gates inactive, `/Intake/Upload`, `/Intake/Queue`, `/Intake/Review`, and every other `/Intake` route return `404`; there is no production artifact-store fallback or mailbox/API caller.
-
-### Start local services
-
-Use separate PowerShell terminals so every process has an obvious owner.
-
-Terminal 1 — Azurite:
+### Status and smoke
 
 ```powershell
-npx --no-install azurite --location ./artifacts/local-development/default/azurite --blobPort 10000 --queuePort 10001 --tablePort 10002
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Status
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Smoke -RunId <run-id>
 ```
 
-Terminal 2 — Functions host:
+When exactly one owned run exists, `Smoke`, `Stop`, and `Reset` can omit
+`-RunId`; with zero or multiple runs they refuse ambiguity. Status enumerates
+all owned manifests and probes a running run's owned process start times, Web
+readiness, and Functions-host `Running` state rather than treating a PID as
+readiness. Smoke additionally checks the non-sensitive version/source-SHA
+diagnostic.
+
+These checks prove the local process graph and the exercised health/diagnostic
+paths only. They do not prove a business caller, durable cloud behavior,
+managed identity, RBAC, external delivery, deployment, or acceptance.
+
+### Isolated runs and failure controls
+
+Parallel starts use distinct generated run IDs, ports, LocalDB databases,
+Azurite accounts/stores, and artifact roots. To exercise orchestration failure
+recovery without touching another run, use one run-scoped control:
 
 ```powershell
-Push-Location ./src/Pegasus.Worker
-func start --port 7071 --no-build
-Pop-Location
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start -FailureMode AfterWeb
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start -FailureMode StoragePressure -StoragePressureMegabytes 32
 ```
 
-Terminal 3 — Web:
-
-```powershell
-dotnet run --project ./src/Pegasus.Web --launch-profile https --no-build
-```
-
-Verify:
-
-```text
-https://localhost:7139/health/live
-https://localhost:7139/health/ready
-```
-
-Readiness is healthy only when the configured database exists and every committed migration is applied.
-
-The current Development intake caller is:
-
-```text
-https://localhost:7139/Intake/Upload
-```
-
-It remains temporary until the authenticated Operations shell replaces it.
-
-Dated local Functions-host evidence recorded startup with no job functions. Current source still contains no trigger. Queue or timer caller evidence requires a delivered trigger and an identifier passing through that trigger into the owning Core behavior.
-
-### Isolated and parallel runs
-
-Every run must use unique database names, artifact paths, ports, containers/queues, and Functions settings.
-
-Example environment setup in every terminal for one run:
-
-```powershell
-$runId = [Guid]::NewGuid().ToString('N')
-$env:ConnectionStrings__Pegasus = "Server=(localdb)\MSSQLLocalDB;Database=Pegasus_$runId;Integrated Security=True;Encrypt=False;MultipleActiveResultSets=True"
-$env:Intake__LocalArtifactPath = "../../artifacts/local-development/$runId/intake"
-```
-
-Choose unused Azurite and Functions ports and point the run’s Worker configuration to those endpoints. Never share a database, Azurite location, custody root, queue, or container between parallel runs.
+The first control fails after the named owned dependency has reached readiness.
+The second allocates only the named bounded file beneath that failed run before
+failing; it is safe cleanup/recovery evidence, not a claim to model an
+application volume quota. Failed-run manifests and logs remain for diagnosis,
+and their child processes are stopped.
 
 ### Stop and reset
 
-Stop only foreground processes started in the corresponding terminal, using `Ctrl+C`. Never infer deletion authority from a process name.
+```powershell
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Stop -RunId <run-id>
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Reset -RunId <run-id>
+```
 
-Before deleting local state:
-
-1. verify the exact database name begins with `PegasusDevelopment` or the run-specific `Pegasus_` prefix;
-2. verify the exact artifact path is a descendant of `artifacts/local-development/`;
-3. confirm the target belongs to the current run.
-
-Do not remove another run, `corpus/`, tracked reference files, or any Azure resource.
-
-A clean run can always use a new GUID database and artifact directory. Preserve failed-run logs and state until diagnosis is complete.
-
+Stop retains the manifest and diagnostics. Reset first verifies that the
+manifest run ID, directory, database name, and every owned path agree; it then
+stops only matching child processes, drops only that LocalDB database, and
+removes only that run directory. A malformed or ambiguous manifest refuses
+action. Never manually repurpose these commands to remove another run,
+`corpus/`, tracked reference files, or an Azure resource.
 ## Configuration and secrets
 
 Configuration ownership is:

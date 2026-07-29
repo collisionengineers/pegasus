@@ -85,6 +85,7 @@ public sealed class ReviewModel(
     public static string SourceChannelLabel(IntakeSourceChannel channel) => channel switch
     {
         IntakeSourceChannel.ManualUpload => "Manual upload",
+        IntakeSourceChannel.Mailbox => "Approved inbox",
         _ => throw new InvalidOperationException($"Unknown intake source channel value '{(int)channel}'.")
     };
 }

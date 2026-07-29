@@ -38,6 +38,42 @@ public sealed record IntakeWorkItem(
 
 public sealed record ReceivedIntake(Guid StagedReceiptId, bool IsDuplicate);
 
+public enum IntakeSubmissionDisposition
+{
+    Processed = 1,
+    Queued = 2
+}
+
+public sealed record IntakeSubmissionResult(
+    Guid ReceiptId,
+    bool IsDuplicate,
+    IntakeSubmissionDisposition Disposition);
+
+public interface IIntakeSubmission
+{
+    Task<IntakeSubmissionResult> ExecuteAsync(
+        IntakeSource source,
+        string operationKey,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed class ProcessIntakeSubmission(ProcessIntake processIntake) : IIntakeSubmission
+{
+    public async Task<IntakeSubmissionResult> ExecuteAsync(
+        IntakeSource source,
+        string operationKey,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
+        var receipt = await processIntake.ExecuteAsync(source, cancellationToken);
+        return new(
+            receipt.Id,
+            receipt.IsDuplicate,
+            IntakeSubmissionDisposition.Processed);
+    }
+}
+
+
 public interface IIntakeWorkStore
 {
     Task<ReceivedIntake> ReceiveAsync(
@@ -107,17 +143,57 @@ public interface IIntakeWorkEnqueuer
 public sealed class ReceiveIntake(
     IIntakeArtifactStore artifactStore,
     IIntakeWorkStore workStore,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider) : IIntakeSubmission
 {
+    private const int MaximumSourceLength = 10 * 1024 * 1024;
+    private const int MaximumFileNameLength = 260;
+    private const int MaximumMediaTypeLength = 200;
+    private const int MaximumActorLength = 200;
+    private const int MaximumExternalReceiptTokenLength = 200;
+    private const int MaximumOperationKeyLength = 100;
+
     public async Task<ReceivedIntake> ExecuteAsync(
         IntakeSource source,
         string operationKey,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source.SourceIdentity);
         ArgumentException.ThrowIfNullOrWhiteSpace(source.FileName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(source.MediaType);
+        ArgumentException.ThrowIfNullOrWhiteSpace(source.Actor);
         ArgumentException.ThrowIfNullOrWhiteSpace(source.SourceIdentity.ExternalReceiptToken);
         ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
 
+        var safeFileName = Path.GetFileName(source.FileName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(safeFileName);
+        ValidateLength(safeFileName, MaximumFileNameLength, nameof(source.FileName));
+        ValidateLength(source.MediaType, MaximumMediaTypeLength, nameof(source.MediaType));
+        ValidateLength(source.Actor, MaximumActorLength, nameof(source.Actor));
+        ValidateLength(
+            source.SourceIdentity.ExternalReceiptToken,
+            MaximumExternalReceiptTokenLength,
+            nameof(source.SourceIdentity.ExternalReceiptToken));
+        ValidateLength(operationKey, MaximumOperationKeyLength, nameof(operationKey));
+        if (source.Content.IsEmpty)
+        {
+            throw new InvalidDataException("The intake source is empty.");
+        }
+
+        if (source.Content.Length > MaximumSourceLength)
+        {
+            throw new InvalidDataException("The intake source exceeds the 10 MB limit.");
+        }
+
+        _ = source.SourceIdentity.Channel switch
+        {
+            IntakeSourceChannel.ManualUpload => true,
+            IntakeSourceChannel.Mailbox => true,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(source),
+                source.SourceIdentity.Channel,
+                "The intake source channel is not supported.")
+        };
         var sourceHash = Convert.ToHexString(SHA256.HashData(source.Content.Span));
         string storageKey;
         try
@@ -133,7 +209,7 @@ public sealed class ReceiveIntake(
         return await workStore.ReceiveAsync(
             new(
                 Guid.NewGuid(),
-                Path.GetFileName(source.FileName),
+                safeFileName,
                 source.MediaType,
                 source.Content.Length,
                 sourceHash,
@@ -144,6 +220,28 @@ public sealed class ReceiveIntake(
                 nowUtc),
             operationKey,
             cancellationToken);
+    }
+
+    async Task<IntakeSubmissionResult> IIntakeSubmission.ExecuteAsync(
+        IntakeSource source,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        var receipt = await ExecuteAsync(source, operationKey, cancellationToken);
+        return new(
+            receipt.StagedReceiptId,
+            receipt.IsDuplicate,
+            IntakeSubmissionDisposition.Queued);
+    }
+
+    private static void ValidateLength(string value, int maximumLength, string parameterName)
+    {
+        if (value.Length > maximumLength)
+        {
+            throw new ArgumentException(
+                $"The value must be {maximumLength} characters or fewer.",
+                parameterName);
+        }
     }
 }
 

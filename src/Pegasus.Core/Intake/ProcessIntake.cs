@@ -98,7 +98,7 @@ public sealed class ProcessIntake(
         }
 
         var processedAtUtc = timeProvider.GetUtcNow();
-        var assessment = Assess(readResult, processedAtUtc);
+        var assessment = Assess(readResult, safeSource.SourceIdentity.Channel, processedAtUtc);
         activity?.SetTag("intake.policy_key", assessment.ExtractionPolicyKey);
         activity?.SetTag("intake.policy_version", assessment.ExtractionPolicyVersion);
         var draft = new IntakeReceiptDraft(
@@ -139,7 +139,10 @@ public sealed class ProcessIntake(
         return receipt;
     }
 
-    private IntakeAssessment Assess(IntakeSourceReadResult readResult, DateTimeOffset processedAtUtc)
+    private IntakeAssessment Assess(
+        IntakeSourceReadResult readResult,
+        IntakeSourceChannel sourceChannel,
+        DateTimeOffset processedAtUtc)
     {
         var readerEvidence = readResult.Issues
             .Select(issue => new IntakeEvidence(
@@ -186,6 +189,7 @@ public sealed class ProcessIntake(
         }
 
         var policyResult = extractionPolicy.Extract(readResult, processedAtUtc);
+        policyResult = ApplyMailRoutePolicy(readResult, sourceChannel, policyResult);
         EnsureConsistentPolicyResult(policyResult);
         var (decision, reason, failureCode, failureReason) = policyResult.Applicability switch
         {
@@ -218,6 +222,27 @@ public sealed class ProcessIntake(
             failureReason,
             policyResult.PolicyKey,
             policyResult.PolicyVersion);
+    }
+
+    private InstructionExtractionResult ApplyMailRoutePolicy(
+        IntakeSourceReadResult readResult,
+        IntakeSourceChannel sourceChannel,
+        InstructionExtractionResult policyResult)
+    {
+        if (sourceChannel != IntakeSourceChannel.Mailbox
+            || policyResult.Applicability != InstructionPolicyApplicability.Applicable)
+        {
+            return policyResult;
+        }
+
+        var route = (extractionPolicy as IMailRoutePolicy)?.Evaluate(readResult);
+        return route is { Disposition: MailRouteDisposition.Accepted, SelectedRoute: not null }
+            ? policyResult
+            : policyResult with
+            {
+                Applicability = InstructionPolicyApplicability.Indeterminate,
+                InstructionDraft = null
+            };
     }
 
     private static void EnsureConsistentPolicyResult(InstructionExtractionResult policyResult)
@@ -296,6 +321,7 @@ public sealed class ProcessIntake(
     private static string ChannelCode(IntakeSourceChannel channel) => channel switch
     {
         IntakeSourceChannel.ManualUpload => "manual_upload",
+        IntakeSourceChannel.Mailbox => "mailbox",
         _ => throw new InvalidOperationException($"Unknown intake source channel value '{(int)channel}'.")
     };
 

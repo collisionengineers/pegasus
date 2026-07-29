@@ -113,7 +113,7 @@ public sealed class InstructionDraftWebTests
     }
 
     [Fact]
-    public async Task UploadAndReviewPersistAllTypedFieldsWithoutCaseOrCounterSchema()
+    public async Task UploadAndReviewPersistAllTypedFieldsWithoutCaseOrReferenceRows()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -153,8 +153,8 @@ public sealed class InstructionDraftWebTests
             Assert.Contains(value, html, StringComparison.Ordinal);
         }
 
-        Assert.False(await TableExistsAsync(factory, "Cases"));
-        Assert.False(await TableExistsAsync(factory, "PrincipalYearCounters"));
+        Assert.Equal(0, await CountRowsAsync(factory, "Cases"));
+        Assert.Equal(0, await CountRowsAsync(factory, "CaseSequences"));
     }
 
     [Fact]
@@ -247,22 +247,17 @@ public sealed class InstructionDraftWebTests
     {
         var allowed = tableName switch
         {
-            "IntakeReceipts" or "InstructionDrafts" or "IntakeAssets" or "IntakeReceiptEvents" => tableName,
+            "IntakeReceipts" or "InstructionDrafts" or "IntakeAssets" or "IntakeReceiptEvents"
+                or "Cases" or "CaseSequences" => tableName,
             _ => throw new ArgumentOutOfRangeException(nameof(tableName))
         };
         return await ScalarAsync<int>(factory, $"SELECT COUNT(*) FROM [{allowed}]");
     }
 
-    private static async Task<bool> TableExistsAsync(IntakeWebApplicationFactory factory, string tableName) =>
-        1 == await ScalarAsync<long>(
-            factory,
-            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = @tableName",
-            tableName);
 
     private static async Task<T> ScalarAsync<T>(
         IntakeWebApplicationFactory factory,
-        string commandText,
-        string? tableName = null)
+        string commandText)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
@@ -272,13 +267,6 @@ public sealed class InstructionDraftWebTests
         {
             await using var command = context.Database.GetDbConnection().CreateCommand();
             command.CommandText = commandText;
-            if (tableName is not null)
-            {
-                var parameter = command.CreateParameter();
-                parameter.ParameterName = "@tableName";
-                parameter.Value = tableName;
-                command.Parameters.Add(parameter);
-            }
 
             var result = await command.ExecuteScalarAsync();
             Assert.NotNull(result);

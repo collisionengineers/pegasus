@@ -8,7 +8,7 @@
     <div>
         <p class="eyebrow">Manual intake</p>
         <h1>Upload instruction</h1>
-        <p class="lede">Choose an email, document, PDF or image, up to 10 MB. Legacy DOC and MSG files are retained for manual sorting.</p>
+        <p class="lede">Choose an email, document, PDF or image, up to 10 MB. The source is retained before durable background processing begins. Legacy DOC and MSG files are retained for manual sorting.</p>
     </div>
     <a class="secondary-action" asp-page="/Intake/Queue">View intake queue</a>
     <a class="secondary-action" asp-page="/Intake/EmailEvaluation">Evaluate an email locally</a>
@@ -22,6 +22,6 @@
         <label asp-for="Upload">Email, document, PDF or image</label>
         <input asp-for="Upload" type="file" accept=".eml,.pdf,.docx,.doc,.msg,.jpg,.jpeg,.png,message/rfc822,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.ms-outlook,image/jpeg,image/png" />
         <span asp-validation-for="Upload" class="field-validation"></span>
-        <button type="submit" class="primary-action">Process instruction</button>
+        <button type="submit" class="primary-action">Queue instruction</button>
     </form>
 </section>

@@ -8,7 +8,7 @@ namespace Pegasus.IntegrationTests;
 public sealed class IntakeSqliteBaselineGuardTests
 {
     [Fact]
-    public async Task FreshDevelopmentDatabaseAppliesProviderNeutralAndProviderDomainMigrations()
+    public async Task FreshDevelopmentDatabaseAppliesExactCurrentMigrationAndIndexBaseline()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -18,11 +18,34 @@ public sealed class IntakeSqliteBaselineGuardTests
 
         await using var connection = new SqliteConnection($"Data Source={factory.DatabasePath}");
         await connection.OpenAsync();
-        Assert.Equal(2L, await ScalarAsync<long>(connection,
-            "SELECT COUNT(*) FROM __EFMigrationsHistory"));
-        Assert.Equal("20260727170804_ProviderDomainReferenceSnapshotV1",
-            await ScalarAsync<string>(connection,
-                "SELECT MigrationId FROM __EFMigrationsHistory ORDER BY MigrationId DESC LIMIT 1"));
+        Assert.Equal(
+            "20260724104624_InitialProviderNeutralIntake|" +
+            "20260727170804_ProviderDomainReferenceSnapshotV1|" +
+            "20260729150000_DocumentCustodyAndRequests",
+            await ScalarAsync<string>(
+                connection,
+                """
+                SELECT group_concat(MigrationId, '|')
+                FROM (SELECT MigrationId FROM __EFMigrationsHistory ORDER BY MigrationId)
+                """));
+        Assert.Equal(
+            "IX_Cases_AuditReference|IX_Cases_OriginIntakeReceiptId|IX_Cases_PrincipalId|" +
+            "IX_Cases_Reference|IX_Cases_SequenceLineageId_Year_Sequence",
+            await ScalarAsync<string>(
+                connection,
+                """
+                SELECT group_concat(name, '|')
+                FROM (SELECT name FROM pragma_index_list('Cases') WHERE origin='c' ORDER BY name)
+                """));
+        Assert.Equal(
+            1L,
+            await ScalarAsync<long>(
+                connection,
+                """
+                SELECT COUNT(*)
+                FROM pragma_index_list('Cases')
+                WHERE name='IX_Cases_AuditReference' AND [unique]=1 AND origin='c' AND partial=1
+                """));
         Assert.Equal(1L, await ScalarAsync<long>(connection,
             "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='IntakeReceipts'"));
         Assert.Equal(1L, await ScalarAsync<long>(connection,
@@ -102,7 +125,7 @@ public sealed class IntakeSqliteBaselineGuardTests
                     """
                     UPDATE __EFMigrationsHistory
                     SET MigrationId='20260723075441_InitialQdosIntake'
-                    WHERE MigrationId='20260727170804_ProviderDomainReferenceSnapshotV1'
+                    WHERE MigrationId='20260729150000_DocumentCustodyAndRequests'
                     """);
                 break;
             case "schema_without_history":

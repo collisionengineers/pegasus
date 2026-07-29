@@ -595,7 +595,9 @@ public sealed partial class MultiFormatIntakeWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         const string attachmentName = "oversized-extracted-image.docx";
-        var docx = CreateDocxWithLargeImage((26L * 1024 * 1024));
+        var docx = CreateDocxWithImagePlacements(
+            [13L * 1024 * 1024, 13L * 1024 * 1024],
+            [0, 1]);
         var message = CreateMessage(
             "Synthetic oversized DOCX image attachment",
             ConfirmingQdosBody,
@@ -620,6 +622,44 @@ public sealed partial class MultiFormatIntakeWebTests
             receipt.AssetRecords,
             asset => asset.FileName == attachmentName
                 && asset.Kind == IntakeAssetKind.Attachment);
+    }
+
+    [Fact]
+    public async Task ConfirmingEmailWithRepeatedDocxImagePlacementCountsSharedContentOnce()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory);
+        var docx = CreateDocxWithImagePlacements(
+            [13L * 1024 * 1024],
+            [0, 0]);
+        var message = CreateMessage(
+            "Synthetic repeated DOCX image placement",
+            ConfirmingQdosBody,
+            ("repeated-image.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", docx));
+
+        var result = await UploadAsync(
+            client,
+            "repeated-docx-image-attachment.eml",
+            "message/rfc822",
+            Serialize(message));
+        var receipt = await GetReceiptAsync(factory, ReceiptId(result));
+        var images = receipt.AssetRecords
+            .Where(asset => asset.Kind == IntakeAssetKind.EmbeddedImage)
+            .OrderBy(asset => asset.SourceLabel, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(IntakeDecision.DraftReady, receipt.Decision);
+        Assert.DoesNotContain(receipt.Evidence, evidence => evidence.Signal == "intake_limit_exceeded");
+        Assert.Equal(2, images.Length);
+        Assert.Equal(
+            "uploaded repeated-docx-image-attachment.eml, attachment 1: repeated-image.docx, embedded image 1",
+            images[0].SourceLabel);
+        Assert.Equal(
+            "uploaded repeated-docx-image-attachment.eml, attachment 1: repeated-image.docx, embedded image 2",
+            images[1].SourceLabel);
+        Assert.NotEqual(images[0].Id, images[1].Id);
+        Assert.All(images, image => Assert.Equal(13L * 1024 * 1024, image.ContentLength));
+        Assert.Equal(images[0].ContentHash, images[1].ContentHash);
     }
 
     [Fact]
@@ -901,7 +941,9 @@ public sealed partial class MultiFormatIntakeWebTests
         return output.ToArray();
     }
 
-    private static byte[] CreateDocxWithLargeImage(long imageBytes)
+    private static byte[] CreateDocxWithImagePlacements(
+        IReadOnlyList<long> imageByteCounts,
+        IReadOnlyList<int> placementImageIndexes)
     {
         var baseDocx = CreateDocx(
             "QDOS instruction",
@@ -927,25 +969,65 @@ public sealed partial class MultiFormatIntakeWebTests
                     "</Types>",
                     "<Default Extension=\"png\" ContentType=\"image/png\" /></Types>",
                     StringComparison.Ordinal));
+
+            var relationships = string.Join(
+                string.Empty,
+                imageByteCounts.Select((_, index) =>
+                    $"<Relationship Id=\"rIdImage{index}\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/image-{index}.png\" />"));
             WriteZipEntry(
                 archive,
                 "word/_rels/document.xml.rels",
-                """
-                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-                  <Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/large.png" />
-                </Relationships>
-                """);
+                $"""
+                 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                   {relationships}
+                 </Relationships>
+                 """);
 
-            var imageEntry = archive.CreateEntry("word/media/large.png", CompressionLevel.SmallestSize);
-            using var imageStream = imageEntry.Open();
-            var buffer = new byte[64 * 1024];
-            long written = 0;
-            while (written < imageBytes)
+            var documentEntry = Assert.IsType<ZipArchiveEntry>(archive.GetEntry("word/document.xml"));
+            string document;
+            using (var reader = new StreamReader(documentEntry.Open(), Encoding.UTF8))
             {
-                var count = (int)Math.Min(buffer.Length, imageBytes - written);
-                imageStream.Write(buffer, 0, count);
-                written += count;
+                document = reader.ReadToEnd();
+            }
+
+            var placements = string.Join(
+                string.Empty,
+                placementImageIndexes.Select(index =>
+                    $"""
+                     <w:p><w:r><w:drawing>
+                       <wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
+                         <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+                           <a:graphicData>
+                             <pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                               <pic:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="rIdImage{index}" /></pic:blipFill>
+                             </pic:pic>
+                           </a:graphicData>
+                         </a:graphic>
+                       </wp:inline>
+                     </w:drawing></w:r></w:p>
+                     """));
+            documentEntry.Delete();
+            WriteZipEntry(
+                archive,
+                "word/document.xml",
+                document.Replace("<w:sectPr />", $"{placements}<w:sectPr />", StringComparison.Ordinal));
+
+            for (var imageIndex = 0; imageIndex < imageByteCounts.Count; imageIndex++)
+            {
+                var imageEntry = archive.CreateEntry(
+                    $"word/media/image-{imageIndex}.png",
+                    CompressionLevel.SmallestSize);
+                using var imageStream = imageEntry.Open();
+                var buffer = new byte[64 * 1024];
+                Array.Fill(buffer, (byte)(imageIndex + 1));
+                long written = 0;
+                while (written < imageByteCounts[imageIndex])
+                {
+                    var count = (int)Math.Min(buffer.Length, imageByteCounts[imageIndex] - written);
+                    imageStream.Write(buffer, 0, count);
+                    written += count;
+                }
             }
         }
 

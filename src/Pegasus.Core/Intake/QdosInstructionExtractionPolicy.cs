@@ -158,26 +158,14 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
                     IntakeEvidenceStrength.Strong,
                     IntakeEvidenceFinding.Information,
                     "additional-scanned-content",
-                    "QDOS-shaped fields were extracted from readable content; additional scanned PDF content still requires review."));
-            }
-
-            if (route.Disposition == MailRouteDisposition.Accepted)
-            {
-                return new(
-                    InstructionPolicyApplicability.Applicable,
-                    evidence,
-                    fields,
-                    CreateInstructionDraft(fields),
-                    missingFields,
-                    Key,
-                    Version);
+                    "A QDOS-shaped draft was extracted from readable content; additional scanned PDF content still requires review."));
             }
 
             return new(
-                InstructionPolicyApplicability.Indeterminate,
+                InstructionPolicyApplicability.Applicable,
                 evidence,
                 fields,
-                null,
+                CreateInstructionDraft(fields),
                 missingFields,
                 Key,
                 Version);
@@ -238,20 +226,18 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
                 evidence.Add(new(
                     item.Source,
                     IntakeEvidenceStrength.Weak,
-                    IntakeEvidenceFinding.Information,
+                    IntakeEvidenceFinding.SupportsPrincipal,
                     "qdos-transport-marker",
-                    $"{DisplaySource(item.Source)} contains a QDOS marker; transport text alone does not establish a route or instruction."));
+                    $"{DisplaySource(item.Source)} contains a QDOS marker."));
             }
-            else if (contentConfirmed
-                && item.Source == IntakeEvidenceSource.Sender
-                && route.Disposition != MailRouteDisposition.Accepted)
+            else if (contentConfirmed && item.Source == IntakeEvidenceSource.Sender)
             {
                 evidence.Add(new(
                     item.Source,
                     IntakeEvidenceStrength.Weak,
                     IntakeEvidenceFinding.ContradictsTransport,
-                    "unaccepted-sender-route",
-                    "The sender does not match an accepted QDOS mail route."));
+                    "forwarded-sender",
+                    "The sender does not identify QDOS; stronger instruction content takes precedence."));
             }
         }
     }
@@ -262,7 +248,7 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
         if (readResult.Status != IntakeSourceReadStatus.Readable || readResult.IsIncomplete)
         {
             throw new ArgumentException(
-                "The QDOS policy accepts only fully readable, complete reader results.",
+                "The QDOS extraction policy accepts only fully readable, complete reader results.",
                 nameof(readResult));
         }
     }

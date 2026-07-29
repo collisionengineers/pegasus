@@ -1,10 +1,12 @@
+using System.Security.Claims;
+
 using Pegasus.Core.Intake;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace Pegasus.Web.Pages.Intake;
 
-public sealed class UploadModel(ProcessIntake processIntake, TimeProvider timeProvider) : PageModel
+public sealed class UploadModel(IIntakeSubmission intakeSubmission, TimeProvider timeProvider) : PageModel
 {
     private const long MaximumFileLength = 10 * 1024 * 1024;
 
@@ -54,22 +56,37 @@ public sealed class UploadModel(ProcessIntake processIntake, TimeProvider timePr
             return Page();
         }
 
+        var subject = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!Guid.TryParse(subject, out var staffId) || staffId == Guid.Empty)
+        {
+            return Forbid();
+        }
+
         await using var memory = new MemoryStream((int)Upload.Length);
         await Upload.CopyToAsync(memory, cancellationToken);
 
         try
         {
-            var result = await processIntake.ExecuteAsync(
+            var result = await intakeSubmission.ExecuteAsync(
                 new(
                     Path.GetFileName(Upload.FileName),
                     string.IsNullOrWhiteSpace(Upload.ContentType) ? "application/octet-stream" : Upload.ContentType,
                     memory.ToArray(),
                     timeProvider.GetUtcNow(),
-                    "Web manual upload",
+                    $"staff:{staffId:D}",
                     new(IntakeSourceChannel.ManualUpload, ExternalReceiptToken)),
+                $"manual-upload:{ExternalReceiptToken}",
                 cancellationToken);
 
-            return RedirectToPage("/Intake/Review", new { id = result.Id, duplicate = result.IsDuplicate });
+            if (result.Disposition == IntakeSubmissionDisposition.Queued)
+            {
+                TempData["IntakeQueueStatus"] = result.IsDuplicate ? "duplicate" : "queued";
+                return RedirectToPage("/Intake/Queue");
+            }
+
+            return RedirectToPage(
+                "/Intake/Review",
+                new { id = result.ReceiptId, duplicate = result.IsDuplicate });
         }
         catch (IntakeSourceIdentityConflictException)
         {
@@ -87,7 +104,7 @@ public sealed class UploadModel(ProcessIntake processIntake, TimeProvider timePr
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
-            ModelState.AddModelError(string.Empty, "The intake receipt could not be stored because of a technical failure.");
+            ModelState.AddModelError(string.Empty, "The intake receipt could not be queued because of a technical failure.");
             return Page();
         }
     }

@@ -331,12 +331,14 @@ public sealed class EfIntakeWorkStore(IDbContextFactory<PegasusDbContext> contex
     private static string ToCode(IntakeSourceChannel value) => value switch
     {
         IntakeSourceChannel.ManualUpload => "manual_upload",
+        IntakeSourceChannel.Mailbox => "mailbox",
         _ => throw new InvalidOperationException($"Unknown IntakeSourceChannel value '{(int)value}'.")
     };
 
     private static IntakeSourceChannel ParseSourceChannel(string value) => value switch
     {
         "manual_upload" => IntakeSourceChannel.ManualUpload,
+        "mailbox" => IntakeSourceChannel.Mailbox,
         _ => throw new InvalidDataException($"Unknown persisted intake source channel '{value}'.")
     };
 

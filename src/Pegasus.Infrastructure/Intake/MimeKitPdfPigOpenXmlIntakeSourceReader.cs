@@ -389,13 +389,12 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
                 result.Content.Add(new(IntakeEvidenceSource.DocumentContent, sourceLabel, text));
             }
 
-            var imageNumber = 0;
             long totalImageBytes = 0;
-            var imageContentByPart = new Dictionary<ImagePart, byte[]>();
-            foreach (var imagePart in EnumerateImagePlacements(contentRoots))
+            var imageContentByPart = new Dictionary<Uri, byte[]>();
+            foreach (var placement in EnumerateImagePlacements(contentRoots))
             {
-                imageNumber++;
-                if (!imageContentByPart.TryGetValue(imagePart, out var content))
+                var imagePart = placement.Part;
+                if (!imageContentByPart.TryGetValue(imagePart.Uri, out var content))
                 {
                     using var imageStream = imagePart.GetStream(FileMode.Open, FileAccess.Read);
                     if (imageStream.CanSeek
@@ -413,13 +412,13 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
                     }
 
                     content = imageBytes.ToArray();
-                    imageContentByPart.Add(imagePart, content);
+                    imageContentByPart.Add(imagePart.Uri, content);
                 }
 
                 var fileName = Path.GetFileName(imagePart.Uri.OriginalString);
                 result.Assets.Add(new(
-                    $"{sourceLabel}, embedded image {imageNumber}",
-                    string.IsNullOrWhiteSpace(fileName) ? $"embedded-image-{imageNumber}" : fileName,
+                    $"{sourceLabel}, embedded image {placement.Number}",
+                    string.IsNullOrWhiteSpace(fileName) ? $"embedded-image-{placement.Number}" : fileName,
                     imagePart.ContentType,
                     content,
                     IntakeAssetKind.EmbeddedImage,
@@ -501,9 +500,10 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
         }
     }
 
-    private static IEnumerable<ImagePart> EnumerateImagePlacements(
+    private static IEnumerable<DocxImagePlacement> EnumerateImagePlacements(
         IEnumerable<DocxContentRoot> contentRoots)
     {
+        var placementNumber = 0;
         foreach (var contentRoot in contentRoots)
         {
             foreach (var element in contentRoot.Root.Descendants())
@@ -526,7 +526,7 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
                         "The DOCX contains an invalid embedded-image relationship.");
                 }
 
-                yield return imagePart;
+                yield return new(imagePart, ++placementNumber);
             }
         }
     }
@@ -591,11 +591,12 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
     {
         if (addTransport)
         {
-            var sender = message.From.Mailboxes.FirstOrDefault()?.Address;
-            if (!string.IsNullOrWhiteSpace(sender))
+            foreach (var mailbox in message.From.Mailboxes)
             {
-                result.Transport.Add(new(IntakeEvidenceSource.Sender, sender));
+                AddSenderTransportEvidence(mailbox.Address, result);
             }
+
+            AddSenderTransportEvidence(message.Sender?.Address, result);
 
             if (!string.IsNullOrWhiteSpace(message.Subject))
             {
@@ -623,6 +624,16 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
                 limits,
                 nestedDepth,
                 cancellationToken);
+        }
+    }
+
+    private static void AddSenderTransportEvidence(
+        string? address,
+        ReadAccumulator result)
+    {
+        if (!string.IsNullOrWhiteSpace(address))
+        {
+            result.Transport.Add(new(IntakeEvidenceSource.Sender, address));
         }
     }
 
@@ -1039,6 +1050,7 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
     }
 
     private readonly record struct DocxContentRoot(OpenXmlPart Part, OpenXmlElement Root);
+    private readonly record struct DocxImagePlacement(ImagePart Part, int Number);
 
     private sealed class DocxLimitExceededException : Exception
     {

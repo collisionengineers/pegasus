@@ -379,12 +379,14 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
     private static string ToCode(IntakeSourceChannel value) => value switch
     {
         IntakeSourceChannel.ManualUpload => "manual_upload",
+        IntakeSourceChannel.Mailbox => "mailbox",
         _ => throw UnknownEnum(value)
     };
 
     private static IntakeSourceChannel ParseSourceChannel(string value) => value switch
     {
         "manual_upload" => IntakeSourceChannel.ManualUpload,
+        "mailbox" => IntakeSourceChannel.Mailbox,
         _ => throw UnknownCode("source channel", value)
     };
 

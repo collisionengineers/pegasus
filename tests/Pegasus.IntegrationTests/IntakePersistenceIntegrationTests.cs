@@ -27,7 +27,8 @@ public sealed class IntakePersistenceIntegrationTests
         Assert.Equal(
             [
                 "20260724104624_InitialProviderNeutralIntake",
-                "20260727170804_ProviderDomainReferenceSnapshotV1"
+                "20260727170804_ProviderDomainReferenceSnapshotV1",
+                "20260729150000_DocumentCustodyAndRequests"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -48,8 +49,10 @@ public sealed class IntakePersistenceIntegrationTests
         Assert.Equal(1, await database.ScalarAsync<int>("SELECT COUNT(*) FROM ProviderDomainPackages"));
         Assert.Equal(11, await database.ScalarAsync<int>("SELECT COUNT(*) FROM ProviderReferences"));
         Assert.Equal(16, await database.ScalarAsync<int>("SELECT COUNT(*) FROM ProviderDomainEvidence"));
-        Assert.Equal(0, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.tables WHERE name IN (N'Cases', N'PrincipalYearCounters')"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'Cases'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseSequences'"));
     }
 
     [Fact]
@@ -122,8 +125,8 @@ public sealed class IntakePersistenceIntegrationTests
         Assert.NotNull(record.InstructionDraft);
         Assert.Equal(1, await database.CountAsync("IntakeReceipts"));
         Assert.Equal(1, await database.CountAsync("IntakeReceiptEvents"));
-        Assert.Equal(0, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.tables WHERE name IN (N'Cases', N'PrincipalYearCounters')"));
+        Assert.Equal(0, await database.CountAsync("Cases"));
+        Assert.Equal(0, await database.CountAsync("CaseSequences"));
     }
 
     [Fact]
@@ -287,7 +290,8 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
     {
         var allowed = tableName switch
         {
-            "IntakeReceipts" or "InstructionDrafts" or "IntakeReceiptEvents" => tableName,
+            "IntakeReceipts" or "InstructionDrafts" or "IntakeReceiptEvents"
+                or "Cases" or "CaseSequences" => tableName,
             _ => throw new ArgumentOutOfRangeException(nameof(tableName))
         };
         return ScalarAsync<int>($"SELECT COUNT(*) FROM [{allowed}]");
