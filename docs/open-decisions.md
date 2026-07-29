@@ -42,6 +42,10 @@ The available evidence establishes review-visible uncertainty, but not an
 accepted numeric confidence score, threshold, or alternative confidence
 display. None should be inferred.
 
+The first additional-provider route cohort is allocated to `0.2.0`; the broader
+classified-email workspace and email MCP cohort is allocated to `0.3.0`.
+Neither target closes this evidence gate.
+
 | Evidence needed | Impact | Recommended default | Decision question |
 |---|---|---|---|
 | For each proposed route: genuine examples; exact sender/intermediary identity; finite category predicates and exclusions; automatic incoming-case, Triage, and exact Sent-item matching predicates; and named no-match/conflict/ambiguity outcomes. | Premature activation could misclassify a message or associate the wrong case, Triage, or delivery evidence. | Keep the route and each automatic matcher inactive until its exact predicates and conservative outcomes are accepted. | Are the route’s category and automatic-matching predicates, exclusions, and ambiguity outcomes accepted? |
@@ -73,12 +77,13 @@ The examples establish the presence and order of `VRM`, but do not by themselves
 |---|---|---|---|
 | Operator acceptance of every source-field mapping, especially whether `Reference` maps to EVA Claim No rather than Case/PO; null and empty handling; date and mileage normalization; image selection, naming, and order; treatment of uncertain VRM values; and a real drag-and-drop run. | An incorrect or guessed mapping could create or alter EVA work with the wrong claim, vehicle, dates, mileage, or images. | Keep generation review-gated. Do not allow a guessed mapping, including a guessed VRM mapping, to create or alter EVA work. | Has an operator accepted every mapping and normalization rule through a real drag-and-drop run? |
 
-## EVA API activation
+## EVA API activation (`0.7.0` / `EXT-04`)
 
-Direct EVA API use remains blocked because no usable EVA operation has been
-supplied by the EVA development team. The retained vendor schema is
-non-authoritative reference evidence: it does not select an operation or grant
-permission to call EVA.
+Direct EVA API use is allocated only as an optional, non-blocking `0.7.0`
+branch and remains blocked because no usable EVA operation has been supplied by
+the EVA development team. The retained vendor schema is non-authoritative
+reference evidence: it does not select an operation or grant permission to call
+EVA.
 
 In particular, no allowed accepted source currently establishes a proxy-only
 case/vehicle/inspection fetch, a create-with-children operation, its
@@ -110,9 +115,11 @@ adapters.
 | Mandatory provider and vehicle-history checks | An exact contract defining which checks are mandatory, for which provider or route, when they run, and how failures or unavailable results are handled. | Cases could proceed without required checks or be blocked by checks that were never mandated. | Do not infer a universal mandatory-check policy. Keep activation gated on an exact contract. | Has the provider-specific mandatory-check contract, including vehicle-history handling, been accepted? |
 | Report wording | Accepted wording for salvage Categories N, A, B, and N/A; recovery and storage; the final statement of truth; and named qualifications. | Reports could contain incomplete, unauthorized, or inconsistent statements. | Keep the affected wording review-gated and do not invent missing text or qualifications. | Has the complete wording and qualification set been accepted for report generation? |
 
-## Send-to-AI transport experiment
+## Send-to-AI transport experiment (`1.3.0` / `AI-09`)
 
-`AI-09` preserves one Core-owned work-request, proposal, and review contract. Any transport must conform to that contract rather than weakening the queue.
+`AI-09` is allocated to `1.3.0` and preserves one Core-owned work-request,
+proposal, and review contract. The target does not activate a transport; any
+transport must conform to that contract rather than weakening the queue.
 
 A later experiment may compare:
 
