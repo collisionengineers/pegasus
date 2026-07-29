@@ -1,6 +1,6 @@
 # Gotchas — Real Mistakes from Previous Sessions
 
-> **Source-workspace boundary:** Reduce to validator-linked current checks; delete historical session notes after distillation. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+> **Source-workspace boundary:** This file is package-local validator evidence only; it is not a Pegasus caller, policy, current instruction, or acceptance authority. Current validator behavior and tests prevail over any narrative example.
 
 
 These are verified errors. Check each one before building.

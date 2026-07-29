@@ -447,7 +447,7 @@ The independently hashed temporary proof inputs are outside the repository:
 | --- | --- |
 | Disposition manifest | `4d0ddab6f49e17a053b07df7e2433e60971c653aadf5e1fe4ed74d722129f658` |
 | Baseline manifest | `429ee9dbc3c6ce746098c7e2207b73975791538266df8962713935dcf3aa6864` |
-| Material-claim inventory | `5d997b319f03c5005aeee8183e4f9c8704b1557599cec9188bbe07ef602f5338` |
+| Material-claim inventory | `32058ba321ffab11af6f299baa120b83edf761e30091945729d3f534062f3c6c` |
 | Callsite inventory | `095ff29859eff0090b1f04409ec91b29c8d2c3d06aac7795937a32c935f9c616` |
 
 The accepted disposition is exact: 512 baseline artifacts (`K=131`, `R=92`,
@@ -522,6 +522,26 @@ established four blockers and three required findings. The follow-up patch:
 
 These remediations require a new exact-head independent review; this record does
 not infer acceptance from implementation or green checks.
+
+### Pull request 18 source-boundary remediation
+
+Independent retest of head `54273b132ad6d28facf3c0808213ccb7c12d4572`
+closed the four verifier blockers and three earlier required findings, then
+identified two remaining source-authority findings. The follow-up patch:
+
+- replaces every embedded source-workspace rewrite directive with a final
+  evidence/authority boundary; the vehicle-history package now records a
+  proposed connector contract only and forbids live connector calls, canonical
+  policy claims, and unproved consumers;
+- identifies `CollisionSpike` as predecessor identity only throughout the
+  document-extraction architecture; any possible Pegasus adapter now requires a
+  separately accepted integration contract and caller proof;
+- routes the root repository instruction to `docs/operator-notes.md`; and
+- refreshes every affected material-claim landing hash without changing source
+  claim identity or callsite identity.
+
+These remediations require another exact-head independent review; this record
+does not infer acceptance from implementation or green checks.
 
 ## Verification and evidence
 

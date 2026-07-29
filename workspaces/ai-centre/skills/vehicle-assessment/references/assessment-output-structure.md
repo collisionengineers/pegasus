@@ -1,6 +1,6 @@
 # Assessment Output Structure
 
-> **Source-workspace boundary:** Retain payload/pack projection mechanics, replace mandatory product deliverables with experiment output schema and Core-owned report ownership. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+> **Source-workspace boundary:** This file is an experimental output schema, not a mandatory Pegasus deliverable, caller, policy, current instruction, or acceptance authority. `Pegasus.Core` and an authorised human own accepted reports and outcomes.
 
 
 The canonical shape of the engineer information pack, the closing key-information summary

@@ -1,6 +1,6 @@
 # Repair / Renew Decision Matrix
 
-> **Source-workspace boundary:** Retain as candidate annotation/evaluation aid; remove prescriptive repair-policy voice and require accepted external domain rule. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+> **Source-workspace boundary:** This file is a candidate annotation and evaluation aid, not repair policy, a Pegasus caller, current instruction, or acceptance authority. Accepted external domain rules and authorised review govern every decision.
 
 
 The issue is not simply whether a panel *could* be repaired. The judgement weighs all of the

@@ -1,6 +1,6 @@
 # AQP Competence Boundaries
 
-> **Source-workspace boundary:** Retain useful escalation boundary, but call it source-pack evaluation guidance rather than AQP authority. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+> **Source-workspace boundary:** This file is package-local evaluation evidence, not AQP authority, a Pegasus caller, policy, current instruction, or acceptance authority. An authorised engineer/AQP owns every accepted domain conclusion.
 
 
 What this skill may conclude on its own, what stays provisional pending engineer/AQP review, and

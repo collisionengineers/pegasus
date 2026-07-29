@@ -1,6 +1,6 @@
 # Damage Cataloguing
 
-> **Source-workspace boundary:** Retain observation taxonomy; remove direct business conclusions such as automatic roadworthiness/storage and make them candidate flags. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+> **Source-workspace boundary:** This file is an experimental observation taxonomy; any conclusion is a candidate flag for authorised review, not a Pegasus caller, policy, current instruction, or acceptance authority.
 
 
 ## What to look for when walking through photos

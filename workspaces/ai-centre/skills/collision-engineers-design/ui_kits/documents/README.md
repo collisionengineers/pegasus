@@ -1,6 +1,6 @@
 # Collision Engineers — Documents & Reports UI Kit
 
-> **Source-workspace boundary:** Retain component/runtime map, replace stale WRITING.md §7 pointer with ce-house-style and root design links; mark examples as sample evidence. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+> **Source-workspace boundary:** This file is package-local visual evidence only; root [design authority](../../../../../../design/README.md) owns accepted Pegasus design. It is not a Pegasus caller, policy, current instruction, or acceptance authority.
 
 
 Faithful, print-ready recreations of Collision Engineers' **expert report and invoice templates**,

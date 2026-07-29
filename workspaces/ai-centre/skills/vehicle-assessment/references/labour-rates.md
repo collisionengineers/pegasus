@@ -1,6 +1,6 @@
 # Labour Rates — ABP 2026
 
-> **Source-workspace boundary:** Retain dated ABP evidence only; remove 'runtime defaults' and state that Core/operator-approved rate tables govern any activated use. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+> **Source-workspace boundary:** This file is dated ABP evidence, not a runtime default, Pegasus caller, policy, current instruction, or acceptance authority. Core/operator-approved rate evidence governs any separately activated use.
 
 
 Source basis: ABP retail and non-contract charge schedule effective 1 January 2026. Treat these

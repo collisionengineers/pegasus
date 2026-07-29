@@ -1,6 +1,6 @@
 # Expert Procedure and Evidence
 
-> **Source-workspace boundary:** Retain dated procedural checklist as reference evidence, not legal advice or a compliance guarantee. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+> **Source-workspace boundary:** This file is dated package-local evidence, not legal advice, a compliance guarantee, a Pegasus caller, or acceptance authority. `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, legal position, send, report issue, and approval.
 
 
 Use this reference when drafting or checking a Part 35 report, addendum, response to written questions, opponent testing challenge, or procedure-based objection.

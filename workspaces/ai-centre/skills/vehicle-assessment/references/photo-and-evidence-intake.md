@@ -1,6 +1,6 @@
 # Photo And Evidence Intake
 
-> **Source-workspace boundary:** Retain unique evidence labels/checklist; say it is an experimental intake taxonomy, not a product requirement. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+> **Source-workspace boundary:** This file is an experimental intake taxonomy, not a Pegasus requirement, caller, policy, current instruction, or acceptance authority.
 
 
 What to record, what to request, and how to classify what was supplied — before any conclusion

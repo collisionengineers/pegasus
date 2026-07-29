@@ -1,6 +1,6 @@
 # Addendum And Dispute Response
 
-> **Source-workspace boundary:** Retain evidence-gated drafting structure, remove any implication that a skill can set legal or settlement policy. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+> **Source-workspace boundary:** This file is package-local drafting evidence or an experiment only; it is not a Pegasus caller, legal/settlement policy, current instruction, or acceptance authority. `Pegasus.Core`, current operator authority, and an authorised human own every accepted response and approval.
 
 
 Use this when the user asks for an external response about a repair estimate, total-loss

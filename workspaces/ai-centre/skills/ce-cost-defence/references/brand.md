@@ -1,16 +1,24 @@
 # Collision Engineers — Brand Facts (fixed)
 
-> **Source-workspace boundary:** Reduce to pointer to collision-engineers-design/root design; delete duplicated brand constants after link updates. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+> **Source-workspace boundary:** This file preserves historical constants used by
+> the package-local renderer fixture. Root
+> [design authority](../../../../../design/README.md) owns accepted Pegasus
+> visual rules; the constants below are implementation evidence, not a second
+> authority or permission to issue a report. Current operator authority and an
+> authorised human own any legal furniture, signatory, contact detail, report,
+> send, or approval.
 
-
-These are baked into `scripts/build_report.js`. You normally never touch them; this file exists so the styling can be explained or re-applied if the generator is ever rebuilt. **Do not change the generator to alter these.**
+These values are baked into the retained `scripts/build_report.js` fixture.
+Change accepted Pegasus design through root design authority and change fixture
+behavior through its source and tests; do not treat this explanatory copy as
+the generator.
 
 ## Identity
 
 - **Name:** Collision Engineers Ltd
 - **Strapline:** Independent Automotive Experts
 - **Registered address (footer):** 77-79 Hoylake Road, Moreton, Wirral, CH46 9PY
-- **Email:** engineers@collisionengineers.co.uk  (accounts: accounts@collisionengineers.co.uk)
+- **Email:** engineers@collisionengineers.co.uk (accounts: accounts@collisionengineers.co.uk)
 - **Web:** www.CollisionEngineers.co.uk
 - **VAT No:** 262 0937 10
 - **Logo:** red gear forming a "C", "COLLISION" in dark grey, "ENGINEERS" in red, small grey strapline. Bundled at `assets/logo.jpeg`, placed top-left in the header.
@@ -34,8 +42,7 @@ These are baked into `scripts/build_report.js`. You normally never touch them; t
 
 ## Standard legal furniture
 
-- Opens **FAO The Court**, care-of the instructing party.
-- Closes with the **CPR 35.6** availability line, a **Statement of Truth**, then the signature block.
-- **Default signatory:** A. Patterson, M.Inst.IAEA, Independent Motor Engineer, Collision Engineers Ltd, engineers@collisionengineers.co.uk.
-
-This house style matches the firm's existing court-addressed reports (e.g. the addendum/valuation reports and fee notes) so the cost-defence report is visually consistent with everything else the firm issues.
+The fixture contains example court-addressed furniture, a CPR 35.6 availability
+line, a Statement of Truth, and a signature block. Those examples require
+matter-specific authorised review; this package does not select a signatory or
+authorise their use.

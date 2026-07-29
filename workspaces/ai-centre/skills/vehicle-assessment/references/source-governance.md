@@ -1,6 +1,6 @@
 # Source Governance
 
-> **Source-workspace boundary:** Preserve evidence labels and stale-source mechanics, but make the hierarchy an experiment annotation scheme below docs/index/Core authority. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+> **Source-workspace boundary:** This file is an experimental annotation scheme below root documentation, `Pegasus.Core`, and operator authority; it is not a Pegasus caller, policy, current instruction, or acceptance authority.
 
 
 How conclusions are labelled, which source wins when they disagree, and when a source is too

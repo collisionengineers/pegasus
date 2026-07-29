@@ -1,6 +1,6 @@
 # Document & Report Letterhead Spec
 
-> **Source-workspace boundary:** Retain layout evidence only; root design remains canonical and collisionrenderer remains the accepted renderer boundary. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+> **Source-workspace boundary:** This file is package-local visual evidence only; root [design authority](../../../../../design/README.md) owns accepted Pegasus design. It is not a Pegasus caller, policy, current instruction, or acceptance authority.
 
 
 The canonical A4 letterhead for all CE expert reports, valuations, addenda, rebuttals, and fee notes. Read this before building any document template.
