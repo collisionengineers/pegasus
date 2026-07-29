@@ -11,6 +11,12 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<InstructionDraftEntity> InstructionDrafts => Set<InstructionDraftEntity>();
 
     internal DbSet<IntakeReceiptEventEntity> IntakeReceiptEvents => Set<IntakeReceiptEventEntity>();
+    internal DbSet<IntakeStagedReceiptEntity> IntakeStagedReceipts => Set<IntakeStagedReceiptEntity>();
+
+    internal DbSet<IntakeWorkItemEntity> IntakeWorkItems => Set<IntakeWorkItemEntity>();
+    internal DbSet<IntakeEvaluationEntity> IntakeEvaluations => Set<IntakeEvaluationEntity>();
+
+
 
     internal DbSet<ProviderDomainPackageEntity> ProviderDomainPackages => Set<ProviderDomainPackageEntity>();
 
@@ -91,6 +97,50 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasOne<IntakeReceiptEntity>()
                 .WithMany()
                 .HasForeignKey(item => item.IntakeReceiptId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<IntakeStagedReceiptEntity>(entity =>
+        {
+            entity.ToTable("IntakeStagedReceipts");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.SourceFileName).HasMaxLength(260).IsRequired();
+            entity.Property(item => item.MediaType).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.SourceHash).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.SourceChannel).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.ExternalReceiptToken).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.Actor).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.StorageKey).HasMaxLength(200).IsRequired();
+            entity.HasIndex(item => new { item.SourceChannel, item.ExternalReceiptToken }).IsUnique();
+            entity.HasIndex(item => item.SourceHash);
+        });
+
+        modelBuilder.Entity<IntakeWorkItemEntity>(entity =>
+        {
+            entity.ToTable("IntakeWorkItems", table =>
+                table.HasCheckConstraint("CK_IntakeWorkItems_AttemptCount", "[AttemptCount] >= 0"));
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.OperationKey).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.State).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.LeaseToken).HasMaxLength(64);
+            entity.Property(item => item.FailureCode).HasMaxLength(100);
+            entity.HasIndex(item => item.OperationKey).IsUnique();
+            entity.HasIndex(item => item.StagedReceiptId).IsUnique();
+            entity.HasIndex(item => new { item.State, item.DueAtUtc });
+            entity.HasOne(item => item.StagedReceipt)
+                .WithOne(item => item.WorkItem)
+                .HasForeignKey<IntakeWorkItemEntity>(item => item.StagedReceiptId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<IntakeEvaluationEntity>(entity =>
+        {
+            entity.ToTable("IntakeEvaluations");
+            entity.HasKey(item => item.Id);
+            entity.HasIndex(item => new { item.StagedReceiptId, item.Revision }).IsUnique();
+            entity.HasOne<IntakeStagedReceiptEntity>()
+                .WithMany()
+                .HasForeignKey(item => item.StagedReceiptId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -208,6 +258,47 @@ internal sealed class IntakeReceiptEventEntity
     public required string Actor { get; set; }
     public DateTimeOffset OccurredAtUtc { get; set; }
     public required string DetailsJson { get; set; }
+}
+
+internal sealed class IntakeStagedReceiptEntity
+{
+    public Guid Id { get; set; }
+    public required string SourceFileName { get; set; }
+    public required string MediaType { get; set; }
+    public long SourceLength { get; set; }
+    public required string SourceHash { get; set; }
+    public required string SourceChannel { get; set; }
+    public required string ExternalReceiptToken { get; set; }
+    public DateTimeOffset ReceivedAtUtc { get; set; }
+    public required string Actor { get; set; }
+    public required string StorageKey { get; set; }
+    public DateTimeOffset StagedAtUtc { get; set; }
+    public IntakeWorkItemEntity? WorkItem { get; set; }
+}
+
+internal sealed class IntakeWorkItemEntity
+{
+    public Guid Id { get; set; }
+    public Guid StagedReceiptId { get; set; }
+    public IntakeStagedReceiptEntity StagedReceipt { get; set; } = null!;
+    public required string OperationKey { get; set; }
+    public required string State { get; set; }
+    public int AttemptCount { get; set; }
+    public DateTimeOffset DueAtUtc { get; set; }
+    public string? LeaseToken { get; set; }
+    public DateTimeOffset? LeaseExpiresAtUtc { get; set; }
+    public Guid? ProcessedReceiptId { get; set; }
+    public string? FailureCode { get; set; }
+    public DateTimeOffset? CompletedAtUtc { get; set; }
+}
+
+internal sealed class IntakeEvaluationEntity
+{
+    public Guid Id { get; set; }
+    public Guid StagedReceiptId { get; set; }
+    public Guid ProcessedReceiptId { get; set; }
+    public int Revision { get; set; }
+    public DateTimeOffset EvaluatedAtUtc { get; set; }
 }
 
 internal sealed class ProviderDomainPackageEntity

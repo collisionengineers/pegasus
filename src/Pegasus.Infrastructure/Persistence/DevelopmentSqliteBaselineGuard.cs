@@ -84,6 +84,44 @@ public static class DevelopmentSqliteBaselineGuard
                 new("DetailsJson", "TEXT", true, 0)
             ]
             ,
+            ["IntakeStagedReceipts"] =
+            [
+                new("Id", "TEXT", true, 1),
+                new("SourceFileName", "TEXT", true, 0),
+                new("MediaType", "TEXT", true, 0),
+                new("SourceLength", "INTEGER", true, 0),
+                new("SourceHash", "TEXT", true, 0),
+                new("SourceChannel", "TEXT", true, 0),
+                new("ExternalReceiptToken", "TEXT", true, 0),
+                new("ReceivedAtUtc", "TEXT", true, 0),
+                new("Actor", "TEXT", true, 0),
+                new("StorageKey", "TEXT", true, 0),
+                new("StagedAtUtc", "TEXT", true, 0)
+            ],
+            ["IntakeWorkItems"] =
+            [
+                new("Id", "TEXT", true, 1),
+                new("StagedReceiptId", "TEXT", true, 0),
+                new("OperationKey", "TEXT", true, 0),
+                new("State", "TEXT", true, 0),
+                new("AttemptCount", "INTEGER", true, 0),
+                new("DueAtUtc", "TEXT", true, 0),
+                new("LeaseToken", "TEXT", false, 0),
+                new("LeaseExpiresAtUtc", "TEXT", false, 0),
+                new("ProcessedReceiptId", "TEXT", false, 0),
+                new("FailureCode", "TEXT", false, 0),
+                new("CompletedAtUtc", "TEXT", false, 0)
+            ]
+            ,
+            ["IntakeEvaluations"] =
+            [
+                new("Id", "TEXT", true, 1),
+                new("StagedReceiptId", "TEXT", true, 0),
+                new("ProcessedReceiptId", "TEXT", true, 0),
+                new("Revision", "INTEGER", true, 0),
+                new("EvaluatedAtUtc", "TEXT", true, 0)
+            ]
+            ,
             ["ProviderDomainPackages"] =
             [
                 new("Version", "TEXT", true, 1),
@@ -131,6 +169,26 @@ public static class DevelopmentSqliteBaselineGuard
                 new("IX_IntakeReceiptEvents_IntakeReceiptId", false, "c", ["IntakeReceiptId"])
             ]
             ,
+            ["IntakeStagedReceipts"] =
+            [
+                new(null, true, "pk", ["Id"]),
+                new("IX_IntakeStagedReceipts_SourceChannel_ExternalReceiptToken", true, "c", ["SourceChannel", "ExternalReceiptToken"]),
+                new("IX_IntakeStagedReceipts_SourceHash", false, "c", ["SourceHash"])
+            ],
+            ["IntakeWorkItems"] =
+            [
+                new(null, true, "pk", ["Id"]),
+                new("IX_IntakeWorkItems_OperationKey", true, "c", ["OperationKey"]),
+                new("IX_IntakeWorkItems_StagedReceiptId", true, "c", ["StagedReceiptId"]),
+                new("IX_IntakeWorkItems_State_DueAtUtc", false, "c", ["State", "DueAtUtc"])
+            ]
+            ,
+            ["IntakeEvaluations"] =
+            [
+                new(null, true, "pk", ["Id"]),
+                new("IX_IntakeEvaluations_StagedReceiptId_Revision", true, "c", ["StagedReceiptId", "Revision"])
+            ]
+            ,
             ["ProviderDomainPackages"] = [new(null, true, "pk", ["Version"])],
             ["ProviderReferences"] = [new(null, true, "pk", ["Version", "Code"])],
             ["ProviderDomainEvidence"] =
@@ -149,6 +207,11 @@ public static class DevelopmentSqliteBaselineGuard
             ["InstructionDrafts"] = [new("IntakeReceiptId", "IntakeReceipts", "Id", "CASCADE")],
             ["IntakeAssets"] = [new("IntakeReceiptId", "IntakeReceipts", "Id", "CASCADE")],
             ["IntakeReceiptEvents"] = [new("IntakeReceiptId", "IntakeReceipts", "Id", "RESTRICT")]
+            ,
+            ["IntakeStagedReceipts"] = [],
+            ["IntakeWorkItems"] = [new("StagedReceiptId", "IntakeStagedReceipts", "Id", "RESTRICT")]
+            ,
+            ["IntakeEvaluations"] = [new("StagedReceiptId", "IntakeStagedReceipts", "Id", "RESTRICT")]
             ,
             ["ProviderDomainPackages"] = [],
             ["ProviderReferences"] = [new("Version", "ProviderDomainPackages", "Version", "RESTRICT")],
@@ -170,10 +233,10 @@ public static class DevelopmentSqliteBaselineGuard
         }
 
         var migrations = context.Database.GetMigrations().ToArray();
-        if (migrations.Length != 2)
+        if (migrations.Length != 3)
         {
             throw new InvalidOperationException(
-                $"The Development SQLite baseline requires exactly two current migrations; found {migrations.Length}.");
+                $"The Development SQLite baseline requires exactly three current migrations; found {migrations.Length}.");
         }
 
         var connection = context.Database.GetDbConnection();

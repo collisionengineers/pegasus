@@ -1,3 +1,4 @@
+using System.Reflection;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Health;
@@ -12,6 +13,25 @@ var applicationArgs = args
     .Where(argument => !argument.Equals("--migrate-development", StringComparison.Ordinal))
     .ToArray();
 var builder = WebApplication.CreateBuilder(applicationArgs);
+var informationalVersion = typeof(Program).Assembly
+    .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?
+    .InformationalVersion
+    ?? throw new InvalidOperationException("Assembly informational version is required.");
+var buildMetadataSeparator = informationalVersion.IndexOf('+', StringComparison.Ordinal);
+if (buildMetadataSeparator <= 0 || buildMetadataSeparator == informationalVersion.Length - 1)
+{
+    throw new InvalidOperationException(
+        "Assembly informational version must contain the product version and source SHA.");
+}
+
+var productVersion = informationalVersion[..buildMetadataSeparator];
+var sourceSha = informationalVersion[(buildMetadataSeparator + 1)..];
+if (sourceSha.Length != 40 || sourceSha.Any(character => !char.IsAsciiHexDigit(character)))
+{
+    throw new InvalidOperationException(
+        "Assembly informational version must contain a 40-character hexadecimal source SHA.");
+}
+
 
 builder.Services.AddRazorPages();
 builder.Services.AddHealthChecks()
@@ -146,6 +166,11 @@ app.UseRouting();
 app.UseAuthorization();
 
 app.MapStaticAssets();
+app.MapGet("/diagnostics/version", () => Results.Ok(new
+{
+    version = productVersion,
+    sourceSha
+}));
 app.MapHealthChecks("/health/live", new()
 {
     Predicate = _ => false

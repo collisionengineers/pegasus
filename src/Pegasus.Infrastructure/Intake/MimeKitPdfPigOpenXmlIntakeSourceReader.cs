@@ -2,6 +2,7 @@ using System.Net;
 using System.IO.Compression;
 using System.Text.RegularExpressions;
 using Pegasus.Core.Intake;
+using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using MimeKit;
@@ -357,23 +358,29 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
                 throw new FileFormatException("The DOCX does not contain a main document part.");
             }
 
-            var textRoots = new List<DocumentFormat.OpenXml.OpenXmlElement> { mainPart.Document };
-            textRoots.AddRange(mainPart.HeaderParts.Where(part => part.Header is not null).Select(part => part.Header!));
-            textRoots.AddRange(mainPart.FooterParts.Where(part => part.Footer is not null).Select(part => part.Footer!));
+            var contentRoots = new List<DocxContentRoot> { new(mainPart, mainPart.Document) };
+            contentRoots.AddRange(
+                mainPart.HeaderParts
+                    .Where(part => part.Header is not null)
+                    .Select(part => new DocxContentRoot(part, part.Header!)));
+            contentRoots.AddRange(
+                mainPart.FooterParts
+                    .Where(part => part.Footer is not null)
+                    .Select(part => new DocxContentRoot(part, part.Footer!)));
             if (mainPart.FootnotesPart?.Footnotes is not null)
             {
-                textRoots.Add(mainPart.FootnotesPart.Footnotes);
+                contentRoots.Add(new(mainPart.FootnotesPart, mainPart.FootnotesPart.Footnotes));
             }
 
             if (mainPart.EndnotesPart?.Endnotes is not null)
             {
-                textRoots.Add(mainPart.EndnotesPart.Endnotes);
+                contentRoots.Add(new(mainPart.EndnotesPart, mainPart.EndnotesPart.Endnotes));
             }
 
             var text = string.Join(
                 Environment.NewLine,
-                textRoots
-                    .SelectMany(root => root
+                contentRoots
+                    .SelectMany(contentRoot => contentRoot.Root
                         .Descendants<Paragraph>()
                         .Select(paragraph => string.Concat(paragraph.Descendants<Text>().Select(item => item.Text))))
                     .Where(value => !string.IsNullOrWhiteSpace(value)));
@@ -384,22 +391,29 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
 
             var imageNumber = 0;
             long totalImageBytes = 0;
-            foreach (var imagePart in EnumerateImageParts(mainPart))
+            var imageContentByPart = new Dictionary<ImagePart, byte[]>();
+            foreach (var imagePart in EnumerateImagePlacements(contentRoots))
             {
                 imageNumber++;
-                using var imageStream = imagePart.GetStream(FileMode.Open, FileAccess.Read);
-                if (imageStream.CanSeek
-                    && imageStream.Length > MaximumDocxImageBytes - totalImageBytes)
+                if (!imageContentByPart.TryGetValue(imagePart, out var content))
                 {
-                    throw new DocxLimitExceededException();
-                }
+                    using var imageStream = imagePart.GetStream(FileMode.Open, FileAccess.Read);
+                    if (imageStream.CanSeek
+                        && imageStream.Length > MaximumDocxImageBytes - totalImageBytes)
+                    {
+                        throw new DocxLimitExceededException();
+                    }
 
-                using var imageBytes = new MemoryStream();
-                imageStream.CopyTo(imageBytes);
-                totalImageBytes += imageBytes.Length;
-                if (totalImageBytes > MaximumDocxImageBytes)
-                {
-                    throw new DocxLimitExceededException();
+                    using var imageBytes = new MemoryStream();
+                    imageStream.CopyTo(imageBytes);
+                    totalImageBytes += imageBytes.Length;
+                    if (totalImageBytes > MaximumDocxImageBytes)
+                    {
+                        throw new DocxLimitExceededException();
+                    }
+
+                    content = imageBytes.ToArray();
+                    imageContentByPart.Add(imagePart, content);
                 }
 
                 var fileName = Path.GetFileName(imagePart.Uri.OriginalString);
@@ -407,7 +421,7 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
                     $"{sourceLabel}, embedded image {imageNumber}",
                     string.IsNullOrWhiteSpace(fileName) ? $"embedded-image-{imageNumber}" : fileName,
                     imagePart.ContentType,
-                    imageBytes.ToArray(),
+                    content,
                     IntakeAssetKind.EmbeddedImage,
                     IntakeAssetDisposition.Embedded));
             }
@@ -487,31 +501,34 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
         }
     }
 
-    private static List<ImagePart> EnumerateImageParts(OpenXmlPartContainer container)
+    private static IEnumerable<ImagePart> EnumerateImagePlacements(
+        IEnumerable<DocxContentRoot> contentRoots)
     {
-        var images = new List<ImagePart>();
-        var pending = new Stack<OpenXmlPart>(container.Parts.Select(relationship => relationship.OpenXmlPart));
-        var visited = new HashSet<Uri>();
-
-        while (pending.TryPop(out var part))
+        foreach (var contentRoot in contentRoots)
         {
-            if (!visited.Add(part.Uri))
+            foreach (var element in contentRoot.Root.Descendants())
             {
-                continue;
-            }
+                var relationshipId = element switch
+                {
+                    DocumentFormat.OpenXml.Drawing.Blip blip => blip.Embed?.Value,
+                    DocumentFormat.OpenXml.Vml.ImageData imageData => imageData.RelationshipId?.Value,
+                    _ => null
+                };
+                if (string.IsNullOrWhiteSpace(relationshipId))
+                {
+                    continue;
+                }
 
-            if (part is ImagePart imagePart)
-            {
-                images.Add(imagePart);
-            }
+                if (!contentRoot.Part.TryGetPartById(relationshipId, out var relatedPart)
+                    || relatedPart is not ImagePart imagePart)
+                {
+                    throw new FileFormatException(
+                        "The DOCX contains an invalid embedded-image relationship.");
+                }
 
-            foreach (var relationship in part.Parts)
-            {
-                pending.Push(relationship.OpenXmlPart);
+                yield return imagePart;
             }
         }
-
-        return images;
     }
 
     private static async Task<ReadOutcome> ReadEmailAsync(
@@ -1020,6 +1037,8 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
             extractedImageBytes += count;
         }
     }
+
+    private readonly record struct DocxContentRoot(OpenXmlPart Part, OpenXmlElement Root);
 
     private sealed class DocxLimitExceededException : Exception
     {

@@ -1,3 +1,5 @@
+using Pegasus.Core.Cases;
+
 namespace Pegasus.Core.Intake;
 
 public enum IntakeDecision
@@ -55,6 +57,42 @@ public enum InstructionPolicyApplicability
     Applicable,
     NotApplicable,
     Indeterminate
+}
+
+public enum MailRouteDisposition
+{
+    Accepted,
+    NoMatch,
+    NeedsSorting
+}
+
+public enum MailRouteKind
+{
+    DirectProvider,
+    Intermediary
+}
+
+public sealed record MailRoutePredicateResult(
+    string Key,
+    bool Matched,
+    string Detail);
+
+public sealed record MailRouteSelection(
+    string RouteOwnerCode,
+    MailRouteKind Kind,
+    string WorkProviderCode);
+
+public sealed record MailRouteEvaluationResult(
+    MailRouteDisposition Disposition,
+    MailRouteSelection? SelectedRoute,
+    IReadOnlyList<MailRoutePredicateResult> Predicates,
+    string Reason,
+    string PolicyKey,
+    int PolicyVersion);
+
+public interface IMailRoutePolicy
+{
+    MailRouteEvaluationResult Evaluate(IntakeSourceReadResult readResult);
 }
 
 public sealed record IntakeSourceIdentity(
@@ -338,4 +376,72 @@ public interface IIntakeReceiptQueries
         Guid receiptId,
         Guid assetId,
         CancellationToken cancellationToken);
+}
+
+public sealed record ResolveIntakeRequest(
+    Guid ReceiptId,
+    long ExpectedVersion,
+    string Actor,
+    string OperationKey,
+    string Reason,
+    InstructionDraft? CorrectedDraft);
+
+public sealed record ReevaluateIntakeRequest(
+    Guid ReceiptId,
+    long ExpectedVersion,
+    string Actor,
+    string OperationKey,
+    string Reason);
+
+public sealed record AcceptIntakeRequest(
+    Guid ReceiptId,
+    long ExpectedVersion,
+    string Actor,
+    string OperationKey,
+    CaseType CaseType,
+    string PrincipalCode,
+    CaseCompleteness Completeness,
+    AuditAssessment? StandaloneAuditAssessment = null);
+
+public sealed record LinkIntakeRequest(
+    Guid ReceiptId,
+    Guid CaseId,
+    long ExpectedIntakeVersion,
+    long ExpectedCaseVersion,
+    string Actor,
+    string OperationKey,
+    string Reason);
+
+public sealed record ReverseIntakeLinkRequest(
+    Guid ReceiptId,
+    Guid CaseId,
+    long ExpectedIntakeVersion,
+    long ExpectedCaseVersion,
+    string Actor,
+    string OperationKey,
+    string Reason);
+
+public interface IResolveIntake
+{
+    Task<IntakeReceipt> ExecuteAsync(ResolveIntakeRequest request, CancellationToken cancellationToken);
+}
+
+public interface IReevaluateIntake
+{
+    Task<IntakeReceipt> ExecuteAsync(ReevaluateIntakeRequest request, CancellationToken cancellationToken);
+}
+
+public interface IAcceptIntake
+{
+    Task<CaseAcceptanceOutcome> ExecuteAsync(AcceptIntakeRequest request, CancellationToken cancellationToken);
+}
+
+public interface ILinkIntake
+{
+    Task ExecuteAsync(LinkIntakeRequest request, CancellationToken cancellationToken);
+}
+
+public interface IReverseIntakeLink
+{
+    Task ExecuteAsync(ReverseIntakeLinkRequest request, CancellationToken cancellationToken);
 }

@@ -269,6 +269,150 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("IntakeReceiptEvents", (string)null);
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeStagedReceiptEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Actor")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ExternalReceiptToken")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("MediaType")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset>("ReceivedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("SourceChannel")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("SourceFileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<string>("SourceHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<long>("SourceLength")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("StagedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SourceHash");
+
+                    b.HasIndex("SourceChannel", "ExternalReceiptToken")
+                        .IsUnique();
+
+                    b.ToTable("IntakeStagedReceipts", (string)null);
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeWorkItemEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("CompletedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("DueAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("FailureCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset?>("LeaseExpiresAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("LeaseToken")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("OperationKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid?>("ProcessedReceiptId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("StagedReceiptId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperationKey")
+                        .IsUnique();
+
+                    b.HasIndex("StagedReceiptId")
+                        .IsUnique();
+
+                    b.HasIndex("State", "DueAtUtc");
+
+                    b.ToTable("IntakeWorkItems", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_IntakeWorkItems_AttemptCount", "[AttemptCount] >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeEvaluationEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("EvaluatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("ProcessedReceiptId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("StagedReceiptId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StagedReceiptId", "Revision")
+                        .IsUnique();
+
+                    b.ToTable("IntakeEvaluations", (string)null);
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ProviderDomainEvidenceEntity", b =>
                 {
                     b.Property<string>("Version")
@@ -384,6 +528,26 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeEvaluationEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.IntakeStagedReceiptEntity", null)
+                        .WithMany()
+                        .HasForeignKey("StagedReceiptId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeWorkItemEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.IntakeStagedReceiptEntity", "StagedReceipt")
+                        .WithOne("WorkItem")
+                        .HasForeignKey("Pegasus.Infrastructure.Persistence.IntakeWorkItemEntity", "StagedReceiptId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("StagedReceipt");
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ProviderDomainEvidenceEntity", b =>
                 {
                     b.HasOne("Pegasus.Infrastructure.Persistence.ProviderReferenceEntity", "Provider")
@@ -411,6 +575,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("Assets");
 
                     b.Navigation("InstructionDraft");
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeStagedReceiptEntity", b =>
+                {
+                    b.Navigation("WorkItem");
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ProviderDomainPackageEntity", b =>
