@@ -3,11 +3,12 @@
 > **Source-workspace boundary:** This file is dated ABP evidence, not a runtime default, Pegasus caller, policy, current instruction, or acceptance authority. Core/operator-approved rate evidence governs any separately activated use.
 
 
-Source basis: ABP retail and non-contract charge schedule effective 1 January 2026. Treat these
-figures as the current runtime defaults until the next ABP guide is audited.
-
-Structured source: `abp-reference-data.2026.json` is the versioned machine-readable record for these
-rates and material defaults. Keep this prose guide aligned with that file.
+Source basis: dated ABP retail and non-contract charge schedule effective
+1 January 2026. The figures below are historical, package-local candidate
+values only; they are not current runtime defaults. `abp-reference-data.2026.json`
+records the same dated candidates for evaluation and must stay aligned with
+this copy. Any activation requires current rate evidence accepted through
+`Pegasus.Core`, operator authority, and authorised human review.
 
 ## Rate matrix
 
@@ -77,6 +78,7 @@ defaults with no ABP schedule equivalent — do not expect them to match an ABP 
 
 ## When to ask
 
-If the engineer prompt is genuinely ambiguous on rate, ask before building. Wrong rate = 25%+ error.
-
-Don't use prestige rate on Kia / Honda / Toyota / Ford / Vauxhall / Nissan etc. — even "approved repairer" is standard + £5, not prestige + £5.
+The dated source warns that an ambiguous rate can materially change a draft.
+Its example distinguishes ordinary marques from a prestige rate and records a
+separate manufacturer-approval uplift. These are historical evidence points
+for authorised review, not selection instructions or accepted defaults.

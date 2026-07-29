@@ -447,7 +447,7 @@ The independently hashed temporary proof inputs are outside the repository:
 | --- | --- |
 | Disposition manifest | `4d0ddab6f49e17a053b07df7e2433e60971c653aadf5e1fe4ed74d722129f658` |
 | Baseline manifest | `429ee9dbc3c6ce746098c7e2207b73975791538266df8962713935dcf3aa6864` |
-| Material-claim inventory | `32058ba321ffab11af6f299baa120b83edf761e30091945729d3f534062f3c6c` |
+| Material-claim inventory | `63504bbabded909b0a16d3adc414c9a9799acb057b354303420676b3441fffb1` |
 | Callsite inventory | `095ff29859eff0090b1f04409ec91b29c8d2c3d06aac7795937a32c935f9c616` |
 
 The accepted disposition is exact: 512 baseline artifacts (`K=131`, `R=92`,
@@ -543,6 +543,14 @@ identified two remaining source-authority findings. The follow-up patch:
 These remediations require another exact-head independent review; this record
 does not infer acceptance from implementation or green checks.
 
+Review of head `bddb66cb37973e1474f56ca26d5f27284a48f690` found one
+remaining contradiction in the two synchronized labour-rate evidence copies:
+their boundaries denied runtime-default authority while their bodies still
+claimed current defaults. The final patch relabels both bodies as dated
+package-local candidates requiring Core/operator/human approval. The pull
+request merge check also exposed three stale workspace-manifest values after
+the preceding documentation edits; the final patch records the recomputed Git
+index manifests for document extraction, AI Centre, and AI Centre skills.
 ## Verification and evidence
 
 - [x] Canonical product documents and the capability inventory agree with every
