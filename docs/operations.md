@@ -89,19 +89,23 @@ initialization:
 dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --no-restore --filter 'Category=Browser'
 ```
 
-This lane launches the package-pinned headless Chromium with fixed viewport,
-light colour scheme, and reduced motion. It runs axe first against an embedded
-network-free readiness document, then uploads a controlled synthetic DOCX
-through the actual Web intake HTTP caller, renders the returned review markup
-with the served Pegasus stylesheet, and runs axe again. A missing browser,
-launch failure, intake failure, or reported automated axe violation fails the
-lane; only axe rule identifiers enter assertion output.
+This lane launches the package-pinned headless Chromium with a fixed viewport,
+light colour scheme, and reduced motion. It drives the running local Web host
+through the DevelopmentOffline authenticated staff profile and the rendered
+route responses; it does not treat copied markup or a synthetic browser document
+as route evidence. It runs axe against the returned pages and fails on a missing
+browser, host or route failure, or reported automated axe violation; only axe
+rule identifiers enter assertion output.
 
-This is reproducible local caller evidence, not production-browser acceptance.
-It does not activate or prove Microsoft Edge Stable, Windows Narrator, manual
-keyboard/focus/200% zoom review, authenticated critical journeys, external
-services, deployment, or operator acceptance. Until those separately required
-evidence gates exist, their release claims remain fail closed.
+The local profile exercises no external adapter, credential, approval, or
+evidence gate. Browser coverage of authenticated and denied states is reproducible
+local caller evidence only; it cannot grant an external approval or activate a
+provider, custody, address, EVA, deployment, or operator-acceptance claim.
+Microsoft Edge Stable, Windows Narrator, manual keyboard/focus/200% zoom review,
+production identity/session behavior, external services, deployment, and
+operator acceptance remain separately required fail-closed evidence gates. Until
+those gates have their exact approval and evidence, their release claims remain
+unavailable.
 
 ## Optional approved live-work profile
 
@@ -389,7 +393,7 @@ activation; installing a tool never establishes a caller.
 | `Baseline` | Windows, PowerShell 7, Git/GitHub CLI, pinned .NET 10 SDK, Azure CLI with Bicep, Azure Developer CLI, Node/npm, Python, Infisical CLI, and Box CLI for build, test, Bicep validation, and approved administration. Cloud/vendor tools remain optional in the current offline baseline. |
 | `SqlServer` | SQL Server Express LocalDB and `sqlcmd` for migrations, constraints, transactions, allocation concurrency, outbox atomicity, and local backup/restore. |
 | `StorageWorker` | Repository-pinned npm Azurite and Functions Core Tools v4 for real Blob/Queue SDK, trigger, retry, poison, and restart paths. Activate only with the first real storage adapter and Worker trigger. |
-| `Browser` | The current `Browser` trait pins Microsoft Playwright for .NET, Chromium, and Deque axe-core for the deterministic readiness and synthetic intake-review gate described above. Authenticated rendering, multi-session behavior, the accepted Edge Stable channel, and manual accessibility review remain separate later gates. |
+| `Browser` | The `Browser` trait pins Microsoft Playwright for .NET, Chromium, and Deque axe-core. It drives the rendered DevelopmentOffline Operations, intake, Triage, administration, password-change, and case-document routes through a loopback Kestrel host, including semantic, responsive, forced-colour, and reduced-motion checks. It remains local caller evidence: Edge Stable, Narrator, manual accessibility review, external approvals, deployment, and operator/management acceptance remain separate fail-closed gates. |
 | `Graph` | Microsoft Dev Proxy and mocked Kiota request adapters for paging, throttling, 401/403, 429, 5xx, timeout, authentication, and retry. |
 | `Observability` | OpenTelemetry in-memory exporter and an optional native Collector for correlation, attributes, health signals, OTLP, and redaction. |
 | `Performance` | `Invoke-QdosAlphaAcceptance.ps1 -Profile CiPressure` compiles the two bounded pressure sources through the existing integration-test host, exercises eight concurrent DevelopmentOffline Web callers, and retains content-safe TRX and hashed run evidence. It installs no load-test framework and makes no alpha-capacity claim. |
@@ -480,8 +484,11 @@ dotnet run --project ./src/Pegasus.Web -- --register-development-mcp-client
 The command registers public client `pegasus-development-mcp`, the RFC 8252
 loopback redirect `http://127.0.0.1:7890/callback`, authorization-code and
 refresh-token grants, S256 PKCE, explicit consent, and only
-`pegasus.mcp.read`/`pegasus.mcp.write`. It emits no token or credential. Exercise
-the real HTTPS protocol rather than calling a PageModel or manager directly:
+`pegasus.mcp.read`/`pegasus.mcp.write`. It emits no token or credential. A
+successful create or idempotent update appends the content-safe
+`development_mcp_client_registered` `Client` security event against that client
+ID. Exercise the real HTTPS protocol rather than calling a PageModel or manager
+directly:
 
 1. Read `/.well-known/openid-configuration`,
    `/.well-known/oauth-authorization-server` and both
@@ -507,10 +514,12 @@ Revoke the complete local client boundary idempotently with:
 dotnet run --project ./src/Pegasus.Web -- --revoke-development-mcp-client
 ```
 
-Deletion revokes the client boundary and its dependent authorizations/tokens.
-Confirm the old refresh token and a new authorization request no longer succeed.
-This is also the local emergency-disable procedure; do not edit OpenIddict rows
-manually or retain a compatibility client.
+Deletion revokes the client boundary and its dependent authorizations/tokens and
+appends `development_mcp_client_revoked` only when it deleted a client record.
+An already-absent client is therefore an idempotent no-op. Confirm the old
+refresh token and a new authorization request no longer succeed. This is also
+the local emergency-disable procedure; do not edit OpenIddict rows manually or
+retain a compatibility client.
 
 Production and remote-client activation deliberately fail closed. Setting
 `Features:StaffMcpOAuth=true` outside the exact DevelopmentOffline/Development

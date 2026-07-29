@@ -16,6 +16,9 @@
     },
     "documentIntelligenceEnabled": {
       "value": false
+    },
+    "deploymentMode": {
+      "value": "offline-replay"
     }
   }
 }

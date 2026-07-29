@@ -2,6 +2,11 @@ using System.Reflection;
 using System.Xml.Linq;
 using Pegasus.Core;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Custody;
+using Pegasus.Worker.Functions;
+using Pegasus.Core.Documents;
+using Pegasus.Web.Pages.Documents;
+using Pegasus.Web.Pages.Requests;
 using Pegasus.Core.ReferenceData;
 using Pegasus.Infrastructure;
 
@@ -221,6 +226,50 @@ public sealed class DependencyDirectionTests
         var implementation = Assert.Single(implementations);
         Assert.False(implementation.IsPublic);
         Assert.Equal("EfProviderReferenceCatalog", implementation.Name);
+    }
+
+    [Fact]
+    public async Task ExternalWorkFunctionsDispatchOnlyValidCustodyWorkIdentifiers()
+    {
+        var processor = new RecordingCustodyProcessor();
+        var workId = Guid.NewGuid();
+
+        await new ExternalWorkFunction(processor).RunAsync(workId.ToString("D"), CancellationToken.None);
+        await new ExternalPoisonFunction(processor).RunAsync(workId.ToString("N"), CancellationToken.None);
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            new ExternalWorkFunction(processor).RunAsync("not-a-work-id", CancellationToken.None));
+
+        Assert.Equal([workId, workId], processor.ProcessedIds);
+    }
+
+    private sealed class RecordingCustodyProcessor : IProcessQueuedCustody
+    {
+        public List<Guid> ProcessedIds { get; } = [];
+
+        public Task ExecuteAsync(Guid workId, CancellationToken cancellationToken)
+        {
+            ProcessedIds.Add(workId);
+            return Task.CompletedTask;
+        }
+    }
+
+    [Fact]
+    public void WebCustodialPagesHaveNoDormantTransportPath()
+    {
+        var casePageDependencies = Assert.Single(typeof(CaseModel).GetConstructors())
+            .GetParameters()
+            .Select(parameter => parameter.ParameterType)
+            .ToArray();
+        var requestPageDependencies = Assert.Single(typeof(UploadModel).GetConstructors())
+            .GetParameters()
+            .Select(parameter => parameter.ParameterType)
+            .ToArray();
+
+        Assert.Contains(typeof(IAddCaseDocument), casePageDependencies);
+        Assert.Contains(typeof(ICreateRequestUploadLink), casePageDependencies);
+        Assert.Contains(typeof(IRevokeRequestUploadLink), casePageDependencies);
+        Assert.Contains(typeof(IGetRequestUpload), requestPageDependencies);
+        Assert.Contains(typeof(IUploadToRequest), requestPageDependencies);
     }
 
     private static bool IsForbiddenCoreDependency(string assemblyName) =>

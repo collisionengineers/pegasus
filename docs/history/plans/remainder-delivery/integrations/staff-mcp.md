@@ -20,9 +20,9 @@ inventory or used to create a second email policy owner.
 
 - **Authority:** [remaining requirements](../../../../product/qdos-alpha-gap.md#3-complete-intake-formats-and-paths) and [ADR-0004](../../../../decisions/ADR-0004-provider-api-and-staff-mcp-authentication.md#internal-staff-mcp).
 - **Policy owner:** existing staff authorization and named Core use cases; Web owns `/mcp`, OAuth metadata and composition.
-- **Current implementation:** no staff identity, OAuth server, OpenIddict/MCP package, `/mcp` endpoint, tool inventory or durable key store is registered.
-- **Real callers:** planned remote Streamable HTTP MCP client, initially one pre-registered Claude connector; no provider caller may use it.
-- **Persistence/adapters:** durable authorizations/tokens and signing/encryption/Data Protection keys are planned in the existing persistence/Key Vault design; Box-backed document actions remain limited by persisted root proof.
+- **Current implementation:** staff Identity, OpenIddict application persistence, authorization-code/refresh-token endpoints, exact-resource validation, consent, protected-resource metadata, and local client register/revoke commands are implemented in Web for `DevelopmentOffline` in `Development`. `/mcp`, an MCP package/tool inventory, durable production key custody, and remote-client activation remain absent.
+- **Real callers:** the one-shot local client commands call `IOpenIddictApplicationManager` against the Development database; a remote Streamable HTTP MCP client remains planned. No provider caller may use the OAuth surface.
+- **Persistence/adapters:** OpenIddict applications, authorizations, and tokens use the existing persistence stream. Development certificates are local only; durable production signing/encryption/Data Protection custody and Box-backed document action proof remain separately gated.
 - **Dependencies:** staff authentication/roles, named Core case/inbox/document use cases, durable keys and the [Box boundary](box-case-files.md#scoped-box-folder-and-version-custody).
 - **Replaces/consolidates:** no local MCPB/stdio bridge, shared static header or separate MCP service/project.
 
@@ -32,13 +32,13 @@ Bearer tokens are accepted only at `/mcp`; interactive cookies are only for staf
 
 ## Remote staff OAuth and restricted MCP tool surface
 
-**Evidence state:** Planned
+**Evidence state:** Implemented (local-only source and command surface); no local command or remote-client execution evidence is recorded here.
 
 ### Authority and decision gate
 
 - **Requirement/decision:** [ADR-0004](../../../../decisions/ADR-0004-provider-api-and-staff-mcp-authentication.md#internal-staff-mcp).
-- **Confirmed facts:** host remote Streamable HTTP in the existing Web project; pre-register the Claude client/callback; authorization-code flow uses S256 PKCE and exact HTTPS resource/audience. `/mcp` is the current route proposal, not separate product authority. Nothing is implemented or deployed.
-- **Decision required before implementation:** verify the current supported, mutually compatible OpenIddict and `ModelContextProtocol.AspNetCore` releases against their primary documentation and record exact versions in dated execution evidence; MCP/Claude enablement and durable key custody require explicit approval before live use.
+- **Confirmed facts:** the existing Web project hosts the local OAuth metadata, consent, authorization, token, and revocation endpoints. The deterministic local public client uses authorization-code flow with S256 PKCE and the exact HTTPS resource/audience; its create/update and actual deletion append content-safe `Client` security events. `/mcp` is not registered. The Claude client/callback is not registered or activated.
+- **Decision required before remote implementation:** verify the current supported, mutually compatible `ModelContextProtocol.AspNetCore` release against its primary documentation and record its exact version in dated execution evidence. MCP/Claude enablement, canonical issuer/resource, hosted callback, and durable key custody require explicit target-specific approval before live use.
 
 ### Owner and dependencies
 
@@ -49,25 +49,25 @@ Bearer tokens are accepted only at `/mcp`; interactive cookies are only for staf
 
 ### Caller, contract and change boundary
 
-- **Real or intended caller:** planned remote MCP client sends bearer token to `/mcp`; authorization/consent UI is Web cookie-based.
-- **Input/output:** a valid per-staff OAuth token for exact MCP resource invokes only a named tool mapping to an existing/simultaneously delivered Core use case and returns operation-specific result/failure.
-- **Ordered decisions and failure behavior:** validate token/resource/scope; reload enabled account/role; apply named action policy/domain invariant; enforce Box persisted-descendant rule where relevant; record the result in permanent action history. Invalid/disabled/revoked/mismatched requests are denied without tool execution.
-- **Persistence/migration:** persist/revoke authorizations and rotating refresh tokens; store signing/encryption/Data Protection keys durably with overlap/rotation, never in source.
-- **Adapters/side effects:** metadata endpoints, OAuth server and Streamable HTTP endpoint in Web only; no provider authentication or Box arbitrary-ID adapter.
-- **Operator surface and observability:** consent/revocation/account-disable effects, tool/action-history outcomes and content-free auth failure telemetry.
-- **Documentation affected:** OAuth/client registration and tool inventory; update only after real implementation evidence.
+- **Current caller:** `--register-development-mcp-client` and `--revoke-development-mcp-client` invoke the persisted OpenIddict application manager only in the DevelopmentOffline/Development gate; a remote MCP bearer caller remains planned.
+- **Input/output:** the local command accepts no client-supplied metadata. It creates or updates only the fixed public S256 PKCE client, exact loopback callback, resource scopes, grant types, and consent setting; revocation deletes only that same client. It never prints a token or credential.
+- **Ordered decisions and failure behavior:** outside the exact DevelopmentOffline/Development gate, either command stops before client access. The register command records `development_mcp_client_registered`; revoke records `development_mcp_client_revoked` only after an actual deletion. The absent-client revoke is an idempotent no-op. Remote token/resource/current-role/tool checks remain future `/mcp` work.
+- **Persistence/migration:** the existing migration persists revocable applications, authorizations, and refresh tokens. Durable signing/encryption/Data Protection keys with overlap/rotation remain unimplemented production prerequisites.
+- **Adapters/side effects:** protected-resource metadata and OAuth server endpoints are in Web only; there is no Streamable HTTP endpoint, provider authentication, or Box arbitrary-ID adapter.
+- **Operator surface and observability:** the commands emit content-safe `Client` security events without client secrets or tokens. Consent, account-disable, tool/action-history, and remote authentication observability require their corresponding callers.
+- **Documentation affected:** the local register/revoke and external activation gate are owned by [operations](../../../../operations.md#staff-mcp-oauth-offline-replay-and-activation-gate).
 - **Replaces/consolidates:** exclude a local bridge/static shared header/DCR; do not make tools a second business layer.
 
 ### Scope
 
-- **Included:** one pre-registered Claude client, OAuth authorization code with S256 PKCE, protected-resource/authorisation-server metadata, and `0.1.0-alpha.1` per-staff case/document/intake-queue tools where matching Core/Web actions exist.
-- **Excluded:** `Next`/`unallocated` classified-email tools, provider API authentication, Dynamic Client Registration, accounts/roles/principal/credential administration, Azure/deployment/cloud operations, permanent deletion, Box search/arbitrary IDs, and tools without a real Core owner.
+- **Included now:** the deterministic DevelopmentOffline public client, OAuth authorization-code/refresh-token endpoint configuration with S256 PKCE, local protected-resource metadata, and persisted client register/revoke callers.
+- **Excluded:** remote/Claude client activation, `/mcp` tools, Dynamic Client Registration, provider API authentication, accounts/roles/principal/credential administration through MCP, Azure/deployment/cloud operations, permanent deletion, Box search/arbitrary IDs, and tools without a real Core owner.
 
 ### Implementation checklist
 
-- [ ] Verify compatible package versions, implement durable OAuth/key custody and exact metadata/resource validation in Web.
-- [ ] Expose only a reviewed named-tool inventory mapped one-to-one to existing/simultaneously delivered Core use cases and policies.
-- [ ] Enforce account reload/current role, revocation, scope/resource checks and persisted-descendant Box restriction on every request.
+- [x] Persist OpenIddict applications/authorizations/tokens and implement DevelopmentOffline-only OAuth metadata, authorization, consent, token, revocation, exact-resource checks, and fixed-client register/revoke callers in Web.
+- [ ] Provide approved durable production OAuth/key custody and an approved remote client/callback for the canonical issuer/resource.
+- [ ] Expose only a reviewed named-tool inventory mapped one-to-one to existing/simultaneously delivered Core use cases and policies; enforce account reload/current role, revocation, scope/resource checks and persisted-descendant Box restriction on every `/mcp` request.
 
 ### Validation checklist
 
@@ -103,4 +103,4 @@ Bearer tokens are accepted only at `/mcp`; interactive cookies are only for staf
 
 | State/command/input | Result | Boundary exercised | Proves | Does not prove / skipped |
 |---|---|---|---|---|
-| Planned | Not run | planning review | OAuth/tool/approval boundaries | identity implementation, endpoint, remote client, deployment or acceptance |
+| Implemented (not executed for this archive) | `--register-development-mcp-client` / `--revoke-development-mcp-client` source path | DevelopmentOffline OpenIddict application persistence and `Client` security events | A real local command caller is connected to fixed-client create/update/delete behavior | command execution, OAuth HTTP replay, remote `/mcp`, deployment, hosted callback, durable production keys, or acceptance |

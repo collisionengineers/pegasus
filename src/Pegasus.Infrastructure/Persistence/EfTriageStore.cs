@@ -319,8 +319,8 @@ public sealed class EfTriageStore(
             query = query.Where(item => item.State == stateCode);
         }
 
-        var rows = await query.OrderByDescending(item => item.CreatedAtUtc).ThenBy(item => item.Id).ToListAsync(cancellationToken);
-        return rows.Select(item => new TriageSummary(
+        var rows = await query.ToListAsync(cancellationToken);
+        return rows.OrderByDescending(item => item.CreatedAtUtc).ThenBy(item => item.Id).Select(item => new TriageSummary(
             item.Id,
             item.NormalizedVehicleRegistration,
             ParseState(item.State),
