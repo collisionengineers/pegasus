@@ -33,7 +33,7 @@ Do not delete either predecessor resource group until all are true:
 3. Establish managed identities, least-privilege roles, health endpoints, telemetry, and SQL Entra access.
 4. Create a fresh Azure SQL database for `0.1.0-alpha.1`. Do not import the predecessor PostgreSQL cases, users, action-history records, or application state.
 5. Keep operational history in its existing authoritative Box, EVA, Outlook, spreadsheet, or network-drive locations. Do not import predecessor evidence blobs into `0.1.0-alpha.1` merely because they exist in Azure; determine their ownership and disposition before deleting their storage.
-6. Replace one in-scope integration at a time behind one `0.1.0-alpha.1` adapter: EVA, Box, Graph/mail, embedded PDF extraction, then any approved enrichment. Scan-like OCR remains `Next`/`unallocated` and is not an alpha replacement gate.
+6. Replace one in-scope integration at a time behind one `0.1.0-alpha.1` adapter: EVA, Box, Graph/mail, embedded PDF extraction, then any approved enrichment. Scan-like OCR remains deferred to the exact target owned by the [capability inventory](../capabilities.md) and is not an alpha replacement gate.
 7. Shadow or replay a redacted/genuine local corpus cohort through `0.1.0-alpha.1`. Do not upload the local corpus during this step.
 8. Stop old mailbox/intake producers and triggers. The predecessor's pre-release queues, Durable state, and test application data may be discarded after the exact retirement targets are approved.
 9. Cut operator traffic to `0.1.0-alpha.1`. Monitor health, errors, queue age, duplicate actions, database writes, Box/EVA outcomes, and operator acceptance through the rollback period.

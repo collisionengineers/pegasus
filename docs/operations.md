@@ -673,7 +673,7 @@ Deferred capabilities must attach to an existing Core port and a real compositio
 | Graph webhooks | Signature, replay, expiry, duplicate-notification contracts | Approved public callback and subscription | Endpoint or subscription |
 | PDF-engine replacement | Frozen cohort/holdout and contract-parity suite | Licence, security, maintenance review, single-path cutover | Parallel permanent engines |
 
-Scan-like PDF OCR and the provider API are `Next`/unallocated caller gates and do not block `0.1.0-alpha.1`.
+Scan-like PDF OCR and the provider API are deferred caller gates whose exact targets are owned by the [capability inventory](capabilities.md); neither blocks `0.1.0-alpha.1`.
 
 SMS, Teams, a customer portal, redaction, signatures, legal hold, subject-request workflows, and predecessor application/data migration remain exclusions until separately authorised.
 
