@@ -267,7 +267,7 @@ The local alpha must not mutate a mailbox. A Worker project, queue registration,
 
 Provider identity, intermediary identity, route identity, and provider/domain-suffix association are separate facts. The versioned provider/domain package is evidence and configuration input; package presence does not activate a route.
 
-Direct-provider and intermediary policies may differ but both call the same Core intake contract and fail closed when route identity, enabled policy, principal, or mandatory evidence is missing. Future provider APIs require distinct credentials/scopes, idempotency, source custody, status/recovery, rate-limit behavior, and acceptance. They remain unallocated or deferred according to the capability inventory.
+Direct-provider and intermediary policies may differ but both call the same Core intake contract and fail closed when route identity, enabled policy, principal, or mandatory evidence is missing. Future provider APIs require distinct credentials/scopes, idempotency, source custody, status/recovery, rate-limit behavior, and acceptance. [The capability inventory](capabilities.md) owns their exact targets.
 
 ## Staff MCP and automation
 
