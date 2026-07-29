@@ -1081,33 +1081,90 @@ try {
 catch {
     Add-PolicyError "Documentation proof authentication failed: $($_.Exception.Message)"
 }
+$conflictMarkerPattern = '^(?:<{7}|={7}|>{7})(?: |$)'
+foreach ($relative in Get-TrackedAllowedTextPaths) {
+    $lineNumber = 0
+    foreach ($line in [System.IO.File]::ReadLines((Join-Path $root $relative))) {
+        $lineNumber++
+        if ($line -match $conflictMarkerPattern) {
+            Add-PolicyError "Conflict marker remains at ${relative}:$lineNumber."
+        }
+    }
+}
 
 $capabilityPath = Join-Path $root 'docs/capabilities.md'
 $validCapabilityHorizons = @('Now', 'Next', 'Later', 'Not planned')
-$expectedTargetByHorizon = @{
-    Now = '0.1.0-alpha.1'
-    Next = 'unallocated'
-    Later = 'unallocated'
-    'Not planned' = 'unallocated'
+$expectedReleaseCounts = [ordered]@{
+    '0.1.0-alpha.1' = 128
+    '0.2.0' = 8
+    '0.3.0' = 19
+    '0.4.0' = 5
+    '0.5.0' = 5
+    '0.6.0' = 5
+    '0.7.0' = 1
+    '1.0.0' = 12
+    '1.1.0' = 6
+    '1.2.0' = 5
+    '1.3.0' = 3
+    '1.4.0' = 3
 }
+$allowedReleases = @($expectedReleaseCounts.Keys)
+$futureReleases = @($allowedReleases | Where-Object { $_ -ne '0.1.0-alpha.1' })
+$semanticVersionPattern = '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$'
+$canonicalFieldNames = @(
+    'Id',
+    'DurableOutcome',
+    'Horizon',
+    'TargetRelease',
+    'CanonicalOwner',
+    'ActivationBoundary'
+)
 $rows = @(
     foreach ($line in [System.IO.File]::ReadLines($capabilityPath)) {
-        $columns = $line -split '\|'
-        if ($columns.Count -lt 5) { continue }
-        $id = $columns[1].Trim()
-        if ($id -notmatch '^[A-Z]+-\d+$') { continue }
+        if ($line -notmatch '^\| (?<id>[A-Z]+-\d+) \|') { continue }
+        $columns = $line.Split('|')
+        if ($columns.Count -ne 8) {
+            Add-PolicyError "Capability $($Matches.id) must contain exactly six canonical fields; found $($columns.Count - 2)."
+            continue
+        }
         [pscustomobject]@{
-            Id = $id
+            Id = $columns[1].Trim()
+            DurableOutcome = $columns[2].Trim()
             Horizon = $columns[3].Trim()
             TargetRelease = $columns[4].Trim()
+            CanonicalOwner = $columns[5].Trim()
+            ActivationBoundary = $columns[6].Trim()
         }
     }
 )
+
 foreach ($row in $rows) {
+    foreach ($fieldName in $canonicalFieldNames) {
+        if ([string]::IsNullOrWhiteSpace([string]$row.$fieldName)) {
+            Add-PolicyError "Capability $($row.Id) has an empty canonical field '$fieldName'."
+        }
+    }
     if ($validCapabilityHorizons -notcontains $row.Horizon) {
         Add-PolicyError "Capability $($row.Id) has unknown horizon '$($row.Horizon)'."
-    } elseif ($row.TargetRelease -ne $expectedTargetByHorizon[$row.Horizon]) {
-        Add-PolicyError "Capability $($row.Id) target '$($row.TargetRelease)' is invalid for horizon '$($row.Horizon)'; expected '$($expectedTargetByHorizon[$row.Horizon])'."
+        continue
+    }
+    if ($row.TargetRelease -ne 'unallocated' -and
+        $row.TargetRelease -notmatch $semanticVersionPattern) {
+        Add-PolicyError "Capability $($row.Id) target '$($row.TargetRelease)' is not exact Semantic Version 2.0 syntax."
+    }
+    if ($row.Horizon -eq 'Now' -and $row.TargetRelease -ne '0.1.0-alpha.1') {
+        Add-PolicyError "Capability $($row.Id) is Now and must target '0.1.0-alpha.1'; found '$($row.TargetRelease)'."
+    }
+    elseif ($row.Horizon -in @('Next', 'Later') -and
+        $futureReleases -notcontains $row.TargetRelease) {
+        Add-PolicyError "Capability $($row.Id) is $($row.Horizon) and must use one exact future release; found '$($row.TargetRelease)'."
+    }
+    elseif ($row.Horizon -eq 'Not planned' -and $row.TargetRelease -ne 'unallocated') {
+        Add-PolicyError "Capability $($row.Id) is Not planned and must remain unallocated; found '$($row.TargetRelease)'."
+    }
+    if ($row.TargetRelease -ne 'unallocated' -and
+        $allowedReleases -notcontains $row.TargetRelease) {
+        Add-PolicyError "Capability $($row.Id) uses disallowed release '$($row.TargetRelease)'."
     }
 }
 
@@ -1125,39 +1182,43 @@ foreach ($entry in $expectedHorizons.GetEnumerator()) {
         Add-PolicyError "Capability horizon '$($entry.Key)' must contain $($entry.Value) rows; found $actual."
     }
 }
+$plannedRows = @($rows | Where-Object Horizon -ne 'Not planned')
+$boundaryRows = @($rows | Where-Object Horizon -eq 'Not planned')
+if ($plannedRows.Count -ne 200) {
+    Add-PolicyError "Capability inventory must contain 200 planned allocations; found $($plannedRows.Count)."
+}
+if ($boundaryRows.Count -ne 29 -or @($boundaryRows | Where-Object TargetRelease -ne 'unallocated').Count -ne 0) {
+    Add-PolicyError 'Capability inventory must contain exactly 29 Not planned / unallocated boundaries.'
+}
+foreach ($entry in $expectedReleaseCounts.GetEnumerator()) {
+    $actual = @($rows | Where-Object TargetRelease -eq $entry.Key).Count
+    if ($actual -ne $entry.Value) {
+        Add-PolicyError "Target release '$($entry.Key)' must contain $($entry.Value) capabilities; found $actual."
+    }
+}
 
-$canonicalHorizons = @{}
+$canonicalAllocations = @{}
 foreach ($row in $rows) {
-    $canonicalHorizons[$row.Id] = $row.Horizon
+    $canonicalAllocations[$row.Id] = [pscustomobject]@{
+        Horizon = $row.Horizon
+        TargetRelease = $row.TargetRelease
+    }
 }
 
 $matrixPath = Join-Path $root 'design/product/traceability-matrix.md'
 $matrixRows = @(
     foreach ($line in [System.IO.File]::ReadLines($matrixPath)) {
-        if ($line -match '^\| (?<id>[A-Z]+-\d+) — .*?\| (?<horizon>[^|]+) \|') {
-            $matrixId = $Matches.id
-            $matrixHorizonText = $Matches.horizon.Trim()
-            $matrixHorizon = switch ($matrixHorizonText) {
-                '`0.0.0-development` pre-alpha' { 'Now' }
-                '`0.1.0-alpha.1` alpha gate' { 'Now' }
-                'pre-`0.1.0-alpha.1` gate' { 'Now' }
-                '`Next`/`unallocated`' { 'Next' }
-                '`Next`/`unallocated`; precedes INT-05–INT-07 within the horizon' { 'Next' }
-                '`Next` / unallocated' { 'Next' }
-                '`Later`/`unallocated` release work' { 'Later' }
-                '`Later` / unallocated' { 'Later' }
-                '`Not planned`' { 'Not planned' }
-                default {
-                    Add-PolicyError "Traceability matrix capability $matrixId has unknown horizon '$matrixHorizonText'."
-                    $null
-                }
+        if ($line -match '^\| (?<id>[A-Z]+-\d+) — .*?\| `(?<horizon>Now|Next|Later|Not planned) / (?<target>[^`]+)` \|') {
+            [pscustomobject]@{
+                Id = $Matches.id
+                Horizon = $Matches.horizon
+                TargetRelease = $Matches.target
             }
-            [pscustomobject]@{ Id = $matrixId; Horizon = $matrixHorizon }
         }
     }
 )
 if ($matrixRows.Count -ne 229) {
-    Add-PolicyError "Traceability matrix must contain 229 capability rows; found $($matrixRows.Count)."
+    Add-PolicyError "Traceability matrix must contain 229 exact Horizon / target rows; found $($matrixRows.Count)."
 }
 $matrixDuplicates = $matrixRows | Group-Object Id | Where-Object Count -ne 1
 if ($matrixDuplicates) {
@@ -1167,15 +1228,21 @@ $matrixIds = [System.Collections.Generic.HashSet[string]]::new([System.StringCom
 foreach ($matrixRow in $matrixRows) {
     $null = $matrixIds.Add($matrixRow.Id)
 }
-$missingMatrixIds = $canonicalHorizons.Keys | Where-Object { -not $matrixIds.Contains($_) } | Sort-Object
+$missingMatrixIds = $canonicalAllocations.Keys |
+    Where-Object { -not $matrixIds.Contains($_) } |
+    Sort-Object
 if ($missingMatrixIds) {
     Add-PolicyError "Traceability matrix is missing canonical capability IDs: $($missingMatrixIds -join ', ')."
 }
 foreach ($matrixRow in $matrixRows) {
-    if (-not $canonicalHorizons.ContainsKey($matrixRow.Id)) {
+    if (-not $canonicalAllocations.ContainsKey($matrixRow.Id)) {
         Add-PolicyError "Traceability matrix contains unknown capability ID: $($matrixRow.Id)."
-    } elseif ($canonicalHorizons[$matrixRow.Id] -ne $matrixRow.Horizon) {
-        Add-PolicyError "Capability horizon mismatch for $($matrixRow.Id): inventory=$($canonicalHorizons[$matrixRow.Id]), matrix=$($matrixRow.Horizon)."
+        continue
+    }
+    $canonical = $canonicalAllocations[$matrixRow.Id]
+    if ($canonical.Horizon -ne $matrixRow.Horizon -or
+        $canonical.TargetRelease -ne $matrixRow.TargetRelease) {
+        Add-PolicyError "Capability allocation mismatch for $($matrixRow.Id): inventory=$($canonical.Horizon) / $($canonical.TargetRelease), matrix=$($matrixRow.Horizon) / $($matrixRow.TargetRelease)."
     }
 }
 
@@ -1568,4 +1635,4 @@ if ($errors.Count -gt 0) {
     exit 1
 }
 
-Write-Host "Repository policy passed: 229 unique capabilities (Now 128, Next 32, Later 40, Not planned 29), Pegasus identity, Semantic Version language, and non-caller workspace boundaries."
+Write-Host "Repository policy passed: 229 unique capabilities, 200 exact allocations across 12 releases, 29 permanent unallocated boundaries, exact horizon/matrix parity, Pegasus identity, Semantic Version language, and non-caller workspace boundaries."
