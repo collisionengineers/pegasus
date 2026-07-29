@@ -1,8 +1,5 @@
 # Total Loss And Salvage Routing
 
-> **Source-workspace boundary:** This file is package-local routing evidence, not threshold, charge, or category authority, a Pegasus caller, policy, current instruction, or acceptance authority. `Pegasus.Core` and an authorised human own accepted economics and outcomes.
-
-
 Repair economics, thresholds, and provisional salvage reasoning — and where this skill hands
 off. The first rule: **repair economics and salvage category are separate questions.** Cost
 decides whether repair is economic; damage character decides the category. Never derive one

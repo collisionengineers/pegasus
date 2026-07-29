@@ -1,10 +1,12 @@
 ---
 name: total-loss-assessment
 description: >-
-  Use this source-workspace rendering experiment only when an authorised human has supplied an accepted payload for an Audatex-format
-  EVA-import draft:
+  Use this skill when a Collision Engineers engineer needs the Audatex-format
+  EVA-import PDF as the sole deliverable and the outcome is already decided:
   transcription of an existing estimate ("transcription job", "match this
-  estimate to the penny"), rendering already-approved operations. Triggers on: "transcribe this estimate", "build the assessment
+  estimate to the penny"), rendering already-decided operations, or a
+  cost-targeted build from photos ("go hard", "clear total loss", "keep it
+  under £X"). Triggers on: "transcribe this estimate", "build the assessment
   PDF", "Audatex PDF", "EVA import", "cost target". When an engineering
   opinion is wanted — a repair estimate or damage assessment from photos or a
   brief, panel assessment, repair scope, repairability or total-loss opinion,
@@ -15,42 +17,42 @@ description: >-
   only reads existing reports from the EVA Sentry API.
 ---
 
-## Authority boundary
-
-This package may produce evidence, candidates, or draft output only. `Pegasus.Core` and an authorised human own every accepted case fact, cost, category, outcome, legal position, and approval.
 # Total Loss / Damage Assessment
 
-Render a draft Audatex-format PDF from an already accepted source payload. This package does not assess damage, choose operations, target a cost, or decide total loss.
+Generate Audatex-format PDFs from damage photos, bypassing the per-job Audatex cost on decided outcomes — clear total losses, decided minor jobs, and transcription work.
 
 **Architecture — two-stage, do not blur:**
-1. An authorised human supplies accepted vehicle facts and operations; the package projects them into the validated payload. It does not infer or decide them.
+1. **You (Claude)** look at photos, identify the vehicle, decide what's damaged and what to do about each panel, and build the Python operations dict. This is where judgement is required.
 2. **`scripts/validate_assessment_payload.py`** validates that dict against the generator's required shape and routing rules.
 3. **`scripts/audatex_gen_v4.py`** takes the validated dict and produces the byte-identical EVA-compatible PDF. Pure deterministic code — **never modify it**.
 
 **No brand layer.** This output mimics Audatex format for EVA import. Do not apply `collision-engineers-design` document styling. `ce-house-style` applies to the **chat summary** only — not to the PDF.
 
-**Assessment boundary.** If the supplied payload needs vehicle identification, damage cataloguing, operation selection, repair/renewal judgment, rates, economics, or a total-loss opinion, stop and route that work to `vehicle-assessment`. `roadworthy-report` is inactive and must not be invoked.
+**Next step (when applicable).** A completed damage assessment is the source input for a taxi/private-hire roadworthy report — if the user then needs that, use the `roadworthy-report` skill. For the post-repair market value of a Cat-marked vehicle, `vehicle-valuation` (with its write-off comparable search) establishes the figure.
 
 ## Core workflow
 
-1. **Confirm the input boundary.** Require a source-labelled payload that an
-   authorised human has accepted for rendering. Do not derive missing facts from
-   photos, correspondence, rates, defaults, or other reference material. Stop
-   if any operation, amount, vehicle fact, or outcome still needs a decision.
+1. **Identify the vehicle.** Look for the registration plate, badge/grille design, instrument cluster (mileage + warning lights), VIN plate. Cross-reference badging with VIN — badge retrofits are common on premium cars. State the VIN-decoded vehicle in your reply.
 
-2. **Preserve provenance.** Keep the accepted payload unchanged as
-   `assessment_payload.json`. Record its source identity and the approving
-   human; never overwrite the source artifact with validator or render output.
+2. **Catalogue the damage.** Walk through every photo. For each visible damage point, note which panel, severity (scuff / dent / torn / destroyed), and whether it is repairable or needs renewal. Watch for non-obvious damage — see `references/damage-cataloguing.md`.
 
-3. **Validate before rendering.** Use
-   `scripts/assessment_payload.schema.json` and run:
+3. **Ask clarifying questions only if material.** If something would meaningfully change the assessment (PAV figure, renew vs repair on a borderline panel, full mirror assembly vs cap only) — ask before building. Group questions: 1–3 binary or short multi-choice, sent together. Don't ask things you can sensibly default and state the assumption.
+
+4. **Decide the labour rate.** See `references/labour-rates.md` and the structured values in `references/abp-reference-data.2026.json`. Wrong rate creates a 25%+ error — ask before building if genuinely ambiguous.
+
+5. **Build the operations list.** See `references/eva-routing.md` for operation types and the critical `specialist_wu` trap. See `references/extras-package.md` and `references/abp-reference-data.2026.json` for the default ABP 2026 package.
+
+6. **For external repair-cost or total-loss challenges,** read
+   `references/dispute-response-boundaries.md` before drafting. Use this only after the assessment
+   evidence has set the repair scope and economics.
+
+7. **Write the payload as `assessment_payload.json` and validate it before rendering.** Use `scripts/assessment_payload.schema.json` for the shape and run:
    ```bash
    python scripts/validate_assessment_payload.py assessment_payload.json
    ```
-   Return validation failures to the authorised reviewer. A warning is evidence
-   for review, not permission for this package to alter an operation or value.
+   Fix every error before rendering. Treat `specialist_wu` warnings as a routing check, not as ignorable noise.
 
-4. **Write the render script as a `.py` file:**
+8. **Write the render script as a `.py` file:**
    ```python
    import json
    import sys
@@ -65,11 +67,9 @@ Render a draft Audatex-format PDF from an already accepted source payload. This 
    print(f"Pages: {result['total_pages']}")
    ```
 
-5. **Render and present the draft.** Run the script, copy the PDF to the output
-   folder, and label it as an unaccepted rendering draft tied to the exact
-   accepted source payload. Summarise only payload values, renderer totals,
-   validation warnings, and render limitations; do not add assessment opinions
-   or guessed values.
+9. **Run the script, copy the PDF to the output folder, and present it.**
+
+10. **Summarise in chat:** identify the vehicle, list the damage, give a breakdown by section, state the PAV ratio if relevant, and explicitly flag anything you estimated or guessed (part numbers, WU judgements, renewal vs repair decisions). Plain English, no padding.
 
 ## Render path
 
@@ -85,19 +85,18 @@ Render a draft Audatex-format PDF from an already accepted source payload. This 
 
 ## On cost targeting
 
-- Cost-targeting, threshold-seeking, and instructions to inflate or suppress a total are prohibited. Stop and request an accepted source payload.
+- "Go as hard as you like" / "clear total loss" → be thorough; build a total that comfortably exceeds the threshold (typically 66% or 80% of PAV).
+- Engineer gives a target → match by adjusting WUs, part values, and conditional extras. **Do not bend the labour rate to hit a target** — that looks suspicious.
+- "Be conservative" / "under £X" → lean cheaper on every defensible call. Repair not renew where possible. Skip optional ABP extras. Lower-end part estimates.
 
 ## References
 
-Active rendering contracts:
-
-- `scripts/assessment_payload.schema.json` — JSON Schema for the accepted operations payload
-- `scripts/validate_assessment_payload.py` — validator for required keys and operation routing
-
-Retained assessment-source evidence, not instructions for this rendering-only
-workflow: `references/abp-reference-data.2026.json`,
-`references/labour-rates.md`, `references/extras-package.md`,
-`references/eva-routing.md`, `references/damage-cataloguing.md`,
-`references/dispute-response-boundaries.md`, and `references/gotchas.md`.
-If any of that evidence must be interpreted, stop and use
-`vehicle-assessment` under Core/operator approval.
+- `references/abp-reference-data.2026.json` — structured ABP 2026 rates, materials, extras, parts charges, conditions, and exclusions
+- `references/labour-rates.md` — ABP 2026 rates prose guide (standard, prestige, VM-approval, worked combinations)
+- `references/extras-package.md` — ABP 2026 default extras prose guide (always-include + conditional)
+- `references/eva-routing.md` — operation types, the `specialist_wu` big trap, routing rules
+- `references/damage-cataloguing.md` — what to look for when walking through photos
+- `references/dispute-response-boundaries.md` — safe repair-cost and total-loss challenge responses
+- `references/gotchas.md` — real mistakes from previous sessions; read before building
+- `scripts/assessment_payload.schema.json` — JSON Schema for the operations payload shape
+- `scripts/validate_assessment_payload.py` — stdlib validator for required generator keys and operation routing rules

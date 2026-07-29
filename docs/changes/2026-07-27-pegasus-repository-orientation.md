@@ -64,8 +64,7 @@ no transcript, archive copy, README or second requirements ledger is created.
 
 ## Authorities and current evidence
 
-- Canonical product requirements remain under `docs/requirements.md and docs/capabilities.md (centralized owners; former product subtree)`; stable allocation
-  remains solely in `docs/capabilities.md` and `docs/capabilities.md`.
+- Canonical intended behavior is owned by [product requirements](../requirements.md); stable capability IDs, allocation, and activation boundaries are owned separately by the [capability inventory](../capabilities.md).
 - `Pegasus.Core` remains the single owner of business policy and accepted case
   truth. Infrastructure adapts external systems; Web and Worker remain
   composition roots.
@@ -336,8 +335,7 @@ not product requirements.
 | `S8-L156a` | Every AI-produced assessment, response or report must be assigned to and reviewed and approved by a named Engineer before external release because the output carries expert responsibility. | `AI-09` | Later/unallocated | `intended` |
 | `S8-L156b` | The vendor-neutral review transport must make approval explicit, logged and attributable before the approved proposal can leave Pegasus. | `AI-09` | Later/unallocated | `intended` |
 | `S8-L158a` | Apply role-based access protection to personal data and vehicle images across email, request-scoped upload, AI processing and Box flows. | `ACC-04` | Now/0.1.0-alpha.1 | `intended` |
-| `S8-L158b` | Resolve and record the retention rules for personal data and vehicle images before activating each external flow; this does not create an automated retention workflow. | `docs/requirements.md and docs/capabilities.md (centralized owners; former product subtree)areas/documents-and-integrations.md` | accepted authority | `intended` |
-| `S8-L158c` | Confirm applicable processor terms before activating any external email, upload, AI or Box processor. | `docs/requirements.md and docs/capabilities.md (centralized owners; former product subtree)areas/documents-and-integrations.md` | accepted authority | `intended` |
+| `S8-L158c` | Confirm applicable processor terms before activating any external email, upload, AI or Box processor. | `docs/requirements.md#quality-capacity-security-and-evidence` | accepted authority | `intended` |
 | `S8-L160a1` | EVA and the manual Pegasus handoff should run in parallel during migration, accepting temporary double-keying. | `EXT-03` | Now/0.1.0-alpha.1 | `intended` |
 | `S8-L160a2` | Move one provider or job type at a time through the deferred EVA-replacement migration. | `CASE-22` | Later/unallocated | `intended` |
 | `S8-L160b` | The deferred EVA replacement slice should shorten and ultimately end double-keying after each migrated flow is stable. | `CASE-22` | Later/unallocated | `intended` |
@@ -431,52 +429,38 @@ Pull request review validated and remediated the following required findings:
 
 ## Approved documentation consolidation
 
-The accepted documentation-centralization plan is identified by SHA-256
+The documentation-centralization plan is identified by SHA-256
 `9efd6e39b6f01dfbb449e8d0f39533b63b1cac2f5b6120cd7c63e4428fcb66d7`.
-The executable baseline is commit
-`467284f23b268e199d7fbe77dbb2163b50f00e23` plus the pre-consolidation
-working-tree evidence of the exact 512-path disposition census. For the 131
-byte-retained (`K`) paths, the baseline manifest uses that commit's Git blob
-bytes so exact comparison is independent of checkout line-ending conversion.
-The exact `docs/reference/imp-docs/` prefix remained opaque: it was excluded
-before enumeration and produced `excludedOperations=0`.
+It is a planning input, not proof of the implemented result.
 
-The independently hashed temporary proof inputs are outside the repository:
+Independent review invalidated the plan's claimed 512-artifact baseline and the
+first implementation's no-information-loss conclusion. The census included a
+nonexistent predecessor-Web jquery-validation licence path; that file is absent
+from baseline commit
+`467284f23b268e199d7fbe77dbb2163b50f00e23`. The temporary 512-row
+disposition, material-claim, and callsite files therefore are not accepted
+evidence and are not published as repository truth.
 
-| Proof input | SHA-256 |
-| --- | --- |
-| Disposition manifest | `4d0ddab6f49e17a053b07df7e2433e60971c653aadf5e1fe4ed74d722129f658` |
-| Baseline manifest | `429ee9dbc3c6ce746098c7e2207b73975791538266df8962713935dcf3aa6864` |
-| Material-claim inventory | `63504bbabded909b0a16d3adc414c9a9799acb057b354303420676b3441fffb1` |
-| Callsite inventory | `095ff29859eff0090b1f04409ec91b29c8d2c3d06aac7795937a32c935f9c616` |
+The same review found unique source evidence and still-current planning
+dependencies removed, protected imported skill packages rewritten, and several
+material product/operator rules weakened or left without a canonical owner.
+The remediation consequently:
 
-The accepted disposition is exact: 512 baseline artifacts (`K=131`, `R=92`,
-`M=2`, `D=287`) plus 13 created owners produce a 238-artifact head, a
-274-artifact (53.5%) reduction. Domain totals are:
+- restores unique reports, evaluation provenance, the dependency-ordered
+  delivery plan, the mailbox decision dossier, and the operator questionnaire;
+- restores every imported AI skill package, package-local reference, and
+  `dev-ref/` maintenance source to its baseline bytes, with only the enclosing
+  Pegasus source-boundary index remaining repository-owned;
+- centralises the settled mailbox taxonomy, source/dispatch identity, Triage,
+  case lifecycle, access, request-scoped upload, external-workflow, report, and
+  recovery rules in the canonical owners;
+- keeps historical evidence source-labelled and reachable without promoting it
+  to current implementation, deployment, or acceptance evidence; and
+- replaces obsolete caller and product references with Pegasus terminology
+  while retaining explicit CollisionSpike predecessor provenance.
 
-| Domain | Before | After |
-| --- | ---: | ---: |
-| Canonical product/architecture/operations | 20 | 6 |
-| Engineering guidance/change/evaluation | 18 | 6 |
-| Historical product/plans | 45 | 0 |
-| Durable decisions | 14 | 14 |
-| Operator authority | 17 | 1 |
-| Design authority | 24 | 4 |
-| Supplied reference | 66 | 48 |
-| Azure | 4 | 4 |
-| Repository/workspace/executable miscellany | 17 | 14 |
-| Document-extraction workspace | 79 | 22 |
-| Report-renderer workspace | 21 | 17 |
-| AI Centre workspace | 187 | 102 |
-
-Grouped retention exceptions are limited to immutable published decision
-bodies; uniquely reviewed change provenance; legal notices beside retained
-dependencies or assets; executable skill instructions; machine-readable
-contracts; unique raw evidence; and source-workspace provenance needed to
-reproduce a current decision. Historical prose is distilled and deleted rather
-than moved to another archive. The only baseline-local-route exceptions are the
-seven links in the immutable Azure onboarding record and the one literal
-benchmark path in ADR-0003; each remains tied to its exact baseline blob.
+No repository change is made under `docs/reference/imp-docs/`, and no claim in
+this remediation relies on that subtree.
 
 ### Accepted contradiction resolutions
 
@@ -484,73 +468,46 @@ benchmark path in ADR-0003; each remains tied to its exact baseline blob.
 | --- | --- |
 | DOC-CON-012–016 | TRI-04 uses independently optional findings with at least one populated; operations owns tool profiles and planned evaluator status; `docs/index.md` alone owns authority order. |
 | DOC-CON-017–021 | Corpus counts remain dated/scope-qualified; old exact-head evidence is invalidated; provider/domain terminology is exact; QDOS owns one change record; tool-neutral Decision 0012 supersedes plugin authority without rewriting immutable bodies. |
-| DOC-CON-022–027 | `MAIL-12` remains Later/unallocated; detailed mailbox taxonomy stays unresolved; ADR-0005 occurrence identity wins; dormant OCR is removed; historical readiness wording is deleted; cedocumentmapper is predecessor evidence only. |
+| DOC-CON-022–027 | `MAIL-12` remains deferred; the user-confirmed Received/Sent/Reply taxonomy is immutable in `docs/requirements.md`, while predicates and activation remain unresolved; ADR-0005 occurrence identity wins; dormant OCR is removed; historical readiness wording is deleted; cedocumentmapper is predecessor evidence only. |
 | DOC-CON-028–033 | Desktop-only location evidence outranks defaults; image-led intake remains pre-case; Box custody is distinct from staging; Operations-first is selected; route catalog is design, not caller proof; alpha has no OCR replacement. |
 | DOC-CON-034–040 | AI packages are evidence/proposal experiments below Core and human approval; extractor and renderer current-state inventories follow executable evidence; proposed extractor ADR-0006 is removed; renderer ADR-0011 supersedes only ADR-0008 authentication detail. |
 | DOC-CON-041–046 | EVA material is reference evidence, historical external-party roles stay temporal, confidence display remains open, workspaces are source-only, nonexistent Codex hooks are removed, and renderer signatures remain separate from Web decorative imagery. |
-| DOC-CON-047–051 | Planned design divergences remain explicit; exact amber/navy target values stay open; absent design checkouts are provenance only; Core decisions map distinctly to operator labels/persistence; the orphan jquery-validation licence is removed only after dependency absence is reconfirmed. |
+| DOC-CON-047–051 | Planned design divergences remain explicit; exact amber/navy target values stay open; absent design checkouts are provenance only; Core decisions map distinctly to operator labels/persistence; the nonexistent jquery-validation licence path is removed from the census without claiming an artifact deletion. |
 
-The documentation consolidation is published in pull request 18 from baseline
-`467284f23b268e199d7fbe77dbb2163b50f00e23`; its initial implementation commit
-is `296bc47`. Local exact-census, disposition, material-claim, callsite, link,
-anchor, reachability, language, source-boundary, and workspace-manifest checks
-pass. The change remains `in_review`; the PR's final exact head, check run, and
-independent-review outcome are recorded against the frozen PR head rather than
-inferred from this implementation commit.
+Pull request 18 remains an in-review consolidation from baseline
+`467284f23b268e199d7fbe77dbb2163b50f00e23`. Its earlier exact-census,
+material-claim, and callsite assertions are withdrawn because their baseline
+was unsound. Green structural checks remain link/build/policy evidence only;
+they do not establish semantic preservation or acceptance.
 
-### Pull request 18 exact-head remediation
+### Pull request 18 review remediation
 
-Independent review of head `48559b8f9e7204e14d5ee053c91c12c0300ea03b`
-established four blockers and three required findings. The follow-up patch:
+Independent review of head `7f9f088150ff04d8336a38a27e25804dac412d8a`
+and its imported-source addendum found 39 required findings. This remediation:
 
-- canonicalises every operation path against the repository root before any
-  file access, rejects rooted/out-of-root paths, and fails on the opaque prefix;
-- requires a full `ExpectedHeadCommit` and clean allowed index, then materialises
-  the allowed tree from that commit's Git blobs so unrelated working-tree edits
-  cannot enter the proof; the head manifest records that commit and all four
-  pinned proof-input hashes;
-- authenticates the exact 27,762-row material-claim inventory, enforces
-  sequential unique claim identities and changed-text-source coverage, and
-  verifies every landing section/blob hash;
-- authenticates and accounts for all 3,111 baseline callsites through a unique
-  callsite identity and a material-claim landing, byte-retained source, exact
-  active-head callsite, or explicit many-to-one active-origin migration; the
-  eight immutable exceptions remain exact;
-- replaces migration notes and source-authority contradictions in the
-  diminution benchmark, visual-design skill, house-style skill, total-loss
-  rendering workflow, and document-extraction DOCX architecture label.
+- restores removed unique evidence and the still-live planning dependency
+  routes that the consolidation had erased;
+- restores externally imported `SKILL.md`, reference, UI, agent, and `dev-ref/`
+  material to baseline bytes and adds a repository rule protecting that source
+  boundary;
+- preserves the user-confirmed Received/Sent/Reply taxonomy and gives settled
+  source identity, Triage, lifecycle, access, custody, report, and recovery
+  behavior one canonical Core-owned requirements clause each;
+- keeps provider research URLs, dated benchmark provenance, the report-renderer
+  template contract, and document-extraction predecessor history reachable
+  without presenting them as current callers or accepted product behavior;
+- corrects the false current caller/deployment claims: the only observed Pegasus
+  mutation route is the Development-only intake POST; workspaces remain
+  non-callers; and production, browser, hosted recovery, and operator acceptance
+  remain unproved;
+- supersedes Box File Request with the bounded in-house request-scoped upload
+  contract while retaining Box as intended accepted-case custody; and
+- updates capability and design links to the canonical clauses without changing
+  capability IDs, horizons, or release allocation.
 
-These remediations require a new exact-head independent review; this record does
-not infer acceptance from implementation or green checks.
-
-### Pull request 18 source-boundary remediation
-
-Independent retest of head `54273b132ad6d28facf3c0808213ccb7c12d4572`
-closed the four verifier blockers and three earlier required findings, then
-identified two remaining source-authority findings. The follow-up patch:
-
-- replaces every embedded source-workspace rewrite directive with a final
-  evidence/authority boundary; the vehicle-history package now records a
-  proposed connector contract only and forbids live connector calls, canonical
-  policy claims, and unproved consumers;
-- identifies `CollisionSpike` as predecessor identity only throughout the
-  document-extraction architecture; any possible Pegasus adapter now requires a
-  separately accepted integration contract and caller proof;
-- routes the root repository instruction to `docs/operator-notes.md`; and
-- refreshes every affected material-claim landing hash without changing source
-  claim identity or callsite identity.
-
-These remediations require another exact-head independent review; this record
+Fresh exact-head checks and independent review are still required. This record
 does not infer acceptance from implementation or green checks.
 
-Review of head `bddb66cb37973e1474f56ca26d5f27284a48f690` found one
-remaining contradiction in the two synchronized labour-rate evidence copies:
-their boundaries denied runtime-default authority while their bodies still
-claimed current defaults. The final patch relabels both bodies as dated
-package-local candidates requiring Core/operator/human approval. The pull
-request merge check also exposed three stale workspace-manifest values after
-the preceding documentation edits; the final patch records the recomputed Git
-index manifests for document extraction, AI Centre, and AI Centre skills.
 ## Verification and evidence
 
 - [x] Canonical product documents and the capability inventory agree with every
@@ -566,11 +523,11 @@ index manifests for document extraction, AI Centre, and AI Centre skills.
   build/test/smoke route.
 - [x] Development-only Web smoke proves the Pegasus UI and health endpoints;
   no non-Development intake route is introduced.
-- [x] Exact-head independent review has no unresolved blocker or required finding.
+- [ ] Exact-head independent review has no unresolved blocker or required finding.
 
-Independent review of head `70c3b581d0ed31a76274b263cfd62d9c1653ac9b`
-found no blocker, required, or advisory correctness finding and concluded that
-the documentation head is safe as the capability-allocation predecessor.
+Independent reviews of head `7f9f088150ff04d8336a38a27e25804dac412d8a`
+([consolidated review](https://github.com/collisionengineers/pegasus/pull/18#pullrequestreview-4805816332) and [imported-skill addendum](https://github.com/collisionengineers/pegasus/pull/18#pullrequestreview-4805841502))
+found required semantic-preservation, protected-source, executable-contract, and proof-reproducibility defects. The documentation head is not safe as the capability-allocation predecessor until remediation, fresh exact-head evidence, and independent review close every required finding.
 
 ## Outcome
 

@@ -20,15 +20,21 @@
 
 | Source | Title and date | Evidence retained |
 |---|---|---|
-| [`research/README.md`](#evidence-and-offer-rules) | **Provider research**, checked **2026-07-20** | First-party-source method, offer classifications, sizing/benchmark requirements, and decision boundary |
-| [`research/compute-providers.md`](#compute-evidence) | **Compute hosting providers**, checked **20 July 2026** | OCI/API/worker capabilities, runtime and ingress limits, regions, allowances, prices, security boundaries, and compute tests |
-| [`research/database-providers.md`](#database-vectorsearch-and-object-storage-evidence) | **Database, vector database and object-storage providers**, checked **2026-07-20** | PostgreSQL, vector/search, object-storage, export, backup, recovery, lifecycle, limits, and prices |
-| [`research/embedding-providers.md`](#hosted-embedding-evidence) | **Hosted embedding-provider research**, checked **20 July 2026** | Hosted embedding routes, prices, dimensions, limits, batch behavior, data terms, provenance, and migration gates |
+| [Provider research](research/README.md) | **Provider research**, checked **2026-07-20** | First-party-source method, offer classifications, sizing/benchmark requirements, and decision boundary |
+| [Compute hosting providers](research/compute-providers.md) | **Compute hosting providers**, checked **20 July 2026** | OCI/API/worker capabilities, runtime and ingress limits, regions, allowances, prices, security boundaries, and compute tests |
+| [Database, vector-search, and object-storage providers](research/database-providers.md) | **Database, vector database and object-storage providers**, checked **2026-07-20** | PostgreSQL, vector/search, object-storage, export, backup, recovery, lifecycle, limits, and prices |
+| [Hosted embedding providers](research/embedding-providers.md) | **Hosted embedding-provider research**, checked **20 July 2026** | Hosted embedding routes, prices, dimensions, limits, batch behavior, data terms, provenance, and migration gates |
 | Additional embedding source date | Jina API documentation published **29 June 2026** | Newer Jina limits and model metadata; older-page conflicts remain unresolved |
-| [`research/provider-matrix.md`](#architecture-and-reproducibility-contract) | **Cross-provider research matrix**, checked **2026-07-20** | Controlled architecture hypotheses, shortlist, reproducibility matrix, and whole-stack decision gates |
-| [`requirements.md`](#inputs-that-must-be-frozen-and-recorded) | Referenced sizing worksheet; no contents distilled here | Must be completed before a billed or provider-hosted experiment |
+| [Cross-provider matrix](research/provider-matrix.md) | **Cross-provider research matrix**, checked **2026-07-20** | Controlled architecture hypotheses, shortlist, reproducibility matrix, and whole-stack decision gates |
+| [Inputs that must be frozen and recorded](#inputs-that-must-be-frozen-and-recorded) | Consolidated sizing worksheet; no values inferred | Must be completed before a billed or provider-hosted experiment |
 
-Official URLs below are those retained in the supplied distillations. Compute and embedding distillations described first-party sources but did not retain their individual URLs; absence of a URL here is not independent verification.
+The linked dated research records retain the individual first-party URLs behind the consolidated observations. They are source provenance for rechecking the 2026-07-20 snapshot, not guarantees that prices, limits, regions, or terms remain current.
+
+## Experiment authority and cleanup evidence
+
+The workspace-wide experiment authority and cleanup contract is owned by [ML operations](../../../ml-ops/README.md#external-experiment-approval-and-cleanup); the service-specific teardown procedure is owned by [Collision Brain operations](operations.md#hosted-experiment-cleanup). This comparative evidence authorizes no external operation.
+
+A provider-backed benchmark may be entered here only with linked manifest or decision evidence naming the exact provider, account/project/subscription, region, service and SKU, operation, synthetic or separately approved input class, identity boundary, duration and expiry, cost ceiling and stop behavior, outputs, rollback source, and cleanup targets. Completion evidence must identify stopped execution, revoked experiment credentials, removed disposable targets, final inventory and billing state, provider-retained backups/logs/data, and every residual or provider-controlled expiry. Missing approval or cleanup evidence keeps the route unpromoted and the experiment open as a blocker.
 
 ## Evidence and offer rules
 
@@ -304,6 +310,7 @@ total retrieval-platform cost =
 |---|---|
 | Requirements | Corpus, traffic, account, region, retention, RPO/RTO, availability target, and budget are complete |
 | Experimental data | Content is synthetic or separately approved; training use, retention, deletion, processing region, and logging settings are recorded |
+| Experiment authority | Exact target, operation, input class, duration/expiry, spending ceiling, rollback source, and cleanup targets are approved before any external write or billed call |
 | Free-SKU activation | Target account exposes the claimed SKU; claimed blocking behavior at exhaustion is demonstrated rather than inferred |
 | Direct compatibility | OCI route preserves the portable API/worker shape, or architecture-changing adaptations are explicitly authorised |
 | Baseline | PostgreSQL/`pgvector` baseline has measured quality, latency, index-build, restore, and rebuild results |
@@ -321,6 +328,7 @@ total retrieval-platform cost =
 | Portability | Provider-neutral export, local Docker Compose redeployment, outstanding-job recovery, and at least one alternative embedding adapter succeed |
 | Deletion | Vectors, metadata, jobs as applicable, and source objects are removed; retries/batches cannot resurrect them |
 | Cost | Current target-account/region/SKU price, complete charge categories, explicit cap, and hard-stop behavior are recorded |
+| Cleanup | Teardown evidence identifies stopped execution, revoked experiment credentials, deleted disposable targets, retained provider-controlled data/logs/backups, residual resources, and final billing state |
 | Split-search continuation | Measured retrieval quality, latency, or scale benefit justifies the added service and reconciliation/recovery burden |
 | Decision boundary | Comparable results are delivered to the evidence owner; no provider activation or business choice follows automatically |
 
@@ -422,4 +430,4 @@ total retrieval-platform cost =
 | Not proved | PostgreSQL portability guarantees extension, function, index, generated-column, restore, or performance equivalence. |
 | Not proved | Any embedding route has superior retrieval quality, latency, reliability, data terms, or total cost for the controlled corpus. |
 | Not proved | Any dedicated search service outperforms the PostgreSQL baseline enough to justify its additional complexity. |
-| Required next action | After Pegasus.Core and authorised humans approve a bounded experiment, run one identical synthetic benchmark under the gates above and retain measurements, target-account settings, dated regional prices, exports, restore results, and deletion evidence in this single owner-controlled record. |
+| Required next action | After Pegasus.Core and authorised humans approve a bounded experiment and its cleanup plan, run one identical synthetic benchmark under the gates above and retain measurements, target-account settings, dated regional prices, exports, restore results, deletion evidence, and the verified cleanup result in this single owner-controlled record. |

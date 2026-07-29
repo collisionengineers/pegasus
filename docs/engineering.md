@@ -41,6 +41,8 @@ Use one accountable lead for each route.
 | Review a pull request | Perform an independent, read-only review of the exact base and head. Do not substitute a nearby branch or working tree. |
 | Inspect or operate an external service | Read current state or perform only the explicitly authorized operation against named targets. Repository work records do not grant external authority. |
 
+The restored [dependency-ordered delivery roadmap](history/plans/delivery-roadmap.md) is subordinate, source-labelled historical planning evidence. It preserves unique prerequisite, parallel-branch, and rejoin edges; every use must be revalidated against current requirements, capability allocation, decisions, architecture, code, and callers. It neither allocates nor activates work and proves no current implementation, deployment, recovery, or acceptance.
+
 ## Accountability and delegation
 
 - One lead remains accountable for integration and the final claims.
@@ -238,6 +240,8 @@ A zero-row baseline is not proof that a database is empty. In predecessor eviden
 Delete superseded destructive drivers so a later session cannot mistake “permanently off” for “available.”
 
 ## Controls and incident criteria
+
+No current Pegasus live incident, deployed alert, completed recovery exercise, or production deletion event is claimed by repository source or tests. Current failure-path tests are executable evidence only; the source-labelled table below records predecessor incidents and must not be promoted into current deployment evidence.
 
 A permanent guard, CI gate, or governance script is admitted only when all of the following exist:
 

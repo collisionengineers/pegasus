@@ -1,8 +1,5 @@
 # Website System
 
-> **Source-workspace boundary:** This file is package-local visual evidence only; root [design authority](../../../../../design/README.md) owns accepted Pegasus design. It is not a Pegasus caller, policy, current instruction, or acceptance authority.
-
-
 Layout rules, motion, interaction states, and component patterns for `collisionengineers.co.uk`.
 
 Full component implementations are in `ui_kits/website/`.

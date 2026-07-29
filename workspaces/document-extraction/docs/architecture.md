@@ -80,7 +80,7 @@ Current source evidence shows only a development-local Pegasus intake path: `Peg
 
 A future `Pegasus.Infrastructure` adapter requires a separately accepted integration contract and caller-backed proof. `Pegasus.Core` must retain the policy deciding whether unsupported, encrypted, corrupt, or resource-breaching content can lead to case or reference creation.
 
-The integration boundary includes a 10 MB source limit, deterministic reviewable text and images with control provenance, and visible non-complete outcomes.
+Any future Pegasus integration must preserve the current caller-owned 10 MiB-per-source class, deterministic reviewable text and images with control provenance, and visible non-complete outcomes. This is an intended adapter contract; the workspace has no current Pegasus caller or deployment.
 
 ## Managed target architecture
 

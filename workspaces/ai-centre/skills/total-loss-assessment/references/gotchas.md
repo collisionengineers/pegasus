@@ -1,8 +1,5 @@
 # Gotchas — Real Mistakes from Previous Sessions
 
-> **Source-workspace boundary:** This file is package-local validator evidence only; it is not a Pegasus caller, policy, current instruction, or acceptance authority. Current validator behavior and tests prevail over any narrative example.
-
-
 These are verified errors. Check each one before building.
 
 1. **Don't confuse trim levels.** A wing badge that says "X5M" might be retrofit; the VIN tells you whether it's actually an X5 M or X5 xDrive. State which you assumed.

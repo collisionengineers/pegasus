@@ -6,27 +6,27 @@ Status: **Planned `0.1.0-alpha.1` requirements with Operations-first shell selec
 
 The actual called UI is the Development-only `/Intake/Upload` pre-case upload/receipt path through `ProcessIntake`, including the retained-asset handler. It is unauthenticated, creates no case/reference, and is not `0.1.0-alpha.1` staff UI. Operations, Intake, Triage, Cases and Administration are all Planned `0.1.0-alpha.1` staff surfaces.
 
-The intended setting is a small office of approximately eight users. Staff accounts use Pegasus-managed usernames and passwords; the authentication and authorisation behaviour remains Planned until an authenticated Web caller exists.
+The intended setting is a small office of approximately eight users. Staff accounts use Pegasus-managed usernames and passwords; the authentication and authorisation behaviour remains Planned until an authenticated Web caller exists. Core owns the exact [staff role access matrix](../../docs/requirements.md#staff-role-access-matrix), automated-actor boundary, and [case edit authority and recovery](../../docs/requirements.md#case-edit-authority-and-recovery); this design must not create broader permissions or a second role policy.
 
-| Actor | May manage | Must not access or perform |
-| --- | --- | --- |
-| Administrator | staff accounts, disable/access review/roles; principals/successor cutover; configuration; approved mailbox allowlist; all ordinary staff intake, Triage, case and document work | credentials or cloud/release administration through the UI; permanent deletion; a generic mailbox-rule editor before policy resolves |
-| Engineer, User | authorised intake, Triage, case, document, lookup, chaser, evidence and lifecycle work | account/role/access review, principals, configuration, mailbox allowlist, credential/cloud administration or permanent deletion |
-| Automated processing | named Core intake/evidence actions under its durable identity | a UI account, guessed matching or independent business policy |
-| Provider client (`Next`/`unallocated`) | principal-scoped receipt/status/result API only | staff shell, general case workflow or administration |
-| External/customer | no application account | every application surface (`Not planned`) |
+| Actor | Planned UI boundary |
+| --- | --- |
+| Administrator | Staff shell plus Administration surfaces for accounts/access/roles, principals, configuration, and approved mailbox allowlist. |
+| Engineer, User | Staff shell without Administration surfaces. The ordinary case/action controls are the same for both roles. |
+| Automated processing | No UI account or interactive control. |
+| Provider client (`Next`/`unallocated`) | No staff shell or Administration surface. |
+| External/customer | No application account or application surface (`Not planned`). |
 
-Every protected route/action has unauthenticated, disabled-session, stale-role, denied, loading and successful outcomes. Route hiding is never authorisation.
+Every protected route and action visibly handles unauthenticated, disabled-session, stale-role, denied, loading, and successful outcomes. Route or control hiding is never authorisation. The UI offers neither permanent deletion, credential/cloud/release administration, a generic mailbox-rule editor, bulk case editing, nor external direct Case editing.
 
 ## `0.1.0-alpha.1` flows
 
-**Intake** retains source and provenance, attachments/images, suggestions, validation, conflicts and origin. A definitive authorised instruction automatically creates exactly one case through shared fail-closed acceptance: **Review** when instruction and image completeness requirements are met, otherwise incomplete **Not ready**. Staff-resolved acceptance creates **Review** only through explicit staff confirmation of both instruction and image completeness; otherwise it creates **Not ready**. Explicit staff confirmation of both completeness requirements also moves an existing **Not ready** case to **Review**. `Blocked intake` requires a reason and remains pre-case: no case/reference exists while it is blocked. Resolve/retry re-enters the shared fail-closed intake path and may create exactly one case/reference only when the ordinary acceptance gates then pass. Identity/Audit ambiguity, unsupported or incomplete source, limits/custody/persist/retention failure, integrity/replay/occurrence conflict and missing evidence remain pre-case, usually `Needs sorting`.
+**Intake** presents the immutable source occurrence and its derived evidence separately from the editable candidate and accepted Case projection; matching conflict, ambiguity, manual association, reversal, and reassociation remain visible rather than rewriting the source. Controls invoke the Core-owned [source and Case association](../../docs/requirements.md#matching-conflicts-and-reversible-association) and [mandatory pre-case gate](../../docs/requirements.md#mandatory-pre-case-gates) contracts. The result view shows provenance, attachments/images, suggestions, validation, conflicts, origin, dispatch/retry state, the accepted `Review` or incomplete `Not ready` Case, or the explicit reason no case/reference exists.
 
-**Triage** is a distinct inbox classification/label plus a separate pre-case reference record; it is never a case state. Registration is required; otherwise the source remains `Needs sorting`. It has Open, Awaiting information, Finding recorded, Completed and Cancelled states; two independently optional findings, with at least one required before Finding recorded/Completed: Roadworthiness = Roadworthy/Unroadworthy and Assessment = Repairable/Total loss. A case's `has Triage` is Boolean/reference-only; Triage findings have no bearing on Case/PO/reference, workflow, final outcome, Engineer report, Audit suffix/allocation or any other decision. It has an optional assignee; exact approved-mailbox reply-chain evidence for completion; reasoned replacement/reopen/linking; no due date and no chasers.
+**Triage** remains visually and navigationally distinct from a Case and from generic inbox sorting. Its list/detail workspace presents the registration gate, assignee, named findings and states, missing/ambiguous reply evidence, replacement history, completion/cancellation, reopen, and optional later Case association. Core owns the [normal Triage workflow and completion evidence](../../docs/requirements.md#normal-workflow-and-completion-evidence); the design must distinguish ordinary acknowledgement or information correspondence from the exact reply-chain evidence required to complete the workflow.
 
-**Case** keeps immutable Case/PO, principal, registration, type/secondary Audit identity, workflow state, due date and the EVA proxy limitation visible. It includes source/provenance, data, documents/images, inspection address or `Image Based Assessment`, vehicle/MOT, tasks/reminders, Box requests/copyable chasers, manual WhatsApp material, EVA export, exact report evidence, lease/conflict recovery and permanent action history. It supports Not ready, Review, Held, due/overdue, the four terminal outcomes (Post-report completion, Provider cancellation, Collision Engineers rejection, Created in error), archive and reasoned reopening. Archive never deletes; Created in error never reopens.
+**Case** keeps Case/PO, principal, registration, [Inspection, standalone Audit, or Inspection + Audit identity](../../docs/requirements.md#case-types), workflow state, due date, and EVA proxy limitation visible. It presents the accepted Case projection alongside source/provenance, data, documents/images, parties and inspection address, vehicle/MOT, tasks/reminders, outbound evidence, external-work states, and permanent history. Core owns [principal and historical case-party identity](../../docs/requirements.md#principal-reference-organisation-and-case-party-identity), [lifecycle closure and correspondence](../../docs/requirements.md#lifecycle-closure-and-correspondence), [outbound correspondence evidence](../../docs/requirements.md#outbound-correspondence-evidence), and one-case [edit authority and recovery](../../docs/requirements.md#case-edit-authority-and-recovery). The workspace identifies the active editor and stale version, becomes read-only after lease loss or named closure, and offers only the authorised retry/reopen/reacquire routes; one control mutates one current Case at a time.
 
-**Administration** is Administrator-only: account creation/disable/access review/roles, principal successor cutover, configuration and mailbox allowlist. It has no generic rules editor or credential/cloud operation.
+**Administration** is an Administrator-only surface implementing the linked role matrix. It exposes account/access/role, principal successor, configuration, and approved-mailbox-allowlist controls, but no generic rules editor, credential/cloud operation, bulk predecessor import, bulk Case edit, or direct external Case-edit surface.
 
 ## UI-07 search and filters
 
@@ -38,11 +38,11 @@ Operations shows Not ready, Review, Held, Needs sorting, exact `Blocked intake`,
 
 ### `0.1.0-alpha.1` surface inventory
 
-- Intake includes manual upload; definitive/staff-resolved paths; origin/custody; extraction and reviewed VRM suggestion; field provenance, validation, missing/conflict, duplicate/retry and missing/integrity asset/source failures.
-- Case identity covers Inspection, standalone Audit and Inspection + Audit with the secondary Audit identity. Allocated reference/principal never change. Wrong principal closes `Created in error` with a reason and linked replacement; neither reference is reused and the original never reopens.
-- Case work covers Not ready, Review and Held; due/overdue; seven-calendar-day chasers with the Held interval preserved; Box file request/copyable chaser; tasks/reminders; manual WhatsApp material; DVLA/DVSA and MOT/mileage; inspection address or exact `Image Based Assessment`; and successful EVA JSON/image export only as the Sent-to-Engineer proxy.
+- Intake includes manual upload; definitive/staff-resolved paths; immutable [source occurrence/dispatch](../../docs/requirements.md#source-occurrence-and-dispatch-identity) beside the Case projection; origin/custody; extraction and reviewed VRM suggestion; field provenance, validation, ambiguity/conflict, association history, duplicate/retry, and missing/integrity asset/source failures.
+- Case identity presents the Core-owned [Inspection, standalone Audit, and Inspection + Audit](../../docs/requirements.md#case-types) distinctions, secondary Audit identity, immutable [Case/PO and principal](../../docs/requirements.md#principal-reference-organisation-and-case-party-identity), and linked `Created in error` replacement without offering identity rewrite.
+- Case work covers Not ready, Review and Held; due/overdue; seven-calendar-day chasers with the Held interval preserved; the Core-owned [staff-created request-scoped in-house upload-link](../../docs/requirements.md#request-scoped-upload-links) and [copyable manual-chaser](../../docs/requirements.md#due-work-chasing-and-action-history) contracts; tasks/reminders; manual WhatsApp material; DVLA/DVSA and MOT/mileage; inspection address or exact `Image Based Assessment`; and successful EVA JSON/image export only as the Sent-to-Engineer proxy.
 - Documents/evidence covers automatic Box folder, upload/version, logical removal, closed-case lock/reopen-before-change, Box unavailable/pending/retry/unknown, exact report-Sent evidence and reasoned manual link/unlink/relink.
-- Terminal/aftercare names Post-report completion, Provider cancellation, Collision Engineers rejection and Created in error. Archive never deletes. Reopen requires a reason and valid nonterminal destination; Held is not a reopen destination and Created in error never reopens.
+- Terminal/aftercare presents the exact [Core-owned lifecycle and correspondence](../../docs/requirements.md#lifecycle-closure-and-correspondence) outcomes and reasoned recovery paths. It must not turn acknowledgement, report-Sent evidence, or other correspondence into a generic completion action.
 
 ### Complete state matrix
 
@@ -54,7 +54,7 @@ Operations shows Not ready, Review, Held, Needs sorting, exact `Blocked intake`,
 | Triage | registration missing; unassigned/assigned; every named state; missing/ambiguous/unapproved/technical reply evidence; finding replacement/correction/new response; cancel/reopen/link/unlink/relink |
 | Case | Not ready/chasing; Review; Held/preserved interval; due/overdue; gate refusal; documents locked; Box/external-effect states; EVA proxy limitation; report evidence absent/ambiguous/manual/exact; every terminal outcome; archive; reopened; Created-in-error nonreopenable; lease held/expired/lost/stale |
 
-Permanent action history records business mutations, accepted external evidence, exports and material denied/failed business actions with actor/time/outcome/reason/before-after. It excludes routine views, refresh/polling, retries, leases/heartbeats and adapter/Worker mechanics, which stay in telemetry/security evidence outside the operational UI.
+The UI presents the [Core-owned permanent action history](../../docs/requirements.md#permanent-action-history) with enough actor, time, outcome, reason, and before/after context to understand each business event. Routine views, refresh/polling, retries, leases/heartbeats, and adapter/Worker mechanics stay out of the operational history panel.
 
 ## Accessibility, desktop and data boundary
 
@@ -70,4 +70,4 @@ Operations-first is selected for the `0.1.0-alpha.1` landing and navigation stra
 
 ## Historical material
 
-The selected Operations-first direction and the rejected Worklist-first and Case-first comparisons are preserved in [traceability](traceability-matrix.md). Their obsolete planning files and rasters are retired; the current design route is [design](../README.md), with interaction detail in [ui-spec.md](ui-spec.md).
+The selected Operations-first direction and the rejected Worklist-first and Case-first comparisons are preserved in [traceability](traceability-matrix.md). Their obsolete planning files are retired; the three comparison rasters remain immutable selection evidence under `design/references/mockups/`. The current design route is [design](../README.md), with interaction detail in [ui-spec.md](ui-spec.md).

@@ -1,8 +1,5 @@
 # Repair / Renew Decision Matrix
 
-> **Source-workspace boundary:** This file is a candidate annotation and evaluation aid, not repair policy, a Pegasus caller, current instruction, or acceptance authority. Accepted external domain rules and authorised review govern every decision.
-
-
 The issue is not simply whether a panel *could* be repaired. The judgement weighs all of the
 factors below; state the ones that decided the call, and flag borderline cases for the engineer.
 

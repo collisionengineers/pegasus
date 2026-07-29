@@ -1,8 +1,5 @@
 # Document & Report Letterhead Spec
 
-> **Source-workspace boundary:** This file is package-local visual evidence only; root [design authority](../../../../../design/README.md) owns accepted Pegasus design. It is not a Pegasus caller, policy, current instruction, or acceptance authority.
-
-
 The canonical A4 letterhead for all CE expert reports, valuations, addenda, rebuttals, and fee notes. Read this before building any document template.
 
 ---

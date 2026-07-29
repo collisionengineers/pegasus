@@ -1,8 +1,5 @@
 # ABI Category Decision Tree
 
-> **Source-workspace boundary:** This file is dated package-local evidence, not ABI authority, a Pegasus caller, policy, current instruction, or acceptance authority. `Pegasus.Core`, current operator authority, and an authorised human own every accepted category, outcome, and approval.
-
-
 Use this as a distilled decision path. Verify against the current ABI Code source where exact wording
 matters.
 

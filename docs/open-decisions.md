@@ -6,23 +6,48 @@ Intended, implemented, caller-proved, deployed, and accepted are separate eviden
 
 Accepted decisions should move to the appropriate [decision](decisions/README.md) or [change](changes/README.md) record. Delivery status does not belong in this register.
 
-## Mailbox route activation and confidence display
+Staff roles and access, principal and historical case-party identity, the Case/PO and case-type rules, Triage’s normal workflow, named terminal outcomes and reasoned reopen, exclusive one-case edit actions, immutable source-occurrence/dispatch identity, and reasoned source/Case or outbound-evidence reassociation are settled. Their canonical clauses are [principal and case-party identity](requirements.md#principal-reference-organisation-and-case-party-identity), [source occurrence and dispatch](requirements.md#source-occurrence-and-dispatch-identity), [matching and reversible association](requirements.md#matching-conflicts-and-reversible-association), [Triage](requirements.md#normal-workflow-and-completion-evidence), [case lifecycle](requirements.md#lifecycle-closure-and-correspondence), [case edit authority](requirements.md#case-edit-authority-and-recovery), [staff role access](requirements.md#staff-role-access-matrix), and [outbound correspondence evidence](requirements.md#outbound-correspondence-evidence). This register may block only the named automatic predicate, transport, credential, or activation detail; it must not reopen those settled behaviors.
+
+## Mailbox rule activation, automatic matching, and confidence display
+
+The [Received/Sent taxonomy, mirrored Reply rule, `Other` behavior, separation
+of classification from destination, and correction/reversal audit
+contract](requirements.md#settled-mailbox-taxonomy-and-correction) are settled
+and are not reopened here. `new-instruction-received` is a Received family with
+no confirmed Sent counterpart; that direction boundary does not decide which
+rule wins when several predicates match.
 
 The classification architecture is fixed:
 
-- Direct-provider and intermediary routes are separate Core-owned, code-versioned policies.
-- The applicable route owns provider, instruction type, case association, and precedence.
-- For staff forwards, outer transport provenance is retained while the proved original sender drives route identification.
-- Stable source identity must be retained and uncertainty exposed through the established review outcome.
-- No generic rule engine or transport-specific second classifier is to be added.
-- QDOS direct sender identity is the exact `@qdosassist.co.uk` suffix. That suffix alone does not classify message type, associate a case, or apply to an identified intermediary.
-- The Mapped Principals spreadsheet at the opaque source citation `../reference/imp-docs/requirementsdocs/provider-extra-info/Mapped%20Principals.xlsx` identifies additional principals and route candidates beyond QDOS. Every listed candidate remains evidence, not an activated route.
+- Direct-provider and intermediary routes are separate Core-owned,
+  code-versioned policies.
+- The applicable route is the only policy owner for provider, instruction type,
+  case association, and any later accepted precedence; no unaccepted rule is
+  active.
+- For staff forwards, outer transport provenance is retained while the proved
+  original sender drives route identification.
+- Stable source identity must be retained and uncertainty exposed through the
+  established review outcome.
+- No generic rule engine or transport-specific second classifier is to be
+  added.
+- QDOS direct sender identity is the exact `@qdosassist.co.uk` suffix. That
+  suffix alone does not classify message type, associate a case, or apply to an
+  identified intermediary.
+- The Mapped Principals spreadsheet at the opaque source citation
+  `../reference/imp-docs/requirementsdocs/provider-extra-info/Mapped%20Principals.xlsx`
+  identifies additional principals and route candidates beyond QDOS. Every
+  listed candidate remains evidence, not an activated route.
 
-The available evidence establishes review-visible uncertainty, but not an accepted numeric confidence score, threshold, or alternative confidence display. None should be inferred.
+The available evidence establishes review-visible uncertainty, but not an
+accepted numeric confidence score, threshold, or alternative confidence
+display. None should be inferred.
 
 | Evidence needed | Impact | Recommended default | Decision question |
 |---|---|---|---|
-| For each proposed route: genuine examples; exact sender or intermediary identity; exact predicates; provider and instruction taxonomy; case-association and precedence rules; ambiguity handling; correction and reversal behaviour; and accepted holdout evidence. | Premature activation could misidentify the provider, instruction type, case, or controlling route and could conceal uncertainty from review. | Keep any route without accepted evidence inactive. Preserve source identity and route uncertain outcomes to review without introducing another classifier. | Has the proposed direct-provider or intermediary route supplied enough accepted policy and holdout evidence to be activated? |
+| For each proposed route: genuine examples; exact sender/intermediary identity; finite category predicates and exclusions; automatic incoming-case, Triage, and exact Sent-item matching predicates; and named no-match/conflict/ambiguity outcomes. | Premature activation could misclassify a message or associate the wrong case, Triage, or delivery evidence. | Keep the route and each automatic matcher inactive until its exact predicates and conservative outcomes are accepted. | Are the route’s category and automatic-matching predicates, exclusions, and ambiguity outcomes accepted? |
+| An explicit multi-rule selection model, operator-reviewed conflict cases, and any proposed confidence display or threshold. | An invented precedence or threshold could conceal uncertainty or override the settled direction taxonomy. | Route multiple plausible matches to the established review outcome; infer no score, threshold, or winning rule. | What exact precedence and confidence/ambiguity behavior applies when more than one predicate matches? |
+| Named policy author/reviewer/activator/rollback roles; version/effective-time rules; and exact cohort re-evaluation and downstream-notification behavior. | A rule change could silently reinterpret history or cause unreviewed downstream changes. | Preserve the original decision; permit no cohort re-evaluation or downstream notification until its explicit operation and scope are accepted. | Who controls a rule version, and what approved re-evaluation or notification follows a change? |
+| An operator-reviewed genuine cohort and untouched holdout; accepted activation and rollback thresholds; exact mailbox/folder identities; and least-privilege Graph scopes, including any separate Sent Items access. | Unrepresentative evidence or overbroad access could activate unsafe matching or expose an unapproved mailbox/folder. | Keep activation local and non-mutating; grant no additional Graph mailbox, folder, or Sent Items scope. | Are the holdout, thresholds, mailbox/folder boundary, and exact Graph scopes accepted for this caller? |
 
 ## EVA manual handoff activation
 
@@ -50,21 +75,37 @@ The examples establish the presence and order of `VRM`, but do not by themselves
 
 ## EVA API activation
 
-Direct EVA API use remains blocked because no usable EVA operation has been supplied by the EVA development team.
+Direct EVA API use remains blocked because no usable EVA operation has been
+supplied by the EVA development team. The retained vendor schema is
+non-authoritative reference evidence: it does not select an operation or grant
+permission to call EVA.
+
+In particular, no allowed accepted source currently establishes a proxy-only
+case/vehicle/inspection fetch, a create-with-children operation, its
+parent/child validation or atomicity, a separate picture-upload contract, a
+report-with-PDF handoff, a structured Pegasus success/failure model, or the
+meaning of any returned identifier. None of those observations may create,
+select, or alter a Pegasus case/reference.
 
 | Evidence needed | Impact | Recommended default | Decision question |
 |---|---|---|---|
-| A separate accepted change defining the exact operation, contract, real caller, coexistence or migration approach, idempotency, recovery, and live evidence. | An assumed API could duplicate, lose, or corrupt EVA work and could prematurely remove a working manual path. | Continue supporting the manual handoff if no usable API appears. Replace each EVA function independently only after its API path is accepted. | Has a usable EVA operation been caller-proved and accepted with coexistence, idempotency, recovery, and live evidence? |
+| A vendor-confirmed usable operation and exact direction/scope; request and response contract; identity and authorization target; validation and atomicity; attachment/picture/report-PDF distinctions; correlation identifiers; structured success/failure; idempotency; recovery; coexistence or migration; and live evidence. | An assumed API could disclose, duplicate, lose, or corrupt EVA work, attach evidence to the wrong record, infer a Pegasus identity, or prematurely remove the manual path. | Continue the deterministic manual JSON/image/manifest handoff. Make no EVA call and infer no case/reference or external success from the supplied schema. | Which exact EVA operation, if any, is vendor-supported, caller-proved, and accepted with these boundaries? |
 
 ## External data, submission, and report contracts
 
-These are independent blockers, not one integration decision. `VEHICLE DATA` observed in EVA, Parkers, and AutoTrader remain evidence rather than selected adapters.
+These are independent blockers, not one integration decision. `VEHICLE DATA`
+observed in EVA, Parkers, and AutoTrader remain evidence rather than selected
+adapters.
 
 | Decision | Evidence needed | Impact | Recommended default | Decision question |
 |---|---|---|---|---|
-| Glass’s direct repair-estimate access | Accepted licensing, API or embedded-access terms, technical access, and cost. | Repair-estimate integration and its commercial viability cannot be established. | Do not select or represent Glass’s as an available direct estimate adapter. | Are Glass’s licensing, access mode, technical contract, and cost accepted for direct repair estimates? |
-| Direct valuation access | Accepted direct-access contracts and terms for CAP, Glass’s, and Cazana, including the basis for selecting any adapter. | Valuation sourcing, permissions, and cost remain uncertain. | Treat all three as candidates only; do not imply that any valuation adapter is selected. | Is there an accepted direct-access and commercial contract for a selected valuation source? |
-| Provider submission and delivery | Exact provider API formats, delivery contracts, and provider identities. | Reports or work could be sent in an unsupported format or to an unproved identity. | Keep provider delivery behind review or existing supported procedures until each provider contract is accepted. | Has the exact format and identity contract been accepted for the provider being activated? |
+| Glass's direct repair-estimate access | Accepted licensing, API or embedded-access terms, technical access, and cost. | Repair-estimate integration and its commercial viability cannot be established. | Do not select or represent Glass's as an available direct estimate adapter. | Are Glass's licensing, access mode, technical contract, and cost accepted for direct repair estimates? |
+| Direct valuation access | Accepted direct-access contracts and terms for CAP, Glass's, and Cazana, including the basis for selecting any adapter. | Valuation sourcing, permissions, and cost remain uncertain. | Treat all three as candidates only; do not imply that any valuation adapter is selected. | Is there an accepted direct-access and commercial contract for a selected valuation source? |
+| Provider API tenancy and wire contract | An accepted client/tenant representation, exact routes, headers, schemas, attachment encoding, request limits, throttling/error contract, administration workflow, named clients, and rollout. The settled isolation boundary remains one principal-scoped client with own receipt/status/result only. | Treating an email domain, intermediary, or shared external tenant as the API principal could disclose another principal's work or create a second policy engine. | Keep the API absent. Use stable Pegasus principal identity as the isolation boundary and infer no tenancy model from provider-domain evidence. | What exact provider API contract and client/tenant representation preserves the accepted principal-scoped isolation boundary? |
+| `provider_domain_key` migration or retirement | An authoritative source definition and owner; current and predecessor uses; mapping to stable Pegasus principal/route/evidence identities; collision and unknown handling; cutover, rollback, retention, and exact retirement proof. No allowed accepted source currently defines this name as a Pegasus identity. | Importing, translating, or deleting an undefined key could misattribute a principal, destroy provenance, or leave a hidden compatibility dependency. | Do not create, migrate, map, alias, or retire `provider_domain_key`. Keep provider-domain evidence versioned and separate from principal and route identity. | Is there any approved source and consumer that requires this key, and if so what reviewed migration and retirement contract applies? |
+| Provider report submission and delivery | Exact provider API formats, delivery contracts, and provider identities. | Reports or work could be sent in an unsupported format or to an unproved identity. | Keep provider delivery behind review or existing supported procedures until each provider contract is accepted. | Has the exact format and identity contract been accepted for the provider being activated? |
+| DVLA/DVSA vehicle and MOT lookup | Selected provider/API and licence; exact make/model/year/engine/fuel and MOT/mileage fields; credentials; limits/rates; error and stale-data behavior; target; mileage-estimation rule; and caller proof. | A guessed field or stale/failed result could overwrite confirmed vehicle data or present an estimate as supplied fact. | Keep live lookup disabled. Preserve source-labelled suggestions and return `Unavailable` when approved local replay evidence is absent. | Is the exact lookup and mileage contract accepted for the named provider and caller? |
+| Post-report query and dispute lifecycle | Allowed states/transitions and actors; case/report/reply-chain evidence; correction/reopen and due/chaser interaction; response proof; closure; and dispute resolution. | A mailbox event could silently change case state, close work prematurely, lose a correction, or create a duplicate case/reference. | Preserve the correspondence against the existing case for staff review; let no Outlook adapter decide lifecycle or closure. | What exact CASE-23 lifecycle governs a received query/dispute through Engineer response and reasoned completion? |
 | Audatex PDF ingestion | Representative PDF variants and accepted field-mapping evidence. | Variant layouts could produce incomplete or incorrect extraction. | Do not activate generic Audatex PDF mapping from unrepresentative examples. | Have the supported Audatex PDF variants and their mappings been accepted from representative evidence? |
 | Mandatory provider and vehicle-history checks | An exact contract defining which checks are mandatory, for which provider or route, when they run, and how failures or unavailable results are handled. | Cases could proceed without required checks or be blocked by checks that were never mandated. | Do not infer a universal mandatory-check policy. Keep activation gated on an exact contract. | Has the provider-specific mandatory-check contract, including vehicle-history handling, been accepted? |
 | Report wording | Accepted wording for salvage Categories N, A, B, and N/A; recovery and storage; the final statement of truth; and named qualifications. | Reports could contain incomplete, unauthorized, or inconsistent statements. | Keep the affected wording review-gated and do not invent missing text or qualifications. | Has the complete wording and qualification set been accepted for report generation? |

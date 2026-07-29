@@ -29,10 +29,10 @@ The records below are dated evidence, not an evergreen status or completion ledg
 | T4 end-to-end and nesting | Handler-to-common-result projection, ordered text, images, nested supported files and issue propagation | Vertical slice |
 | T5 differential | Semantic comparison with exact-version independent tools | Oracle and comparator approved |
 | T6 security and fuzz | Malformed input, expansion/depth limits, active-content denial and parser fuzzing | Every parser milestone |
-| T7 genuine corpus | Approved manifested operator cohort and implementation-author-hidden holdout | CollisionSpike-facing subset |
+| T7 genuine corpus | Approved manifested operator cohort and implementation-author-hidden holdout | Pegasus-facing subset |
 | T8 performance | Allocation, throughput, expansion, cancellation and concurrency budgets | Stable behaviour |
 | T9 CLI and package | Library/CLI equivalence, process I/O, exit codes, bundles and publish variants | Public extraction API stable |
-| T10 integration | Caller-owned CollisionSpike adapter plus Web or Worker operational proof | Accepted public package |
+| T10 integration | Caller-owned Pegasus adapter plus Web or Worker operational proof | Accepted public package |
 
 Every positive feature needs absent, boundary, malformed and resource-limit companions where meaningful. Cross-format cases cover nesting, mislabelling, ambiguity/polyglots, duplicate evidence, cancellation and active or external-content denial. Fixture count alone is not coverage.
 
@@ -131,7 +131,7 @@ For every run:
 
 ## Headless CLI test contract
 
-`CollisionDocNet.Cli` is intended as a machine-oriented, one-shot adapter over `CollisionDocNet.Extraction` for scripts, isolated evaluation, diagnostics and operator verification. CollisionSpike is designed to call the library directly rather than spawn this process in production.
+`CollisionDocNet.Cli` is intended as a machine-oriented, one-shot adapter over `CollisionDocNet.Extraction` for scripts, isolated evaluation, diagnostics and operator verification. Any future accepted Pegasus integration is designed to call the library directly rather than spawn this process; no Pegasus adapter, caller, production deployment, or acceptance currently exists.
 
 The CLI must not detect or parse formats itself. Its responsibilities are caller-controlled I/O, argument validation, cancellation, result serialization, safe image materialisation and process exit status.
 
@@ -286,7 +286,7 @@ Top-level repository evidence from 2026-07-23 and 2026-07-24 could not record a 
 
 ### EV-2026-07-23 — foundation tooling audit
 
-This record covers only the managed CFB v3 fixed-header reader. It is local toolchain, static-review and unit evidence, not full CFB conformance, complete DOC extraction, independent differential evidence or CollisionSpike caller proof.
+This record covers only the managed CFB v3 fixed-header reader. It is local toolchain, static-review and unit evidence, not full CFB conformance, complete DOC extraction, independent differential evidence or predecessor CollisionSpike caller proof.
 
 Environment: Windows `10.0.26200` x64, .NET SDK `10.0.302`, MSBuild `18.6.11`, `net10.0`, MSTest.Sdk `4.0.2` and Microsoft.Testing.Platform `2.0.2`.
 
@@ -350,16 +350,16 @@ At this evidence point only the strict CFB v3 fixed header had code-under-test e
 
 ### EV-2026-07-23 — local operational sample cohort preparation
 
-A user-authorised script selected and copied PDF, EML and MSG samples from the adjacent CollisionSpike corpus into ignored local research storage. This was fixture preparation only: it did not establish extraction correctness, feature conformance, corpus stability, redistribution permission or DOC/DOCX coverage.
+A user-authorised script selected and copied PDF, EML and MSG samples from the adjacent predecessor CollisionSpike corpus into ignored local research storage. This was fixture preparation only: it did not establish extraction correctness, feature conformance, corpus stability, redistribution permission or DOC/DOCX coverage.
 
-The adjacent corpus was treated as immutable hostile data. Aggregate discovery found 387 PDF, 286 EML and 23 MSG files. Sixteen exceeded the current 10 MiB CollisionSpike intake class and were excluded. Selection deduplicated by SHA-256 before copying. No source content, operational filename or identifier was printed or committed.
+The adjacent predecessor corpus was treated as immutable hostile data. Aggregate discovery found 387 PDF, 286 EML and 23 MSG files. Sixteen exceeded the then-current predecessor 10 MiB intake class and were excluded. Selection deduplicated by SHA-256 before copying. No source content, operational filename or identifier was printed or committed.
 
 The ignored cohort contains twelve opaque files: four each of PDF, EML and MSG, all below 10 MiB. Selection used passive byte markers, copied without transformation and rechecked destination hashes. The ignored manifest records the source snapshot and per-input evidence without publication.
 
 Markers covered PDF pages, fonts, images, metadata, annotations, classic xrefs, xref streams and object streams; EML multipart/MIME, HTML, inline, attachment, Base64, quoted-printable and nested-message shapes; and MSG message classes, recipients, attachments, named properties, transport headers and plain/HTML/RTF bodies. These markers were selection hints, not parser proof.
 
 ```powershell
-pwsh -NoProfile -File .\scripts\Import-CollisionSpikeSamples.ps1 -CorpusRoot <adjacent-corpus> -DestinationRoot .\sample-doc-files\collisionspike-corpus-20260723
+pwsh -NoProfile -File .\scripts\Import-CollisionSpikeSamples.ps1 -CorpusRoot <adjacent-corpus> -DestinationRoot .\sample-doc-files\collisionspike-corpus-20260723 # Historical predecessor sample import
 ```
 
 The command exited `0`: twelve files were copied, four per requested family. An aggregate check found twelve manifest entries, all source/copy hashes equal, no over-limit file and no reparse point. The script refuses reparse-point roots and existing destinations, preventing silent merge or overwrite. The samples and manifest remain ignored, must not be uploaded or published, and are not permission to redistribute.
@@ -511,7 +511,7 @@ Not proved: complete revision/hybrid/linearization state, profile validation, di
 
 ### EV-2026-07-23 — public extraction and CLI slice
 
-The source record covered a custom five-format managed dispatch boundary and one-input CLI. It was local code-under-test evidence, not production deployment or CollisionSpike acceptance.
+The source record covered a custom five-format managed dispatch boundary and one-input CLI. It was local code-under-test evidence, not production deployment or predecessor CollisionSpike acceptance.
 
 The exercised boundary included byte-first detection without fallback engines; byte/stream input; source, filename, media and policy provenance; PDF/DOC/DOCX/MSG/EML projection; signature-preserving corrupt outcomes; and outcome-specific exception mapping. The public assembly/root namespace was `CollisionDocNet.Extraction`.
 
@@ -737,9 +737,9 @@ dotnet run --project .\src\CollisionDocNet.Cli\CollisionDocNet.Cli.csproj --conf
 
 One exact copied input and one new ignored output directory were used per operation. The final ordinary repository audit deliberately did not reopen the sensitive samples.
 
-This closes only the authorised twelve-file sample gate. It is not format conformance, independent differential verification, hidden-holdout evidence, permission to publish, proof of every capability row or CollisionSpike acceptance.
+This closes only the authorised twelve-file sample gate. It is not format conformance, independent differential verification, hidden-holdout evidence, permission to publish, proof of every capability row or predecessor CollisionSpike acceptance.
 
-#### CollisionSpike opt-in Web path
+#### Historical predecessor CollisionSpike opt-in Web path
 
 The adjacent repository contained an additive `CollisionDocNetQdosSourceReader` behind `Features:CollisionDocNetExtractor`, disabled by default.
 
@@ -756,7 +756,7 @@ This is an opt-in caller-path exercise, not production deployment, live verifica
 
 ### EV-2026-07-24 — text/image output boundary
 
-This record was `Locally verified` for `EXT-API-001`, `EXT-API-003`, `EXT-CLI-002` and `EXT-NEST-001` under the default 10 MB policy. It was not format conformance, differential verification, broad genuine-corpus acceptance or CollisionSpike acceptance.
+This record was `Locally verified` for `EXT-API-001`, `EXT-API-003`, `EXT-CLI-002` and `EXT-NEST-001` under the default 10 MiB policy. It was not format conformance, differential verification, broad genuine-corpus acceptance or predecessor CollisionSpike acceptance.
 
 The public entry point was `DocumentExtractor`; all five format-handler entry types were non-public. The output boundary was ordered text, recognized image assets and control evidence only.
 

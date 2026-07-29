@@ -1,8 +1,5 @@
 # ABP 2026 Extras Package
 
-> **Source-workspace boundary:** Synchronized standalone copy; correct heading/conditional contradiction and mark all values as dated evidence. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
-
-
 Source basis: ABP retail and non-contract charge schedule effective 1 January 2026. Include
 charges because the operation and condition apply, not simply to inflate a total.
 
@@ -10,7 +7,7 @@ Structured source: `abp-reference-data.2026.json` is the versioned machine-reada
 always-include extras, conditional extras, and exclusions. Keep this prose guide aligned with that
 file.
 
-## Candidate charges; include only when the stated condition and case evidence apply
+## Always include on every job
 
 ### Fixed-price items (`specialist_fixed`)
 

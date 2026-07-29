@@ -17,6 +17,7 @@ dotnet restore ./Pegasus.slnx --locked-mode
 sqllocaldb start MSSQLLocalDB
 dotnet build ./Pegasus.slnx --configuration Release --no-restore
 dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"
+dotnet run --project ./src/Pegasus.Web --launch-profile https --no-build -- --migrate-development
 dotnet run --project ./src/Pegasus.Web --launch-profile https --no-build
 ```
 

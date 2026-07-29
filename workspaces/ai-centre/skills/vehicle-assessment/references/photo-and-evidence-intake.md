@@ -1,8 +1,5 @@
 # Photo And Evidence Intake
 
-> **Source-workspace boundary:** This file is an experimental intake taxonomy, not a Pegasus requirement, caller, policy, current instruction, or acceptance authority.
-
-
 What to record, what to request, and how to classify what was supplied — before any conclusion
 is drafted.
 

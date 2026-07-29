@@ -1,8 +1,5 @@
 # Addendum And Dispute Response
 
-> **Source-workspace boundary:** This file is package-local drafting evidence or an experiment only; it is not a Pegasus caller, legal/settlement policy, current instruction, or acceptance authority. `Pegasus.Core`, current operator authority, and an authorised human own every accepted response and approval.
-
-
 Use this when the user asks for an external response about a repair estimate, total-loss
 position, ABP charge, storage/yard charge, PPE/consumable item, repair-specification challenge,
 or a formal addendum to an earlier CE report. Set the technical position first; draft the final

@@ -14,7 +14,7 @@ The product surfaces are:
 
 The CLI is not packaged as a NuGet tool. It requires no desktop, web or Office workload.
 
-CollisionSpike uses the library directly and does not spawn the CLI in production. Caller applications own integration and deployment. CollisionSpike specifically owns adapter deployment, traffic selection and business rollback; this repository owns no caller database migration or service state.
+A future accepted Pegasus integration is intended to call the public library directly rather than spawn the CLI. No Pegasus adapter, caller, production deployment, or acceptance currently exists. Caller applications own integration and deployment; Pegasus would own adapter deployment, traffic selection, and business rollback, while this workspace owns no caller database migration or service state.
 
 Support is feature-row based. An input or behaviour is supported only where the compatibility evidence records it as supported. `Complete` applies only to the declared supported subset observed during that extraction. Unsupported or partially implemented features must remain visible as issues or non-complete outcomes; they must not silently invoke another engine.
 

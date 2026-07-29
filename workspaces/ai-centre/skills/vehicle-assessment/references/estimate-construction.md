@@ -1,10 +1,7 @@
 # Estimate Construction
 
-> **Source-workspace boundary:** This file is an experimental fixture contract, not a Pegasus projection owner, caller, business policy, current instruction, or acceptance authority. `Pegasus.Core` and an authorised human own accepted facts, costs, and outcomes.
-
-
 How the line-by-line repair estimate is built, justified, totalled, checked, and projected into
-every deliverable. This file is the package-local projection owner of the estimate-table spec — other references
+every deliverable. This file is the sole owner of the estimate-table spec — other references
 point here and do not restate it.
 
 ## One list, three renderings
@@ -15,7 +12,7 @@ projections of it — never independently drafted. Line value = WU/10 × rate (t
 formula), so all renderings always agree. An assessment with an outcome or repair position is
 not complete without a validated payload.
 
-## Costing posture — the source-supported candidate estimate
+## Costing posture — the maximum defensible estimate
 
 The estimate states the full cost of putting the vehicle right properly. Build it to the
 highest figure at which every line survives scrutiny by an opposing engineer. Two failure

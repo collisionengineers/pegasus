@@ -1,8 +1,5 @@
 # Collision Engineers — Documents & Reports UI Kit
 
-> **Source-workspace boundary:** This file is package-local visual evidence only; root [design authority](../../../../../../design/README.md) owns accepted Pegasus design. It is not a Pegasus caller, policy, current instruction, or acceptance authority.
-
-
 Faithful, print-ready recreations of Collision Engineers' **expert report and invoice templates**,
 built from supplied PDFs and the authoritative `collision-engineers-design` visual assets
 (`colors_and_type.css` and `references/document-letterhead.md`). `ce-house-style` remains the

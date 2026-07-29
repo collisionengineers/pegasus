@@ -6,6 +6,7 @@ Retained supporting contracts are [security](security.md),
 [ADR-0001: provider boundaries](adr/0001-provider-boundaries.md), and
 [ADR-0002: PostgreSQL/pgvector baseline](adr/0002-postgres-pgvector-baseline.md).
 
+Provider comparison evidence and its first-party source register are retained in [provider evaluation](provider-evaluation.md).
 
 ## Evidence boundary
 
@@ -19,7 +20,8 @@ There is no evidence of:
 - a hosted deployment;
 - an approved provider, account, region, service, SKU, corpus, model, or cost cap;
 - production selection or production acceptance;
-- completion of the pilot acceptance scenarios or promotion evidence.
+- completion of the pilot acceptance scenarios or promotion evidence; and
+- any hosted database or source-object custody, completed restore/deletion exercise, provider-resource cleanup, deployed telemetry, or live incident evidence.
 
 Until those boundaries are crossed with recorded evidence, Collision Brain remains a prototype.
 
@@ -34,6 +36,7 @@ The functional scope is fixed. Deployment sizing is intentionally unfilled until
 | Answering | Retrieval with citations; the caller generates the answer |
 | Input | Pasted text, TXT, Markdown, HTML, text PDF, and DOCX |
 | Upload limit | 25 MiB by default, configurable |
+| Staged upload token | 15 minutes by default; configurable from 60 seconds through 24 hours; a dedicated secret is required in production |
 | Transports | Streamable HTTP MCP and an equivalent stdio proxy |
 | Roles | Reader, contributor, and administrator |
 | Removal | Immediate content purge with a content-free tombstone |
@@ -50,6 +53,8 @@ The following must be measured, recorded, and approved:
 - Recovery point, recovery time, backup retention, and availability expectations.
 - Prototype account, region, services and SKUs, expiry behaviour, projected cost, and hard spending cap.
 - A representative synthetic or approved non-sensitive evaluation corpus with labelled queries.
+
+The governing workspace-wide authority and cleanup contract is [ML operations](../../../ml-ops/README.md#external-experiment-approval-and-cleanup); this service procedure instantiates it. Before any hosted experiment, explicit authority must also name the provider, account or project, region, service and SKU, exact operations, data class, duration/expiry, spending ceiling and stop behavior, identity and secret-handling boundary, retained outputs, rollback source, and cleanup targets. Approval to evaluate a corpus or read public research does not authorize account creation, provisioning, paid calls, data transfer, or teardown.
 
 The local feature-hash embedding is deterministic test infrastructure, not a production semantic model. Hosted model and provider selection remain blocked on the approved requirements, retrieval benchmark, provider comparison, and cost benchmark.
 
@@ -74,10 +79,12 @@ This is not proof that any real caller uses those capabilities or that their ope
 
 | Profile | Components | Evidence and limitation |
 |---|---|---|
-| In-memory | Deterministic in-memory repository and in-memory MCP path | Exercised by the offline/unit and in-memory MCP test suite. Suitable for local verification, not production evidence. |
-| PostgreSQL | PostgreSQL with pgvector; filesystem or S3-compatible shared source storage | Repository, migrations, and Compose environment are present. PostgreSQL integration and the Compose runtime have not been verified on the current workstation. |
+| In-memory | Deterministic in-memory repository, object store, and MCP path | Exercised by the offline/unit and in-memory MCP test suite. Suitable for local verification, not production evidence. |
+| Local filesystem | Filesystem object store with traversal protection | Exercised by local unit tests with temporary directories. It is not hosted shared custody, backup, or recovery evidence. |
+| PostgreSQL | PostgreSQL with pgvector; filesystem or S3-compatible shared source storage | Repository, migrations, and Compose definitions are present. PostgreSQL integration and the Compose runtime have not been verified on the current workstation. |
+| S3-compatible | S3 object-store adapter source | No provider account, endpoint, bucket, credential, conformance result, or hosted caller is evidenced. |
 
-Filesystem storage may be used locally. A hosted API and worker must share source storage through either a persistent filesystem or the same S3-compatible endpoint and bucket.
+Current proved storage is developer-local memory or temporary filesystem test state only. Implemented PostgreSQL and S3 adapters do not prove a hosted data service. A future hosted API and worker would have to share source storage through a proved persistent filesystem or the same proved S3-compatible endpoint and bucket.
 
 ## Configuration
 
@@ -110,6 +117,8 @@ As of the evidence date:
 - The build passed.
 
 These commands do not verify the PostgreSQL profile, hosted infrastructure, representative document extraction, retrieval quality, or a real caller.
+
+No current check recorded here proves backup/restore, hosted purge, provider-resource cleanup, deployed observability, or incident handling.
 
 ## Not verified
 
@@ -189,6 +198,8 @@ The following behaviours are required acceptance criteria, not currently accepte
 
 ## Backup, restore, and deletion procedures
 
+These are acceptance procedures. They have not been completed against a current hosted target.
+
 ### Export and restore
 
 1. Export active knowledge using `data:export`.
@@ -226,9 +237,20 @@ Create labelled queries with expected document and chunk citations. Include expl
 
 Run the full ingestion lifecycle, both MCP transports, duplicate handling, pagination, role boundaries, purge behaviour, rebuild behaviour, and export/import restoration against this corpus.
 
+## Hosted experiment cleanup
+
+Cleanup is part of the experiment contract, not an optional follow-up and not implied by approval to run the benchmark.
+
+1. Stop the API, worker, jobs, schedules, queues, model endpoints, and other experiment-only execution at the recorded expiry or earlier stop condition.
+2. Export and hash only the approved result, configuration, price, restore, and deletion evidence.
+3. Under separate exact-target cleanup approval, remove experiment copies of the corpus, source objects, vectors, chunks, database state, logs, backups, and disposable resources; never delete shared, predecessor, source, or unlisted resources.
+4. Revoke experiment-only credentials and remove local secret copies without printing them.
+5. Re-read the provider inventory, billing state, retention/deletion state, and scheduled work; record every residual resource, charge, retained backup/log, and provider-controlled expiry.
+6. If cleanup cannot be verified, keep the route unpromoted, record the blocker and residual cost/data exposure, and do not represent the experiment as closed.
+
 ## Promotion evidence
 
-Promotion requires all six evidence groups:
+Promotion requires all seven evidence groups:
 
 1. A labelled retrieval report.
 2. A provider comparison.
@@ -236,5 +258,6 @@ Promotion requires all six evidence groups:
 4. A successful backup and restore result.
 5. Deletion and non-resurrection proof.
 6. An approved target account, region, SKU, corpus, and cost cap.
+7. A recorded cleanup result for every external target, or an explicit local-only/not-applicable record.
 
-Without all six, plus satisfaction of the deployment and operational gates, Collision Brain remains a prototype. None of this evidence is currently recorded as accepted, and there is explicitly no production or Pegasus acceptance.
+Without all seven, plus satisfaction of the deployment and operational gates, Collision Brain remains a prototype. None of this evidence is currently recorded as accepted, and there is explicitly no production or Pegasus acceptance.

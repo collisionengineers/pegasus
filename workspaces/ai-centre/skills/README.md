@@ -19,7 +19,7 @@ parity/security/licence evidence, recovery behavior, and operator acceptance.
 
 ## Package status
 
-Each package is intentionally self-contained. Duplicate local references are retained only where standalone pack validation or rendering requires them; source/hash metadata distinguishes evidence from authority. Deleted `dev-ref` wrappers and the archived tone-profile DOCX contributed packaging provenance only.
+Each imported package remains self-contained. Package-local references, wrapper documentation, `dev-ref/` maintenance sources, manifests, and the archival tone-profile DOCX are retained as protected source provenance; they are not rewritten into Pegasus policy. Duplicate local references remain where standalone validation or rendering requires them.
 
 | Package | Status | Authority boundary |
 | --- | --- | --- |

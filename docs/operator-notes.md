@@ -30,11 +30,21 @@ A current business workflow does not prove a corresponding Pegasus integration. 
 
 # Ordered business process
 
-> **Source labels:** `pre-consolidation operator source: business-process — case-lifecycle`; `pre-consolidation operator source: business-process — intake-and-work-instructions`
+> **Source labels:** `pre-consolidation operator source: business-process — case-lifecycle`; `pre-consolidation operator source: business-process — intake-and-work-instructions`; direct-decision evidence in the historical project-discovery questionnaire §§3–6
 
 ## Stage 0 — Triage
 
 Triage does not technically count as a case, but its emails must be stored. A work provider asks Collision Engineers to assess whether a vehicle is roadworthy or unroadworthy.
+
+The normal workflow is:
+
+1. retain the provider request as separate pre-case Triage work;
+2. keep it in `Needs sorting` until a vehicle registration is known, then open the Triage;
+3. obtain any missing information and record at least one accepted finding;
+4. send the response on the original reply chain; and
+5. complete the Triage only when the exact approved-mailbox reply-chain Sent item is confirmed.
+
+An acknowledgement, information request, Draft, or other correspondence is not a finding or completion. `Cancelled` is the only end without a finding and reply. The canonical product transitions and evidence boundary are centralized in [Triage normal workflow and completion evidence](requirements.md#normal-workflow-and-completion-evidence).
 
 Triage may record these independently optional findings:
 
@@ -58,6 +68,8 @@ Triage is never:
 
 A case’s `has Triage` value is Boolean/reference-only. Triage findings have no bearing on the Case/PO/reference, workflow, final outcome, Engineer report, Audit suffix or allocation, or any other decision. The Engineer report remains definitive.
 
+`Completed` and `Cancelled` close only the separate Triage workflow. They do not make a Triage finding definitive or final for a later Case, and a reasoned reopen returns that Triage to `Open`.
+
 ## Stage 1 — Receiving instructions or images
 
 An intake may begin in either of two ways:
@@ -67,7 +79,7 @@ An intake may begin in either of two ways:
 
 Collision Engineers prepares sufficiently evidenced work to be passed to an Engineer.
 
-An image-only arrival may be described operationally as an “image-initiated case” and may be logged in the holding process. Technically, it remains pre-case while the provider, instruction type, or case association is ambiguous. Images alone must not create a definitive association. They may be linked automatically only on a definitive match, or linked manually by staff.
+An image-only arrival may be described operationally as an “image-initiated case” and may be logged in the holding process. Technically, its immutable source occurrence and evidence remain pre-case and distinct from any accepted editable Case while the provider, instruction type, or case association is ambiguous. Images alone must not create a definitive association. They may be linked automatically only on a definitive match, or linked manually by staff. A mistaken link or merge is reasonedly reversible while both original intake origins and every prior association remain attributable.
 
 A required image set should ideally show:
 
@@ -77,6 +89,13 @@ A required image set should ideally show:
 ## Stage 1.5 — Chasing missing information
 
 If a case is incomplete, Collision Engineers chases the relevant party for the missing details, images, or documents. The case can proceed when the required material has been obtained.
+
+The working view must keep the missing-material reason, `Due by`, next chase,
+most recent recorded channel/outcome, optional note, and next permitted action
+together. Preparing or copying a chaser is not evidence that it was sent,
+delivered, or answered. The product owner for these fields and their schedule is
+[due work, chasing, and action
+history](requirements.md#due-work-chasing-and-action-history).
 
 ## Stage 2 — Inspection
 
@@ -88,6 +107,14 @@ Collision Engineers does not physically inspect vehicles. An Engineer performs a
 
 The Engineer report, not any earlier Triage finding, is definitive for roadworthiness and repairability or total-loss determinations.
 
+Roadworthiness and Assessment are independent professional findings. Correcting
+one does not erase or implicitly change the other: retain the accepted earlier
+version, correction reason, superseding finding, actor, and chronology. A closed
+case must be reasonedly reopened before revision, and a finding correction does
+not itself change a fee or invoice. The canonical product contract is
+[professional engineering findings and
+correction](requirements.md#professional-engineering-findings-and-correction).
+
 ## Stage 3 — Post-report
 
 The Engineer sends the report to the provider. Queries or disputes may then be received, generally by email, from:
@@ -97,6 +124,13 @@ The Engineer sends the report to the provider. Queries or disputes may then be r
 - the claimant.
 
 The Engineer must respond to those queries or disputes.
+
+A retained acknowledgement, source receipt, outbound message record, or `Report sent` event is not post-report completion. Report sent enters post-report work; the separately named, reasoned closure outcome ends it. The canonical distinction is [lifecycle closure and correspondence](requirements.md#lifecycle-closure-and-correspondence).
+
+The exact state machine for later query/dispute handling, including reply
+evidence and final resolution, remains an [open external/report
+decision](open-decisions.md#external-data-submission-and-report-contracts);
+receipt alone must not invent it.
 
 # Intake authority
 
@@ -119,6 +153,29 @@ A Work Instruction contains details of a claimant involved in a road traffic acc
 | Date of Incident | Extract from the instruction. |
 | Instruction Date | Use the document value; if absent, default to the current date. |
 | Inspection Address | Apply the inspection-address rules below. |
+
+## Vehicle-source and classification distinctions
+
+> **Source labels:** `pre-consolidation operator source: business-process — intake-and-work-instructions`; `accepted finding: suggestion-first image analysis and VRM recognition`; `direct-decision evidence: project-discovery questionnaire`
+
+These are distinct evidence classes, not interchangeable labels:
+
+| Observation | Operator interpretation |
+|---|---|
+| Registration written in instructions | Supplied VRM evidence; preserve its source. |
+| Registration read from an ordinary vehicle image | Source-image-bound suggestion pending staff confirmation; no synthetic instruction or automatic final value. |
+| DVLA/DVSA vehicle observation | Separately sourced make, model, manufacture year, engine capacity, or fuel-type evidence where the approved lookup supplies it. It does not silently overwrite a confirmed instruction value. |
+| MOT observation | Separately sourced test chronology/status and recorded mileage/value/unit evidence where supplied by the approved lookup. |
+| Mileage in instructions | Supplied fact. |
+| Mileage calculated from accepted MOT observations | Derived estimate with its observations and method; never relabel as supplied mileage. |
+| Missing, no-result, stale, partial, unavailable, or failed lookup | Explicit status; never a zero, blank confirmed value, invented vehicle fact, or permission to call an unapproved service. |
+
+The durable behavior and refresh/reconciliation rules are centralized in
+[ordinary-image VRM and image
+analysis](requirements.md#ordinary-image-vrm-and-image-analysis) and [vehicle
+data and MOT enrichment](requirements.md#vehicle-data-and-mot-enrichment). This
+note preserves operator provenance rather than defining an adapter or lookup
+contract.
 
 ## Authoritative channels and formats
 
@@ -146,6 +203,33 @@ Case association must follow the identified route’s rules. Providers do not ge
 
 Ambiguous provider, instruction-type, or case evidence remains pre-case for staff sorting.
 
+## Confirmed mailbox categorisation
+
+> **Source labels:** user-confirmed taxonomy from the [retained current-tree
+> evidence](reference/CollisionSPikeCurrenttree.txt); current user direction on
+> correction, reversal, and audit; [retained mailbox decision
+> dossier](history/plans/mailbox-categorisation-and-email-matching/README.md)
+
+Alex directly confirmed the Received/Sent taxonomy, its subtypes, and the
+mirrored Reply rule. The exact categories and behavior are centralized in the
+[settled mailbox taxonomy and correction
+clause](requirements.md#settled-mailbox-taxonomy-and-correction), including
+`Other`, the separation of classification from queues, Triage, and Outlook
+folders, and the reasoned, append-only correction/reversal audit contract. This
+operator note records the confirmation and provenance; it is not a second
+product-policy owner.
+
+`new-instruction-received` is a Received family and has no confirmed Sent
+counterpart. Alex has not confirmed how to choose between multiple rules that
+match the same message, so exact multi-rule precedence remains an [open
+decision](open-decisions.md#mailbox-rule-activation-automatic-matching-and-confidence-display).
+
+The retained dossier preserves the phased maturity sequence, dependencies,
+option comparison, and unresolved predicate, activation, holdout, and Graph
+scope research as subordinate historical evidence. It neither reopens the
+settled taxonomy and correction/audit behavior nor proves an implementation,
+caller, deployment, or acceptance.
+
 # Inspection address
 
 > **Source label:** `pre-consolidation operator source: business-process — inspection-address`
@@ -166,6 +250,23 @@ Current address determination is not handled ideally:
 - in practice, one knowledgeable person may infer the location from images or know the repairer commonly used by that provider.
 
 The required inspection-address helper is intended to reduce this dependency by suggesting addresses from provider usage frequency, accident location when available, and image or vision AI. That helper is outside `0.1.0-alpha.1` and is not established here as implemented.
+
+# Principal, repairer, and historical case parties
+
+> **Source labels:** accepted operator finding dated 2026-07-23 in `reference/reports/repairer-identity-and-case-party-roles.md`; direct-decision evidence in the historical project-discovery questionnaire §5; `pre-consolidation operator source: business-process — intake-and-work-instructions`
+
+The operator decisions distinguish reusable organisation identity from the function that organisation or person performs on one case:
+
+| Case-party function | Operator meaning |
+| --- | --- |
+| Principal | The work provider that instructs and pays. |
+| Intermediary | Routes the work without thereby becoming Principal. |
+| Repairer | Commonly holds the vehicle and may supply images. A repairer, garage, or bodyshop is a reusable organisation identity connected deliberately to a case, not merely free text inside the inspection address. |
+| Image Source | The actual supplier of images: Principal, Intermediary, Repairer, or an individual. |
+
+One organisation or individual may hold more than one function on the same case. An ambiguous sender does not establish Principal merely because it transmitted an email or images, and operator-facing labels must name the known function rather than substitute an ambiguous `client` label.
+
+Each case retains the inspection address, organisation identities, and case-party functions accepted for that case. A later correction to reusable repairer or organisation directory data must not rewrite that historical case evidence. The canonical product contract is [principal, reference, organisation, and case-party identity](requirements.md#principal-reference-organisation-and-case-party-identity); this note preserves the accepted operator provenance rather than defining a second implementation policy.
 
 # Case references and types
 
@@ -198,6 +299,20 @@ The following terms have specific Collision Engineers business meanings and must
 
 For example, a generic inbox-sorting function must not be called “triage,” because Triage is a distinct kind of work received by Collision Engineers. The reserved list may be extended over time.
 
+# Staff roles and access authority
+
+> **Source labels:** direct-decision evidence in the historical project-discovery questionnaire §§3–4 and §6; pre-consolidation QDOS-alpha identity/access requirements
+
+The current staff roles are:
+
+| Role | Operator-authorised application work | Restricted work |
+| --- | --- | --- |
+| Administrator | All ordinary Intake, Triage, Case, document, evidence, task, transition, and pre-Engineer-assignment review work; account creation/disable/access review/role assignment; principals; workflow configuration; approved Outlook mailbox allowlist | No permanent deletion; credential, cloud, and release operations are not staff-application administration |
+| Engineer | Cases, inbox items, documents, evidence, all authorised case actions, and the pre-Engineer-assignment review gate | No account, role, access-review, principal, configuration, or approved-mailbox administration |
+| User | Cases, inbox items, documents, evidence, all authorised case actions, and the pre-Engineer-assignment review gate | No account, role, access-review, principal, configuration, or approved-mailbox administration |
+
+Andrew and Alex are the initial Administrator assignments held as application data/configuration, never hard-coded authorization. External customers have no application account or access. The exact fail-closed product matrix and automated-actor boundary are centralized in the [staff role access matrix](requirements.md#staff-role-access-matrix); this section records the operator decision and provenance.
+
 # Required product capabilities
 
 > **Source label:** `pre-consolidation operator source: product-requirements — required-capabilities`
@@ -229,7 +344,7 @@ This table records binding product needs, not implementation, caller, deployment
 | `CAP-019` | Look up vehicle details through DVLA and DVSA when instructions do not contain them. | Lookup authority does not itself authorize an external operation. |
 | `CAP-020` | Estimate mileage from MOT data when available. | An estimate must remain distinguishable from supplied mileage. |
 | `CAP-021` | Support email management from within the application. | Intended functionality; not proof of an Outlook caller or deployment. |
-| `CAP-022` | Automatically create Box API file requests for use in chaser messages. | Box API access still requires separately authorized external operation. |
+| `CAP-022` | Allow authenticated staff to create temporary, revocable, request-scoped in-house upload links for chaser messages. | The isolated unauthenticated page may accept files and return that request’s result only; it must not expose case/request history or other material. Box File Request behavior is superseded. |
 
 # Engineering and interface constraints
 
@@ -279,10 +394,35 @@ Functions, code files, Azure services, and Azure resources must have logical nam
 | WhatsApp | Primarily used to chase garages for images. Collision Engineers frequently receives images through it. Unmatched images are staged on a network drive until associated with the relevant instructions. It can also carry PDF, DOC/DOCX, or typed-text instructions. | Remain an authoritative intake channel. Image-led work must support definitive automatic linking and staff-controlled manual linking. | The supplied sources do not prove automated WhatsApp ingestion or automatic transfer from network-drive staging. |
 | EVA | Current case-management system. Once a case is ready, it is entered into EVA and assigned to an Engineer. EVA wraps estimating systems such as Audatex and Glass’s, contains valuation-service integrations, stores case valuations, and generates the final provider report. The supplied workflow records PDF-to-JSON extraction followed by JSON drag-and-drop into EVA. | Eventually replace all EVA functions and integrations while providing greater business automation. Interim JSON export is intended to move to API use. | EVA offers an API, and supplied details are routed according to its schema under the canonical [reference authority](/docs/reference/README.md). The required API path is not currently functional and is waiting on EVA developers; a schema does not prove a working caller. |
 | Excel | Used as a holding pen for instruction-initiated and image-initiated work until ready for EVA. **Not ready** means something is missing, almost always images or instructions. **Ready** means ready to enter into EVA but not yet entered. | No standalone Excel integration target is stated. Product case management is intended to absorb the surrounding workflow over time. | Excel is a holding log, not the long-term document-custody system and not evidence that an image-only entry is technically a definitive case. |
-| Box | Long-term storage for instruction emails, instruction documents, vehicle images, and produced Engineer Reports. Each case has its own Box subfolder. | Continue using Box for long-term storage, add automatic storage, and create Box API file requests for chaser messages. | Box custody does not mean every newly received item is immediately in Box. Unmatched WhatsApp images may remain in network-drive staging. No supplied source proves automatic staging-to-Box transfer or an API caller. |
+| Box | Long-term storage for instruction emails, instruction documents, vehicle images, and produced Engineer Reports. Each case has its own Box subfolder. | Continue using Box for long-term custody and automatic storage. Chaser messages use the separately bounded in-house request-scoped upload link; Box API file requests are superseded. | Box custody does not mean every newly received item is immediately in Box. Unmatched WhatsApp images may remain in network-drive staging. No supplied source proves automatic staging-to-Box transfer or an API caller. |
 | Audatex | Separate estimating system used by Collision Engineers. It is considered more prestigious and to have more functionality. EVA may wrap it. | Estimating-service integration is required eventually but excluded from `0.1.0-alpha.1`. | Audatex has API features, but the integration methods are currently unclear. |
 | Tractable and Ravin | Mobile guided-capture services under evaluation as possible image-intake methods. Claimants use the apps and Collision Engineers receives the images directly. | Inform the future in-house guided-capture capability. | Evaluation does not establish adoption, integration, deployment, or acceptance. The in-house capability is excluded from `0.1.0-alpha.1`. |
 | `cedocumentmapper` | The EVA workflow source records Collision Engineers’ predecessor process: a Python extractor with a Tkinter UI extracts PDF details to JSON, which is dragged into EVA. | Do not adopt or reuse this implementation. The operator source rejects it as very poorly designed and made. Pegasus designates PdfPig as the authoritative embedded-PDF extraction method. A bespoke extractor remains deferred until its hardening is separately accepted. | `cedocumentmapper` is predecessor evidence only and is not an implementation source. The PdfPig designation is a binding method rule, but the supplied operator sources do not identify a real Pegasus caller, deployment, or acceptance. |
+
+## External-workflow distinctions
+
+> **Source labels:** `pre-consolidation operator source: systems-and-integrations — eva`; `pre-consolidation operator source: systems-and-integrations — box`; `direct-decision evidence: project-discovery questionnaire`; `accepted finding: EVA API preference and focused QDOS-alpha JSON handoff`
+
+The current and intended workflows use several different evidence transfers:
+
+- an in-house request-scoped link receives images/documents into Pegasus intake;
+  upload success is not case creation, Case/PO allocation, Box custody, EVA
+  handoff, or external delivery;
+- the focused alpha EVA handoff is a reviewed JSON/image/manifest download for
+  manual drag-and-drop. Its first successful generation is only Pegasus's
+  once-per-case `First sent to Engineer` proxy; EVA still owns receipt and
+  named-Engineer assignment;
+- EVA currently generates the final provider report, while Box stores produced
+  Engineer Reports; a PDF's existence or custody does not prove that the report
+  was sent or received; and
+- a provider submission API, a future EVA API, and report delivery are separate
+  contracts and authorizations.
+
+**Evidence-only limitation:** the supplied EVA schema does not establish a
+usable Pegasus caller or an accepted proxy fetch, create-with-children,
+picture-upload, report-with-PDF, response, or case/reference-correlation
+contract. These details remain unresolved, and no external operation is
+authorized from schema availability.
 
 ## Storage and staging interpretation
 

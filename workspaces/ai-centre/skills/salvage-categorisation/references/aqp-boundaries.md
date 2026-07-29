@@ -1,8 +1,5 @@
 # AQP Boundaries
 
-> **Source-workspace boundary:** This file is package-local evaluation evidence, not a substitute for an authorised AQP, a Pegasus caller, policy, current instruction, or acceptance authority.
-
-
 Use this before presenting a salvage category recommendation.
 
 ## Role boundary

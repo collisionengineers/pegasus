@@ -1,8 +1,5 @@
 # AQP Competence Boundaries
 
-> **Source-workspace boundary:** This file is package-local evaluation evidence, not AQP authority, a Pegasus caller, policy, current instruction, or acceptance authority. An authorised engineer/AQP owns every accepted domain conclusion.
-
-
 What this skill may conclude on its own, what stays provisional pending engineer/AQP review, and
 the escalation triggers. The AQP (Approved Qualified Person under the ABI Code of Practice)
 framework is used here as **scope and evaluation guidance, not technical authority** — check

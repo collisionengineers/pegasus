@@ -1,8 +1,5 @@
 # Source Governance
 
-> **Source-workspace boundary:** This file is an experimental annotation scheme below root documentation, `Pegasus.Core`, and operator authority; it is not a Pegasus caller, policy, current instruction, or acceptance authority.
-
-
 How conclusions are labelled, which source wins when they disagree, and when a source is too
 stale to rely on.
 

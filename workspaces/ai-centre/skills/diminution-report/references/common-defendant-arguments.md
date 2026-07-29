@@ -1,8 +1,5 @@
 # Common Defendant Arguments
 
-> **Source-workspace boundary:** This file is package-local evidence or an experiment only; it is not a Pegasus caller, policy, current instruction, or acceptance authority. `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
-
-
 Use this before finalising a claimant-side report or advice note.
 
 ## "There is no recognised head of loss for inherent diminution"

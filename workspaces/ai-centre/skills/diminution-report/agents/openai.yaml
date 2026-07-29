@@ -1,4 +1,4 @@
 interface:
   display_name: "Diminution Report"
-  short_description: "Evidence-drafting experiment for diminution claims"
-  default_prompt: "Use $diminution-report to assemble source-labelled diminution evidence and a draft for Core/operator-approved human review; do not provide accepted legal advice or issue a Pegasus report."
+  short_description: "Diminution reports and stigma advice"
+  default_prompt: "Use $diminution-report to assess a post-repair diminution claim and draft a CE-style report or advice note."

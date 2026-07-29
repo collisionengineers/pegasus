@@ -1,13 +1,6 @@
-# ABI 20% benchmark — dated comparison hypothesis
+# ABI 20% Benchmark — The Strongest Standalone Point
 
-> **Source-workspace boundary:** This is dated comparison evidence, not an
-> accepted market rule or mandatory rebuttal argument. `Pegasus.Core`, current
-> operator authority, and an authorised human own every accepted fact, cost,
-> category, outcome, legal position, send, report issue, and approval.
-
-Use this comparison only when its cited evidence and arithmetic are relevant to
-the accepted case facts. An authorised reviewer decides whether it belongs in a
-rebuttal and how much weight it carries.
+Include this argument in every rebuttal. It survives cross-examination because both the ABI guidance and the EVA scale's outputs are matters of record.
 
 ---
 
@@ -93,4 +86,4 @@ middle either.
 
 ## Presentation note
 
-A concise candidate formulation may state that the compared figures appear inconsistent. Treat the ABI figure and EVA result as source-labelled evidence, avoid repetition, and leave the accepted wording and conclusion to the authorised reviewer.
+Use "that cannot be right" — it is stronger than abstract language. One clear statement of the inversion, backed by the specific figures (ABI ~20%, EVA max 27.5%), is sufficient. Do not repeat the argument three times or stack caveats.

@@ -1,4 +1,4 @@
 interface:
   display_name: "Manufacturer Methods Evidence"
-  short_description: "Pointer-evidence lookup experiment; not current OEM method authority"
-  default_prompt: "Use $manufacturer-methods-evidence to locate source-labelled repair-method pointers for human verification; never treat a pointer as current OEM instruction or Pegasus approval."
+  short_description: "OEM repair-method evidence pointers"
+  default_prompt: "Use $manufacturer-methods-evidence to check manufacturer-method evidence pointers for a repair scope or dispute."
