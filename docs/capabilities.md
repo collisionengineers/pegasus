@@ -305,8 +305,7 @@ callers.
   live verification and acceptance remain separate evidence states.
 - `Next` and `Later` use exact future targets but create no dormant service,
   schema, route, flag, credential, UI placeholder or issue.
-- `Not planned` is a permanent product boundary, not a backlog state, and always
-  remains `unallocated`.
+- `Not planned` is a permanent product boundary, not a backlog state, and always remains `unallocated`.
 - Conditional capabilities remain `Later` only as retained problems; their
   direct decision and full planning route are promotion conditions.
 - Changing an outcome, horizon or target requires product authority, the
