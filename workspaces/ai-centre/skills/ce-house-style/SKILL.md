@@ -15,15 +15,7 @@ description: >-
 
 # Collision Engineers — House Style
 
-## Authority boundary
-
-This package provides tone examples and lint candidates only. Root
-design/product authority and current operator authority prevail; `Pegasus.Core`
-and an authorised human own every accepted fact, cost, category, outcome, legal
-position, send, report issue, and approval.
-
-This is package-local source guidance for drafting and review, not the single
-authority for accepted Collision Engineers or Pegasus wording.
+The single authority for **how Collision Engineers writes**. All written output — from a two-line delivery note to a sixteen-page expert report — follows this voice.
 
 **One sentence:** *Communicate as an independent vehicle engineering expert: concise, professional, evidence-based, calm under challenge, and confident without being confrontational.*
 

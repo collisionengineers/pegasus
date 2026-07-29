@@ -60,3 +60,24 @@ Append incidents below; do not edit earlier entries.
   and leaves base, head, diff, checks, and review findings unchanged, use a
   targeted readback rather than automatically repeating the complete review.
 - Follow-up: none
+
+### AM-20260729-001: Review search traversed excluded reference subtree
+- Occurred: 2026-07-29T09:23:00Z
+- Detected: 2026-07-29T09:23:00Z
+- Workflow/package version: unknown
+- Change/PR: [PR #18](https://github.com/collisionengineers/pegasus/pull/18)
+- Classification: authority
+- What happened: During direct remediation review, an agent searched the broad
+  `docs/` root for stale terminology. The search returned matches from the
+  explicitly opaque `docs/reference/imp-docs/` subtree.
+- Impact: The excluded source was read into tool output. No file in that subtree
+  was modified, and no product or remediation decision used its contents.
+- Recovery: The search was stopped at the returned result; subsequent review is
+  limited to explicit allowed paths, and the change record disclaims reliance on
+  the excluded subtree.
+- Why the gate failed: The search scope named `docs/` without pruning the
+  excluded prefix before traversal.
+- Reusable prevention signal: Scope every documentation search to explicit
+  allowed owners or first-party subdirectories; never use `docs/` as the root
+  when an opaque descendant exists.
+- Follow-up: none

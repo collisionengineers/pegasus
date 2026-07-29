@@ -1,8 +1,5 @@
 # Assessment Output Structure
 
-> **Source-workspace boundary:** This file is an experimental output schema, not a mandatory Pegasus deliverable, caller, policy, current instruction, or acceptance authority. `Pegasus.Core` and an authorised human own accepted reports and outcomes.
-
-
 The canonical shape of the engineer information pack, the closing key-information summary
 table, and the branded-PDF payload mapping.
 

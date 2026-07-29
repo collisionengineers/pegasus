@@ -16,7 +16,7 @@ The wider product, architecture, engineering, operations, and decision context r
 
 ### Delivery and payload boundary
 
-The only delivery surfaces are the managed library and a thin headless CLI. The intended DOC caller is the CollisionSpike Infrastructure adapter through the single public extraction API; that statement identifies the intended integration and does not prove a caller, deployment, or acceptance.
+The only delivery surfaces are the managed library and a thin headless CLI. The intended DOC caller is the Pegasus Infrastructure adapter through the single public extraction API; that statement identifies the intended integration and does not prove a caller, deployment, or acceptance.
 
 Every format handler returns deterministic ordered text and discrete image assets through one common result model. The following remain control evidence and do not authorise another payload type:
 

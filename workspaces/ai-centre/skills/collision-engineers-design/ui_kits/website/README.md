@@ -1,8 +1,5 @@
 # Collision Engineers — Marketing Website UI Kit
 
-> **Source-workspace boundary:** This file is package-local visual evidence only; root [design authority](../../../../../../design/README.md) owns accepted Pegasus design. It is not a Pegasus caller, policy, current instruction, or acceptance authority.
-
-
 A high-fidelity recreation of the public site at **collisionengineers.co.uk** (Home page), built
 from the scraped source in `docs/reference_information/cewebsitescraped/`.
 

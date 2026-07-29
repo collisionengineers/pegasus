@@ -56,6 +56,25 @@ Never infer currentness from a filename or row. Do not copy personal names, addr
 | [`workproviders-and-repairers/providers-worked-on.xlsx`](workproviders-and-repairers/providers-worked-on.xlsx) | `555a3f3ba5b81ce54af491b22fd49724d49d77b01f5b3c0a0fa8b758a03b4a33` | Raw historical provider, repairer, contact, or job evidence; no automatic import | [Operator notes](../operator-notes.md) and [requirements](../requirements.md) |
 | [`workproviders-and-repairers/providers.xlsx`](workproviders-and-repairers/providers.xlsx) | `25f7e2c6893f741a743f5c22fdf619032dc63d6b7aa92d24b3f842cc04e40e5f` | Raw historical provider, repairer, contact, or job evidence; no automatic import | [Operator notes](../operator-notes.md) and [requirements](../requirements.md) |
 
+## Retained reviewed reports
+
+These reports remain source-labelled evidence and accepted-decision provenance. Their current product clauses are centralized in [requirements](../requirements.md); retention does not make predecessor implementation or raw source rows authoritative.
+
+- [Case/PO decision](reports/case-po-info.md)
+- [Repairer identity and case-party roles](reports/repairer-identity-and-case-party-roles.md)
+- [Collision Engineers administrative workflow observations](reports/collision_engineers_admin_overview.md)
+- [EVA API preference and manual-handoff findings](reports/eva-api-preference-and-focused-qdos-alpha-json-handoff.md)
+- [Historical correspondence boundary](reports/historical-correspondence-without-case-reconstruction.md)
+- [Manual chaser history and channel boundaries](reports/manual-chaser-action-history-and-channel-boundaries.md)
+- [Parser boundary and version provenance](reports/parser-boundary-and-version-provenance.md)
+- [Provider API intake finding](reports/provider-api-intake-already-covered.md)
+- [Report delivery and post-report lifecycle](reports/report-delivery-and-post-report-lifecycle.md)
+- [Repository data authority](reports/repository-data-authority.md)
+- [Suggestion-first image analysis and VRM recognition](reports/suggestion-first-image-analysis-and-vrm-recognition.md)
+- [UI required fields, options, and settings](reports/ui-required-fields-options-and-settings.md)
+- [UI/UX interaction findings](reports/ui-ux.md)
+- [VRM correlation and source deduplication](reports/vrm-correlation-and-source-deduplication.md)
+
 ## Proven duplicate removals
 
 - `eva_information/screenshots/engineer-screens/engineer4.png` was byte-identical to retained `engineer3.png`; shared SHA-256 `e82526782c6fb20d32bdb0271817036db15727589826745f45ddd263db0bc2ec`.
@@ -66,4 +85,4 @@ Never infer currentness from a filename or row. Do not copy personal names, addr
 - Preserve retained raw bytes and provenance. A summary may change only through a reviewed distillation.
 - Treat supplied schemas, screenshots, examples, workbooks, and contact exports as temporal evidence, not product policy or live integration proof.
 - Any future directory/import use requires operator review, an accepted data contract, migration identity, caller-backed validation, and separately authorized target operations.
-- Derived reports were retired after accepted statements and citations moved to canonical owners.
+- Retained reviewed reports preserve source-labelled findings and decision provenance; canonical product clauses and current implementation claims live only in their owning documents.

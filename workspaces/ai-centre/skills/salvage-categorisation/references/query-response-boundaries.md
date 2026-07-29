@@ -1,8 +1,5 @@
 # Query Response Boundaries
 
-> **Source-workspace boundary:** This file is package-local evidence or an experiment only; it is not a Pegasus caller, policy, current instruction, or acceptance authority. `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, category, outcome, external response, and approval.
-
-
 Use this before drafting external category dispute wording.
 
 ## Safe response structure

@@ -1,18 +1,15 @@
 ---
 name: ce-cost-defence
-description: Use this source-workspace experiment to assemble source-labelled repair-cost evidence and a draft response for authorised human review; it does not provide legal advice, decide an argument, or issue a report. Triggers include "draft a response to the defendant's queries", "justify our repair costs to the court", "rebut their engineer's report", "respond to the Part 35 questions on cost", "they're disputing our labour hours / paint / blend / rate", "build the cost defence report", or any explicit instruction to generate the Collision Engineers branded cost-justification document for a court. Produces a CPR-compliant Word document in the fixed Collision Engineers house style (logo header, FAO The Court block, red-ruled headings, summary table, point-by-point rebuttal, statement of truth, signature, footer) via a deterministic generator so every report looks identical. Do NOT use for pre-accident VALUATION disputes, EVA damage assessments, or anything outside defending repair costs to a court.
+description: Use this skill whenever a Collision Engineers user asks you to produce a formal, court-addressed response defending or justifying the firm's repair costs against a defendant insurer's (or their engineer's) challenge. Triggers include "draft a response to the defendant's queries", "justify our repair costs to the court", "rebut their engineer's report", "respond to the Part 35 questions on cost", "they're disputing our labour hours / paint / blend / rate", "build the cost defence report", or any explicit instruction to generate the Collision Engineers branded cost-justification document for a court. Produces a CPR-compliant Word document in the fixed Collision Engineers house style (logo header, FAO The Court block, red-ruled headings, summary table, point-by-point rebuttal, statement of truth, signature, footer) via a deterministic generator so every report looks identical. Do NOT use for pre-accident VALUATION disputes, EVA damage assessments, or anything outside defending repair costs to a court.
 ---
 
-## Authority boundary
-
-This package may produce evidence, candidates, or draft output only. `Pegasus.Core` and an authorised human own every accepted case fact, cost, category, outcome, legal position, and approval.
 # Collision Engineers — Repair Cost Defence Report
 
 ## What this skill does
 
-Assembles a source-labelled repair-cost evidence draft for authorised human review. It does not determine the firm's position, address or persuade a court, guarantee procedural compliance, sign, serve, or issue a report.
+Generates a Collision Engineers branded, court-addressed report that justifies the firm's repair costs and rebuts a defendant insurer's challenge to those costs. The report is written to assist the Court and is intended to persuade the Court to find in favour of Collision Engineers' costs.
 
-The branded Word document is produced by `scripts/build_report.js` — a tested deterministic generator that fixes the entire house style (fonts, brand red, logo header, ref block, red-ruled headings, table styling, footer, statement of truth, signature block). **Never edit the generator to change styling.** The experiment maps user-approved content into a `data.json` fixture and may run the deterministic generator. Formatting consistency is not legal, factual, engineering, or approval evidence.
+The branded Word document is produced by `scripts/build_report.js` — a tested deterministic generator that fixes the entire house style (fonts, brand red, logo header, ref block, red-ruled headings, table styling, footer, statement of truth, signature block). **Never edit the generator to change styling.** Your job is to read the source material, decide the argument, fill in a `data.json` content object, and run the generator. This guarantees every report comes out in the same format and style.
 
 ## Workflow — follow in order
 
@@ -76,9 +73,9 @@ These are baked into the generator and must not change:
 
 - **Footer:** `Collision Engineers, 77-79 Hoylake Road, Moreton, Wirral, CH46 9PY | engineers@collisionengineers.co.uk` and `www.CollisionEngineers.co.uk`.
 - **Brand red** `#C8102E`, Arial throughout, A4, red-ruled section headings, red-header tables.
-- **Signatory:** never default or invent one. Include only an explicitly supplied, authorised signatory in an already accepted payload.
-- Part 35-related text is reference/template evidence only; include it only when an authorised human supplies and approves the exact text.
-- Do not infer a court addressee. Use only an explicitly supplied, approved addressee.
+- **Default signatory:** A. Patterson, M.Inst.IAEA, Independent Motor Engineer, Collision Engineers Ltd. Override only if the user names a different engineer.
+- **Statement of Truth** and **CPR 35.6** availability line are standard — keep them unless the user instructs otherwise.
+- Address block always opens **FAO The Court**, then the care-of instructing-party address.
 
 Even if a defendant document shows a different address or postcode, the Collision Engineers chrome stays as above.
 
@@ -91,7 +88,7 @@ Plain, professional, court-appropriate English. Confident but not combative. The
 1. Carrying over figures, registrations or names from the example case files instead of this job's. Every number must come from the current source material.
 2. Missing one of the defendant's challenge points — list them all, rebut each.
 3. Changing the generator's styling to "improve" it. Don't; the format must be identical every time.
-4. Treating a template statement or CPR-related line as approved legal content without explicit human authorization.
+4. Forgetting the Statement of Truth or the CPR 35.6 line — both are expected in a report to the Court.
 5. Inventing a manufacturer time or work unit. If a figure isn't in our specification, say it's an estimate or ask.
 6. Making the rebuttal personal. Keep it about the evidence.
 

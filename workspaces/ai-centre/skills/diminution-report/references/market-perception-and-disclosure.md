@@ -1,8 +1,5 @@
 # Market Perception And Disclosure
 
-> **Source-workspace boundary:** This file is dated package-local evidence, not legal advice, a Pegasus caller, policy, current instruction, or acceptance authority. `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, legal position, send, report issue, and approval.
-
-
 Use this when assessing whether repaired accident history would affect market value.
 
 ## Core principle

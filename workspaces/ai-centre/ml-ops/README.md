@@ -39,6 +39,8 @@ Complete source-system archives must not be copied into Git or treated as an imp
 dataset. An approval for one bounded purpose, source, or experiment does not imply approval for any
 other use.
 
+The [19 July 2026 sample-corpus inventory](reports/01-data-readiness/01-sample-corpus-inventory.md) is retained as qualified historical evidence of the 300-file source review and its stated limitations. It is not permission to reopen, modify, publish, or derive new claims from the private corpus.
+
 ## No dormant runtime
 
 This workspace contains explicit commands, configuration, fixtures, and evidence records only.
@@ -140,6 +142,23 @@ experiment:
 Unstarted designs are hypotheses, not evidence that a capability works. A stopped experiment retains
 only the records needed to explain the current decision, prevent repeated invalid work, or support a
 still-current successor experiment.
+
+## External experiment approval and cleanup
+
+Collision Brain provider experiments also use the provider-specific [evaluation and activation gates](../services/collision-brain/docs/provider-evaluation.md#evaluation-activation-pass-and-stop-gates) and [hosted cleanup procedure](../services/collision-brain/docs/operations.md#hosted-experiment-cleanup). Those evidence and procedure owners instantiate this workspace-wide experiment contract; they do not replace it.
+
+An experiment manifest's `approval_ids`, purpose, output boundary, stop conditions, code/environment identity, artifact hashes, and decision record must remain sufficient to identify the exact authorised run. Before a run uses a hosted model, provider, account, project, subscription, external storage, or billed service, the approval must additionally name the exact target, region, service/model/SKU, operations, input class, duration and expiry, spending ceiling and stop behavior, identities, retained outputs, rollback source, and cleanup targets. Dataset or experiment approval alone does not authorize provisioning, external transfer, paid use, deployment, or deletion.
+
+Every externally backed run retains a cleanup record linked from its manifest or decision evidence:
+
+1. stop experiment-only processes, jobs, schedules, endpoints, and queues at completion, failure, expiry, or a stop condition;
+2. retain and hash only approved artifacts and evidence;
+3. revoke experiment-only credentials and remove local secret copies without logging them;
+4. under separate exact-target cleanup approval, remove only named disposable external copies and resources, never `corpus/`, source evidence, shared services, predecessor resources, or unlisted targets;
+5. verify the final external inventory, scheduled work, billing state, provider retention/deletion state, backups/logs, residual resources, and charges; and
+6. record every residual and provider-controlled expiry.
+
+A run may be marked stopped while cleanup is pending, but it cannot be promoted or represented as closed until cleanup is verified or the authorised owner explicitly records the remaining obligation.
 
 ## Current experiment categories
 

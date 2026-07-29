@@ -3,9 +3,6 @@ name: manufacturer-methods-evidence
 description: Provides Collision Engineers manufacturer repair-method evidence pointers for repair scope, wheel and tyre replacement, alloy refurbishment, blending, painted sensors, structural measurement, bench/setup, steering rack/tie-rod replacement, Tesla Model 3 methods, and OEM-method dispute responses. Use when the user asks whether a repair operation is manufacturer-supported, needs OEM evidence, challenges wheel/tyre/blend/sensor/structural/steering method lines, or wants safe wording based on manufacturer methods.
 ---
 
-## Authority boundary
-
-This package may produce evidence, candidates, or draft output only. `Pegasus.Core` and an authorised human own every accepted case fact, cost, category, outcome, legal position, and approval.
 # Manufacturer Methods Evidence
 
 ## Overview

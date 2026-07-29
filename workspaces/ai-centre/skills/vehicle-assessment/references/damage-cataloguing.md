@@ -1,8 +1,5 @@
 # Damage Cataloguing
 
-> **Source-workspace boundary:** This file is an experimental observation taxonomy; any conclusion is a candidate flag for authorised review, not a Pegasus caller, policy, current instruction, or acceptance authority.
-
-
 ## What to look for when walking through photos
 
 Walk through **every photo**. For each visible damage point, note:

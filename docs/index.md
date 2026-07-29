@@ -16,6 +16,7 @@
 - [Azure route](azure/README.md)
 - [Source workspaces](../workspaces/README.md)
 - [Agent mistake log](agent-mistakes.md)
+- Retained historical evidence: [dependency-ordered delivery route](history/plans/delivery-roadmap.md), [mailbox policy dossier](history/plans/mailbox-categorisation-and-email-matching/README.md), [operator discovery questionnaire](history/product/project-discovery-questionnaire.md), and [feature-versioning worksheet](history/product/feature-versioning-worksheet.md)
 
 Use the smallest authority that answers the question. Intended behavior,
 allocation, implementation, real-caller proof, deployment, live verification,
@@ -65,9 +66,10 @@ do not win automatically.
 | `docs/operations.md` | Supported procedures and evidence profiles, including what each check cannot prove. |
 | `docs/engineering.md` | Repository lifecycle, caller proof, validation, review, and incident criteria; it links here and to operations rather than restating authority or commands. |
 | `design/` | Durable UI/design authority and source/runtime map. Planned and current behavior remain explicit. |
-| `docs/decisions/` | Published decision bodies are immutable. Current status, supersession, and qualifications live in the index or a new accepted addendum/decision. |
+| `docs/decisions/` | Published decision clauses and rationale are immutable. Reviewed navigation, status, and supersession metadata may be corrected without changing the decision; changed meaning uses an accepted addendum or new decision. |
 | `docs/changes/` | One record per material change. Retain unique reviewed provenance; do not create generated status ledgers. |
-| `docs/reference/` | Supplied/raw evidence subordinate to operator/product authority. Retain unique raw sources and compact provenance; derived prose is retired after accepted distillation. |
+| `docs/history/` and reviewed `docs/reference/reports/` | Subordinate, source-labelled evidence retained only where it carries unique accepted provenance, observations, dependency order, or unresolved research that cannot be reconstructed safely. It never becomes current product authority. |
+| `docs/reference/` | Supplied/raw evidence subordinate to operator/product authority. Retain unique raw sources and compact provenance; retire only exact duplicates or material with complete verified destinations. |
 | `docs/azure/` and `.azure/` | Dated live-read evidence, target design, and predecessor transition. None authorizes a cloud operation. |
 | `src/`, `tests/`, `scripts/`, `.github/` | Current executable behavior and verification evidence. |
 | `workspaces/` | Independently buildable source imports. Never application callers, dynamic dependencies, deployment units, or business-policy owners without an accepted integration contract and caller proof. |
@@ -83,10 +85,10 @@ retention, or licensing gates.
 1. A live claim is written once. Every other document links to its owner.
 2. Allocation, implemented, caller-proved, deployed, live-verified, and accepted remain distinct states.
 3. Evergreen pages omit test counts, file counts, package versions, and live-resource state unless a value is itself the contract. Dated evidence names its head/checkpoint and scope.
-4. Historical-only prose is distilled then deleted. No replacement history/archive tree is created.
-5. Published decisions are never narrowed, rewritten, or deleted in place. Supersession is indexed; changed rationale uses an accepted addendum or decision.
-6. Source workspaces retain only current technical contracts, required immutable ADR provenance, executable skill instructions, adjacent legal material, machine contracts/provenance, and evidence needed to reproduce a current decision.
-7. Raw evidence never becomes product authority. Derived reports are deleted after accepted claims and citations reach their canonical owner.
+4. Historical-only prose is removed only after every unique claim, observation, dependency, and provenance record has a verified destination or accepted typed disposition. Do not create a second status ledger or broad archive tree.
+5. Published decision clauses and rationale are never narrowed, rewritten, or deleted in place. Reviewed navigation, status, and supersession metadata may be repaired; changed meaning uses an accepted addendum or decision.
+6. Source workspaces retain current technical contracts, protected imported source, required immutable ADR provenance, adjacent legal material, machine contracts/provenance, and evidence needed to reproduce a current decision.
+7. Raw evidence never becomes product authority. Retain unique reviewed evidence and provenance; delete only proven duplicates or derived material whose complete payload has a verified canonical destination.
 8. Every surviving Markdown page is reachable from one appropriate route root: this index, `design/README.md`, `docs/reference/README.md`, `docs/azure/README.md`, `workspaces/README.md`, or its owning workspace/package README. Immutable ADR/change bodies route through their current index.
 9. Every local link and anchor resolves. Forbidden-prefix destinations remain opaque lexical evidence routes and are never opened to validate existence or anchors.
 10. Every rewritten, moved, or deleted material claim has one verified destination, accepted supersession/resolution, or typed duplicate/navigation proof. Equal bytes prove retention, not semantic equivalence.

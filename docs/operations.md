@@ -8,9 +8,9 @@ Use these evidence states literally and independently:
 
 `Planned` → `Implemented` → `Called` → `Locally verified` → `Deployed` → `Live verified` → `Accepted`
 
-Compilation, registration, mocks, local execution, deployment, live-service observation, and operator acceptance are different conclusions. Do not describe work as implemented unless a real production-shaped Web or Worker caller exists. A test-only path, direct dependency-injection resolution, registered service, host startup, emulator, source workspace, or benchmark harness is not a caller.
+Compilation, registration, mocks, local execution, deployment, live-service observation, and operator acceptance are different conclusions. Describe code as **Implemented** only when source exists and is connected as claimed; reserve **Called** for a genuine input traversing a real Web or Worker entry point. Direct dependency-injection resolution, registration, host startup, an emulator, source workspace, or benchmark harness is not caller proof.
 
-The current source-mapped intake caller is the Development-only `/Intake/Upload` page through `ProcessIntake`. Planning research did not execute that caller. The Worker composition root currently has no trigger; starting the Functions host is host evidence only.
+`/Intake/Upload` through `ProcessIntake` is the only current mutating entry point. Retained dated integration evidence exercised that Development-only HTTP route, but it does not establish a staff browser session, non-Development intake, deployment, live traffic, or acceptance. The Worker composition root currently has no trigger; starting the Functions host is host evidence only.
 
 Every external read, mutation, billed call, data transfer, credential change, deployment, recovery exercise, or resource retirement requires explicit approval after showing the exact target, scope, operation, data class, cost exposure, and rollback path. Installed tools, repository configuration, credentials, and authentication never grant authority by themselves.
 
@@ -104,7 +104,7 @@ Install-Module ExchangeOnlineManagement -Scope CurrentUser -RequiredVersion 3.10
 
 `az login`, `azd auth login`, Exchange connection, Box login, credential changes, deployment, and Azure operations each retain a separate exact-target approval boundary.
 
-Application staff accounts are Pegasus Identity accounts; do not assume they are Entra users. Third-party credentials must never enter tracked settings, command-line arguments, prompts that may be retained, terminal output, telemetry, or business history.
+The intended application staff accounts are Pegasus Identity accounts; the current Development caller has no authentication or role enforcement, and Entra users must not be assumed. Third-party credentials must never enter tracked settings, command-line arguments, prompts that may be retained, terminal output, telemetry, or business history.
 
 ## Locked restore, build, and test
 
@@ -229,6 +229,8 @@ Checked-in Development configuration uses only:
 
 `DevelopmentOffline` or `Features:LocalIntake=true` outside the Development environment fails startup. Production configuration never resolves the local filesystem adapter as a fallback.
 
+No non-Development intake path is supported. With the Development gates inactive, `/Intake/Upload`, `/Intake/Queue`, `/Intake/Review`, and every other `/Intake` route return `404`; there is no production artifact-store fallback or mailbox/API caller.
+
 ### Start local services
 
 Use separate PowerShell terminals so every process has an obvious owner.
@@ -270,7 +272,7 @@ https://localhost:7139/Intake/Upload
 
 It remains temporary until the authenticated Operations shell replaces it.
 
-The Functions host currently starts but reports that no job functions exist. This proves host composition only. Queue or timer caller evidence requires a delivered trigger and an identifier passing through that trigger into the owning Core behavior.
+Dated local Functions-host evidence recorded startup with no job functions. Current source still contains no trigger. Queue or timer caller evidence requires a delivered trigger and an identifier passing through that trigger into the owning Core behavior.
 
 ### Isolated and parallel runs
 
@@ -319,12 +321,12 @@ Use managed identity and scoped RBAC. Store unavoidable third-party secrets in I
 
 ### Stable invariants
 
-- Web and Worker are thin callers of the same Core-owned business behavior.
+- The current Web upload is a thin caller of Core-owned behavior; any future Worker trigger must call the same Core owner rather than duplicate policy.
 - A test-only or registered-only path is not a caller.
-- SQL stores structured state and the outbox.
-- Storage queues carry identifiers, not file content.
-- Transient Blob content is deleted only after Box custody is confirmed.
-- External side effects are idempotent.
+- Current SQL persistence contains pre-case receipts, typed drafts, evidence, and events. The application outbox is a release dependency, not current source evidence.
+- When a storage queue is activated, it carries identifiers rather than file content.
+- Delete-after-Box-confirmation is a target transient-Blob invariant; neither Blob staging nor Box custody is a current caller.
+- Any future external side effect must be idempotent.
 - Every local run isolates databases, ports, storage state, and ignored artifacts.
 - Cleanup operates only on resources owned by that run.
 - Local emulators and mocks do not prove managed identity, RBAC, vendor behavior, cloud durability, scaling, alert delivery, recovery objectives, or operator acceptance.
@@ -392,7 +394,7 @@ For each delivered capability, identify the authoritative rule, Core policy owne
 7. **Browser/accessibility** — authenticated workflows, dashboard/queue agreement, two-session editing, keyboard, focus and error behavior, semantic labels, text-plus-colour states, 200% zoom, and supported-browser coverage. Automated axe results do not replace manual keyboard or assistive-technology review.
 8. **Genuine corpus** — immutable reviewed cohort and untouched holdout through the real caller, including field-level accuracy, conflicts, unreadable pages, and false case/reference outcomes. Detailed evidence remains ignored and local.
 9. **Security/observability** — role matrix, secure cookies, lockout, request forgery, denial before client construction/call, dependency and dynamic scanning, correlation, health, redaction, and bounded failure metrics.
-10. **Performance/concurrency** — eight concurrent operators, 2,000 cases per month, 2–20+ files per case, the 10 MB boundary, burst/soak behavior, and 48,000–480,000+ annual asset-metadata shapes. Do not invent a release latency threshold without an explicit decision.
+10. **Performance/concurrency** — eight concurrent operators, 2,000 cases per month, 2–20+ files per case, the one-file 10 MiB limit and 10 MiB-plus-64-KiB multipart envelope, burst/soak behavior, and 48,000–480,000+ annual asset-metadata shapes. Do not invent a release latency threshold without an explicit decision.
 11. **Migration/recovery** — every supported prior schema, idempotent migration scripts, previous-artifact compatibility, restore into a new database, and reconciliation by stable Outlook/Box identities.
 12. **Integrated workflow** — authenticated source receipt through Core, SQL/outbox, actual Worker trigger, adapter outcome, persisted operator view, telemetry, and safe replay. Registration or mock-only paths do not satisfy this tier.
 
@@ -408,7 +410,7 @@ Run policy tests first, adapter contracts second, persistence/transaction tests 
 | Key Vault / identity | Mock the owned port; developer credentials only for approved development resources | Deployed managed identity, least-privilege RBAC, firewall behavior |
 | Application Insights / Log Analytics | In-memory OpenTelemetry and optional local Collector | Ingestion, sampling, KQL, retention, alert rules, recipient delivery |
 | Graph / Exchange | Kiota fake and Dev Proxy; allowlist rejects unknown mailbox/folder/action before client call | Approved mailbox allowlist, Exchange Application RBAC, immutable IDs, delta behavior, exact Sent-item existence |
-| Box | Fake SDK/HTTP contract for folder/file commands, versions, idempotency, and failures | Real custody, permissions, versions, file requests, retention |
+| Box | Fake SDK/HTTP contract for folder/file commands, custody, versions, idempotency, and failures | Real custody, permissions, versions, and recovery |
 | Document Intelligence | Candidate-routing and response-contract tests with controlled non-corpus fixtures | OCR accuracy, confidence, API drift, cost, throttling, identity; licensed disconnected containers are not the default emulator |
 | DVLA/DVSA | Deterministic contracts, invalid identifiers, retries, unavailable-service outcomes | Entitlement, identity, real response behavior |
 | EVA | Exact local JSON/image-bundle contract and reconciliation metadata | Operator drag/drop acceptance and any later authorised API sandbox |
@@ -462,7 +464,7 @@ These are dated observations, not an evergreen inventory.
 - A passing sample does not establish every provider, layout, or format.
 - Keep repository consistency, caller behavior, corpus evidence, deployment evidence, and acceptance as separate conclusions.
 
-Use `$collisionspike-corpus-evaluation` when designing or running a corpus-backed test.
+The former `$collisionspike-corpus-evaluation` label is predecessor history, not a current repository command. Use the focused Pegasus corpus lane below when its genuine ignored input and approval conditions are satisfied.
 
 Run the focused corpus lane only when genuine ignored input is present and required:
 
@@ -485,6 +487,12 @@ The caller-scoped evidence plan allocates local working-copy EML evaluation to `
 EML contract evidence must cover parsing, provenance, corruption, nesting, cancellation, resource limits, deterministic failures, and content safety. Product-behavior claims require the current Web or later Worker caller; a standalone evaluator or historical endpoint is insufficient.
 
 DOC and MSG automatic extraction remain deferred until safe local parsing fixtures and a human-reviewed genuine cohort and untouched holdout exist. An external processor requires separate selection and data-transfer approval.
+
+## Release dependency order
+
+Release allocation does not waive technical prerequisites. The restored [dependency-ordered delivery roadmap](history/plans/delivery-roadmap.md) is subordinate, source-labelled historical planning evidence; it preserves the complete prerequisite, parallel-branch, and rejoin route without becoming a second requirements, allocation, or status owner. Revalidate it against current canonical owners before execution.
+
+Operationally, do not run later caller or release gates before the revalidated spine has supplied relational intake state, trusted staff identity/action history, principal/configuration data, durable custody and the allocator, definitive acceptance, then case files/editing/lifecycle/UI, the real Worker and Triage, vehicle/EVA and MCP callers, and finally Azure migration/recovery and operator acceptance. A local check, generated package, Bicep file, or deployment cannot advance a missing predecessor gate.
 
 ## Release validation rules
 
@@ -535,7 +543,7 @@ The Web exposes:
 
 Readiness requires the database and all committed migrations.
 
-Application Insights packages are registered for the Worker, but there is no Worker caller to observe. Do not infer Worker processing telemetry from registration or host startup.
+Core contains local `ActivitySource` instrumentation, but the current Web host registers no telemetry exporter. Application Insights packages are registered for the Worker, but there is no Worker caller to observe. There is no deployed Pegasus telemetry, alert delivery, live incident record, or current recovery/deletion incident evidence; the source-labelled predecessor incidents in [engineering](engineering.md#historical-evidence-behind-these-rules) do not establish current Pegasus behavior.
 
 A releasable implementation requires correlated Web/Worker telemetry and alerts for:
 
@@ -582,9 +590,11 @@ Deployment does not itself prove live behavior or acceptance.
 
 ## Recovery
 
+Current source provides no application backup/restore executable, production custody adapter, receipt/artifact deletion route, or completed Pegasus recovery, failover, retirement, RPO, or RTO exercise. Test cleanup and migration tests are narrower evidence. The procedures below are release gates, not claims that recovery or deletion is implemented, deployed, or accepted.
+
 ### Local recovery
 
-- Ignored local artifacts are disposable Development evidence.
+- Ignored local artifacts and disposable databases are Development evidence, but the application exposes no receipt/artifact deletion command. Remove only an exact run-owned database and ignored directory after diagnosis and the checks under [Stop and reset](#stop-and-reset).
 - Preserve `corpus/` unchanged.
 - Restore LocalDB backups only into a new disposable database.
 - Never overwrite the source database during a recovery test.
@@ -597,7 +607,20 @@ LocalDB recovery does not prove Azure SQL point-in-time recovery, RPO, or RTO.
 
 Production releases retain the previous immutable application artifact for redeployment. Database migrations are explicit and must remain compatible with the supported prior application artifact or have an accepted recovery strategy.
 
-Before `0.1.0-alpha.1` acceptance, prove:
+A production recovery exercise must:
+
+1. obtain exact-target approval and a fresh inventory;
+2. identify the immutable application package, migration identity, database recovery source, and corresponding source/custody evidence before changing anything;
+3. preserve the source and restore into a new isolated target rather than overwrite it;
+4. apply compatible migrations explicitly and deploy the matching immutable Web/Worker packages;
+5. reconcile stable source, Outlook, Box, outbox, and external-operation identities without duplicating or resurrecting work;
+6. run health checks and the named real-caller smoke journey, then inspect correlated failure evidence;
+7. record achieved recovery point, restoration duration, missing data, limitations, and rollback result; and
+8. retain the failed restore target for diagnosis until a separately approved cutover or cleanup.
+
+Automatic schema down-migration and deletion of source evidence or shared cloud resources are not recovery steps.
+
+Before the allocated [OPS-09](capabilities.md) capability and `0.1.0-alpha.1` can be accepted, prove:
 
 - a 15-minute recovery point objective; and
 - a four-hour restoration path.

@@ -1,8 +1,5 @@
 # Document-Type Tone Notes
 
-> **Source-workspace boundary:** This file is package-local evidence or an experiment only; it is not a Pegasus caller, policy, current instruction, or acceptance authority. `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
-
-
 Per-document register, length defaults, and sign-off rules.
 
 ---

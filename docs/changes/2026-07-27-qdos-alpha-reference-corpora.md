@@ -33,6 +33,8 @@ Issue #3 remains open until both mandatory delivery stages complete:
 
 Offline acceptance is neither a reduced alpha nor a substitute for live evidence.
 
+Historical drafts that named Box File Request are superseded for product behavior by the Core-owned [request-scoped in-house upload-link contract](../requirements.md#request-scoped-upload-links). Box remains long-term custody; it is not the chaser upload-request mechanism.
+
 ## Authority and evidence boundaries
 
 Current requirements, capability allocation, architecture, operations, design, decisions, and contributor workflow remain owned by:
@@ -343,7 +345,7 @@ The provider/intermediary route-disposition inventory remains outside Git. Only 
 - Prior versions are retained. Writes create versions; removal is logical and reasoned.
 - Closed cases are application-read-only until a reasoned reopen.
 - Staff may add relevant material received through manual WhatsApp coexistence without adding a WhatsApp integration.
-- File requests are bounded to the approved case/root relationship.
+- In-house upload requests are temporary, revocable, request-scoped, and bounded to the approved request/case relationship; Box receives accepted custody material only through the normal custody boundary.
 - Every custody operation proves the approved root and descendant relationship before access.
 - Box failures block progression but never roll back an allocated identity.
 
@@ -413,7 +415,7 @@ Each count exposes last-updated time and distinct zero, loading, stale, partial,
 
 Search and filtering cover Case/PO, registration, claimant, claim number, principal, state/status, Engineer, received/instruction dates, date range, and image- versus instruction-led origin. Linking or merging never changes the original intake origin.
 
-Case pages expose typed data and provenance, parties, documents/images, vehicle/MOT suggestions, address/mode, tasks, chasers, file requests, EVA export, report evidence, `Report preparation` work, lifecycle/history, immutable identity, lease/conflict/retry, and reasoned actions. There is no permanent case or file deletion.
+Case pages expose typed data and provenance, parties, documents/images, vehicle/MOT suggestions, address/mode, tasks, chasers, request-scoped upload links, EVA export, report evidence, `Report preparation` work, lifecycle/history, immutable identity, lease/conflict/retry, and reasoned actions. There is no permanent case or file deletion.
 
 ### MCP
 
@@ -566,7 +568,8 @@ Implement every allocation, Audit, lifecycle, Held/chaser, report, Triage, repla
 | Azure SQL | GUID-named LocalDB database using the production migration stream | Entra, Azure throttling, PITR, and managed identity |
 | Blob/Queue/Functions | Azure SDK against run-scoped Azurite plus the actual Functions host | Azure RBAC, scale, durability, and platform poison behavior |
 | Outlook/Graph | durable local mailbox with genuine working-copy `.eml`, immutable IDs, Inbox/Sent folders, delta cursor, `sentDateTime`, and reply metadata | Graph permission, delta, throttling, and mailbox-policy behavior |
-| Box | guarded local case-file store through the same Core custody port, including root/descendant proof, identities, hashes, versions, logical removal, and loopback file requests | Box identity, scopes, SDK, retention, and recipient delivery |
+| Box | guarded local case-file store through the same Core custody port, including root/descendant proof, identities, hashes, versions, and logical removal | Box identity, scopes, SDK, retention, and recipient delivery |
+| In-house upload link | isolated loopback upload/result route using temporary, revocable, request-scoped tokens and the normal custody port | public-edge abuse controls, recipient delivery, and authorised live acceptance |
 | DVLA/DVSA | Development replay adapter accepting only owner-approved ignored responses and typed failures | live contract, licence, limits, mileage rule, and availability |
 | VRM | selected local engine after a genuine labelled benchmark | no engine is registered until accepted |
 | EVA | deterministic local JSON/image/manifest bundle | EVA import, receipt, or named assignment |

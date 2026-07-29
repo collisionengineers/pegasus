@@ -3,9 +3,6 @@ name: diminution-report
 description: Drafts and reviews Collision Engineers claimant-side diminution-in-value reports, solicitor advice notes, and post-repair market-stigma assessments. Use when the user asks for a diminution report, inherent diminution assessment, post-repair stigma review, claimant diminution advice, disclosure/market perception analysis, or whether a repaired vehicle has suffered a defensible permanent loss in market value. For rebutting an opponent's diminution report, use `diminution-rebuttal` instead.
 ---
 
-## Authority boundary
-
-This package may produce evidence, candidates, or draft output only. `Pegasus.Core` and an authorised human own every accepted case fact, cost, category, outcome, legal position, and approval.
 # Diminution Report
 
 ## Overview

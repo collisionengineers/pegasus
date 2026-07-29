@@ -223,19 +223,17 @@ Permanent consequences must be visible without hover or colour alone. Illustrati
 
 ## Access and permissions
 
-Staff accounts, authentication and authorisation remain planned until an authenticated Web caller exists. Planned accounts use Pegasus-managed usernames and passwords.
+Staff accounts, authentication, and authorisation remain planned until an authenticated Web caller exists. Planned accounts use Pegasus-managed usernames and passwords. Core owns the exact [staff role access matrix](../docs/requirements.md#staff-role-access-matrix), automated-actor boundary, and [case edit authority](../docs/requirements.md#case-edit-authority-and-recovery); this section owns only how those decisions appear in the planned UI.
 
-| Actor | May manage or perform | Must not access or perform |
-| --- | --- | --- |
-| Administrator | Staff accounts, creation/disable/access review/roles; principals and successor cutover; configuration; approved mailbox allowlist; all ordinary staff Intake, Triage, Case and document work | Credentials, cloud or release administration through the UI; permanent deletion; a generic mailbox-rule editor before policy is resolved |
-| Engineer, User | Authorised Intake, Triage, Case, document, lookup, chaser, evidence and lifecycle work | Account, role or access review; principals; configuration; mailbox allowlist; credentials or cloud administration; permanent deletion |
-| Automated processing | Named Core intake and evidence actions under its durable identity | A UI account, guessed matching or independent business policy |
-| Provider client, `Next`/`unallocated` | Principal-scoped submission receipt, status and result API only | Staff shell, general case workflow or Administration |
-| External/customer | No application account | Every application surface; external/customer accounts are not planned |
+| Actor | Planned UI boundary |
+| --- | --- |
+| Administrator | Staff shell plus Administration surfaces for accounts/access/roles, principals, configuration, and approved mailbox allowlist. |
+| Engineer, User | Staff shell without Administration surfaces. Their ordinary Intake, Triage, Case, document, evidence, and lifecycle controls are identical. |
+| Automated processing | No UI account or interactive control. |
+| Provider client, `Next`/`unallocated` | No staff shell, Case workspace, or Administration surface. |
+| External/customer | No application account or application surface. |
 
-Every protected route and action must handle unauthenticated, disabled-session, stale-role, denied, loading and successful outcomes. Hiding a route or control never replaces server authorisation.
-
-Administration is limited to account administration, principal successor cutover, configuration and mailbox allowlist. It has no generic rules editor and no credential, cloud or release operation.
+Every protected route and action must handle unauthenticated, disabled-session, stale-role, denied, loading, and successful outcomes. Hiding a route or control never replaces server authorisation. Administration has no generic rules editor, credential/cloud/release operation, bulk predecessor import, or bulk Case-edit tool. No surface permits permanent deletion or direct external/customer Case editing.
 
 ## Operations-first shell
 
@@ -254,8 +252,15 @@ Rules:
 
 - Every metric is an exact query link to its corresponding filtered queue.
 - `Blocked intake` is exact wording and remains pre-case.
-- Zero is distinct from stale, partial, unavailable or failed.
-- Last-updated time and manual refresh are visible.
+- Every metric shows its last-good time and one current refresh state: loading,
+  current, stale, partial, unavailable, or failed.
+- `0` is a current result, never a substitute for stale, partial, unavailable,
+  failed, or not-yet-loaded data.
+- Manual refresh reruns the same filter, gives start/completion feedback, keeps
+  last-good data visible, and never claims an external action succeeded.
+- Refresh remains telemetry; accepting, rejecting, linking, or changing an
+  external fact during reconciliation is a permanent, attributable business
+  event.
 - Day boundaries use Europe/London midnight.
 - Week boundaries begin Monday.
 - At constrained desktop width or 200% zoom, the selected summary becomes an ordered, labelled section after the results without losing identity, state or action context.
@@ -271,7 +276,7 @@ The selection rationale is strongest shared-office awareness and truthful day/we
 | Worklist-first | Highest repeated case-queue throughput, initially focused on `Not ready`, with a selector limited to `Not ready`, `Review` and `Held`. It weakens whole-office day/week visibility. It must not become a generic cross-feature list; Intake and Triage remain dedicated, the summary is read-only, and consequential actions open focused flows. No bulk actions, saved personal queues, inline lifecycle mutation or speculative email work. |
 | Case-first | Clearest auditability and deep case context, with Cases/search as the landing and Operations retained as a full named route. It makes shared queue scanning less immediate and cannot be the earliest implementation. No generic Close, notes substitute, percentage completeness, named Engineer assignment, inline external editing, estimator, valuation, finance, AI or mobile controls. |
 
-The comparison rasters remain selection evidence. Their styling and details are not automatically approved.
+The comparison rasters remain selection evidence: [Operations-first](references/mockups/candidate-a-operations-first.png), [Worklist-first](references/mockups/candidate-b-worklist-first.png), and [Case-first](references/mockups/candidate-c-case-first.png). Their styling and details are not automatically approved.
 
 ## Current Development caller
 
@@ -335,28 +340,34 @@ Only the first table describes exercised components. Planned contracts do not cr
 
 | Component | Required contract |
 | --- | --- |
-| Shell/access | Sign-in; disabled, stale-role and denied outcomes; permitted-route visibility plus server authorisation |
-| Metric/queue | Label, value or unavailable state, freshness, exact destination filter; zero differs from stale or failed |
-| Intake workbench | Persistent source identity; evidence/candidate; fact versus suggestion versus confirmed value; provenance, missing/conflict; acceptance path and no-case failure consequence |
-| State action | Permitted transition, prerequisites, consequence, required reason, recovery and history link; never generic Close |
-| Identity header | Read-only Case/PO, principal, registration, type/secondary Audit identity, workflow state, due date and EVA proxy limitation |
-| Evidence/document panel | Original/source/version, logical removal and closed lock; Box/external state; exact Outlook evidence with separate discovery, link and sent times |
-| Lease/conflict | Holder, expiry and recovery; read-only alternative; current conflict and preserved proposed values |
-| History | Business mutation, accepted evidence, export and material denied/failed business action only |
+| Shell/access | Sign-in; disabled, stale-role and denied outcomes; visibility derived from the [Core-owned role matrix](../docs/requirements.md#staff-role-access-matrix) plus server authorisation |
+| Metric/queue | Label, value or unavailable state, last-good time, current refresh state and exact destination filter; `0`, loading, current, stale, partial, unavailable and failed remain distinct |
+| Intake workbench | Immutable source occurrence and evidence beside the distinct editable candidate/accepted Case projection; source/dispatch identity; `All`/`Instructions`/`Images` filter; fact versus suggestion versus confirmed value; provenance, ambiguity/conflict, association history, acceptance path and no-case consequence |
+| Request-scoped upload | Bound upload fields and immediate request-local result only; expired, revoked, limit, custody, replay and cross-request failures disclose no case/reference, request history or other material |
+| State action | One current Case and one named Core action; prerequisites, consequence, reason where required, recovery and history link; never a generic Close, bulk edit or external edit |
+| Identity header | Read-only Case/PO, principal, registration, type/secondary Audit identity, workflow state, `Due by`/overdue state and EVA proxy limitation |
+| Due/chaser panel | Missing-material reason, next chase, most recent recorded channel/outcome, optional note and next permitted action together; preparation/copy is not sent or delivered |
+| Inspection address | Explicit physical vehicle/repairer location or exact `Image Based Assessment`; physical address fields appear only for the first mode and never imply attendance |
+| Engineering findings | Separate Roadworthiness and Assessment controls; accepted and superseded versions, reasoned correction, reopen requirement and no inferred fee/invoice mutation |
+| Evidence/document panel | Original/source/version, logical removal and closed lock; Box/external state; issued report versions; exact Outlook evidence with separate discovery, link and sent times |
+| Lease/conflict | One current Case; holder, expiry, renew/release/reacquire state and read-only alternative; current conflict and preserved proposed values; no forced Administrator takeover |
+| History | Read-only presentation of the Core-owned [permanent action history](../docs/requirements.md#permanent-action-history), including actor/caller/time and one-Case scope without message bodies or telemetry noise |
 | Reason dialog | Named requirement and consequence; labelled reason; confirmation/cancel; initial focus, focus containment, Escape where safe and focus return to the invoking control |
+
+Opening source evidence or other supporting detail preserves the current list/detail position and every unsaved edit; returning never silently discards or replaces the operator’s proposed values.
 
 ## Planned workflow patterns
 
 ### Intake
 
-Intake retains source identity and provenance, original custody, attachments/images, facts, suggestions, confirmed values, validation, conflicts and origin.
+The Intake workbench presents the immutable [source occurrence and durable dispatch identity](../docs/requirements.md#source-occurrence-and-dispatch-identity), provenance, original custody, attachments/images, facts, and derivations separately from an editable candidate or accepted Case projection. A source never becomes the Case record merely because a candidate is accepted.
 
 The planned alpha surface includes:
 
 - manual upload;
 - automatic ingestion from `instructions@collisionengineers.co.uk`;
 - correct treatment of staff-forwarded email as real intake;
-- stable source identity, duplicate delivery and idempotent retry;
+- stable source-occurrence and dispatch identity, duplicate delivery, pending/retry state, and idempotent result;
 - EML and freehand email-body extraction;
 - PDF embedded text and embedded images;
 - DOCX text and every visible image placement without deduplicating repeated appearances;
@@ -369,90 +380,95 @@ The planned alpha surface includes:
 - `Needs sorting` and reasoned `Blocked intake`;
 - definitive and staff-resolved acceptance through the same business rules;
 - registration-based provisional identity for image-led work;
-- manual linking and reasoned reversal while preserving original origin;
+- ambiguous/conflicting association review and reasoned manual link, unlink, reversal, or reassociation while preserving every prior relationship and original origin under the [Core association contract](../docs/requirements.md#matching-conflicts-and-reversible-association);
 - missing, integrity, replay, retention, custody and persistence failures.
 
-A temporary external upload request is permitted only when an authenticated staff member creates a temporary, revocable, request-scoped unauthenticated link. It creates no external account, exposes no case/request state, is not permanent, and does not imply acceptance before token, custody and abuse contracts pass. The public surface is an isolated upload form with an immediate result only.
+A temporary external upload request is permitted only when authenticated staff
+create a temporary, expiring, revocable, request-scoped token. The isolated
+unauthenticated surface exposes only that request's upload fields and immediate
+result; it exposes no case/reference, request state/history, or other document,
+creates no external account, and never implies intake acceptance, Box custody,
+EVA handoff, or delivery. Expired, revoked, cross-request, limit, custody,
+idempotent-retry, and abuse outcomes are explicit acceptance states.
 
 Policy-specific email predicates and acceptance evidence remain open gates for only their named automatic paths. They do not weaken manual or shared fail-closed acceptance.
 
 ### Triage
 
-Triage is a distinct inbox classification/label plus a separate pre-case reference record. It is never a case state.
+Triage is a distinct inbox classification/label and separate pre-case record, never a case state. The UI implements the [Core-owned normal workflow and completion evidence](../docs/requirements.md#normal-workflow-and-completion-evidence) rather than defining another transition policy.
 
-Rules:
+The detail workspace presents the normal sequence from registration-gated `Needs sorting`, through `Open`, missing-information correspondence, and an accepted finding, to exact reply-chain evidence and `Completed`. It must show acknowledgement, information request, or other ordinary correspondence as non-completing activity; display missing, ambiguous, unapproved, or technically failed reply evidence; and expose `Cancelled` as the separately named end without finding/reply.
 
-- Registration is required; otherwise the source remains `Needs sorting`.
-- States are Open, Awaiting information, Finding recorded, Completed and Cancelled.
-- Findings are independently optional, but at least one is required before Finding recorded or Completed:
-  - Roadworthiness: Roadworthy or Unroadworthy.
-  - Assessment: Repairable or Total loss.
-- A case’s `has Triage` value is Boolean/reference-only.
-- Findings do not affect Case/PO/reference, workflow, final outcome, Engineer report, Audit suffix/allocation or any other decision.
-- Completion requires exact approved-mailbox reply-chain evidence.
-- Missing, ambiguous, unapproved or technically failed reply evidence remains visible.
-- Correction, replacement, new response, cancel, reopen, link, unlink and relink are reasoned and permanently recorded.
-- Assignee is optional.
-- There is no due date and no chaser UI.
+Finding correction/replacement, new response, reasoned reopen, and optional later Case link/unlink/relink remain visible in permanent history. The Case link is reference-only: Triage findings do not alter Case/PO, reference, lifecycle, final outcome, Engineer report, or Audit identity. Assignee remains optional, with no due date or chaser UI.
 
 ### Case
 
-Case identity keeps the following visible and immutable where specified:
+The Case workspace visibly preserves the immutable [Case/PO and principal identity](../docs/requirements.md#principal-reference-organisation-and-case-party-identity), registration, [Inspection, standalone Audit, or Inspection + Audit type](../docs/requirements.md#case-types), secondary Audit identity where applicable, workflow state, `Due by`/overdue state, and EVA proxy limitation. It presents accepted case-party functions and the inspection-address snapshot for that Case without allowing later reusable organisation/repairer edits to rewrite historical case evidence.
 
-- Case/PO;
-- allocated principal;
-- registration;
-- Inspection, standalone Audit, or Inspection + Audit type;
-- secondary Audit identity where applicable;
-- workflow state;
-- due date;
-- EVA handoff/proxy limitation.
-
-Allocated principal and reference never change. A wrong principal closes the original as **Created in error** with a reason and linked replacement. Neither reference is reused and the original never reopens.
+A wrong-principal repair is presented as the Core-owned `Created in error` original and its linked replacement, never as an editable Case/PO or principal field. Both references remain visible and the original has no reopen control.
 
 Case work includes:
 
-- source, provenance and typed case data;
+- source, provenance, and typed case data;
 - documents and images;
-- vehicle, DVLA/DVSA and MOT/mileage information;
-- inspection address or exact `Image Based Assessment`;
+- suggestion-first ordinary-image VRM with source-image/confirmed/no-result
+  distinction;
+- DVLA/DVSA and MOT/mileage observations with source/version/age and
+  supplied/external/estimated classification;
+- explicit physical vehicle/repairer location or exact `Image Based Assessment`;
+- separate Roadworthiness and Assessment findings plus correction history;
 - tasks and reminders;
-- seven-calendar-day missing-information chasers;
-- `Held` behavior that preserves the chase interval;
-- Box file request and copyable manual chasers;
+- `Due by`, missing-material reason, next chase, last channel/outcome, optional
+  note, and next permitted action in one work area;
+- seven-calendar-day missing-information chasers and `Held` behavior that
+  preserves the interval;
+- request-scoped upload-link creation and copyable manual chasers;
 - manual WhatsApp material;
-- successful EVA JSON/image export as the `Sent to Engineer` proxy;
-- exact report-Sent evidence;
-- lease/conflict recovery;
+- successful deterministic EVA JSON/image/manifest generation as the
+  once-per-case `First sent to Engineer` proxy, with later revisions distinct;
+- issued report/addendum versions and exact report-Sent evidence;
+- lease/conflict recovery; and
 - permanent action history.
 
 EVA owns actual named-Engineer assignment. Pegasus must not describe the export proxy as replacing EVA’s engineering workflow.
 
-Lifecycle states include `Not ready`, `Review`, `Held`, due/overdue and these exact terminal outcomes:
+No-result, unknown, stale, partial, unavailable, and failed vehicle/external
+states are distinct from a confirmed value. Refresh retains last-good data and
+never overwrites a staff-confirmed value. The UI shows source/version, prior and
+new value, actor, time, outcome, and reason when reconciliation changes business
+truth.
 
-1. Post-report completion
-2. Provider cancellation
-3. Collision Engineers rejection
-4. Created in error
+Roadworthiness and Assessment are independent professional findings. Correction
+retains the earlier accepted finding and displays the reasoned superseding
+version; a closed Case must be reasonedly reopened before revision. A finding or
+report correction never implies a fee/invoice change.
 
-Archive never deletes. Reopening requires a reason and a valid nonterminal destination; `Held` is not a reopen destination, and `Created in error` never reopens.
+Report generation, PDF custody, Outlook Sent evidence, and external receipt are
+separate. Report sent enters post-report work rather than closing the Case.
+`CASE-23` query/dispute controls remain `Next`/`unallocated`; the alpha UI
+invents no reply state machine.
 
-Cases are read-only until an explicit edit lease is held. Stale writes, expired/lost leases and conflicts must preserve proposed values and offer safe recovery or a read-only alternative.
+Lifecycle actions use only the named [Core lifecycle and correspondence contract](../docs/requirements.md#lifecycle-closure-and-correspondence): Post-report completion, Provider cancellation, Collision Engineers rejection, and Created in error remain distinct from acknowledgements, information requests, report-Sent evidence, queries, and other correspondence. The interface never substitutes a generic Close action. A closed Case is read-only; only a permitted reasoned reopen to a valid nonterminal state restores mutation controls, and `Created in error` offers only its linked-replacement route.
+
+Each Case has at most one authorised staff editor at a time through the [Core lease and mutation guard](../docs/requirements.md#case-edit-authority-and-recovery). Other authorised staff see the holder and that Case read-only. `Enter edit mode`, renewal, `Leave editing`, authoritative expiry, reload/compare, and reacquire are the only recovery interactions: lease loss or a stale version disables every mutation, preserves proposed values for comparison, and never overwrites the newer Case. There is no forced Administrator takeover, bulk Case edit, direct external edit, or collaborative merge control.
 
 ### Documents and external evidence
 
-- Create the Box case folder using the Case/PO name.
-- Retain source emails, instruction documents, images, correspondence and reports.
-- Preserve document versions.
+- Create the Box case folder using the immutable Case/PO name.
+- Retain source emails, instruction documents, images, correspondence, and reports.
+- Preserve document and issued report/addendum versions.
 - Use logical removal; never physically delete files through the workflow.
-- Closed-case documents are read-only until the case is validly reopened.
-- Show Box unavailable, pending, retry and unknown states rather than implying success.
-- Provide authorised upload, view, download and export actions.
+- Closed-case documents are read-only until the Case is validly reopened.
+- Show Box unavailable, pending, retry, and unknown states rather than implying success.
+- Provide authorised staff upload, view, download, and export actions.
+- Treat request-scoped public upload as request-local receipt only, not Case creation, Box custody, EVA handoff, report generation, or delivery.
 - Private transient Worker staging is not a staff surface or downloadable area.
-- Report evidence uses the exact Outlook Sent item and keeps discovery, link and sent times distinct.
-- Manual link, unlink or relink requires a reason.
+- Keep picture upload, report-with-PDF handoff, PDF generation/custody, and external delivery as distinct evidence states.
+- Report evidence uses the exact Outlook Sent item and keeps discovery, link, and sent times distinct.
+- Manual link, unlink, or relink requires a reason and deterministically recomputes dependent events/counts.
+- Preserve the final accepted Sent association even if Outlook later moves or deletes the item.
 - Ambiguous or absent evidence remains visible.
-- Triage reply evidence and case report-Sent evidence are separate contracts.
+- Triage reply evidence and Case report-Sent evidence are separate contracts.
 - Chasers are copyable for manual sending; automated outbound messages are deferred.
 
 ### Search and filters
@@ -473,25 +489,17 @@ The exact UI-07 fields are:
 
 ### Permanent history
 
-Permanent action history records:
-
-- business mutations;
-- accepted external evidence;
-- exports;
-- material denied or failed business actions;
-- actor, time, outcome, reason and before/after values.
-
-It excludes routine views, refresh, polling, retries, leases, heartbeats and adapter or Worker mechanics. Those belong in telemetry or security evidence outside the operational UI.
+The History panel is a read-only presentation of the [Core-owned permanent action history](../docs/requirements.md#permanent-action-history). It shows the attributable staff or automated actor, caller, time, one affected Case or pre-case record, action/outcome, reason where required, and before/after or evidence reference needed to understand each business event. It does not render message bodies, routine views, refresh/polling, retries, lease heartbeats, or adapter/Worker mechanics; those remain telemetry or security evidence outside the operational UI.
 
 ## Complete UI state contract
 
 | Scope | Required states |
 | --- | --- |
-| Queries | Loading; empty; success; stale/partial with last-good time; transient error/retry; unauthenticated; disabled; stale-role; denied |
+| Queries | Loading; empty; current success; stale with last-good time; partial; unavailable; failed/retry; unauthenticated; disabled; stale-role; denied |
 | Mutations | Validation; confirmation; success; denied; stale version; lease lost; dependency unavailable; idempotent/replayed result; conflict and recovery |
-| Intake | Empty/oversize; replay; retention/custody failure; Draft ready; Needs sorting; Unsupported; missing/integrity asset; evidence missing/contradictory; reasoned Blocked intake/resolve/retry; every acceptance path; refusal with no case/reference |
+| Intake | Empty/oversize; replay; retention/custody failure; Draft ready; Needs sorting; Unsupported; missing/integrity asset; evidence missing/contradictory; reasoned Blocked intake/resolve/retry; every acceptance path; refusal with no case/reference; upload token expired/revoked/cross-request/limit/abuse result |
 | Triage | Registration missing; unassigned/assigned; every named state; missing/ambiguous/unapproved/technical reply evidence; finding replacement/correction/new response; cancel/reopen/link/unlink/relink |
-| Case | Not ready/chasing; Review; Held/preserved interval; due/overdue; gate refusal; documents locked; Box/external-effect states; EVA proxy limitation; report evidence absent/ambiguous/manual/exact; every terminal outcome; archive; reopened; Created-in-error nonreopenable; lease held/expired/lost/stale |
+| Case | Not ready/chasing; Review; Held/preserved interval; due/overdue; chaser last-outcome/next-action; gate refusal; physical address/Image Based Assessment; VRM and vehicle/MOT suggestion/no-result/stale/unavailable/failure; independent finding correction; documents locked; Box/external-effect states; EVA proxy/revision limitation; report generated/custodied/sent/externally received distinction; report evidence absent/ambiguous/manual/exact; every terminal outcome; archive; reopened; Created-in-error nonreopenable; lease held/expired/lost/stale |
 
 ## Accessibility
 
