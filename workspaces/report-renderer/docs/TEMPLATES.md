@@ -382,6 +382,12 @@ A row of image columns. Each item has a `caption`, an optional `imagePath`, and 
 `imagePath` accepts a data URI, an `http(s)` URL, or an absolute path to a file on disk (PNG/JPG/GIF,
 inlined as a data URI). When `imagePath` is empty, a placeholder slot is rendered with the caption.
 
+This is the default Core policy, not the API attachment policy. `CollisionRenderer.Core` preserves an
+HTTP(S) image URL in the composed `src` and reports that its existence and size were not checked.
+`CollisionRenderer.Api` rejects HTTP(S) image URLs and raw caller-local paths in JSON requests; API
+callers must instead send an accepted `data:` image URI or upload the file through
+`/v1/render.multipart`.
+
 ```json
 {
   "type": "mediarow",

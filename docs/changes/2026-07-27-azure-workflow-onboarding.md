@@ -57,8 +57,8 @@ marketing system, and end as a green independently reviewed pull request.
 
 ## Authorities, current state, and constraints
 
-- Authorities: current user direction, [operator notes](../operator-notes/),
-  canonical [product requirements](../product/), retained
+- Authorities: current user direction, [operator notes](../operator-notes.md),
+  canonical [product requirements](../requirements.md), retained
   [questionnaire](../history/product/project-discovery-questionnaire.md) and
   [feature-source](../history/product/feature-versioning-worksheet.md) evidence,
   accepted historical ADRs, current code/tests/IaC, and supplied design evidence
@@ -223,9 +223,9 @@ scope and separate approval.
   and repository-entry owners are affected. Supplied reference content remains
   evidence; only links from first-party reports are repaired.
 - Agent mistake entries: none.
-- Product/capabilities: [product profile](../product/index.md) and [213-row inventory](../product/capabilities.md).
+- Product/capabilities: [product requirements](../requirements.md) and [current capability inventory](../capabilities.md).
 - Design system/assets: [adapted design authority](../../design/README.md) and exact [master logo](../../design/brand/logos/logo_no_margin.png).
-- Roadmap/release: [roadmap](../roadmap.md); no release allocations changed.
+- Roadmap/release: [capability allocation summary](../capabilities.md#allocation-summary); no release allocations changed.
 - Architecture/ADR: [architecture](../architecture.md) and [ADR 0010](../decisions/0010-adopt-azure-workflow.md).
 - Operations: [operations](../operations.md), proportional CI, and repository-owned checks.
 - GitHub issue/Project/milestone: no issue or milestone created; draft [PR 2](https://github.com/collisionengineers/collisionspike_v2/pull/2) is registered in linked [Project 3](https://github.com/users/collisionengineers/projects/3).

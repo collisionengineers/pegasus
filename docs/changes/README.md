@@ -1,8 +1,23 @@
 # Change records
 
-Each material repository change owns one dated record in this directory. A
-record contains the plan, evidence, review, documentation impact, and outcome
-for that change; it is not a backlog or generated status ledger.
+Each material repository change owns one dated record in this directory. The
+record contains the accepted plan, affected canonical owners, decisions and
+conflicts, deferred-capability impact, evidence, review, and outcome for that
+change. It is not a backlog, generated status ledger, or second workflow
+database.
 
-GitHub issues and Projects own actionable work state. Product requirements,
-roadmap, architecture, operations, and design remain in their canonical owners.
+Retain a completed record when it is the unique independently reviewed evidence
+for that change. Do not copy it into a history/status tree. Active plans,
+implementation, exact-head review, deployment, live verification, and operator
+acceptance remain distinct and are recorded only when proved.
+
+GitHub issues and Projects own actionable work state. [Requirements](../requirements.md),
+[capabilities](../capabilities.md), [architecture](../architecture.md),
+[operations](../operations.md), [engineering](../engineering.md), and
+[design](../../design/README.md) remain their canonical owners.
+
+## Current records
+
+- [Repository orientation and documentation centralization](2026-07-27-pegasus-repository-orientation.md)
+- [QDOS alpha reference corpora and delivery](2026-07-27-qdos-alpha-reference-corpora.md)
+- [Azure workflow onboarding](2026-07-27-azure-workflow-onboarding.md) — immutable completed provenance; current workflow is Decision 0012.

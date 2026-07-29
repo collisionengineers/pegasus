@@ -1,40 +1,100 @@
-# Notices — third-party components
+# Notices — legal, third-party and provenance
 
-Collision Renderer is an internal Collision Engineers Ltd product. It uses the
-following third-party components.
+Collision Renderer is an internal Collision Engineers Ltd product workspace. This notice records facts present in the retained sources and current project graph. It is not a substitute for the licence texts distributed by upstream projects or packages, and it does not infer a licence where the retained sources do not state one.
 
-| Component | Purpose | Licence |
-|---|---|---|
-| [Microsoft.Playwright](https://github.com/microsoft/playwright-dotnet) | Headless-Chromium PDF rendering | Apache-2.0 |
-| Chromium (downloaded by Playwright) | Browser engine | BSD-3-Clause and others |
-| [Scriban](https://github.com/scriban/scriban) | HTML template engine | BSD-2-Clause |
-| .NET 8 / ASP.NET Core | Runtime and web host | MIT |
-| xUnit | Test framework | Apache-2.0 |
-| Liberation / DejaVu fonts (container only) | Arial-metric body text on Linux | OFL / GPL+exception |
+The workspace is source-only and non-caller in its current repository context. Nothing in this notice represents that the software has been integrated into or deployed by another product or service.
+
+## Direct package dependencies in the retained project graph
+
+| Project | Direct package | Version | Purpose | Licence conclusion retained in sources |
+| --- | --- | ---: | --- | --- |
+| `CollisionRenderer.Core` | PDFsharp | `6.2.4` | Appends validated evidence PDFs after Chromium rendering; not used for page layout. | No conclusion stated in the retained notice; verify the package's distributed licence/notice. |
+| `CollisionRenderer.Core` | Scriban | `5.12.1` | First-party HTML body-template engine. | BSD-2-Clause. |
+| `CollisionRenderer.Core` | Microsoft.Playwright | `1.61.0` | Controls headless Chromium for HTML-to-PDF rendering. | Apache-2.0. |
+| `CollisionRenderer.Gui` | Microsoft.WindowsAppSDK | `2.2.0` | WinUI 3 / Windows desktop runtime and UI platform. | No conclusion stated in the retained notice; verify the package's distributed licence/notice. |
+| `CollisionRenderer.Gui` | CommunityToolkit.Mvvm | `8.4.2` | GUI MVVM support. | No conclusion stated in the retained notice; verify the package's distributed licence/notice. |
+| `CollisionRenderer.Mcp` | ModelContextProtocol | `1.4.0` | MCP server contracts and transport support. | No conclusion stated in the retained notice; verify the package's distributed licence/notice. |
+| `CollisionRenderer.Mcp` | Microsoft.Extensions.Hosting | `9.0.0` | MCP process hosting, dependency injection, configuration and lifetime. | No conclusion stated in the retained notice; verify the package's distributed licence/notice. |
+
+Project references to Core are internal graph edges, not third-party package entries. Transitive dependencies remain governed by their own package manifests, notices and licence files.
+
+## Runtime, test and container components
+
+| Component | Purpose | Licence statement retained in sources |
+| --- | --- | --- |
+| Chromium supplied/downloaded for Playwright | Browser and PDF engine. | BSD-3-Clause and others. Chromium is a multi-component work and its accompanying notices remain authoritative. |
+| .NET / ASP.NET Core | Runtime, base class libraries and API host. | MIT. |
+| xUnit | Test framework used by retained test projects. | Apache-2.0. |
+| Liberation fonts | Arial-metric Linux body text in the container. | OFL, as recorded in the retained notice. |
+| DejaVu fonts | Linux fallback fonts in the container. | GPL with exception, as recorded in the retained notice. |
+
+The Playwright runtime image and operating-system packages contain additional components. Container distributions must retain the image/package notices required by their upstream terms. This workspace notice does not replace those inventories.
 
 ## Brand assets
 
-- The master gear-"C" logo (`design/brand/logos/logo_no_margin.png`) and the
-  engineer signatures (`design/brand/signatures/`) are **Collision Engineers Ltd**
-  property. Do not redraw the gear.
-- The client-supplied **Tw Cen MT Std** and **Futura** typefaces (and the white
-  reverse logo) were removed from the repo in July 2026 as unused — no template
-  referenced them. Rendered documents use Arial (Windows) or a metric-compatible
-  substitute (Liberation Sans) in the Linux container, so no proprietary font data
-  ships inside generated PDFs. Keep it that way unless a font licence is confirmed
-  to permit embedding.
+The master gear-“C” logo at `design/brand/logos/logo_no_margin.png` and engineer signatures under `design/brand/signatures/` are Collision Engineers Ltd property. They are governed brand assets, not third-party open-source components.
 
-## Reference material
+- Do not redraw, reconstruct or substitute the gear logo without brand authority.
+- Bundled signatures must be used only for authorised document production.
+- Payload-supplied custom signatures and images are case data, not additions to the brand library.
+- Build-time embedding in Core does not transfer ownership or grant reuse outside the authorised product context.
 
-`documentexamples/` and `stylexamples/` hold real customer reports (vehicle
-registrations, claim details). `collision-engineers-design-dev/` and
-`report-renderer/` are prior-art/design references. None of these four folders is
-product source; if present locally they are **git-ignored** and must never be
-committed or redistributed. See `docs/adr/0009-reference-material-handling.md`.
+Tw Cen MT Std, Futura and the unused white reverse logo do not ship as renderer font/assets. Rendered body copy uses Arial where available or a metric-compatible substitute such as Liberation Sans in Linux. Do not add or embed proprietary font files unless their licence has been checked and recorded as permitting the intended distribution and embedding.
 
-## Security note
+## Design and source provenance
 
-The Scriban advisories (NU1901–NU1904) are suppressed at build time. Templates are
-first-party, embedded artifacts and are never authored by end users at runtime; all
-payload data is HTML-encoded and passed as template *values*, never compiled. See
-`docs/adr/0010-accept-scriban-security-advisories.md`.
+The root design authority is the repository `design/README.md`. Renderer templates, stylesheet, logo and signatures are linked or embedded from governed design sources at build time rather than maintained as divergent workspace copies.
+
+The visual and behavioural design was informed by:
+
+- the CSS-native Collision Engineers design material;
+- prior renderer behaviour and preferred output references;
+- private document/style examples used for local comparison.
+
+Reference material informs implementation but is not product source and must not become a runtime or build dependency.
+
+## Private reference material and personal data
+
+The following local folders may contain prior art or sensitive reference material:
+
+- `documentexamples/`;
+- `stylexamples/`;
+- `collision-engineers-design-dev/`;
+- `report-renderer/`.
+
+`documentexamples/` and `stylexamples/` contain real customer reports and may include names, vehicle registrations, claim details and other personal or confidential information. All four folders are local reference material, are git-ignored when present and must not be committed, redistributed, published in package contents or copied into synthetic fixtures.
+
+Any exact local inventory, extracted text, page rasterisation or comparison output belongs under ignored `artifacts/` storage. Tracked documentation may describe reference families and aggregate use, but must not reproduce sensitive filenames or case facts. See ADR-0009.
+
+## Generated documents and attachments
+
+Rendered PDFs, advert captures, uploaded evidence, custom signatures, local image paths and saved drafts can contain customer or case data. They must be handled under the applicable organisational retention, access and confidentiality rules.
+
+- Do not commit generated customer documents or uploads.
+- Do not use customer payloads as tests, starter drafts or examples.
+- Use synthetic, non-identifying fixtures for automated tests.
+- Local MCP artefacts under `%LOCALAPPDATA%\CollisionRenderer\output` are user-local case artefacts and require the same care as CLI, GUI or API output.
+- API multipart temporary files must not be treated as durable source assets.
+
+## Security notice
+
+Scriban advisories NU1901–NU1904 are suppressed under the accepted rationale recorded in ADR-0010:
+
+- Scriban templates are first-party embedded artefacts;
+- end users do not author or compile runtime templates;
+- payload text is HTML-encoded and passed as values rather than compiled as template source.
+
+This is a constrained acceptance, not a general statement that the advisories are irrelevant. If runtime template authoring, unencoded values, dynamic template compilation or a new trust boundary is introduced, the acceptance must be revisited before release.
+
+The API supports optional bearer authentication through:
+
+- `CR_API_TOKEN` for compatibility with one raw token;
+- `CR_API_TOKENS` for raw-token rotation lists;
+- `CR_API_TOKEN_SHA256` for one SHA-256 token value;
+- `CR_API_TOKEN_SHA256S` for SHA-256 rotation lists.
+
+When any token source is configured, every route except `/healthz` is protected. Presented bearer tokens are checked using SHA-256-based constant-time comparison. Authentication does not replace transport security, secret management, host access control, request-size controls or attachment validation. See ADR-0011, which supersedes only ADR-0008's authentication detail.
+
+## No inferred grants or conclusions
+
+Except for the licence statements explicitly retained above, this document does not conclude the copyright status, compatibility, redistribution terms, patent terms or trademark rights of a dependency. Before external distribution, obtain the exact resolved dependency inventory and retain the licence and notice files supplied with those resolved versions.

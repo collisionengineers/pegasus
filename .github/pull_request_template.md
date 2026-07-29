@@ -12,6 +12,8 @@ Describe the observable result.
 - Issue: none or URL
 - Change record: relative path, or `not required — low-risk mechanical change`
 - Target release/horizon: exact value or unallocated
+- Evidence state: intended / implemented / caller-proved / deployed / live-verified / accepted
+- Deferred-capability impact: named deferrals, preserved seam/data identity, exclusions, activation evidence, and irreversible choices
 
 ## Documentation impact
 
@@ -25,7 +27,7 @@ List updated canonical owners, or give a specific reason none changed.
 ## Review
 
 - Exact head: pending
-- Independent Codex review: pending
+- Independent exact-head review: pending
 - Existing feedback reconciled: pending
 
 ## Azure
