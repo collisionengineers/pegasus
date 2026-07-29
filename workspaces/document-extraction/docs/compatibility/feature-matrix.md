@@ -60,9 +60,9 @@ Intended surface (current support remains this row): [legacy DOC extraction plan
 | Pre-97 Word family | EXT-DOC-012 | mapped | Corpus/specification research followed by an explicit parser/support decision |
 | Projection, security, fuzz, differential, corpus and performance acceptance | EXT-DOC-013 | partial | The latest recorded Writer run expanded 36 source test methods to 44 passing cases, plus a positive raw-CFB integration and whole-result retry; no manifested DOC fixtures, conformance/differential suite, deep valid-DOC fuzz/security lane, hidden holdout or 10 MiB semantic performance acceptance exists |
 
-## WordprocessingML `.docx`
+## WordprocessingML `.docx` source-workspace architecture
 
-Intended surface (current support remains this row): [DOCX extraction plan](../formats.md#wordprocessingml-docx). DOCX is a required independent input family.
+Workspace extraction surface: [DOCX extraction plan](../formats.md#wordprocessingml-docx). This row describes the independently tested source library; it is not a Pegasus integration contract.
 
 | Capability | Port unit | Status | Evidence or next gate |
 |---|---|---|---|
