@@ -1,6 +1,6 @@
 # Dispute Response Boundaries
 
-> **Source-workspace boundary:** Retain evidence-gated response prompts, remove settlement/legal policy claims and link ce-house-style only for wording. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+> **Source-workspace boundary:** This file is package-local evidence or an experiment only; it is not a Pegasus caller, settlement/legal policy, current instruction, or acceptance authority. `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, outcome, response, and approval.
 
 
 Use this when the user asks for an external response about a repair estimate, total-loss position,

@@ -1,6 +1,6 @@
 # Estimate Construction
 
-> **Source-workspace boundary:** Retain deterministic payload projection and status flags, but remove 'package-local projection owner'/'source-supported candidate' as business policy and make it an experiment fixture contract. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+> **Source-workspace boundary:** This file is an experimental fixture contract, not a Pegasus projection owner, caller, business policy, current instruction, or acceptance authority. `Pegasus.Core` and an authorised human own accepted facts, costs, and outcomes.
 
 
 How the line-by-line repair estimate is built, justified, totalled, checked, and projected into

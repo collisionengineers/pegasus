@@ -1,6 +1,6 @@
 # Document Structure & `data.json` Schema
 
-> **Source-workspace boundary:** Retain payload schema/renderer shape, remove court/legal sign-off as authority and state it is an experimental document fixture. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+> **Source-workspace boundary:** This file is package-local evidence or an experiment only; it is not a Pegasus caller, policy, current instruction, or acceptance authority. `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
 
 
 The generator (`scripts/build_report.js`) always lays the report out in this fixed order. You only supply content; the styling is automatic.

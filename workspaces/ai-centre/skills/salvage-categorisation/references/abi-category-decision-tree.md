@@ -1,6 +1,6 @@
 # ABI Category Decision Tree
 
-> **Source-workspace boundary:** Retain dated pointer/provenance and current-source verification; no local ABI authority. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+> **Source-workspace boundary:** This file is dated package-local evidence, not ABI authority, a Pegasus caller, policy, current instruction, or acceptance authority. `Pegasus.Core`, current operator authority, and an authorised human own every accepted category, outcome, and approval.
 
 
 Use this as a distilled decision path. Verify against the current ABI Code source where exact wording

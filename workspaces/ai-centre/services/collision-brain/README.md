@@ -1,13 +1,19 @@
 # RAG Pipeline
 
-> **Source-workspace boundary:** Retain implemented v1 service scope and commands, but label it a source-workspace service with no Pegasus caller and update retired research links. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+Independent Collision Brain source service
 
+> **Source-workspace boundary:** This is an independently runnable source
+> service with no Pegasus caller, deployment, selected provider, or application
+> authority. Its code and commands are implementation/evaluation evidence only;
+> `Pegasus.Core`, current operator authority, and an authorised human own every
+> accepted fact, outcome, send, report issue, and approval.
 
-Provider-agnostic document ingestion and hybrid retrieval for Collision Engineers, exposed through
-Model Context Protocol (MCP).
+When run in its own development environment, the service provides
+provider-agnostic document ingestion and hybrid retrieval through its
+package-local MCP interface. That interface is not a Pegasus integration seam.
 
-The service retrieves source passages and citations. The calling AI remains responsible for
-answer generation.
+The source service returns passages and citations; it neither generates nor
+accepts a Pegasus answer.
 
 ## V1 capabilities
 

@@ -1,6 +1,6 @@
 # AQP Boundaries
 
-> **Source-workspace boundary:** Retain qualification/escalation guidance as experiment metadata, not a substitute for an authorised AQP. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+> **Source-workspace boundary:** This file is package-local evaluation evidence, not a substitute for an authorised AQP, a Pegasus caller, policy, current instruction, or acceptance authority.
 
 
 Use this before presenting a salvage category recommendation.

@@ -1,6 +1,6 @@
 # Canonical Query Responses
 
-> **Source-workspace boundary:** Keep as labelled example templates, remove assertions of liability/entitlement as canonical policy, require current operator/Core evidence and approval. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+> **Source-workspace boundary:** This file is package-local evidence or an experiment only; it is not a Pegasus caller, policy, current instruction, or acceptance authority. `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
 
 
 Backbone scripts for common TPI/insurer challenges. Fill `[bracketed]` figures from the case and

@@ -1,6 +1,6 @@
 # Website System
 
-> **Source-workspace boundary:** Retain source recreation notes, explicitly not the Pegasus Web/design authority. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+> **Source-workspace boundary:** This file is package-local visual evidence only; root [design authority](../../../../../design/README.md) owns accepted Pegasus design. It is not a Pegasus caller, policy, current instruction, or acceptance authority.
 
 
 Layout rules, motion, interaction states, and component patterns for `collisionengineers.co.uk`.

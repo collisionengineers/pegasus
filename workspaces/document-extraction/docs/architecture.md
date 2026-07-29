@@ -66,7 +66,7 @@ The installed and pinned development SDK is .NET `10.0.302`; .NET `10.0.300` is 
 
 ## Delivery and caller boundary
 
-The intended application integration is a CollisionSpike Infrastructure adapter calling the public extraction library directly. That adapter is not currently proved.
+A possible Pegasus application integration is a `Pegasus.Infrastructure` adapter calling the public extraction library directly. No such adapter or caller is currently proved; activation requires a separately accepted integration contract.
 
 Current source evidence shows only a development-local Pegasus intake path: `Pegasus.Web` Razor Page `POST /Intake/Upload` calls `Pegasus.Core.Intake.ProcessIntake.ExecuteAsync`. It is enabled only when both the `DevelopmentOffline` runtime profile and `Features:LocalIntake` are active; otherwise `/Intake` returns `404`. This is not production, deployment, or extractor-caller evidence.
 
@@ -98,7 +98,7 @@ CollisionDocNet.Cli
                  -> CollisionDocNet.Core
 ```
 
-Format projects may share owned storage and decoding primitives. They must not call another format engine or depend on CollisionSpike or Pegasus. CollisionSpike is intended to call only the public extraction package through its own Infrastructure adapter.
+Format projects may share owned storage and decoding primitives. They must not call another format engine or depend on Pegasus; `CollisionSpike` is predecessor identity only. Any accepted future Pegasus integration must call the public extraction package through a `Pegasus.Infrastructure` adapter.
 
 Projects are created only when an active `EXT-*` implementation unit owns source and tests. Empty reservation projects are prohibited. Names may change only through an accepted decision supported by implementation evidence demonstrating a more cohesive boundary.
 
@@ -230,7 +230,7 @@ Generation is justified only for large, stable tables such as PDF operators and 
 
 ## Headless CLI target contract
 
-`CollisionDocNet.Cli` is intended as a machine-oriented, one-shot adapter over `CollisionDocNet.Extraction` for scripted extraction, isolated corpus evaluation, diagnostics, and operator verification. CollisionSpike is intended to use the library directly rather than spawning the CLI in production.
+`CollisionDocNet.Cli` is intended as a machine-oriented, one-shot adapter over `CollisionDocNet.Extraction` for scripted extraction, isolated corpus evaluation, diagnostics, and operator verification. Any separately accepted Pegasus integration must use the library directly rather than spawning the CLI as an application runtime.
 
 The CLI does not detect or parse formats. It owns only caller-controlled I/O, argument validation, cancellation, result serialization, safe image materialization, and process exit status.
 
@@ -325,7 +325,7 @@ The Word Binary target is divided among stable implementation units:
 | `EXT-DOC-012` | Acquisition evidence and hint handling |
 | `EXT-DOC-013` | Public projection, stable evidence, and completeness accounting |
 
-The intended caller is the single extraction API and, eventually, a CollisionSpike Infrastructure adapter. No real application caller is currently proved.
+The workspace caller is the single extraction API. A possible future application caller is a separately accepted `Pegasus.Infrastructure` adapter; no real Pegasus application caller is currently proved.
 
 Research state as of 2026-07-24 is narrower than implementation:
 
