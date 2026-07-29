@@ -57,3 +57,17 @@ also the repository's architecture invariants.
 - Delivery stops at a green exact-head pull request with no unresolved blocker/required finding; never merge from an agent workflow.
 - Append only qualifying incidents to `docs/agent-mistakes.md`; do not rewrite prior entries or log routine findings caught by their intended gate.
 - Report cloud writes, destructive operations, secret exposure, skipped checks, and remaining ambiguity. Do not create generated status ledgers, task journals, handoff JSON, or a second workflow database.
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked in `collisionengineers/pegasus` GitHub Issues. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Triage uses the canonical `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, and `wontfix` labels. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Pegasus uses a single-context layout with a root `CONTEXT.md` glossary and canonical ADRs under `docs/adr/`. See `docs/agents/domain.md`.

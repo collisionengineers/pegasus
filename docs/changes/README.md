@@ -21,4 +21,4 @@ GitHub issues and Projects own actionable work state. [Requirements](../requirem
 - [Repository orientation and documentation centralization](2026-07-27-pegasus-repository-orientation.md)
 - [Capability release allocation](2026-07-29-version-all-planned-capabilities.md)
 - [QDOS alpha reference corpora and delivery](2026-07-27-qdos-alpha-reference-corpora.md)
-- [Azure workflow onboarding](2026-07-27-azure-workflow-onboarding.md) — immutable completed provenance; current workflow is Decision 0012.
+- [Azure workflow onboarding](2026-07-27-azure-workflow-onboarding.md) — immutable completed migration provenance; current workflow is owned by [engineering guidance](../engineering.md).

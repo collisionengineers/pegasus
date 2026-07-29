@@ -12,7 +12,7 @@ Primary matrix IDs: `ACC-11`, `OPS-01`, `OPS-02`, `OPS-03`, `OPS-04`, `OPS-05`, 
 
 ## Authority and current boundary
 
-- **Authority:** [ADR-0002](../../../../decisions/ADR-0002-dotnet-modular-monolith-on-azure.md), [ADR-0009](../../../../decisions/ADR-0009-direct-terminal-azure-deployment.md), [remaining requirements](../../../../product/qdos-alpha-gap.md#7-azure-and-release-readiness), [current inventory](../../../../azure/current-inventory.md), and [replacement/retirement plan](../../../../azure/replacement-and-retirement-plan.md).
+- **Authority:** [ADR-0002](../../../../adr/0002-dotnet-modular-monolith-on-azure.md), [ADR-0007](../../../../adr/0007-direct-terminal-azure-deployment.md), [remaining requirements](../../../../product/qdos-alpha-gap.md#7-azure-and-release-readiness), [current inventory](../../../../azure/current-inventory.md), and [replacement/retirement plan](../../../../azure/replacement-and-retirement-plan.md).
 - **Policy owner:** Infrastructure definitions and Web/Worker composition own Azure translation; Core remains free of Azure dependencies.
 - **Current implementation:** `infra/main.bicep`, `infra/modules/platform.bicep`, `azure.yaml`, and `.github/workflows/ci.yml` are source only. The tracked `azure.yaml` names Web/Worker services and a post-provision database script, but neither it nor Bicep supplies the accepted dedicated migrator/immutable-artifact release path. The Web App still sets `SCM_DO_BUILD_DURING_DEPLOYMENT=true`. These files do not establish a deployed or verified `Next`/`unallocated` environment.
 - **Real callers:** Local Web health endpoints exist. `azd` has a tracked but unexercised service manifest; Azure-hosted Web/Worker and release paths remain planned until the manifest is reconciled and exercised.
@@ -30,7 +30,7 @@ Current Microsoft guidance was refreshed read-only on 2026-07-23: [.NET isolated
 
 **Evidence state:** Planned
 
-`OPS-10` is an authorised-terminal `0.0.0-development` proof of one exact UK South shared-development target. It begins only after the [ADR-0009 package, migration, identity and provenance foundation](#reconcile-infrastructure-and-identity-boundaries) has locally produced separately hashed Web, Worker and immutable migration bundles with pinned tool/runtime provenance, removed remote build, and defined separated deployment, migrator and no-DDL runtime identities. A second gate then requires exact subscription, tenant, resource-group, SKU, quota, policy and spending-cap approval. The authorised terminal previews/provisions the target, applies the named migration bundle, and deploys the same hashed application packages; source Bicep, `azd` registration or a health endpoint is not deployment/caller evidence. Capture exact target, bundle hashes/provenance, Entra-only SQL mode, identity/RBAC separation, schema and smoke result; stop before a write on preflight failure, and recover only by the approved target-specific procedure. This establishes neither production deployment, a Worker business caller, external integration, live verification nor acceptance; it creates no dormant `Next`/`unallocated` resource, second environment, slot, private network, region or failover topology.
+`OPS-10` is an authorised-terminal `0.0.0-development` proof of one exact UK South shared-development target. It begins only after the [ADR-0007 package, migration, identity and provenance foundation](#reconcile-infrastructure-and-identity-boundaries) has locally produced separately hashed Web, Worker and immutable migration bundles with pinned tool/runtime provenance, removed remote build, and defined separated deployment, migrator and no-DDL runtime identities. A second gate then requires exact subscription, tenant, resource-group, SKU, quota, policy and spending-cap approval. The authorised terminal previews/provisions the target, applies the named migration bundle, and deploys the same hashed application packages; source Bicep, `azd` registration or a health endpoint does not prove this route.
 
 ## Reconcile infrastructure and identity boundaries
 
@@ -38,7 +38,7 @@ Current Microsoft guidance was refreshed read-only on 2026-07-23: [.NET isolated
 
 ### Authority and decision gate
 
-- **Requirement/decision:** Use the accepted [.NET 10 modular-monolith Azure architecture](../../../../decisions/ADR-0002-dotnet-modular-monolith-on-azure.md), implement the [ADR-0009 direct-terminal package/migration sequence](../../../../decisions/ADR-0009-direct-terminal-azure-deployment.md), and refresh the [current Azure inventory](../../../../azure/current-inventory.md) before design or implementation.
+- **Requirement/decision:** Use the accepted [.NET 10 modular-monolith Azure architecture](../../../../adr/0002-dotnet-modular-monolith-on-azure.md), implement the [ADR-0007 direct-terminal package/migration sequence](../../../../adr/0007-direct-terminal-azure-deployment.md), and refresh the [current Azure inventory](../../../../azure/current-inventory.md) before design or implementation.
 - **Confirmed facts:** Region and initial topology are accepted; SKU availability, API versions, quotas, policies, target-group existence and prices are volatile.
 - **Decision required before implementation:** None for local Bicep correction. Every Azure preview or mutation requires a fresh, exact approval.
 
@@ -213,7 +213,7 @@ Current Microsoft guidance was refreshed read-only on 2026-07-23: [.NET isolated
 
 ### Caller, contract and change boundary
 
-- **Real or intended caller:** An authorised production terminal executing the ADR-0009 sequence after exact approval.
+- **Real or intended caller:** An authorised production terminal executing the ADR-0007 sequence after exact approval.
 - **Input/output:** Separately immutable Web, Worker and migration bundles from one validated source revision, plus a manifest of their SHA-256 hashes and pinned tool/runtime provenance, produce a health-checked release with prior application bundles retained.
 - **Ordered decisions and failure behavior:** Gate writes, pause Worker claims, migrate expand-only, deploy Web then Worker, smoke, enable integrations singly; on failure pause and redeploy prior artifacts.
 - **Persistence/migration:** Release records the migration-bundle hash and migration identity before applying it. Only the migrator has schema-change permission; deployment has infrastructure/package scope, and Web/Worker runtime identities have no DDL. Azure SQL stays Entra-only throughout.

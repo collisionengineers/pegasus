@@ -587,7 +587,7 @@ The Azure inventory owned through [Azure documentation](azure/README.md) include
 
 ## Deployment and release
 
-The accepted direct-terminal Azure design is indexed by [architecture](architecture.md) and the [decision register](decisions/README.md). The target files are `infra/`, `azure.yaml`, and `.azure/deployment-plan.md`.
+The accepted direct-terminal Azure design is indexed by [architecture](architecture.md) and the [decision register](adr/README.md). The target files are `infra/`, `azure.yaml`, and `.azure/deployment-plan.md`.
 
 The deployment route is not yet executable or production-ready. `azd up` is not the production release procedure. GitHub Actions/OIDC deployment is `Not planned`.
 

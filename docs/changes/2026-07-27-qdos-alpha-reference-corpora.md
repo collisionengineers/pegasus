@@ -47,7 +47,7 @@ Current requirements, capability allocation, architecture, operations, design, d
 - [operations](../operations.md)
 - [engineering](../engineering.md)
 - [operator notes](../operator-notes.md)
-- [decision index](../decisions/README.md)
+- [decision index](../adr/README.md)
 - [change-record index](README.md)
 - [design index](../../design/README.md)
 - [reference-data index](../reference/README.md)

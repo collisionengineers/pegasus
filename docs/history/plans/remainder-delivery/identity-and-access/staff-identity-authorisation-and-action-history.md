@@ -14,7 +14,7 @@ Primary matrix IDs: `ACC-01`, `ACC-02`, `ACC-03`, `ACC-04`, `ACC-05`, `ACC-07`, 
 
 ## Authority and current boundary
 
-- **Authority:** [source order](../../../../agent-guidance/source-of-truth.md), [questionnaire §§3–4 and 10–12](../../../product/project-discovery-questionnaire.md), [remaining requirements §1](../../../../product/qdos-alpha-gap.md), and [ADR-0004](../../../../decisions/ADR-0004-provider-api-and-staff-mcp-authentication.md).
+- **Authority:** [source order](../../../../agent-guidance/source-of-truth.md), [questionnaire §§3–4 and 10–12](../../../product/project-discovery-questionnaire.md), [remaining requirements §1](../../../../product/qdos-alpha-gap.md), and [ADR-0004](../../../../adr/0004-provider-api-and-staff-mcp-authentication.md).
 - **Policy owner:** planned Core `StaffAccess` actor/authorisation contracts, with Web authentication composition; business transition authority stays in Casework.
 - **Current implementation:** Web calls `UseAuthorization` but registers no authentication/identity scheme; receipt-owned `IntakeReceiptEvents.Actor` accepts the development intake string. There are no staff accounts, role enforcement or permanent trusted actor derivation.
 - **Real callers:** `/Intake/Upload` is the only current real intake caller and is deliberately unavailable outside Development; all authenticated staff pages, bootstrap, administration and future MCP are **planned**.

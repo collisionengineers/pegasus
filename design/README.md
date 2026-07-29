@@ -629,7 +629,7 @@ A supported desktop reflow does not alter the permanent mobile-product boundary.
 | Engineer signatures | Repository renderer signature sources | Renderer Core only; excluded from Web decorative imagery |
 | Temporary renderer GUI assets | Repository renderer GUI asset sources | `workspaces/report-renderer/src/CollisionRenderer.Gui`; remove with GUI |
 | Imported renderer/skills/AI source | [Workspaces](../workspaces/README.md) | Non-caller evidence unless separately integrated and accepted |
-| Decision rationale | [Decision records](../docs/decisions/README.md) | Does not itself prove implementation |
+| Decision rationale | [Decision records](../docs/adr/README.md) | Does not itself prove implementation |
 | Change evidence | [Change records](../docs/changes/README.md) | Does not replace caller, deployment or acceptance evidence |
 | External reference qualification | [Reference index](../docs/reference/README.md) | Reference presence never creates authority |
 

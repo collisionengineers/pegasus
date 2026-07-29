@@ -3,6 +3,7 @@
 ## Start here
 
 - [Product requirements](requirements.md)
+- [Domain glossary](../CONTEXT.md)
 - [Capability inventory](capabilities.md)
 - [Open decisions](open-decisions.md)
 - [Architecture](architecture.md)
@@ -10,7 +11,7 @@
 - [Engineering workflow](engineering.md)
 - [Operator authority](operator-notes.md)
 - [Design authority](../design/README.md)
-- [Decisions](decisions/README.md)
+- [Decisions](adr/README.md)
 - [Change records](changes/README.md)
 - [Reference evidence](reference/README.md)
 - [Azure route](azure/README.md)
@@ -47,7 +48,7 @@ do not win automatically.
 | How is Pegasus developed, tested, run, deployed, diagnosed, released, and recovered? | [Operations](operations.md) |
 | How is repository work planned, implemented, proved, reviewed, and delivered? | [Engineering](engineering.md) |
 | What did Collision Engineers explicitly state about process, needs, constraints, and current systems? | [Operator notes](operator-notes.md) |
-| What durable technical choice and rationale applies? | Published immutable decision bodies, with current navigation, status, and supersession in the [decision index](decisions/README.md) |
+| What durable technical choice and rationale applies? | Published immutable decision bodies, with current navigation, status, and supersession in the [decision index](adr/README.md) |
 | What does one material change own? | [Change index](changes/README.md) plus one record per change |
 | What is the durable UI rule and source/runtime mapping? | [Design](../design/README.md) and its three product contracts |
 | What is supplied evidence rather than a requirement? | [Reference manifest](reference/README.md) plus retained raw evidence |
@@ -66,7 +67,7 @@ do not win automatically.
 | `docs/operations.md` | Supported procedures and evidence profiles, including what each check cannot prove. |
 | `docs/engineering.md` | Repository lifecycle, caller proof, validation, review, and incident criteria; it links here and to operations rather than restating authority or commands. |
 | `design/` | Durable UI/design authority and source/runtime map. Planned and current behavior remain explicit. |
-| `docs/decisions/` | Published decision bodies, clauses, rationale, and dated provenance are immutable. `docs/decisions/README.md` owns reviewed navigation, current status, and supersession metadata; changed meaning uses an accepted addendum or new decision. |
+| `docs/adr/` | Published decision bodies, clauses, rationale, and dated provenance are immutable except where an explicit `DOC-CON-NNN` resolution authorizes a body edit. `docs/adr/README.md` owns reviewed navigation, current status, and supersession metadata; changed meaning uses an accepted addendum or new decision. |
 | `docs/changes/` | One record per material change. Retain unique reviewed provenance; do not create generated status ledgers. |
 | `docs/history/` and reviewed `docs/reference/reports/` | Subordinate, source-labelled evidence retained only where it carries unique accepted provenance, observations, dependency order, or unresolved research that cannot be reconstructed safely. It never becomes current product authority. |
 | `docs/reference/` | Supplied/raw evidence subordinate to operator/product authority. Retain unique raw sources and compact provenance; retire only exact duplicates or material with complete verified destinations. |
