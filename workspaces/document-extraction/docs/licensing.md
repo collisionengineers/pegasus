@@ -87,7 +87,7 @@ The following clean-room rules apply:
 
 The repository owner directed the programme to proceed through `DOC-I13` on 2026-07-24. That direction accepts the specification-led clean-room boundary for internal research, owned implementation work, generated tables retained as repository source, and owned testing. It does not prove that any particular capability is implemented or called, does not constitute legal advice, and does not authorise publication of the specifications or product distribution.
 
-The accepted internal-implementation decision is recorded as `ADR-0005` in the [decision index](../../../docs/decisions/README.md).
+The accepted internal-implementation decision is recorded as `ADR-0005` in the [decision index](../../../docs/adr/README.md).
 
 ## Microsoft notice and patent boundary
 

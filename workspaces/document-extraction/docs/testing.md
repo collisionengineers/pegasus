@@ -4,7 +4,7 @@
 
 This document is the canonical owner for the document-extraction test programme, fixture controls and dated evidence. Product intent and support boundaries are owned by [requirements](../../../docs/requirements.md), [capabilities](../../../docs/capabilities.md), [architecture](architecture.md) and [open decisions](../../../docs/open-decisions.md). Build and contribution policy is owned by [engineering](../../../docs/engineering.md); runbooks and operational handling are owned by [operations](../../../docs/operations.md) and [operator notes](../../../docs/operator-notes.md).
 
-Related canonical indexes are the [documentation map](../../../docs/index.md), [decision records](../../../docs/decisions/README.md), [change records](../../../docs/changes/README.md), [design index](../../../design/README.md), [reference index](../../../docs/reference/README.md), [Azure index](../../../docs/azure/README.md) and [workspace index](../README.md).
+Related canonical indexes are the [documentation map](../../../docs/index.md), [decision records](../../../docs/adr/README.md), [change records](../../../docs/changes/README.md), [design index](../../../design/README.md), [reference index](../../../docs/reference/README.md), [Azure index](../../../docs/azure/README.md) and [workspace index](../README.md).
 
 Evidence terms are deliberately distinct:
 

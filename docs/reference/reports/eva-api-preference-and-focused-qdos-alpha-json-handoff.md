@@ -42,7 +42,7 @@ Legacy ADR-0005 correctly preserves manual handoff and requires vendor testing, 
 
 The settled [questionnaire](../../history/product/project-discovery-questionnaire.md) and canonical [EVA requirements](../../requirements.md#focused-eva-manual-handoff) now record the API as preferred once available and the focused-`0.1.0-alpha.1` JSON/image handoff as the current route. The [EVA delivery plan](../../history/plans/remainder-delivery/integrations/vehicle-data-and-eva-export.md) keeps field mapping, image selection, readiness and recovery behind operator approval.
 
-The accepted [.NET modular-monolith architecture](../../decisions/ADR-0002-dotnet-modular-monolith-on-azure.md) provides an EVA export port in Infrastructure while Core owns case data, review and release policy. A future API changes the adapter, not the business-policy owner.
+The accepted [.NET modular-monolith architecture](../../adr/0002-dotnet-modular-monolith-on-azure.md) provides an EVA export port in Infrastructure while Core owns case data, review and release policy. A future API changes the adapter, not the business-policy owner.
 
 The current evidence state remains **Planned**. There is no current EVA adapter, export serializer, accepted mapping, credential, registered caller or proven API/test-environment integration. The legacy files do not change that state.
 

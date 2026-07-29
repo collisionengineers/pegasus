@@ -18,7 +18,7 @@ inventory or used to create a second email policy owner.
 
 ## Authority and current boundary
 
-- **Authority:** [remaining requirements](../../../../product/qdos-alpha-gap.md#3-complete-intake-formats-and-paths) and [ADR-0004](../../../../decisions/ADR-0004-provider-api-and-staff-mcp-authentication.md#internal-staff-mcp).
+- **Authority:** [remaining requirements](../../../../product/qdos-alpha-gap.md#3-complete-intake-formats-and-paths) and [ADR-0004](../../../../adr/0004-provider-api-and-staff-mcp-authentication.md#internal-staff-mcp).
 - **Policy owner:** existing staff authorization and named Core use cases; Web owns `/mcp`, OAuth metadata and composition.
 - **Current implementation:** no staff identity, OAuth server, OpenIddict/MCP package, `/mcp` endpoint, tool inventory or durable key store is registered.
 - **Real callers:** planned remote Streamable HTTP MCP client, initially one pre-registered Claude connector; no provider caller may use it.
@@ -36,7 +36,7 @@ Bearer tokens are accepted only at `/mcp`; interactive cookies are only for staf
 
 ### Authority and decision gate
 
-- **Requirement/decision:** [ADR-0004](../../../../decisions/ADR-0004-provider-api-and-staff-mcp-authentication.md#internal-staff-mcp).
+- **Requirement/decision:** [ADR-0004](../../../../adr/0004-provider-api-and-staff-mcp-authentication.md#internal-staff-mcp).
 - **Confirmed facts:** host remote Streamable HTTP in the existing Web project; pre-register the Claude client/callback; authorization-code flow uses S256 PKCE and exact HTTPS resource/audience. `/mcp` is the current route proposal, not separate product authority. Nothing is implemented or deployed.
 - **Decision required before implementation:** verify the current supported, mutually compatible OpenIddict and `ModelContextProtocol.AspNetCore` releases against their primary documentation and record exact versions in dated execution evidence; MCP/Claude enablement and durable key custody require explicit approval before live use.
 

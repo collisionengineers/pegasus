@@ -1,4 +1,4 @@
-# ADR-0009: Direct authorised-terminal Azure deployment
+# ADR-0007: Direct authorised-terminal Azure deployment
 
 - Status: Accepted
 - Date: 2026-07-25

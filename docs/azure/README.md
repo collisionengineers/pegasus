@@ -9,7 +9,7 @@ target, scope, cost, and data boundary.
 | Question | Owner and evidence state |
 | --- | --- |
 | What existed when last inspected? | [Current inventory](current-inventory.md), immutable dated 2026-07-23 live-read evidence; stale until an authorized refresh |
-| What is the intended target topology and release route? | [Deployment plan](../../.azure/deployment-plan.md) and [ADR-0009](../decisions/ADR-0009-direct-terminal-azure-deployment.md); target design only |
+| What is the intended target topology and release route? | [Deployment plan](../../.azure/deployment-plan.md) and [ADR-0007](../adr/0007-direct-terminal-azure-deployment.md); target design only |
 | How is the predecessor replaced and retired? | [Replacement and retirement plan](replacement-and-retirement-plan.md); intent and destructive gates, not execution authority |
 | How are source, validation, deployment, diagnosis, rollback, and recovery performed? | [Operations](../operations.md) plus the active change record; commands are run only in the separately approved evidence state |
 

@@ -478,7 +478,7 @@ this remediation relies on that subtree.
 | IDs | Resolution |
 | --- | --- |
 | DOC-CON-012–016 | TRI-04 uses independently optional findings with at least one populated; operations owns tool profiles and planned evaluator status; `docs/index.md` alone owns authority order. |
-| DOC-CON-017–021 | Corpus counts remain dated/scope-qualified; old exact-head evidence is invalidated; provider/domain terminology is exact; QDOS owns one change record; tool-neutral Decision 0012 supersedes plugin authority without rewriting immutable bodies. |
+| DOC-CON-017–021 | Corpus counts remain dated/scope-qualified; old exact-head evidence is invalidated; provider/domain terminology is exact; QDOS owns one change record; active workflow is owned by `AGENTS.md` and `docs/engineering.md`, with superseded plugin migration retained only as change provenance. |
 | DOC-CON-022–027 | `MAIL-12` remains deferred; the user-confirmed Received/Sent/Reply taxonomy is immutable in `docs/requirements.md`, while predicates and activation remain unresolved; ADR-0005 occurrence identity wins; dormant OCR is removed; historical readiness wording is deleted; cedocumentmapper is predecessor evidence only. |
 | DOC-CON-028–033 | Desktop-only location evidence outranks defaults; image-led intake remains pre-case; Box custody is distinct from staging; Operations-first is selected; route catalog is design, not caller proof; alpha has no OCR replacement. |
 | DOC-CON-034–040 | AI packages are evidence/proposal experiments below Core and human approval; extractor and renderer current-state inventories follow executable evidence; proposed extractor ADR-0006 is removed; renderer ADR-0011 supersedes only ADR-0008 authentication detail. |
@@ -528,6 +528,41 @@ independent review.
 
 Fresh exact-head checks and independent review are still required. This record
 does not infer acceptance from implementation or green checks.
+
+### Single-context domain-documentation cutover
+
+The user accepted the atomic migration plan and authorized its publication on
+[issue 6](https://github.com/collisionengineers/pegasus/issues/6#issuecomment-5118943180)
+on 2026-07-29. The cutover:
+
+- adds root `CONTEXT.md` as a glossary only;
+- moves the root durable-decision authority from `docs/decisions/` to
+  `docs/adr/`;
+- retains every other canonical source role and every workspace-local decision
+  store;
+- updates root-authority navigation, policy paths, historical live links, and
+  agent-skill consumers atomically; and
+- changes no capability allocation, runtime seam, caller, deployment unit,
+  provider integration, business rule, or external system.
+
+`DOC-CON-012` records the implementation conflict discovered during the move.
+Existing published ADR bodies contained relative links to `ADR-000N-*`
+filenames, while the accepted target required standard `000N-*` filenames and
+no compatibility aliases. The user explicitly selected editing those immutable
+bodies over retaining legacy filenames or creating aliases. The authorized body
+edits are limited to relative link destinations; decision clauses, rationale,
+status, and provenance remain unchanged.
+
+Decision `0014` records the hard-to-reverse path choice. The unaccepted QDOS
+implementation-contract proposal advances from `0014` to `0015` without changing
+its proposed product clauses.
+
+The user subsequently classified root workflow ADRs 0007, 0008, 0010, and 0012
+as documentation bloat and explicitly authorized their removal. Their workflow
+migration evidence remains in
+`docs/changes/2026-07-27-azure-workflow-onboarding.md`; active repository policy
+remains in `AGENTS.md` and `docs/engineering.md`. No application, test, CI, or
+runtime consumer depended on those ADRs.
 
 ## Verification and evidence
 

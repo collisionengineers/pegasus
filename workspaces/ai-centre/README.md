@@ -18,7 +18,7 @@ Keep these evidence states distinct:
 - **Deployed** requires deployment evidence.
 - **Accepted** requires the applicable product, architecture, security, operational, and business approvals.
 
-Current rules belong in the canonical documentation. Rationale belongs in [decision records](../../docs/decisions/README.md), and historical change evidence belongs in [change records](../../docs/changes/README.md). Neither history nor a decision record by itself proves implementation, a caller, deployment, or acceptance.
+Current rules belong in the canonical documentation. Rationale belongs in [decision records](../../docs/adr/README.md), and historical change evidence belongs in [change records](../../docs/changes/README.md). Neither history nor a decision record by itself proves implementation, a caller, deployment, or acceptance.
 
 The imported delivery plan was last marked **21 July 2026** and remains sequencing and research for this source workspace, not an activated Pegasus caller.
 
@@ -34,7 +34,7 @@ The imported delivery plan was last marked **21 July 2026** and remains sequenci
 | Data, security, release, and service procedures | [Operations](../../docs/operations.md) |
 | Development and evaluation practice | [Engineering](../../docs/engineering.md) |
 | Human operation and approval | [Operator notes](../../docs/operator-notes.md) |
-| Architecture and policy rationale | [Decision records](../../docs/decisions/README.md) |
+| Architecture and policy rationale | [Decision records](../../docs/adr/README.md) |
 | Historical change evidence | [Change records](../../docs/changes/README.md) |
 | Durable visual authority | [Root design](../../design/README.md) |
 | Qualified reference material | [Reference index](../../docs/reference/README.md) |

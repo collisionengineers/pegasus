@@ -1,4 +1,4 @@
-# 0013: Adopt Pegasus monorepo source workspaces
+# ADR-0009: Adopt Pegasus monorepo source workspaces
 
 - Date: 2026-07-27
 - Status: accepted

@@ -1,4 +1,4 @@
-# 0011: Separate direct-provider and intermediary email policies
+# ADR-0008: Separate direct-provider and intermediary email policies
 
 - Date: 2026-07-27
 - Status: accepted

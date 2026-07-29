@@ -40,7 +40,7 @@ The [operator capability overview](../../operator-notes/product-requirements/req
 
 Current accepted architecture separates the two concerns:
 
-- [ADR-0001](../../decisions/ADR-0001-hybrid-pdf-extraction.md) and [ADR-0005](../../decisions/ADR-0005-multiformat-intake-assets.md) permit targeted Document Intelligence OCR only for persisted scan-like PDF page candidates and keep ordinary images out of OCR.
+- [ADR-0001](../../adr/0001-hybrid-pdf-extraction.md) and [ADR-0005](../../adr/0005-multiformat-intake-assets.md) permit targeted Document Intelligence OCR only for persisted scan-like PDF page candidates and keep ordinary images out of OCR.
 - The [source-custody plan](../../history/plans/remainder-delivery/integrations/source-custody-and-document-processing.md) keeps AI/vision and VRM OCR deferred, retains engine-neutral source identities, and deliberately adds no dormant model, client, flag, queue, or widened OCR route.
 - The [vehicle and EVA plan](../../history/plans/remainder-delivery/integrations/vehicle-data-and-eva-export.md) permits future typed, staff-visible suggestions but forbids silent overwriting of case data.
 

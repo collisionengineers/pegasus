@@ -11,7 +11,7 @@ Resolve claims through [the repository source registry](index.md). Nearby files,
 | 1 | Direct user instruction | A later explicit instruction amends earlier instructions only for the affected scope. |
 | 2 | [Operator notes](operator-notes.md) | Own operator and business truth. Maintainers may maintain their organization and wording under standing authorization, but a material meaning change requires direct user resolution. |
 | 3 | [Requirements](requirements.md) and [capability allocation](capabilities.md) | Own required product behavior and current allocation. Allocation or intent is not implementation evidence. |
-| 4 | [Accepted decisions](decisions/README.md) | Own accepted current and historical technical decisions. |
+| 4 | [Accepted decisions](adr/README.md) | Own accepted current and historical technical decisions. |
 | 5 | Explicitly accepted executable contracts and tests | Apply only to the exact release and rule for which they were accepted. A test written by the implementer is not automatically an independent interpretation of the rule. |
 | 6 | Retrospectives and observed incidents | Constrain delivery by showing demonstrated failures; they do not define product behavior. |
 | 7 | The local corpus, raw references, predecessor repositories, and imported workspaces | Show real shapes, prior behavior, and failure modes only. They are not specification authorities or source trees to migrate. See [reference handling](reference/README.md) and [workspace boundaries](../workspaces/README.md). |
@@ -123,7 +123,7 @@ Add an interface or abstraction only when at least one of these is true:
 - it has two concrete callers or implementations;
 - an accepted architecture decision requires it.
 
-A deferred capability belongs in [capability allocation](capabilities.md), an accepted [decision](decisions/README.md), or an [open decision](open-decisions.md). Leave it unbuilt until a current caller exists. Do not express deferred intent as dormant registration, an unused endpoint, a permanently disabled feature flag, a placeholder, a speculative compatibility shim, or dark destructive code.
+A deferred capability belongs in [capability allocation](capabilities.md), an accepted [decision](adr/README.md), or an [open decision](open-decisions.md). Leave it unbuilt until a current caller exists. Do not express deferred intent as dormant registration, an unused endpoint, a permanently disabled feature flag, a placeholder, a speculative compatibility shim, or dark destructive code.
 
 Anything built but unwired for two weeks must gain a real caller or be deleted. A dangerous superseded capability is deleted immediately rather than merely gated.
 

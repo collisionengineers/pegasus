@@ -1,6 +1,6 @@
 # ADR-0002: .NET modular monolith on Azure App Service
 
-- Status: Accepted; provider API/MCP authentication boundary superseded by ADR-0004 and deployment mechanism partially superseded by ADR-0009
+- Status: Accepted; provider API/MCP authentication boundary superseded by ADR-0004 and deployment mechanism partially superseded by ADR-0007
 - Date: 2026-07-23
 - Owners: Alex and the Pegasus development team
 
@@ -21,12 +21,12 @@ introducing a microservice estate that is disproportionate to the workload.
 This decision selects the application stack, code boundaries, Azure runtime,
 data stores, integration patterns, deployment model, and initial cost envelope.
 PDF extraction remains governed by
-[ADR-0001](ADR-0001-hybrid-pdf-extraction.md).
+[ADR-0001](0001-hybrid-pdf-extraction.md).
 
 The runtime, project, data, and Azure decisions in this ADR remain accepted.
-[ADR-0004](ADR-0004-provider-api-and-staff-mcp-authentication.md) supersedes
+[ADR-0004](0004-provider-api-and-staff-mcp-authentication.md) supersedes
 only the combined provider API/MCP client and authentication model shown here.
-[ADR-0009](ADR-0009-direct-terminal-azure-deployment.md) supersedes only this
+[ADR-0007](0007-direct-terminal-azure-deployment.md) supersedes only this
 ADR's GitHub Actions/OIDC deployment mechanism. The modular-monolith, runtime,
 data, regional, and cost decisions remain accepted.
 
@@ -50,7 +50,7 @@ Pegasus will be a .NET 10 LTS modular monolith with:
 - Box as the authoritative long-term store for original case files and their
   versions;
 - Bicep and Azure Developer CLI for infrastructure and authorised-terminal
-  deployments, as defined by ADR-0009.
+  deployments, as defined by ADR-0007.
 
 The `0.1.0-alpha.1` will not use microservices, Kubernetes, a single-page application,
 Blazor Server, Azure Service Bus, Cosmos DB, Redis, API Management, private
@@ -80,7 +80,7 @@ remains conditional `Later`/`unallocated` and needs a direct future product deci
 | Transient files | Azure Blob Storage, locally redundant | Buffers mailbox and upload content while it is processed and transferred to Box. |
 | Long-term files | Box | Preserves the existing business file store and folder/version identifiers. |
 | Infrastructure | Bicep under `infra/`, orchestrated by `azd` | Repeatable Azure environments using the mandated PowerShell/Azure toolchain. |
-| Release route | Authorised terminal using committed Bicep and `azd` | Preserves a direct, reviewable route; ADR-0009 defines its required migration, package, identity, and evidence gates. |
+| Release route | Authorised terminal using committed Bicep and `azd` | Preserves a direct, reviewable route; ADR-0007 defines its required migration, package, identity, and evidence gates. |
 
 The staff UI will use the Collision Engineers design system. A Node-based SPA
 toolchain will not be introduced unless a later interaction demonstrably cannot
@@ -298,7 +298,7 @@ defines the current contract and supersedes the earlier combined credential mode
 - Local development secrets are supplied through Infisical or a developer-only
   Key Vault path.
 - An authorised terminal authenticates using the approved operator identity. This
-  ADR does not authorise a GitHub Actions/OIDC deployment path; ADR-0009 defines
+  ADR does not authorise a GitHub Actions/OIDC deployment path; ADR-0007 defines
   the terminal preflight and least-privilege requirements.
 - Box credentials and any third-party secrets are held in Key Vault. Provider
   client secrets are non-recoverable hashes in SQL because they are application
@@ -347,7 +347,7 @@ for the `0.1.0-alpha.1`.
 
 Infrastructure is declared in Bicep under `infra/` and deployed through `azd`.
 `what-if` or preview is required before production infrastructure changes. The
-following historical release sequence is superseded by ADR-0009; it is retained
+following historical release sequence is superseded by ADR-0007; it is retained
 to preserve the decision record rather than to authorise GitHub deployment.
 
 Historical GitHub Actions sequence:
