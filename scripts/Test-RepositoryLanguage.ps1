@@ -1,9 +1,6 @@
 [CmdletBinding()]
-param(
-    [string]$ApprovalPath,
-    [switch]$RequireQdosAlphaActivation
-)
+param()
 
 $ErrorActionPreference = 'Stop'
-
-& (Join-Path $PSScriptRoot 'Test-RepositoryPolicy.ps1') @PSBoundParameters
+& (Join-Path $PSScriptRoot 'Test-RepositoryPolicy.ps1')
+exit $LASTEXITCODE
