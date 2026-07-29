@@ -7,12 +7,12 @@ additional rules for documentation work.
 - Preserve information by mapping every removed, shortened, moved, or
   superseded claim to a retained or canonical destination. Do not move or delete
   a source to make the tree look tidy.
-- `operator-notes/` is authoritative operator truth. Repository maintainers may
-  maintain its documentation and organization under the user's standing
+- `operator-notes.md` is authoritative operator truth. Repository maintainers
+  may maintain its documentation and organization under the user's standing
   authorization, but must preserve material meaning and escalate conflicts.
   Treat `reference/` as evidence, not current product or architecture
   authority; do not edit supplied material or promote a claim without the
-  authority route in [source-of-truth.md](agent-guidance/source-of-truth.md).
+  [authority route](index.md#authority-order).
 - An authoritative conflict requires direct user resolution. Record the outcome
   in its canonical owner; do not silently blend sources.
 - Keep status, scope, and supersession explicit. Plans are not implementation;
@@ -22,4 +22,4 @@ additional rules for documentation work.
   owner claims after changing them. Use the smallest relevant check and report
   what it does not prove.
 
-Use [docs/README.md](README.md) to find the minimum relevant authority.
+Use the [documentation registry](index.md) to find the minimum relevant authority.

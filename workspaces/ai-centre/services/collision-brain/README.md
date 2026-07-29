@@ -1,10 +1,19 @@
 # RAG Pipeline
 
-Provider-agnostic document ingestion and hybrid retrieval for Collision Engineers, exposed through
-Model Context Protocol (MCP).
+Independent Collision Brain source service
 
-The service retrieves source passages and citations. The calling AI remains responsible for
-answer generation.
+> **Source-workspace boundary:** This is an independently runnable source
+> service with no Pegasus caller, deployment, selected provider, or application
+> authority. Its code and commands are implementation/evaluation evidence only;
+> `Pegasus.Core`, current operator authority, and an authorised human own every
+> accepted fact, outcome, send, report issue, and approval.
+
+When run in its own development environment, the service provides
+provider-agnostic document ingestion and hybrid retrieval through its
+package-local MCP interface. That interface is not a Pegasus integration seam.
+
+The source service returns passages and citations; it neither generates nor
+accepts a Pegasus answer.
 
 ## V1 capabilities
 
@@ -95,6 +104,6 @@ $env:OBJECT_STORE_DRIVER='memory'
 npm run benchmark -- --input benchmarks/synthetic.json
 ```
 
-See [architecture](docs/architecture.md), [requirements](docs/requirements.md), the
-[deployment contract](docs/deployment-contract.md), [current status](docs/CURRENT_STATUS.md), and
-the [provider research](docs/research/README.md).
+See [architecture](docs/architecture.md), [requirements](./docs/operations.md), the
+[deployment contract](./docs/operations.md), [current status](./docs/operations.md), and
+the [provider research](./docs/provider-evaluation.md).

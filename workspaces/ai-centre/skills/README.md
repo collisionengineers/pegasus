@@ -16,3 +16,23 @@ coding-agent configuration. Nothing in this directory is loaded, invoked,
 published, or deployed by Pegasus. Any future activation requires a named
 capability, an accepted contract and change record, a real caller, representative
 parity/security/licence evidence, recovery behavior, and operator acceptance.
+
+## Package status
+
+Each imported package remains self-contained. Package-local references, wrapper documentation, `dev-ref/` maintenance sources, manifests, and the archival tone-profile DOCX are retained as protected source provenance; they are not rewritten into Pegasus policy. Duplicate local references remain where standalone validation or rendering requires them.
+
+| Package | Status | Authority boundary |
+| --- | --- | --- |
+| [`ce-cost-defence`](ce-cost-defence/SKILL.md) | Source-only evidence, drafting, lookup, style, or deterministic rendering experiment | Never Pegasus product policy, case mutation, approval, legal/engineering authority, caller, or deployment |
+| [`ce-house-style`](ce-house-style/SKILL.md) | Source-only evidence, drafting, lookup, style, or deterministic rendering experiment | Never Pegasus product policy, case mutation, approval, legal/engineering authority, caller, or deployment |
+| [`collision-engineers-design`](collision-engineers-design/SKILL.md) | Source-only evidence, drafting, lookup, style, or deterministic rendering experiment | Never Pegasus product policy, case mutation, approval, legal/engineering authority, caller, or deployment |
+| [`diminution-rebuttal`](diminution-rebuttal/SKILL.md) | Source-only evidence, drafting, lookup, style, or deterministic rendering experiment | Never Pegasus product policy, case mutation, approval, legal/engineering authority, caller, or deployment |
+| [`diminution-report`](diminution-report/SKILL.md) | Source-only evidence, drafting, lookup, style, or deterministic rendering experiment | Never Pegasus product policy, case mutation, approval, legal/engineering authority, caller, or deployment |
+| [`manufacturer-methods-evidence`](manufacturer-methods-evidence/SKILL.md) | Source-only evidence, drafting, lookup, style, or deterministic rendering experiment | Never Pegasus product policy, case mutation, approval, legal/engineering authority, caller, or deployment |
+| [`roadworthy-report`](roadworthy-report/SKILL.md) | Source-only evidence, drafting, lookup, style, or deterministic rendering experiment | Never Pegasus product policy, case mutation, approval, legal/engineering authority, caller, or deployment |
+| [`salvage-categorisation`](salvage-categorisation/SKILL.md) | Source-only evidence, drafting, lookup, style, or deterministic rendering experiment | Never Pegasus product policy, case mutation, approval, legal/engineering authority, caller, or deployment |
+| [`total-loss-assessment`](total-loss-assessment/SKILL.md) | Source-only evidence, drafting, lookup, style, or deterministic rendering experiment | Never Pegasus product policy, case mutation, approval, legal/engineering authority, caller, or deployment |
+| [`vehicle-assessment`](vehicle-assessment/SKILL.md) | Source-only evidence, drafting, lookup, style, or deterministic rendering experiment | Never Pegasus product policy, case mutation, approval, legal/engineering authority, caller, or deployment |
+| [`vehicle-history-check`](vehicle-history-check/SKILL.md) | Source-only evidence, drafting, lookup, style, or deterministic rendering experiment | Never Pegasus product policy, case mutation, approval, legal/engineering authority, caller, or deployment |
+
+`Pegasus.Core` and authorised humans retain accepted facts, economics, findings, outcomes, legal use, report issue, and approval.

@@ -1,33 +1,52 @@
 # Pegasus source workspaces
 
-These directories are source-only imports for independent maintenance, review, and validation. They are not projects in `Pegasus.slnx`, application callers, runtime services, package references, deployment units, or authority for Pegasus business policy.
+These directories are independently buildable source imports. They are not
+projects in `Pegasus.slnx`, application callers, runtime services, deployment
+units, or owners of Pegasus business policy.
 
-## Imported sources
+## Current sources and provenance
 
-| Workspace | Durable role | Source provenance | Imported source manifest |
+| Workspace | Durable role and documentation | Source provenance | Imported source manifest |
 | --- | --- | --- | --- |
-| `document-extraction/` | CollisionDocNet document/email extraction libraries and CLI | Local source snapshot `../collisiondocnetconverter`; no `.git` metadata was present, so branch, remote, and commit are unavailable | 259 files, 2,272,746 bytes, SHA-256 `591bc1b2326476bd03076f5b47fc5e98884d7b3b2f9ed3cf295ef674a59504be` |
-| `report-renderer/` | Deterministic CollisionRenderer report-rendering source | `collisionengineers/collisionsuite`, branch `main`, commit `acd3b0c28b59b60cfdbd8504daf0f5e8603bb59d`, path `active/collisionrenderer` | 112 files, 706,303 bytes, SHA-256 `097084e76ec2c3e029a506a3eb8211372e6d2920c4c0be72b45234058cef6887` |
-| `ai-centre/` | AI model, agent, evaluation, training, and AI-service strategy | `collisionengineers/collisionsuite`, branch `main`, commit `acd3b0c28b59b60cfdbd8504daf0f5e8603bb59d`, path `collision-ai-centre` | 143 files, 785,487 bytes, SHA-256 `f4ee10db78056277af497488b27658a1fb4cf74e28dfb2fc271c8522c63b378c` |
-| `ai-centre/skills/` | Source skill packs and their pack-validation tools, colocated under their owning AI Centre workspace | `collisionengineers/collisionsuite`, branch `main`, commit `acd3b0c28b59b60cfdbd8504daf0f5e8603bb59d`, path `active/collision-agent-skills` | 224 files, 3,060,177 bytes, SHA-256 `ff3b5288204a703cb6eb4da898148dda7750b974812b32daac1d2049b66bc26e` |
+| `document-extraction/` | CollisionDocNet document/email extraction libraries and CLI; [workspace owner](document-extraction/README.md) | Local source snapshot `../collisiondocnetconverter`; no `.git` metadata was present, so branch, remote, and commit are unavailable | 202 files, 2,232,305 bytes, SHA-256 `e5d3bd118e567d54c2a793a0e75a4f3c528da62bd1caa9289f48297c9c96b5f2` |
+| `report-renderer/` | Deterministic CollisionRenderer report-rendering source; [workspace owner](report-renderer/README.md) | `collisionengineers/collisionsuite`, branch `main`, commit `acd3b0c28b59b60cfdbd8504daf0f5e8603bb59d`, path `active/collisionrenderer` | 108 files, 604,228 bytes, SHA-256 `a3b9b665b23b08b9dd61276d48b9f3a3c551a005213225e7941d0adf6d504471` |
+| `ai-centre/` | AI model, evaluation, training, provider, and AI-service experimentation; [workspace owner](ai-centre/README.md) | `collisionengineers/collisionsuite`, branch `main`, commit `acd3b0c28b59b60cfdbd8504daf0f5e8603bb59d`, path `collision-ai-centre` | 70 files, 464,490 bytes, SHA-256 `c3df715e8989e0129c8b1710ffe2f15f3142041544e8c578ee45b015e7ce002b` |
+| `ai-centre/skills/` | Source skill packages and pack-validation tools; [package index](ai-centre/skills/README.md) | `collisionengineers/collisionsuite`, branch `main`, commit `acd3b0c28b59b60cfdbd8504daf0f5e8603bb59d`, path `active/collision-agent-skills` | 212 files, 3,017,636 bytes, SHA-256 `1258fcbfd8b420c425e2f9b953c8dc0531b69730878012172bd33709ff01f9d5` |
 
-The manifest hash is SHA-256 over each committed blob's UTF-8 relative path
-immediately followed by its byte payload, in ordinal path order. AI Centre
-excludes `skills/`, `ml-ops/data/`, nested `.github/`, caches, and build
-outputs; the separately listed skills manifest also excludes nested `.github/`,
-caches, and `assets/style-examples/` or `fixtures/style-examples/` sample
-material. The source `ce-cost-defence.skill` archive is represented by its
-extracted `ce-cost-defence/` payload, and source `_dev/` trees are represented
-under `dev-ref/<skill-name>/`. The manifest proves the current committed import
-snapshot only; it is not an upstream commit identity or runtime acceptance
-evidence.
+The manifest hashes each tracked Git index path in UTF-8 immediately followed
+by its staged blob payload, in ordinal path order. The AI Centre row excludes
+`skills/`, `ml-ops/data/`, nested `.github/`, caches, and build outputs. The
+skills row also excludes nested `.github/`, caches, and
+`assets/style-examples/` or `fixtures/style-examples/`. Source `_dev/` trees are
+represented under `dev-ref/<skill-name>/`. A manifest proves source identity,
+not application integration, deployment, or acceptance.
 
 ## Ownership and activation
 
-- `Pegasus.Core` remains the sole owner of Pegasus business policy. Infrastructure, Web, and Worker remain the only application projects and composition roots.
-- Workspace validation runs independently. The application build must not compile, reference, load, invoke, publish, or deploy workspace code.
-- AI Centre owns model/provider experiments, evaluation and training strategy. It does not select a Pegasus AI provider, activate `Send to AI`, or own case, report, correspondence, valuation, or approval policy.
-- Agent skills are source packages for independent review and pack validation. They are not autonomous application callers and cannot mutate Pegasus or external services.
-- Document extraction and report rendering remain future library-integration seams. Activation requires an accepted contract, migration/coexistence plan, representative parity evidence, security/licence approval, an actual caller, rollback/recovery, and operator acceptance. Manual EVA handoff remains supported until each EVA function is independently replaced.
+- `Pegasus.Core` owns every business rule and accepted case outcome.
+  Infrastructure, Web, and Worker are the application composition roots.
+- Workspace validation is independent. Application build, publish, and deploy
+  must not compile, reference, dynamically load, invoke, or package workspace
+  code without a separately accepted integration contract and actual caller.
+- AI Centre and skill packages may produce evidence, candidates, or drafts only.
+  Provider selection, activation, external mutation, and human approval remain
+  outside the workspace.
+- Document extraction and report rendering are future integration seams.
+  Activation requires a reviewed contract, migration/coexistence plan,
+  representative parity and security/licence evidence, a caller,
+  rollback/recovery, and operator acceptance.
+- Historical `CollisionSpike` names inside dated workspace evidence identify the
+  predecessor only. Every current or future application integration contract
+  targets Pegasus, and no workspace currently has a Pegasus adapter, caller,
+  deployment, or acceptance.
+- Dated AI evidence remains reachable through the Collision Brain
+  [provider evaluation and first-party source register](ai-centre/services/collision-brain/docs/provider-evaluation.md)
+  and the qualified [19 July 2026 sample-corpus inventory](ai-centre/ml-ops/reports/01-data-readiness/01-sample-corpus-inventory.md).
+  Neither record selects a provider, authorises an experiment, or proves a model,
+  caller, deployment, or acceptance.
 
-Generated output, packages, caches, source-repository metadata and nested CI workflows, private datasets, local settings, copied corpora, sample case material, and model weights are excluded. Updating an import requires a new reviewed provenance row and manifest; never copy a nested `.git` directory or infer upstream acceptance from a clean local build.
+Generated output, packages, caches, nested repository metadata and CI, private
+datasets, local settings, copied corpora, sample case material, and model weights
+remain excluded. Updating a source import requires a reviewed provenance change
+and regenerated current manifest; never infer upstream acceptance from a local
+build.

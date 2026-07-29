@@ -21,7 +21,7 @@ The authorised output contract is text and images only ([ADR-0004](../decisions/
 
 ## PDF 1.0–2.0 family
 
-Detailed surface and evidence: [PDF extraction plan](../formats/pdf.md).
+Intended surface (current support remains this row): [PDF extraction plan](../formats.md#pdf-10–20).
 
 | Capability | Port unit | Status | Evidence or next gate |
 |---|---|---|---|
@@ -42,7 +42,7 @@ Detailed surface and evidence: [PDF extraction plan](../formats/pdf.md).
 
 ## Legacy binary Word `.doc`
 
-Detailed surface and evidence: [legacy DOC extraction plan](../formats/doc.md) and [DOC comprehension/completion programme](../programme/tasks/P31-doc-comprehension-and-completion.md). DOC text is read directly from CFB/FIB/CLX binary structures; DOCX/XML is not an intermediate.
+Intended surface (current support remains this row): [legacy DOC extraction plan](../formats.md#legacy-binary-word-doc) and [DOC comprehension/completion programme](../programme.md). DOC text is read directly from CFB/FIB/CLX binary structures; DOCX/XML is not an intermediate.
 
 | Capability | Port unit | Status | Evidence or next gate |
 |---|---|---|---|
@@ -60,9 +60,9 @@ Detailed surface and evidence: [legacy DOC extraction plan](../formats/doc.md) a
 | Pre-97 Word family | EXT-DOC-012 | mapped | Corpus/specification research followed by an explicit parser/support decision |
 | Projection, security, fuzz, differential, corpus and performance acceptance | EXT-DOC-013 | partial | The latest recorded Writer run expanded 36 source test methods to 44 passing cases, plus a positive raw-CFB integration and whole-result retry; no manifested DOC fixtures, conformance/differential suite, deep valid-DOC fuzz/security lane, hidden holdout or 10 MiB semantic performance acceptance exists |
 
-## WordprocessingML `.docx`
+## WordprocessingML `.docx` source-workspace architecture
 
-Detailed surface and evidence: [DOCX extraction plan](../formats/docx.md). DOCX is a required independent input family.
+Workspace extraction surface: [DOCX extraction plan](../formats.md#wordprocessingml-docx). This row describes the independently tested source library; it is not a Pegasus integration contract.
 
 | Capability | Port unit | Status | Evidence or next gate |
 |---|---|---|---|
@@ -81,7 +81,7 @@ Detailed surface and evidence: [DOCX extraction plan](../formats/docx.md). DOCX 
 
 ## Outlook `.msg`
 
-Detailed surface and evidence: [MSG extraction plan](../formats/msg.md). The base contract preserves a generic MAPI property bag; it is not restricted to mail messages.
+Intended surface (current support remains this row): [MSG extraction plan](../formats.md#outlook-msg). The base contract preserves a generic MAPI property bag; it is not restricted to mail messages.
 
 | Capability | Port unit | Status | Evidence or next gate |
 |---|---|---|---|
@@ -101,7 +101,7 @@ Detailed surface and evidence: [MSG extraction plan](../formats/msg.md). The bas
 
 ## RFC 5322/MIME `.eml`
 
-Detailed surface and evidence: [EML extraction plan](../formats/eml.md).
+Intended surface (current support remains this row): [EML extraction plan](../formats.md#rfc-5322mime-eml).
 
 | Capability | Port unit | Status | Evidence or next gate |
 |---|---|---|---|
@@ -134,4 +134,4 @@ Detailed surface and evidence: [EML extraction plan](../formats/eml.md).
 | Security fuzz/property and hostile regression system | EXT-QA-002 | partial | 21 security tests include 80 deterministic format mutations and 64 arbitrary seeds; maintained continuous fuzzing and valid structured DOC/MSG hostile fixtures remain |
 | Allocation, throughput, expansion, cancellation and concurrency evidence | EXT-QA-003 | partial | BDN Dry 10/10, representative Short measurements, 4-way deterministic concurrency and ~30 ms blocked cancellation exist; 10 MiB/Linux/sustained/nested/accepted budgets remain |
 | Dependency/licence/SBOM/package/schema/update/rollback evidence | EXT-PKG-001 | partial | Central package/version metadata, versioned result/bundle schemas, local framework-dependent library/CLI candidate script, deterministic dependency/package manifests and update/rollback/support reviews exist; authorised product licence, standard SBOM, Linux/RID variants, signing, holdout and independent acceptance remain |
-| CollisionSpike adapter and caller-backed cohort/holdout evidence | EXT-INT-001 | partial | Adjacent opt-in Web adapter and real `/Intake/Qdos` synthetic tests pass with default legacy path preserved; Worker has no authorised Qdos caller, sibling project refs are non-portable, and caller text/image/outcome breadth remains |
+| Pegasus adapter and caller-backed cohort/holdout evidence | EXT-INT-001 | partial | Dated 2026-07-24 predecessor CollisionSpike evidence covered an adjacent opt-in Web adapter and real `/Intake/Qdos` synthetic tests with the default legacy path preserved; no Pegasus adapter or caller is proved, Worker had no authorised Qdos caller, sibling project references were non-portable, and broader caller text/image/outcome/cohort/holdout evidence remains |

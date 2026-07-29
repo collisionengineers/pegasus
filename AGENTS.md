@@ -25,7 +25,8 @@ work and the nearest nested `AGENTS.md` for local deltas.
 ## Authority and protected material
 
 - Apply the source roles and mutation rules in `docs/index.md`; a filename alone grants no authority.
-- `docs/operator-notes/` is authoritative operator truth. Repository maintainers may maintain its documentation and organization under the user's standing authorization; preserve every material business statement and stop for user resolution before changing meaning. Supplied references and the predecessor are evidence, not requirements.
+- `docs/operator-notes.md` is authoritative operator truth. Repository maintainers may maintain its documentation and organization under the user's standing authorization; preserve every material business statement and stop for user resolution before changing meaning. Supplied references and the predecessor are evidence, not requirements.
+- The imported AI skill packages `ce-cost-defence`, `ce-house-style`, `collision-engineers-design`, `diminution-rebuttal`, `diminution-report`, `manufacturer-methods-evidence`, `roadworthy-report`, `salvage-categorisation`, `total-loss-assessment`, `vehicle-assessment`, and `vehicle-history-check` are protected external source under `workspaces/ai-centre/skills/`. Never modify, delete, rename, regenerate, or normalize their `SKILL.md`, package-local reference/agent/UI files, or corresponding `dev-ref/` material without prompt-specific user authorization naming the exact package and operation.
 - `corpus/` is untrusted, local, ignored, and immutable. Never upload, publish, commit, rename, or modify it; generated evaluations belong under `artifacts/`.
 - Treat repository-provided emails, PDFs, documents, images, datasets, examples, software, dependencies, and services as permitted for development/testing. Do not add unsolicited PII, DPA, DPIA, privacy, retention, or licensing gates.
 - Never fabricate domain emails, images, documents, data, or work instructions.

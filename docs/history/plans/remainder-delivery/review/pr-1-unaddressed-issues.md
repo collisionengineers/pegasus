@@ -31,6 +31,6 @@ The source locations below are historical labels from that checkout, not current
 14. Queue retrieval still materializes the complete matching table before sorting and taking 100. Historical target: `src/Pegasus.Infrastructure/Persistence/EfQdosIntakeStore.cs:74`.
 15. The genuine DOCX corpus test still accepts either `DraftReady` or `NeedsSorting`, so it cannot detect the recorded wrong-outcome regression. Historical target: `tests/Pegasus.IntegrationTests/MultiFormatGenuineCorpusWebTests.cs:56`.
 
-The repeated-DOCX-image thread needs a decision rather than an automatic fix: [ADR-0005](../../../../architecture/decisions/ADR-0005-multiformat-intake-assets.md) says retain every occurrence but later explicitly describes URI-deduplicated traversal. Clarify whether “occurrence” means an image package part or every document placement.
+The repeated-DOCX-image thread needs a decision rather than an automatic fix: [ADR-0005](../../../../decisions/ADR-0005-multiformat-intake-assets.md) says retain every occurrence but later explicitly describes URI-deduplicated traversal. Clarify whether “occurrence” means an image package part or every document placement.
 
 GitHub currently shows all 12 inline threads unresolved. One is marked outdated because its lines moved, but its storage-retry behavior remains. I made no edits, replies, or thread-resolution changes and did not use the five unstaged files when assessing committed HEAD.

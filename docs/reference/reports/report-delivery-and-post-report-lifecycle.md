@@ -18,7 +18,7 @@ No new legacy finding was accepted. Current Pegasus requirements, architecture, 
 
 ### Current architecture
 
-The accepted [.NET modular-monolith architecture](../../architecture/decisions/ADR-0002-dotnet-modular-monolith-on-azure.md) requires one Core workflow owner. Web and Worker are thin callers; Graph, Box, and EVA belong behind Infrastructure adapters. An external event may be translated into a Core command, but an adapter cannot independently decide case workflow or terminal outcome.
+The accepted [.NET modular-monolith architecture](../../decisions/ADR-0002-dotnet-modular-monolith-on-azure.md) requires one Core workflow owner. Web and Worker are thin callers; Graph, Box, and EVA belong behind Infrastructure adapters. An external event may be translated into a Core command, but an adapter cannot independently decide case workflow or terminal outcome.
 
 The planned boundary is:
 
