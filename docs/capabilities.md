@@ -18,9 +18,10 @@ are provenance, not a second allocation table.
 
 The additional stable IDs split compound outcomes or explicit boundaries; they
 do not invent a second product scope. Active timing uses `Now`, `Next`, `Later`,
-or `Not planned`. The 128 `Now` capabilities target `0.1.0-alpha.1`.
-`DATA-02` remains explicitly `Next`. Allocation, implementation, registration,
-build, deployment, live verification, and acceptance remain separate states.
+or `Not planned`. All 200 planned capabilities have an exact first-introduction
+target; the 29 permanent boundaries remain `unallocated`. Allocation,
+implementation, registration, build, deployment, live verification, and
+acceptance remain separate states.
 
 ## Allocation summary
 
@@ -32,6 +33,22 @@ build, deployment, live verification, and acceptance remain separate states.
 | Not planned | 29 | Permanent product boundaries; no implementation issue or placeholder. |
 
 Total: **229 capabilities; 229 unique IDs**.
+
+| Target release | Planned capabilities |
+| --- | ---: |
+| `0.1.0-alpha.1` | 128 |
+| `0.2.0` | 8 |
+| `0.3.0` | 19 |
+| `0.4.0` | 5 |
+| `0.5.0` | 5 |
+| `0.6.0` | 5 |
+| `0.7.0` | 1 |
+| `1.0.0` | 12 |
+| `1.1.0` | 6 |
+| `1.2.0` | 5 |
+| `1.3.0` | 3 |
+| `1.4.0` | 3 |
+| `unallocated` | 29 permanent boundaries |
 
 ## Capabilities
 
@@ -165,78 +182,78 @@ Total: **229 capabilities; 229 unique IDs**.
 | OPS-23 | Operator acceptance against the real end-to-end workflow | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required before 0.1.0-alpha.1 acceptance. |
 | OPS-25 | Collision Engineers management approval before production release | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required before 0.1.0-alpha.1 acceptance. |
 | INT-31 | Authenticated staff generate a temporary, revocable, request-scoped link for unauthenticated image/document upload; it exposes only the upload form and immediate result, never case/request state | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#intake-and-source-identity) | Requirement allocation only; token, limit, custody, retry, revocation, and abuse contracts require separate implementation acceptance. |
-| DATA-02 | Prepare inspection-address / repairer reference data from separately approved spreadsheets | Next | unallocated | [Requirements](requirements.md#documents-extraction-and-custody) | Deferred pending accepted provider-location evidence, schema/package, migration, and caller proof. |
-| INT-04 | Activate additional providers through the shared intake/case workflow using separately accepted provider evidence and rules | Next | unallocated | [Requirements](requirements.md#intake-and-source-identity) | Adding reference evidence is not workflow activation; activation precedes INT-05–INT-07 within the `Next` horizon. |
-| INT-05 | Automatic ingestion from `desk@collisionengineers.co.uk` | Next | unallocated | [Requirements](requirements.md#intake-and-source-identity) | Allocation only; owning evidence still required. |
-| INT-06 | Automatic ingestion from `engineers@collisionengineers.co.uk` | Next | unallocated | [Requirements](requirements.md#intake-and-source-identity) | Allocation only; owning evidence still required. |
-| INT-07 | Automatic ingestion from `info@collisionengineers.co.uk` | Next | unallocated | [Requirements](requirements.md#intake-and-source-identity) | Allocation only; owning evidence still required. |
-| INT-14 | Automated legacy DOC extraction | Next | unallocated | [Requirements](requirements.md#intake-and-source-identity) | Allocation only; owning evidence still required. |
-| INT-15 | Automated MSG extraction | Next | unallocated | [Requirements](requirements.md#intake-and-source-identity) | Allocation only; owning evidence still required. |
-| INT-16 | OCR for scan-like PDF instruction pages | Next | unallocated | [Requirements](requirements.md#intake-and-source-identity) | Allocation only; owning evidence still required. |
-| INT-28 | Automatic matching of image-led and instruction-led records | Next | unallocated | [Requirements](requirements.md#intake-and-source-identity) | Allocation only; owning evidence still required. |
-| MAIL-01 | Identify every inbound mailbox item and its mailbox/thread/message identity | Next | unallocated | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
-| MAIL-02 | Map detailed email classifications to Receiving work, Query, Other, Needs sorting, or the separate Triage workflow | Next | unallocated | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
-| MAIL-03 | One shared classification policy across all supported mailboxes | Next | unallocated | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
-| MAIL-04 | Explainable classification evidence, policy version, and correction history | Next | unallocated | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
-| MAIL-05 | Recommend the designated Outlook folder for a classified message | Next | unallocated | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
-| MAIL-06 | Staff confirmation of a recommended folder move in Pegasus | Next | unallocated | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
-| MAIL-07 | Move the confirmed message to the designated Outlook folder | Next | unallocated | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
-| MAIL-08 | Suggested next actions for classified email | Next | unallocated | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
-| MAIL-09 | Automatic association of related email and attachments with a case | Next | unallocated | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
-| MAIL-10 | Manual email/case association, unlink, relink, and correction | Next | unallocated | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
-| MAIL-11 | Browse, search, and view mailbox messages and conversation threads in the app | Next | unallocated | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
-| MAIL-13 | Change read state, Outlook categories, flags, or delete messages in the app | Next | unallocated | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
-| CASE-23 | Post-report query and dispute work | Next | unallocated | [Requirements](requirements.md#case-identity-and-lifecycle) | Allocation only; owning evidence still required. |
-| UI-10 | Full email-management workspace | Next | unallocated | [Requirements](requirements.md#operator-experience) | Allocation only; owning evidence still required. |
-| UI-14 | Categorised email queues for Receiving work, Queries, and Other | Next | unallocated | [Requirements](requirements.md#operator-experience) | Allocation only; owning evidence still required. |
-| API-01 | Principal-scoped provider submission API | Next | unallocated | [Requirements](requirements.md#provider-and-intermediary-routes) | Allocation only; owning evidence still required. |
-| API-02 | Provider API receipt and processing-status lookup | Next | unallocated | [Requirements](requirements.md#provider-and-intermediary-routes) | Allocation only; owning evidence still required. |
-| API-03 | Provider API resulting Case/PO lookup | Next | unallocated | [Requirements](requirements.md#provider-and-intermediary-routes) | Allocation only; owning evidence still required. |
-| API-04 | Provider API credential issue, rotation, and revocation | Next | unallocated | [Requirements](requirements.md#provider-and-intermediary-routes) | Allocation only; owning evidence still required. |
-| MCP-05 | MCP actions for the broader classified-email workspace | Next | unallocated | [Requirements](requirements.md#staff-mcp-and-automation) | Allocation only; owning evidence still required. |
-| AI-05 | AI/vision assistance for vehicle images or damage evidence | Next | unallocated | [Requirements](requirements.md#staff-mcp-and-automation) | Allocation only; owning evidence still required. |
-| MAIL-23 | Map the detailed taxonomy to operational queues and designated Outlook folders | Next | unallocated | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
-| INT-32 | Instruction/image halves retain separate age and chase state; definitive pairing notifies staff that the job is ready | Next | unallocated | [Requirements](requirements.md#intake-and-source-identity) | Coupled to INT-28; allocation only and no caller implied. |
-| MAIL-19 | Automatically send chasers or other outbound messages | Later | unallocated | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
-| CASE-05 | Diminution cases | Later | unallocated | [Requirements](requirements.md#case-identity-and-lifecycle) | Allocation only; owning evidence still required. |
-| CASE-06 | Commercial cases | Later | unallocated | [Requirements](requirements.md#case-identity-and-lifecycle) | Allocation only; owning evidence still required. |
-| EXT-15 | Automated WhatsApp ingestion and coexistence | Later | unallocated | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Allocation only; owning evidence still required. |
-| AI-01 | In-app staff AI assistant | Later | unallocated | [Requirements](requirements.md#staff-mcp-and-automation) | Allocation only; owning evidence still required. |
-| AI-02 | AI-assisted email identification/classification | Later | unallocated | [Requirements](requirements.md#staff-mcp-and-automation) | Activate only if rule-based behavior is insufficient and approvals are met. |
-| AI-03 | AI-assisted suggested email actions | Later | unallocated | [Requirements](requirements.md#staff-mcp-and-automation) | Activate only if rule-based behavior is insufficient and approvals are met. |
-| AI-04 | AI-assisted document extraction and operator review | Later | unallocated | [Requirements](requirements.md#staff-mcp-and-automation) | Activate only if rule-based behavior is insufficient and approvals are met. |
-| AI-06 | AI-assisted inspection-address suggestions | Later | unallocated | [Requirements](requirements.md#staff-mcp-and-automation) | Activate only if rule-based behavior is insufficient and approvals are met. |
-| MAIL-17 | Idempotent report/fee-note send on the original Outlook thread or provider API using principal CC/delivery/standing-note preferences, followed by Box filing, completion, and management-event recording | Later | unallocated | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; exact destination, caller, custody, and recovery evidence required. |
-| CASE-22 | Replace EVA inspection and report-preparation work inside Pegasus | Later | unallocated | [Requirements](requirements.md#case-identity-and-lifecycle) | Allocation only; owning evidence still required. |
-| EXT-04 | Direct EVA API integration | Later | unallocated | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Depends on usable EVA vendor capability and separate approval. |
-| EXT-05 | Replace EVA Engineer assignment | Later | unallocated | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Allocation only; owning evidence still required. |
-| EXT-06 | Replace EVA estimating without moving repair-specification authority out of Pegasus Core | Later | unallocated | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Depends on an accepted estimating route, caller, recovery, and Engineer approval evidence. |
-| EXT-07 | Replace EVA valuation while preserving separate dated/versioned source evidence and explicit Engineer selection | Later | unallocated | [Requirements](requirements.md#eva-and-external-engineering-handoff) | No source or adapter selects the Engineer value; contracts, caller, and acceptance remain required. |
-| EXT-08 | Activate deterministic report generation from accepted Core-owned data through the approved renderer contract | Later | unallocated | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Imported renderer source is not activation; caller, validation, recovery, and acceptance remain required. |
-| EXT-09 | Versioned repair-estimate lines, source versions, approvals, original-versus-assessed comparison, and savings | Later | unallocated | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Allocation only; formulas and permissions require accepted authority. |
-| EXT-10 | Versioned vehicle-valuation evidence, explicit Engineer acceptance/adjustments/rationale, and revaluation history | Later | unallocated | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Allocation only; accepted estimate, valuation, and salvage versions drive computed figures. |
-| EXT-11 | Versioned fee/invoice and Engineer cost/payment inputs, accounting status, and role-restricted visibility | Later | unallocated | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Allocation only; invoice generation consumes accepted report events and fee rules. |
-| EXT-12 | Audatex/PDF repair-estimate ingestion with retained source artifact, mapped version, and variant proof | Later | unallocated | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Blocked pending accepted PDF variants, mapping, caller, and recovery evidence. |
-| EXT-13 | Independently licensed valuation-source adapters that preserve each source observation and version | Later | unallocated | [Requirements](requirements.md#eva-and-external-engineering-handoff) | CAP, Glass’s, and Cazana are candidates; access/terms and each adapter require separate acceptance. |
-| AI-07 | Staff-selected `AI Assessor` Engineer option in the post-EVA-replacement assignment workflow; it owns no button, queue, model, or transport | Later | unallocated | [Requirements](requirements.md#staff-mcp-and-automation) | Allocation only; AI-09 separately owns vendor-neutral work transport. |
-| MAIL-12 | Authenticated staff compose, reply, forward, and send email in Pegasus | Later | unallocated | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; does not weaken the separately gated MAIL-17 report-send transaction. |
-| EXT-16 | Collision Engineers guided mobile image capture | Later | unallocated | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Unassigned; later direct decision required. |
-| EXT-17 | Tractable or Ravin guided-capture integration | Later | unallocated | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Unassigned; later direct decision required. |
-| EXT-19 | Collision Engineers custom application domain | Later | unallocated | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Unassigned; later direct decision required. |
-| CASE-31 | One accepted structured case/engineering record is the source for every deterministic report, fee note, addendum, query document, invoice input, and statistic | Later | unallocated | [Requirements](requirements.md#case-identity-and-lifecycle) | Source-of-data outcome only; downstream capabilities retain their own authority. |
-| ENG-01 | One canonical repair specification with route provenance for Glass’s, Audatex PDF, or an approved AI proposal | Later | unallocated | [Requirements](requirements.md#vehicle-and-engineering-evidence) | Each route requires its own accepted source, mapping, caller, and Engineer review. |
-| ENG-02 | Engineer-owned final value/deductions, outcome, salvage category/value, and roadworthiness/reason drive derived figures and narratives without retyping | Later | unallocated | [Requirements](requirements.md#vehicle-and-engineering-evidence) | Only accepted source versions and explicit named-Engineer decisions may drive outputs. |
-| UI-15 | One case-centred progressive Engineer workbench for inspection, vehicle/damage, valuation, estimate/repairer, report, media, salvage, text, and administration | Later | unallocated | [Requirements](requirements.md#operator-experience) | Arrangement only; it does not copy EVA navigation or duplicate data/calculation owners. |
-| RPT-01 | Deterministic renderer validates accepted data, computes each figure once, and applies the fixed Collision Engineers design | Later | unallocated | [Requirements](requirements.md#reports-and-correspondence) | Imported renderer source is non-caller evidence until separately activated. |
-| RPT-02 | Assessment rendering covers four outcome variants and emits the fee note plus itemised repair-specification breakdown | Later | unallocated | [Requirements](requirements.md#reports-and-correspondence) | Allocation only; report wording and caller acceptance remain required. |
-| RPT-03 | Audit rendering preserves conservative and maximised specifications and records their uplift | Later | unallocated | [Requirements](requirements.md#reports-and-correspondence) | Allocation only; both accepted specification versions are required. |
-| RPT-04 | Diminution rendering uses accepted original-case data plus the Engineer-entered percentage | Later | unallocated | [Requirements](requirements.md#reports-and-correspondence) | Allocation only; wording and approval evidence remain required. |
-| RPT-05 | Addenda render from accepted case data plus a versioned amendment without retyping the case | Later | unallocated | [Requirements](requirements.md#reports-and-correspondence) | Allocation only; amendment identity, approval, and recovery remain required. |
-| AI-08 | Collision AI Centre proposes a case-grounded query response in approved house style/letterhead; a named Engineer reviews, amends if needed, and approves it before sending | Later | unallocated | [Requirements](requirements.md#staff-mcp-and-automation) | Proposal only; it cannot mutate accepted case truth or send autonomously. |
-| AI-09 | Staff `Send to AI` creates one durable idempotent capability-scoped work request bound to immutable case/revision and evidence; a scoped worker may lease it and return only a proposal, evidence, or visible failure | Later | unallocated | [Requirements](requirements.md#staff-mcp-and-automation) | Duplicate, expired, cancelled, or stale work cannot mutate accepted data; named-Engineer accept/amend/reject is required. |
-| MI-01 | Per-Engineer throughput, query rate/types, and Audit uplift | Later | unallocated | [Requirements](requirements.md#vehicle-and-engineering-evidence) | Allocation only; coaching access and measures require accepted definitions. |
-| MI-02 | Per-principal report counts, types, and periods feeding invoice generation | Later | unallocated | [Requirements](requirements.md#vehicle-and-engineering-evidence) | Allocation only; consumes accepted report events and fee rules. |
-| MI-03 | Holding-pen age and instruction-to-images, ready-to-sent, and overall turnaround measures consuming accepted workflow events | Later | unallocated | [Requirements](requirements.md#vehicle-and-engineering-evidence) | Allocation only; MAIL-17 owns report-send/completion event recording; measure definitions and visibility require acceptance. |
+| DATA-02 | Prepare inspection-address / repairer reference data from separately approved spreadsheets | Next | 0.2.0 | [Requirements](requirements.md#documents-extraction-and-custody) | Deferred pending accepted provider-location evidence, schema/package, migration, and caller proof. |
+| INT-04 | Activate additional providers through the shared intake/case workflow using separately accepted provider evidence and rules | Next | 0.2.0 | [Requirements](requirements.md#intake-and-source-identity) | Adding reference evidence is not workflow activation; activation precedes INT-05–INT-07 within the `Next` horizon. |
+| INT-05 | Automatic ingestion from `desk@collisionengineers.co.uk` | Next | 0.3.0 | [Requirements](requirements.md#intake-and-source-identity) | Allocation only; owning evidence still required. |
+| INT-06 | Automatic ingestion from `engineers@collisionengineers.co.uk` | Next | 0.3.0 | [Requirements](requirements.md#intake-and-source-identity) | Allocation only; owning evidence still required. |
+| INT-07 | Automatic ingestion from `info@collisionengineers.co.uk` | Next | 0.3.0 | [Requirements](requirements.md#intake-and-source-identity) | Allocation only; owning evidence still required. |
+| INT-14 | Automated legacy DOC extraction | Next | 0.2.0 | [Requirements](requirements.md#intake-and-source-identity) | Allocation only; owning evidence still required. |
+| INT-15 | Automated MSG extraction | Next | 0.2.0 | [Requirements](requirements.md#intake-and-source-identity) | Allocation only; owning evidence still required. |
+| INT-16 | OCR for scan-like PDF instruction pages | Next | 0.2.0 | [Requirements](requirements.md#intake-and-source-identity) | Allocation only; owning evidence still required. |
+| INT-28 | Automatic matching of image-led and instruction-led records | Next | 0.2.0 | [Requirements](requirements.md#intake-and-source-identity) | Allocation only; owning evidence still required. |
+| MAIL-01 | Identify every inbound mailbox item and its mailbox/thread/message identity | Next | 0.3.0 | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
+| MAIL-02 | Map detailed email classifications to Receiving work, Query, Other, Needs sorting, or the separate Triage workflow | Next | 0.3.0 | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
+| MAIL-03 | One shared classification policy across all supported mailboxes | Next | 0.3.0 | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
+| MAIL-04 | Explainable classification evidence, policy version, and correction history | Next | 0.3.0 | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
+| MAIL-05 | Recommend the designated Outlook folder for a classified message | Next | 0.3.0 | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
+| MAIL-06 | Staff confirmation of a recommended folder move in Pegasus | Next | 0.3.0 | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
+| MAIL-07 | Move the confirmed message to the designated Outlook folder | Next | 0.3.0 | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
+| MAIL-08 | Suggested next actions for classified email | Next | 0.3.0 | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
+| MAIL-09 | Automatic association of related email and attachments with a case | Next | 0.3.0 | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
+| MAIL-10 | Manual email/case association, unlink, relink, and correction | Next | 0.3.0 | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
+| MAIL-11 | Browse, search, and view mailbox messages and conversation threads in the app | Next | 0.3.0 | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
+| MAIL-13 | Change read state, Outlook categories, flags, or delete messages in the app | Next | 0.3.0 | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
+| CASE-23 | Post-report query and dispute work | Next | 0.4.0 | [Requirements](requirements.md#case-identity-and-lifecycle) | Allocation only; owning evidence still required. |
+| UI-10 | Full email-management workspace | Next | 0.3.0 | [Requirements](requirements.md#operator-experience) | Allocation only; owning evidence still required. |
+| UI-14 | Categorised email queues for Receiving work, Queries, and Other | Next | 0.3.0 | [Requirements](requirements.md#operator-experience) | Allocation only; owning evidence still required. |
+| API-01 | Principal-scoped provider submission API | Next | 0.4.0 | [Requirements](requirements.md#provider-and-intermediary-routes) | Allocation only; owning evidence still required. |
+| API-02 | Provider API receipt and processing-status lookup | Next | 0.4.0 | [Requirements](requirements.md#provider-and-intermediary-routes) | Allocation only; owning evidence still required. |
+| API-03 | Provider API resulting Case/PO lookup | Next | 0.4.0 | [Requirements](requirements.md#provider-and-intermediary-routes) | Allocation only; owning evidence still required. |
+| API-04 | Provider API credential issue, rotation, and revocation | Next | 0.4.0 | [Requirements](requirements.md#provider-and-intermediary-routes) | Allocation only; owning evidence still required. |
+| MCP-05 | MCP actions for the broader classified-email workspace | Next | 0.3.0 | [Requirements](requirements.md#staff-mcp-and-automation) | Allocation only; owning evidence still required. |
+| AI-05 | AI/vision assistance for vehicle images or damage evidence | Next | 0.2.0 | [Requirements](requirements.md#staff-mcp-and-automation) | Allocation only; owning evidence still required. |
+| MAIL-23 | Map the detailed taxonomy to operational queues and designated Outlook folders | Next | 0.3.0 | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
+| INT-32 | Instruction/image halves retain separate age and chase state; definitive pairing notifies staff that the job is ready | Next | 0.2.0 | [Requirements](requirements.md#intake-and-source-identity) | Coupled to INT-28; allocation only and no caller implied. |
+| MAIL-19 | Automatically send chasers or other outbound messages | Later | 0.5.0 | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
+| CASE-05 | Diminution cases | Later | 0.5.0 | [Requirements](requirements.md#case-identity-and-lifecycle) | Allocation only; owning evidence still required. |
+| CASE-06 | Commercial cases | Later | 0.5.0 | [Requirements](requirements.md#case-identity-and-lifecycle) | Allocation only; owning evidence still required. |
+| EXT-15 | Automated WhatsApp ingestion and coexistence | Later | 0.5.0 | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Allocation only; owning evidence still required. |
+| AI-01 | In-app staff AI assistant | Later | 0.6.0 | [Requirements](requirements.md#staff-mcp-and-automation) | Allocation only; owning evidence still required. |
+| AI-02 | AI-assisted email identification/classification | Later | 0.6.0 | [Requirements](requirements.md#staff-mcp-and-automation) | Activate only if rule-based behavior is insufficient and approvals are met. |
+| AI-03 | AI-assisted suggested email actions | Later | 0.6.0 | [Requirements](requirements.md#staff-mcp-and-automation) | Activate only if rule-based behavior is insufficient and approvals are met. |
+| AI-04 | AI-assisted document extraction and operator review | Later | 0.6.0 | [Requirements](requirements.md#staff-mcp-and-automation) | Activate only if rule-based behavior is insufficient and approvals are met. |
+| AI-06 | AI-assisted inspection-address suggestions | Later | 0.6.0 | [Requirements](requirements.md#staff-mcp-and-automation) | Activate only if rule-based behavior is insufficient and approvals are met. |
+| MAIL-17 | Idempotent report/fee-note send on the original Outlook thread or provider API using principal CC/delivery/standing-note preferences, followed by Box filing, completion, and management-event recording | Later | 1.2.0 | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; exact destination, caller, custody, and recovery evidence required. |
+| CASE-22 | Replace EVA inspection and report-preparation work inside Pegasus | Later | 1.0.0 | [Requirements](requirements.md#case-identity-and-lifecycle) | Allocation only; owning evidence still required. |
+| EXT-04 | Direct EVA API integration | Later | 0.7.0 | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Depends on usable EVA vendor capability and separate approval. |
+| EXT-05 | Replace EVA Engineer assignment | Later | 1.0.0 | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Allocation only; owning evidence still required. |
+| EXT-06 | Replace EVA estimating without moving repair-specification authority out of Pegasus Core | Later | 1.0.0 | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Depends on an accepted estimating route, caller, recovery, and Engineer approval evidence. |
+| EXT-07 | Replace EVA valuation while preserving separate dated/versioned source evidence and explicit Engineer selection | Later | 1.0.0 | [Requirements](requirements.md#eva-and-external-engineering-handoff) | No source or adapter selects the Engineer value; contracts, caller, and acceptance remain required. |
+| EXT-08 | Activate deterministic report generation from accepted Core-owned data through the approved renderer contract | Later | 1.1.0 | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Imported renderer source is not activation; caller, validation, recovery, and acceptance remain required. |
+| EXT-09 | Versioned repair-estimate lines, source versions, approvals, original-versus-assessed comparison, and savings | Later | 1.0.0 | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Allocation only; formulas and permissions require accepted authority. |
+| EXT-10 | Versioned vehicle-valuation evidence, explicit Engineer acceptance/adjustments/rationale, and revaluation history | Later | 1.0.0 | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Allocation only; accepted estimate, valuation, and salvage versions drive computed figures. |
+| EXT-11 | Versioned fee/invoice and Engineer cost/payment inputs, accounting status, and role-restricted visibility | Later | 1.2.0 | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Allocation only; invoice generation consumes accepted report events and fee rules. |
+| EXT-12 | Audatex/PDF repair-estimate ingestion with retained source artifact, mapped version, and variant proof | Later | 1.0.0 | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Blocked pending accepted PDF variants, mapping, caller, and recovery evidence. |
+| EXT-13 | Independently licensed valuation-source adapters that preserve each source observation and version | Later | 1.0.0 | [Requirements](requirements.md#eva-and-external-engineering-handoff) | CAP, Glass’s, and Cazana are candidates; access/terms and each adapter require separate acceptance. |
+| AI-07 | Staff-selected `AI Assessor` Engineer option in the post-EVA-replacement assignment workflow; it owns no button, queue, model, or transport | Later | 1.3.0 | [Requirements](requirements.md#staff-mcp-and-automation) | Allocation only; AI-09 separately owns vendor-neutral work transport. |
+| MAIL-12 | Authenticated staff compose, reply, forward, and send email in Pegasus | Later | 0.5.0 | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; does not weaken the separately gated MAIL-17 report-send transaction. |
+| EXT-16 | Collision Engineers guided mobile image capture | Later | 1.4.0 | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Unassigned; later direct decision required. |
+| EXT-17 | Tractable or Ravin guided-capture integration | Later | 1.4.0 | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Unassigned; later direct decision required. |
+| EXT-19 | Collision Engineers custom application domain | Later | 1.4.0 | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Unassigned; later direct decision required. |
+| CASE-31 | One accepted structured case/engineering record is the source for every deterministic report, fee note, addendum, query document, invoice input, and statistic | Later | 1.0.0 | [Requirements](requirements.md#case-identity-and-lifecycle) | Source-of-data outcome only; downstream capabilities retain their own authority. |
+| ENG-01 | One canonical repair specification with route provenance for Glass’s, Audatex PDF, or an approved AI proposal | Later | 1.0.0 | [Requirements](requirements.md#vehicle-and-engineering-evidence) | Each route requires its own accepted source, mapping, caller, and Engineer review. |
+| ENG-02 | Engineer-owned final value/deductions, outcome, salvage category/value, and roadworthiness/reason drive derived figures and narratives without retyping | Later | 1.0.0 | [Requirements](requirements.md#vehicle-and-engineering-evidence) | Only accepted source versions and explicit named-Engineer decisions may drive outputs. |
+| UI-15 | One case-centred progressive Engineer workbench for inspection, vehicle/damage, valuation, estimate/repairer, report, media, salvage, text, and administration | Later | 1.0.0 | [Requirements](requirements.md#operator-experience) | Arrangement only; it does not copy EVA navigation or duplicate data/calculation owners. |
+| RPT-01 | Deterministic renderer validates accepted data, computes each figure once, and applies the fixed Collision Engineers design | Later | 1.1.0 | [Requirements](requirements.md#reports-and-correspondence) | Imported renderer source is non-caller evidence until separately activated. |
+| RPT-02 | Assessment rendering covers four outcome variants and emits the fee note plus itemised repair-specification breakdown | Later | 1.1.0 | [Requirements](requirements.md#reports-and-correspondence) | Allocation only; report wording and caller acceptance remain required. |
+| RPT-03 | Audit rendering preserves conservative and maximised specifications and records their uplift | Later | 1.1.0 | [Requirements](requirements.md#reports-and-correspondence) | Allocation only; both accepted specification versions are required. |
+| RPT-04 | Diminution rendering uses accepted original-case data plus the Engineer-entered percentage | Later | 1.1.0 | [Requirements](requirements.md#reports-and-correspondence) | Allocation only; wording and approval evidence remain required. |
+| RPT-05 | Addenda render from accepted case data plus a versioned amendment without retyping the case | Later | 1.1.0 | [Requirements](requirements.md#reports-and-correspondence) | Allocation only; amendment identity, approval, and recovery remain required. |
+| AI-08 | Collision AI Centre proposes a case-grounded query response in approved house style/letterhead; a named Engineer reviews, amends if needed, and approves it before sending | Later | 1.3.0 | [Requirements](requirements.md#staff-mcp-and-automation) | Proposal only; it cannot mutate accepted case truth or send autonomously. |
+| AI-09 | Staff `Send to AI` creates one durable idempotent capability-scoped work request bound to immutable case/revision and evidence; a scoped worker may lease it and return only a proposal, evidence, or visible failure | Later | 1.3.0 | [Requirements](requirements.md#staff-mcp-and-automation) | Duplicate, expired, cancelled, or stale work cannot mutate accepted data; named-Engineer accept/amend/reject is required. |
+| MI-01 | Per-Engineer throughput, query rate/types, and Audit uplift | Later | 1.2.0 | [Requirements](requirements.md#vehicle-and-engineering-evidence) | Allocation only; coaching access and measures require accepted definitions. |
+| MI-02 | Per-principal report counts, types, and periods feeding invoice generation | Later | 1.2.0 | [Requirements](requirements.md#vehicle-and-engineering-evidence) | Allocation only; consumes accepted report events and fee rules. |
+| MI-03 | Holding-pen age and instruction-to-images, ready-to-sent, and overall turnaround measures consuming accepted workflow events | Later | 1.2.0 | [Requirements](requirements.md#vehicle-and-engineering-evidence) | Allocation only; MAIL-17 owns report-send/completion event recording; measure definitions and visibility require acceptance. |
 | ACC-12 | External/customer application accounts | Not planned | unallocated | [Requirements](requirements.md#parties-principals-organisations-and-access) | Permanent boundary; not backlog. |
 | ACC-13 | Public registration | Not planned | unallocated | [Requirements](requirements.md#parties-principals-organisations-and-access) | Permanent boundary; not backlog. |
 | ACC-14 | Multi-factor authentication for staff | Not planned | unallocated | [Requirements](requirements.md#parties-principals-organisations-and-access) | Permanent boundary; not backlog. |
@@ -269,11 +286,14 @@ Total: **229 capabilities; 229 unique IDs**.
 
 ## Allocation rules
 
-- `Now` does not mean implemented; caller, local verification, deployment, live
-  verification and acceptance remain separate evidence states.
-- `Next` and `Later` create no dormant service, schema, route, flag, credential,
-  UI placeholder or issue.
-- `Not planned` is a product boundary, not a backlog state.
+- `Target release` is the first intended release containing a planned
+  capability. It is sequencing, not activation, implementation, or completion.
+- `Now` targets only `0.1.0-alpha.1`; caller, local verification, deployment,
+  live verification and acceptance remain separate evidence states.
+- `Next` and `Later` use exact future targets but create no dormant service,
+  schema, route, flag, credential, UI placeholder or issue.
+- `Not planned` is a permanent product boundary, not a backlog state, and always
+  remains `unallocated`.
 - Conditional capabilities remain `Later` only as retained problems; their
   direct decision and full planning route are promotion conditions.
 - Changing an outcome, horizon or target requires product authority, roadmap and

@@ -10,7 +10,7 @@ Status: **Planned `0.1.0-alpha.1` specification with Operations-first selected f
 4. Named workflow/evidence/lease/exception state and consequential action.
 5. Provenance, external identity, permanent business history and limitation.
 
-The Planned `0.1.0-alpha.1` routes are Operations, Intake, Triage, Cases and authorised Administration. Each candidate direction uses the same focused-flow set. `Next`/`unallocated` email appears only after its gates; `Later`/`unallocated` has no placeholder route or control.
+The Planned `0.1.0-alpha.1` routes are Operations, Intake, Triage, Cases and authorised Administration. Each candidate direction uses the same focused-flow set. `Next / 0.3.0` email appears only after its gates; deferred `Later` work has no placeholder route or control regardless of its exact allocated target.
 
 ## Contracts
 
@@ -72,4 +72,4 @@ When implemented:
 - each visible trace row and state needs authenticated Web-caller and named Core-owner evidence;
 - keyboard, screen-reader, focus/error, forced-colours, reduced-motion, 1280+ desktop, constrained desktop and 200%-zoom inspection must be recorded;
 - operator review uses approved genuine local immutable material only; generated imagery or synthetic operational material cannot prove acceptance; and
-- every `Next`/`unallocated` and `Later`/`unallocated` UI change re-enters inventory, specification, alternatives, independent review, explicit approval, visual generation and manual visual review.
+- every deferred `Next` or `Later` UI change re-enters inventory, specification, alternatives, independent review, explicit approval, visual generation and manual visual review regardless of its exact allocated target.

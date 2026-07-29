@@ -13,7 +13,7 @@ The intended setting is a small office of approximately eight users. Staff accou
 | Administrator | staff accounts, disable/access review/roles; principals/successor cutover; configuration; approved mailbox allowlist; all ordinary staff intake, Triage, case and document work | credentials or cloud/release administration through the UI; permanent deletion; a generic mailbox-rule editor before policy resolves |
 | Engineer, User | authorised intake, Triage, case, document, lookup, chaser, evidence and lifecycle work | account/role/access review, principals, configuration, mailbox allowlist, credential/cloud administration or permanent deletion |
 | Automated processing | named Core intake/evidence actions under its durable identity | a UI account, guessed matching or independent business policy |
-| Provider client (`Next`/`unallocated`) | principal-scoped receipt/status/result API only | staff shell, general case workflow or administration |
+| Provider client (`Next / 0.4.0`) | principal-scoped receipt/status/result API only | staff shell, general case workflow or administration |
 | External/customer | no application account | every application surface (`Not planned`) |
 
 Every protected route/action has unauthenticated, disabled-session, stale-role, denied, loading and successful outcomes. Route hiding is never authorisation.
@@ -34,7 +34,7 @@ Case/PO, registration, claimant, claim number, principal, state, Engineer, recei
 
 ## Operations and state boundaries
 
-Operations shows Not ready, Review, Held, Needs sorting, exact `Blocked intake`, separate Triage, Due today, In today, Sent to Engineer today/week, and Reports sent today/week. It uses Europe/London midnight days and Monday-week boundaries. Counts open their exact filtered queues; zero is distinct from stale/unavailable; last updated and manual refresh are visible. Receiving work, Queries and Other are `Next`/`unallocated` only.
+Operations shows Not ready, Review, Held, Needs sorting, exact `Blocked intake`, separate Triage, Due today, In today, Sent to Engineer today/week, and Reports sent today/week. It uses Europe/London midnight days and Monday-week boundaries. Counts open their exact filtered queues; zero is distinct from stale/unavailable; last updated and manual refresh are visible. Receiving work, Queries and Other are `Next / 0.3.0` only.
 
 ### `0.1.0-alpha.1` surface inventory
 
@@ -62,11 +62,11 @@ Use semantic landmarks/headings/tables, labels and associated errors, keyboard o
 
 The contained visual boundary is warm off-white ground, white panels, warm-charcoal navigation, near-black text, CE-red primary/urgent accents, amber incomplete/pending, restrained navy Review and green only confirmed completion. Use system-sans 14–16px body text, sharp 2–3px corners, rare shadows and Lucide-style line icons; do not expose Azure, OCR, AI, queues or implementation mechanics in operator copy.
 
-Evaluation and operator review use approved genuine local immutable material only. Do not invent operational inputs. `Next`/`unallocated` and `Later`/`unallocated` features have no `0.1.0-alpha.1` control, navigation, workflow or placeholder and must re-enter the complete UI route before a later UI change.
+Evaluation and operator review use approved genuine local immutable material only. Do not invent operational inputs. Deferred `Next` and `Later` features, each with its exact allocated target, have no `0.1.0-alpha.1` control, navigation, workflow or placeholder and must re-enter the complete UI route before a later UI change.
 
 ## Selected shell and open gates
 
-Operations-first is selected for the `0.1.0-alpha.1` landing and navigation strategy. The three comparison rasters remain selection evidence; only Direction A's shell strategy is approved, not every raster detail. Policy-specific email predicates and acceptance evidence still block only their named automatic paths. `Next`/`unallocated` and `Later`/`unallocated` UI remains outside this selection.
+Operations-first is selected for the `0.1.0-alpha.1` landing and navigation strategy. The three comparison rasters remain selection evidence; only Direction A's shell strategy is approved, not every raster detail. Policy-specific email predicates and acceptance evidence still block only their named automatic paths. Deferred `Next` and `Later` UI remains outside this selection regardless of its exact allocated target.
 
 ## Historical material
 

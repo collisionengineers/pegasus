@@ -649,22 +649,51 @@ Malware scanning has no activation path. There is no scanner port, fixture, clie
 
 Repository visibility was explicitly authorised as public on 2026-07-27. The tracked history and documentation, including [operator notes](operator-notes.md) and supplied reference material, are publicly readable. Never commit secrets, personal/case material, or anything not approved for public source control.
 
-GitHub work taxonomy:
+GitHub work taxonomy and one-way synchronization contract:
 
-| Field | Values or rule |
+| Logical field | Values or rule |
 | --- | --- |
 | Work kind | Feature, Bug, Task, Decision |
 | Type labels | Every workflow-owned issue receives exactly one `type:*` label |
-| Project-specific categories | None registered |
-| Delivery board | `Pegasus Delivery`, user-owned GitHub project 3 and linked to this repository |
-| Status | Triage, Ready, In progress, In review, Done |
-| Priority | P0 Critical, P1 High, P2 Normal, P3 Low |
-| Horizon | Now, Next, Later |
-| Releases | Use milestones when allocated |
+| Delivery board | `Pegasus Delivery`, user-owned GitHub Project 3, linked to this repository |
+| Delivery status | `Triage`, `Ready`, `In progress`, `In review`, `Done`, `Not planned` |
+| Priority | `P0 Critical`, `P1 High`, `P2 Normal`, `P3 Low` |
+| Horizon | `Now`, `Next`, `Later`, `Not planned` |
+| Capability ID | Stable canonical ID stored in one text field |
+| Target release | `0.1.0-alpha.1`, `0.2.0`, `0.3.0`, `0.4.0`, `0.5.0`, `0.6.0`, `0.7.0`, `1.0.0`, `1.1.0`, `1.2.0`, `1.3.0`, `1.4.0`, then `unallocated` |
+| Milestones | One open, dateless repository milestone per planned target; issues receive the canonical target only when activated |
 
-Saved views, charts, auto-add behavior, and private issue-form enforcement require human visual confirmation when API readback cannot prove them.
+The [capability inventory](capabilities.md) writes product identity, horizon,
+target, and boundary meaning one way to GitHub. Project fields, draft cards,
+views, issues, and milestones never write product truth back. A keyed planned
+draft is not activation. On an unactivated draft, `In progress` means only
+“included in the active release scope” for the 128 `Now` capabilities;
+implementation begins only through an accepted owning issue/change record.
+Deferred planned drafts use `Triage`. `Not planned` is reserved for permanent
+boundary drafts and never means backlog.
 
-Capability rows do not become issues automatically. Issue `#3` owns the QDOS alpha delivery plan; issue `#6` owns the repository-orientation change. Change records are indexed in [changes](changes/README.md).
+Conversion of a planned draft to an issue requires accepted activation/change
+evidence and the matching milestone. Boundary drafts cannot be converted while
+canonical authority remains `Not planned`; they have no milestone. Allocation,
+activation, implementation, caller proof, deployment, live verification,
+Project presentation, and operator/management acceptance remain distinct.
+
+Synchronisation is keyed by Capability ID and is sequential, idempotent, and
+fail-closed on field, option, title/key, issue-binding, or duplicate ambiguity.
+It may archive duplicate keyed drafts after deterministic reconciliation but
+never deletes cards, closes issues, rewrites repository issue/PR content, or
+modifies unrelated unkeyed items. No committed Project export or second status
+database is permitted.
+
+The saved `Release sequence` board contains only the 200 planned keyed items,
+columned by Target release in canonical order. The separate `Permanent
+boundaries` table contains the 29 `Not planned / unallocated` drafts. Saved-view
+filters, column order, displayed fields, and representative cards require
+authenticated visual confirmation after API readback; preserve unrelated views.
+
+Issue `#3` owns the QDOS alpha delivery cohort. Issue `#19` owns exact release
+allocation and Project synchronization. Change records are indexed in
+[changes](changes/README.md).
 
 ## Maintenance
 
