@@ -44,7 +44,7 @@ The common hierarchy is:
 4. named workflow, evidence, lease or exception state and consequential action;
 5. provenance, external identity, permanent business history and limitations.
 
-`Next`/`unallocated` and `Later`/`unallocated` capabilities have no `0.1.0-alpha.1` navigation, control, workflow or placeholder. Every later UI capability must re-enter inventory, specification, alternatives, independent review, explicit approval, visual generation and manual visual review.
+Planned capabilities outside `0.1.0-alpha.1` have no alpha navigation, control, workflow or placeholder; [the capability inventory](../docs/capabilities.md) owns their exact targets. Every deferred UI capability must re-enter inventory, specification, alternatives, independent review, explicit approval, visual generation and manual visual review.
 
 ## Design principles
 
@@ -230,7 +230,7 @@ Staff accounts, authentication and authorisation remain planned until an authent
 | Administrator | Staff accounts, creation/disable/access review/roles; principals and successor cutover; configuration; approved mailbox allowlist; all ordinary staff Intake, Triage, Case and document work | Credentials, cloud or release administration through the UI; permanent deletion; a generic mailbox-rule editor before policy is resolved |
 | Engineer, User | Authorised Intake, Triage, Case, document, lookup, chaser, evidence and lifecycle work | Account, role or access review; principals; configuration; mailbox allowlist; credentials or cloud administration; permanent deletion |
 | Automated processing | Named Core intake and evidence actions under its durable identity | A UI account, guessed matching or independent business policy |
-| Provider client, `Next`/`unallocated` | Principal-scoped submission receipt, status and result API only | Staff shell, general case workflow or Administration |
+| Provider client, deferred planned caller | Principal-scoped submission receipt, status and result API only | Staff shell, general case workflow or Administration |
 | External/customer | No application account | Every application surface; external/customer accounts are not planned |
 
 Every protected route and action must handle unauthenticated, disabled-session, stale-role, denied, loading and successful outcomes. Hiding a route or control never replaces server authorisation.
@@ -259,7 +259,7 @@ Rules:
 - Day boundaries use Europe/London midnight.
 - Week boundaries begin Monday.
 - At constrained desktop width or 200% zoom, the selected summary becomes an ordered, labelled section after the results without losing identity, state or action context.
-- Receiving work, Queries and Other are `Next`/`unallocated`.
+- Receiving work, Queries and Other have no `0.1.0-alpha.1` surface; the capability inventory owns their exact targets.
 - There are no `0.1.0-alpha.1` saved views, bulk actions, inline mutation, calendar, personal assignments or general email queues.
 
 The selection rationale is strongest shared-office awareness and truthful day/week visibility. Its risk is density and dependence on independent, accurate queries.
@@ -533,7 +533,7 @@ Each visible capability/state also needs authenticated Web-caller and named Core
 
 The complete allocation is owned by [capabilities](../docs/capabilities.md). These boundaries are design invariants:
 
-### `Next`/`unallocated`
+### Deferred integration and intake surfaces
 
 There is no alpha control, route or placeholder for:
 
@@ -552,7 +552,7 @@ There is no alpha control, route or placeholder for:
 
 Provider APIs and MCP are non-browser boundaries and do not create staff-shell destinations.
 
-### `Later`/`unallocated`
+### Deferred casework and advanced surfaces
 
 There is no alpha control, route or placeholder for:
 

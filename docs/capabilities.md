@@ -237,9 +237,9 @@ Total: **229 capabilities; 229 unique IDs**.
 | EXT-13 | Independently licensed valuation-source adapters that preserve each source observation and version | Later | 1.0.0 | [Requirements](requirements.md#eva-and-external-engineering-handoff) | CAP, Glass’s, and Cazana are candidates; access/terms and each adapter require separate acceptance. |
 | AI-07 | Staff-selected `AI Assessor` Engineer option in the post-EVA-replacement assignment workflow; it owns no button, queue, model, or transport | Later | 1.3.0 | [Requirements](requirements.md#staff-mcp-and-automation) | Allocation only; AI-09 separately owns vendor-neutral work transport. |
 | MAIL-12 | Authenticated staff compose, reply, forward, and send email in Pegasus | Later | 0.5.0 | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; does not weaken the separately gated MAIL-17 report-send transaction. |
-| EXT-16 | Collision Engineers guided mobile image capture | Later | 1.4.0 | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Unassigned; later direct decision required. |
-| EXT-17 | Tractable or Ravin guided-capture integration | Later | 1.4.0 | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Unassigned; later direct decision required. |
-| EXT-19 | Collision Engineers custom application domain | Later | 1.4.0 | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Unassigned; later direct decision required. |
+| EXT-16 | Collision Engineers guided mobile image capture | Later | 1.4.0 | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Conditionally allocated; a later direct decision and the normal activation evidence remain required. |
+| EXT-17 | Tractable or Ravin guided-capture integration | Later | 1.4.0 | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Conditionally allocated; a later direct decision and the normal activation evidence remain required. |
+| EXT-19 | Collision Engineers custom application domain | Later | 1.4.0 | [Requirements](requirements.md#eva-and-external-engineering-handoff) | Conditionally allocated; a later direct decision and the normal activation evidence remain required. |
 | CASE-31 | One accepted structured case/engineering record is the source for every deterministic report, fee note, addendum, query document, invoice input, and statistic | Later | 1.0.0 | [Requirements](requirements.md#case-identity-and-lifecycle) | Source-of-data outcome only; downstream capabilities retain their own authority. |
 | ENG-01 | One canonical repair specification with route provenance for Glass’s, Audatex PDF, or an approved AI proposal | Later | 1.0.0 | [Requirements](requirements.md#vehicle-and-engineering-evidence) | Each route requires its own accepted source, mapping, caller, and Engineer review. |
 | ENG-02 | Engineer-owned final value/deductions, outcome, salvage category/value, and roadworthiness/reason drive derived figures and narratives without retyping | Later | 1.0.0 | [Requirements](requirements.md#vehicle-and-engineering-evidence) | Only accepted source versions and explicit named-Engineer decisions may drive outputs. |
@@ -296,5 +296,5 @@ Total: **229 capabilities; 229 unique IDs**.
   remains `unallocated`.
 - Conditional capabilities remain `Later` only as retained problems; their
   direct decision and full planning route are promotion conditions.
-- Changing an outcome, horizon or target requires product authority, roadmap and
-  affected change evidence to change together.
+- Changing an outcome, horizon or target requires product authority, the
+  [ordered release requirements](requirements.md#ordered-release-sequence), and affected change evidence to change together.

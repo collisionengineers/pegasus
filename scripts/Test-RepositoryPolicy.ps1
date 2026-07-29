@@ -1033,6 +1033,23 @@ foreach ($matrixRow in $matrixRows) {
     }
 }
 
+$allocationAuthorityPaths = @(
+    'design/README.md',
+    'docs/architecture.md',
+    'docs/operations.md',
+    'docs/azure/replacement-and-retirement-plan.md'
+)
+$stalePlannedAllocationPattern = '(?i)\b(?:Next|Later)\b\s*`?\s*/\s*`?\s*unallocated\b'
+foreach ($relative in $allocationAuthorityPaths) {
+    $lineNumber = 0
+    foreach ($line in [System.IO.File]::ReadLines((Join-Path $root $relative))) {
+        $lineNumber++
+        if ($line -match $stalePlannedAllocationPattern) {
+            Add-PolicyError "Current allocation authority uses a stale planned/unallocated label at ${relative}:$lineNumber."
+        }
+    }
+}
+
 $forbiddenPaths = @(
     'CollisionSpike.slnx',
     'src/CollisionSpike.Core',
