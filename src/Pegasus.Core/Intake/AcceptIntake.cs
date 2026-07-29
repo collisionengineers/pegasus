@@ -1,4 +1,5 @@
 using Pegasus.Core.Cases;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Intake;
 
@@ -8,7 +9,7 @@ namespace Pegasus.Core.Intake;
 /// </summary>
 public sealed class AcceptIntake(ICaseAcceptanceStore acceptanceStore) : IAcceptIntake
 {
-    public Task<CaseAcceptanceOutcome> ExecuteAsync(
+    public async Task<CaseAcceptanceOutcome> ExecuteAsync(
         AcceptIntakeRequest request,
         CancellationToken cancellationToken)
     {
@@ -63,6 +64,8 @@ public sealed class AcceptIntake(ICaseAcceptanceStore acceptanceStore) : IAccept
             request.Completeness,
             request.StandaloneAuditAssessment);
 
-        return acceptanceStore.AcceptAsync(acceptance, cancellationToken);
+        var outcome = await acceptanceStore.AcceptAsync(acceptance, cancellationToken);
+        _ = CaseInitialWorkflowState.From(outcome.InitialState);
+        return outcome;
     }
 }

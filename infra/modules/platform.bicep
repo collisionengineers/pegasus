@@ -18,7 +18,9 @@ var webPlanSkuTier = environmentName == 'prod' ? 'Basic' : 'Free'
 var sqlSkuName = environmentName == 'prod' ? 'S0' : 'Basic'
 var sqlSkuTier = environmentName == 'prod' ? 'Standard' : 'Basic'
 var sqlCapacity = environmentName == 'prod' ? 10 : 5
-var sqlConnectionString = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Database=${sqlDatabase.name};Authentication=Active Directory Managed Identity;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
+var webSqlUserName = 'pegasus_web_runtime'
+var workerSqlUserName = 'pegasus_worker_runtime'
+var webSqlConnectionString = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Database=${sqlDatabase.name};Authentication=Active Directory Managed Identity;User Id=${webIdentity.properties.clientId};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
 var workerSqlConnectionString = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Database=${sqlDatabase.name};Authentication=Active Directory Managed Identity;User Id=${workerIdentity.properties.clientId};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
 
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
@@ -101,7 +103,7 @@ resource packageContainer 'Microsoft.Storage/storageAccounts/blobServices/contai
 
 resource intakeContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
   parent: blobService
-  name: 'intake-temporary'
+  name: 'intake-staging'
   properties: {
     publicAccess: 'None'
   }
@@ -176,6 +178,12 @@ resource webPlan 'Microsoft.Web/serverfarms@2024-04-01' = {
   }
 }
 
+resource webIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: '${prefix}-web-id-${suffix}'
+  location: location
+  tags: tags
+}
+
 resource webApp 'Microsoft.Web/sites@2024-04-01' = {
   name: '${prefix}-web-${suffix}'
   location: location
@@ -184,7 +192,10 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = {
     'azd-service-name': 'web'
   })
   identity: {
-    type: 'SystemAssigned'
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${webIdentity.id}': {}
+    }
   }
   properties: {
     serverFarmId: webPlan.id
@@ -214,7 +225,7 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = {
           // ASP.NET Core maps the Linux-safe double underscore to
           // ConnectionStrings:Pegasus for GetConnectionString().
           name: 'ConnectionStrings__Pegasus'
-          value: sqlConnectionString
+          value: webSqlConnectionString
         }
         {
           name: 'KEY_VAULT_URI'
@@ -225,8 +236,8 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = {
           value: storage.name
         }
         {
-          name: 'SCM_DO_BUILD_DURING_DEPLOYMENT'
-          value: 'true'
+          name: 'AZURE_CLIENT_ID'
+          value: webIdentity.properties.clientId
         }
       ]
     }
@@ -325,6 +336,18 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
       minTlsVersion: '1.2'
       appSettings: [
         {
+          name: 'Runtime__Profile'
+          value: 'Production'
+        }
+        {
+          name: 'Database__Provider'
+          value: 'SqlServer'
+        }
+        {
+          name: 'Database__ConnectionStringName'
+          value: 'Pegasus'
+        }
+        {
           name: 'FUNCTIONS_WORKER_RUNTIME'
           value: 'dotnet-isolated'
         }
@@ -341,11 +364,23 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
           value: workerIdentity.properties.clientId
         }
         {
+          name: 'AZURE_CLIENT_ID'
+          value: workerIdentity.properties.clientId
+        }
+        {
+          name: 'IntakeStorage__ServiceUri'
+          value: storage.properties.primaryEndpoints.blob
+        }
+        {
+          name: 'IntakeQueue__ServiceUri'
+          value: storage.properties.primaryEndpoints.queue
+        }
+        {
           name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
           value: applicationInsights.properties.ConnectionString
         }
         {
-          name: 'AZURE_SQL_CONNECTION_STRING'
+          name: 'ConnectionStrings__Pegasus'
           value: workerSqlConnectionString
         }
         {
@@ -371,7 +406,7 @@ resource webKeyVaultReader 'Microsoft.Authorization/roleAssignments@2022-04-01' 
   scope: keyVault
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
-    principalId: webApp.identity.principalId
+    principalId: webIdentity.properties.principalId
     principalType: 'ServicePrincipal'
   }
 }
@@ -412,10 +447,13 @@ resource workerDocumentIntelligenceUser 'Microsoft.Authorization/roleAssignments
 }
 
 output webAppName string = webApp.name
-output webAppPrincipalId string = webApp.identity.principalId
+output webIdentityName string = webIdentity.name
+output webIdentityClientId string = webIdentity.properties.clientId
+output webSqlUserName string = webSqlUserName
 output workerAppName string = workerApp.name
-output workerPrincipalId string = workerIdentity.properties.principalId
 output workerIdentityName string = workerIdentity.name
+output workerIdentityClientId string = workerIdentity.properties.clientId
+output workerSqlUserName string = workerSqlUserName
 output sqlServerFqdn string = sqlServer.properties.fullyQualifiedDomainName
 output sqlDatabaseName string = sqlDatabase.name
 output storageAccountName string = storage.name

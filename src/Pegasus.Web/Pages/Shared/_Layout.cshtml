@@ -13,42 +13,54 @@
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
 <body>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
     <header class="app-nav">
         <div class="nav-inner">
-            <a class="navbar-brand" asp-area="" asp-page="/Index"><span class="brand-mark">CE</span><span>Pegasus</span></a>
+            <a class="navbar-brand" asp-page="/Index" aria-label="Pegasus Operations">
+                <span>Pegasus</span>
+                <small>Collision Engineers</small>
+            </a>
             <nav class="nav-links" aria-label="Primary">
-                <a class="nav-link" asp-area="" asp-page="/Index">Case intake</a>
+                <a class="nav-link" asp-page="/Index">Operations</a>
                 @if (localIntakeEnabled)
                 {
-                    <a class="nav-link" asp-area="" asp-page="/Intake/Upload">Upload instruction</a>
-                }
-                <a class="nav-link" asp-area="" asp-page="/Triage/Index">Triage</a>
-                @if (User.IsInRole(Pegasus.Core.Identity.StaffRoleNames.Administrator))
-                {
-                    <a class="nav-link" asp-area="" asp-page="/Administration/Index">Administration</a>
-                }
-                <a class="nav-link" asp-area="" asp-page="/Privacy">Privacy</a>
-                @if (User.Identity?.IsAuthenticated == true)
-                {
-                    <a class="nav-link" asp-area="" asp-page="/Account/ChangePassword">Change password</a>
-                    <form method="post" asp-page="/Account/SignOut">
-                        <button class="nav-link" type="submit">Sign out</button>
-                    </form>
+                    <a class="nav-link" asp-page="/Intake/Queue">Intake</a>
                 }
                 else
                 {
-                    <a class="nav-link" asp-area="" asp-page="/Account/SignIn">Sign in</a>
+                    <span class="nav-link nav-link--unavailable" aria-disabled="true">Intake unavailable</span>
+                }
+                <a class="nav-link" asp-page="/Triage/Index">Triage</a>
+                <span class="nav-link nav-link--unavailable" aria-disabled="true">Cases unavailable</span>
+                @if (User.IsInRole(Pegasus.Core.Identity.StaffRoleNames.Administrator))
+                {
+                    <a class="nav-link" asp-page="/Administration/Index">Administration</a>
+                }
+                <span class="nav-link nav-link--unavailable" aria-disabled="true">Search unavailable</span>
+                @if (User.Identity?.IsAuthenticated == true)
+                {
+                    <span class="user-menu" role="group" aria-label="User">
+                        <span class="user-name">@User.Identity.Name</span>
+                        <a class="nav-link" asp-page="/Account/ChangePassword">Change password</a>
+                        <form method="post" asp-page="/Account/SignOut">
+                            <button class="nav-link" type="submit">Sign out</button>
+                        </form>
+                    </span>
+                }
+                else
+                {
+                    <a class="nav-link" asp-page="/Account/SignIn">Sign in</a>
                 }
             </nav>
         </div>
     </header>
     <div class="app-shell">
-        <main role="main">
+        <main id="main-content" tabindex="-1">
             @RenderBody()
         </main>
     </div>
 
-    <footer class="footer text-muted">
+    <footer class="footer">
         <div class="footer-inner">
             Pegasus · Collision Engineers case management
         </div>

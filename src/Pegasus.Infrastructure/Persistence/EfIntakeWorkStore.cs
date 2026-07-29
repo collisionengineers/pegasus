@@ -6,6 +6,15 @@ namespace Pegasus.Infrastructure.Persistence;
 
 public sealed class EfIntakeWorkStore(IDbContextFactory<PegasusDbContext> contextFactory) : IIntakeWorkStore
 {
+    private const int CandidateBatchSize = 256;
+
+    private static readonly IComparer<LeaseRecoveryCandidate> LatestLeaseFirst =
+        Comparer<LeaseRecoveryCandidate>.Create(static (left, right) =>
+        {
+            var comparison = right.LeaseExpiresAtUtc.CompareTo(left.LeaseExpiresAtUtc);
+            return comparison != 0 ? comparison : right.Id.CompareTo(left.Id);
+        });
+
     public async Task<ReceivedIntake> ReceiveAsync(
         IntakeStagedReceipt receipt,
         string operationKey,
@@ -70,13 +79,17 @@ public sealed class EfIntakeWorkStore(IDbContextFactory<PegasusDbContext> contex
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
             cancellationToken);
-        var item = await context.IntakeWorkItems
-            .Where(item => (item.State == "pending" || item.State == "retry_scheduled")
-                && item.DueAtUtc <= nowUtc)
-            .OrderBy(item => item.DueAtUtc)
-            .ThenBy(item => item.Id)
-            .FirstOrDefaultAsync(cancellationToken);
-        if (item is null)
+        var candidate = await FindNextDispatchCandidateAsync(context, nowUtc, cancellationToken);
+        if (candidate is null)
+        {
+            return null;
+        }
+
+        var item = await context.IntakeWorkItems.SingleOrDefaultAsync(
+            item => item.Id == candidate.Value.Id
+                && (item.State == "pending" || item.State == "retry_scheduled"),
+            cancellationToken);
+        if (item is null || item.DueAtUtc > nowUtc)
         {
             return null;
         }
@@ -241,15 +254,34 @@ public sealed class EfIntakeWorkStore(IDbContextFactory<PegasusDbContext> contex
         int maximumItems,
         CancellationToken cancellationToken)
     {
+        if (maximumItems <= 0)
+        {
+            return 0;
+        }
+
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var items = await context.IntakeWorkItems
-            .Where(item => item.State == "processing"
-                && item.LeaseExpiresAtUtc != null
-                && item.LeaseExpiresAtUtc <= nowUtc)
+        var candidates = await FindExpiredLeaseCandidatesAsync(
+            context,
+            nowUtc,
+            maximumItems,
+            cancellationToken);
+        var candidateIds = candidates.Select(candidate => candidate.Id).ToArray();
+        var items = new List<IntakeWorkItemEntity>(candidateIds.Length);
+        foreach (var idBatch in candidateIds.Chunk(CandidateBatchSize))
+        {
+            items.AddRange(await context.IntakeWorkItems
+                .Where(item => item.State == "processing" && idBatch.Contains(item.Id))
+                .ToListAsync(cancellationToken));
+        }
+
+        var expiredItems = items
+            .Where(item => item.LeaseExpiresAtUtc is { } leaseExpiresAtUtc
+                && leaseExpiresAtUtc <= nowUtc)
             .OrderBy(item => item.LeaseExpiresAtUtc)
+            .ThenBy(item => item.Id)
             .Take(maximumItems)
-            .ToListAsync(cancellationToken);
-        foreach (var item in items)
+            .ToArray();
+        foreach (var item in expiredItems)
         {
             item.State = ToCode(item.AttemptCount >= 5
                 ? IntakeWorkState.Failed
@@ -261,7 +293,7 @@ public sealed class EfIntakeWorkStore(IDbContextFactory<PegasusDbContext> contex
         }
 
         await context.SaveChangesAsync(cancellationToken);
-        return items.Count;
+        return expiredItems.Length;
     }
 
     public async Task ScheduleReevaluationAsync(
@@ -288,6 +320,101 @@ public sealed class EfIntakeWorkStore(IDbContextFactory<PegasusDbContext> contex
         item.FailureCode = null;
         await context.SaveChangesAsync(cancellationToken);
     }
+
+    private static async Task<DispatchCandidate?> FindNextDispatchCandidateAsync(
+        PegasusDbContext context,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
+        DispatchCandidate? next = null;
+        for (var offset = 0; ; offset += CandidateBatchSize)
+        {
+            var batch = await context.IntakeWorkItems
+                .AsNoTracking()
+                .Where(item => item.State == "pending" || item.State == "retry_scheduled")
+                .OrderBy(item => item.Id)
+                .Skip(offset)
+                .Take(CandidateBatchSize)
+                .Select(item => new DispatchCandidate(item.Id, item.DueAtUtc))
+                .ToListAsync(cancellationToken);
+            foreach (var candidate in batch)
+            {
+                if (candidate.DueAtUtc <= nowUtc
+                    && (next is null || Compare(candidate, next.Value) < 0))
+                {
+                    next = candidate;
+                }
+            }
+
+            if (batch.Count < CandidateBatchSize)
+            {
+                return next;
+            }
+        }
+    }
+
+    private static async Task<LeaseRecoveryCandidate[]> FindExpiredLeaseCandidatesAsync(
+        PegasusDbContext context,
+        DateTimeOffset nowUtc,
+        int maximumItems,
+        CancellationToken cancellationToken)
+    {
+        var earliest = new PriorityQueue<LeaseRecoveryCandidate, LeaseRecoveryCandidate>(
+            LatestLeaseFirst);
+        for (var offset = 0; ; offset += CandidateBatchSize)
+        {
+            var batch = await context.IntakeWorkItems
+                .AsNoTracking()
+                .Where(item => item.State == "processing" && item.LeaseExpiresAtUtc != null)
+                .OrderBy(item => item.Id)
+                .Skip(offset)
+                .Take(CandidateBatchSize)
+                .Select(item => new LeaseRecoveryCandidate(item.Id, item.LeaseExpiresAtUtc!.Value))
+                .ToListAsync(cancellationToken);
+            foreach (var candidate in batch)
+            {
+                if (candidate.LeaseExpiresAtUtc > nowUtc)
+                {
+                    continue;
+                }
+
+                if (earliest.Count < maximumItems)
+                {
+                    earliest.Enqueue(candidate, candidate);
+                }
+                else if (Compare(candidate, earliest.Peek()) < 0)
+                {
+                    earliest.Dequeue();
+                    earliest.Enqueue(candidate, candidate);
+                }
+            }
+
+            if (batch.Count < CandidateBatchSize)
+            {
+                return earliest.UnorderedItems
+                    .Select(item => item.Element)
+                    .OrderBy(item => item.LeaseExpiresAtUtc)
+                    .ThenBy(item => item.Id)
+                    .ToArray();
+            }
+        }
+    }
+
+    private static int Compare(DispatchCandidate left, DispatchCandidate right)
+    {
+        var comparison = left.DueAtUtc.CompareTo(right.DueAtUtc);
+        return comparison != 0 ? comparison : left.Id.CompareTo(right.Id);
+    }
+
+    private static int Compare(LeaseRecoveryCandidate left, LeaseRecoveryCandidate right)
+    {
+        var comparison = left.LeaseExpiresAtUtc.CompareTo(right.LeaseExpiresAtUtc);
+        return comparison != 0 ? comparison : left.Id.CompareTo(right.Id);
+    }
+
+    private readonly record struct DispatchCandidate(Guid Id, DateTimeOffset DueAtUtc);
+
+    private readonly record struct LeaseRecoveryCandidate(Guid Id, DateTimeOffset LeaseExpiresAtUtc);
 
     private async Task UpdateClaimedAsync(
         Guid workItemId,

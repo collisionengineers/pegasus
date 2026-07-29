@@ -1,63 +1,103 @@
 @page
 @model IndexModel
 @{
-    ViewData["Title"] = "Pegasus case intake";
+    ViewData["Title"] = "Operations";
 }
 
 <header class="page-heading">
     <div>
-        <p class="eyebrow">Overview</p>
-        <h1>Pegasus case intake</h1>
-        <p class="lede">The Pegasus operator workspace is ready for the first intake workflow.</p>
+        <p class="eyebrow">Operations</p>
+        <h1>Operations</h1>
+        <p class="lede">Live local queues from the authenticated Pegasus workflow.</p>
     </div>
-    <div class="updated">Updated <time datetime="@Model.LoadedAtUtc.ToString("O")">@Model.LoadedAtUtc.ToLocalTime().ToString("HH:mm")</time></div>
+    <div class="updated">
+        Updated
+        <time datetime="@Model.LoadedAtUtc.ToString("O")">@Model.LoadedAtUtc.ToLocalTime().ToString("HH:mm")</time>
+    </div>
 </header>
 
+<section class="acceptance-boundary" aria-labelledby="acceptance-boundary-title">
+    <h2 id="acceptance-boundary-title">Local acceptance boundary</h2>
+    <p>
+        This caller exercises local workflow evidence only. Production release remains blocked until approved
+        Box, Graph, EVA, deployment and recovery evidence; Edge, Narrator and manual accessibility review;
+        operator journey approval; and Collision Engineers management approval are accepted.
+    </p>
+</section>
+
 <section aria-labelledby="case-queues-title">
-    <h2 id="case-queues-title" class="section-label">Case queues</h2>
+    <h2 id="case-queues-title" class="section-label">Case and intake queues</h2>
     <div class="queue-grid">
-        <article class="queue-card queue-card--amber">
+        <article class="queue-card queue-card--unavailable" data-queue-state="unavailable">
             <span class="queue-icon" aria-hidden="true">!</span>
-            <div><strong>0</strong><span>Not ready</span></div>
-            <span class="arrow" aria-hidden="true">›</span>
+            <div><strong>—</strong><span>Not ready</span><small>Case query unavailable</small></div>
         </article>
-        <article class="queue-card queue-card--blue">
-            <span class="queue-icon" aria-hidden="true">◉</span>
-            <div><strong>0</strong><span>Review</span></div>
-            <span class="arrow" aria-hidden="true">›</span>
-        </article>
-        <article class="queue-card queue-card--red">
+        @if (Model.LocalIntakeEnabled)
+        {
+            <a class="queue-card queue-card--blue" asp-page="/Intake/Queue" asp-route-decision="draft_ready" data-queue-state="current">
+                <span class="queue-icon" aria-hidden="true">R</span>
+                <div><strong>@Model.Counts.DraftReady</strong><span>Review</span><small>Current local intake drafts</small></div>
+                <span class="arrow" aria-hidden="true">›</span>
+            </a>
+        }
+        else
+        {
+            <article class="queue-card queue-card--unavailable" data-queue-state="unavailable">
+                <span class="queue-icon" aria-hidden="true">R</span>
+                <div><strong>—</strong><span>Review</span><small>Local intake unavailable</small></div>
+            </article>
+        }
+        <article class="queue-card queue-card--unavailable" data-queue-state="unavailable">
             <span class="queue-icon" aria-hidden="true">!</span>
-            <div><strong>0</strong><span>Held</span></div>
-            <span class="arrow" aria-hidden="true">›</span>
+            <div><strong>—</strong><span>Held</span><small>Case query unavailable</small></div>
         </article>
+        @if (Model.LocalIntakeEnabled)
+        {
+            <a class="queue-card queue-card--amber" asp-page="/Intake/Queue" asp-route-decision="needs_sorting" data-queue-state="current">
+                <span class="queue-icon" aria-hidden="true">!</span>
+                <div><strong>@Model.Counts.NeedsSorting</strong><span>Needs sorting</span><small>Current local intake receipts</small></div>
+                <span class="arrow" aria-hidden="true">›</span>
+            </a>
+        }
+        else
+        {
+            <article class="queue-card queue-card--unavailable" data-queue-state="unavailable">
+                <span class="queue-icon" aria-hidden="true">!</span>
+                <div><strong>—</strong><span>Needs sorting</span><small>Local intake unavailable</small></div>
+            </article>
+        }
+        <article class="queue-card queue-card--unavailable" data-queue-state="unavailable">
+            <span class="queue-icon" aria-hidden="true">!</span>
+            <div><strong>—</strong><span>Blocked intake</span><small>Blocked-intake query unavailable</small></div>
+        </article>
+        <a class="queue-card queue-card--blue" asp-page="/Triage/Index" data-queue-state="current">
+            <span class="queue-icon" aria-hidden="true">T</span>
+            <div><strong>@Model.TriageCount</strong><span>Triage</span><small>All current triage records</small></div>
+            <span class="arrow" aria-hidden="true">›</span>
+        </a>
     </div>
 </section>
 
-<div class="dashboard-grid">
-    <section class="panel" aria-labelledby="inbox-title">
-        <h2 id="inbox-title" class="section-label">Inbox</h2>
-        <div class="tile-grid">
-            <article class="metric-tile"><span>▣</span><div><strong>0</strong><small>Receiving work</small></div></article>
-            <article class="metric-tile"><span>✉</span><div><strong>0</strong><small>Queries</small></div></article>
-            <article class="metric-tile"><span>□</span><div><strong>0</strong><small>Other</small></div></article>
-            @if (Model.LocalIntakeEnabled)
-            {
-                <a class="metric-tile" asp-page="/Intake/Queue" asp-route-decision="draft_ready"><span>▤</span><div><strong>@Model.Counts.DraftReady</strong><small>Instruction drafts</small></div></a>
-                <a class="metric-tile metric-tile--attention" asp-page="/Intake/Queue" asp-route-decision="needs_sorting"><span>!</span><div><strong>@Model.Counts.NeedsSorting</strong><small>Needs sorting</small></div></a>
-            }
-            else
-            {
-                <article class="metric-tile metric-tile--attention"><span>!</span><div><strong>0</strong><small>Needs sorting</small></div></article>
-            }
-        </div>
-    </section>
-    <section class="panel" aria-labelledby="today-title">
-        <h2 id="today-title" class="section-label">Today / this week</h2>
-        <div class="tile-grid tile-grid--wide">
-            <article class="metric-tile"><span>▱</span><div><strong>0</strong><small>Due today</small></div></article>
-            <article class="metric-tile"><span>↗</span><div><strong>0</strong><small>Submitted today</small></div></article>
-            <article class="metric-tile metric-tile--span"><span>▦</span><div><strong>0</strong><small>Cleared this week</small></div></article>
-        </div>
-    </section>
-</div>
+<section aria-labelledby="time-queues-title">
+    <h2 id="time-queues-title" class="section-label">Today and this week</h2>
+    <div class="queue-grid queue-grid--time">
+        <article class="queue-card queue-card--unavailable" data-queue-state="unavailable">
+            <div><strong>—</strong><span>Due today</span><small>Case schedule query unavailable</small></div>
+        </article>
+        <article class="queue-card queue-card--unavailable" data-queue-state="unavailable">
+            <div><strong>—</strong><span>In today</span><small>Case creation query unavailable</small></div>
+        </article>
+        <article class="queue-card queue-card--unavailable" data-queue-state="unavailable">
+            <div><strong>—</strong><span>Sent to Engineer today</span><small>EVA generation query unavailable</small></div>
+        </article>
+        <article class="queue-card queue-card--unavailable" data-queue-state="unavailable">
+            <div><strong>—</strong><span>Sent to Engineer this week</span><small>EVA generation query unavailable</small></div>
+        </article>
+        <article class="queue-card queue-card--unavailable" data-queue-state="unavailable">
+            <div><strong>—</strong><span>Reports sent today</span><small>Report evidence query unavailable</small></div>
+        </article>
+        <article class="queue-card queue-card--unavailable" data-queue-state="unavailable">
+            <div><strong>—</strong><span>Reports sent this week</span><small>Report evidence query unavailable</small></div>
+        </article>
+    </div>
+</section>

@@ -9,8 +9,12 @@
 
 <div class="admin-workspaces">
     <section>
-        <h2><a asp-page="/Administration/Accounts/Index">Staff accounts and roles</a></h2>
-        <p>Create staff accounts, disable or re-enable access, and assign the Administrator, Engineer, and User roles.</p>
+        <h2><a asp-page="/Administration/Accounts/Index">Staff accounts</a></h2>
+        <p>Create staff accounts, disable or re-enable access, and require a password change at first sign-in.</p>
+    </section>
+    <section>
+        <h2><a asp-page="/Administration/Roles/Index">Staff roles</a></h2>
+        <p>Assign the Administrator, Engineer, and User roles without allowing the final enabled Administrator to be removed.</p>
     </section>
     <section>
         <h2><a asp-page="/Administration/Access/Index">Access review</a></h2>

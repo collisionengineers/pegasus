@@ -2,14 +2,18 @@ using System.Reflection;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore;
 using Pegasus.Infrastructure;
+using Pegasus.Core;
 using Pegasus.Core.Address;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Eva;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Triage;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Infrastructure.Intake;
 using Pegasus.Web.Health;
+using Pegasus.Web.Mcp;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -30,6 +34,7 @@ const string DevelopmentOfflineAuthenticationScheme = "DevelopmentOffline";
 const string AuthenticationRoutingScheme = "Pegasus";
 const string StaffSignInRateLimitPolicy = "StaffSignIn";
 const string StaffMcpOAuthRateLimitPolicy = "StaffMcpOAuth";
+const string StaffMcpRequestRateLimitPolicy = "StaffMcpRequest";
 const string RegisterDevelopmentMcpClientArgument = "--register-development-mcp-client";
 const string RevokeDevelopmentMcpClientArgument = "--revoke-development-mcp-client";
 const string DevelopmentMcpClientId = "pegasus-development-mcp";
@@ -92,6 +97,11 @@ if (staffMcpOAuthEnabled)
 }
 var localDocumentCustodyConfigured =
     builder.Configuration.GetValue<bool>("Features:LocalDocumentCustody");
+if (staffMcpOAuthEnabled && !localDocumentCustodyConfigured)
+{
+    throw new InvalidOperationException(
+        "Staff MCP requires the approved document-custody boundary; it cannot expose an incomplete tool map.");
+}
 Func<IServiceProvider, RequestUploadLimits>? requestUploadLimitsFactory = null;
 if (localDocumentCustodyConfigured)
 {
@@ -159,7 +169,9 @@ builder.Services.AddRateLimiter(options =>
             "/Account/SignIn",
             StringComparison.OrdinalIgnoreCase)
             ? "sign_in_rate_limited"
-            : "oauth_rate_limited";
+            : context.HttpContext.Request.Path.StartsWithSegments("/mcp")
+                ? "mcp_rate_limited"
+                : "oauth_rate_limited";
         return new ValueTask(AppendRateLimitedSecurityEventAsync(
             context.HttpContext,
             reasonCode,
@@ -184,6 +196,17 @@ builder.Services.AddRateLimiter(options =>
             {
                 AutoReplenishment = true,
                 PermitLimit = 10,
+                QueueLimit = 0,
+                Window = TimeSpan.FromMinutes(1)
+            }));
+    options.AddPolicy(
+        StaffMcpRequestRateLimitPolicy,
+        context => RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = 60,
                 QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1)
             }));
@@ -409,6 +432,7 @@ if (staffMcpOAuth is not null)
             options.UseLocalServer();
             options.UseAspNetCore();
         });
+    builder.Services.AddPegasusStaffMcp(staffMcpOAuth);
 }
 
 builder.Services.AddHealthChecks()
@@ -473,6 +497,11 @@ builder.Services.AddPegasusInfrastructure((serviceProvider, options) =>
             "Intake:LocalArtifactPath is required for the DevelopmentOffline runtime profile.");
     return Path.GetFullPath(Path.Combine(environment.ContentRootPath, configuredArtifactRoot));
 }, requestUploadLimitsFactory: requestUploadLimitsFactory);
+builder.Services.AddSingleton<IIntakeEvaluationReportStore>(serviceProvider =>
+    serviceProvider.GetRequiredService<IIntakeArtifactStore>() as IIntakeEvaluationReportStore
+    ?? throw new InvalidOperationException(
+        "The configured local intake artifact store must support evaluation reports."));
+builder.Services.AddSingleton<QdosAlphaAcceptanceGate>();
 builder.Services.AddScoped<EfIdentityAuditStore>();
 builder.Services.AddScoped<ISecurityEventWriter>(serviceProvider =>
     serviceProvider.GetRequiredService<EfIdentityAuditStore>());
@@ -487,6 +516,7 @@ builder.Services.AddScoped<ITriageQueries>(serviceProvider =>
 builder.Services.AddScoped<ICaseAcceptanceStore, EfCaseAcceptanceStore>();
 builder.Services.AddScoped<IAcceptIntake, AcceptIntake>();
 builder.Services.AddScoped<IInspectionAddressResolutionStore, InspectionAddressResolutionStore>();
+builder.Services.AddScoped<IEvaHandoffStore, EvaHandoffStore>();
 builder.Services.AddSingleton<RequestUploadAttemptLimiter>();
 builder.Services.AddScoped<IMailRoutePolicy>(serviceProvider =>
     serviceProvider.GetRequiredService<IInstructionExtractionPolicy>() as IMailRoutePolicy
@@ -567,12 +597,23 @@ if (registerDevelopmentMcpClient || revokeDevelopmentMcpClient)
     await using var scope = app.Services.CreateAsyncScope();
     var applicationManager =
         scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
+    var securityEvents = scope.ServiceProvider.GetRequiredService<ISecurityEventWriter>();
     var application = await applicationManager.FindByClientIdAsync(DevelopmentMcpClientId);
     if (revokeDevelopmentMcpClient)
     {
         if (application is not null)
         {
             await applicationManager.DeleteAsync(application);
+            await securityEvents.AppendAsync(
+                new(
+                    Guid.NewGuid(),
+                    SecurityEventType.Client,
+                    SecurityEventOutcome.Succeeded,
+                    DevelopmentMcpClientId,
+                    scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow(),
+                    "development-mcp-client-command",
+                    "development_mcp_client_revoked"),
+                CancellationToken.None);
         }
 
         Console.WriteLine("The deterministic DevelopmentOffline MCP client is revoked.");
@@ -610,6 +651,16 @@ if (registerDevelopmentMcpClient || revokeDevelopmentMcpClient)
     {
         await applicationManager.UpdateAsync(application, descriptor);
     }
+    await securityEvents.AppendAsync(
+        new(
+            Guid.NewGuid(),
+            SecurityEventType.Client,
+            SecurityEventOutcome.Succeeded,
+            DevelopmentMcpClientId,
+            scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow(),
+            "development-mcp-client-command",
+            "development_mcp_client_registered"),
+        CancellationToken.None);
 
     Console.WriteLine(
         "The deterministic DevelopmentOffline public PKCE MCP client is registered.");
@@ -662,23 +713,6 @@ if (!localIntakeEnabled)
     });
 }
 
-if (!localDocumentCustodyEnabled)
-{
-    app.Use(async (context, next) =>
-    {
-        var path = context.Request.Path;
-        var isDocumentUi = path.StartsWithSegments("/requests")
-            || (path.StartsWithSegments("/cases")
-                && path.Value?.EndsWith("/documents", StringComparison.OrdinalIgnoreCase) == true);
-        if (isDocumentUi)
-        {
-            context.Response.StatusCode = StatusCodes.Status404NotFound;
-            return;
-        }
-
-        await next(context);
-    });
-}
 
 app.UseHttpsRedirection();
 
@@ -704,8 +738,8 @@ app.Use(async (context, next) =>
 
     await next(context);
 });
-app.UseRateLimiter();
 
+app.UseRateLimiter();
 app.UseAuthentication();
 app.Use(async (context, next) =>
 {
@@ -733,6 +767,23 @@ app.Use(async (context, next) =>
     await next(context);
 });
 app.UseAuthorization();
+if (!localDocumentCustodyEnabled)
+{
+    app.Use(async (context, next) =>
+    {
+        var path = context.Request.Path;
+        var isDocumentUi = path.StartsWithSegments("/requests")
+            || (path.StartsWithSegments("/cases")
+                && path.Value?.EndsWith("/documents", StringComparison.OrdinalIgnoreCase) == true);
+        if (isDocumentUi)
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        await next(context);
+    });
+}
 
 app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
@@ -752,22 +803,9 @@ app.MapGet("/diagnostics/version", () => Results.Ok(new
 })).AllowAnonymous();
 if (staffMcpOAuth is not null)
 {
+    app.MapPegasusStaffMcp(StaffMcpRequestRateLimitPolicy);
     app.MapGet(
         "/.well-known/oauth-protected-resource",
-        () => Results.Json(new
-        {
-            resource = staffMcpOAuth.Resource.AbsoluteUri,
-            authorization_servers = new[] { staffMcpOAuth.Issuer.AbsoluteUri },
-            scopes_supported = new[]
-            {
-                StaffMcpOAuthOptions.ReadScope,
-                StaffMcpOAuthOptions.WriteScope
-            },
-            bearer_methods_supported = Program.BearerMethodsSupported
-        }))
-        .AllowAnonymous();
-    app.MapGet(
-        "/.well-known/oauth-protected-resource/mcp",
         () => Results.Json(new
         {
             resource = staffMcpOAuth.Resource.AbsoluteUri,

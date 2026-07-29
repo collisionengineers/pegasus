@@ -1,14 +1,18 @@
-using Pegasus.Core.Intake;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Pegasus.Core.Intake;
+using Pegasus.Core.Triage;
 
 namespace Pegasus.Web.Pages;
 
 public class IndexModel(
-    IIntakeReceiptQueries queries,
+    IIntakeReceiptQueries intakeQueries,
+    ITriageQueries triageQueries,
     IConfiguration configuration,
-    IWebHostEnvironment environment) : PageModel
+    IWebHostEnvironment environment,
+    TimeProvider timeProvider) : PageModel
 {
     public IntakeQueueCounts Counts { get; private set; } = new(0, 0);
+    public int TriageCount { get; private set; }
 
     public bool LocalIntakeEnabled { get; private set; }
 
@@ -20,9 +24,10 @@ public class IndexModel(
             && configuration.GetValue<bool>("Features:LocalIntake");
         if (LocalIntakeEnabled)
         {
-            Counts = await queries.GetCountsAsync(cancellationToken);
+            Counts = await intakeQueries.GetCountsAsync(cancellationToken);
         }
 
-        LoadedAtUtc = DateTimeOffset.UtcNow;
+        TriageCount = (await triageQueries.ListAsync(state: null, cancellationToken)).Count;
+        LoadedAtUtc = timeProvider.GetUtcNow();
     }
 }
