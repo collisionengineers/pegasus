@@ -1,9 +1,10 @@
 # Decision index
 
-`docs/decisions/` is the canonical durable-decision authority. Published
-decision clauses and rationale are immutable. Reviewed navigation, status, and
-supersession metadata may be corrected without changing meaning; a changed
-choice is recorded by a dated addendum or superseding decision.
+`docs/decisions/` is the canonical durable-decision authority. Published ADR
+bodies, including their decision clauses, rationale, and dated provenance, are
+immutable. Reviewed navigation, current status, and supersession metadata is
+maintained in this index without changing a decision's meaning; a changed choice
+is recorded by a dated addendum or superseding decision.
 
 Acceptance of a decision is design authority within its scope. It does not prove
 implementation, a real caller, deployment, live verification, or operator
@@ -15,7 +16,7 @@ acceptance.
 | --- | --- |
 | [ADR-0001: Hybrid PDF extraction](ADR-0001-hybrid-pdf-extraction.md) | Accepted. ADR-0003 selects the embedded engine and ADR-0005 refines scan qualification; neither supersedes hybrid extraction, uncertainty/review routing, or provider-boundary rationale. |
 | [ADR-0002: .NET modular monolith on Azure](ADR-0002-dotnet-modular-monolith-on-azure.md) | Accepted target architecture, partially superseded by ADR-0004 for API/MCP authentication, ADR-0009 for deployment mechanism, and Decision 0013 where the older repository shape implied no source workspaces. It is not caller or deployment proof. |
-| [ADR-0003: PdfPig for the first QDOS slice](ADR-0003-pdfpig-for-first-qdos-slice.md) | Accepted for the first local embedded-text slice. Its benchmark selects an engine; it does not prove field accuracy, representative-corpus suitability, production readiness, or acceptance. The benchmark navigation now resolves to the retained exact change evidence. |
+| [ADR-0003: PdfPig for the first QDOS slice](ADR-0003-pdfpig-for-first-qdos-slice.md) | Accepted for the first local embedded-text slice. Its immutable body retains the historical literal `docs/evaluation/qdos-pdf-engine-benchmark.md`; that path no longer exists and is not a live link. Use the [retained benchmark evidence](../changes/2026-07-27-qdos-alpha-reference-corpora.md#embedded-pdf-benchmark-identity) for live navigation. The benchmark selects an engine; it does not prove field accuracy, representative-corpus suitability, production readiness, or acceptance. |
 | [ADR-0004: Provider API and staff MCP authentication](ADR-0004-provider-api-and-staff-mcp-authentication.md) | Accepted security design. Provider API remains deferred; staff MCP is alpha-allocated. Neither endpoint, OAuth server, scope matrix, nor caller is proved by the ADR. |
 | [ADR-0005: Multi-format intake assets](ADR-0005-multiformat-intake-assets.md) | Accepted local-slice policy. Every visible placement/occurrence is retained; hashes correlate equal bytes but do not delete placements. Current format support remains caller-proved evidence. |
 | [ADR-0006: Provider-neutral intake with contained QDOS policy](ADR-0006-provider-neutral-intake-with-contained-qdos-policy.md) | Accepted pre-release policy, partially superseded by Decision 0011 for separate direct-provider/intermediary policies and registry limits. Provider-neutral transport, provenance, storage, migration, and fail-closed boundaries remain. |
@@ -32,5 +33,6 @@ acceptance.
 | [0012: Adopt a tool-neutral repository workflow](0012-adopt-tool-neutral-repository-workflow.md) | Accepted current repository-workflow authority. Tools execute accepted work; they do not own product rules or authorization. |
 | [0013: Adopt Pegasus monorepo source workspaces](0013-adopt-pegasus-monorepo-workspaces.md) | Accepted. Workspaces are independently buildable source imports and never application callers, dynamic dependencies, deployment units, or business-policy owners without a separately accepted integration contract and caller proof. |
 
-New durable decisions use `NNNN-purpose.md`. Supersession metadata and this
-index must be updated in the same reviewed change.
+New durable decisions use `NNNN-purpose.md`. Reviewed navigation, current
+status, and supersession metadata is maintained here; published bodies remain
+unchanged.

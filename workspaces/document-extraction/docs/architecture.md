@@ -98,7 +98,7 @@ CollisionDocNet.Cli
                  -> CollisionDocNet.Core
 ```
 
-Format projects may share owned storage and decoding primitives. They must not call another format engine or depend on Pegasus; `CollisionSpike` is predecessor identity only. Any accepted future Pegasus integration must call the public extraction package through a `Pegasus.Infrastructure` adapter.
+Format projects may share owned storage and decoding primitives. They must not call another format engine or depend on Pegasus. The CollisionSpike caller clauses in dated ADR-0002 through ADR-0004 and the `EV-2026-07-24` opt-in Web-path record are predecessor evidence only. Any accepted future Pegasus integration must call the public extraction package through a `Pegasus.Infrastructure` adapter.
 
 Projects are created only when an active `EXT-*` implementation unit owns source and tests. Empty reservation projects are prohibited. Names may change only through an accepted decision supported by implementation evidence demonstrating a more cohesive boundary.
 

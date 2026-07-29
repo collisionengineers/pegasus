@@ -43,7 +43,7 @@ Scope: `DOC-R00`, owned by `EXT-DOC-001`, recorded on 2026-07-24.
 
 ### Acquired baseline and machine provenance
 
-Nine current published specification revisions are pinned in the machine-readable provenance ledger at `docs/licensing/doc-source-provenance.json`. That JSON remains unchanged and is authoritative for the retained-byte identities.
+Nine current published specification revisions are pinned in the machine-readable provenance ledger at `docs/licensing/doc-source-provenance.json`. Its retained-byte identities remain unchanged and authoritative; its licensing and distribution review destination is this document.
 
 The date-stamped DOCX publications and current PDFs were downloaded to the ignored local path:
 

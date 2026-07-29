@@ -124,7 +124,7 @@ Before creating a case or allocating a reference, Pegasus must establish:
 - required standalone Audit evidence;
 - absence of unresolved wrong-principal, duplicate-occurrence, or custody ambiguity.
 
-If the route cannot establish these facts, it persists only what is safe and enters the corresponding pre-case outcome. `Blocked intake` records a reason, visible warning, resolution evidence, and retry result. It never allocates a reusable identity as a convenience.
+If the route cannot establish these facts, it persists only what is safe and enters the corresponding pre-case outcome. `Blocked intake` records a reason and visible warning, offers reasoned resolve and retry actions, and retains the resolution evidence and each retry result. It never allocates a reusable identity as a convenience.
 
 ### Matching conflicts and reversible association
 
@@ -183,8 +183,8 @@ The lifecycle must support:
 - inspection/report preparation appropriate to desktop assessment;
 - report approval and delivery evidence without adding a separate pre-send case-review gate;
 - post-report queries, corrections, addenda, disputes, and reasoned closure where allocated;
-- four distinct terminal outcomes: normal post-report completion, provider cancellation, Collision Engineers rejection, and `Created in error`;
-- reasoned reopen through normal destination gates, excluding `Created in error` and `Held`.
+- four distinct terminal outcomes: `Post-report complete`, `Provider cancelled`, `Collision Engineers rejected`, and `Created in error`;
+- reasoned reopen through normal destination gates, excluding `Created in error` and `Held` as a reopen destination.
 
 Durable receipt acknowledgement, retained correspondence, prepared or copied text, the `First sent to Engineer` export proxy, and a `Report sent` event are not terminal case outcomes. Report-sent evidence enters post-report work; post-report completion is a separate named closure action.
 
@@ -222,9 +222,9 @@ Staff accounts use Pegasus-managed usernames and passwords with non-reversible p
 
 | Staff role | May view | May create or change | Must not access or perform |
 | --- | --- | --- | --- |
-| `Administrator` | All authorised application data and settings | Every ordinary Intake, Triage, Case, document, evidence, task, transition, and pre-assignment review action; staff account creation/disable/access review/role assignment; principals and successor cutover; workflow configuration; approved-mailbox allowlist | Credential, cloud, or release administration through the staff UI; permanent deletion; a generic mailbox-rule editor before its policy is accepted |
-| `Engineer` | Cases, inbox items, documents, evidence, and details | Every authorised Intake, Triage, Case, document, evidence, task, transition, and pre-assignment review action | Accounts, roles, access review, principals, successor cutover, workflow configuration, mailbox allowlist, credentials, cloud/release administration, or permanent deletion |
-| `User` | Cases, inbox items, documents, evidence, and details | Every authorised Intake, Triage, Case, document, evidence, task, transition, and pre-assignment review action | Accounts, roles, access review, principals, successor cutover, workflow configuration, mailbox allowlist, credentials, cloud/release administration, or permanent deletion |
+| `Administrator` | All authorised application data and settings | Every ordinary Intake, Triage, Case, document, evidence, task, transition, and pre-assignment review action; staff account creation/disable/access review/role assignment; principals and successor cutover; workflow configuration; approved-mailbox allowlist; accepted OAuth-client registration/revocation | Credential-secret, cloud, or release administration through the staff UI; permanent deletion; a generic mailbox-rule editor before its policy is accepted |
+| `Engineer` | Cases, inbox items, documents, evidence, and details | Every authorised Intake, Triage, Case, document, evidence, task, transition, and pre-assignment review action | Accounts, roles, access review, principals, successor cutover, workflow configuration, mailbox allowlist, authentication-client administration, credentials, cloud/release administration, or permanent deletion |
+| `User` | Cases, inbox items, documents, evidence, and details | Every authorised Intake, Triage, Case, document, evidence, task, transition, and pre-assignment review action | Accounts, roles, access review, principals, successor cutover, workflow configuration, mailbox allowlist, authentication-client administration, credentials, cloud/release administration, or permanent deletion |
 
 Andrew and Alex are the initial `Administrator` assignments held in application data/configuration. No person, name, email address, or bypass is hard-coded into authorization. Automated processing uses a distinct durable machine identity and only named Core actions; it is not a staff account or an independent policy owner.
 
@@ -263,7 +263,7 @@ Receipt/staging and accepted case custody are different states.
 - Box is the intended long-term accepted case-file custody system for the alpha, subject to an implemented adapter, approved test subtree/live target, identity, failure/recovery behavior, and caller proof.
 - The Box case folder uses the immutable Case/PO identity.
 - Staff may add manually received WhatsApp evidence with its source/channel provenance; this does not activate a WhatsApp integration.
-- A closed case is application-level read-only. Revision or logical removal requires a reasoned reopen first.
+- A closed case and its files are application-level read-only. A new version, revision, logical removal, move, copy, share, or other mutation requires a reasoned reopen first; no Box operation bypasses that gate, and the alpha infers no general move/copy/share/delete authority.
 - Local alpha work must not mutate any Outlook mailbox or Box location. Box testing is permitted only in a separately approved disposable test subtree; Outlook tests use immutable local copies or an explicitly approved test mailbox and operation.
 - A custody transition records source identity, content hash, target identity/version, actor/caller, time, and failure/retry state without deleting the source proof prematurely.
 ## Vehicle and engineering evidence
@@ -361,12 +361,28 @@ advice, Engineer approval, or product policy merely by existing.
 
 **Accepted focused-alpha boundary:** EVA remains the authoritative external
 engineering/report workflow. Pegasus performs no EVA network call. It
-deterministically serializes UTF-8 JSON in the exact ordered 13-key contract
-retained in [open decisions](open-decisions.md), includes staff-selected
-custody-confirmed images in deterministic order, and writes a SHA-256 manifest
-over the package. The two retained populated EVA JSON examples are immutable
+deterministically serializes UTF-8 JSON in the exact 13-key order below,
+includes staff-selected custody-confirmed images in deterministic order, and
+writes a SHA-256 manifest over the package.
+The two retained populated EVA JSON examples are immutable
 reference evidence for the field shape; they do not supply credentials or
 activate an adapter.
+
+The JSON keys, in serialization order, are:
+
+1. `Work Provider`
+2. `VRM`
+3. `Vehicle Model`
+4. `Claimant Name`
+5. `Reference`
+6. `Incident Date`
+7. `Instruction Date`
+8. `Inspection Date`
+9. `Inspection Address`
+10. `Accident Circumstances`
+11. `VAT Status`
+12. `Mileage`
+13. `Mileage Unit`
 
 The first successful package generation records the once-per-case `First sent
 to Engineer` proxy. Later generations are revisions. The proxy proves Pegasus
@@ -374,6 +390,24 @@ export generation only; it does not claim EVA receipt or named-Engineer
 assignment, which remain EVA-owned events. An image/document upload into
 Pegasus, Box custody, or the presence of a report PDF is not this handoff and is
 not external delivery evidence.
+
+The focused handoff readiness review keeps four source-labelled inputs distinct:
+the saved source email, vehicle images, valuation evidence, and initial
+instructions. A missing item remains visible and cannot be represented as
+present. The Experian adverse-history check remains an EVA-owned downstream
+step; Pegasus preserves its source-labelled result if later received but does
+not claim that manual package generation performed the check.
+
+Selected report images must exclude any image showing a person's reflection.
+The deterministic EVA order begins with two preview images: a vehicle overview
+showing the full registration and a close-up of the main damage. The complete
+eligible sequence follows and includes those first two images again. When a
+video is the only sufficient source, staff may select screenshots; each
+screenshot retains the video occurrence and capture-position provenance. These
+eligibility, duplication, and ordering rules are part of the manual handoff
+parity required of any future EVA API route. The source observations and their
+scope are retained in the [Collision Engineers administration
+overview](reference/reports/collision_engineers_admin_overview.md).
 
 ### External boundary
 
@@ -444,8 +478,8 @@ owners.
 Reply is not a standalone recorded type. Collision Engineers’ replies to
 Received messages mirror the underlying Received category with reply context;
 a correspondent’s replies to Sent messages mirror the underlying Sent category
-with reply context. The development evaluator also permits `Other`, which
-requires both a new category name and reasoning.
+with reply context. The settled taxonomy also permits `Other`, which requires
+both a new category name and reasoning.
 
 Classification, application queue, Triage routing, and Outlook folder
 destination are separate facts. `new-instruction-received` is a Received family
@@ -482,6 +516,18 @@ An Outlook/Graph route must, before activation:
 - record poison/retry/dead-letter and operator recovery behavior;
 - prove the real Worker timer/queue caller;
 - obtain exact Sent-item/reply-chain evidence when delivery is part of a completion gate.
+
+### QDOS-alpha evaluation boundary
+
+The Development/local email evaluation workbench is delivered separately and is
+not a QDOS-alpha product surface or acceptance checkpoint. QDOS alpha defines
+no `/Development/EmailEvaluation` route, `unchecked`/`checked` workspace
+workflow, evaluator command, reviewer report, or Administrator evaluator
+approval. Separately produced accepted evidence remains a prerequisite where
+the shared mail policy requires it, but the evaluation implementation and
+review mechanics are not QDOS delivery. Shared Core mail policy, production
+intake, Graph replay/live adapters, and their genuine-evidence and caller
+requirements remain in scope.
 
 ### Outbound correspondence evidence
 
@@ -588,6 +634,8 @@ Requirements:
 - accessible staff presentation of status, validation, and failure without
   implying an unproved external delivery.
 
+### Targeted sending and reviewed AI proposals
+
 An allocated targeted report-send transaction is idempotent and records
 approved destinations, immutable artifact/version, Box filing, exact send
 evidence, completion outcome, and partial-failure recovery. A correction does
@@ -616,8 +664,7 @@ The selected alpha direction is Operations-first. The UI must provide:
   zero placeholders;
 - list/detail journeys for intake, source evidence, Triage, cases, documents,
   history, and exports;
-- supporting-detail navigation that preserves the user's place and unsaved
-  edits;
+- supporting-detail navigation from Intake or Case detail that neither commits nor discards the current form and returns to the same detail context, evidence selection, position, and unsaved edits;
 - administration for authorised accounts, roles, access, organisations,
   principals, configuration, and mailboxes;
 - exact state labels mapped to Core decisions;
@@ -663,11 +710,12 @@ Required qualities:
 - deterministic, bounded, cancellable processing;
 - least privilege and fail-closed authorization;
 - encrypted transport and protected storage appropriate to the data boundary;
-- confirmation of applicable processor terms before activating external email, upload, AI, Box, or other external processing;
+- resolved and recorded retention rules for personal data and vehicle images before activating each external flow; this does not create an automated retention workflow;
+- confirmation of applicable processor terms before activating any external email, upload, AI, Box, or other external processing;
 - no secrets in source, logs, proof artifacts, URLs, or client-rendered configuration;
 - immutable source and action provenance;
 - structured diagnostics without source-content leakage;
-- a 15-minute database recovery-point objective and four-hour restoration objective;
+- a 15-minute database recovery-point objective and four-hour restoration objective, proved through the operator-run [production recovery procedure](operations.md#production-recovery);
 - reasoned recovery, restore, and replay proof without duplicate case/reference allocation;
 - Windows-native local development and supported browser accessibility proof;
 - independently buildable source workspaces with no application reference, dynamic load, dependency hoist, or deployment inclusion;
@@ -704,6 +752,14 @@ Deferred capabilities remain named in [capabilities](capabilities.md). Preservin
 No irreversible choice is made merely to reserve a seam. New top-level projects, stores, runtimes, migration streams, or deployment units require an accepted ADR proving the existing boundary cannot carry the work.
 
 ## Delivery dependencies
+
+This section owns release precedence. The complete source-labelled dependency
+graph, including `Next` parallel branches and `Later` independent gates, is
+retained in the [dependency-ordered delivery
+roadmap](history/plans/delivery-roadmap.md); the operator execution route is
+[Release dependency order](operations.md#release-dependency-order). Those
+routes preserve detail and procedure without becoming requirements, allocation,
+implementation-status, or acceptance owners.
 
 The alpha delivery order is dependency-bound: relational draft and trusted actors; identity/history/Administrator data; durable source custody and ordinary-image vehicle identity; reference allocation; one definitive acceptance transaction; Box custody; exclusive editing; lifecycle and work scheduling; Operations-first UI; real Graph Worker; Triage; vehicle/EVA handoff; staff MCP; Azure/recovery proof; then operator acceptance. A later step never treats an allocated file, registration, or green structural check as proof that an earlier caller or data invariant exists.
 

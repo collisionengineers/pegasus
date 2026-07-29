@@ -121,7 +121,7 @@
   "internalImplementationApprovalStatus": "approved",
   "releaseLicenceReviewStatus": "open",
   "approvalBasis": "Direct repository-owner instruction on 2026-07-24 to proceed sequentially from DOC-R00 through DOC-I13.",
-  "notes": "Approved by repository-owner direction on 2026-07-24 for specification-led internal research, implementation and owned testing only. Full publications remain ignored research inputs and no upstream implementation source is authorised. This limited approval does not approve specification redistribution, generated normative-table publication, product licensing or product distribution; see docs/licensing/doc-source-rights.md and ADR-0005.",
+  "notes": "Approved by repository-owner direction on 2026-07-24 for specification-led internal research, implementation and owned testing only. Full publications remain ignored research inputs and no upstream implementation source is authorised. This limited approval does not approve specification redistribution, generated normative-table publication, product licensing or product distribution; see docs/licensing.md and ADR-0005.",
   "reviewer": "Repository owner direction recorded in task conversation",
   "reviewedAtUtc": "2026-07-24T10:36:55.7995639Z"
 }

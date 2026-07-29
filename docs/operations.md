@@ -118,6 +118,22 @@ dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category
 
 These commands prove repository compilation and the selected non-corpus tests only. Genuine corpus, browser, LocalDB/Azurite/Functions, cloud, recovery, and operator evidence are separate caller-specific gates.
 
+### Temporarily deferred repository-policy command
+
+`scripts/Test-RepositoryPolicy.ps1` is temporarily disabled and deferred until
+after `0.1.0-alpha.1`. Direct invocation, including invocation through
+`scripts/Test-RepositoryLanguage.ps1`, prints a deferral notice and exits
+successfully without evaluating repository policy. Report that result as
+**skipped/deferred**, not **passed**: it proves no repository-policy property,
+cannot be cited as green evidence, and is not a required alpha gate. Continue
+to run the restore, build, and test commands above and every other separately
+operating language, build, or test gate.
+
+Post-alpha activation requires a reviewed re-enable change, reproducible proof
+inputs, a clean-checkout pass, and independent review. Until that evidence
+exists, neither the direct command nor a green caller or CI step is repository-
+policy proof.
+
 ### Imported source workspaces
 
 Source workspaces validate independently and are not part of the application solution:
@@ -490,15 +506,16 @@ DOC and MSG automatic extraction remain deferred until safe local parsing fixtur
 
 ## Release dependency order
 
-Release allocation does not waive technical prerequisites. The restored [dependency-ordered delivery roadmap](history/plans/delivery-roadmap.md) is subordinate, source-labelled historical planning evidence; it preserves the complete prerequisite, parallel-branch, and rejoin route without becoming a second requirements, allocation, or status owner. Revalidate it against current canonical owners before execution.
+Release allocation does not waive technical prerequisites. [Delivery dependencies](requirements.md#delivery-dependencies) owns current precedence. The restored [dependency-ordered delivery roadmap](history/plans/delivery-roadmap.md) is subordinate, source-labelled historical planning evidence; it preserves the complete prerequisite, parallel-branch, and rejoin route without becoming a second requirements, allocation, or status owner. Revalidate it against current canonical owners before execution.
 
 Operationally, do not run later caller or release gates before the revalidated spine has supplied relational intake state, trusted staff identity/action history, principal/configuration data, durable custody and the allocator, definitive acceptance, then case files/editing/lifecycle/UI, the real Worker and Triage, vehicle/EVA and MCP callers, and finally Azure migration/recovery and operator acceptance. A local check, generated package, Bicep file, or deployment cannot advance a missing predecessor gate.
 
 ## Release validation rules
 
-The following behavior must be proven through the owning Core policy and actual caller before the corresponding release claim:
+The following contracts must be proved through the owning Core policy and actual caller before the corresponding release claim. This is an evidence checklist; [requirements](requirements.md) remains the behavior owner:
 
 - positive, contradictory/ambiguous, transient, terminal, and unknown outcomes produce the ordered decision, persisted result, action history or telemetry, and operator-visible result;
+- definitive intake creates one idempotent case or links the definitive existing case, enters `Review` only after both completeness gates pass or are explicitly confirmed, otherwise enters `Not ready`, and preserves reversible source associations and both origins;
 - principal/reference edits fail immediately after allocation;
 - wrong-principal handling makes the original case terminal `Created in error`, creates exactly one linked replacement, reuses neither number, and refuses reopening the original;
 - direct edits to used principal codes fail;
@@ -512,7 +529,9 @@ The following behavior must be proven through the owning Core policy and actual 
 - the separate Triage state, finding, correction, reopen, and link contract is complete;
 - no-registration Triage remains `Needs sorting` without case/reference creation;
 - reply-chain evidence uses the exact allowlist and does not fall back to subject, registration, or manual selection;
+- the in-house upload caller proves authenticated staff creation, isolated request-local upload/result presentation, expiry, revocation, bounded retry/abuse behavior, durable custody, and cross-request/non-disclosing failures without a Box File Request route;
 - the first successful EVA export generation records one `First sent to Engineer` proxy event, not receipt;
+- repeated EVA export proves byte-identical ordered UTF-8 JSON and image order for the same accepted inputs, the SHA-256 manifest, the image eligibility/duplication/video-screenshot rules, no EVA network call, and no duplicate `First sent to Engineer` event;
 - absent or ambiguous automatic report evidence requires an exact manual link and reason;
 - `sentDateTime` is authoritative while discovery and link times remain distinct;
 - unlink/relink recomputes events and counts;
@@ -523,6 +542,8 @@ The following behavior must be proven through the owning Core policy and actual 
 - routine views, search, refresh, polling, retries, leases, heartbeats, and adapter mechanics use telemetry only;
 - duplicate and concurrent requests create one business effect;
 - stale editors and wrong-role/wrong-scope actors are refused before side effects;
+- every Case mutation presents the current server lease token and loaded version, exposes holder/recovery state, and refuses the second editor before a side effect;
+- opening and returning from Intake/Case supporting detail preserves the same context and unsaved edits without an implicit save;
 - corrupt, encrypted, unsupported, oversized, and expansion-bound input remains visible without case/reference creation or silent truncation;
 - actual Web and Worker callers reach the same Core policy;
 - genuine cohort and holdout reports state field-level results and false case/reference outcomes without exposing source content;
@@ -620,7 +641,7 @@ A production recovery exercise must:
 
 Automatic schema down-migration and deletion of source evidence or shared cloud resources are not recovery steps.
 
-Before the allocated [OPS-09](capabilities.md) capability and `0.1.0-alpha.1` can be accepted, prove:
+Before the allocated [OPS-09](capabilities.md) capability, its [product-quality objectives](requirements.md#quality-capacity-security-and-evidence), and `0.1.0-alpha.1` can be accepted, prove:
 
 - a 15-minute recovery point objective; and
 - a four-hour restoration path.

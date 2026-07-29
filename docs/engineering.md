@@ -243,6 +243,21 @@ Delete superseded destructive drivers so a later session cannot mistake “perma
 
 No current Pegasus live incident, deployed alert, completed recovery exercise, or production deletion event is claimed by repository source or tests. Current failure-path tests are executable evidence only; the source-labelled table below records predecessor incidents and must not be promoted into current deployment evidence.
 
+### Repository-policy verifier deferral
+
+`scripts/Test-RepositoryPolicy.ps1` is temporarily disabled and deferred until
+after `0.1.0-alpha.1`. Its verifier implementation is retained for later
+reactivation, but current invocation performs no policy evaluation: direct
+execution and normal callers such as `scripts/Test-RepositoryLanguage.ps1`
+print the deferral notice and exit successfully. Record that outcome as
+**skipped/deferred**, never **passed**. It proves no repository-policy property,
+cannot be cited as green evidence, and is not an alpha-required gate. This
+deferral does not waive separately operating language, build, or test gates.
+
+Activation requires a reviewed post-alpha re-enable change, reproducible proof
+inputs, a clean-checkout pass, and independent review. Until all four exist, a
+successful exit from either script remains no-op evidence only.
+
 A permanent guard, CI gate, or governance script is admitted only when all of the following exist:
 
 - a named owner;

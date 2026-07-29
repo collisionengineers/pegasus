@@ -75,6 +75,10 @@ These reports remain source-labelled evidence and accepted-decision provenance. 
 - [UI/UX interaction findings](reports/ui-ux.md)
 - [VRM correlation and source deduplication](reports/vrm-correlation-and-source-deduplication.md)
 
+## Related retained evidence
+
+- ADR-0003's immutable body retains the historical literal `docs/evaluation/qdos-pdf-engine-benchmark.md`; that path no longer exists and is not a live link. The [embedded-PDF benchmark identity](../changes/2026-07-27-qdos-alpha-reference-corpora.md#embedded-pdf-benchmark-identity) is the live route to retained dated change evidence, not raw supplied material, current caller proof, or product authority.
+
 ## Proven duplicate removals
 
 - `eva_information/screenshots/engineer-screens/engineer4.png` was byte-identical to retained `engineer3.png`; shared SHA-256 `e82526782c6fb20d32bdb0271817036db15727589826745f45ddd263db0bc2ec`.

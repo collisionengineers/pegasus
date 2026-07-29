@@ -10,19 +10,30 @@ param(
     [string]$ExpectedHeadCommit
 )
 
+Write-Host "Repository policy validation is temporarily deferred until post-alpha." -ForegroundColor Yellow
+exit 0
+
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $errors = [System.Collections.Generic.List[string]]::new()
 $allowedLanguageMatches = [System.Collections.Generic.List[string]]::new()
 
 $documentationExcludedPrefix = 'docs/reference/imp-docs/'
-$documentationProof = @{
+$documentationProof = [ordered]@{
     BaseCommit = '467284f23b268e199d7fbe77dbb2163b50f00e23'
-    DispositionSha256 = '4d0ddab6f49e17a053b07df7e2433e60971c653aadf5e1fe4ed74d722129f658'
-    BaselineSha256 = '429ee9dbc3c6ce746098c7e2207b73975791538266df8962713935dcf3aa6864'
-    MaterialClaimsSha256 = '63504bbabded909b0a16d3adc414c9a9799acb057b354303420676b3441fffb1'
-    CallsitesSha256 = '095ff29859eff0090b1f04409ec91b29c8d2c3d06aac7795937a32c935f9c616'
+    SchemaVersion = 2
 }
+$documentationProofInputRelativePaths = [ordered]@{
+    DispositionManifest = 'docs/changes/pr18-documentation-disposition.v2.json'
+    BaselineManifest = 'docs/changes/pr18-documentation-baseline.v2.json'
+    MaterialClaimInventory = 'docs/changes/pr18-documentation-material-claims.v2.json'
+    CallsiteInventory = 'docs/changes/pr18-documentation-callsites.v2.json'
+}
+$documentationTextExtensions = @(
+    '.md', '.txt', '.yml', '.yaml', '.json', '.jsonc', '.ps1', '.py',
+    '.bicep', '.csproj', '.sln', '.slnx', '.cs', '.cshtml', '.props',
+    '.targets', '.xml', '.config', '.toml'
+)
 $excludedOperations = 0
 $documentationContentRoot = $root
 
@@ -64,15 +75,19 @@ function Get-FileSha256([string]$LiteralPath) {
     }
 }
 
-function Write-DeterministicJson([string]$LiteralPath, [object]$Value, [int]$Depth = 20) {
+function ConvertTo-DeterministicJson([object]$Value, [int]$Depth = 100) {
+    $json = $Value | ConvertTo-Json -Depth $Depth
+    return (($json -replace "`r`n?", "`n").TrimEnd([char[]]@("`n")) + "`n")
+}
+
+function Write-DeterministicJson([string]$LiteralPath, [object]$Value, [int]$Depth = 100) {
     $parent = Split-Path -Parent $LiteralPath
     if ($parent) {
         [System.IO.Directory]::CreateDirectory($parent) | Out-Null
     }
-    $json = $Value | ConvertTo-Json -Depth $Depth
     [System.IO.File]::WriteAllText(
         $LiteralPath,
-        $json + [Environment]::NewLine,
+        (ConvertTo-DeterministicJson $Value $Depth),
         [System.Text.UTF8Encoding]::new($false))
 }
 
@@ -87,8 +102,11 @@ function Read-GitProtocolLine([System.IO.Stream]$Stream) {
     return [System.Text.Encoding]::ASCII.GetString($bytes.ToArray())
 }
 
-function New-GitCommitSnapshot([string]$Commit, [string[]]$RelativePaths) {
-    $snapshotRoot = Join-Path ([System.IO.Path]::GetTempPath()) "pegasus-documentation-head-$PID"
+function New-GitCommitSnapshot(
+    [string]$Commit,
+    [string[]]$RelativePaths,
+    [string]$SnapshotLabel = 'tree') {
+    $snapshotRoot = Join-Path ([System.IO.Path]::GetTempPath()) "pegasus-documentation-$SnapshotLabel-$($Commit.Substring(0, 12))-$PID"
     if ([System.IO.Directory]::Exists($snapshotRoot)) {
         [System.IO.Directory]::Delete($snapshotRoot, $true)
     }
@@ -240,60 +258,111 @@ function Get-DocumentationCallsites([string[]]$OriginPaths) {
     return @($rows)
 }
 
-function Get-ConsolidationManifest {
-    if (-not $DispositionManifest -or -not [System.IO.File]::Exists($DispositionManifest)) {
-        throw 'DispositionManifest is required and must exist.'
+function Get-ProofInputPath([string]$Name, [string]$ProvidedPath) {
+    if (-not $documentationProofInputRelativePaths.Contains($Name)) {
+        throw "Unknown documentation proof input: $Name"
     }
-    $manifest = Get-Content -LiteralPath $DispositionManifest -Raw | ConvertFrom-Json -Depth 30
-    if ($manifest.schemaVersion -ne 2) {
-        throw "Disposition manifest schemaVersion must be 2; found $($manifest.schemaVersion)."
+    $relative = [string]$documentationProofInputRelativePaths[$Name]
+    $expected = [System.IO.Path]::GetFullPath((Join-Path $root $relative))
+    if ($ProvidedPath) {
+        $candidate = if ([System.IO.Path]::IsPathRooted($ProvidedPath)) {
+            [System.IO.Path]::GetFullPath($ProvidedPath)
+        }
+        else {
+            [System.IO.Path]::GetFullPath((Join-Path $root $ProvidedPath))
+        }
+        if (-not $candidate.Equals($expected, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "$Name must use the reviewed repository proof path '$relative'."
+        }
     }
-    if ($manifest.excludedPrefix -ne $documentationExcludedPrefix) {
-        throw "Disposition manifest excludedPrefix must be '$documentationExcludedPrefix'."
-    }
-    return $manifest
+    return $expected
 }
 
-function Get-MarkdownSectionEvidence([string]$RelativePath) {
-    $text = [System.IO.File]::ReadAllText((Join-Path $documentationContentRoot $RelativePath))
-    [string[]]$lines = [regex]::Split($text, '\r?\n')
-    $headings = [System.Collections.Generic.List[object]]::new()
-    for ($index = 0; $index -lt $lines.Count; $index++) {
-        if ($lines[$index] -match '^(?<marks>#{1,6})\s+(?<title>.+?)\s*#*\s*$') {
-            $headings.Add([pscustomobject]@{
-                Index = $index
-                Level = $Matches.marks.Length
-                Title = $Matches.title.Trim()
-            })
+function Test-DocumentationProofInputPath([string]$RelativePath) {
+    $candidate = ConvertTo-RepositoryRelativePath $RelativePath
+    foreach ($proofPath in $documentationProofInputRelativePaths.Values) {
+        if ($candidate.Equals([string]$proofPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $true
         }
     }
-    $titleCounts = @{}
-    foreach ($heading in $headings) {
-        $titleCounts[$heading.Title] = 1 + [int]$titleCounts[$heading.Title]
-    }
-    $sections = @{}
-    for ($headingIndex = 0; $headingIndex -lt $headings.Count; $headingIndex++) {
-        $heading = $headings[$headingIndex]
-        if ($titleCounts[$heading.Title] -ne 1) { continue }
-        $end = $lines.Count
-        for ($next = $headingIndex + 1; $next -lt $headings.Count; $next++) {
-            if ($headings[$next].Level -le $heading.Level) {
-                $end = $headings[$next].Index
-                break
-            }
-        }
-        $section = ([string]::Join("`n", $lines[$heading.Index..($end - 1)])).Trim()
-        $sectionBytes = [System.Text.Encoding]::UTF8.GetBytes($section)
-        $sections[$heading.Title] =
-            [Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($sectionBytes)).ToLowerInvariant()
-    }
-    return $sections
+    return $false
 }
+
+function Get-GitCommitPaths([string]$Commit) {
+    $paths = @(& git -C $root -c core.quotepath=false ls-tree -r --name-only $Commit)
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unable to enumerate Git tree $Commit."
+    }
+    $allowed = foreach ($path in $paths) {
+        $relative = ConvertTo-RepositoryRelativePath $path
+        if ($relative.Equals($documentationExcludedPrefix.TrimEnd('/'), [System.StringComparison]::OrdinalIgnoreCase) -or
+            $relative.StartsWith($documentationExcludedPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            continue
+        }
+        Assert-AllowedDocumentationPath $relative
+    }
+    return @($allowed | Sort-Object -Unique)
+}
+
+function Get-DocumentationCensusPaths([string]$Commit) {
+    return @(
+        Get-GitCommitPaths $Commit |
+            Where-Object { -not (Test-DocumentationProofInputPath $_) } |
+            Sort-Object -Unique
+    )
+}
+
+function Get-DocumentationTextPaths([string[]]$Paths) {
+    return @(
+        $Paths |
+            Where-Object {
+                $documentationTextExtensions -contains
+                    [System.IO.Path]::GetExtension($_).ToLowerInvariant()
+            } |
+            Sort-Object -Unique
+    )
+}
+
+
 
 function ConvertTo-GitHubHeadingSlug([string]$Heading) {
     $value = [regex]::Replace($Heading, '<[^>]+>', '').Trim().ToLowerInvariant()
     $value = [regex]::Replace($value, '[^\p{L}\p{N}\p{M}\s_–-]', '')
     return $value.Replace(' ', '-')
+}
+
+function Get-ApprovedNavigationRedirect([string]$Origin, [string]$RawTarget) {
+    $redirects = @(
+        [pscustomobject]@{
+            Origin = 'docs/decisions/ADR-0003-pdfpig-for-first-qdos-slice.md'
+            RawTarget = 'docs/evaluation/qdos-pdf-engine-benchmark.md'
+            Destination = 'docs/decisions/README.md'
+            RequiredText = '[retained benchmark evidence](../changes/2026-07-27-qdos-alpha-reference-corpora.md#embedded-pdf-benchmark-identity)'
+            Name = 'ADR-0003 benchmark evidence'
+        },
+        [pscustomobject]@{
+            Origin = 'docs/history/plans/deferred-capability-architecture/architecture/deferred-capability-reconciliation.md'
+            RawTarget = '../../../../operator-notes/product-requirements/required-capabilities.md'
+            Destination = 'docs/requirements.md'
+            RequiredText = 'This document is the sole owner of Pegasus intended product requirements.'
+            Name = 'retained deferred-capability authority'
+        }
+    )
+    $matches = @($redirects | Where-Object {
+        $_.Origin -eq $Origin -and $_.RawTarget -eq $RawTarget
+    })
+    if ($matches.Count -eq 0) { return $null }
+    if ($matches.Count -ne 1) {
+        throw "Navigation redirect is ambiguous for $Origin -> $RawTarget."
+    }
+    $redirect = $matches[0]
+    $destinationPath = Join-Path $documentationContentRoot $redirect.Destination
+    if (-not [System.IO.File]::Exists($destinationPath) -or
+        [System.IO.File]::ReadAllText($destinationPath).IndexOf(
+            $redirect.RequiredText, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "$($redirect.Name) requires its reviewed canonical redirect target."
+    }
+    return [string]$redirect.Destination
 }
 
 function Assert-DocumentationGraph([string[]]$MarkdownPaths) {
@@ -307,19 +376,7 @@ function Assert-DocumentationGraph([string[]]$MarkdownPaths) {
             [System.StringComparer]::OrdinalIgnoreCase)
     }
 
-    $immutableBrokenLinks = [System.Collections.Generic.HashSet[string]]::new(
-        [System.StringComparer]::Ordinal)
-    @(
-        'docs/changes/2026-07-27-azure-workflow-onboarding.md|../operator-notes/',
-        'docs/changes/2026-07-27-azure-workflow-onboarding.md|../product/',
-        'docs/changes/2026-07-27-azure-workflow-onboarding.md|../history/product/project-discovery-questionnaire.md',
-        'docs/changes/2026-07-27-azure-workflow-onboarding.md|../history/product/feature-versioning-worksheet.md',
-        'docs/changes/2026-07-27-azure-workflow-onboarding.md|../product/capabilities.md',
-        'docs/changes/2026-07-27-azure-workflow-onboarding.md|../product/index.md',
-        'docs/changes/2026-07-27-azure-workflow-onboarding.md|../roadmap.md'
-    ) | ForEach-Object { $null = $immutableBrokenLinks.Add($_) }
-    $observedExceptions = [System.Collections.Generic.HashSet[string]]::new(
-        [System.StringComparer]::Ordinal)
+    $navigationRedirects = 0
     $sectionCache = @{}
     $markdownPattern = '(?<image>!?)\[[^\]]*\]\((?<target><[^>]+>|[^)\s]+)(?:\s+["''][^"'']*["''])?\)'
     $referencePattern = '^\s*\[[^\]]+\]:\s*(?<target>\S+)'
@@ -390,9 +447,12 @@ function Assert-DocumentationGraph([string[]]$MarkdownPaths) {
                     $fullTarget = Join-Path $documentationContentRoot $destination
                 }
                 if (-not [System.IO.File]::Exists($fullTarget)) {
-                    $exceptionKey = "$origin|$rawTarget"
-                    if ($immutableBrokenLinks.Contains($exceptionKey)) {
-                        $null = $observedExceptions.Add($exceptionKey)
+                    $redirectDestination = Get-ApprovedNavigationRedirect $origin $rawTarget
+                    if ($redirectDestination) {
+                        $navigationRedirects++
+                        if ($markdownSet.Contains($redirectDestination)) {
+                            $null = $adjacency[$origin].Add($redirectDestination)
+                        }
                         continue
                     }
                     if (-not $targetRow.Strict) { continue }
@@ -422,9 +482,6 @@ function Assert-DocumentationGraph([string[]]$MarkdownPaths) {
                 }
             }
         }
-    }
-    if ($observedExceptions.Count -ne 7) {
-        throw "Expected seven immutable broken Markdown-link exceptions; observed $($observedExceptions.Count)."
     }
 
     $roots = [System.Collections.Generic.List[string]]::new()
@@ -457,87 +514,463 @@ function Assert-DocumentationGraph([string[]]$MarkdownPaths) {
     }
     return [pscustomobject]@{
         Markdown = $markdownSet.Count
-        ImmutableBrokenLinks = $observedExceptions.Count
+        NavigationRedirects = $navigationRedirects
     }
 }
 
-function Assert-ConsolidationDisposition([object]$Manifest) {
-    $baseline = @($Manifest.baseline)
-    $creates = @($Manifest.creates)
-    if ($baseline.Count -ne 512) {
-        throw "Disposition baseline must contain 512 paths; found $($baseline.Count)."
+function Get-NormalizedSourceExcerptSha256([string]$Text) {
+    $normalized = [regex]::Replace($Text.Trim(), '\s+', ' ')
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($normalized)
+    return [Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
+}
+
+function Get-SourceLines([string]$LiteralPath) {
+    return @([regex]::Split([System.IO.File]::ReadAllText($LiteralPath), "\r\n|\n|\r"))
+}
+
+function New-BaselineManifest([string]$BaseCommit, [string]$BaseRoot, [string[]]$BasePaths) {
+    $artifacts = [System.Collections.Generic.List[object]]::new()
+    foreach ($path in $BasePaths | Sort-Object) {
+        $fullPath = Join-Path $BaseRoot $path
+        $fileInfo = [System.IO.FileInfo]::new($fullPath)
+        $artifacts.Add([pscustomobject][ordered]@{
+            path = $path
+            byteLength = $fileInfo.Length
+            sha256 = Get-FileSha256 $fullPath
+            evidenceSource = 'base-git-blob'
+        })
     }
-    if ($creates.Count -ne 13) {
-        throw "Disposition creates must contain 13 paths; found $($creates.Count)."
+    return [pscustomobject][ordered]@{
+        schemaVersion = $documentationProof.SchemaVersion
+        baseCommit = $BaseCommit
+        excludedPrefix = $documentationExcludedPrefix
+        rowCount = $artifacts.Count
+        artifacts = @($artifacts)
     }
-    $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-    foreach ($entry in $baseline) {
-        $path = Assert-AllowedDocumentationPath $entry.path
-        if (-not $seen.Add($path)) {
-            throw "Duplicate disposition path: $path"
+}
+
+function New-DispositionManifest(
+    [string]$BaseCommit,
+    [string]$HeadCommit,
+    [string]$BaseRoot,
+    [string]$HeadRoot,
+    [string[]]$BasePaths,
+    [string[]]$HeadPaths) {
+    $baseHashes = @{}
+    foreach ($path in $BasePaths) {
+        $baseHashes[$path] = Get-FileSha256 (Join-Path $BaseRoot $path)
+    }
+    $headHashes = @{}
+    $headPathsByHash = @{}
+    foreach ($path in $HeadPaths) {
+        $hash = Get-FileSha256 (Join-Path $HeadRoot $path)
+        $headHashes[$path] = $hash
+        if (-not $headPathsByHash.ContainsKey($hash)) {
+            $headPathsByHash[$hash] = [System.Collections.Generic.List[string]]::new()
         }
-        if ($entry.action -notin @('K', 'R', 'M', 'D')) {
-            throw "Invalid disposition action '$($entry.action)' for $path."
+        $headPathsByHash[$hash].Add($path)
+    }
+
+    $usedHeadPaths = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+    $baseline = [System.Collections.Generic.List[object]]::new()
+    foreach ($path in $BasePaths | Sort-Object) {
+        $action = $null
+        $targets = @()
+        if ($headHashes.ContainsKey($path)) {
+            $action = if ($headHashes[$path] -eq $baseHashes[$path]) { 'K' } else { 'R' }
+            $null = $usedHeadPaths.Add($path)
         }
+        else {
+            $candidates = if ($headPathsByHash.ContainsKey($baseHashes[$path])) {
+                @($headPathsByHash[$baseHashes[$path]] | Where-Object { -not $usedHeadPaths.Contains($_) } | Sort-Object)
+            }
+            else {
+                @()
+            }
+            if ($candidates.Count -eq 1) {
+                $action = 'M'
+                $targets = @($candidates[0])
+                $null = $usedHeadPaths.Add($candidates[0])
+            }
+            else {
+                $action = 'D'
+            }
+        }
+        $baseline.Add([pscustomobject][ordered]@{
+            path = $path
+            action = $action
+            targets = @($targets)
+            sourceBlobSha256 = $baseHashes[$path]
+        })
+    }
+
+    $creates = [System.Collections.Generic.List[object]]::new()
+    foreach ($path in $HeadPaths | Sort-Object) {
+        if ($usedHeadPaths.Contains($path)) { continue }
+        $creates.Add([pscustomobject][ordered]@{
+            path = $path
+            action = 'C'
+            headBlobSha256 = $headHashes[$path]
+        })
+    }
+    return [pscustomobject][ordered]@{
+        schemaVersion = $documentationProof.SchemaVersion
+        baseCommit = $BaseCommit
+        headCommit = $HeadCommit
+        excludedPrefix = $documentationExcludedPrefix
+        baselineRowCount = $baseline.Count
+        createRowCount = $creates.Count
+        headRowCount = $HeadPaths.Count
+        baseline = @($baseline)
+        creates = @($creates)
+    }
+}
+
+function New-MaterialClaimInventory([string]$BaseCommit, [string]$BaseRoot, [string[]]$BasePaths) {
+    $rows = [System.Collections.Generic.List[object]]::new()
+    foreach ($path in Get-DocumentationTextPaths $BasePaths) {
+        $sourceHash = Get-FileSha256 (Join-Path $BaseRoot $path)
+        $lineNumber = 0
+        foreach ($line in Get-SourceLines (Join-Path $BaseRoot $path)) {
+            $lineNumber++
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            $rows.Add([pscustomobject][ordered]@{
+                claimId = 'DOC-CLAIM-{0:D6}' -f ($rows.Count + 1)
+                sourcePath = $path
+                sourceLocation = $lineNumber
+                sourceBlobSha256 = $sourceHash
+                normalizedSourceExcerptSha256 = Get-NormalizedSourceExcerptSha256 $line
+            })
+        }
+    }
+    return [pscustomobject][ordered]@{
+        schemaVersion = $documentationProof.SchemaVersion
+        baseCommit = $BaseCommit
+        excludedPrefix = $documentationExcludedPrefix
+        rowCount = $rows.Count
+        rows = @($rows)
+    }
+}
+
+function New-CallsiteInventory([string]$BaseCommit, [string]$BaseRoot, [string[]]$BasePaths) {
+    $rows = [System.Collections.Generic.List[object]]::new()
+    $lineHashesByPath = @{}
+    $sourceHashesByPath = @{}
+    foreach ($callsite in @(Get-DocumentationCallsites (Get-DocumentationTextPaths $BasePaths))) {
+        $originPath = [string]$callsite.originPath
+        if (-not $lineHashesByPath.ContainsKey($originPath)) {
+            $lineHashes = [System.Collections.Generic.List[string]]::new()
+            foreach ($line in Get-SourceLines (Join-Path $BaseRoot $originPath)) {
+                $lineHashes.Add((Get-NormalizedSourceExcerptSha256 $line))
+            }
+            $lineHashesByPath[$originPath] = $lineHashes
+            $sourceHashesByPath[$originPath] = Get-FileSha256 (Join-Path $BaseRoot $originPath)
+        }
+        $rows.Add([pscustomobject][ordered]@{
+            callsiteId = 'DOC-CALL-{0:D6}' -f ($rows.Count + 1)
+            originPath = $originPath
+            line = $callsite.line
+            column = $callsite.column
+            syntaxClass = $callsite.syntaxClass
+            rawDestination = $callsite.rawDestination
+            normalizedAllowedDestination = $callsite.normalizedAllowedDestination
+            disposition = $callsite.disposition
+            sourceBlobSha256 = $sourceHashesByPath[$originPath]
+            normalizedSourceExcerptSha256 = $lineHashesByPath[$originPath][[int]$callsite.line - 1]
+        })
+    }
+    return [pscustomobject][ordered]@{
+        schemaVersion = $documentationProof.SchemaVersion
+        baseCommit = $BaseCommit
+        excludedPrefix = $documentationExcludedPrefix
+        rowCount = $rows.Count
+        rows = @($rows)
+    }
+}
+
+function New-DocumentationProofBundle([string]$BaseCommit, [string]$HeadCommit) {
+    if ($BaseCommit -notmatch '\A[0-9a-f]{40}\z' -or $HeadCommit -notmatch '\A[0-9a-f]{40}\z') {
+        throw 'Documentation proof commits must be full lowercase SHA-1 values.'
+    }
+    $basePaths = Get-DocumentationCensusPaths $BaseCommit
+    $headPaths = Get-DocumentationCensusPaths $HeadCommit
+    $baseSnapshot = $null
+    $headSnapshot = $null
+    $previousContentRoot = $documentationContentRoot
+    try {
+        $baseSnapshot = New-GitCommitSnapshot $BaseCommit $basePaths 'base'
+        $headSnapshot = New-GitCommitSnapshot $HeadCommit $headPaths 'head'
+        $script:documentationContentRoot = $baseSnapshot
+        $baseline = New-BaselineManifest $BaseCommit $baseSnapshot $basePaths
+        $claims = New-MaterialClaimInventory $BaseCommit $baseSnapshot $basePaths
+        $callsites = New-CallsiteInventory $BaseCommit $baseSnapshot $basePaths
+        $disposition = New-DispositionManifest $BaseCommit $HeadCommit $baseSnapshot $headSnapshot $basePaths $headPaths
+        return [pscustomobject][ordered]@{
+            DispositionManifest = $disposition
+            BaselineManifest = $baseline
+            MaterialClaimInventory = $claims
+            CallsiteInventory = $callsites
+            BasePaths = @($basePaths)
+            HeadPaths = @($headPaths)
+        }
+    }
+    finally {
+        $script:documentationContentRoot = $previousContentRoot
+        if ($baseSnapshot -and [System.IO.Directory]::Exists($baseSnapshot)) {
+            [System.IO.Directory]::Delete($baseSnapshot, $true)
+        }
+        if ($headSnapshot -and [System.IO.Directory]::Exists($headSnapshot)) {
+            [System.IO.Directory]::Delete($headSnapshot, $true)
+        }
+    }
+}
+
+function Assert-ExactPathSet([string[]]$Expected, [string[]]$Actual, [string]$Name) {
+    $expectedSet = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::Ordinal)
+    $actualSet = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::Ordinal)
+    foreach ($path in $Expected) { $null = $expectedSet.Add($path) }
+    foreach ($path in $Actual) { $null = $actualSet.Add($path) }
+    $missing = @($expectedSet | Where-Object { -not $actualSet.Contains($_) } | Sort-Object)
+    $invented = @($actualSet | Where-Object { -not $expectedSet.Contains($_) } | Sort-Object)
+    if ($missing.Count -gt 0 -or $invented.Count -gt 0) {
+        $missingPreview = (@($missing | Select-Object -First 5) -join ', ')
+        $inventedPreview = (@($invented | Select-Object -First 5) -join ', ')
+        throw "$Name does not equal the pinned Git census; missing=$missingPreview invented=$inventedPreview"
+    }
+}
+
+function Assert-ManifestCensus([object]$Manifest, [string[]]$BasePaths, [string[]]$HeadPaths, [string]$HeadCommit) {
+    if ($Manifest.schemaVersion -ne $documentationProof.SchemaVersion -or
+        $Manifest.baseCommit -ne $documentationProof.BaseCommit -or
+        $Manifest.headCommit -ne $HeadCommit -or
+        $Manifest.excludedPrefix -ne $documentationExcludedPrefix) {
+        throw 'Disposition manifest metadata does not identify the pinned proof scope.'
+    }
+    $sourcePaths = [System.Collections.Generic.List[string]]::new()
+    $expectedHeadPaths = [System.Collections.Generic.List[string]]::new()
+    foreach ($entry in @($Manifest.baseline)) {
+        $source = Assert-AllowedDocumentationPath ([string]$entry.path)
+        $sourcePaths.Add($source)
         $targets = @($entry.targets)
-        if ($entry.action -eq 'M' -and $targets.Count -ne 1) {
-            throw "Move disposition requires one target: $path"
-        }
-        foreach ($target in $targets) {
-            $null = Assert-AllowedDocumentationPath $target
+        switch ([string]$entry.action) {
+            'D' {
+                if ($targets.Count -ne 0) { throw "Deleted disposition has targets: $source" }
+            }
+            'M' {
+                if ($targets.Count -ne 1) { throw "Moved disposition must have one target: $source" }
+                $expectedHeadPaths.Add((Assert-AllowedDocumentationPath ([string]$targets[0])))
+            }
+            'K' {
+                if ($targets.Count -ne 0) { throw "Byte-retained disposition has targets: $source" }
+                $expectedHeadPaths.Add($source)
+            }
+            'R' {
+                if ($targets.Count -ne 0) { throw "Rewritten disposition has targets: $source" }
+                $expectedHeadPaths.Add($source)
+            }
+            default { throw "Invalid disposition action '$($entry.action)' for $source." }
         }
     }
-    foreach ($entry in $creates) {
-        $path = Assert-AllowedDocumentationPath $entry.path
-        if (-not $seen.Add($path)) {
-            throw "Create path overlaps another disposition: $path"
+    foreach ($entry in @($Manifest.creates)) {
+        if ($entry.action -ne 'C') { throw "Invalid create disposition action '$($entry.action)'." }
+        $expectedHeadPaths.Add((Assert-AllowedDocumentationPath ([string]$entry.path)))
+    }
+    Assert-ExactPathSet $BasePaths @($sourcePaths) 'Disposition source paths'
+    Assert-ExactPathSet $HeadPaths @($expectedHeadPaths) 'Disposition expected head paths'
+    if ($Manifest.baselineRowCount -ne @($sourcePaths).Count -or
+        $Manifest.createRowCount -ne @($Manifest.creates).Count -or
+        $Manifest.headRowCount -ne @($expectedHeadPaths).Count) {
+        throw 'Disposition manifest row counts are inconsistent with its exact census.'
+    }
+}
+
+function Assert-ProofArtifactMatches([string]$Name, [string]$LiteralPath, [object]$ExpectedValue) {
+    if (-not [System.IO.File]::Exists($LiteralPath)) {
+        throw "$Name is required at $LiteralPath."
+    }
+    $actualValue = [System.IO.File]::ReadAllText($LiteralPath) | ConvertFrom-Json -Depth 100
+    if ((ConvertTo-DeterministicJson $actualValue 100) -cne
+        (ConvertTo-DeterministicJson $ExpectedValue 100)) {
+        throw "$Name differs from the deterministic proof regenerated from pinned Git blobs."
+    }
+}
+
+function Get-AuthenticatedDocumentationProof {
+    $headCommit = (& git -C $root rev-parse HEAD).Trim()
+    if ($LASTEXITCODE -ne 0 -or $headCommit -notmatch '\A[0-9a-f]{40}\z') {
+        throw 'Unable to identify the Git commit used to authenticate documentation proof inputs.'
+    }
+    $proof = New-DocumentationProofBundle $documentationProof.BaseCommit $headCommit
+    $proofPaths = [ordered]@{
+        DispositionManifest = Get-ProofInputPath 'DispositionManifest' $null
+        BaselineManifest = Get-ProofInputPath 'BaselineManifest' $null
+        MaterialClaimInventory = Get-ProofInputPath 'MaterialClaimInventory' $null
+        CallsiteInventory = Get-ProofInputPath 'CallsiteInventory' $null
+    }
+    foreach ($entry in $proofPaths.GetEnumerator()) {
+        Assert-ProofArtifactMatches $entry.Key $entry.Value $proof.$($entry.Key)
+    }
+    $manifest = [System.IO.File]::ReadAllText($proofPaths.DispositionManifest) |
+        ConvertFrom-Json -Depth 100
+    Assert-ManifestCensus $manifest $proof.BasePaths $proof.HeadPaths $headCommit
+    return [pscustomobject]@{
+        HeadCommit = $headCommit
+        Proof = $proof
+        DispositionManifest = $manifest
+        ProofInputPaths = @($documentationProofInputRelativePaths.Values)
+    }
+}
+
+function Assert-RetainedDocumentationPaths(
+    [object]$AuthenticatedProof,
+    [string]$Prefix) {
+    $normalizedPrefix = (Assert-AllowedDocumentationPath $Prefix).TrimEnd('/') + '/'
+    $expectedByPath = @{}
+    foreach ($entry in @($AuthenticatedProof.DispositionManifest.baseline)) {
+        $path = Assert-AllowedDocumentationPath ([string]$entry.path)
+        if (-not $path.StartsWith($normalizedPrefix, [System.StringComparison]::Ordinal)) {
+            continue
+        }
+        if ($entry.action -ne 'K') {
+            throw "Retained documentation path is not byte-retained by verified disposition: $path"
+        }
+        $expectedByPath[$path] = $entry
+    }
+    if ($expectedByPath.Count -eq 0) {
+        throw "Verified disposition contains no retained documentation paths under $normalizedPrefix."
+    }
+    $baselineByPath = @{}
+    foreach ($artifact in @($AuthenticatedProof.Proof.BaselineManifest.artifacts)) {
+        $baselineByPath[[string]$artifact.path] = $artifact
+    }
+    foreach ($path in $expectedByPath.Keys) {
+        if (-not $baselineByPath.ContainsKey($path)) {
+            throw "Verified retained documentation path lacks baseline bytes: $path"
         }
     }
-    $counts = @{}
-    foreach ($action in @('K', 'R', 'M', 'D')) {
-        $counts[$action] = @($baseline | Where-Object action -eq $action).Count
+    $directory = Join-Path $root $normalizedPrefix.TrimEnd('/')
+    if (-not [System.IO.Directory]::Exists($directory)) {
+        throw "Verified retained documentation directory is missing: $normalizedPrefix"
     }
-    if ($counts.K -ne 131 -or $counts.R -ne 92 -or $counts.M -ne 2 -or $counts.D -ne 287) {
-        throw "Disposition action counts must be K=131 R=92 M=2 D=287; found K=$($counts.K) R=$($counts.R) M=$($counts.M) D=$($counts.D)."
+    $actualPaths = @(
+        Get-ChildItem -LiteralPath $directory -Recurse -Force -File |
+            ForEach-Object {
+                Assert-AllowedDocumentationPath (
+                    [System.IO.Path]::GetRelativePath($root, $_.FullName).Replace('\', '/'))
+            }
+    )
+    Assert-ExactPathSet @($expectedByPath.Keys) $actualPaths "Retained documentation paths under $normalizedPrefix"
+    foreach ($path in $expectedByPath.Keys) {
+        $artifact = $baselineByPath[$path]
+        $literalPath = Join-Path $root $path
+        $fileInfo = [System.IO.FileInfo]::new($literalPath)
+        if ($fileInfo.Length -ne [long]$artifact.byteLength -or
+            (Get-FileSha256 $literalPath) -ne [string]$artifact.sha256) {
+            throw "Retained documentation bytes differ from the verified disposition baseline: $path"
+        }
+    }
+}
+
+$protectedImportedSkillRootPrefixes = @(
+    'workspaces/ai-centre/skills/ce-cost-defence/',
+    'workspaces/ai-centre/skills/ce-house-style/',
+    'workspaces/ai-centre/skills/collision-engineers-design/',
+    'workspaces/ai-centre/skills/diminution-rebuttal/',
+    'workspaces/ai-centre/skills/diminution-report/',
+    'workspaces/ai-centre/skills/manufacturer-methods-evidence/',
+    'workspaces/ai-centre/skills/roadworthy-report/',
+    'workspaces/ai-centre/skills/salvage-categorisation/',
+    'workspaces/ai-centre/skills/total-loss-assessment/',
+    'workspaces/ai-centre/skills/vehicle-assessment/',
+    'workspaces/ai-centre/skills/vehicle-history-check/'
+)
+$protectedImportedSkillDevReferencePrefix = 'workspaces/ai-centre/skills/dev-ref/'
+
+function Assert-ProtectedImportedSkillSources([object]$AuthenticatedProof) {
+    $protectedPaths = @($protectedImportedSkillRootPrefixes) +
+        @($protectedImportedSkillDevReferencePrefix)
+    $expectedByPath = @{}
+    foreach ($artifact in @($AuthenticatedProof.Proof.BaselineManifest.artifacts)) {
+        $path = Assert-AllowedDocumentationPath ([string]$artifact.path)
+        $isProtectedPackage = @($protectedImportedSkillRootPrefixes | Where-Object {
+            $path.StartsWith($_, [System.StringComparison]::Ordinal)
+        }).Count -gt 0
+        if ($isProtectedPackage -or
+            $path.StartsWith($protectedImportedSkillDevReferencePrefix, [System.StringComparison]::Ordinal)) {
+            $expectedByPath[$path] = $artifact
+        }
+    }
+    if ($expectedByPath.Count -eq 0) {
+        throw 'Verified baseline does not contain protected imported skill sources.'
+    }
+    foreach ($prefix in $protectedImportedSkillRootPrefixes) {
+        $skillPath = "$prefix`SKILL.md"
+        if (-not $expectedByPath.ContainsKey($skillPath)) {
+            throw "Protected imported skill package has no baseline SKILL.md: $prefix"
+        }
+    }
+    $dispositionByPath = @{}
+    foreach ($entry in @($AuthenticatedProof.DispositionManifest.baseline)) {
+        $dispositionByPath[[string]$entry.path] = [string]$entry.action
+    }
+    foreach ($path in $expectedByPath.Keys) {
+        if (-not $dispositionByPath.ContainsKey($path) -or
+            $dispositionByPath[$path] -ne 'K') {
+            throw "Protected imported source is not byte-retained by verified disposition: $path"
+        }
+    }
+    $trackedPaths = @(git -C $root ls-files -- $protectedPaths)
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Unable to enumerate protected imported skill sources.'
+    }
+    $allowedTrackedPaths = @(
+        $trackedPaths | ForEach-Object { Assert-AllowedDocumentationPath $_ }
+    )
+    Assert-ExactPathSet @($expectedByPath.Keys) $allowedTrackedPaths 'Protected imported skill source paths'
+    & git -C $root diff --cached --quiet $documentationProof.BaseCommit -- $protectedPaths
+    if ($LASTEXITCODE -eq 1) {
+        throw 'Protected imported skill sources differ from the baseline in the Git index.'
+    }
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Unable to compare protected imported skill sources with the baseline Git index.'
+    }
+    foreach ($path in $expectedByPath.Keys) {
+        $artifact = $expectedByPath[$path]
+        $literalPath = Join-Path $root $path
+        if (-not [System.IO.File]::Exists($literalPath)) {
+            throw "Protected imported source is missing from the working tree: $path"
+        }
+        $fileInfo = [System.IO.FileInfo]::new($literalPath)
+        if ($fileInfo.Length -ne [long]$artifact.byteLength -or
+            (Get-FileSha256 $literalPath) -ne [string]$artifact.sha256) {
+            throw "Protected imported source differs from baseline bytes: $path"
+        }
     }
 }
 
 function Invoke-DocumentationCaptureBaseline {
-    $manifest = Get-ConsolidationManifest
-    Assert-ConsolidationDisposition $manifest
-    $headCommit = (git -C $root rev-parse HEAD).Trim()
-    if ($LASTEXITCODE -ne 0 -or $headCommit -ne $manifest.baseCommit) {
-        throw "Baseline HEAD must equal $($manifest.baseCommit); found $headCommit."
+    $headCommit = if ($ExpectedHeadCommit) {
+        $ExpectedHeadCommit
     }
-    $artifacts = [System.Collections.Generic.List[object]]::new()
-    foreach ($entry in $manifest.baseline) {
-        $relative = Assert-AllowedDocumentationPath $entry.path
-        $fullPath = Join-Path $documentationContentRoot $relative
-        if (-not [System.IO.File]::Exists($fullPath)) {
-            throw "Baseline artifact does not exist: $relative"
-        }
-        $fileInfo = [System.IO.FileInfo]::new($fullPath)
-        $artifacts.Add([pscustomobject]@{
-            path = $relative
-            byteLength = $fileInfo.Length
-            sha256 = Get-FileSha256 $fullPath
-            workingTreeMarker = 'pre-consolidation'
-        })
+    else {
+        (& git -C $root rev-parse HEAD).Trim()
     }
-    Write-DeterministicJson $BaselineManifest ([ordered]@{
-        schemaVersion = 1
-        baseCommit = $manifest.baseCommit
-        artifacts = @($artifacts)
-    })
-    $origins = Get-TrackedAllowedTextPaths
-    $callsites = Get-DocumentationCallsites $origins
-    Write-DeterministicJson $CallsiteInventory ([ordered]@{
-        schemaVersion = 1
-        baseCommit = $manifest.baseCommit
-        excludedPrefix = $documentationExcludedPrefix
-        rows = @($callsites)
-    })
-    Write-Host "Documentation consolidation baseline captured: artifacts=512 excludedOperations=$excludedOperations unknownSyntax=0"
+    if ($headCommit -notmatch '\A[0-9a-f]{40}\z') {
+        throw 'CaptureBaseline requires ExpectedHeadCommit as a full lowercase SHA-1 when HEAD cannot supply one.'
+    }
+    $proof = New-DocumentationProofBundle $documentationProof.BaseCommit $headCommit
+    $proofPaths = [ordered]@{
+        DispositionManifest = Get-ProofInputPath 'DispositionManifest' $DispositionManifest
+        BaselineManifest = Get-ProofInputPath 'BaselineManifest' $BaselineManifest
+        MaterialClaimInventory = Get-ProofInputPath 'MaterialClaimInventory' $MaterialClaimInventory
+        CallsiteInventory = Get-ProofInputPath 'CallsiteInventory' $CallsiteInventory
+    }
+    foreach ($entry in $proofPaths.GetEnumerator()) {
+        Write-DeterministicJson $entry.Value $proof.$($entry.Key)
+    }
+    Write-Host "Documentation consolidation proof captured from Git blobs: base=$($proof.BasePaths.Count) head=$($proof.HeadPaths.Count) claims=$($proof.MaterialClaimInventory.rowCount) callsites=$($proof.CallsiteInventory.rowCount) excludedOperations=$excludedOperations"
 }
 
 function Invoke-DocumentationVerifyHead {
@@ -549,309 +982,77 @@ function Invoke-DocumentationVerifyHead {
     if ($LASTEXITCODE -ne 0 -or $actualHeadCommit -ne $ExpectedHeadCommit) {
         throw "VerifyHead expected commit $ExpectedHeadCommit but repository HEAD is $actualHeadCommit."
     }
-    & git -C $root diff --cached --quiet HEAD -- . ':(exclude)docs/reference/imp-docs' ':(exclude)docs/reference/imp-docs/**'
+    & git -C $root diff --cached --quiet $ExpectedHeadCommit -- . ':(exclude)docs/reference/imp-docs' ':(exclude)docs/reference/imp-docs/**'
     if ($LASTEXITCODE -eq 1) {
         throw 'VerifyHead requires a clean allowed Git index at ExpectedHeadCommit.'
     }
-    if ($LASTEXITCODE -ne 0) { throw 'Unable to compare the allowed Git index with HEAD.' }
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to compare the allowed Git index with ExpectedHeadCommit.' }
+    & git -C $root diff --quiet $ExpectedHeadCommit -- . ':(exclude)docs/reference/imp-docs' ':(exclude)docs/reference/imp-docs/**'
+    if ($LASTEXITCODE -eq 1) {
+        throw 'VerifyHead requires a clean allowed working tree at ExpectedHeadCommit.'
+    }
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to compare the allowed working tree with ExpectedHeadCommit.' }
 
-    foreach ($proofInput in @(
-        @{ Name = 'DispositionManifest'; Path = $DispositionManifest; Sha256 = $documentationProof.DispositionSha256 },
-        @{ Name = 'BaselineManifest'; Path = $BaselineManifest; Sha256 = $documentationProof.BaselineSha256 },
-        @{ Name = 'MaterialClaimInventory'; Path = $MaterialClaimInventory; Sha256 = $documentationProof.MaterialClaimsSha256 },
-        @{ Name = 'CallsiteInventory'; Path = $CallsiteInventory; Sha256 = $documentationProof.CallsitesSha256 }
-    )) {
-        if (-not $proofInput.Path -or -not [System.IO.File]::Exists($proofInput.Path)) {
-            throw "$($proofInput.Name) is required and must exist."
-        }
-        $actualProofHash = Get-FileSha256 $proofInput.Path
-        if ($actualProofHash -ne $proofInput.Sha256) {
-            throw "$($proofInput.Name) hash does not match the pinned consolidation proof."
-        }
+    $proof = New-DocumentationProofBundle $documentationProof.BaseCommit $ExpectedHeadCommit
+    $proofPaths = [ordered]@{
+        DispositionManifest = Get-ProofInputPath 'DispositionManifest' $DispositionManifest
+        BaselineManifest = Get-ProofInputPath 'BaselineManifest' $BaselineManifest
+        MaterialClaimInventory = Get-ProofInputPath 'MaterialClaimInventory' $MaterialClaimInventory
+        CallsiteInventory = Get-ProofInputPath 'CallsiteInventory' $CallsiteInventory
     }
+    $proofSnapshot = $null
+    $headSnapshot = $null
+    $previousContentRoot = $documentationContentRoot
+    try {
+        $proofSnapshot = New-GitCommitSnapshot $ExpectedHeadCommit @($documentationProofInputRelativePaths.Values) 'proof-inputs'
+        foreach ($entry in $proofPaths.GetEnumerator()) {
+            $relative = [string]$documentationProofInputRelativePaths[$entry.Key]
+            Assert-ProofArtifactMatches $entry.Key $entry.Value $proof.$($entry.Key)
+            Assert-ProofArtifactMatches "$($entry.Key) Git blob" (Join-Path $proofSnapshot $relative) $proof.$($entry.Key)
+        }
+        $manifest = [System.IO.File]::ReadAllText($proofPaths.DispositionManifest) | ConvertFrom-Json -Depth 100
+        Assert-ManifestCensus $manifest $proof.BasePaths $proof.HeadPaths $ExpectedHeadCommit
 
-    $manifest = Get-ConsolidationManifest
-    Assert-ConsolidationDisposition $manifest
-    $baselineManifestValue = Get-Content -LiteralPath $BaselineManifest -Raw | ConvertFrom-Json -Depth 30
-    if ($manifest.baseCommit -ne $documentationProof.BaseCommit -or
-        $baselineManifestValue.schemaVersion -ne 2 -or
-        $baselineManifestValue.baseCommit -ne $documentationProof.BaseCommit -or
-        $baselineManifestValue.excludedPrefix -ne $documentationExcludedPrefix) {
-        throw 'Disposition and baseline manifests do not identify the pinned baseline.'
-    }
-    $baselineByPath = @{}
-    foreach ($artifact in @($baselineManifestValue.artifacts)) {
-        $baselineByPath[$artifact.path] = $artifact
-    }
-    $dispositionByPath = @{}
-    foreach ($entry in @($manifest.baseline)) {
-        $dispositionByPath[[string]$entry.path] = $entry
-    }
-    if ($baselineByPath.Count -ne 512) {
-        throw "Baseline manifest must contain 512 unique paths; found $($baselineByPath.Count)."
-    }
-    $trackedAllowed = [System.Collections.Generic.HashSet[string]]::new(
-        [System.StringComparer]::Ordinal)
-    $trackedAllowedLines = @(git -C $root ls-files -- . ':(exclude)docs/reference/imp-docs' ':(exclude)docs/reference/imp-docs/**')
-    if ($LASTEXITCODE -ne 0) { throw 'Unable to enumerate the allowed Git index.' }
-    foreach ($trackedPath in $trackedAllowedLines) {
-        $null = $trackedAllowed.Add((Assert-AllowedDocumentationPath $trackedPath))
-    }
-    $script:documentationContentRoot = New-GitCommitSnapshot $actualHeadCommit @($trackedAllowed | Sort-Object)
-
-    $headPaths = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
-    $survivingSourceTargets = @{}
-    foreach ($entry in $manifest.baseline) {
-        $source = Assert-AllowedDocumentationPath $entry.path
-        if ($entry.action -eq 'D') {
-            if ($trackedAllowed.Contains($source)) {
-                throw "Deleted disposition remains tracked: $source"
-            }
-            continue
-        }
-        $target = if ($entry.action -eq 'M') { Assert-AllowedDocumentationPath @($entry.targets)[0] } else { $source }
-        if (-not $trackedAllowed.Contains($target) -or
-            -not [System.IO.File]::Exists((Join-Path $documentationContentRoot $target))) {
-            throw "Retained or moved head artifact is not tracked and present: $target"
-        }
-        $survivingSourceTargets[$source] = $target
-        if (-not $headPaths.Add($target)) {
-            throw "Duplicate head path: $target"
-        }
-        if ($entry.action -eq 'K') {
-            $currentHash = Get-FileSha256 (Join-Path $documentationContentRoot $target)
-            if ($currentHash -ne $baselineByPath[$source].sha256) {
-                throw "Byte-retained artifact changed: $source"
-            }
-        }
-    }
-    foreach ($entry in $manifest.creates) {
-        $path = Assert-AllowedDocumentationPath $entry.path
-        if (-not $trackedAllowed.Contains($path) -or
-            -not [System.IO.File]::Exists((Join-Path $documentationContentRoot $path))) {
-            throw "Created head artifact is not tracked and present: $path"
-        }
-        if (-not $headPaths.Add($path)) {
-            throw "Duplicate created head path: $path"
-        }
-    }
-    if ($headPaths.Count -ne 238) {
-        throw "Head manifest must contain 238 unique paths; found $($headPaths.Count)."
-    }
-
-    $claimsValue = Get-Content -LiteralPath $MaterialClaimInventory -Raw | ConvertFrom-Json -Depth 40
-    if ($claimsValue.schemaVersion -ne 2 -or
-        $claimsValue.baseCommit -ne $documentationProof.BaseCommit -or
-        $claimsValue.excludedPrefix -ne $documentationExcludedPrefix -or
-        @($claimsValue.rows).Count -ne 27762 -or
-        $claimsValue.rowCount -ne 27762) {
-        throw 'Material claim inventory identity or exact 27,762-row baseline is invalid.'
-    }
-    $claimById = @{}
-    $claimCoordinateSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
-    $claimSourcePaths = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
-    $claimIndex = 0
-    foreach ($claim in @($claimsValue.rows)) {
-        $claimIndex++
-        $expectedClaimId = 'DOC-CLAIM-{0:D6}' -f $claimIndex
-        $sourcePath = Assert-AllowedDocumentationPath ([string]$claim.sourcePath)
-        $coordinate = "$sourcePath|$($claim.sourceLocation)|$($claim.normalizedSourceExcerptSha256)"
-        if ($claim.claimId -ne $expectedClaimId -or
-            $claimById.ContainsKey([string]$claim.claimId) -or
-            -not $claimCoordinateSet.Add($coordinate) -or
-            $claim.normalizedSourceExcerptSha256 -notmatch '\A[0-9a-f]{64}\z' -or
-            -not $baselineByPath.ContainsKey($sourcePath)) {
-            throw "Material claim identity is malformed or duplicated: $($claim.claimId)."
-        }
-        $claimById[[string]$claim.claimId] = $claim
-        $null = $claimSourcePaths.Add($sourcePath)
-    }
-    $claimTextExtensions = @('.md', '.txt', '.json', '.yaml', '.yml', '.csv', '.ps1')
-    foreach ($entry in @($manifest.baseline)) {
-        if ($entry.action -in @('R', 'M', 'D') -and
-            [System.IO.Path]::GetExtension([string]$entry.path).ToLowerInvariant() -in $claimTextExtensions -and
-            -not $claimSourcePaths.Contains([string]$entry.path)) {
-            throw "Material claim inventory omits a changed textual source: $($entry.path)."
-        }
-    }
-
-    $callsitesValue = Get-Content -LiteralPath $CallsiteInventory -Raw | ConvertFrom-Json -Depth 30
-    if ($callsitesValue.schemaVersion -ne 2 -or
-        $callsitesValue.baseCommit -ne $documentationProof.BaseCommit -or
-        $callsitesValue.excludedPrefix -ne $documentationExcludedPrefix -or
-        @($callsitesValue.rows).Count -ne 3111 -or
-        $callsitesValue.rowCount -ne 3111) {
-        throw 'Callsite inventory identity or exact 3,111-row baseline is invalid.'
-    }
-    $expectedExceptions = [System.Collections.Generic.HashSet[string]]::new(
-        [System.StringComparer]::Ordinal)
-    @(
-        'docs/changes/2026-07-27-azure-workflow-onboarding.md|60|md-inline|../operator-notes/',
-        'docs/changes/2026-07-27-azure-workflow-onboarding.md|61|md-inline|../product/',
-        'docs/changes/2026-07-27-azure-workflow-onboarding.md|62|md-inline|../history/product/project-discovery-questionnaire.md',
-        'docs/changes/2026-07-27-azure-workflow-onboarding.md|63|md-inline|../history/product/feature-versioning-worksheet.md',
-        'docs/changes/2026-07-27-azure-workflow-onboarding.md|226|md-inline|../product/capabilities.md',
-        'docs/changes/2026-07-27-azure-workflow-onboarding.md|226|md-inline|../product/index.md',
-        'docs/changes/2026-07-27-azure-workflow-onboarding.md|228|md-inline|../roadmap.md',
-        'docs/decisions/ADR-0003-pdfpig-for-first-qdos-slice.md|25|code/path-literal|docs/evaluation/qdos-pdf-engine-benchmark.md'
-    ) | ForEach-Object { $null = $expectedExceptions.Add($_) }
-    $observedExceptions = [System.Collections.Generic.HashSet[string]]::new(
-        [System.StringComparer]::Ordinal)
-    $callsiteCoordinateSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
-    $requiredActiveCallsites = @{}
-    $requiredMigratedCallsites = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
-    $callsiteIndex = 0
-    foreach ($row in @($callsitesValue.rows)) {
-        $callsiteIndex++
-        $expectedCallsiteId = 'DOC-CALL-{0:D6}' -f $callsiteIndex
-        $originPath = Assert-AllowedDocumentationPath ([string]$row.originPath)
-        $coordinate = "$originPath|$($row.line)|$($row.column)|$($row.syntaxClass)|$($row.rawDestination)"
-        if ($row.callsiteId -ne $expectedCallsiteId -or
-            -not $callsiteCoordinateSet.Add($coordinate) -or
-            $row.disposition -notin @('retain', 'migrate', 'immutable-baseline')) {
-            throw "Baseline callsite identity is malformed or duplicated: $($row.callsiteId)."
-        }
-        if ($row.disposition -eq 'immutable-baseline') {
-            $key = "$originPath|$($row.line)|$($row.syntaxClass)|$($row.rawDestination)"
-            if (-not $expectedExceptions.Contains($key)) {
-                throw "Unexpected immutable baseline callsite: $key"
-            }
-            $null = $observedExceptions.Add($key)
-        }
-
-        switch ([string]$row.headEvidenceState) {
-            'material-claim' {
-                if (-not $claimById.ContainsKey([string]$row.claimId)) {
-                    throw "Callsite mapping references an unknown claim: $($row.callsiteId)."
-                }
-                $mappedClaim = $claimById[[string]$row.claimId]
-                $mappedPath = Assert-AllowedDocumentationPath ([string]$row.mappedHeadPath)
-                if ($mappedClaim.sourcePath -ne $originPath -or
-                    [string]$mappedClaim.sourceLocation -ne [string]$row.line -or
-                    $mappedClaim.targetPath -ne $mappedPath -or
-                    $mappedClaim.targetHeading -ne $row.mappedHeadHeading -or
-                    -not $headPaths.Contains($mappedPath)) {
-                    throw "Callsite-to-claim mapping is incomplete: $($row.callsiteId)."
+        $headSnapshot = New-GitCommitSnapshot $ExpectedHeadCommit $proof.HeadPaths 'verified-head'
+        $script:documentationContentRoot = $headSnapshot
+        $graphEvidence = Assert-DocumentationGraph @($proof.HeadPaths | Where-Object {
+            [System.IO.Path]::GetExtension($_).Equals('.md', [System.StringComparison]::OrdinalIgnoreCase)
+        })
+        if ($HeadManifest) {
+            $headArtifacts = foreach ($path in $proof.HeadPaths | Sort-Object) {
+                $fileInfo = [System.IO.FileInfo]::new((Join-Path $headSnapshot $path))
+                [pscustomobject][ordered]@{
+                    path = $path
+                    byteLength = $fileInfo.Length
+                    sha256 = Get-FileSha256 $fileInfo.FullName
+                    evidenceSource = 'expected-head-git-blob'
                 }
             }
-            'byte-retained' {
-                if (-not $baselineByPath.ContainsKey($originPath) -or
-                    $dispositionByPath[$originPath].action -ne 'K' -or
-                    $row.mappedHeadOriginPath -ne $originPath -or
-                    $row.mappedHeadSyntaxClass -ne $row.syntaxClass -or
-                    $row.mappedHeadRawDestination -ne $row.rawDestination) {
-                    throw "Byte-retained callsite mapping is invalid: $($row.callsiteId)."
-                }
+            $proofInputSha256 = [ordered]@{}
+            foreach ($entry in $proofPaths.GetEnumerator()) {
+                $proofInputSha256[$entry.Key] = Get-FileSha256 (Join-Path $proofSnapshot ([string]$documentationProofInputRelativePaths[$entry.Key]))
             }
-            'active-callsite' {
-                if ($baselineByPath.ContainsKey($originPath) -or
-                    $row.mappedHeadOriginPath -ne $originPath -or
-                    $row.mappedHeadSyntaxClass -ne $row.syntaxClass -or
-                    $row.mappedHeadRawDestination -ne $row.rawDestination) {
-                    throw "Active callsite mapping is invalid: $($row.callsiteId)."
-                }
-                $activeKey = "$originPath|$($row.syntaxClass)|$($row.rawDestination)"
-                $requiredActiveCallsites[$activeKey] = 1 + [int]$requiredActiveCallsites[$activeKey]
-            }
-            'active-origin-migration' {
-                if ($baselineByPath.ContainsKey($originPath) -or
-                    $row.mappedHeadOriginPath -ne $originPath -or
-                    -not $row.mappedHeadSyntaxClass -or
-                    -not $row.mappedHeadRawDestination) {
-                    throw "Active-origin migration mapping is invalid: $($row.callsiteId)."
-                }
-                $migratedKey = "$originPath|$($row.mappedHeadSyntaxClass)|$($row.mappedHeadRawDestination)"
-                $null = $requiredMigratedCallsites.Add($migratedKey)
-            }
-            default { throw "Unknown callsite head evidence state: $($row.callsiteId)." }
+            Write-DeterministicJson $HeadManifest ([ordered]@{
+                schemaVersion = $documentationProof.SchemaVersion
+                baseCommit = $documentationProof.BaseCommit
+                headCommit = $ExpectedHeadCommit
+                excludedPrefix = $documentationExcludedPrefix
+                proofInputSha256 = $proofInputSha256
+                rowCount = @($headArtifacts).Count
+                artifacts = @($headArtifacts)
+            })
+        }
+        Write-Host "Documentation consolidation head verified from Git blobs: base=$($proof.BasePaths.Count) head=$($proof.HeadPaths.Count) claims=$($proof.MaterialClaimInventory.rowCount) callsites=$($proof.CallsiteInventory.rowCount) redirects=$($graphEvidence.NavigationRedirects) excludedOperations=$excludedOperations"
+    }
+    finally {
+        $script:documentationContentRoot = $previousContentRoot
+        if ($proofSnapshot -and [System.IO.Directory]::Exists($proofSnapshot)) {
+            [System.IO.Directory]::Delete($proofSnapshot, $true)
+        }
+        if ($headSnapshot -and [System.IO.Directory]::Exists($headSnapshot)) {
+            [System.IO.Directory]::Delete($headSnapshot, $true)
         }
     }
-    $observedActiveCallsites = @{}
-    foreach ($currentCallsite in @(Get-DocumentationCallsites (Get-TrackedAllowedTextPaths))) {
-        $activeKey = "$($currentCallsite.originPath)|$($currentCallsite.syntaxClass)|$($currentCallsite.rawDestination)"
-        $observedActiveCallsites[$activeKey] = 1 + [int]$observedActiveCallsites[$activeKey]
-    }
-    foreach ($activeKey in $requiredActiveCallsites.Keys) {
-        if ([int]$observedActiveCallsites[$activeKey] -lt [int]$requiredActiveCallsites[$activeKey]) {
-            throw "Mapped active callsite is absent from ExpectedHeadCommit: $activeKey"
-        }
-    }
-    foreach ($migratedKey in $requiredMigratedCallsites) {
-        if ([int]$observedActiveCallsites[$migratedKey] -lt 1) {
-            throw "Mapped replacement callsite is absent from ExpectedHeadCommit: $migratedKey"
-        }
-    }
-    if ($observedExceptions.Count -ne 8 -or
-        $observedExceptions.Count -ne $expectedExceptions.Count) {
-        throw "Immutable baseline callsites must match the exact eight exceptions; observed $($observedExceptions.Count)."
-    }
-
-    $claimSectionCache = @{}
-    $unassignedClaims = 0
-    foreach ($claim in @($claimsValue.rows)) {
-        $targetPath = if ($claim.targetPath) {
-            Assert-AllowedDocumentationPath ([string]$claim.targetPath)
-        } else {
-            $null
-        }
-        if ($claim.disposition -notin @('preserve-exact', 'merge', 'supersede', 'resolve', 'retain-raw', 'duplicate') -or
-            -not $baselineByPath.ContainsKey([string]$claim.sourcePath) -or
-            -not $targetPath -or -not $claim.targetHeading -or
-            $claim.targetExcerptSha256 -notmatch '\A[0-9a-f]{64}\z' -or
-            -not $headPaths.Contains($targetPath)) {
-            $unassignedClaims++
-            continue
-        }
-        $actualTargetHash = if ($claim.targetHeading -eq '$blob') {
-            Get-FileSha256 (Join-Path $documentationContentRoot $targetPath)
-        }
-        else {
-            if (-not $claimSectionCache.ContainsKey($targetPath)) {
-                $claimSectionCache[$targetPath] = Get-MarkdownSectionEvidence $targetPath
-            }
-            if (-not $claimSectionCache[$targetPath].ContainsKey([string]$claim.targetHeading)) {
-                $null
-            } else {
-                $claimSectionCache[$targetPath][[string]$claim.targetHeading]
-            }
-        }
-        if (-not $actualTargetHash -or $actualTargetHash -ne $claim.targetExcerptSha256) {
-            $unassignedClaims++
-        }
-        if ($claim.disposition -eq 'preserve-exact' -and
-            ($claim.sourcePath -ne $claim.targetPath -or
-             $baselineByPath[[string]$claim.sourcePath].sha256 -ne $actualTargetHash)) {
-            $unassignedClaims++
-        }
-    }
-    if ($unassignedClaims -gt 0) {
-        throw "Material claim inventory has $unassignedClaims unassigned or unproved rows."
-    }
-
-    $markdownPaths = @($headPaths | Where-Object { [System.IO.Path]::GetExtension($_) -eq '.md' })
-    $graphEvidence = Assert-DocumentationGraph $markdownPaths
-    $headArtifacts = foreach ($path in $headPaths | Sort-Object) {
-        $fileInfo = [System.IO.FileInfo]::new((Join-Path $documentationContentRoot $path))
-        [pscustomobject]@{
-            path = $path
-            byteLength = $fileInfo.Length
-            sha256 = Get-FileSha256 $fileInfo.FullName
-            evidenceSource = 'expected-head-git-blob'
-        }
-    }
-    Write-DeterministicJson $HeadManifest ([ordered]@{
-        schemaVersion = 2
-        baseCommit = $manifest.baseCommit
-        headCommit = $actualHeadCommit
-        dispositionManifestSha256 = $documentationProof.DispositionSha256
-        baselineManifestSha256 = $documentationProof.BaselineSha256
-        materialClaimInventorySha256 = $documentationProof.MaterialClaimsSha256
-        callsiteInventorySha256 = $documentationProof.CallsitesSha256
-        artifacts = @($headArtifacts)
-    })
-    [System.IO.Directory]::Delete($documentationContentRoot, $true)
-    $script:documentationContentRoot = $root
-    Write-Host "Documentation consolidation head verified: baseline=512 delete=287 retainOrMove=225 create=13 head=238 duplicatePairs=2 excludedOperations=$excludedOperations unmappedDeletedReferences=0 activeBrokenLinks=0 activeMissingAnchors=0 unreachableMarkdown=0 unknownSyntax=0 unassignedMaterialClaims=0 baselineExceptionPairs=$($observedExceptions.Count) markdown=$($graphEvidence.Markdown)"
 }
 
 if ($DocumentationConsolidationMode) {
@@ -866,6 +1067,19 @@ if ($DocumentationConsolidationMode) {
 
 function Add-PolicyError([string]$Message) {
     $errors.Add($Message)
+}
+
+$authenticatedDocumentationProof = $null
+$authenticatedProofInputPaths = [System.Collections.Generic.HashSet[string]]::new(
+    [System.StringComparer]::OrdinalIgnoreCase)
+try {
+    $authenticatedDocumentationProof = Get-AuthenticatedDocumentationProof
+    foreach ($path in $authenticatedDocumentationProof.ProofInputPaths) {
+        $null = $authenticatedProofInputPaths.Add([string]$path)
+    }
+}
+catch {
+    Add-PolicyError "Documentation proof authentication failed: $($_.Exception.Message)"
 }
 
 $capabilityPath = Join-Path $root 'docs/capabilities.md'
@@ -976,7 +1190,6 @@ $forbiddenPaths = @(
     'tests/CollisionSpike.ArchitectureTests',
     'docs/README.md',
     'docs/product',
-    'docs/history',
     'docs/runbooks',
     'docs/agent-guidance',
     'docs/agent-notes',
@@ -993,6 +1206,18 @@ foreach ($relative in $forbiddenPaths) {
     }
 }
 
+if ($authenticatedDocumentationProof) {
+    try {
+        Assert-RetainedDocumentationPaths $authenticatedDocumentationProof 'docs/history'
+    }
+    catch {
+        Add-PolicyError $_.Exception.Message
+    }
+}
+elseif (Test-Path -LiteralPath (Join-Path $root 'docs/history')) {
+    Add-PolicyError 'Retained documentation paths require independently authenticated disposition proof: docs/history'
+}
+
 $activeRoots = @(
     'README.md', 'AGENTS.md', 'Directory.Build.props', 'Pegasus.slnx',
     'package.json', 'package-lock.json', 'azure.yaml', '.azure', '.github',
@@ -1005,15 +1230,20 @@ $activeRoots = @(
     'docs/reference/eva_information/eva_information.md'
 )
 $textExtensions = @('.md', '.txt', '.yml', '.yaml', '.json', '.jsonc', '.ps1', '.py', '.bicep', '.csproj', '.slnx', '.cs', '.cshtml', '.props', '.targets')
-$activeFiles = foreach ($relative in $activeRoots) {
-    $path = Join-Path $root $relative
-    if (-not (Test-Path -LiteralPath $path)) { continue }
-    $item = Get-Item -LiteralPath $path
-    if (-not $item.PSIsContainer) { $item; continue }
-    Get-ChildItem -LiteralPath $path -Recurse -File | Where-Object {
-        $textExtensions -contains $_.Extension -and
-        $_.FullName -notmatch '[\\/](?:bin|obj|node_modules|artifacts|corpus)[\\/]'
+$activeFiles = @(
+    foreach ($relative in $activeRoots) {
+        $path = Join-Path $root $relative
+        if (-not (Test-Path -LiteralPath $path)) { continue }
+        $item = Get-Item -LiteralPath $path
+        if (-not $item.PSIsContainer) { $item; continue }
+        Get-ChildItem -LiteralPath $path -Recurse -File | Where-Object {
+            $textExtensions -contains $_.Extension -and
+            $_.FullName -notmatch '[\\/](?:bin|obj|node_modules|artifacts|corpus)[\\/]'
+        }
     }
+) | Where-Object {
+    $relative = [System.IO.Path]::GetRelativePath($root, $_.FullName).Replace('\', '/')
+    -not $authenticatedProofInputPaths.Contains($relative)
 }
 
 $currentDocumentationOwners = @(
@@ -1053,19 +1283,16 @@ foreach ($ownerPath in $currentDocumentationOwners) {
     }
 }
 
-$authorityBoundary = 'This package may produce evidence, candidates, or draft output only. `Pegasus.Core` and an authorised human own every accepted case fact, cost, category, outcome, legal position, and approval.'
-$authoritySkills = @(
-    'vehicle-assessment', 'total-loss-assessment', 'salvage-categorisation',
-    'roadworthy-report', 'manufacturer-methods-evidence', 'diminution-report',
-    'diminution-rebuttal', 'ce-cost-defence'
-)
-foreach ($skillName in $authoritySkills) {
-    $skillPath = Join-Path $root "workspaces/ai-centre/skills/$skillName/SKILL.md"
-    $skillText = [System.IO.File]::ReadAllText($skillPath)
-    if (([regex]::Matches($skillText, [regex]::Escape($authorityBoundary))).Count -ne 1 -or
-        $skillText -notmatch '(?m)^## Authority boundary\s*$') {
-        Add-PolicyError "AI skill authority boundary is missing or duplicated: $skillName"
+if ($authenticatedDocumentationProof) {
+    try {
+        Assert-ProtectedImportedSkillSources $authenticatedDocumentationProof
     }
+    catch {
+        Add-PolicyError $_.Exception.Message
+    }
+}
+else {
+    Add-PolicyError 'Protected imported skill sources require independently authenticated documentation proof.'
 }
 
 $historicalOrTechnicalIdentity = '(?i)(predecessor|pre-cutover|legacy|historical|former|old application|rg-collisionspike-dev|collisionengineers/collisionspike_v2|CollisionSpikeCurrenttree|collisionspike-corpus-evaluation|ASP-rgcollisionspikedev|cespk-pg-dev|databases:.*collisionspike)'

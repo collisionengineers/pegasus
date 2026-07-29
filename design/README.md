@@ -11,7 +11,7 @@ Intended, planned, implemented, caller-proved, deployed and accepted are distinc
 - **Caller-proved** requires a real route or other named caller exercising the behavior.
 - **Deployed** requires deployment evidence; none is inferred from implementation.
 - **Accepted** requires the specified accessibility and operator review evidence.
-- Candidate rasters, historical concepts and the current Development proof are evidence, not design approval.
+- The three retained comparison rasters record the shell-selection comparison. Operations-first is the selected strategy; raster pixels and details are not design approval or runtime evidence.
 
 The only currently called Pegasus UI is the Development-only Razor Pages dashboard and `/Intake/Upload` path through Core `ProcessIntake`, including retained-asset download. It is unauthenticated, creates no case or reference, and is not the planned staff UI. The Operations, Intake, Triage, Cases and Administration surfaces remain planned. The current proof has no accepted complete accessibility evidence.
 
@@ -44,7 +44,7 @@ The common hierarchy is:
 4. named workflow, evidence, lease or exception state and consequential action;
 5. provenance, external identity, permanent business history and limitations.
 
-`Next`/`unallocated` and `Later`/`unallocated` capabilities have no `0.1.0-alpha.1` navigation, control, workflow or placeholder. Every later UI capability must re-enter inventory, specification, alternatives, independent review, explicit approval, visual generation and manual visual review.
+Capabilities allocated beyond `0.1.0-alpha.1` have no alpha navigation, control, workflow or placeholder. Their exact first-introduction releases remain owned by the [capability inventory](../docs/capabilities.md#capabilities) and are mirrored ID by ID in the [traceability matrix](product/traceability-matrix.md). Every deferred UI capability must re-enter specification, alternatives, independent review, explicit approval, visual generation and manual visual review before implementation.
 
 ## Design principles
 
@@ -193,7 +193,7 @@ No brand or decorative imagery is needed for the internal Web application. Upstr
 
 Genuine case images, emails and documents are operational evidence, not decorative assets. Use only authorised repository-provided evidence through its owning workflow. Never generate placeholder cases, damage images, emails, documents or people.
 
-Candidate shell rasters are authorised comparison aids only. Historical concepts and matching rasters are historical, unapproved visual evidence. Neither has a runtime consumer or becomes authority merely by being retained.
+The retained comparison rasters are selection evidence only. The Operations-first shell strategy is approved; no raster is pixel-level authority, runtime payload or implementation proof.
 
 ### Web and renderer boundary
 
@@ -230,7 +230,7 @@ Staff accounts, authentication, and authorisation remain planned until an authen
 | Administrator | Staff shell plus Administration surfaces for accounts/access/roles, principals, configuration, and approved mailbox allowlist. |
 | Engineer, User | Staff shell without Administration surfaces. Their ordinary Intake, Triage, Case, document, evidence, and lifecycle controls are identical. |
 | Automated processing | No UI account or interactive control. |
-| Provider client, `Next`/`unallocated` | No staff shell, Case workspace, or Administration surface. |
+| Provider API client ([API-01–API-04, `Next / unallocated`](../docs/capabilities.md#capabilities)) | No staff shell, Case workspace, or Administration surface. |
 | External/customer | No application account or application surface. |
 
 Every protected route and action must handle unauthenticated, disabled-session, stale-role, denied, loading, and successful outcomes. Hiding a route or control never replaces server authorisation. Administration has no generic rules editor, credential/cloud/release operation, bulk predecessor import, or bulk Case-edit tool. No surface permits permanent deletion or direct external/customer Case editing.
@@ -264,7 +264,7 @@ Rules:
 - Day boundaries use Europe/London midnight.
 - Week boundaries begin Monday.
 - At constrained desktop width or 200% zoom, the selected summary becomes an ordered, labelled section after the results without losing identity, state or action context.
-- Receiving work, Queries and Other are `Next`/`unallocated`.
+- Receiving work, Queries and Other are `Next / unallocated` in the [capability inventory](../docs/capabilities.md#capabilities), with no `0.1.0-alpha.1` surface.
 - There are no `0.1.0-alpha.1` saved views, bulk actions, inline mutation, calendar, personal assignments or general email queues.
 
 The selection rationale is strongest shared-office awareness and truthful day/week visibility. Its risk is density and dependence on independent, accurate queries.
@@ -383,13 +383,16 @@ The planned alpha surface includes:
 - ambiguous/conflicting association review and reasoned manual link, unlink, reversal, or reassociation while preserving every prior relationship and original origin under the [Core association contract](../docs/requirements.md#matching-conflicts-and-reversible-association);
 - missing, integrity, replay, retention, custody and persistence failures.
 
-A temporary external upload request is permitted only when authenticated staff
-create a temporary, expiring, revocable, request-scoped token. The isolated
-unauthenticated surface exposes only that request's upload fields and immediate
-result; it exposes no case/reference, request state/history, or other document,
-creates no external account, and never implies intake acceptance, Box custody,
-EVA handoff, or delivery. Expired, revoked, cross-request, limit, custody,
-idempotent-retry, and abuse outcomes are explicit acceptance states.
+A staff-created in-house upload request is permitted only through a temporary
+token bound to exactly one request, its allowed operation, and a server-enforced
+expiry. Staff can revoke it, and the isolated unauthenticated surface exposes
+only that request's upload fields and immediate structured result. It exposes no
+case/reference, request state/history, other document, token-management function,
+external account, or cross-request lookup. Success proves only request-local
+custody, not case creation, Box custody, EVA handoff, report generation, or
+external delivery. File type/count/size limits, expiry, revocation, idempotent
+retry, abuse handling, cross-request isolation, durable custody, and
+non-disclosing errors are acceptance gates.
 
 Policy-specific email predicates and acceptance evidence remain open gates for only their named automatic paths. They do not weaken manual or shared fail-closed acceptance.
 
@@ -445,8 +448,7 @@ report correction never implies a fee/invoice change.
 
 Report generation, PDF custody, Outlook Sent evidence, and external receipt are
 separate. Report sent enters post-report work rather than closing the Case.
-`CASE-23` query/dispute controls remain `Next`/`unallocated`; the alpha UI
-invents no reply state machine.
+`CASE-23` query/dispute controls are `Next / unallocated` in the [capability inventory](../docs/capabilities.md#capabilities); the alpha UI invents no reply state machine.
 
 Lifecycle actions use only the named [Core lifecycle and correspondence contract](../docs/requirements.md#lifecycle-closure-and-correspondence): Post-report completion, Provider cancellation, Collision Engineers rejection, and Created in error remain distinct from acknowledgements, information requests, report-Sent evidence, queries, and other correspondence. The interface never substitutes a generic Close action. A closed Case is read-only; only a permitted reasoned reopen to a valid nonterminal state restores mutation controls, and `Created in error` offers only its linked-replacement route.
 
@@ -539,46 +541,17 @@ Each visible capability/state also needs authenticated Web-caller and named Core
 
 ## Deferred and absent UI seams
 
-The complete allocation is owned by [capabilities](../docs/capabilities.md). These boundaries are design invariants:
+Exact horizon and first-introduction release remain owned by the [capability inventory](../docs/capabilities.md#capabilities). The [ID-by-ID design mapping](product/traceability-matrix.md) mirrors those allocations. No future allocation creates an alpha route, control, workflow, placeholder or dormant implementation.
 
-### `Next`/`unallocated`
+### Future horizons and unallocated targets
 
-There is no alpha control, route or placeholder for:
+Every future capability currently has exact target `unallocated` in the
+[capability inventory](../docs/capabilities.md#capabilities):
 
-- additional provider activation beyond the alpha source policy;
-- `desk@`, `engineers@` or `info@` automatic ingestion;
-- legacy DOC, MSG or scan-like PDF OCR extraction;
-- automatic image-led/instruction-led matching;
-- broader mailbox identity, taxonomy mapping, folder recommendation/move, suggested actions, case association or mailbox browsing;
-- Receiving work, Queries, Other or a full email-management workspace;
-- post-report query/dispute work;
-- provider submission/status/result APIs;
-- broader classified-email MCP actions;
-- AI/vision assistance for vehicle images or damage evidence;
-- separate-age instruction/image pairing and readiness notification;
-- spreadsheet preparation of future inspection-address/repairer reference data.
+- **Next / `unallocated`:** `DATA-02`; `INT-04`–`INT-07`, `INT-14`–`INT-16`, `INT-28`, and `INT-32`; `MAIL-01`–`MAIL-11`, `MAIL-13`, and `MAIL-23`; `CASE-23`; `UI-10` and `UI-14`; `API-01`–`API-04`; `MCP-05`; and `AI-05`.
+- **Later / `unallocated`:** `MAIL-12`, `MAIL-17`, and `MAIL-19`; `CASE-05`, `CASE-06`, `CASE-22`, and `CASE-31`; `EXT-04`–`EXT-13`, `EXT-15`–`EXT-17`, and `EXT-19`; `AI-01`–`AI-04` and `AI-06`–`AI-09`; `ENG-01` and `ENG-02`; `UI-15`; `RPT-01`–`RPT-05`; and `MI-01`–`MI-03`.
 
-Provider APIs and MCP are non-browser boundaries and do not create staff-shell destinations.
-
-### `Later`/`unallocated`
-
-There is no alpha control, route or placeholder for:
-
-- automatic chaser or report sending;
-- authenticated compose/reply/forward/send in Pegasus;
-- Diminution or Commercial case workflows;
-- automated WhatsApp ingestion;
-- an in-app AI assistant or AI-assisted identification, action, extraction or address suggestion;
-- replacing EVA assignment, estimating, valuation, report preparation or engineering workflow;
-- direct EVA, Audatex, valuation, finance or invoicing integrations;
-- guided mobile image capture or third-party guided-capture integration;
-- a custom application domain;
-- a canonical Engineer workbench, repair specification, valuation, salvage or deterministic report-output workflow;
-- AI-generated query-response proposals or durable `Send to AI` work;
-- management information for Engineer throughput, query rates, Audit uplift, principal report/invoice measures or turnaround;
-- `AI Assessor`.
-
-Deferred AI may propose but must not mutate, accept or send autonomously. Future deterministic outputs must use one accepted structured case/engineering record, validate accepted data, calculate once and avoid duplicate truth owners or output-specific source forks.
+Provider APIs and MCP are non-browser boundaries and do not create staff-shell destinations. Deferred AI may propose but must not mutate, accept or send autonomously. Future deterministic outputs must use one accepted structured case/engineering record, validate accepted data, calculate once and avoid duplicate truth owners or output-specific source forks.
 
 ### Not planned
 
