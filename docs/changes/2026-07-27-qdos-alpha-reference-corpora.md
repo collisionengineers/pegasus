@@ -58,6 +58,12 @@ Operator truth outranks historical plans and predecessor behavior. Accepted deci
 
 The four-project modular monolith remains: Core owns policy and ports; Infrastructure owns persistence and adapters; Web and Worker are composition roots. This change adds no project, top-level store, runtime, migration stream, deployment unit, generic rules engine, or second classifier.
 
+### Checkpoint 1 activation
+
+[ADR-0014](../decisions/ADR-0014-qdos-alpha-implementation-contract.md) activates the clause-specific QDOS implementation and Razor/Worker/MCP caller contract without changing accepted decision bodies or capability allocation. Checkpoint 1 starts from merged `main` at `46b0328b149d7da887fa899c8aa39e01fcf159dc`, whose parents are the pull request 18 documentation merge `536f5fc470a541281f86ebc711564d49432ed73f` and capability child/source head `f77e1492b25abdd5a14725f4c15129333482b743`.
+
+Issue #3 and this record remain the sole implementation, evidence, review, and delivery identity. The addendum creates no second status ledger and promotes no implementation, caller, deployment, live-verification, or acceptance claim. The Development/local evaluator remains a separately delivered evidence harness under `DOC-CON-052`; it is not a QDOS caller or checkpoint. Repository-policy verification remains disabled until post-alpha; current direct and repository-language invocations are successful no-ops recorded only as **skipped/deferred**, never **passed**.
+
 ## Scope
 
 ### Included
