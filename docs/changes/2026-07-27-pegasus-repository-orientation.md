@@ -478,7 +478,7 @@ this remediation relies on that subtree.
 | IDs | Resolution |
 | --- | --- |
 | DOC-CON-012–016 | TRI-04 uses independently optional findings with at least one populated; operations owns tool profiles and planned evaluator status; `docs/index.md` alone owns authority order. |
-| DOC-CON-017–021 | Corpus counts remain dated/scope-qualified; old exact-head evidence is invalidated; provider/domain terminology is exact; QDOS owns one change record; active workflow is owned by `AGENTS.md` and `docs/engineering.md`, with superseded plugin migration retained only as change provenance. |
+| DOC-CON-017–021 | Corpus counts remain dated/scope-qualified; old exact-head evidence is invalidated; provider/domain terminology is exact; QDOS owns one change record; active repository workflow is owned by the installed `.agents/skills/` workflows and configured in `docs/agents/`, with superseded plugin migration retained only as change provenance. |
 | DOC-CON-022–027 | `MAIL-12` remains deferred; the user-confirmed Received/Sent/Reply taxonomy is immutable in `docs/requirements.md`, while predicates and activation remain unresolved; ADR-0005 occurrence identity wins; dormant OCR is removed; historical readiness wording is deleted; cedocumentmapper is predecessor evidence only. |
 | DOC-CON-028–033 | Desktop-only location evidence outranks defaults; image-led intake remains pre-case; Box custody is distinct from staging; Operations-first is selected; route catalog is design, not caller proof; alpha has no OCR replacement. |
 | DOC-CON-034–040 | AI packages are evidence/proposal experiments below Core and human approval; extractor and renderer current-state inventories follow executable evidence; proposed extractor ADR-0006 is removed; renderer ADR-0011 supersedes only ADR-0008 authentication detail. |
@@ -561,7 +561,7 @@ The user subsequently classified root workflow ADRs 0007, 0008, 0010, and 0012
 as documentation bloat and explicitly authorized their removal. Their workflow
 migration evidence remains in
 `docs/changes/2026-07-27-azure-workflow-onboarding.md`; active repository policy
-remains in `AGENTS.md` and `docs/engineering.md`. No application, test, CI, or
+remains in `AGENTS.md` and the installed `.agents/skills/` workflows. No application, test, CI, or
 runtime consumer depended on those ADRs.
 
 ## Verification and evidence

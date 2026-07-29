@@ -32,8 +32,15 @@ Keep the three corresponding Pegasus test projects in `Pegasus.slnx`. Add a
 
 - `document-extraction/`, imported from `collisiondocnetconverter`;
 - `report-renderer/`, imported from `collisionrenderer`; and
-- `ai-centre/`, imported from Collision AI Centre, with Agent Skills merged
-  under `ai-centre/skills/` as its sole skills source.
+- `ai-centre/`, imported from Collision AI Centre.
+
+Repository-development agent workflows are installed from `.agents/skills/`.
+That directory is the authority for those workflows, and its instructions win
+over conflicting agent instructions elsewhere in the repository. The
+`workspaces/ai-centre/skills/` tree contains application-facing AI-agent skill
+packages, not skills for developing Pegasus. Those packages remain outside the
+application caller, runtime-project, deployment-unit, and business-policy
+boundaries described below.
 
 A workspace is durable source, not a runtime, deployment unit, application
 module, package activation, or caller. Each workspace retains its independent

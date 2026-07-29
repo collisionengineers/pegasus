@@ -1,6 +1,6 @@
 # Design authority
 
-This file is the durable authority for Pegasus visual design, Web interaction contracts, approved assets, component and pattern boundaries, and source-to-runtime mappings. Product scope and business capability remain owned by [requirements](../docs/requirements.md) and [capabilities](../docs/capabilities.md); architecture, engineering, deployment and operational procedure remain with [architecture](../docs/architecture.md), [engineering](../docs/engineering.md), [operations](../docs/operations.md) and [operator notes](../docs/operator-notes.md).
+This file is the durable authority for Pegasus visual design, Web interaction contracts, approved assets, component and pattern boundaries, and source-to-runtime mappings. Product scope and business capability remain owned by [requirements](../docs/requirements.md) and [capabilities](../docs/capabilities.md); architecture, repository-development workflow, deployment and operational procedure remain with [architecture](../docs/architecture.md), the [installed skills](../.agents/skills/ask-matt/SKILL.md), [operations](../docs/operations.md) and [operator notes](../docs/operator-notes.md).
 
 ## Evidence discipline
 
@@ -618,7 +618,7 @@ A supported desktop reflow does not alter the permanent mobile-product boundary.
 | Open policy and token questions | [Open decisions](../docs/open-decisions.md) | No implementation inference until resolved |
 | Architecture and caller boundaries | [Architecture](../docs/architecture.md) | Core, Web, Worker, MCP and external adapters |
 | Operations and deployment | [Operations](../docs/operations.md), [Azure](../docs/azure/README.md) | No deployment claim from design or source presence |
-| Engineering procedure | [Engineering](../docs/engineering.md) | Reviewed implementation and verification |
+| Engineering procedure | [Installed skills](../.agents/skills/ask-matt/SKILL.md) | Reviewed implementation and verification |
 | Design authority | This file | Approved Web tokens, assets, components and patterns |
 | Current Web shell | This file’s approved direction; current code is evidence only | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` |
 | Current Web tokens/layout | This file | `src/Pegasus.Web/wwwroot/css/site.css`, currently divergent |

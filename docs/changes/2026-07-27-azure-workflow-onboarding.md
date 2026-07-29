@@ -226,7 +226,7 @@ scope and separate approval.
 - Product/capabilities: [product requirements](../requirements.md) and [current capability inventory](../capabilities.md).
 - Design system/assets: [adapted design authority](../../design/README.md) and exact [master logo](../../design/brand/logos/logo_no_margin.png).
 - Roadmap/release: [capability allocation summary](../capabilities.md#allocation-summary); no release allocations changed.
-- Architecture/workflow: [architecture](../architecture.md) and [engineering guidance](../engineering.md).
+- Architecture/workflow: [architecture](../architecture.md) and the [installed repository-development skills](../../.agents/skills/ask-matt/SKILL.md).
 - Operations: [operations](../operations.md), proportional CI, and repository-owned checks.
 - GitHub issue/Project/milestone: no issue or milestone created; draft [PR 2](https://github.com/collisionengineers/collisionspike_v2/pull/2) is registered in linked [Project 3](https://github.com/users/collisionengineers/projects/3).
 

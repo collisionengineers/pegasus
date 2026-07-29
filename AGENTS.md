@@ -11,16 +11,11 @@ work and the nearest nested `AGENTS.md` for local deltas.
 - Visual UI: `present`; `design/` owns durable visual authority and source/runtime mappings.
 - Canonical local verification: `dotnet restore`, `dotnet build --configuration Release`, and focused/full `dotnet test` commands.
 - Preserve unrelated work. Never stash, reset, clean, force-push, merge, or broaden staging. PR Merge can only be performed if the operator specifically states: MERGE AUTH GRANTED in their prompt.
-- Cloud reads and every Azure, deployment, credential, account, destructive, or other external write require explicit approval for exact targets. Never delete `rg-collisionspike-dev` as a first step.
+- Cloud reads and every Azure, deployment, credential, account, destructive, or non-tracker external write require explicit approval for exact targets. Never delete `rg-collisionspike-dev` as a first step.
 
 ## Repository workflow routes
 
-- Onboard or convert by preserving every source role, recording one reviewed change, and publishing through an independently reviewed pull request.
-- Plan a material change in one activated issue and change record; resolve material decisions and obtain plan acceptance before implementation.
-- Implement, fix, or remediate in that same work identity with caller-backed proof and exact-head review.
-- Explain repository behavior read-only and distinguish intended, implemented, deployed, and accepted evidence.
-- Review a pull request independently against its exact base and head.
-- Inspect or operate an external service only after explicit approval names the exact targets and operation.
+- Select and execute the applicable workflow in `.agents/skills/`; use `docs/agents/` for this repository's issue-tracker and domain configuration. The installed skill is authoritative for planning, issue-tracker, implementation, testing, review, and commit steps.
 
 ## Authority and protected material
 
@@ -49,12 +44,8 @@ work and the nearest nested `AGENTS.md` for local deltas.
 The architecture dependency direction and change boundaries in this section are
 also the repository's architecture invariants.
 
-## Delivery, review, and mistakes
+## Delivery boundaries
 
-- Search for the existing owner, caller, model, adapter, test, and name before adding anything.
-- Material changes use one issue/change record; low-risk mechanical work may use the compact lane only when all compact criteria hold.
-- Keep commits narrow and stage literal scoped paths. Update affected canonical documentation in the same pull request.
-- Delivery stops at a green exact-head pull request with no unresolved blocker/required finding; never merge from an agent workflow.
 - Append only qualifying incidents to `docs/agent-mistakes.md`; do not rewrite prior entries or log routine findings caught by their intended gate.
 - Report cloud writes, destructive operations, secret exposure, skipped checks, and remaining ambiguity. Do not create generated status ledgers, task journals, handoff JSON, or a second workflow database.
 
@@ -64,9 +55,9 @@ also the repository's architecture invariants.
 
 Issues are tracked in `collisionengineers/pegasus` GitHub Issues. See `docs/agents/issue-tracker.md`.
 
-### Triage labels
+### Vetting labels
 
-Triage uses the canonical `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, and `wontfix` labels. See `docs/agents/triage-labels.md`.
+Vetting uses the canonical `needs-vetting`, `needs-info`, `ready-for-agent`, `ready-for-human`, and `wontfix` labels. See `docs/agents/vetting-labels.md`.
 
 ### Domain docs
 

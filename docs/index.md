@@ -8,7 +8,7 @@
 - [Open decisions](open-decisions.md)
 - [Architecture](architecture.md)
 - [Operations](operations.md)
-- [Engineering workflow](engineering.md)
+- [Repository-development workflow](../.agents/skills/ask-matt/SKILL.md)
 - [Operator authority](operator-notes.md)
 - [Design authority](../design/README.md)
 - [Decisions](adr/README.md)
@@ -46,7 +46,7 @@ do not win automatically.
 | What material question remains unresolved? | [Open decisions](open-decisions.md) |
 | What exists now; what are the callers, dependencies, data flows, and boundaries? | [Architecture](architecture.md) |
 | How is Pegasus developed, tested, run, deployed, diagnosed, released, and recovered? | [Operations](operations.md) |
-| How is repository work planned, implemented, proved, reviewed, and delivered? | [Engineering](engineering.md) |
+| How is repository work planned, implemented, proved, reviewed, and delivered? | The installed [.agents/skills/](../.agents/skills/ask-matt/SKILL.md) workflows, configured by [docs/agents/](agents/issue-tracker.md) |
 | What did Collision Engineers explicitly state about process, needs, constraints, and current systems? | [Operator notes](operator-notes.md) |
 | What durable technical choice and rationale applies? | Published immutable decision bodies, with current navigation, status, and supersession in the [decision index](adr/README.md) |
 | What does one material change own? | [Change index](changes/README.md) plus one record per change |
@@ -65,7 +65,7 @@ do not win automatically.
 | `docs/open-decisions.md` | Unresolved material decisions and evidence blockers only. |
 | `docs/architecture.md` | Current implementation, callers, data, dependencies, failures, and deployment boundaries; target state is explicitly qualified. |
 | `docs/operations.md` | Supported procedures and evidence profiles, including what each check cannot prove. |
-| `docs/engineering.md` | Repository lifecycle, caller proof, validation, review, and incident criteria; it links here and to operations rather than restating authority or commands. |
+| `.agents/skills/` | Installed authority for repository-development agent workflows; its instructions win over conflicting repository agent instructions. |
 | `design/` | Durable UI/design authority and source/runtime map. Planned and current behavior remain explicit. |
 | `docs/adr/` | Published decision bodies, clauses, rationale, and dated provenance are immutable except where an explicit `DOC-CON-NNN` resolution authorizes a body edit. `docs/adr/README.md` owns reviewed navigation, current status, and supersession metadata; changed meaning uses an accepted addendum or new decision. |
 | `docs/changes/` | One record per material change. Retain unique reviewed provenance; do not create generated status ledgers. |
@@ -87,7 +87,7 @@ retention, or licensing gates.
 2. Allocation, implemented, caller-proved, deployed, live-verified, and accepted remain distinct states.
 3. Evergreen pages omit test counts, file counts, package versions, and live-resource state unless a value is itself the contract. Dated evidence names its head/checkpoint and scope.
 4. Historical-only prose is removed only after every unique claim, observation, dependency, and provenance record has a verified destination or accepted typed disposition. Do not create a second status ledger or broad archive tree.
-5. Published decision bodies, clauses, rationale, and dated provenance are never narrowed, rewritten, or deleted in place. Reviewed navigation, current status, and supersession metadata is maintained in the decision index; changed meaning uses an accepted addendum or decision.
+5. Published decision bodies, clauses, rationale, and dated provenance are normally immutable. A direct user instruction may authorize an in-place amendment for the affected decision; otherwise reviewed navigation, current status, and supersession metadata is maintained in the decision index, and changed meaning uses an accepted addendum or decision.
 6. Source workspaces retain current technical contracts, protected imported source, required immutable ADR provenance, adjacent legal material, machine contracts/provenance, and evidence needed to reproduce a current decision.
 7. Raw evidence never becomes product authority. Retain unique reviewed evidence and provenance; delete only proven duplicates or derived material whose complete payload has a verified canonical destination.
 8. Every surviving Markdown page is reachable from one appropriate route root: this index, `design/README.md`, `docs/reference/README.md`, `docs/azure/README.md`, `workspaces/README.md`, or its owning workspace/package README. Immutable ADR/change bodies route through their current index.
@@ -104,7 +104,7 @@ retention, or licensing gates.
 | Capability allocation | [Capabilities](capabilities.md) | Activated issue/milestone only when applicable |
 | Current implementation | [Architecture](architecture.md) | Real entry point, owner, adapter, and exercised caller |
 | Delivery procedure | [Operations](operations.md) | Exact command, target, result, and limitation |
-| Repository workflow | [Engineering](engineering.md) | Active issue/change record, exact head, checks, and review |
+| Repository workflow | [Installed skills](../.agents/skills/ask-matt/SKILL.md) | Active issue/change record, exact head, checks, and review |
 | Azure design or live state | [Azure route](azure/README.md) | Fresh authorized read before relying on live state |
 | Operator interface | [Design](../design/README.md) | Current runtime mapping and browser evidence |
 | Raw supplied evidence | [Reference manifest](reference/README.md) | Canonical accepted claim destination; never infer authority from the raw source |

@@ -45,7 +45,7 @@ Current requirements, capability allocation, architecture, operations, design, d
 - [open decisions](../open-decisions.md)
 - [architecture](../architecture.md)
 - [operations](../operations.md)
-- [engineering](../engineering.md)
+- [installed repository-development skills](../../.agents/skills/ask-matt/SKILL.md)
 - [operator notes](../operator-notes.md)
 - [decision index](../adr/README.md)
 - [change-record index](README.md)
