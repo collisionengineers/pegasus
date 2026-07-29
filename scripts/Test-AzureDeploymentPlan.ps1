@@ -107,10 +107,16 @@ Assert-ArchiveContents -FileName 'worker.zip' -RequiredEntries @('host.json', 'P
 Assert-ArchiveContents -FileName 'migration.zip' -RequiredEntries @('migration.sql')
 
 $bicep = Get-Command -Name bicep -CommandType Application -ErrorAction SilentlyContinue
-Assert-Condition -Condition ($null -ne $bicep) -Message 'Bicep CLI is required for offline plan compilation.'
+$az = Get-Command -Name az -CommandType Application -ErrorAction SilentlyContinue
+Assert-Condition -Condition ($null -ne $bicep -or $null -ne $az) -Message 'Bicep CLI or Azure CLI with Bicep is required for offline plan compilation.'
 $templatePath = Join-Path ([System.IO.Path]::GetTempPath()) "pegasus-deployment-plan-$([System.Guid]::NewGuid().ToString('N')).json"
 try {
-    & bicep build $bicepPath --no-restore --outfile $templatePath
+    if ($null -ne $bicep) {
+        & $bicep.Source build $bicepPath --no-restore --outfile $templatePath
+    }
+    else {
+        & az bicep build --file $bicepPath --no-restore --outfile $templatePath
+    }
     if ($LASTEXITCODE -ne 0) {
         throw "Bicep compilation failed with exit code $LASTEXITCODE."
     }
@@ -122,8 +128,11 @@ try {
 
     $resourceGroup = @($template.resources | Where-Object { $_.type -eq 'Microsoft.Resources/resourceGroups' })
     Assert-Condition -Condition ($resourceGroup.Count -eq 1) -Message 'The deployment template must contain one guarded resource-group declaration.'
-    Assert-Condition -Condition ([string]$resourceGroup[0].condition -match 'deploymentMode') -Message 'The resource-group declaration is not guarded by deploymentMode.'
-    Assert-Condition -Condition ([string]$resourceGroup[0].condition -match 'approved-live-deployment') -Message 'The deployment template does not fail closed for cloud activation.'
+    Assert-Condition -Condition ([string]$resourceGroup[0].condition -eq "[variables('activationAllowed')]") -Message 'The compiled resource-group declaration is not controlled by activationAllowed.'
+    Assert-Condition -Condition ([string]$template.variables.activationAllowed -eq "[equals(parameters('deploymentMode'), 'approved-live-deployment')]") -Message 'The compiled activation guard does not require the unpermitted approved-live-deployment mode.'
+    $bicepSource = [System.IO.File]::ReadAllText($bicepPath)
+    Assert-Condition -Condition ($bicepSource -match "activationAllowed\s*=\s*deploymentMode\s*==\s*'approved-live-deployment'") -Message 'The Bicep source does not retain the explicit approval-only activation guard.'
+    Assert-Condition -Condition ($bicepSource -match 'resource\s+resourceGroup\b[^{=]*=\s*if\s*\(activationAllowed\)') -Message 'The resource-group declaration is not controlled by the activation guard.'
 }
 finally {
     if ([System.IO.File]::Exists($templatePath)) {
