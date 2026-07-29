@@ -40,6 +40,7 @@ public sealed class LocalIntakeAccessTests
         foreach (var path in new[]
                  {
                      "/Intake/Upload",
+                     "/Intake/EmailEvaluation",
                      "/Intake/Queue",
                      $"/Intake/Review/{Guid.NewGuid()}"
                  })
@@ -49,8 +50,12 @@ public sealed class LocalIntakeAccessTests
         }
 
         using var multipart = new MultipartFormDataContent();
-        using var post = await client.PostAsync("/Intake/Upload", multipart);
+        using var post = await client.PostAsync("/Intake/EmailEvaluation", multipart);
         Assert.Equal(HttpStatusCode.NotFound, post.StatusCode);
+
+        using var uploadMultipart = new MultipartFormDataContent();
+        using var uploadPost = await client.PostAsync("/Intake/Upload", uploadMultipart);
+        Assert.Equal(HttpStatusCode.NotFound, uploadPost.StatusCode);
 
         await using var scope = factory.Services.CreateAsyncScope();
         var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
