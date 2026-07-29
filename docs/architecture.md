@@ -89,7 +89,7 @@ The following are planned or absent, not merely unverified:
 - vehicle-registration OCR or VLM recognition;
 - DVLA/DVSA lookup;
 - EVA export;
-- provider API, whose sequence remains Next/unallocated;
+- provider API, which is deferred to the exact target owned by the [capability inventory](capabilities.md);
 - staff MCP, identified as a `0.1.0-alpha.1` target;
 - authenticated case lifecycle actions;
 - live Azure telemetry and deployed Azure callers.
