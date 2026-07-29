@@ -29,8 +29,12 @@ The actual supplier of case images, whether a Principal, Intermediary, Repairer,
 _Avoid_: Sender
 
 **Audit**:
-Standalone reviewed work with its own evidence and acceptance boundary.
+Standalone review of another engineer's report with its own evidence and acceptance boundary. In an Inspection + Audit Case, the Audit remains distinct follow-on work.
 _Avoid_: Triage, sorting
+
+**Inspection + Audit**:
+One Case in which Collision Engineers completes an Inspection report and then immediately performs a distinct Audit of that report.
+_Avoid_: Combined report, two-spec Inspection
 
 **Triage**:
 A distinct staff workflow for a recorded matter requiring a finding and, where applicable, exact reply-chain Sent evidence.
@@ -47,3 +51,27 @@ _Avoid_: Needs sorting, Triage
 **Created in error**:
 The terminal outcome for a Case created against the wrong Principal; the original reference remains consumed and links to its replacement.
 _Avoid_: Delete, reopen
+
+**AI Proposal**:
+An immutable model-generated candidate repair specification, never a report document, retained separately from the Case until a named Engineer explicitly accepts or applies it.
+_Avoid_: AI assessment, automatic repair specification
+
+**Automation Actor**:
+A named non-human principal that performs one explicitly authorised Pegasus action inventory through Core use cases with its own permanent history.
+_Avoid_: Service account, staff impersonation, background task
+
+**Not ready**:
+A created Case state for an instructed Case whose ordinary business details or images remain incomplete after safe identity allocation.
+_Avoid_: Needs sorting, Blocked intake
+
+**Field provenance**:
+The current evidential origin of a Case datum; direct values identify their source, while derived values identify their accepted inputs and calculation.
+_Avoid_: Source label, value status
+
+**Image readiness assessment**:
+An advisory assessment of a Case's current image set against registration-overview, damage-close-up, and applicable reflection criteria. It is distinct from Case validity, lifecycle readiness, and report-image selection.
+_Avoid_: Case validity, image validation
+
+**Always-image-based Principal**:
+A Principal whose accepted route policy waives only the image-readiness reflection advisory. It does not waive other image-readiness advisories or the report-image reflection exclusion.
+_Avoid_: Image-based client, provider exception

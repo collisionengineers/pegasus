@@ -37,13 +37,13 @@ Total: **229 capabilities; 229 unique IDs**.
 | Target release | Planned capabilities |
 | --- | ---: |
 | `0.1.0-alpha.1` | 128 |
-| `0.2.0` | 8 |
+| `0.2.0` | 7 |
 | `0.3.0` | 19 |
 | `0.4.0` | 5 |
 | `0.5.0` | 5 |
 | `0.6.0` | 5 |
 | `0.7.0` | 1 |
-| `1.0.0` | 12 |
+| `1.0.0` | 13 |
 | `1.1.0` | 6 |
 | `1.2.0` | 5 |
 | `1.3.0` | 3 |
@@ -160,8 +160,8 @@ callers.
 | UI-09 | Full case workspace | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
 | UI-11 | Accounts, principals, mailbox allowlist, and configuration workspace | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
 | UI-13 | Accessible keyboard, screen-reader, focus, contrast, and error behavior | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
-| DOC-01 | Automatic Box case-folder creation using the Case/PO name | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#documents-extraction-and-custody) | 0.1.0-alpha.1 gate; preserve test-folder scope. |
-| DOC-02 | Store source emails, instruction documents, images, correspondence, and reports in Box | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#documents-extraction-and-custody) | Required and accepted before 0.1.0-alpha.1. |
+| DOC-01 | Automatic Box case-folder creation using the Case/PO name | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#documents-extraction-and-custody) | Required after immutable Case/PO allocation; a Box failure retains the Case as `Not ready` with staff-initiated idempotent recovery evidence and never reuses its reference. Readiness needs an actual controlled Case-to-Box happy path and a target-fence failure proof. |
+| DOC-02 | Store source emails, instruction documents, images, correspondence, and reports in Box | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#documents-extraction-and-custody) | Day-one accepted Case custody requirement. Blob is temporary hot staging only; preserve the approved test-target scope for local and non-production deployment evidence. |
 | DOC-03 | Retained document versions | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#documents-extraction-and-custody) | Required and accepted before 0.1.0-alpha.1. |
 | DOC-04 | Closed-case read-only files and reopen-before-edit behavior | Now | 0.1.0-alpha.1 | [Staging and custody](requirements.md#staging-and-custody) | Required and accepted before 0.1.0-alpha.1. |
 | DOC-05 | Logical file removal without destroying history | Now | 0.1.0-alpha.1 | [Staging and custody](requirements.md#staging-and-custody) | Required and accepted before 0.1.0-alpha.1. |
@@ -173,10 +173,10 @@ callers.
 | EXT-03 | Operator-approved deterministic UTF-8 EVA handoff with the exact ordered 13-key JSON, selected custody-confirmed images, and SHA-256 manifest; no EVA network call | Now | 0.1.0-alpha.1 | [Focused EVA manual handoff](requirements.md#focused-eva-manual-handoff) | Required until an EVA API or replacement slice is separately contracted, caller-proved, and accepted. |
 | EXT-14 | Manual addition of relevant WhatsApp material | Now | 0.1.0-alpha.1 | [Staging and custody](requirements.md#staging-and-custody) | Required and accepted before 0.1.0-alpha.1. |
 | EXT-18 | Operator-confirmed physical vehicle/repairer address or exact `Image Based Assessment`; no provider/domain inference | Now | 0.1.0-alpha.1 | [Inspection address](requirements.md#inspection-address) | Required and accepted before 0.1.0-alpha.1. |
-| MCP-01 | OAuth-authorised internal staff MCP through Pegasus Core use cases | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#staff-mcp-and-automation) | Allocation only; no current product caller and no AI transport activation. |
-| MCP-02 | MCP case actions through the same Core use cases as the staff app | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#staff-mcp-and-automation) | Required and accepted before 0.1.0-alpha.1. |
-| MCP-03 | MCP intake-queue actions through the same Core use cases as the QDOS-alpha staff app | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#staff-mcp-and-automation) | Required and accepted before 0.1.0-alpha.1. |
-| MCP-04 | MCP document actions through the same Core use cases as the staff app | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#staff-mcp-and-automation) | Required and accepted before 0.1.0-alpha.1. |
+| MCP-01 | Management/development-controlled MCP ingress for the named Claude Automation Actor through Pegasus Core use cases | Now | 0.1.0-alpha.1 | [MCP automation and actor boundary](requirements.md#mcp-automation-and-actor-boundary) | Allocation only; ordinary staff have no MCP access, no current product caller is proven, and no AI proposal transport is activated. |
+| MCP-02 | Claude Automation Actor Case actions through the same Core use cases as the staff app | Now | 0.1.0-alpha.1 | [MCP automation and actor boundary](requirements.md#mcp-automation-and-actor-boundary) | Required and accepted before 0.1.0-alpha.1. |
+| MCP-03 | Claude Automation Actor intake-queue actions through the same Core use cases as the QDOS-alpha staff app | Now | 0.1.0-alpha.1 | [MCP automation and actor boundary](requirements.md#mcp-automation-and-actor-boundary) | Required and accepted before 0.1.0-alpha.1. |
+| MCP-04 | Claude Automation Actor document actions through the same Core use cases as the staff app | Now | 0.1.0-alpha.1 | [MCP automation and actor boundary](requirements.md#mcp-automation-and-actor-boundary) | Required and accepted before 0.1.0-alpha.1. |
 | OPS-01 | Production staff Web application on Azure | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
 | OPS-02 | Continuously running Worker for mailbox and background processing | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
 | OPS-03 | Azure SQL persistence | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
@@ -223,8 +223,8 @@ callers.
 | API-02 | Provider API receipt and processing-status lookup | Next | 0.4.0 | [Provider API principal and contract boundary](requirements.md#provider-api-principal-and-contract-boundary) | Allocation only; the client may see only its principal's submissions. |
 | API-03 | Provider API resulting Case/PO lookup | Next | 0.4.0 | [Provider API principal and contract boundary](requirements.md#provider-api-principal-and-contract-boundary) | Allocation only; no case/reference may be inferred before accepted processing. |
 | API-04 | Provider API credential issue, rotation, and revocation | Next | 0.4.0 | [Provider API principal and contract boundary](requirements.md#provider-api-principal-and-contract-boundary) | Allocation only; credentials do not define a general external tenant or route. |
-| MCP-05 | MCP actions for the broader classified-email workspace | Next | 0.3.0 | [Requirements](requirements.md#staff-mcp-and-automation) | Allocation only; owning evidence still required. |
-| AI-05 | AI/vision assistance for vehicle images or damage evidence | Next | 0.2.0 | [Ordinary-image VRM and image analysis](requirements.md#ordinary-image-vrm-and-image-analysis) | Proposal only; no synthetic evidence, instruction invention, autonomous acceptance/mutation, or unapproved external upload. |
+| MCP-05 | Claude Automation Actor actions for the broader classified-email workspace | Next | 0.3.0 | [MCP automation and actor boundary](requirements.md#mcp-automation-and-actor-boundary) | Allocation only; ordinary staff have no MCP access and owning evidence is still required. |
+| AI-05 | Automatic AI-assisted image readiness assessment of the current Case image set | Later | 1.0.0 | [Ordinary-image VRM and image analysis](requirements.md#ordinary-image-vrm-and-image-analysis) | Allocation only; each image addition, replacement, or removal produces a source/versioned advisory on registration overview, damage close-up, and the applicable reflection criterion. It neither affects Case lifecycle nor returns an AI Proposal; activation still requires its own contract and caller evidence. |
 | MAIL-23 | Map the detailed taxonomy to operational queues and designated Outlook folders | Next | 0.3.0 | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
 | INT-32 | Instruction/image halves retain separate age and chase state; definitive pairing notifies staff that the job is ready | Next | 0.2.0 | [Requirements](requirements.md#intake-and-source-identity) | Coupled to INT-28; allocation only and no caller implied. |
 | MAIL-19 | Automatically send chasers or other outbound messages | Later | 0.5.0 | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
@@ -262,7 +262,7 @@ callers.
 | RPT-03 | Audit rendering preserves conservative and maximised specifications and records their uplift | Later | 1.1.0 | [Report correction, finality, and post-report work](requirements.md#report-correction-finality-and-post-report-work) | Allocation only; both accepted specification versions are required. |
 | RPT-04 | Diminution rendering uses accepted original-case data plus the Engineer-entered percentage | Later | 1.1.0 | [Report correction, finality, and post-report work](requirements.md#report-correction-finality-and-post-report-work) | Allocation only; wording and approval evidence remain required. |
 | RPT-05 | Addenda render from accepted case data plus a versioned amendment without retyping the case | Later | 1.1.0 | [Report correction, finality, and post-report work](requirements.md#report-correction-finality-and-post-report-work) | Allocation only; amendment identity, approval, and recovery remain required. |
-| AI-08 | Collision AI Centre proposes a case-grounded query response in approved house style/letterhead; a named Engineer reviews, amends if needed, and approves it before sending | Later | 1.3.0 | [Targeted sending and reviewed AI proposals](requirements.md#targeted-sending-and-reviewed-ai-proposals) | Allocation only; the proposal cannot mutate accepted case truth or send autonomously. |
+| AI-08 | Intended Microsoft Foundry candidate proposes a case-grounded query response in approved house style/letterhead; a named Engineer reviews, amends if needed, and approves it before sending | Later | 1.3.0 | [Targeted sending and reviewed AI proposals](requirements.md#targeted-sending-and-reviewed-ai-proposals) | Allocation only; Foundry remains subject to evaluation, and the proposal cannot mutate accepted case truth or send autonomously. |
 | AI-09 | Staff `Send to AI` creates one durable idempotent capability-scoped work request bound to immutable case/revision and evidence; a scoped worker may lease it and return only a proposal, evidence, or visible failure | Later | 1.3.0 | [Targeted sending and reviewed AI proposals](requirements.md#targeted-sending-and-reviewed-ai-proposals) | Allocation only; duplicate, expired, cancelled, or stale work cannot mutate accepted data and named-Engineer accept/amend/reject is required. |
 | MI-01 | Per-Engineer throughput, query rate/types, and Audit uplift | Later | 1.2.0 | [Requirements](requirements.md#vehicle-and-engineering-evidence) | Allocation only; coaching access and measures require accepted definitions. |
 | MI-02 | Per-principal report counts, types, and periods feeding invoice generation | Later | 1.2.0 | [Requirements](requirements.md#vehicle-and-engineering-evidence) | Allocation only; consumes accepted report events and fee rules. |

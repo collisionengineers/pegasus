@@ -25,6 +25,7 @@ evidence required to activate them.
 | Shell/access | Sign-in and disabled/stale-role/denied outcomes; permitted-route visibility plus server authorisation. |
 | Metric/queue | Label, value or unavailable state, last-good time, current refresh state, and exact destination filter. `0`, loading, current, stale, partial, unavailable, and failed remain distinct. Operations includes exact `Blocked intake`, Due today, and day/week Sent to Engineer and Reports sent. |
 | Intake workbench | Persistent source identity; `All`/`Instructions`/`Images` evidence filter; evidence/candidate; fact versus suggestion versus confirmed value; provenance/missing/conflict; acceptance path and no-case failure consequence. |
+| Field provenance | Every editable or source-derived Case datum shows its current origin marker. Direct values identify staff entry, extraction, AI, provider API, or external vehicle/estimate origin; derived values identify accepted inputs and calculation. Origin and status remain distinct. |
 | Supporting detail navigation | Opening source evidence or other supporting detail preserves list/detail position, the current Intake or Case-detail context, and every unsaved edit; returning never silently discards or replaces proposed values. |
 | Request-scoped in-house upload | Authenticated staff create a temporary token bound to one request/operation and server-enforced expiry. The isolated public edge exposes bound upload fields and an immediate request-local result only; expiry, revocation, cross-request isolation, limits, custody, retry, abuse, and non-disclosing failures are explicit. |
 | State action | Permitted transition, prerequisite, consequence, required reason, recovery and history link; never generic Close. |
@@ -50,16 +51,15 @@ partial, conflict, and unavailable states are explicit.
 ## Focused flows
 
 **Intake:** source -> `All`/`Instructions`/`Images` evidence filter ->
-evidence/candidate -> a definitive authorised instruction creates exactly one
-case through shared fail-closed acceptance: **Review** when instruction and
-image completeness requirements are met, otherwise incomplete **Not ready**.
-Staff-resolved acceptance creates **Review** only through explicit staff
-confirmation of both completeness requirements; otherwise it creates **Not
-ready**. `Blocked intake` with required reason creates no case/reference;
-fail-closed `Needs sorting` remains pre-case. Resolve/retry re-enters the same
-path and may create exactly one case/reference only if its ordinary gates then
-pass. Manual image/instruction link and reasoned reversal retain original
-origins.
+evidence/candidate -> safe processing plus deterministic Principal and Case type
+creates exactly one Case/reference. Incomplete ordinary data, images, or
+applicable progression requirements yield **Not ready**; **Review** follows
+only when the explicit route policy permits it. `Blocked intake` with a
+required reason creates no Case/reference when an identity-critical gate fails;
+fail-closed `Needs sorting` remains pre-Case. Resolve/retry re-enters the same
+path and may create exactly one Case/reference only after it establishes the
+identity-critical facts. Manual image/instruction link and reasoned reversal
+retain original origins.
 
 Opening evidence or supporting detail from Intake preserves the active `All`/`Instructions`/`Images` filter, selected record, scroll/list-detail position, and every unsaved candidate edit. Return restores the originating Intake or Case-detail context without reloading over proposed values.
 
@@ -100,6 +100,8 @@ with address fields, or exact `Image Based Assessment` without fabricated
 address fields. Ordinary-image VRM and vehicle/MOT results show suggestion,
 confirmed, unknown/no-result, stale, unavailable, and failed distinctions with
 source/version/age; refresh never overwrites confirmed or last-good data.
+
+Image readiness shows the source/versioned advisory for registration overview, damage close-up, and the applicable reflection criterion. It refreshes whenever current Case images change and has no Case-state, eligibility, or chase effect.
 
 Roadworthiness and Assessment are separate professional findings. A correction
 shows the retained earlier version and reasoned superseding version; a closed

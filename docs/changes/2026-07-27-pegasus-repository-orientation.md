@@ -62,6 +62,15 @@ capability inventory validate, both drafts and their empty source directory are
 deleted. Their hashes, parity result, provenance and this crosswalk are retained;
 no transcript, archive copy, README or second requirements ledger is created.
 
+### Retirement update
+
+On 2026-07-29, `grillref/PegasusSystemPlan.md` hashed
+`2b4be2cbff2281328554d557c21b27cc08a611e078719dc3acd020e6ec6b15de`,
+which did not match the recorded supplied Markdown source. The user explicitly
+directed retirement of that exact unmatched draft. The original source
+identities and crosswalk remain the retained provenance; the retired file is
+not represented as matched source evidence.
+
 ## Authorities and current evidence
 
 - Canonical intended behavior and activation gates are owned by [product requirements](../requirements.md); stable capability IDs, horizons, and exact release allocation are owned separately by the [capability inventory](../capabilities.md).
@@ -87,7 +96,7 @@ no transcript, archive copy, README or second requirements ledger is created.
 | `DOC-CON-001` | Active product, source, configuration and target-infrastructure identities become Pegasus. Historical/supplied evidence, persisted EF migration identities and exact legacy external resource identities remain factual exceptions. |
 | `DOC-CON-002` | The GitHub repository becomes `collisionengineers/pegasus`, the local checkout becomes `pegasus`, and GitHub Project 3 becomes **Pegasus Delivery**. |
 | `DOC-CON-003` | Document extraction, deterministic report rendering, Collision AI Centre and Agent Skills are imported as durable, independently buildable source workspaces. They gain no production reference or caller in this change. |
-| `DOC-CON-004` | Collision AI Centre owns future agent harnesses, model selection, separately governed fine-tuning, retrieval and skills. `Pegasus.Core` remains the only business-policy and accepted-case-truth owner; AI output is always a proposal. |
+| `DOC-CON-004` | Collision AI Centre owns future agent harnesses, model selection, separately governed fine-tuning, retrieval and skills. `Pegasus.Core` remains the only business-policy and accepted-case-truth owner; AI output that may affect Case truth is always a proposal. |
 | `DOC-CON-005` | The source-specific “Claude button” becomes deferred vendor-neutral **Send to AI**. No Anthropic or other direct model API is in scope, and no Claude Code, Cowork or Desktop job-queue support is claimed until separately proved. |
 | `DOC-CON-006` | `0.1.0-alpha.1` gains `INT-31`: staff may create temporary, revocable, request-scoped upload links. The link creates no external account and exposes no case or request state. |
 | `DOC-CON-007` | General authenticated staff compose/reply/forward/send (`MAIL-12`) moves from `Not planned` to `Later`/`unallocated`; the separately gated targeted report-send transaction remains `MAIL-17`. |
@@ -95,6 +104,8 @@ no transcript, archive copy, README or second requirements ledger is created.
 | `DOC-CON-009` | The current release uses deterministic, operator-approved EVA drag-and-drop JSON, selected custody-confirmed images and a hash manifest. EVA retains engineering authority until each replacement slice is separately contracted, caller-proved and accepted. |
 | `DOC-CON-010` | EVA screenshots are data/decision evidence, not navigation authority. Pegasus uses one case-centred Engineer workbench with progressive sections and no duplicate domain ownership. |
 | `DOC-CON-011` | PdfPig remains the authoritative embedded-PDF extraction path for the current release. The legacy `cedocumentmapper` is not reused; a bespoke extractor may replace PdfPig only after separate hardening, caller proof and acceptance. |
+| `DOC-CON-012` | `AI-05` is automatic advisory image readiness assessment, not image-based repair assessment. It assesses the current Case image set on each change for registration overview, damage close-up, and the applicable reflection criterion; an always-image-based Principal waives only that reflection advisory. It may run before valuation but does not allocate, mutate, transition, queue, chase, or propose Case work. |
+| `DOC-CON-013` | Box is a required day-one alpha case-file-custody integration. Pegasus allocates the immutable Case/PO reference after safe source processing, then creates the reference-named Box folder and files retained Case material. Blob is temporary hot staging only. A Box failure leaves the Case `Not ready` with failure and staff-initiated idempotent retry/recovery evidence; no background or automatic business retry is permitted, and the failure never rolls back, reuses, or reallocates the reference. Local testing and explicitly approved non-production test deployments may create/update controlled non-corpus artifacts only in the separately approved test subtree. Readiness requires an actual controlled Case/PO-to-Box happy path that creates/files exactly once and a denied/wrong-target fence test with no broader write, visible `Not ready`, and staff retry. The first accepted production release remains blocked until production target, permissions, recovery, caller, and acceptance evidence are recorded. |
 
 ## Scope
 

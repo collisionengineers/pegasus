@@ -28,13 +28,13 @@ credential, external operation, deployment, or acceptance. The
 | Order | Target release | Stage and dependency intent | Count |
 | ---: | --- | --- | ---: |
 | 01 | `0.1.0-alpha.1` | Existing QDOS-alpha scope; allocation unchanged, not a completion claim | 128 |
-| 02 | `0.2.0` | Provider expansion and intake fidelity after QDOS acceptance | 8 |
+| 02 | `0.2.0` | Provider expansion and intake fidelity after QDOS acceptance | 7 |
 | 03 | `0.3.0` | Four-mailbox classification, association, folder actions, email workspace and email MCP | 19 |
 | 04 | `0.4.0` | Principal-scoped provider API and post-report query/dispute casework | 5 |
 | 05 | `0.5.0` | Extended case types and staff/outbound communication channels | 5 |
 | 06 | `0.6.0` | Individually approved operator AI assistance | 5 |
 | 07 | `0.7.0` | Optional direct EVA API coexistence before replacement | 1 |
-| 08 | `1.0.0` | Pegasus-owned engineering record/workbench and transfer of EVA assignment, estimating, valuation and report-preparation authority | 12 |
+| 08 | `1.0.0` | Pegasus-owned engineering record/workbench and transfer of EVA assignment, estimating, valuation and report-preparation authority | 13 |
 | 09 | `1.1.0` | Deterministic report and fee-note rendering | 6 |
 | 10 | `1.2.0` | Targeted report distribution, accounts/invoicing and management information | 5 |
 | 11 | `1.3.0` | Vendor-neutral AI work requests, Engineer-reviewed query proposals and staff-selected AI Assessor | 3 |
@@ -75,7 +75,7 @@ Required outcomes:
 
 - make receiving work, incomplete intake, Triage, active cases, due work, queries, and completed work visible without reconstructing state from multiple systems;
 - retain source identity, chronology, custody, decisions, corrections, and action history;
-- fail closed before case creation or reference allocation when identity, mandatory evidence, limits, processing, or standalone Audit evidence is incomplete or ambiguous;
+- fail closed before source receipt or reference allocation when safe persistence, identity-critical route facts, limits, processing, or standalone Audit evidence is incomplete or ambiguous; once safe processing establishes Principal and Case type, allocate the Case/PO and retain incomplete ordinary detail, images, or checks as `Not ready`;
 - keep business decisions in `Pegasus.Core`, with infrastructure, UI, Worker, MCP, imported workspaces, skills, prompts, and models subordinate to Core policy and human approval;
 - support deterministic, repeatable local verification and separately authorised live verification;
 - preserve deferred capability seams and data identities without building dormant capability.
@@ -85,7 +85,7 @@ Required outcomes:
 ### Principal, reference, organisation, and case-party identity
 
 - Principal and internal reference are immutable after allocation.
-- Reference allocation occurs only after the principal, case type, mandatory fields, and acceptance gates are settled.
+- Reference allocation occurs once safe source processing establishes an unambiguous Principal and Case type and all identity-critical gates pass. Incomplete ordinary business detail, images, or required external checks create or retain the Case as `Not ready`; they do not leave a valid instruction pre-Case.
 - The normal Case/PO is `{principal code}{YY}{three-digit shared sequence}`. Inspection, standalone Audit, and Inspection + Audit consume one principal/year sequence. Exhaustion is visible and blocks allocation; references and sequence values never wrap or return to use.
 - A standalone Audit derives lowercase `a.` or `ap.` only from an unambiguous repairable or total-loss assessment in the original Engineer report. Missing or ambiguous evidence blocks case creation and allocation.
 - Inspection + Audit begins with the normal Inspection reference. After Collision Engineers’ Engineer records the assessment, the applicable lowercase Audit reference is created inside that case; it does not consume another sequence value.
@@ -113,7 +113,7 @@ Required outcomes:
 
 Intake may begin through staff-forwarded email, a staff-created request-scoped upload link, provider material, manually supplied files, images, correspondence, or a future approved API route. Receipt is not case creation.
 
-Image-led material remains pre-case until principal, type, mandatory fields, and acceptance gates pass. It does not require a fabricated formal instruction when its accepted principal and identity evidence already establish a valid route. No case or reference is allocated merely because images arrived.
+Image-led material remains pre-Case until Principal, type, and every identity-critical gate pass. It does not require a fabricated formal instruction when its accepted Principal and identity evidence already establish a valid route. No case or reference is allocated merely because images arrived.
 
 Every intake path must:
 
@@ -163,16 +163,25 @@ Pegasus acknowledges receipt only after the original bytes, source receipt, and 
 
 Before creating a case or allocating a reference, Pegasus must establish:
 
-- authenticated principal identity and the staff actor where the route requires staff;
-- provider/intermediary route identity and enabled policy where relevant;
-- case type and principal association;
-- the mandatory fields for that case type and route;
 - successful source persistence and required extraction/classification receipts;
+- authenticated Principal identity and the staff actor where the route requires staff;
+- provider/intermediary route identity and enabled policy where relevant;
+- unambiguous case type and Principal association;
 - processing and size/format limits;
-- required standalone Audit evidence;
-- absence of unresolved wrong-principal, duplicate-occurrence, or custody ambiguity.
+- required standalone Audit evidence; and
+- absence of unresolved wrong-Principal, duplicate-occurrence, receipt-integrity, or source-custody ambiguity.
 
-If the route cannot establish these facts, it persists only what is safe and enters the corresponding pre-case outcome. `Blocked intake` records a reason and visible warning, offers reasoned resolve and retry actions, and retains the resolution evidence and each retry result. It never allocates a reusable identity as a convenience.
+Once those identity-critical facts are established, Pegasus creates the Case/PO
+and allocates its permanent reference. Incomplete ordinary business detail,
+images, or mandatory external checks retain that Case as `Not ready`; they do
+not form another pre-Case acceptance gate. If the route cannot establish an
+identity-critical fact, it persists only what is safe and enters the
+corresponding pre-Case outcome. `Blocked intake` records a reason and visible
+warning, offers reasoned resolve and retry actions, and retains the resolution
+evidence and each retry result. It never allocates a reusable identity as a
+convenience.
+
+Box case-file custody is a required day-one alpha capability, but it follows Case/PO allocation: Pegasus uses the newly allocated immutable reference to create the Box case folder and stores the retained source material there. Blob staging remains temporary hot processing storage, not accepted Case custody. A Box folder or filing failure retains the allocated Case as `Not ready`, records the exact failure and staff-initiated retry/recovery evidence, and prevents progression that requires accepted Case custody; it never rolls back, reuses, or reallocates the immutable Case/PO reference. No background or automatic business retry is permitted.
 
 ### Matching conflicts and reversible association
 
@@ -182,7 +191,41 @@ VRM correlation is a suggestion until confirmed by accepted evidence or an autho
 
 The immutable source occurrence and its evidence remain distinct from the accepted, editable Case projection. Linking creates a versioned source-to-case relationship; it never converts the source into the case, rewrites source facts, or changes the original intake origin.
 
-Definitive authorised intake creates exactly one case idempotently. A definitive match to an existing case allocates no duplicate. The new case enters `Review` only when instruction and image completeness both pass or staff explicitly confirm both; otherwise that same case enters `Not ready`. Acceptance does not add a universal manual creation gate.
+Each direct Case datum retains its current field provenance: staff entry,
+extraction, AI prefill or proposal, provider API, or another external
+vehicle/estimate source with its applicable identity, version, and time.
+Operator UI shows that provenance without treating it as confirmation. A
+derived value identifies its accepted inputs and calculation rather than
+claiming a separate raw source; provenance and value status remain distinct.
+
+### Global vehicle and value checks
+
+Every Case must satisfy globally required vehicle identity/specification,
+vehicle-history/risk, and market-valuation checks, unless an explicit,
+documented exception applies. All three results or their recorded exceptions
+are required before staff may accept Case review and expose the Case in the
+Engineers queue. The authorised staff reviewer may record an exception as a
+named, reasoned Case action in permanent history. Provider and route policy
+select the provider, required result, acceptable provenance, and
+unavailable/failure behavior for each check; no provider is inferred by this
+requirement.
+
+Vehicle details are extracted from the instruction where available, otherwise
+obtained from the applicable DVLA/MOT source. Mileage evidence ranks as:
+
+1. directly extracted instruction text;
+2. Document Intelligence extraction from a scanned instruction or future
+   odometer-vision evidence; and
+3. a DVSA-derived estimate.
+
+DVSA is run for every Case. Where no higher-tier mileage value is available, it
+supplies the source-labelled estimate. A difference between DVSA mileage and
+any instruction-extracted, Document Intelligence, or odometer value is a
+visible Case discrepancy. The later odometer-vision capability does not imply
+an activated AI caller before its own accepted evaluation and integration
+contract.
+
+Definitive authorised intake creates exactly one case idempotently. A definitive match to an existing case allocates no duplicate. A new case enters `Not ready` until its ordinary business detail, images, and applicable progression requirements are satisfied; the route may move it to `Review` only when its explicit policy permits that transition. The allocation decision adds no universal manual acceptance gate.
 
 One source occurrence has at most one current Case association. Every automatic or manual association records the exact source and Case identities, evidence, actor, time, policy/version, and reason where required. Any authorised staff member may reasonedly unlink or reassociate a mistaken match or merge; the prior relationship and both source origins remain permanent, and dependent facts and counts recompute without deleting history.
 
@@ -190,7 +233,7 @@ One source occurrence has at most one current Case association. Every automatic 
 
 ### Normal workflow and completion evidence
 
-The normal Triage workflow begins when a provider asks Collision Engineers to assess a vehicle. Pegasus retains the request as separate pre-case work: without a VRM it remains `Needs sorting`; with a VRM it opens as `Open`, may move to `Awaiting information`, records an accepted finding as `Finding recorded`, and reaches `Completed` only after the required response evidence is confirmed. An acknowledgement, request for information, Draft, queue action, or other correspondence may be retained but is not itself a finding, completion, cancellation, or terminal business outcome.
+Each accepted provider route supplies exhaustive predicates that classify incoming material into named categories. Triage begins only when the exact route policy classifies a provider request as an assessment request. Material whose accepted route or category cannot be determined remains `Needs sorting`; it never becomes Triage or a Case by fallback. A Triage request stays separate pre-Case work: without a VRM it remains `Needs sorting`; with a VRM it opens as `Open`, may move to `Awaiting information`, records an accepted finding as `Finding recorded`, and reaches `Completed` only after the required response evidence is confirmed. An acknowledgement, request for information, Draft, queue action, or other correspondence may be retained but is not itself a finding, completion, cancellation, or terminal business outcome.
 
 Triage records have the states `Open`, `Awaiting information`, `Finding recorded`, `Completed`, and `Cancelled`.
 
@@ -215,7 +258,7 @@ The active alpha types are:
 
 - **Inspection:** Collision Engineers prepares accepted work for its Engineer’s desktop assessment and returns that Engineer’s report to the provider.
 - **Standalone Audit:** another engineering firm has already inspected the vehicle; Collision Engineers accepts that firm’s original Engineer report and audits or double-checks the work.
-- **Inspection + Audit:** Collision Engineers completes the Inspection in one case and later adds the Audit identity and work to that same case.
+- **Inspection + Audit:** Collision Engineers completes an Inspection report and then immediately performs a distinct Audit of that report in the same Case; the Audit retains its own identity, evidence, and acceptance boundary.
 
 Diminution and Commercial remain deferred unless their capability rows and activation evidence say otherwise. They are not active alpha aliases or generic case types.
 
@@ -226,7 +269,7 @@ A case owns immutable identity, principal, internal reference, type, accepted so
 The lifecycle must support:
 
 - pre-case receiving and acceptance;
-- active work, `Not ready`, `Held`, `Review`, due-work visibility, and configuration-controlled instruction/image completeness plus staff-review gates before Engineer assignment;
+- active work, `Not ready`, `Held`, `Review`, due-work visibility, and configuration-controlled instruction/image completeness plus staff-review gates before Engineer-queue eligibility or direct Engineer assignment;
 - manual chasing with the exact schedule below;
 - inspection/report preparation appropriate to desktop assessment;
 - report approval and delivery evidence without adding a separate pre-send case-review gate;
@@ -240,13 +283,19 @@ Every closure selects exactly one named terminal outcome, records the authentica
 
 State changes are explicit Core transitions. UI labels, Worker handlers, APIs, and MCP tools call the same use cases; they do not implement parallel policy.
 
+When a Case passes its staff-review gate, it becomes visible in the Engineers
+queue whether or not a named Engineer is assigned. An authorised staff member
+may assign it directly to a named Engineer; assignment and reassignment are
+audited Case mutations, not lifecycle states, and do not create an `Assigned`
+or `Ready for Engineer` status.
+
 ### Case edit authority and recovery
 
 Every staff case mutation targets one identified case through a named Core action and requires the role permitted by the [staff role access matrix](#staff-role-access-matrix). Entering edit mode acquires the case’s one server-owned expiring lease. Other authorised staff remain read-only and can see the holder and recovery state. Every save, transition, assignment, association, evidence change, and other staff mutation presents both the lease token and the Case version loaded by that editor.
 
 The holder may leave editing; an abandoned lease expires by server time and may then be reacquired. Core refuses a missing, expired, wrong-holder, or stale-version mutation without overwriting newer work. The rejected editor keeps proposed values for comparison and must reload and reacquire rather than merge or force the save. There is no Administrator bypass, forced takeover, collaborative merge, bulk case mutation, queue-inline lifecycle edit, provider case-edit route, or direct external-system or adapter edit.
 
-Web and staff MCP callers use the same guard. Background append-only receipt, dispatch, and document-processing records remain separate from editable Case state and cannot bypass Case versions to alter it. A deliberate recovery or material denial/failure is attributable permanent history; routine renewal, expiry, heartbeat, polling, and adapter mechanics remain telemetry.
+Web and MCP Automation Actor callers use the same guard. Background append-only receipt, dispatch, and document-processing records remain separate from editable Case state and cannot bypass Case versions to alter it. A deliberate recovery or material denial/failure is attributable permanent history; routine renewal, expiry, heartbeat, polling, and adapter mechanics remain telemetry.
 
 ### Due work, chasing, and action history
 
@@ -307,12 +356,12 @@ Alpha does not include dormant OCR. Scan-like OCR is a deferred capability and r
 
 Receipt/staging and accepted case custody are different states.
 
-- Network, local, or Azure staging is temporary processing storage and is never custody proof.
-- Box is the intended long-term accepted case-file custody system for the alpha, subject to an implemented adapter, approved test subtree/live target, identity, failure/recovery behavior, and caller proof.
-- The Box case folder uses the immutable Case/PO identity.
+- Network, local, or Azure staging is temporary processing storage and is never accepted Case custody proof.
+- Box is the required accepted case-file custody system for the day-one alpha. Every allocated Case/PO uses its immutable reference for its Box case folder, then retains its source emails, instruction documents, images, correspondence, and reports there.
+- A Box failure after Case/PO allocation retains the Case as `Not ready` with explicit failure and staff-initiated retry/recovery evidence. It does not roll back, reuse, or reallocate the reference, and no background or automatic business retry is permitted.
 - Staff may add manually received WhatsApp evidence with its source/channel provenance; this does not activate a WhatsApp integration.
 - A closed case and its files are application-level read-only. A new version, revision, logical removal, move, copy, share, or other mutation requires a reasoned reopen first; no Box operation bypasses that gate, and the alpha infers no general move/copy/share/delete authority.
-- Local alpha work must not mutate any Outlook mailbox or Box location. Box testing is permitted only in a separately approved disposable test subtree; Outlook tests use immutable local copies or an explicitly approved test mailbox and operation.
+- Default local alpha work must not mutate any Outlook mailbox or Box location. The separately approved Box integration-test profile and explicitly approved non-production test deployments may create and update controlled non-corpus artifacts only in the approved disposable test subtree recorded in [operations](operations.md#approved-box-integration-test-target); they must not delete, move, copy, or share Box content. Outlook tests use immutable local copies or an explicitly approved test mailbox and operation.
 - A custody transition records source identity, content hash, target identity/version, actor/caller, time, and failure/retry state without deleting the source proof prematurely.
 ## Vehicle and engineering evidence
 
@@ -347,31 +396,39 @@ confidence, failure or unknown outcome, and later staff disposition separately
 from confirmed case data.
 
 The implementation mechanism is not inferred: ordinary-image VRM reading,
-scan-like PDF OCR, and broader image/damage AI or vision assistance are
-different capabilities. Generated or synthetic vehicle imagery is not
-acceptance evidence, and no recogniser, model, or adapter acts autonomously.
+Document Intelligence extraction from scanned PDFs, and broader image/damage AI
+or vision assistance are different capabilities.
+Generated or synthetic vehicle imagery is not acceptance evidence, and no recogniser, model, or adapter acts autonomously.
+
+When activated, an AI-assisted image readiness assessment runs automatically whenever current Case images are added, replaced, or removed. It returns a source- and version-labelled advisory on whether the set contains a registration overview, at least one damage close-up, and a reflected image. An accepted always-image-based Principal route policy waives only the reflection advisory.
+
+The assessment may run before market valuation and neither creates nor returns an AI Proposal. Its result does not affect Case/PO allocation, Case state, Review, Engineers-queue eligibility, due work, chasing, or staff discretion. Source images remain retained, and report-image selection continues to exclude images showing a person's reflection.
+
+This allocation creates no AI caller. Its activation still requires accepted model/transport, data, cost, evaluation, failure/recovery, real-caller, and approval evidence. Broader image or damage analysis and AI-generated repair specifications remain separate capabilities.
 
 ### Vehicle data and MOT enrichment
 
-When an accepted live contract is activated and instructions omit vehicle
-facts, the intended DVLA/DVSA enrichment covers registration-linked make,
-model, manufacture year, engine capacity, and fuel type, plus available MOT history and
-mileage observations. Supplied mileage, an external observation, an
-MOT-derived estimate, and a staff-confirmed value remain visibly distinct.
+Vehicle identity/specification is a global Case requirement. Where instruction
+evidence omits vehicle facts, an accepted DVLA/DVSA caller supplies
+registration-linked make, model, manufacture year, engine capacity, fuel type,
+available MOT history, and mileage observations. At activation, DVSA runs for
+every Case; until then, approved local replay returns its preserved result and
+absent replay evidence returns source-labelled `Unavailable`.
 
-Every lookup or refresh preserves provider/source, retrieval time, applicable
+The mileage tiers and discrepancy rule are defined in
+[Global vehicle and value checks](#global-vehicle-and-value-checks). Every
+lookup or refresh preserves provider/source, retrieval time, applicable
 effective date, source age, response/version identity, and a typed current,
 stale, unavailable, partial, or failed outcome. A refresh creates a new
-observation; it never silently overwrites the last good observation or a
-confirmed value. Acceptance, rejection, or linking of an external fact enters
-permanent business history. Routine calls, retries, and polling remain
-content-safe telemetry.
+observation; it never silently overwrites a last-good observation, confirmed
+value, or higher-tier mileage. Acceptance, rejection, or linking of an
+external fact enters permanent business history. Routine calls, retries, and
+polling remain content-safe telemetry.
 
 **Source limitation:** no allowed source selects the live DVLA/DVSA provider,
 API, licence, exact response fields, credentials, rate/limit behavior, error
-contract, target, or mileage-estimation rule. Those items remain activation
-gates, and missing local replay evidence returns `Unavailable` rather than an
-invented success. Vehicle enrichment does not activate valuation behavior.
+contract, target, or caller proof. Those items remain activation gates.
+Vehicle enrichment does not activate valuation behavior.
 
 ### Professional engineering findings and correction
 
@@ -633,13 +690,23 @@ none may be inferred from provider-domain evidence.
 No provider route is active until its exact capability allocation, accepted
 contract, credentials/scopes, failure and recovery proof, real caller, and
 operator acceptance exist.
-## Staff MCP and automation
+## MCP automation and actor boundary
 
-Staff MCP is an authenticated staff caller over the same Core use cases as the Web UI. It must expose only the approved capability/tool inventory, enforce OAuth scopes and Core authorization, return stable resource identities, preserve actor/history, and avoid administration, credential, mailbox-configuration, destructive, or live-send behavior unless separately allocated and accepted.
+MCP is a management/development-controlled ingress for the named Claude
+Automation Actor, not an ordinary staff interface. Ordinary staff have no MCP
+access and use the Web UI. The Actor invokes only its approved ordinary
+operational Core-action inventory with its own authentication, identity, and
+permanent history; it has no Administrator, configuration, credential, cloud,
+release, deletion, or other management authority.
 
-MCP registration, a tool schema, or an endpoint file is not proof. Each tool requires an exercised real caller, expected success result, authorization failure, validation failure, and audit-history proof.
+MCP registration, a tool schema, or an endpoint file is not proof. Each tool
+requires an exercised real caller, expected success result, authorization
+failure, validation failure, and action-history proof.
 
-Background automation follows the same rule. Queues and timers transport stable work identities; Core owns transitions and idempotency. Poison work remains recoverable and observable. No AI proposal or workspace service can mutate case state directly.
+Background automation follows the same rule. Queues and timers transport stable
+work identities; Core owns transitions and idempotency. Poison work remains
+recoverable and observable. No AI proposal or workspace service can mutate case
+state directly.
 
 ## Reports, correspondence, and reviewed proposals
 
@@ -811,7 +878,7 @@ roadmap](history/plans/delivery-roadmap.md); the operator execution route is
 routes preserve detail and procedure without becoming requirements, allocation,
 implementation-status, or acceptance owners.
 
-The alpha delivery order is dependency-bound: relational draft and trusted actors; identity/history/Administrator data; durable source custody and ordinary-image vehicle identity; reference allocation; one definitive acceptance transaction; Box custody; exclusive editing; lifecycle and work scheduling; Operations-first UI; real Graph Worker; Triage; vehicle/EVA handoff; staff MCP; Azure/recovery proof; then operator acceptance. A later step never treats an allocated file, registration, or green structural check as proof that an earlier caller or data invariant exists.
+The alpha delivery order is dependency-bound: relational draft and trusted actors; identity/history/Administrator data; durable source custody and ordinary-image vehicle identity; reference allocation; one definitive acceptance transaction; Box custody; exclusive editing; lifecycle and work scheduling; Operations-first UI; real Graph Worker; Triage; vehicle/EVA handoff; Claude Automation MCP; Azure/recovery proof; then operator acceptance. A later step never treats an allocated file, registration, or green structural check as caller proof.
 
 Deferred provider, mailbox, post-report, finance, AI, external-account, and replacement branches may progress only after their capability activation gate. They rejoin the main route through the same Core identity, authorization, custody, idempotency, history, recovery, caller, and acceptance evidence; they do not create parallel policy owners.
 

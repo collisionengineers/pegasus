@@ -46,7 +46,7 @@ For a longer checkout root, the first command must return `1` and the Git settin
 
 ## Offline development profile
 
-Pegasus runs locally without Azure, Graph, Box, DVLA/DVSA, EVA, Infisical, Docker, cloud login, or vendor authentication. Use the owning executables directly; there is no implemented generic workstation-doctor or repository-check wrapper.
+The default offline profile runs locally without Azure, Graph, Box, DVLA/DVSA, EVA, Infisical, Docker, cloud login, or vendor authentication. The separately approved [Box integration-test target](#approved-box-integration-test-target) is the only exception for local work or an explicitly approved non-production test deployment. Use the owning executables directly; there is no implemented generic workstation-doctor or repository-check wrapper.
 
 | Tool | Supported version or presence | Purpose |
 | --- | --- | --- |
@@ -103,6 +103,10 @@ Install-Module ExchangeOnlineManagement -Scope CurrentUser -RequiredVersion 3.10
 ```
 
 `az login`, `azd auth login`, Exchange connection, Box login, credential changes, deployment, and Azure operations each retain a separate exact-target approval boundary.
+
+### Approved Box integration-test target
+
+The approved disposable Box test subtree is folder `392761581105`. Local Box integration testing and explicitly approved non-production test deployments may create and update controlled non-corpus artifacts in that folder only. They must not delete, move, copy, or share Box content, operate outside that folder, or expose credentials in source, configuration, command lines, prompts, output, telemetry, or business history. Every invocation must use the actual Box adapter’s target/action allowlist and record stable source and target identities plus the outcome. A failed custody attempt remains visible for an authorised staff member to retry idempotently; no background or automatic business retry is permitted. Box CLI authentication does not expand this approval or establish an application caller. Readiness evidence requires (1) an actual controlled Case/PO allocation that creates its immutable-reference-named folder and files retained material exactly once, and (2) an attempted wrong/out-of-root or denied target that performs no broader Box write, leaves the Case `Not ready`, and exposes the staff retry action. The first accepted production release remains blocked until its separately accepted production Box account/parent target, least-privilege permissions, failure/recovery contract, real caller, and acceptance evidence are recorded.
 
 The intended application staff accounts are Pegasus Identity accounts; the current Development caller has no authentication or role enforcement, and Entra users must not be assumed. Third-party credentials must never enter tracked settings, command-line arguments, prompts that may be retained, terminal output, telemetry, or business history.
 
@@ -426,11 +430,11 @@ Run policy tests first, adapter contracts second, persistence/transaction tests 
 | Key Vault / identity | Mock the owned port; developer credentials only for approved development resources | Deployed managed identity, least-privilege RBAC, firewall behavior |
 | Application Insights / Log Analytics | In-memory OpenTelemetry and optional local Collector | Ingestion, sampling, KQL, retention, alert rules, recipient delivery |
 | Graph / Exchange | Kiota fake and Dev Proxy; allowlist rejects unknown mailbox/folder/action before client call | Approved mailbox allowlist, Exchange Application RBAC, immutable IDs, delta behavior, exact Sent-item existence |
-| Box | Fake SDK/HTTP contract for folder/file commands, custody, versions, idempotency, and failures | Real custody, permissions, versions, and recovery |
+| Box | Fake SDK/HTTP contract for folder/file commands, custody, versions, idempotency, and failures; the approved Box integration-test target may also create/update controlled non-corpus artifacts for local or explicitly approved non-production deployment evidence | Real custody, permissions, versions, recovery, production target, and caller evidence |
 | Document Intelligence | Candidate-routing and response-contract tests with controlled non-corpus fixtures | OCR accuracy, confidence, API drift, cost, throttling, identity; licensed disconnected containers are not the default emulator |
 | DVLA/DVSA | Deterministic contracts, invalid identifiers, retries, unavailable-service outcomes | Entitlement, identity, real response behavior |
 | EVA | Exact local JSON/image-bundle contract and reconciliation metadata | Operator drag/drop acceptance and any later authorised API sandbox |
-| Provider API / staff MCP | Real Kestrel endpoints, authentication, scope, idempotency, action history, negative HTTP tests | Public HTTPS, canonical MCP metadata, hosted OAuth callback, Internet-facing posture |
+| Provider API / Claude Automation MCP | Real Kestrel endpoints, authentication, scope, idempotency, action history, negative HTTP tests | Public HTTPS, canonical MCP metadata, hosted OAuth callback, Internet-facing posture |
 | Direct authorised-terminal deployment | Bicep compile/lint and local configuration checks | Approved preflight, package/migration identity, deployment, health smoke, rollback |
 | Backup/recovery | LocalDB backup/restore into a new disposable database | Azure SQL PITR and the one-time alpha RPO/RTO exercise |
 
@@ -445,10 +449,11 @@ Graph Sent-item evidence does not prove recipient delivery or automatic case mat
 | Use an Azure service | Subscription, resource group, resource, operation | Explicit mutation/cost approval, fresh inventory, least-privilege identity |
 | Read or change an Outlook mailbox | Tenant, application, mailbox, folder, action | Exchange Application RBAC approval and negative scope test before the Graph call |
 | Use Box or another vendor sandbox | Enterprise/account, folder/project, operation | Credential/data approval and controlled non-corpus input |
+| Use the approved Box integration-test target | Folder `392761581105`; local or explicitly approved non-production deployment; create and update controlled non-corpus artifacts only | Approved disposable test subtree; no delete, move, copy, share, broader folder access, credential exposure, or production activation |
 | Send a document to OCR, vision, AI, or another processor | Service, region, model, input class | Data, licence, cost, and security approval; corpus remains prohibited unless separately authorised |
 | Deploy, restore, fail over, or retire | Exact non-production environment and recoverable target | Explicit operation approval, fresh inventory, rollback path, retained source data |
 
-Local profiles contain no live credentials. A live profile must require an allowlisted tenant, subscription, account, mailbox, folder, resource, and action, and reject missing or broader scope before constructing the external client.
+Offline profiles contain no live credentials. A selected live profile must require an allowlisted tenant, subscription, account, mailbox, folder, resource, and action, and reject missing or broader scope before constructing the external client.
 
 ## Corpus safety and evaluation
 
