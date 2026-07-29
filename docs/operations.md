@@ -729,11 +729,11 @@ never deletes cards, closes issues, rewrites repository issue/PR content, or
 modifies unrelated unkeyed items. No committed Project export or second status
 database is permitted.
 
-The saved `Release sequence` board contains only the 200 planned keyed items,
-columned by Target release in canonical order. The separate `Permanent
-boundaries` table contains the 29 `Not planned / unallocated` drafts. Saved-view
-filters, column order, displayed fields, and representative cards require
-authenticated visual confirmation after API readback; preserve unrelated views.
+The Project API mirror contains the keyed capability fields and draft cards, but
+saved-view grouping, filtering, displayed-field configuration, and authenticated
+visual confirmation are not current operating evidence. Current user direction
+on 2026-07-29 stopped Project presentation work in favour of alpha delivery.
+Repository allocation and alpha delivery do not depend on a Project view.
 
 Issue `#3` owns the QDOS alpha delivery cohort. Issue `#19` owns exact release
 allocation and Project synchronization. Change records are indexed in
