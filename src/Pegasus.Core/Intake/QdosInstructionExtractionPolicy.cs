@@ -3,11 +3,14 @@ using System.Text.RegularExpressions;
 
 namespace Pegasus.Core.Intake;
 
-public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtractionPolicy
+public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtractionPolicy, IMailRoutePolicy
 {
     public const string Key = "qdos_instruction";
     public const int Version = 1;
+    public const string MailRouteKey = "qdos_mail_route";
+    public const int MailRouteVersion = 1;
     private const string PrincipalCode = "QDOS";
+    private const string AcceptedDirectDomain = "qdosassist.co.uk";
 
     private static readonly FieldDefinition[] FieldDefinitions =
     [
@@ -23,18 +26,91 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
         new("Inspection address", ["Inspection Address", "Vehicle Location", "Inspection Location"])
     ];
 
+    public MailRouteEvaluationResult Evaluate(IntakeSourceReadResult readResult)
+    {
+        EnsureReadable(readResult);
+
+        var senders = readResult.TransportEvidence
+            .Where(item => item.Source == IntakeEvidenceSource.Sender)
+            .Select(item => item.Value.Trim())
+            .Where(value => value.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var hasOneConsistentSender = senders.Length == 1;
+        var senderDomain = string.Empty;
+        var hasValidSender = hasOneConsistentSender
+            && TryGetMailboxDomain(senders[0], out senderDomain);
+        var matchesDirectQdosDomain = hasValidSender
+            && string.Equals(senderDomain, AcceptedDirectDomain, StringComparison.OrdinalIgnoreCase);
+
+        MailRoutePredicateResult[] predicates =
+        [
+            new(
+                "direct.sender-exactly-one",
+                hasOneConsistentSender,
+                hasOneConsistentSender
+                    ? "Exactly one consistent sender address was supplied."
+                    : $"Expected one consistent sender address; found {senders.Length}."),
+            new(
+                "direct.qdos-domain",
+                matchesDirectQdosDomain,
+                matchesDirectQdosDomain
+                    ? "The sender uses the accepted direct QDOS domain."
+                    : "The sender does not use the accepted direct QDOS domain."),
+            new(
+                "intermediary.accepted-policy",
+                false,
+                "No QDOS intermediary mail route has accepted evidence in this policy version.")
+        ];
+
+        if (!hasOneConsistentSender)
+        {
+            return new(
+                MailRouteDisposition.NeedsSorting,
+                null,
+                predicates,
+                "Mail route evaluation requires exactly one consistent sender address.",
+                MailRouteKey,
+                MailRouteVersion);
+        }
+
+        if (!hasValidSender)
+        {
+            return new(
+                MailRouteDisposition.NeedsSorting,
+                null,
+                predicates,
+                "The sender address is malformed.",
+                MailRouteKey,
+                MailRouteVersion);
+        }
+
+        if (!matchesDirectQdosDomain)
+        {
+            return new(
+                MailRouteDisposition.NoMatch,
+                null,
+                predicates,
+                "The message does not match an accepted QDOS mail route.",
+                MailRouteKey,
+                MailRouteVersion);
+        }
+
+        return new(
+            MailRouteDisposition.Accepted,
+            new(PrincipalCode, MailRouteKind.DirectProvider, PrincipalCode),
+            predicates,
+            "The message matches the accepted direct QDOS mail route.",
+            MailRouteKey,
+            MailRouteVersion);
+    }
+
     public InstructionExtractionResult Extract(
         IntakeSourceReadResult readResult,
         DateTimeOffset processedAtUtc)
     {
-        ArgumentNullException.ThrowIfNull(readResult);
-        if (readResult.Status != IntakeSourceReadStatus.Readable || readResult.IsIncomplete)
-        {
-            throw new ArgumentException(
-                "The QDOS extraction policy accepts only fully readable, complete reader results.",
-                nameof(readResult));
-        }
-
+        var route = Evaluate(readResult);
         var evidence = new List<IntakeEvidence>();
         var confirmingFragments = new List<IntakeContentFragment>();
         foreach (var fragment in readResult.Content)
@@ -65,7 +141,11 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
             }
         }
 
-        AddTransportEvidence(readResult.TransportEvidence, confirmingFragments.Count > 0, evidence);
+        AddTransportEvidence(
+            readResult.TransportEvidence,
+            route,
+            confirmingFragments.Count > 0,
+            evidence);
 
         if (confirmingFragments.Count > 0)
         {
@@ -78,14 +158,26 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
                     IntakeEvidenceStrength.Strong,
                     IntakeEvidenceFinding.Information,
                     "additional-scanned-content",
-                    "A QDOS-shaped draft was extracted from readable content; additional scanned PDF content still requires review."));
+                    "QDOS-shaped fields were extracted from readable content; additional scanned PDF content still requires review."));
+            }
+
+            if (route.Disposition == MailRouteDisposition.Accepted)
+            {
+                return new(
+                    InstructionPolicyApplicability.Applicable,
+                    evidence,
+                    fields,
+                    CreateInstructionDraft(fields),
+                    missingFields,
+                    Key,
+                    Version);
             }
 
             return new(
-                InstructionPolicyApplicability.Applicable,
+                InstructionPolicyApplicability.Indeterminate,
                 evidence,
                 fields,
-                CreateInstructionDraft(fields),
+                null,
                 missingFields,
                 Key,
                 Version);
@@ -125,9 +217,20 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
 
     private static void AddTransportEvidence(
         IReadOnlyList<IntakeTransportEvidence> transportEvidence,
+        MailRouteEvaluationResult route,
         bool contentConfirmed,
         List<IntakeEvidence> evidence)
     {
+        if (route.Disposition == MailRouteDisposition.Accepted)
+        {
+            evidence.Add(new(
+                IntakeEvidenceSource.Sender,
+                IntakeEvidenceStrength.Strong,
+                IntakeEvidenceFinding.Information,
+                "qdos-direct-mail-route",
+                "The sender uses the accepted direct QDOS domain."));
+        }
+
         foreach (var item in transportEvidence)
         {
             if (QdosMarkerRegex().IsMatch(item.Value))
@@ -135,20 +238,51 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
                 evidence.Add(new(
                     item.Source,
                     IntakeEvidenceStrength.Weak,
-                    IntakeEvidenceFinding.SupportsPrincipal,
+                    IntakeEvidenceFinding.Information,
                     "qdos-transport-marker",
-                    $"{DisplaySource(item.Source)} contains a QDOS marker."));
+                    $"{DisplaySource(item.Source)} contains a QDOS marker; transport text alone does not establish a route or instruction."));
             }
-            else if (contentConfirmed && item.Source == IntakeEvidenceSource.Sender)
+            else if (contentConfirmed
+                && item.Source == IntakeEvidenceSource.Sender
+                && route.Disposition != MailRouteDisposition.Accepted)
             {
                 evidence.Add(new(
                     item.Source,
                     IntakeEvidenceStrength.Weak,
                     IntakeEvidenceFinding.ContradictsTransport,
-                    "forwarded-sender",
-                    "The sender does not identify QDOS; stronger instruction content takes precedence."));
+                    "unaccepted-sender-route",
+                    "The sender does not match an accepted QDOS mail route."));
             }
         }
+    }
+
+    private static void EnsureReadable(IntakeSourceReadResult readResult)
+    {
+        ArgumentNullException.ThrowIfNull(readResult);
+        if (readResult.Status != IntakeSourceReadStatus.Readable || readResult.IsIncomplete)
+        {
+            throw new ArgumentException(
+                "The QDOS policy accepts only fully readable, complete reader results.",
+                nameof(readResult));
+        }
+    }
+
+    private static bool TryGetMailboxDomain(string address, out string domain)
+    {
+        domain = string.Empty;
+        var separator = address.IndexOf('@');
+        if (separator <= 0
+            || separator != address.LastIndexOf('@')
+            || separator == address.Length - 1
+            || address.Any(char.IsWhiteSpace)
+            || address.Contains('<')
+            || address.Contains('>'))
+        {
+            return false;
+        }
+
+        domain = address[(separator + 1)..];
+        return true;
     }
 
     private static (IReadOnlyList<InstructionReviewField> Fields, IReadOnlyList<string> Missing, IReadOnlyList<IntakeEvidence> Evidence)

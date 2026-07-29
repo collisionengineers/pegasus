@@ -8,5 +8,13 @@
       },
       "enableLiveMetricsFilters": true
     }
+  },
+  "extensions": {
+    "queues": {
+      "batchSize": 4,
+      "newBatchThreshold": 2,
+      "visibilityTimeout": "00:05:00",
+      "maxDequeueCount": 5
+    }
   }
 }
