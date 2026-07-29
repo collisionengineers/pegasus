@@ -445,7 +445,7 @@ The independently hashed temporary proof inputs are outside the repository:
 | --- | --- |
 | Disposition manifest | `4d0ddab6f49e17a053b07df7e2433e60971c653aadf5e1fe4ed74d722129f658` |
 | Baseline manifest | `1114bcc81d139772defca1fc09589e15bdf2276a3d0aaf63982725c6aeec1d3b` |
-| Material-claim inventory | `b05bcad14ab14e41b9e0655024983e71019941fabe0a87e35343d56c776ca8ba` |
+| Material-claim inventory | `f6c1327c679c140f7d59d38257ec6d7d8fefcfdfc2ad1d1312ea2d9d58c88992` |
 | Callsite inventory | `8cdb9adecba87ebba2bec18c0b214e16c5eab0110537cf19ad02797b7845fbc0` |
 
 The accepted disposition is exact: 512 baseline artifacts (`K=131`, `R=92`,

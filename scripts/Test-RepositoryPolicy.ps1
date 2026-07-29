@@ -956,33 +956,84 @@ foreach ($entry in $workspaceEntries) {
     }
 }
 
+function Read-GitBatchLine([System.IO.Stream]$Stream) {
+    $bytes = [System.Collections.Generic.List[byte]]::new()
+    while ($true) {
+        $value = $Stream.ReadByte()
+        if ($value -lt 0) { throw 'Unexpected end of git cat-file output.' }
+        if ($value -eq 10) { break }
+        $bytes.Add([byte]$value)
+    }
+    return [System.Text.Encoding]::ASCII.GetString($bytes.ToArray())
+}
+
 function Get-WorkspaceManifest([string]$Prefix, [scriptblock]$Exclude) {
-    [string[]]$relativePaths = @(
-        foreach ($entry in $workspaceEntries) {
-            if ($entry.Mode -eq '160000' -or
-                -not $entry.Path.StartsWith($Prefix, [System.StringComparison]::Ordinal)) {
-                continue
-            }
-            $relative = $entry.Path.Substring($Prefix.Length)
-            if (-not (& $Exclude $relative)) { $relative }
+    $entryByRelativePath = @{}
+    foreach ($entry in $workspaceEntries) {
+        if ($entry.Mode -eq '160000' -or
+            -not $entry.Path.StartsWith($Prefix, [System.StringComparison]::Ordinal)) {
+            continue
         }
-    )
+        $relativePath = $entry.Path.Substring($Prefix.Length)
+        if (-not (& $Exclude $relativePath)) {
+            $entryByRelativePath[$relativePath] = $entry
+        }
+    }
+    [string[]]$relativePaths = @($entryByRelativePath.Keys)
     [Array]::Sort($relativePaths, [System.StringComparer]::Ordinal)
+
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = 'git'
+    $startInfo.ArgumentList.Add('-C')
+    $startInfo.ArgumentList.Add($root)
+    $startInfo.ArgumentList.Add('cat-file')
+    $startInfo.ArgumentList.Add('--batch')
+    $startInfo.UseShellExecute = $false
+    $startInfo.RedirectStandardInput = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    if (-not $process.Start()) { throw 'Unable to start git cat-file.' }
 
     $hash = [System.Security.Cryptography.IncrementalHash]::CreateHash(
         [System.Security.Cryptography.HashAlgorithmName]::SHA256)
     [long]$totalBytes = 0
-    foreach ($relative in $relativePaths) {
-        $fullPath = Join-Path $root ($Prefix + $relative)
-        if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
-            Add-PolicyError "Tracked workspace path is absent from the working tree: $($Prefix + $relative)"
-            continue
+    $buffer = [byte[]]::new(65536)
+    try {
+        foreach ($relative in $relativePaths) {
+            $entry = $entryByRelativePath[$relative]
+            $pathBytes = [System.Text.Encoding]::UTF8.GetBytes($relative)
+            $hash.AppendData($pathBytes)
+
+            $process.StandardInput.WriteLine($entry.ObjectId)
+            $process.StandardInput.Flush()
+            $header = Read-GitBatchLine $process.StandardOutput.BaseStream
+            if ($header -notmatch '^[0-9a-f]+ blob (?<size>\d+)$') {
+                throw "Unexpected git cat-file header for $($entry.Path): $header"
+            }
+
+            [long]$remaining = [long]$Matches.size
+            $totalBytes += $remaining
+            while ($remaining -gt 0) {
+                $requested = [Math]::Min($buffer.Length, $remaining)
+                $read = $process.StandardOutput.BaseStream.Read($buffer, 0, [int]$requested)
+                if ($read -le 0) { throw "Unexpected end of blob for $($entry.Path)." }
+                $hash.AppendData($buffer, 0, $read)
+                $remaining -= $read
+            }
+            if ($process.StandardOutput.BaseStream.ReadByte() -ne 10) {
+                throw "Missing git cat-file record terminator for $($entry.Path)."
+            }
         }
-        $pathBytes = [System.Text.Encoding]::UTF8.GetBytes($relative)
-        $contentBytes = [System.IO.File]::ReadAllBytes($fullPath)
-        $hash.AppendData($pathBytes)
-        $hash.AppendData($contentBytes)
-        $totalBytes += $contentBytes.LongLength
+    }
+    finally {
+        $process.StandardInput.Close()
+        $process.WaitForExit()
+    }
+    if ($process.ExitCode -ne 0) {
+        throw "git cat-file failed: $($process.StandardError.ReadToEnd())"
     }
 
     [pscustomobject]@{

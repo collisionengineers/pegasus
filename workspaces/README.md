@@ -8,13 +8,13 @@ units, or owners of Pegasus business policy.
 
 | Workspace | Durable role and documentation | Source provenance | Imported source manifest |
 | --- | --- | --- | --- |
-| `document-extraction/` | CollisionDocNet document/email extraction libraries and CLI; [workspace owner](document-extraction/README.md) | Local source snapshot `../collisiondocnetconverter`; no `.git` metadata was present, so branch, remote, and commit are unavailable | 202 files, 2,283,131 bytes, SHA-256 `14ea5449c8267aa258d5f20c74f90c33f1d4653160126cece31e0d1e2ea5d040` |
-| `report-renderer/` | Deterministic CollisionRenderer report-rendering source; [workspace owner](report-renderer/README.md) | `collisionengineers/collisionsuite`, branch `main`, commit `acd3b0c28b59b60cfdbd8504daf0f5e8603bb59d`, path `active/collisionrenderer` | 108 files, 605,734 bytes, SHA-256 `53ef2dc18b305ee22ddeb8188023ea2f4e9b1fbfecdeb477a7326cebfb846648` |
-| `ai-centre/` | AI model, evaluation, training, provider, and AI-service experimentation; [workspace owner](ai-centre/README.md) | `collisionengineers/collisionsuite`, branch `main`, commit `acd3b0c28b59b60cfdbd8504daf0f5e8603bb59d`, path `collision-ai-centre` | 70 files, 475,287 bytes, SHA-256 `f2e3a96d7a621d56305b07c64bf546e3a94cf31012345bc53fe61103acd90181` |
-| `ai-centre/skills/` | Source skill packages and pack-validation tools; [package index](ai-centre/skills/README.md) | `collisionengineers/collisionsuite`, branch `main`, commit `acd3b0c28b59b60cfdbd8504daf0f5e8603bb59d`, path `active/collision-agent-skills` | 212 files, 3,042,785 bytes, SHA-256 `d43f3905a2a50b61a86a023dc4951843d0e212062972076b7f27683f616540e8` |
+| `document-extraction/` | CollisionDocNet document/email extraction libraries and CLI; [workspace owner](document-extraction/README.md) | Local source snapshot `../collisiondocnetconverter`; no `.git` metadata was present, so branch, remote, and commit are unavailable | 202 files, 2,232,045 bytes, SHA-256 `62cf27ec4830e9fe9dd6b8a2fab078598bae431ff479c43d45ac36317248a0ad` |
+| `report-renderer/` | Deterministic CollisionRenderer report-rendering source; [workspace owner](report-renderer/README.md) | `collisionengineers/collisionsuite`, branch `main`, commit `acd3b0c28b59b60cfdbd8504daf0f5e8603bb59d`, path `active/collisionrenderer` | 108 files, 604,228 bytes, SHA-256 `a3b9b665b23b08b9dd61276d48b9f3a3c551a005213225e7941d0adf6d504471` |
+| `ai-centre/` | AI model, evaluation, training, provider, and AI-service experimentation; [workspace owner](ai-centre/README.md) | `collisionengineers/collisionsuite`, branch `main`, commit `acd3b0c28b59b60cfdbd8504daf0f5e8603bb59d`, path `collision-ai-centre` | 70 files, 464,422 bytes, SHA-256 `cdc6454be3eb7801440d0a94b4bf50ceba9c18609af534d838a43bdb56281b14` |
+| `ai-centre/skills/` | Source skill packages and pack-validation tools; [package index](ai-centre/skills/README.md) | `collisionengineers/collisionsuite`, branch `main`, commit `acd3b0c28b59b60cfdbd8504daf0f5e8603bb59d`, path `active/collision-agent-skills` | 212 files, 3,025,721 bytes, SHA-256 `74930d016fa84f35e5c7c0ac656a7627635bd5336d57c2d9261ed0df5ec3b587` |
 
-The manifest hashes each tracked file's UTF-8 relative path immediately followed
-by its current byte payload, in ordinal path order. The AI Centre row excludes
+The manifest hashes each tracked Git index path in UTF-8 immediately followed
+by its staged blob payload, in ordinal path order. The AI Centre row excludes
 `skills/`, `ml-ops/data/`, nested `.github/`, caches, and build outputs. The
 skills row also excludes nested `.github/`, caches, and
 `assets/style-examples/` or `fixtures/style-examples/`. Source `_dev/` trees are
