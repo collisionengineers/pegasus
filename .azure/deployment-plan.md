@@ -61,11 +61,14 @@ Before provisioning, recheck:
 ## Runnable offline/replay route
 
 The release owner may create reproducible, local-only artifacts from a clean
-output path. This route uses source-cleared, cache-only locked .NET and tool restore, publishes the
-existing Web and Worker projects once, generates the existing EF idempotent
-migration script, writes deterministic ZIP metadata, and records SHA-256 hashes
-with the supplied source revision. It does not authenticate to Azure, create
-resources, apply migrations, or deploy packages.
+Git working tree and clean output path. This route resolves a supplied full
+revision or unambiguous short prefix to the exact checked-out `HEAD`, uses
+source-cleared, cache-only locked .NET and tool restore, publishes the existing
+Web and Worker projects once with that revision, generates the existing EF
+idempotent migration script, verifies the published Web diagnostic source SHA,
+writes deterministic ZIP metadata, and records SHA-256 hashes with the exact
+revision. It does not authenticate to Azure, create resources, apply migrations,
+or deploy packages.
 
 From the repository root, use the approved green revision as provenance:
 
@@ -78,12 +81,13 @@ pwsh ./scripts/Test-AzureDeploymentPlan.ps1 `
   -ArtifactDirectory ./artifacts/release/1c2fa19
 ```
 
-`Build-ReleaseArtifacts.ps1` refuses an existing output directory so a replay
-cannot mix stale bytes with a new manifest. Its three deployable inputs are
-`web.zip`, `worker.zip`, and `migration.zip`; `release-manifest.json` binds
-their names, lengths, hashes, runtimes, and source revision. The test script
-re-hashes all inputs, verifies required archive contents and fixed ZIP timestamps,
-then compiles Bicep locally.
+`Build-ReleaseArtifacts.ps1` refuses a revision mismatch, a dirty checkout, or
+an existing output directory before it can produce a promotable manifest. Its
+three deployable inputs are `web.zip`, `worker.zip`, and `migration.zip`;
+`release-manifest.json` binds their names, lengths, hashes, runtimes, the
+verified Web build diagnostic, and the exact 40-character revision. The test
+script re-hashes all inputs, verifies that diagnostic binding, required archive
+contents, and fixed ZIP timestamps, then compiles Bicep locally.
 
 The Bicep entrypoint permits only `deploymentMode=offline-replay`. Its resource
 group and platform module are conditioned on the unreachable

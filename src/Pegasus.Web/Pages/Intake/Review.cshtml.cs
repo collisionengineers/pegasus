@@ -21,40 +21,30 @@ public sealed partial class ReviewModel(
     public bool IsDuplicate { get; private set; }
     public InspectionAddressResolutionSnapshot AddressResolution { get; private set; } = null!;
 
-
-    [BindProperty]
     public string PrincipalCode { get; set; } = string.Empty;
 
-    [BindProperty]
     public CaseType CaseType { get; set; } = Pegasus.Core.Cases.CaseType.Inspection;
 
-    [BindProperty]
     public AuditAssessment? StandaloneAuditAssessment { get; set; }
 
-    [BindProperty]
     public bool InstructionComplete { get; set; }
 
-    [BindProperty]
     public bool ImagesComplete { get; set; }
 
-    [BindProperty]
     public bool InstructionConfirmedByStaff { get; set; }
 
-    [BindProperty]
     public bool ImagesConfirmedByStaff { get; set; }
 
-    [BindProperty]
     public string AcceptanceOperationKey { get; set; } = string.Empty;
-    [BindProperty]
+
+    public long? ReviewedReceiptVersion { get; set; }
+
     public long ExpectedAddressReceiptVersion { get; set; }
 
-    [BindProperty]
     public string AddressSuggestionFingerprint { get; set; } = string.Empty;
 
-    [BindProperty]
     public string AddressOperationId { get; set; } = string.Empty;
 
-    [BindProperty]
     public string CorrectedInspectionAddress { get; set; } = string.Empty;
 
 
@@ -78,13 +68,32 @@ public sealed partial class ReviewModel(
                 or InspectionAddressResolutionState.Corrected);
         InstructionConfirmedByStaff = InstructionComplete;
         AcceptanceOperationKey = Guid.NewGuid().ToString("N");
+        ReviewedReceiptVersion = AddressResolution.ReceiptVersion;
         return Page();
     }
 
     public async Task<IActionResult> OnPostAcceptAsync(
         Guid id,
+        string? principalCode,
+        CaseType caseType,
+        AuditAssessment? standaloneAuditAssessment,
+        bool instructionComplete,
+        bool imagesComplete,
+        bool instructionConfirmedByStaff,
+        bool imagesConfirmedByStaff,
+        string? acceptanceOperationKey,
+        long? reviewedReceiptVersion,
         CancellationToken cancellationToken = default)
     {
+        PrincipalCode = principalCode ?? string.Empty;
+        CaseType = caseType;
+        StandaloneAuditAssessment = standaloneAuditAssessment;
+        InstructionComplete = instructionComplete;
+        ImagesComplete = imagesComplete;
+        InstructionConfirmedByStaff = instructionConfirmedByStaff;
+        ImagesConfirmedByStaff = imagesConfirmedByStaff;
+        AcceptanceOperationKey = acceptanceOperationKey ?? string.Empty;
+        ReviewedReceiptVersion = reviewedReceiptVersion;
         var result = await LoadReceiptAsync(id, cancellationToken);
         if (result is not null)
         {
@@ -150,6 +159,14 @@ public sealed partial class ReviewModel(
                 "The acceptance request is invalid. Reload the page and try again.");
         }
 
+        var reviewedVersion = ReviewedReceiptVersion.GetValueOrDefault(-1);
+        if (ReviewedReceiptVersion is null || reviewedVersion < 0)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "The reviewed intake version is missing. Reload the receipt before accepting it.");
+        }
+
         var actor = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrWhiteSpace(actor))
         {
@@ -166,7 +183,7 @@ public sealed partial class ReviewModel(
             var outcome = await acceptIntake.ExecuteAsync(
                 new(
                     Receipt.Id,
-                    AddressResolution.ReceiptVersion,
+                    reviewedVersion,
                     actor,
                     $"intake-accept:{operationId:N}",
                     CaseType,
@@ -185,6 +202,12 @@ public sealed partial class ReviewModel(
             TempData["AcceptedCaseReference"] = outcome.Identity.AuditReference
                 ?? outcome.Identity.Reference;
             return RedirectToPage("/Intake/Queue");
+        }
+        catch (CaseAcceptanceOperationConflictException)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "This intake receipt was already accepted using different review details. Reload the receipt.");
         }
         catch (CaseIdentitySequenceExhaustedException exception)
         {
@@ -205,19 +228,38 @@ public sealed partial class ReviewModel(
     }
     public Task<IActionResult> OnPostAcceptAddressAsync(
         Guid id,
-        CancellationToken cancellationToken = default) =>
-        ResolveAddressAsync(
+        long expectedAddressReceiptVersion,
+        string? addressSuggestionFingerprint,
+        string? addressOperationId,
+        CancellationToken cancellationToken = default)
+    {
+        ExpectedAddressReceiptVersion = expectedAddressReceiptVersion;
+        AddressSuggestionFingerprint = addressSuggestionFingerprint ?? string.Empty;
+        AddressOperationId = addressOperationId ?? string.Empty;
+        CorrectedInspectionAddress = string.Empty;
+        return ResolveAddressAsync(
             id,
             InspectionAddressStaffDecision.AcceptSuggestion,
             cancellationToken);
+    }
 
     public Task<IActionResult> OnPostCorrectAddressAsync(
         Guid id,
-        CancellationToken cancellationToken = default) =>
-        ResolveAddressAsync(
+        long expectedAddressReceiptVersion,
+        string? addressSuggestionFingerprint,
+        string? addressOperationId,
+        string? correctedInspectionAddress,
+        CancellationToken cancellationToken = default)
+    {
+        ExpectedAddressReceiptVersion = expectedAddressReceiptVersion;
+        AddressSuggestionFingerprint = addressSuggestionFingerprint ?? string.Empty;
+        AddressOperationId = addressOperationId ?? string.Empty;
+        CorrectedInspectionAddress = correctedInspectionAddress ?? string.Empty;
+        return ResolveAddressAsync(
             id,
             InspectionAddressStaffDecision.CorrectSuggestion,
             cancellationToken);
+    }
 
 
     public async Task<IActionResult> OnGetAssetAsync(

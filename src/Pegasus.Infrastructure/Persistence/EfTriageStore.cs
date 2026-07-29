@@ -85,8 +85,7 @@ public sealed class EfTriageStore(
             State = ToCode(TriageState.Open),
             CreatedAtUtc = now,
             CreationOperationKey = operationKey,
-            Version = 0,
-            RowVersion = []
+            Version = 0
         };
         context.Triage.Add(entity);
         AppendHistory(context, entity, "triage_created", actor, operationKey, "Created from evaluated intake", requestHash, -1);

@@ -29,7 +29,10 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260724104624_InitialProviderNeutralIntake",
                 "20260727170804_ProviderDomainReferenceSnapshotV1",
                 "20260729150000_DocumentCustodyAndRequests",
-                "20260729152105_WorkflowTriageEmailEvidence"
+                "20260729152105_WorkflowTriageEmailEvidence",
+                "20260729160000_CaseWorkflowRuntime",
+                "20260729170000_MailboxRouteAudit",
+                "20260729171000_CaseAcceptanceReplay"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -54,6 +57,24 @@ public sealed class IntakePersistenceIntegrationTests
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'Cases'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseSequences'"));
+        Assert.Equal(3, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*)
+            FROM sys.columns
+            WHERE object_id = OBJECT_ID(N'CaseIntakeLinks')
+              AND name IN (
+                  N'ExpectedIntakeVersion',
+                  N'AcceptanceCommandMaterialJson',
+                  N'AcceptanceCommandFingerprint')
+            """));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseWorkflows'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseWorkflowEvents'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseDueWork'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseManualChases'"));
     }
 
     [Fact]

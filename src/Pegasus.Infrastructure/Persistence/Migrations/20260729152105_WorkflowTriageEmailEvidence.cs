@@ -18,7 +18,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 {
                     "bigint" or "bit" or "int" => "INTEGER",
                     "datetime2" or "datetimeoffset" or "uniqueidentifier" => "TEXT",
-                    "rowversion" => "BLOB",
                     _ when sqlServerType.StartsWith("nchar", StringComparison.Ordinal)
                         || sqlServerType.StartsWith("nvarchar", StringComparison.Ordinal) => "TEXT",
                     _ => throw new InvalidOperationException($"Unsupported SQLite column type mapping for '{sqlServerType}'.")
@@ -83,7 +82,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     CreatedAtUtc = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: false),
                     CreationOperationKey = table.Column<string>(type: SqlType("nvarchar(100)"), maxLength: 100, nullable: false),
                     Version = table.Column<long>(type: SqlType("bigint"), nullable: false),
-                    RowVersion = table.Column<byte[]>(type: SqlType("rowversion"), rowVersion: true, nullable: false),
+                    ConcurrencyToken = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
                     EditLeaseTokenHash = table.Column<string>(type: SqlType("nchar(64)"), fixedLength: true, maxLength: 64, nullable: true),
                     EditLeaseHolder = table.Column<string>(type: SqlType("nvarchar(200)"), maxLength: 200, nullable: true),
                     EditLeaseOperationKey = table.Column<string>(type: SqlType("nvarchar(100)"), maxLength: 100, nullable: true),

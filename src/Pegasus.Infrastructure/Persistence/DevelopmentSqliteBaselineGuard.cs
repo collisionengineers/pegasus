@@ -11,7 +11,10 @@ public static class DevelopmentSqliteBaselineGuard
         "20260724104624_InitialProviderNeutralIntake",
         "20260727170804_ProviderDomainReferenceSnapshotV1",
         "20260729150000_DocumentCustodyAndRequests",
-        "20260729152105_WorkflowTriageEmailEvidence"
+        "20260729152105_WorkflowTriageEmailEvidence",
+        "20260729160000_CaseWorkflowRuntime",
+        "20260729170000_MailboxRouteAudit",
+        "20260729171000_CaseAcceptanceReplay"
     ];
 
     private static readonly Dictionary<string, ColumnDefinition[]> ExpectedColumns =
@@ -284,6 +287,33 @@ public static class DevelopmentSqliteBaselineGuard
                 new("EvaluatedAtUtc", "TEXT", true, 0)
             ]
             ,
+            ["ApprovedInboxPollStates"] =
+            [
+                new("MailboxId", "TEXT", true, 1),
+                new("MailboxAddress", "TEXT", true, 0),
+                new("Cursor", "TEXT", false, 0),
+                new("DueAtUtc", "TEXT", true, 0),
+                new("LeaseToken", "TEXT", false, 0),
+                new("LeaseExpiresAtUtc", "TEXT", false, 0),
+                new("LastCompletedAtUtc", "TEXT", false, 0),
+                new("LastFailureCode", "TEXT", false, 0)
+            ],
+            ["IntakeMailRouteDecisions"] =
+            [
+                new("IntakeReceiptId", "TEXT", true, 1),
+                new("Disposition", "TEXT", true, 0),
+                new("RouteOwnerCode", "TEXT", false, 0),
+                new("RouteKind", "TEXT", false, 0),
+                new("WorkProviderCode", "TEXT", false, 0),
+                new("PredicatesJson", "TEXT", true, 0),
+                new("Reason", "TEXT", true, 0),
+                new("PolicyKey", "TEXT", true, 0),
+                new("PolicyVersion", "INTEGER", true, 0),
+                new("TransportIdentitiesJson", "TEXT", true, 0),
+                new("OriginalIdentitiesJson", "TEXT", true, 0),
+                new("EffectiveSenderAddress", "TEXT", false, 0),
+                new("EffectiveSenderSourceLabel", "TEXT", false, 0)
+            ],
             ["ProviderDomainPackages"] =
             [
                 new("Version", "TEXT", true, 1),
@@ -359,7 +389,7 @@ public static class DevelopmentSqliteBaselineGuard
                 new("ImagesConfirmedByStaff", "INTEGER", true, 0),
                 new("CreatedAtUtc", "TEXT", true, 0),
                 new("Version", "INTEGER", true, 0),
-                new("RowVersion", "BLOB", true, 0),
+                new("ConcurrencyToken", "TEXT", true, 0),
                 new("CustodyRootRemoteId", "TEXT", false, 0),
                 new("CustodySourceRemoteId", "TEXT", false, 0),
                 new("CustodySourceContentHash", "TEXT", false, 0),
@@ -401,7 +431,10 @@ public static class DevelopmentSqliteBaselineGuard
                 new("CustodyWorkId", "TEXT", true, 0),
                 new("LinkedAtUtc", "TEXT", true, 0),
                 new("Actor", "TEXT", true, 0),
-                new("OperationKey", "TEXT", true, 0)
+                new("OperationKey", "TEXT", true, 0),
+                new("ExpectedIntakeVersion", "INTEGER", false, 0),
+                new("AcceptanceCommandMaterialJson", "TEXT", false, 0),
+                new("AcceptanceCommandFingerprint", "TEXT", false, 0)
             ],
             ["BoxFileRequests"] =
             [
@@ -482,7 +515,7 @@ public static class DevelopmentSqliteBaselineGuard
                 new("CreatedAtUtc", "TEXT", true, 0),
                 new("CreationOperationKey", "TEXT", true, 0),
                 new("Version", "INTEGER", true, 0),
-                new("RowVersion", "BLOB", true, 0),
+                new("ConcurrencyToken", "TEXT", true, 0),
                 new("EditLeaseTokenHash", "TEXT", false, 0),
                 new("EditLeaseHolder", "TEXT", false, 0),
                 new("EditLeaseOperationKey", "TEXT", false, 0),
@@ -560,6 +593,60 @@ public static class DevelopmentSqliteBaselineGuard
                 new("OperationKey", "TEXT", true, 0),
                 new("ContentHash", "TEXT", true, 0),
                 new("ReceivedAtUtc", "TEXT", true, 0)
+            ],
+            ["CaseReportApprovals"] =
+            [
+                new("Id", "TEXT", true, 1), new("CaseId", "TEXT", true, 0),
+                new("ArtifactIdentity", "TEXT", true, 0), new("ArtifactSha256", "TEXT", true, 0),
+                new("ApprovedByKind", "TEXT", true, 0), new("ApprovedBySubjectId", "TEXT", true, 0),
+                new("ApprovedByRolesJson", "TEXT", true, 0), new("ApprovedAtUtc", "TEXT", true, 0)
+            ],
+            ["CaseReportSentEvidence"] =
+            [
+                new("Id", "TEXT", true, 1), new("CaseId", "TEXT", true, 0),
+                new("MailboxIdentity", "TEXT", true, 0), new("SentFolderIdentity", "TEXT", true, 0),
+                new("ImmutableItemIdentity", "TEXT", true, 0), new("ConversationIdentity", "TEXT", true, 0),
+                new("ReplyChainIdentity", "TEXT", true, 0), new("SentAtUtc", "TEXT", true, 0),
+                new("LinkedAtUtc", "TEXT", true, 0), new("LinkedByKind", "TEXT", true, 0),
+                new("LinkedBySubjectId", "TEXT", true, 0), new("LinkedByRolesJson", "TEXT", true, 0)
+            ],
+            ["CaseWorkflows"] =
+            [
+                new("CaseId", "TEXT", true, 1), new("State", "TEXT", true, 0),
+                new("AssignedEngineerId", "TEXT", false, 0), new("ReportApprovalId", "TEXT", false, 0),
+                new("ReportSentEvidenceId", "TEXT", false, 0), new("ClosureOutcome", "TEXT", false, 0),
+                new("ReplacementCaseId", "TEXT", false, 0), new("Version", "INTEGER", true, 0),
+                new("EditLeaseTokenHash", "TEXT", false, 0), new("EditLeaseHolder", "TEXT", false, 0),
+                new("EditLeaseOperationKey", "TEXT", false, 0), new("EditLeaseExpiresAtUtc", "TEXT", false, 0),
+                new("ConcurrencyToken", "TEXT", true, 0)
+            ],
+            ["CaseDueWork"] =
+            [
+                new("CaseId", "TEXT", true, 1), new("MissingMaterialReason", "TEXT", true, 0),
+                new("DueBy", "TEXT", false, 0), new("State", "TEXT", true, 0),
+                new("NextChaseAtUtc", "TEXT", false, 0), new("HeldAtUtc", "TEXT", false, 0),
+                new("RemainingChaseIntervalTicks", "INTEGER", false, 0), new("MostRecentChannel", "TEXT", false, 0),
+                new("MostRecentOutcome", "TEXT", false, 0), new("MostRecentNote", "TEXT", false, 0),
+                new("Version", "INTEGER", true, 0), new("ConcurrencyToken", "TEXT", true, 0)
+            ],
+            ["CaseWorkflowEvents"] =
+            [
+                new("Id", "TEXT", true, 1), new("CaseId", "TEXT", true, 0),
+                new("EventType", "TEXT", true, 0), new("OperationKey", "TEXT", true, 0),
+                new("RequestHash", "TEXT", true, 0), new("ActorKind", "TEXT", true, 0),
+                new("ActorSubjectId", "TEXT", true, 0), new("ActorRolesJson", "TEXT", true, 0),
+                new("Reason", "TEXT", true, 0), new("OccurredAtUtc", "TEXT", true, 0),
+                new("BeforeVersion", "INTEGER", true, 0), new("AfterVersion", "INTEGER", true, 0)
+            ],
+            ["CaseManualChases"] =
+            [
+                new("Id", "TEXT", true, 1), new("CaseId", "TEXT", true, 0),
+                new("OperationKey", "TEXT", true, 0), new("RequestHash", "TEXT", true, 0),
+                new("ActorKind", "TEXT", true, 0), new("ActorSubjectId", "TEXT", true, 0),
+                new("ActorRolesJson", "TEXT", true, 0), new("Reason", "TEXT", true, 0),
+                new("Channel", "TEXT", true, 0), new("TargetPartyOrAddress", "TEXT", true, 0),
+                new("AttemptedAtUtc", "TEXT", true, 0), new("Outcome", "TEXT", true, 0),
+                new("Note", "TEXT", false, 0), new("ResultingVersion", "INTEGER", true, 0)
             ]
         };
 
@@ -672,6 +759,13 @@ public static class DevelopmentSqliteBaselineGuard
                 new("IX_IntakeEvaluations_StagedReceiptId_Revision", true, "c", ["StagedReceiptId", "Revision"])
             ]
             ,
+            ["ApprovedInboxPollStates"] =
+            [
+                new(null, true, "pk", ["MailboxId"]),
+                new("IX_ApprovedInboxPollStates_DueAtUtc", false, "c", ["DueAtUtc"]),
+                new("IX_ApprovedInboxPollStates_MailboxAddress", true, "c", ["MailboxAddress"])
+            ],
+            ["IntakeMailRouteDecisions"] = [new(null, true, "pk", ["IntakeReceiptId"])],
             ["ProviderDomainPackages"] = [new(null, true, "pk", ["Version"])],
             ["ProviderReferences"] = [new(null, true, "pk", ["Version", "Code"])],
             ["ProviderDomainEvidence"] =
@@ -804,7 +898,24 @@ public static class DevelopmentSqliteBaselineGuard
                 new("IX_RequestUploadReceipts_OccurrenceId", false, "c", ["OccurrenceId"]),
                 new("IX_RequestUploadReceipts_RequestId_OperationKey", true, "c", ["RequestId", "OperationKey"]),
                 new("IX_RequestUploadReceipts_VersionId", false, "c", ["VersionId"])
-            ]
+            ],
+            ["CaseReportApprovals"] = [new(null, true, "pk", ["Id"]), new("IX_CaseReportApprovals_CaseId_ArtifactIdentity_ArtifactSha256", true, "c", ["CaseId", "ArtifactIdentity", "ArtifactSha256"])],
+            ["CaseReportSentEvidence"] = [new(null, true, "pk", ["Id"]), new("IX_CaseReportSentEvidence_CaseId_ImmutableItemIdentity", true, "c", ["CaseId", "ImmutableItemIdentity"])],
+            ["CaseWorkflows"] =
+            [
+                new(null, true, "pk", ["CaseId"]),
+                new("IX_CaseWorkflows_ReplacementCaseId", false, "c", ["ReplacementCaseId"]),
+                new("IX_CaseWorkflows_ReportApprovalId", true, "c", ["ReportApprovalId"]),
+                new("IX_CaseWorkflows_ReportSentEvidenceId", true, "c", ["ReportSentEvidenceId"])
+            ],
+            ["CaseDueWork"] = [new(null, true, "pk", ["CaseId"]), new("IX_CaseDueWork_State_NextChaseAtUtc", false, "c", ["State", "NextChaseAtUtc"])],
+            ["CaseWorkflowEvents"] =
+            [
+                new(null, true, "pk", ["Id"]),
+                new("IX_CaseWorkflowEvents_CaseId_AfterVersion", true, "c", ["CaseId", "AfterVersion"]),
+                new("IX_CaseWorkflowEvents_CaseId_OperationKey", true, "c", ["CaseId", "OperationKey"])
+            ],
+            ["CaseManualChases"] = [new(null, true, "pk", ["Id"]), new("IX_CaseManualChases_CaseId_OperationKey", true, "c", ["CaseId", "OperationKey"])]
         };
 
     private static readonly Dictionary<string, ForeignKeyDefinition[]> ExpectedForeignKeys =
@@ -845,6 +956,9 @@ public static class DevelopmentSqliteBaselineGuard
             ,
             ["IntakeEvaluations"] = [new("StagedReceiptId", "IntakeStagedReceipts", "Id", "RESTRICT")]
             ,
+            ["ApprovedInboxPollStates"] = [],
+            ["IntakeMailRouteDecisions"] =
+                [new("IntakeReceiptId", "IntakeReceipts", "Id", "CASCADE")],
             ["ProviderDomainPackages"] = [],
             ["ProviderReferences"] = [new("Version", "ProviderDomainPackages", "Version", "RESTRICT")],
             ["ProviderDomainEvidence"] =
@@ -911,7 +1025,19 @@ public static class DevelopmentSqliteBaselineGuard
                 new("OccurrenceId", "DocumentOccurrences", "Id", "RESTRICT"),
                 new("RequestId", "RequestUploadLinks", "Id", "RESTRICT"),
                 new("VersionId", "DocumentVersions", "Id", "RESTRICT")
-            ]
+            ],
+            ["CaseReportApprovals"] = [new("CaseId", "Cases", "Id", "RESTRICT")],
+            ["CaseReportSentEvidence"] = [new("CaseId", "Cases", "Id", "RESTRICT")],
+            ["CaseWorkflows"] =
+            [
+                new("CaseId", "Cases", "Id", "RESTRICT"),
+                new("ReplacementCaseId", "Cases", "Id", "RESTRICT"),
+                new("ReportApprovalId", "CaseReportApprovals", "Id", "RESTRICT"),
+                new("ReportSentEvidenceId", "CaseReportSentEvidence", "Id", "RESTRICT")
+            ],
+            ["CaseDueWork"] = [new("CaseId", "CaseWorkflows", "CaseId", "RESTRICT")],
+            ["CaseWorkflowEvents"] = [new("CaseId", "CaseWorkflows", "CaseId", "RESTRICT")],
+            ["CaseManualChases"] = [new("CaseId", "CaseDueWork", "CaseId", "RESTRICT")]
         };
 
     public static async Task ValidateAsync(
@@ -982,7 +1108,8 @@ public static class DevelopmentSqliteBaselineGuard
                 var foreignKeys = await ReadForeignKeysAsync(connection, table, cancellationToken);
                 if (!foreignKeys.SequenceEqual(ExpectedForeignKeys[table]))
                 {
-                    throw IncompatibleSchema($"foreign keys for {table}");
+                    throw IncompatibleSchema(
+                        $"foreign keys for {table}: expected [{string.Join("; ", ExpectedForeignKeys[table])}], actual [{string.Join("; ", foreignKeys)}]");
                 }
             }
         }

@@ -1,5 +1,7 @@
+using Pegasus.Core.Custody;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure;
+using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +14,7 @@ using Pegasus.Worker;
 
 var host = new HostBuilder()
     .ConfigureFunctionsWorkerDefaults()
-    .ConfigureServices(services =>
+    .ConfigureServices((context, services) =>
     {
         services
             .AddApplicationInsightsTelemetryWorkerService()
@@ -30,7 +32,7 @@ var host = new HostBuilder()
                     ?? throw new InvalidOperationException("Database:LocalPath is required for SQLite.");
                 var fullPath = Path.GetFullPath(Path.Combine(environment.ContentRootPath, localPath));
                 Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
-                options.UseSqlite(new SqliteConnectionStringBuilder
+                options.UsePegasusSqlite(new SqliteConnectionStringBuilder
                 {
                     DataSource = fullPath,
                     ForeignKeys = true
@@ -47,8 +49,15 @@ var host = new HostBuilder()
             }
 
             throw new InvalidOperationException($"Unsupported database provider '{databaseProvider}'.");
-        }, GetOfflineReplayCustodyRoot);
-        services.AddSingleton<IIntakeArtifactStore, AzureBlobIntakeArtifactStore>();
+        }, GetOfflineReplayArtifactRoot);
+        services.AddLocalApprovedInbox(GetLocalApprovedInboxOptions);
+        if (!string.Equals(
+                context.Configuration["Runtime:Profile"],
+                "DevelopmentOffline",
+                StringComparison.Ordinal))
+        {
+            services.AddSingleton<IIntakeArtifactStore, AzureBlobIntakeArtifactStore>();
+        }
         services.AddScoped<IIntakeWorkStore, EfIntakeWorkStore>();
         services.AddSingleton<IIntakeWorkEnqueuer, AzureQueueIntakeWorkQueue>();
         services.AddScoped<ReceiveIntake>();
@@ -58,12 +67,15 @@ var host = new HostBuilder()
         services.AddScoped<ReconcileStagedIntakeArtifacts>();
         services.AddScoped<ResolveIntake>();
         services.AddScoped<ReevaluateIntake>();
+        services.AddSingleton<IExternalWorkEnqueuer, AzureQueueExternalWorkQueue>();
+        services.AddScoped<DispatchPendingExternalWork>();
+        services.AddScoped<ReconcilePoisonedExternalWork>();
     })
     .Build();
 
 host.Run();
 
-static string GetOfflineReplayCustodyRoot(IServiceProvider serviceProvider)
+static string GetOfflineReplayArtifactRoot(IServiceProvider serviceProvider)
 {
     var configuration = serviceProvider.GetRequiredService<IConfiguration>();
     if (!string.Equals(
@@ -76,11 +88,28 @@ static string GetOfflineReplayCustodyRoot(IServiceProvider serviceProvider)
     }
 
     var environment = serviceProvider.GetRequiredService<IHostEnvironment>();
-    var localPath = configuration["Custody:OfflineRootPath"];
+    var localPath = configuration["Intake:LocalArtifactPath"];
     if (string.IsNullOrWhiteSpace(localPath))
     {
         throw new InvalidOperationException(
-            "Custody:OfflineRootPath is required for deterministic offline custody.");
+            "Intake:LocalArtifactPath is required for deterministic offline source retention.");
     }
     return Path.GetFullPath(Path.Combine(environment.ContentRootPath, localPath));
+}
+
+static LocalApprovedInboxOptions GetLocalApprovedInboxOptions(IServiceProvider serviceProvider)
+{
+    var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+    var environment = serviceProvider.GetRequiredService<IHostEnvironment>();
+    var mailboxId = configuration["ApprovedInbox:MailboxId"]
+        ?? throw new InvalidOperationException("ApprovedInbox:MailboxId is required.");
+    var mailboxAddress = configuration["ApprovedInbox:MailboxAddress"]
+        ?? throw new InvalidOperationException("ApprovedInbox:MailboxAddress is required.");
+    var localPath = configuration["ApprovedInbox:LocalRootPath"]
+        ?? throw new InvalidOperationException("ApprovedInbox:LocalRootPath is required.");
+    return new(
+        configuration["Runtime:Profile"] ?? string.Empty,
+        mailboxId,
+        mailboxAddress,
+        Path.GetFullPath(Path.Combine(environment.ContentRootPath, localPath)));
 }

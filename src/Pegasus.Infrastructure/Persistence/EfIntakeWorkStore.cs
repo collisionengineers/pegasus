@@ -15,9 +15,38 @@ public sealed class EfIntakeWorkStore(IDbContextFactory<PegasusDbContext> contex
             return comparison != 0 ? comparison : right.Id.CompareTo(left.Id);
         });
 
-    public async Task<ReceivedIntake> ReceiveAsync(
+    public async Task<IntakeStagedReceipt?> FindBySourceIdentityAsync(
+        IntakeSourceIdentity sourceIdentity,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(sourceIdentity);
+        var channel = ToCode(sourceIdentity.Channel);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.IntakeStagedReceipts
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                item => item.SourceChannel == channel
+                    && item.ExternalReceiptToken == sourceIdentity.ExternalReceiptToken,
+                cancellationToken);
+        return entity is null ? null : Map(entity);
+    }
+
+    public Task<ReceivedIntake> ReceiveAsync(
         IntakeStagedReceipt receipt,
         string operationKey,
+        CancellationToken cancellationToken) =>
+        ReceiveCoreAsync(receipt, operationKey, IntakeWorkState.Pending, cancellationToken);
+
+    public Task<ReceivedIntake> ReceiveForProcessingAsync(
+        IntakeStagedReceipt receipt,
+        string operationKey,
+        CancellationToken cancellationToken) =>
+        ReceiveCoreAsync(receipt, operationKey, IntakeWorkState.Dispatched, cancellationToken);
+
+    private async Task<ReceivedIntake> ReceiveCoreAsync(
+        IntakeStagedReceipt receipt,
+        string operationKey,
+        IntakeWorkState initialState,
         CancellationToken cancellationToken)
     {
         var channel = ToCode(receipt.SourceIdentity.Channel);
@@ -26,15 +55,32 @@ public sealed class EfIntakeWorkStore(IDbContextFactory<PegasusDbContext> contex
             IsolationLevel.Serializable,
             cancellationToken);
 
-        var existing = await context.IntakeStagedReceipts.SingleOrDefaultAsync(
-            item => item.SourceChannel == channel
-                && item.ExternalReceiptToken == receipt.SourceIdentity.ExternalReceiptToken,
-            cancellationToken);
+        var existing = await context.IntakeStagedReceipts
+            .Include(item => item.WorkItem)
+            .SingleOrDefaultAsync(
+                item => item.SourceChannel == channel
+                    && item.ExternalReceiptToken == receipt.SourceIdentity.ExternalReceiptToken,
+                cancellationToken);
         if (existing is not null)
         {
             if (!string.Equals(existing.SourceHash, receipt.SourceHash, StringComparison.Ordinal))
             {
                 throw new IntakeSourceIdentityConflictException();
+            }
+
+            var existingWork = existing.WorkItem
+                ?? throw new InvalidDataException(
+                    "The staged intake receipt does not have a durable work item.");
+            if (initialState == IntakeWorkState.Dispatched
+                && existingWork.State is "pending" or "retry_scheduled")
+            {
+                existingWork.State = ToCode(IntakeWorkState.Dispatched);
+                existingWork.DueAtUtc = receipt.StagedAtUtc;
+                existingWork.LeaseToken = null;
+                existingWork.LeaseExpiresAtUtc = null;
+                existingWork.FailureCode = null;
+                await context.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
             }
 
             return new(existing.Id, true);
@@ -61,7 +107,7 @@ public sealed class EfIntakeWorkStore(IDbContextFactory<PegasusDbContext> contex
             StagedReceipt = entity,
             StagedReceiptId = entity.Id,
             OperationKey = operationKey,
-            State = ToCode(IntakeWorkState.Pending),
+            State = ToCode(initialState),
             AttemptCount = 0,
             DueAtUtc = receipt.StagedAtUtc
         });
@@ -170,7 +216,7 @@ public sealed class EfIntakeWorkStore(IDbContextFactory<PegasusDbContext> contex
         return (Map(item), Map(item.StagedReceipt));
     }
 
-    public async Task CompleteProcessingAsync(
+    public async Task<IntakeEvaluationRevision> CompleteProcessingAsync(
         Guid workItemId,
         string leaseToken,
         Guid processedReceiptId,
@@ -190,14 +236,15 @@ public sealed class EfIntakeWorkStore(IDbContextFactory<PegasusDbContext> contex
             .Where(evaluation => evaluation.StagedReceiptId == stagedReceiptId)
             .Select(evaluation => (int?)evaluation.Revision)
             .MaxAsync(cancellationToken) ?? 0) + 1;
-        context.IntakeEvaluations.Add(new()
+        var evaluation = new IntakeEvaluationEntity
         {
             Id = Guid.NewGuid(),
             StagedReceiptId = item.StagedReceiptId,
             ProcessedReceiptId = processedReceiptId,
             Revision = revision,
             EvaluatedAtUtc = completedAtUtc
-        });
+        };
+        context.IntakeEvaluations.Add(evaluation);
         item.State = ToCode(IntakeWorkState.Completed);
         item.ProcessedReceiptId = processedReceiptId;
         item.CompletedAtUtc = completedAtUtc;
@@ -206,6 +253,39 @@ public sealed class EfIntakeWorkStore(IDbContextFactory<PegasusDbContext> contex
         item.FailureCode = null;
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        return Map(evaluation);
+    }
+
+    public async Task<IntakeEvaluationRevision?> GetCompletedEvaluationAsync(
+        Guid stagedReceiptId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var item = await context.IntakeWorkItems
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                item => item.StagedReceiptId == stagedReceiptId && item.State == "completed",
+                cancellationToken);
+        if (item is null)
+        {
+            return null;
+        }
+
+        if (item.ProcessedReceiptId is not { } processedReceiptId)
+        {
+            throw new InvalidDataException(
+                "The completed intake work item does not identify its processed receipt.");
+        }
+
+        var evaluation = await context.IntakeEvaluations
+            .AsNoTracking()
+            .Where(candidate => candidate.StagedReceiptId == stagedReceiptId
+                && candidate.ProcessedReceiptId == processedReceiptId)
+            .OrderByDescending(candidate => candidate.Revision)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new InvalidDataException(
+                "The completed intake work item does not have an evaluation revision.");
+        return Map(evaluation);
     }
 
     public async Task RetryProcessingAsync(
@@ -454,6 +534,13 @@ public sealed class EfIntakeWorkStore(IDbContextFactory<PegasusDbContext> contex
         entity.LeaseExpiresAtUtc,
         entity.ProcessedReceiptId,
         entity.FailureCode);
+
+    private static IntakeEvaluationRevision Map(IntakeEvaluationEntity entity) => new(
+        entity.Id,
+        entity.StagedReceiptId,
+        entity.ProcessedReceiptId,
+        entity.Revision,
+        entity.EvaluatedAtUtc);
 
     private static string ToCode(IntakeSourceChannel value) => value switch
     {

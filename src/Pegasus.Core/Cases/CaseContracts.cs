@@ -93,6 +93,17 @@ public sealed class CaseIdentitySequenceExhaustedException(string principalCode,
     public int Year { get; } = year;
 }
 
+public sealed class CaseAcceptanceOperationConflictException(
+    Guid intakeReceiptId,
+    string operationKey)
+    : InvalidOperationException(
+        $"Intake receipt '{intakeReceiptId}' was already accepted by a different operation or with different inputs.")
+{
+    public Guid IntakeReceiptId { get; } = intakeReceiptId;
+
+    public string OperationKey { get; } = operationKey;
+}
+
 /// <summary>
 /// Persists the acceptance transaction. Implementations allocate the principal-lineage/year
 /// sequence, create the case and intake link, record history, and enqueue custody as one commit.

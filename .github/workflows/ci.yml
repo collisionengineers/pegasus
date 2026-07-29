@@ -23,10 +23,13 @@ jobs:
           dotnet-version: 10.0.x
       - name: Restore
         shell: pwsh
-        run: dotnet restore ./Pegasus.slnx
+        run: dotnet restore ./Pegasus.slnx --locked-mode
       - name: Build
         shell: pwsh
         run: dotnet build ./Pegasus.slnx --configuration Release --no-restore
+      - name: Install pinned Playwright Chromium
+        shell: pwsh
+        run: pwsh ./tests/Pegasus.IntegrationTests/bin/Release/net10.0/playwright.ps1 install chromium
       - name: Test
         shell: pwsh
         run: dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"

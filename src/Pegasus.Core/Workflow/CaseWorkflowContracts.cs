@@ -157,6 +157,15 @@ public abstract record CaseMutationRequest(
     string Reason,
     string EditLeaseToken);
 
+public sealed record ChangeCaseStateRequest(
+    Guid CaseId,
+    long ExpectedVersion,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason,
+    string EditLeaseToken)
+    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
+
 public sealed record PutCaseOnHoldRequest(
     Guid CaseId,
     long ExpectedVersion,
@@ -233,6 +242,8 @@ public sealed record ReopenCaseRequest(
 public interface ICaseWorkflowQueries
 {
     Task<CaseWorkflowRecord?> GetAsync(Guid caseId, CancellationToken cancellationToken);
+
+    Task<bool> HasOperationAsync(Guid caseId, string operationKey, CancellationToken cancellationToken);
 }
 
 public interface ILeaseCaseForEdit

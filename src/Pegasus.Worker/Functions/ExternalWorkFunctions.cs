@@ -1,7 +1,27 @@
 using Microsoft.Azure.Functions.Worker;
 using Pegasus.Core.Custody;
+using Microsoft.Extensions.Logging;
 
 namespace Pegasus.Worker.Functions;
+
+public sealed partial class ExternalWorkDispatchFunction(
+    DispatchPendingExternalWork dispatchPendingExternalWork,
+    ILogger<ExternalWorkDispatchFunction> logger)
+{
+    [Function(nameof(ExternalWorkDispatchFunction))]
+    public async Task RunAsync(
+        [TimerTrigger("%ExternalWorkDispatchSchedule%", RunOnStartup = false)] TimerInfo timer,
+        CancellationToken cancellationToken)
+    {
+        var dispatched = await dispatchPendingExternalWork.ExecuteAsync(50, cancellationToken);
+        LogDispatchedExternalWork(logger, dispatched);
+    }
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Dispatched {ExternalWorkCount} durable external work items.")]
+    private static partial void LogDispatchedExternalWork(ILogger logger, int externalWorkCount);
+}
 
 public sealed class ExternalWorkFunction(IProcessQueuedCustody processQueuedCustody)
 {
@@ -20,7 +40,8 @@ public sealed class ExternalWorkFunction(IProcessQueuedCustody processQueuedCust
     }
 }
 
-public sealed class ExternalPoisonFunction(IProcessQueuedCustody processQueuedCustody)
+public sealed class ExternalPoisonFunction(
+    ReconcilePoisonedExternalWork reconcilePoisonedExternalWork)
 {
     [Function(nameof(ExternalPoisonFunction))]
     public Task RunAsync(
@@ -33,7 +54,7 @@ public sealed class ExternalPoisonFunction(IProcessQueuedCustody processQueuedCu
                 "The external poison message does not contain a custody work item identifier.");
         }
 
-        return processQueuedCustody.ExecuteAsync(workItemId, cancellationToken);
+        return reconcilePoisonedExternalWork.ExecuteAsync(workItemId, cancellationToken);
     }
 }
 

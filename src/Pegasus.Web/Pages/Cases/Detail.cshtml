@@ -1,0 +1,88 @@
+@page "{id:guid}"
+@model Pegasus.Web.Pages.Cases.DetailModel
+@{
+    ViewData["Title"] = $"Case {Model.Workflow.Identity.Reference}";
+}
+
+<h1>Case @Model.Workflow.Identity.Reference</h1>
+<p><strong>State:</strong> @Model.Workflow.State &nbsp; <strong>Version:</strong> @Model.Workflow.Version</p>
+@if (!string.IsNullOrWhiteSpace(Model.Message))
+{
+    <div role="status" class="alert alert-info">@Model.Message</div>
+}
+
+<form method="post" asp-page-handler="ClaimLease">
+    <input type="hidden" name="id" value="@Model.Workflow.CaseId" />
+    <input type="hidden" name="expectedVersion" value="@Model.Workflow.Version" />
+    <button type="submit" class="btn btn-secondary">Claim edit lease</button>
+</form>
+
+<form method="post" asp-page-handler="Action" class="mt-4">
+    <input type="hidden" name="id" value="@Model.Workflow.CaseId" />
+    <input type="hidden" name="expectedVersion" value="@Model.Workflow.Version" />
+    <input type="hidden" name="operationKey" value="@Model.OperationKey" />
+    <input type="hidden" name="approvalId" value="@Model.ApprovalId" />
+    <input type="hidden" name="sentEvidenceId" value="@Model.SentEvidenceId" />
+    <input type="hidden" name="actionAtUtc" value="@Model.ActionAtUtc.ToString("O")" />
+
+    <div class="mb-3">
+        <label for="editLeaseToken">Edit lease token</label>
+        <input id="editLeaseToken" name="editLeaseToken" value="@Model.LeaseToken" required maxlength="128" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label for="reason">Reason</label>
+        <textarea id="reason" name="reason" required maxlength="500" class="form-control"></textarea>
+    </div>
+
+    <fieldset class="mb-3">
+        <legend>Readiness</legend>
+        <label><input type="checkbox" name="instructionsComplete" value="true" /> Instructions complete</label>
+        <label><input type="checkbox" name="imagesComplete" value="true" /> Images complete</label>
+        <label><input type="checkbox" name="instructionsReviewedByStaff" value="true" /> Instructions reviewed</label>
+        <label><input type="checkbox" name="imagesReviewedByStaff" value="true" /> Images reviewed</label>
+        <input name="evidenceReference" maxlength="200" placeholder="Evidence reference" class="form-control" />
+    </fieldset>
+
+    <div class="mb-3"><label>Engineer ID <input name="engineerId" type="text" class="form-control" /></label></div>
+    <div class="mb-3"><label>Approved artifact identity <input name="artifactIdentity" maxlength="200" class="form-control" /></label></div>
+    <div class="mb-3"><label>Approved artifact SHA-256 <input name="artifactSha256" maxlength="64" class="form-control" /></label></div>
+
+    <fieldset class="mb-3">
+        <legend>Approved-mailbox Sent evidence</legend>
+        <input name="mailboxIdentity" maxlength="200" placeholder="Mailbox identity" class="form-control" />
+        <input name="sentFolderIdentity" maxlength="200" placeholder="Sent folder identity" class="form-control" />
+        <input name="immutableItemIdentity" maxlength="500" placeholder="Immutable item identity" class="form-control" />
+        <input name="conversationIdentity" maxlength="500" placeholder="Conversation identity" class="form-control" />
+        <input name="replyChainIdentity" maxlength="500" placeholder="Reply-chain identity" class="form-control" />
+        <input name="sentAtUtc" type="datetime-local" class="form-control" />
+    </fieldset>
+
+    <div class="mb-3">
+        <label>Closure outcome
+            <select name="outcome" class="form-select">
+                <option value="">Select</option>
+                @foreach (var value in Enum.GetValues<Pegasus.Core.Workflow.CaseClosureOutcome>()) { <option value="@value">@value</option> }
+            </select>
+        </label>
+        <label>Replacement case ID <input name="replacementCaseId" class="form-control" /></label>
+    </div>
+    <div class="mb-3">
+        <label>Reopen destination
+            <select name="destination" class="form-select">
+                <option value="">Select</option>
+                @foreach (var value in Enum.GetValues<Pegasus.Core.Workflow.CaseReopenDestination>()) { <option value="@value">@value</option> }
+            </select>
+        </label>
+    </div>
+
+    <div class="btn-group" role="group" aria-label="Case workflow actions">
+        <button name="actionName" value="hold" type="submit" class="btn btn-outline-primary">Hold</button>
+        <button name="actionName" value="return" type="submit" class="btn btn-outline-primary">Return to review</button>
+        <button name="actionName" value="assign" type="submit" class="btn btn-outline-primary">Assign engineer</button>
+        <button name="actionName" value="start" type="submit" class="btn btn-outline-primary">Start work</button>
+        <button name="actionName" value="approve" type="submit" class="btn btn-outline-primary">Report approved</button>
+        <button name="actionName" value="sent" type="submit" class="btn btn-outline-primary">Report sent</button>
+        <button name="actionName" value="close" type="submit" class="btn btn-outline-danger">Close</button>
+        <button name="actionName" value="reopen" type="submit" class="btn btn-outline-warning">Reopen</button>
+    </div>
+</form>

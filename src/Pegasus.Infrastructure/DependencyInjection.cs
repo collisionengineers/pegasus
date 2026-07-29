@@ -4,6 +4,10 @@ using Pegasus.Core.Documents;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Core.Intake;
 using Pegasus.Core.ReferenceData;
+using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Tasks;
+using Pegasus.Core.Workflow;
+using Pegasus.Core.Triage;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -31,9 +35,32 @@ public static class DependencyInjection
         services.AddScoped<EfIntakeReceiptStore>();
         services.AddScoped<IIntakeReceiptStore>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
         services.AddScoped<IIntakeReceiptQueries>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
+        services.AddScoped<EfTriageStore>();
+        services.AddScoped<ITriageStore>(provider => provider.GetRequiredService<EfTriageStore>());
+        services.AddScoped<ITriageQueries>(provider => provider.GetRequiredService<EfTriageStore>());
+        services.AddScoped<ICreateTriageFromIntake, CreateTriageFromIntake>();
         services.AddScoped<IProviderReferenceCatalog, EfProviderReferenceCatalog>();
         services.AddSingleton<IInstructionExtractionPolicy, QdosInstructionExtractionPolicy>();
         services.AddScoped<ICaseAcceptanceStore, EfCaseAcceptanceStore>();
+        services.AddScoped<IExternalWorkStore, EfExternalWorkStore>();
+        services.AddSingleton<ICaseWorkflowConfiguration, DefaultCaseWorkflowConfiguration>();
+        services.AddScoped<EfCaseWorkflowStore>();
+        services.AddScoped<ICaseWorkflowStore>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
+        services.AddScoped<ICaseWorkflowQueries>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
+        services.AddScoped<ILeaseCaseForEdit>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
+        services.AddScoped<ICaseDueWorkStore>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
+        services.AddScoped<ICaseDueWorkQueries>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
+        services.AddScoped<IPutCaseOnHold, PutCaseOnHold>();
+        services.AddScoped<IReleaseCaseHold, ReleaseCaseHold>();
+        services.AddScoped<IReturnCaseToReview, ReturnCaseToReview>();
+        services.AddScoped<IAssignCaseEngineer, AssignCaseEngineer>();
+        services.AddScoped<IStartCaseWork, StartCaseWork>();
+        services.AddScoped<IBeginCaseReportPreparation, BeginCaseReportPreparation>();
+        services.AddScoped<IRecordCaseReportApproval, RecordCaseReportApproval>();
+        services.AddScoped<IRecordCaseReportSent, RecordCaseReportSent>();
+        services.AddScoped<ICloseCase, CloseCase>();
+        services.AddScoped<IReopenCase, ReopenCase>();
+        services.AddScoped<IRecordManualCaseChase, RecordManualCaseChase>();
 
         if (localArtifactRootFactory is not null)
         {
@@ -81,6 +108,17 @@ public static class DependencyInjection
                     provider.GetRequiredService<EfDocumentRequestStore>());
             }
         }
+        return services;
+    }
+    public static IServiceCollection AddLocalApprovedInbox(
+        this IServiceCollection services,
+        Func<IServiceProvider, LocalApprovedInboxOptions> optionsFactory)
+    {
+        ArgumentNullException.ThrowIfNull(optionsFactory);
+        services.AddSingleton<LocalApprovedInboxOptions>(optionsFactory);
+        services.AddSingleton<IApprovedInboxSource, LocalDurableApprovedInboxSource>();
+        services.AddScoped<IApprovedInboxPollStore, EfApprovedInboxPollStore>();
+        services.AddScoped<PollApprovedInbox>();
         return services;
     }
 }

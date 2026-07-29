@@ -12,7 +12,8 @@ public sealed class PutCaseOnHold(ICaseWorkflowStore store) : IPutCaseOnHold
     {
         CaseLifecycleRules.ValidateHold(request);
         var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        if (current.State == CaseLifecycleState.Held || CaseLifecycleRules.IsTerminal(current.State))
+        if ((current.State == CaseLifecycleState.Held || CaseLifecycleRules.IsTerminal(current.State))
+            && !await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
         {
             throw new InvalidOperationException("Only an open case can be held.");
         }
@@ -29,7 +30,8 @@ public sealed class ReleaseCaseHold(ICaseWorkflowStore store) : IReleaseCaseHold
     {
         CaseLifecycleRules.ValidateMutation(request);
         var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        if (current.State != CaseLifecycleState.Held)
+        if (current.State != CaseLifecycleState.Held
+            && !await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
         {
             throw new InvalidOperationException("Only a held case can be released to Not ready.");
         }
@@ -48,7 +50,8 @@ public sealed class ReturnCaseToReview(ICaseWorkflowStore store) : IReturnCaseTo
     {
         CaseLifecycleRules.ValidateReturnToReview(request);
         var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        if (current.State != CaseLifecycleState.NotReady)
+        if (current.State != CaseLifecycleState.NotReady
+            && !await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
         {
             throw new InvalidOperationException("A case can enter Review only from Not ready.");
         }
@@ -70,7 +73,8 @@ public sealed class AssignCaseEngineer(
     {
         CaseLifecycleRules.ValidateAssignment(request, _configuration.GetCurrent());
         var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        if (current.State != CaseLifecycleState.Review)
+        if (current.State != CaseLifecycleState.Review
+            && !await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
         {
             throw new InvalidOperationException("An Engineer can be assigned only while the case is in Review.");
         }
@@ -87,7 +91,8 @@ public sealed class StartCaseWork(ICaseWorkflowStore store) : IStartCaseWork
     {
         CaseLifecycleRules.ValidateMutation(request);
         var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        if (current.State != CaseLifecycleState.Review || current.AssignedEngineerId is null)
+        if ((current.State != CaseLifecycleState.Review || current.AssignedEngineerId is null)
+            && !await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
         {
             throw new InvalidOperationException("Case work can start only from Review after an Engineer is assigned.");
         }
@@ -104,7 +109,8 @@ public sealed class BeginCaseReportPreparation(ICaseWorkflowStore store) : IBegi
     {
         CaseLifecycleRules.ValidateMutation(request);
         var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        if (current.State != CaseLifecycleState.Active)
+        if (current.State != CaseLifecycleState.Active
+            && !await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
         {
             throw new InvalidOperationException("Report preparation can begin only during active case work.");
         }
@@ -123,7 +129,8 @@ public sealed class RecordCaseReportApproval(ICaseWorkflowStore store) : IRecord
     {
         CaseLifecycleRules.ValidateReportApproval(request);
         var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        if (current.State != CaseLifecycleState.ReportPreparation)
+        if (current.State != CaseLifecycleState.ReportPreparation
+            && !await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
         {
             throw new InvalidOperationException("A report can be approved only while report preparation is active.");
         }
@@ -142,7 +149,8 @@ public sealed class RecordCaseReportSent(ICaseWorkflowStore store) : IRecordCase
     {
         CaseLifecycleRules.ValidateReportSent(request);
         var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        if (current.State != CaseLifecycleState.ReportPreparation || current.ReportApproval is null)
+        if ((current.State != CaseLifecycleState.ReportPreparation || current.ReportApproval is null)
+            && !await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
         {
             throw new InvalidOperationException(
                 "Exact report-sent evidence can enter post-report work only after report approval.");
@@ -160,6 +168,11 @@ public sealed class CloseCase(ICaseWorkflowStore store) : ICloseCase
     {
         CaseLifecycleRules.ValidateClose(request);
         var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
+        if (CaseLifecycleRules.IsTerminal(current.State)
+            && await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
+        {
+            return await _store.CloseAsync(request, cancellationToken);
+        }
         CaseLifecycleRules.RequireClosureIsAllowed(current, request);
         return await _store.CloseAsync(request, cancellationToken);
     }
@@ -176,7 +189,8 @@ public sealed class ReopenCase(
     {
         CaseLifecycleRules.ValidateReopen(request, _configuration.GetCurrent());
         var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        if (!CaseLifecycleRules.IsTerminal(current.State) || current.State == CaseLifecycleState.CreatedInError)
+        if ((!CaseLifecycleRules.IsTerminal(current.State) || current.State == CaseLifecycleState.CreatedInError)
+            && !await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
         {
             throw new InvalidOperationException("Only a closed case other than Created in error can be reopened.");
         }

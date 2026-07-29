@@ -229,17 +229,21 @@ public sealed class DependencyDirectionTests
     }
 
     [Fact]
-    public async Task ExternalWorkFunctionsDispatchOnlyValidCustodyWorkIdentifiers()
+    public async Task ExternalWorkFunctionsRouteOnlyValidIdentifiersToOwningPorts()
     {
         var processor = new RecordingCustodyProcessor();
+        var workStore = new RecordingExternalWorkStore();
         var workId = Guid.NewGuid();
 
         await new ExternalWorkFunction(processor).RunAsync(workId.ToString("D"), CancellationToken.None);
-        await new ExternalPoisonFunction(processor).RunAsync(workId.ToString("N"), CancellationToken.None);
+        await new ExternalPoisonFunction(
+                new ReconcilePoisonedExternalWork(workStore, TimeProvider.System))
+            .RunAsync(workId.ToString("N"), CancellationToken.None);
         await Assert.ThrowsAsync<InvalidDataException>(() =>
             new ExternalWorkFunction(processor).RunAsync("not-a-work-id", CancellationToken.None));
 
-        Assert.Equal([workId, workId], processor.ProcessedIds);
+        Assert.Equal([workId], processor.ProcessedIds);
+        Assert.Equal([workId], workStore.PoisonedIds);
     }
 
     private sealed class RecordingCustodyProcessor : IProcessQueuedCustody
@@ -249,6 +253,40 @@ public sealed class DependencyDirectionTests
         public Task ExecuteAsync(Guid workId, CancellationToken cancellationToken)
         {
             ProcessedIds.Add(workId);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingExternalWorkStore : IExternalWorkStore
+    {
+        public List<Guid> PoisonedIds { get; } = [];
+
+        public Task<ExternalWorkDispatchClaim?> ClaimDispatchAsync(
+            DateTimeOffset nowUtc,
+            TimeSpan leaseDuration,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<ExternalWorkDispatchClaim?>(null);
+
+        public Task MarkDispatchedAsync(
+            Guid workItemId,
+            string leaseToken,
+            DateTimeOffset dispatchedAtUtc,
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task ReleaseDispatchAsync(
+            Guid workItemId,
+            string leaseToken,
+            DateTimeOffset dueAtUtc,
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task MarkPoisonedAsync(
+            Guid workItemId,
+            DateTimeOffset failedAtUtc,
+            CancellationToken cancellationToken)
+        {
+            PoisonedIds.Add(workItemId);
             return Task.CompletedTask;
         }
     }

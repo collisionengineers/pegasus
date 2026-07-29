@@ -50,15 +50,15 @@ internal sealed class LocalCaseCustody(
         await ValidateRootAsync(root, cancellationToken);
         ArgumentException.ThrowIfNullOrWhiteSpace(source.SourceFileName);
         ArgumentException.ThrowIfNullOrWhiteSpace(source.MediaType);
-        ArgumentException.ThrowIfNullOrWhiteSpace(source.StagedObjectKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(source.SourceObjectKey);
 
         var expectedHash = NormalizeSha256(source.SourceHash);
-        var content = await intakeArtifactStore.ReadAsync(source.StagedObjectKey, cancellationToken)
-            ?? throw new FileNotFoundException("The staged intake source is unavailable.");
+        var content = await intakeArtifactStore.ReadAsync(source.SourceObjectKey, cancellationToken)
+            ?? throw new FileNotFoundException("The retained intake source is unavailable.");
         var actualHash = Convert.ToHexString(SHA256.HashData(content.Span)).ToLowerInvariant();
         if (!string.Equals(expectedHash, actualHash, StringComparison.Ordinal))
         {
-            throw new InvalidDataException("The staged intake source failed its custody integrity check.");
+            throw new InvalidDataException("The retained intake source failed its custody integrity check.");
         }
         var relativeId = $"{root.RemoteId}/documents/{source.IntakeReceiptId:N}/{expectedHash}";
         var directory = Resolve(relativeId);

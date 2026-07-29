@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Triage;
 
 namespace Pegasus.IntegrationTests;
 
@@ -77,11 +78,7 @@ public sealed class RecoveryTests
             dispatchWork.LeaseToken!,
             clock.GetUtcNow(),
             CancellationToken.None);
-        var processor = new ProcessQueuedIntake(
-            store,
-            artifactStore,
-            services.GetRequiredService<ProcessIntake>(),
-            clock);
+        var processor = services.GetRequiredService<ProcessQueuedIntake>();
 
         await processor.ExecuteAsync(received.StagedReceiptId);
         await processor.ExecuteAsync(received.StagedReceiptId);
@@ -89,6 +86,10 @@ public sealed class RecoveryTests
         var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
         var retained = Assert.Single(await receipts.ListAsync(null, CancellationToken.None));
         Assert.Equal(IntakeDecision.DraftReady, retained.Decision);
+        var triage = Assert.Single(
+            await services.GetRequiredService<ITriageQueries>()
+                .ListAsync(null, CancellationToken.None));
+        Assert.Equal("AB12CDE", triage.NormalizedVehicleRegistration);
         Assert.Null(await store.ClaimProcessingAsync(
             received.StagedReceiptId,
             clock.GetUtcNow(),

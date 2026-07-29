@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
-    [ValidatePattern('^[0-9a-f]{7,64}$')]
+    [ValidatePattern('^[0-9a-fA-F]{7,40}$')]
     [string]$SourceRevision,
 
     [ValidateSet('OfflineReplay')]
@@ -22,6 +22,53 @@ $requiredLocks = @(
     'src/Pegasus.Web/packages.lock.json',
     'src/Pegasus.Worker/packages.lock.json'
 )
+
+function Resolve-RepositorySourceRevision {
+    param([Parameter(Mandatory)][string]$RequestedRevision)
+
+    $git = Get-Command -Name git -CommandType Application -ErrorAction SilentlyContinue
+    if ($null -eq $git) {
+        throw 'Git is required to bind release artifacts to the executed checkout.'
+    }
+
+    $headOutput = @(& $git.Source -C $repositoryRoot rev-parse --verify 'HEAD^{commit}' 2>$null)
+    if ($LASTEXITCODE -ne 0 -or $headOutput.Count -ne 1) {
+        throw "The repository HEAD could not be resolved at '$repositoryRoot'."
+    }
+
+    $headRevision = ([string]$headOutput[0]).Trim().ToLowerInvariant()
+    if ($headRevision -notmatch '^[0-9a-f]{40}$') {
+        throw "The repository HEAD is not a 40-character Git source revision: '$headRevision'."
+    }
+
+    $requested = $RequestedRevision.ToLowerInvariant()
+    $requestedOutput = @(
+        & $git.Source -C $repositoryRoot rev-parse --verify "$requested^{commit}" 2>$null
+    )
+    if ($LASTEXITCODE -ne 0 -or $requestedOutput.Count -ne 1) {
+        throw "SourceRevision '$RequestedRevision' does not unambiguously identify a commit in the executed checkout."
+    }
+
+    $resolvedRequested = ([string]$requestedOutput[0]).Trim().ToLowerInvariant()
+    if ($resolvedRequested -notmatch '^[0-9a-f]{40}$') {
+        throw "SourceRevision '$RequestedRevision' did not resolve to a 40-character Git commit."
+    }
+    if ($resolvedRequested -cne $headRevision) {
+        throw "SourceRevision '$RequestedRevision' resolves to '$resolvedRequested', but the executed checkout HEAD is '$headRevision'."
+    }
+
+    $workingTreeState = @(
+        & $git.Source -C $repositoryRoot status --porcelain=v1 --untracked-files=all -- . 2>$null
+    )
+    if ($LASTEXITCODE -ne 0) {
+        throw "The working-tree state could not be verified at '$repositoryRoot'."
+    }
+    if ($workingTreeState.Count -ne 0) {
+        throw "The executed checkout has tracked or untracked changes. Commit or remove them before producing revision-bound release artifacts."
+    }
+
+    return $headRevision
+}
 
 function Assert-RequiredFile {
     param([Parameter(Mandatory)][string]$RelativePath)
@@ -99,9 +146,48 @@ function Get-ArtifactRecord {
     }
 }
 
+function Get-PublishedWebDiagnostic {
+    param([Parameter(Mandatory)][string]$PublishDirectory)
+
+    $assemblyPath = Join-Path $PublishDirectory 'Pegasus.Web.dll'
+    if (-not [System.IO.File]::Exists($assemblyPath)) {
+        throw "Published Web assembly is missing: $assemblyPath"
+    }
+
+    $diagnosticOutput = @(& dotnet $assemblyPath '--diagnostics-version')
+    if ($LASTEXITCODE -ne 0) {
+        throw "Published Web build diagnostic failed with exit code $LASTEXITCODE."
+    }
+
+    try {
+        $diagnostic = ($diagnosticOutput -join [System.Environment]::NewLine) |
+            ConvertFrom-Json
+    }
+    catch {
+        throw 'Published Web build diagnostic did not return valid JSON.'
+    }
+
+    $requiredProperties = @('schemaVersion', 'version', 'sourceSha')
+    foreach ($property in $requiredProperties) {
+        if ($diagnostic.PSObject.Properties.Name -notcontains $property) {
+            throw "Published Web build diagnostic is missing '$property'."
+        }
+    }
+    if ($diagnostic.schemaVersion -ne 1 -or
+        [string]::IsNullOrWhiteSpace([string]$diagnostic.version) -or
+        [string]$diagnostic.sourceSha -cnotmatch '^[0-9a-f]{40}$') {
+        throw 'Published Web build diagnostic has invalid version or source metadata.'
+    }
+
+    return $diagnostic
+}
+
+
 if ($Mode -ne 'OfflineReplay') {
     throw "Only the OfflineReplay release mode is supported. Cloud activation is intentionally unavailable."
 }
+
+$resolvedSourceRevision = Resolve-RepositorySourceRevision -RequestedRevision $SourceRevision
 
 if ($null -eq (Get-Command -Name dotnet -CommandType Application -ErrorAction SilentlyContinue)) {
     throw 'dotnet is required to build locked offline release artifacts.'
@@ -146,13 +232,20 @@ try {
     try {
         Invoke-DotNet -Operation 'Locked package restore' -Arguments @('restore', 'Pegasus.slnx', '--locked-mode', '--configfile', $offlineNuGetConfig, '--nologo')
         Invoke-DotNet -Operation 'Locked tool restore' -Arguments @('tool', 'restore', '--configfile', $offlineNuGetConfig)
-        Invoke-DotNet -Operation 'Web publish' -Arguments @('publish', 'src/Pegasus.Web/Pegasus.Web.csproj', '--configuration', 'Release', '--no-restore', '--nologo', '--output', $webPublishDirectory, '/p:ContinuousIntegrationBuild=true', '/p:UseAppHost=false')
-        Invoke-DotNet -Operation 'Worker publish' -Arguments @('publish', 'src/Pegasus.Worker/Pegasus.Worker.csproj', '--configuration', 'Release', '--no-restore', '--nologo', '--output', $workerPublishDirectory, '/p:ContinuousIntegrationBuild=true', '/p:UseAppHost=false')
+        $sourceRevisionProperty = "/p:SourceRevisionId=$resolvedSourceRevision"
+        $includeSourceRevisionProperty = '/p:IncludeSourceRevisionInInformationalVersion=true'
+        Invoke-DotNet -Operation 'Web publish' -Arguments @('publish', 'src/Pegasus.Web/Pegasus.Web.csproj', '--configuration', 'Release', '--no-restore', '--nologo', '--output', $webPublishDirectory, '/p:ContinuousIntegrationBuild=true', '/p:UseAppHost=false', $includeSourceRevisionProperty, $sourceRevisionProperty)
+        $webDiagnostic = Get-PublishedWebDiagnostic -PublishDirectory $webPublishDirectory
+        if ([string]$webDiagnostic.sourceSha -cne $resolvedSourceRevision) {
+            throw "Published Web source SHA '$($webDiagnostic.sourceSha)' does not match the executed checkout '$resolvedSourceRevision'."
+        }
+        Invoke-DotNet -Operation 'Worker publish' -Arguments @('publish', 'src/Pegasus.Worker/Pegasus.Worker.csproj', '--configuration', 'Release', '--no-restore', '--nologo', '--output', $workerPublishDirectory, '/p:ContinuousIntegrationBuild=true', '/p:UseAppHost=false', $includeSourceRevisionProperty, $sourceRevisionProperty)
         Invoke-DotNet -Operation 'Idempotent migration bundle generation' -Arguments @('ef', 'migrations', 'script', '--idempotent', '--no-build', '--configuration', 'Release', '--project', 'src/Pegasus.Infrastructure/Pegasus.Infrastructure.csproj', '--startup-project', 'src/Pegasus.Web/Pegasus.Web.csproj', '--output', (Join-Path $migrationDirectory 'migration.sql'))
     }
     finally {
         Pop-Location
     }
+
 
     New-DeterministicZip -SourceDirectory $webPublishDirectory -DestinationPath (Join-Path $artifactDirectory 'web.zip')
     New-DeterministicZip -SourceDirectory $workerPublishDirectory -DestinationPath (Join-Path $artifactDirectory 'worker.zip')
@@ -161,7 +254,12 @@ try {
     $manifest = [ordered]@{
         schemaVersion = 1
         releaseMode = 'offline-replay'
-        sourceRevision = $SourceRevision
+        sourceRevision = $resolvedSourceRevision
+        webDiagnostic = [ordered]@{
+            schemaVersion = [int]$webDiagnostic.schemaVersion
+            version = [string]$webDiagnostic.version
+            sourceSha = [string]$webDiagnostic.sourceSha
+        }
         runtimes = [ordered]@{
             web = 'portable-net10.0'
             worker = 'portable-dotnet-isolated-net10.0'

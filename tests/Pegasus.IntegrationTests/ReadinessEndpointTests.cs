@@ -158,9 +158,13 @@ public sealed class SqliteReadinessEndpointTests
                 BaseAddress = new Uri("https://localhost")
             });
 
-            using var response = await client.GetAsync("/health/ready");
+            using var liveResponse = await client.GetAsync("/health/live");
+            using var readyResponse = await client.GetAsync("/health/ready");
 
-            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, liveResponse.StatusCode);
+            Assert.Equal("Healthy", await liveResponse.Content.ReadAsStringAsync());
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, readyResponse.StatusCode);
+            Assert.Equal("Unhealthy", await readyResponse.Content.ReadAsStringAsync());
             await using var connection = new SqliteConnection($"Data Source={databasePath}");
             await connection.OpenAsync();
             await using var command = connection.CreateCommand();

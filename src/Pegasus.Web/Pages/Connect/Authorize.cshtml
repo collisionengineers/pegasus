@@ -35,7 +35,11 @@
 
     <p>Approval creates an individual grant for this client, your staff account and exactly these permissions. It does not grant access to account administration, configuration, credentials, cloud operations or permanent deletion.</p>
 
-    <form method="post">
+    <form id="staff-mcp-consent" method="post" asp-page="/Connect/Authorize">
+        @foreach (var parameter in Model.AuthorizationParameters)
+        {
+            <input type="hidden" name="@parameter.Key" value="@parameter.Value" />
+        }
         <div class="form-actions">
             <button class="primary-action" type="submit" name="decision" value="approve">Approve access</button>
             <button class="secondary-action" type="submit" name="decision" value="deny">Deny</button>

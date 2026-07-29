@@ -376,6 +376,26 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
           value: storage.properties.primaryEndpoints.queue
         }
         {
+          name: 'IntakeWorkDispatchSchedule'
+          value: '0 * * * * *'
+        }
+        {
+          name: 'ExternalWorkDispatchSchedule'
+          value: '15 * * * * *'
+        }
+        {
+          name: 'IntakeStagedArtifactReconciliationSchedule'
+          value: '30 * * * * *'
+        }
+        {
+          name: 'ApprovedInboxPollSchedule'
+          value: '45 * * * * *'
+        }
+        {
+          name: 'AzureWebJobs.ApprovedInboxPollingFunction.Disabled'
+          value: 'true'
+        }
+        {
           name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
           value: applicationInsights.properties.ConnectionString
         }

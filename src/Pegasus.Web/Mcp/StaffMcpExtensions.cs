@@ -68,6 +68,7 @@ public static class StaffMcpExtensions
             .WithTools<TriageMcpTools>()
             .WithTools<EvaMcpTools>()
             .WithTools<DocumentMcpTools>()
+            .WithTools<CaseWorkflowMcpTools>()
             .WithHttpTransport(options =>
             {
                 options.Stateless = true;

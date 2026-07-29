@@ -213,6 +213,102 @@ public sealed class ProcessIntakeTests
     }
 
     [Fact]
+    public async Task MailboxStaffForwardUsesOriginalSenderAndPersistsCompleteRouteDecision()
+    {
+        var readResult = Readable(
+            transportEvidence:
+            [
+                new(
+                    IntakeEvidenceSource.Sender,
+                    "staff@collisionengineers.co.uk",
+                    IntakeSenderIdentityKind.Transport,
+                    "outer message"),
+                new(
+                    IntakeEvidenceSource.Sender,
+                    "instructions@qdosassist.co.uk",
+                    IntakeSenderIdentityKind.AttachedOriginal,
+                    "attached original")
+            ],
+            content:
+            [
+                new(
+                    IntakeEvidenceSource.EmailBody,
+                    "attached original body",
+                    "QDOS instruction\nClaimant Name: Review Claimant\nClaim Number: Q-ROUTE")
+            ]);
+        var store = new RecordingStore();
+        var sut = CreateSut(new StubReader(readResult), store);
+        var source = CreateSource() with
+        {
+            FileName = "mailbox-message.eml",
+            MediaType = "message/rfc822",
+            SourceIdentity = new(IntakeSourceChannel.Mailbox, "mailbox-route-accepted")
+        };
+
+        var result = await sut.ExecuteAsync(source);
+
+        Assert.Equal(IntakeDecision.DraftReady, result.Decision);
+        var route = Assert.IsType<MailRouteEvaluationResult>(result.MailRouteDecision);
+        Assert.Equal(MailRouteDisposition.Accepted, route.Disposition);
+        Assert.Equal("staff@collisionengineers.co.uk", Assert.Single(route.TransportIdentities).Address);
+        Assert.Equal("instructions@qdosassist.co.uk", Assert.Single(route.OriginalIdentities).Address);
+        Assert.Equal("instructions@qdosassist.co.uk", route.EffectiveSender?.Address);
+        Assert.NotEmpty(route.Predicates);
+        Assert.Same(route, Assert.Single(store.Drafts).MailRouteDecision);
+    }
+
+    [Fact]
+    public async Task MailboxStaffForwardWithAmbiguousOriginalsFailsBeforeInstructionExtraction()
+    {
+        var readResult = Readable(
+            transportEvidence:
+            [
+                new(
+                    IntakeEvidenceSource.Sender,
+                    "staff@collisionengineers.co.uk",
+                    IntakeSenderIdentityKind.Transport,
+                    "outer message"),
+                new(
+                    IntakeEvidenceSource.Sender,
+                    "first@qdosassist.co.uk",
+                    IntakeSenderIdentityKind.AttachedOriginal,
+                    "attached original one"),
+                new(
+                    IntakeEvidenceSource.Sender,
+                    "second@qdosassist.co.uk",
+                    IntakeSenderIdentityKind.AttachedOriginal,
+                    "attached original two")
+            ],
+            content:
+            [
+                new(
+                    IntakeEvidenceSource.EmailBody,
+                    "attached original body",
+                    "QDOS instruction\nClaimant Name: Review Claimant\nClaim Number: Q-AMBIGUOUS")
+            ]);
+        var store = new RecordingStore();
+        var sut = CreateSut(new StubReader(readResult), store);
+        var source = CreateSource() with
+        {
+            FileName = "ambiguous-mailbox-message.eml",
+            MediaType = "message/rfc822",
+            SourceIdentity = new(IntakeSourceChannel.Mailbox, "mailbox-route-ambiguous")
+        };
+
+        var result = await sut.ExecuteAsync(source);
+
+        Assert.Equal(IntakeDecision.NeedsSorting, result.Decision);
+        Assert.Null(result.InstructionDraft);
+        var route = Assert.IsType<MailRouteEvaluationResult>(result.MailRouteDecision);
+        Assert.Equal(MailRouteDisposition.NeedsSorting, route.Disposition);
+        Assert.Null(route.SelectedRoute);
+        Assert.Equal(2, route.OriginalIdentities.Count);
+        var draft = Assert.Single(store.Drafts);
+        Assert.Null(draft.ExtractionPolicyKey);
+        Assert.Same(route, draft.MailRouteDecision);
+    }
+
+    [Fact]
     public async Task ApplicablePolicyResultWithoutDraftFailsBeforePersistence()
     {
         var store = new RecordingStore();
@@ -616,7 +712,8 @@ public sealed class ProcessIntakeTests
                 draft.SourceReaderKey,
                 draft.SourceReaderVersion,
                 draft.ExtractionPolicyKey,
-                draft.ExtractionPolicyVersion);
+                draft.ExtractionPolicyVersion,
+                MailRouteDecision: draft.MailRouteDecision);
     }
 
     private sealed class RecordingArtifactStore(int failuresBeforeSuccess = 0) : IIntakeArtifactStore

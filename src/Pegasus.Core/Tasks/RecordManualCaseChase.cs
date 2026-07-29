@@ -15,7 +15,8 @@ public sealed class RecordManualCaseChase(
         Validate(request);
         var workflow = await _workflowQueries.GetAsync(request.CaseId, cancellationToken)
             ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
-        if (workflow.State != CaseLifecycleState.NotReady)
+        if (workflow.State != CaseLifecycleState.NotReady
+            && !await _workflowQueries.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
         {
             throw new InvalidOperationException("A manual chase can be recorded only while a case is Not ready.");
         }

@@ -19,7 +19,7 @@ public sealed class OperatorJourneyTests
                 AriaRole.Heading,
                 new PageGetByRoleOptions { Name = "Operations", Exact = true }).InnerTextAsync());
         Assert.Contains(
-            "DevelopmentOffline Administrator",
+            "development-offline-administrator",
             await support.Page.Locator("[aria-label='User']").InnerTextAsync(),
             StringComparison.Ordinal);
 
@@ -32,7 +32,7 @@ public sealed class OperatorJourneyTests
             "Cases",
             "Administration",
             "Search",
-            "DevelopmentOffline Administrator");
+            "development-offline-administrator");
 
         var boundary = await support.Page.Locator(".acceptance-boundary").InnerTextAsync();
         Assert.Contains("local workflow evidence only", boundary, StringComparison.OrdinalIgnoreCase);
