@@ -20,7 +20,7 @@ $documentationProof = @{
     BaseCommit = '467284f23b268e199d7fbe77dbb2163b50f00e23'
     DispositionSha256 = '4d0ddab6f49e17a053b07df7e2433e60971c653aadf5e1fe4ed74d722129f658'
     BaselineSha256 = '429ee9dbc3c6ce746098c7e2207b73975791538266df8962713935dcf3aa6864'
-    MaterialClaimsSha256 = '32058ba321ffab11af6f299baa120b83edf761e30091945729d3f534062f3c6c'
+    MaterialClaimsSha256 = '63504bbabded909b0a16d3adc414c9a9799acb057b354303420676b3441fffb1'
     CallsitesSha256 = '095ff29859eff0090b1f04409ec91b29c8d2c3d06aac7795937a32c935f9c616'
 }
 $excludedOperations = 0
