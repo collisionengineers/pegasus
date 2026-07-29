@@ -7,3 +7,5 @@ This candidate is not an accepted production release. Format coverage remains ro
 The product never requires Microsoft Office, Outlook, an external office suite, a desktop session, a hosted conversion service or a third-party format-extraction engine.
 
 The supported extracted payload is text plus image files only. JSON also carries the minimum provenance, issue, outcome and resource-control evidence required to explain those payloads. The package does not emit arbitrary non-image attachments or embedded-object bytes.
+
+See [packaging and release limitations](docs/packaging.md), [licensing and source rights](docs/licensing.md), [current row-level support](docs/compatibility/feature-matrix.md), and [the text/image public contract](docs/decisions/ADR-0004-text-and-image-output.md). A package file, candidate build, or green workspace check is not distribution authorization, Pegasus integration, or production acceptance.

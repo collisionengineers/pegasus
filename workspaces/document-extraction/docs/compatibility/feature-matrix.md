@@ -21,7 +21,7 @@ The authorised output contract is text and images only ([ADR-0004](../decisions/
 
 ## PDF 1.0–2.0 family
 
-Detailed surface and evidence: [PDF extraction plan](../formats/pdf.md).
+Intended surface (current support remains this row): [PDF extraction plan](../formats.md#pdf-10–20).
 
 | Capability | Port unit | Status | Evidence or next gate |
 |---|---|---|---|
@@ -42,7 +42,7 @@ Detailed surface and evidence: [PDF extraction plan](../formats/pdf.md).
 
 ## Legacy binary Word `.doc`
 
-Detailed surface and evidence: [legacy DOC extraction plan](../formats/doc.md) and [DOC comprehension/completion programme](../programme/tasks/P31-doc-comprehension-and-completion.md). DOC text is read directly from CFB/FIB/CLX binary structures; DOCX/XML is not an intermediate.
+Intended surface (current support remains this row): [legacy DOC extraction plan](../formats.md#legacy-binary-word-doc) and [DOC comprehension/completion programme](../programme.md). DOC text is read directly from CFB/FIB/CLX binary structures; DOCX/XML is not an intermediate.
 
 | Capability | Port unit | Status | Evidence or next gate |
 |---|---|---|---|
@@ -62,7 +62,7 @@ Detailed surface and evidence: [legacy DOC extraction plan](../formats/doc.md) a
 
 ## WordprocessingML `.docx`
 
-Detailed surface and evidence: [DOCX extraction plan](../formats/docx.md). DOCX is a required independent input family.
+Intended surface (current support remains this row): [DOCX extraction plan](../formats.md#wordprocessingml-docx). DOCX is a required independent input family.
 
 | Capability | Port unit | Status | Evidence or next gate |
 |---|---|---|---|
@@ -81,7 +81,7 @@ Detailed surface and evidence: [DOCX extraction plan](../formats/docx.md). DOCX 
 
 ## Outlook `.msg`
 
-Detailed surface and evidence: [MSG extraction plan](../formats/msg.md). The base contract preserves a generic MAPI property bag; it is not restricted to mail messages.
+Intended surface (current support remains this row): [MSG extraction plan](../formats.md#outlook-msg). The base contract preserves a generic MAPI property bag; it is not restricted to mail messages.
 
 | Capability | Port unit | Status | Evidence or next gate |
 |---|---|---|---|
@@ -101,7 +101,7 @@ Detailed surface and evidence: [MSG extraction plan](../formats/msg.md). The bas
 
 ## RFC 5322/MIME `.eml`
 
-Detailed surface and evidence: [EML extraction plan](../formats/eml.md).
+Intended surface (current support remains this row): [EML extraction plan](../formats.md#rfc-5322mime-eml).
 
 | Capability | Port unit | Status | Evidence or next gate |
 |---|---|---|---|

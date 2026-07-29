@@ -1,5 +1,8 @@
 # Document Structure & `data.json` Schema
 
+> **Source-workspace boundary:** Retain payload schema/renderer shape, remove court/legal sign-off as authority and state it is an experimental document fixture. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+
+
 The generator (`scripts/build_report.js`) always lays the report out in this fixed order. You only supply content; the styling is automatic.
 
 ```
@@ -131,5 +134,5 @@ Add or rename sections as the job requires (e.g. "The Necessity of Blending", "C
 
 - Quote the defendant's point verbatim in the `challenge` field (use smart quotes `\u201C \u201D`).
 - Answer with a concrete technical or evidential reason, then tie it back to our original report / itemised spec.
-- Where the defendant offered no inspection, no alternative method, no contrary times and no evidence, say so plainly — that absence is your strongest argument.
+- Where the defendant offered no inspection, no alternative method, no contrary times and no evidence, say so plainly — that absence is your strongest source-supported evidence.
 - Never disparage the other engineer personally.

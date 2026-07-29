@@ -3,6 +3,7 @@ name: vehicle-history-check
 description: Use this skill whenever the user wants a UK vehicle history, provenance, mileage, or roadworthiness check from a registration (or VIN) — MOT history and status, mileage validation / clocking / "is the mileage genuine", a current mileage estimate, outstanding recalls, defect history, tax/SORN status, pre-incident condition before an accident date, identity/clone/export-marker risk, or a combined assessment context. Triggers on phrases like "check this reg", "MOT history", "is the mileage right", "mileage anomalies", "clocked", "estimate current mileage", "outstanding recall", "is it roadworthy / legal to drive", "clone check", "export marker", "Cat S/N history", "pre-incident MOT", "DVLA/DVSA check", "vehicle history", "provenance" — even if the skill is not named. Also use as a fact-gathering pre-step before vehicle-valuation or roadworthy-report.
 ---
 
+> **Source-workspace boundary:** Preserve connector-facing fact-gathering workflow, but relabel it as source-pack behavior and remove any implication of an AI Centre live caller or policy authority. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
 # Vehicle History Check
 
 Pull authoritative UK government vehicle data via the **`dvsa-mot`** MCP connector

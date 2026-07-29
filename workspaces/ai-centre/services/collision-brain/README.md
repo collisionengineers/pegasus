@@ -1,5 +1,8 @@
 # RAG Pipeline
 
+> **Source-workspace boundary:** Retain implemented v1 service scope and commands, but label it a source-workspace service with no Pegasus caller and update retired research links. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+
+
 Provider-agnostic document ingestion and hybrid retrieval for Collision Engineers, exposed through
 Model Context Protocol (MCP).
 
@@ -95,6 +98,6 @@ $env:OBJECT_STORE_DRIVER='memory'
 npm run benchmark -- --input benchmarks/synthetic.json
 ```
 
-See [architecture](docs/architecture.md), [requirements](docs/requirements.md), the
-[deployment contract](docs/deployment-contract.md), [current status](docs/CURRENT_STATUS.md), and
-the [provider research](docs/research/README.md).
+See [architecture](docs/architecture.md), [requirements](./docs/operations.md), the
+[deployment contract](./docs/operations.md), [current status](./docs/operations.md), and
+the [provider research](./docs/provider-evaluation.md).

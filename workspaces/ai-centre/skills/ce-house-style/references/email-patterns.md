@@ -1,5 +1,8 @@
 # Email & Correspondence Patterns
 
+> **Source-workspace boundary:** Retain message-shape examples, remove legal/settlement policy and make send/approval boundary explicit. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+
+
 ## Greetings
 
 - Informal / ongoing: *"Good morning,"* · *"Good afternoon,"* · *"Hi [Name],"*

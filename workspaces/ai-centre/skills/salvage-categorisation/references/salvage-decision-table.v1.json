@@ -20,28 +20,39 @@
     {
       "id": "cat-a-whole-vehicle-destroy",
       "category": "A",
-      "when": { "entire_vehicle_destroy_required": true },
+      "when": {
+        "entire_vehicle_destroy_required": true
+      },
       "reason": "Whole-vehicle destruction is required; do not assess as ordinary repairable salvage.",
       "review_required": true
     },
     {
       "id": "cat-b-bodyshell-crush",
       "category": "B",
-      "when": { "bodyshell_crush_required": true },
+      "when": {
+        "bodyshell_crush_required": true
+      },
       "reason": "Body shell destruction is required, with controlled parts reuse only where safe.",
       "review_required": true
     },
     {
       "id": "cat-s-structural-repairable",
       "category": "S",
-      "when": { "repairable": true, "structural_damage": true },
+      "when": {
+        "repairable": true,
+        "structural_damage": true
+      },
       "reason": "Repairable salvage with evidenced structural damage.",
       "review_required": false
     },
     {
       "id": "cat-n-non-structural-repairable",
       "category": "N",
-      "when": { "repairable": true, "structural_damage": false, "non_structural_salvage_reason": "present" },
+      "when": {
+        "repairable": true,
+        "structural_damage": false,
+        "non_structural_salvage_reason": "present"
+      },
       "reason": "Repairable salvage with no evidenced structural damage and a non-structural salvage/economic basis.",
       "review_required": false
     }
@@ -57,5 +68,7 @@
     "identity",
     "parts_reuse",
     "weak_evidence"
-  ]
+  ],
+  "authority_boundary": "Versioned source-workspace experiment fixture only. Values and review/category flags are candidate evaluation data, not Pegasus policy, accepted facts, economics, categories, outcomes, or approval.",
+  "output_status": "candidate_evaluation_only"
 }

@@ -1,7 +1,10 @@
 # Estimate Construction
 
+> **Source-workspace boundary:** Retain deterministic payload projection and status flags, but remove 'package-local projection owner'/'source-supported candidate' as business policy and make it an experiment fixture contract. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+
+
 How the line-by-line repair estimate is built, justified, totalled, checked, and projected into
-every deliverable. This file is the sole owner of the estimate-table spec — other references
+every deliverable. This file is the package-local projection owner of the estimate-table spec — other references
 point here and do not restate it.
 
 ## One list, three renderings
@@ -12,7 +15,7 @@ projections of it — never independently drafted. Line value = WU/10 × rate (t
 formula), so all renderings always agree. An assessment with an outcome or repair position is
 not complete without a validated payload.
 
-## Costing posture — the maximum defensible estimate
+## Costing posture — the source-supported candidate estimate
 
 The estimate states the full cost of putting the vehicle right properly. Build it to the
 highest figure at which every line survives scrutiny by an opposing engineer. Two failure

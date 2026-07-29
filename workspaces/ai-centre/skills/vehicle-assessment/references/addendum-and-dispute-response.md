@@ -1,5 +1,8 @@
 # Addendum And Dispute Response
 
+> **Source-workspace boundary:** Retain evidence-gated drafting structure, remove any implication that a skill can set legal or settlement policy. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+
+
 Use this when the user asks for an external response about a repair estimate, total-loss
 position, ABP charge, storage/yard charge, PPE/consumable item, repair-specification challenge,
 or a formal addendum to an earlier CE report. Set the technical position first; draft the final

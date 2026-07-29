@@ -1,5 +1,8 @@
 # Total Loss And Salvage Routing
 
+> **Source-workspace boundary:** Retain separate-task/evidence routing, remove threshold/charge authority, and point final category/economics acceptance to Core/operator authority. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+
+
 Repair economics, thresholds, and provisional salvage reasoning — and where this skill hands
 off. The first rule: **repair economics and salvage category are separate questions.** Cost
 decides whether repair is economic; damage character decides the category. Never derive one

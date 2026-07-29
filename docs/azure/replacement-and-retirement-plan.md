@@ -6,7 +6,7 @@ This plan replaces the old pre-release application deliberately. Pegasus `0.1.0-
 
 | Class | Assets |
 |---|---|
-| Replace | old API, orchestrator, parser, EVA, Box and required enrichment/OCR compute with `0.1.0-alpha.1` Web/Worker/adapters |
+| Replace | old API, orchestrator, parser, EVA, Box, and only separately accepted enrichment compute with `0.1.0-alpha.1` Web/Worker/adapters; alpha has no OCR replacement |
 | Retire with the predecessor | PostgreSQL pre-release application data and queue/Durable work; no `0.1.0-alpha.1` import or preservation requirement |
 | Decide/possibly retain | data-bearing evidence storage, capture Static Web App, Foundry account/project/deployments, shared ACR and ValuationBot images, Document Intelligence F0 |
 | Retain | Visual Studio accounts and default workspace until a separate shared-ownership review says otherwise |

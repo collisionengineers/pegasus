@@ -1,5 +1,8 @@
 # Rebuttal Document Structure
 
+> **Source-workspace boundary:** Retain payload/output shape, remove sign-off/legal authority claims. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+
+
 Select the output format before drafting. Do not force a defensive insurer response or solicitor advice note into a full rebuttal report unless the user asks for a report.
 
 Use:

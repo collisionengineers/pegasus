@@ -3,9 +3,12 @@ name: diminution-rebuttal
 description: Drafts, prepares, and reviews diminution-in-value rebuttals and defensive responses for Collision Engineers, including rebutting EVA or formula-driven third-party reports, defending CE's own diminution reports against insurer objections, and handling paint-depth, Elcometer, prior-repair, provenance, prestige-market stigma, Part 35, written-question, addendum, or testing-disclosure issues. Triggers on "diminution rebuttal", "rebuttal report", "EVA report", "diminution claim", "stigma", "challenge the diminution", "defend our diminution report", "insurer rejected diminution", "paint depth", "Elcometer", "prior repairs", "Part 35 diminution", "diminution in value", or instructions to respond to a claim that a repaired vehicle has lost market value permanently.
 ---
 
+## Authority boundary
+
+This package may produce evidence, candidates, or draft output only. `Pegasus.Core` and an authorised human own every accepted case fact, cost, category, outcome, legal position, and approval.
 # Diminution Rebuttal
 
-Produce CPR Part 35-compliant rebuttals to third-party diminution-in-value claims and defensive responses where Collision Engineers' own diminution report is challenged.
+Produce a Part 35-related evidence-drafting experiment for authorised human review. It does not provide legal advice, guarantee compliance, serve a document, or adopt a Collision Engineers legal position.
 
 **Foundations:** consult `collision-engineers-design` (`references/document-letterhead.md`) for the A4 letterhead layout and `ce-house-style` for voice. This skill supplies the rebuttal-specific content.
 

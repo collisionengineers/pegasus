@@ -26,6 +26,17 @@ The Planned `0.1.0-alpha.1` routes are Operations, Intake, Triage, Cases and aut
 | History | Business mutation/accepted evidence/export/material business failure only; no routine views, polling, retry, lease heartbeat or telemetry. |
 | Reason dialog | Named requirement/consequence, labelled reason, confirmation/cancel, initial focus, focus containment, Escape where safe and focus return to the invoking control. |
 
+## Presentation responsibilities
+
+Product requirements own business gates and outcomes; this specification owns
+how they are presented and operated. Lists expose identity, state, freshness,
+filter, provenance, and permitted action. Detail pages expose source evidence,
+accepted facts, missing/conflicting values, history, leases, external status,
+and reasoned transitions without duplicating Core policy. The shell and
+dashboard own navigation and exact queue metrics; administration surfaces own
+authorised configuration journeys; error, empty, loading, denied, stale,
+partial, conflict, and unavailable states are explicit.
+
 ## Focused flows
 
 **Intake:** source -> evidence/candidate -> a definitive authorised instruction creates exactly one case through shared fail-closed acceptance: **Review** when instruction and image completeness requirements are met, otherwise incomplete **Not ready**. Staff-resolved acceptance creates **Review** only through explicit staff confirmation of both completeness requirements; otherwise it creates **Not ready**. `Blocked intake` with required reason creates no case/reference; fail-closed `Needs sorting` remains pre-case. Resolve/retry re-enters the same fail-closed intake path and may create exactly one case/reference only if its ordinary gates then pass. Manual image/instruction link and reasoned reversal retain origin. Later Engineer-assignment gates remain separate from initial case-state selection.

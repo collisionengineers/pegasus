@@ -1,5 +1,8 @@
 # Query Response Boundaries
 
+> **Source-workspace boundary:** Retain evidence structure, remove assertion that any salvage-rate position is an example position for review. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+
+
 Use this before drafting external category dispute wording.
 
 ## Safe response structure

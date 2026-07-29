@@ -70,4 +70,4 @@ Operations-first is selected for the `0.1.0-alpha.1` landing and navigation stra
 
 ## Historical material
 
-The retained concept Markdown, generation prompts, and old PNGs under the [plan archive](../../docs/history/plans/ui-ux/README.md) are historical/unapproved visual evidence. The current UI route is [design](../README.md); unique retained content is reconciled through [ui-spec.md](ui-spec.md) and [traceability-matrix.md](traceability-matrix.md).
+The selected Operations-first direction and the rejected Worklist-first and Case-first comparisons are preserved in [traceability](traceability-matrix.md). Their obsolete planning files and rasters are retired; the current design route is [design](../README.md), with interaction detail in [ui-spec.md](ui-spec.md).

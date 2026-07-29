@@ -1,96 +1,102 @@
 # Development guide
 
-This guide covers building, testing and running Collision Renderer on a developer
-machine, plus the container build for the cloud API. Collision Renderer is a single
-.NET 8 solution: one shared rendering engine (`CollisionRenderer.Core`) with thin
-CLI, desktop (WinUI 3) and API clients over it.
+> **Design authority:** [`../../../design/README.md`](../../../design/README.md) governs the linked design assets. Build and test changes must preserve that single source rather than adding workspace-local copies.
 
-All commands assume you are at the repository root unless stated otherwise.
+This guide covers the independent source workspace only. The commands build and exercise its standalone projects; they do not imply an external integration, caller or deployment.
 
 ## Prerequisites
 
 | Requirement | Needed for | Notes |
 | --- | --- | --- |
-| .NET SDK (8.0 or later) | Build, test, all projects | Every project targets `net8.0` (the GUI targets `net8.0-windows10.0.19041.0`). A newer SDK such as .NET 10 builds the `net8.0` targets without change. |
-| Chromium for Playwright | Any PDF render | Downloaded once with `install-browser` (roughly 90 MB). See [First-time browser install](#first-time-browser-install). |
-| Windows App SDK runtime | Running the desktop GUI | The GUI project sets `WindowsAppSDKSelfContained` and `SelfContained`, so a self-contained build bundles the runtime. A machine-wide install is not required when built this way. |
-| Windows 10 build 17763 or later, x64 or ARM64 | Building/running the GUI | The GUI is Windows-only (`net8.0-windows`). Core, CLI and API have no Windows dependencies. |
-| Docker (optional) | Building/running the API container image | Only needed if you build the container rather than running the API directly. |
+| SDK selected by `global.json` | Restore/build/test | Projects target their project-file frameworks; use the pinned SDK rather than documenting an evergreen version. |
+| Playwright Chromium | Local real PDF renders and browser integration tests | Install through the CLI command below. |
+| Windows | `CollisionRenderer.Gui` build/run | The WinUI project is Windows-only. |
+| WebView2 runtime | GUI preview | Install the Evergreen runtime if the machine does not already provide it. |
+| Docker | API container build/run | Optional for local development. |
+| PowerShell | Workspace helper scripts and Windows tooling | Use PowerShell 7 where scripts specify `pwsh`. |
 
-The desktop GUI uses WebView2 for its preview. WebView2 is part of current Windows
-installations; install the Evergreen runtime separately if it is missing.
+Current package versions that matter to browser/runtime matching are Microsoft.Playwright `1.61.0` in Core and the Playwright runtime image `v1.61.0-jammy` in the Dockerfile. GUI packages are Microsoft.WindowsAppSDK `2.2.0` and CommunityToolkit.Mvvm `8.4.2`. MCP packages are ModelContextProtocol `1.4.0` and Microsoft.Extensions.Hosting `9.0.0`.
 
-### Solution layout
+## Restore
 
-| Project | Target | Role |
-| --- | --- | --- |
-| `src/CollisionRenderer.Core` | `net8.0` (class library) | The single rendering engine. Typed document models to HTML (Scriban + brand CSS) to PDF (headless Chromium via Microsoft.Playwright). Templates, stylesheet, logo and signatures are embedded resources. |
-| `src/CollisionRenderer.Cli` | `net8.0` console (assembly `collisionrenderer`) | Thin command-line client over Core. |
-| `src/CollisionRenderer.Api` | `net8.0` ASP.NET Core minimal API | Cloud service wrapping Core. Packaged by the workspace `Dockerfile`. |
-| `src/CollisionRenderer.Gui` | `net8.0-windows` (WinUI 3 / Windows App SDK) | Desktop client; in-process Core; WebView2 preview. |
-| `tests/CollisionRenderer.Core.Tests` | `net8.0` (xUnit) | 57 tests, including real-Chromium integration renders. |
+From the workspace root:
 
-The solution file is `CollisionRenderer.sln` and contains Core, CLI, API, GUI and the
-test project.
+```sh
+dotnet restore CollisionRenderer.sln
+```
+
+If restore selects an unexpected SDK, run:
+
+```sh
+dotnet --info
+dotnet --list-sdks
+```
+
+Then verify that `global.json` is being discovered from the expected directory hierarchy.
 
 ## Build
 
-Build the cross-platform projects (Core, CLI, API, tests) — Windows, Linux or macOS:
+### Whole solution on Windows
 
-```
-dotnet build src/CollisionRenderer.Core -c Release
-dotnet build src/CollisionRenderer.Cli -c Release
-dotnet build src/CollisionRenderer.Api -c Release
-dotnet build tests/CollisionRenderer.Core.Tests -c Release
+```powershell
+dotnet build CollisionRenderer.sln -c Release
 ```
 
-The WinUI desktop app (`src/CollisionRenderer.Gui`) targets `net8.0-windows` and builds
-on **Windows only**:
+### Cross-platform projects on Linux or macOS
 
+The GUI is Windows-only. Build the remaining shipped and test projects explicitly:
+
+```sh
+dotnet build src/CollisionRenderer.Core/CollisionRenderer.Core.csproj -c Release
+dotnet build src/CollisionRenderer.Cli/CollisionRenderer.Cli.csproj -c Release
+dotnet build src/CollisionRenderer.Api/CollisionRenderer.Api.csproj -c Release
+dotnet build src/CollisionRenderer.Mcp/CollisionRenderer.Mcp.csproj -c Release
+dotnet build tests/CollisionRenderer.Core.Tests/CollisionRenderer.Core.Tests.csproj -c Release
+dotnet build tests/CollisionRenderer.Mcp.Tests/CollisionRenderer.Mcp.Tests.csproj -c Release
 ```
-dotnet build src/CollisionRenderer.Gui -c Release -r win-x64
+
+### GUI only
+
+On Windows:
+
+```powershell
+dotnet build src/CollisionRenderer.Gui/CollisionRenderer.Gui.csproj -c Release -r win-x64
 ```
 
-Building the whole solution (`dotnet build CollisionRenderer.sln -c Release`) therefore
-requires Windows; on Linux/macOS build the cross-platform projects listed above.
+Use the RID appropriate to the target machine when building another supported Windows architecture.
 
-> Scriban package security advisories (NU1901–NU1904) are accepted for this
-> repository: templates are first-party embedded artefacts, never authored by end
-> users at runtime, and all payload data is passed as HTML-encoded values, never
-> compiled.
+Scriban advisory warnings NU1901–NU1904 are intentionally handled by repository policy. Do not remove or broaden the suppression without reviewing ADR-0010 and the first-party-template/HTML-encoding assumptions.
 
-## First-time browser install
+## Install Chromium
 
-Any PDF render needs the Chromium build that Playwright drives. Install it once per
-machine through the CLI:
+Any local real render requires the Chromium revision used by Microsoft.Playwright `1.61.0`:
 
-```
+```sh
 dotnet run --project src/CollisionRenderer.Cli -- install-browser
 ```
 
-This downloads the Chromium engine (roughly 90 MB) and prints `Chromium installed.`
-on success. You do not need this step inside the API container — the Playwright base
-image already ships Chromium (see [Container build and run](#container-build-and-run-api)).
+Run it once for the current user/environment and again after any Playwright update that changes the required browser revision. The provided API container already contains the matching browser; do not run the installer inside that image.
 
 ## Test
 
+Run both test projects:
+
+```sh
+dotnet test tests/CollisionRenderer.Core.Tests/CollisionRenderer.Core.Tests.csproj -c Release
+dotnet test tests/CollisionRenderer.Mcp.Tests/CollisionRenderer.Mcp.Tests.csproj -c Release
 ```
-dotnet test
+
+Or, on a platform that can build every project in the solution:
+
+```sh
+dotnet test CollisionRenderer.sln -c Release
 ```
 
-The suite is xUnit (57 tests) and includes integration tests that render with real
-Chromium. Run [`install-browser`](#first-time-browser-install) first, or those tests
-will fail because the browser is missing.
+Install Chromium before tests that perform real renders. Tests and documentation must not record evergreen test totals; the executable test discovery is the current count.
 
-## Run
+## Run the CLI
 
-### CLI
-
-The CLI assembly is named `collisionrenderer`. During development run it through
-`dotnet run` (note the `--` separating the run arguments from the program
-arguments), or invoke the built executable directly from its `bin` folder.
-
-```
+```sh
 dotnet run --project src/CollisionRenderer.Cli -- <command> [options]
 ```
 
@@ -98,241 +104,210 @@ Commands:
 
 | Command | Purpose |
 | --- | --- |
-| `list` | List the available document templates. |
-| `forms list` | List blank authoring templates. |
-| `forms blank --template <id> [--out <file.json>]` | Print or save a blank draft payload. |
-| `forms schema --template <id> [--out <file.json>]` | Print or save a Core-owned form schema. |
-| `forms starter --template <id> [--out <file.json>]` | Generate an overwriteable starter draft. |
-| `validate --template <id> --data <file.json>` | Check a payload without rendering. |
-| `render --template <id> --data <file.json> [--out <file.pdf>] [--density <mode>] [--open]` | Render a document to PDF. |
-| `batch --manifest <file.json> [--out <folder>]` | Render many manifest items. |
-| `install-browser` | Download the Chromium engine (first-time setup). |
-| `version` | Show the version. |
+| `list` | List the exact Core render catalogue. |
+| `forms list` | List Core-owned authoring templates. |
+| `forms blank --template <id> [--out file.json]` | Emit an intentionally incomplete blank draft. |
+| `forms schema --template <id> [--out file.json]` | Emit the form definition. |
+| `forms starter --template <id> [--out file.json]` | Emit a synthetic overwriteable starter. |
+| `validate --template <id> --data <file|->` | Validate a file or stdin without rendering. |
+| `render --template <id> --data <file|-> [--out file.pdf] [--density mode] [--open]` | Render one PDF. |
+| `batch --manifest file.json [--out folder]` | Render a batch through Core. |
+| `install-browser` | Install the required Chromium revision. |
+| `version` | Report the executable version. |
 
-Render options:
+Density is `auto` (default), `normal`, `compact` or `ultra`. When output is omitted, the CLI uses `RenderResult.SuggestedFileName` in the current directory.
 
-| Option | Meaning |
-| --- | --- |
-| `--out`, `-o <path>` | Output PDF path. Defaults to `<REG>_<type>.pdf` (the suggested file name) in the current folder. |
-| `--density <mode>` | `auto` (default), `normal`, `compact` or `ultra`. |
-| `--open` | Open the PDF when finished. |
-| `--data`, `-d <path\|->` | JSON payload file, or `-` to read from stdin. |
+End-to-end local check:
 
-### API
-
-Run the minimal API directly:
-
+```sh
+dotnet run --project src/CollisionRenderer.Cli -- forms starter --template market-valuation-evidence --out val.json
+dotnet run --project src/CollisionRenderer.Cli -- validate --template market-valuation-evidence --data val.json
+dotnet run --project src/CollisionRenderer.Cli -- render --template market-valuation-evidence --data val.json --out val.pdf
 ```
+
+## Run the API
+
+```sh
 dotnet run --project src/CollisionRenderer.Api
 ```
 
-The renderer is registered as a singleton, so the process launches one headless
-Chromium instance and reuses it. Set `CR_API_TOKEN`, `CR_API_TOKENS`, `CR_API_TOKEN_SHA256` or
-`CR_API_TOKEN_SHA256S` to require bearer authentication on every endpoint except `/healthz`;
-requests must then send `Authorization: Bearer <token>`.
+Use the URL printed by ASP.NET Core. Liveness is always unauthenticated:
 
-Endpoints:
+```sh
+curl http://localhost:<port>/healthz
+```
 
-| Method and path | Purpose |
-| --- | --- |
-| `GET /healthz` | Liveness check (`{ "status": "ok" }`). Never authenticated. |
-| `GET /v1/templates` | List templates (`id`, `name`, `description`). |
-| `GET /v1/authoring-templates` | List blank authoring templates. |
-| `GET /v1/authoring-templates/{id}/form` | Return a Core-owned form schema. |
-| `GET /v1/authoring-templates/{id}/blank` | Return blank draft JSON. |
-| `POST /v1/validate` | Validate a payload; returns `ok`, `errors`, `warnings`. |
-| `POST /v1/render` | Render to an artifact descriptor (JSON with metadata and a base64 PDF). |
-| `POST /v1/render.pdf` | Render and return the raw PDF stream. |
-| `POST /v1/render.multipart` | Render JSON plus uploaded image/PDF parts. |
-| `POST /v1/render/batch` | Render many payloads in one request. |
-
-The request body for `/v1/validate`, `/v1/render` and `/v1/render.pdf` is:
+Render JSON shape:
 
 ```json
-{ "templateId": "<id>", "data": { }, "density": "auto" }
+{
+  "templateId": "fee-note",
+  "data": {},
+  "density": "auto"
+}
 ```
 
-`density` is optional and accepts `auto` (default), `normal`, `compact` or `ultra`.
+The principal endpoints are `/v1/templates`, `/v1/authoring-templates`, `/v1/validate`, `/v1/render`, `/v1/render.pdf`, `/v1/render.multipart` and `/v1/render/batch`.
 
-### GUI
+### Authentication configurations
 
-Run the desktop application (Windows only):
+No token setting means the API routes are open. If any supported setting is configured, every path except `/healthz` requires a bearer token.
 
+Compatibility single raw token:
+
+```sh
+CR_API_TOKEN='current-secret' dotnet run --project src/CollisionRenderer.Api
 ```
+
+Raw-token rotation list:
+
+```sh
+CR_API_TOKENS='<rotation-list>' dotnet run --project src/CollisionRenderer.Api
+```
+
+Single SHA-256 token value:
+
+```sh
+CR_API_TOKEN_SHA256='<sha256-value>' dotnet run --project src/CollisionRenderer.Api
+```
+
+SHA-256 rotation list:
+
+```sh
+CR_API_TOKEN_SHA256S='<sha256-list>' dotnet run --project src/CollisionRenderer.Api
+```
+
+Follow the executable configuration parser for list syntax; do not introduce a second delimiter convention in wrappers or deployment scripts. Clients send:
+
+```text
+Authorization: Bearer <raw-token>
+```
+
+The compatibility variable `CR_API_TOKEN` must remain supported. ADR-0011 is authoritative for the rotation/hash detail and supersedes only ADR-0008's authentication detail.
+
+### Multipart check
+
+Use field names from the Core form/model path. The endpoint is stricter than local Core path resolution and accepts only policy-approved image/PDF parts:
+
+```sh
+curl -X POST http://localhost:<port>/v1/render.multipart \
+  -F 'templateId=advert-evidence-pack' \
+  -F 'density=auto' \
+  -F 'data={...};type=application/json' \
+  -F 'adverts[0].capturePath=@capture.pdf;type=application/pdf' \
+  --output response.json
+```
+
+Treat the field path as illustrative until checked against the current form definition. Do not rely on arbitrary server-local paths in a remote API payload.
+
+## Run the GUI
+
+On Windows:
+
+```powershell
 dotnet run --project src/CollisionRenderer.Gui
 ```
 
-The GUI launches unpackaged (`WindowsPackageType=None`) and is self-contained, so it
-carries the Windows App SDK runtime with it. The workflow is: pick a document type,
-load a sample or fill in data, render, preview in WebView2, then save. It uses Core
-in-process, so it has the same templates and behaviour as the CLI and API.
+The GUI uses Core in-process. Its generated forms, validation, uploads, density choices and PDF output therefore come from the same contracts as the CLI and API. WebView2 is used only to preview the returned PDF.
 
-## Templates and the rendering pipeline
+If the GUI reports a missing browser, close any failed render state and install Chromium through:
 
-Four templates ship in the box:
-
-| Template id | Document |
-| --- | --- |
-| `market-valuation-evidence` | Retail pre-accident value with comparable advert table, value box and signature. Fits to one page. |
-| `advert-evidence-pack` | Comparable advert reference table (linked). |
-| `fee-note` | VAT fee note / invoice (bill-to, line items, subtotal/VAT/total, payment, VAT number in footer). |
-| `expert-report` | Flexible letter-style report built from content blocks: paragraph, bullets, datatable, keyvalue, evidencetable, valuebox, mediarow. |
-
-Every host builds its renderer through the composition root,
-`CollisionRendererFactory.CreateRenderer()`, and reads templates from
-`CollisionRendererFactory.Catalog`. This is what guarantees identical behaviour
-across the CLI, GUI and API.
-
-Adding a template requires no engine change: add a model record, a `.scriban` body,
-a `TemplateDescriptor` in the template catalogue, and a sample JSON payload.
-
-### How the embedded assets work
-
-`CollisionRenderer.Core` is self-contained at runtime. The top-level Pegasus design
-sources are compiled into the assembly as embedded resources, declared in
-`src/CollisionRenderer.Core/CollisionRenderer.Core.csproj` with linked items.
-
-The on-disk sources are centralized at the Pegasus repository root:
-
-- `design/assets/report-renderer/templates/report.css` — the canonical stylesheet
-  (a data register at 8.8pt for valuation/evidence/fee documents, a letter register
-  at 10pt for expert reports).
-- `design/assets/report-renderer/templates/*.scriban` — the body templates
-  (`market_valuation_evidence.scriban`, `advert_evidence_pack.scriban`,
-  `fee_note.scriban`, `expert_report.scriban`).
-- `design/brand/logos/logo_no_margin.png` and `design/brand/signatures/*.png` —
-  the letterhead logo and expert signatures.
-
-At runtime the loader (`EmbeddedResources`) matches resources by their trailing path,
-so code reads natural relative paths such as `templates/report.css` regardless of how
-MSBuild names the manifest resources. Because everything is embedded, the engine
-renders identically from the CLI, the desktop app or a Linux container; nothing is
-read from a working directory.
-
-No brand font files ship in the repo. Document body copy uses Arial /
-metric-compatible faces, supplied by the operating system or, on Linux, by the
-Liberation fonts installed in the container image.
-
-## Render a generated starter
-
-The quickest end-to-end check. First ensure Chromium is installed
-([above](#first-time-browser-install)), then:
-
-```
-dotnet run --project src/CollisionRenderer.Cli -- forms starter --template market-valuation-evidence --out val.json
-dotnet run --project src/CollisionRenderer.Cli -- render --template market-valuation-evidence --data val.json --out val.pdf --open
-```
-
-On success the render command prints the page count, the chosen density, the SHA-256
-of the PDF and the engine version, then opens `val.pdf`. With the default `auto`
-density the generated valuation starter fits to one page (it auto-fits to Compact).
-
-To regenerate example PDFs from Core-generated starters, run:
-
-```
-scripts/render-starters.ps1
-```
-
-The script writes to `artifacts/rendered-starters/`, which is ignored and can be
-deleted or regenerated at any time.
-
-You can also generate a starter with the CLI and drive its render against the running API:
-
-```
-dotnet run --project src/CollisionRenderer.Cli -- forms starter --template market-valuation-evidence --out val.json
-curl -s -X POST http://localhost:5000/v1/render.pdf \
-  -H "Content-Type: application/json" \
-  -d "{\"templateId\":\"market-valuation-evidence\",\"data\":$(cat val.json)}" \
-  --output val.pdf
-```
-
-Adjust the host and port to match the URL printed by `dotnet run`. If `CR_API_TOKEN`
-is set, add `-H "Authorization: Bearer <token>"`.
-
-## Container build and run (API)
-
-The workspace `Dockerfile` is multi-stage. From the Pegasus repository root, it
-builds with the .NET 10 SDK image required by `global.json` and runs on the official
-Playwright .NET image, which bundles the matching Chromium build and its native
-dependencies; the final stage also installs `fonts-liberation` and
-`fonts-dejavu-core` so the documents' Arial-metric body copy renders with the
-correct metrics on Linux.
-
-Build the image:
-
-```
-docker build -f Dockerfile -t collisionrenderer-api ../..
-```
-
-Run it. The image sets `ASPNETCORE_URLS=http://+:8080` and exposes port 8080:
-
-```
-docker run --rm -p 8080:8080 collisionrenderer-api
-```
-
-To require bearer auth, pass the token through the environment:
-
-```
-docker run --rm -p 8080:8080 -e CR_API_TOKEN=your-secret collisionrenderer-api
-```
-
-Check it is up:
-
-```
-curl http://localhost:8080/healthz
-```
-
-The image runs on any container host. There is no separate browser-install step in
-the container: the Playwright base image pre-installs browsers at
-`/ms-playwright`, which the Dockerfile sets via `PLAYWRIGHT_BROWSERS_PATH`.
-
-## Troubleshooting
-
-### Chromium not installed
-
-A render that has no browser available fails with a message like:
-
-```
-Chromium is not installed for Playwright. Run the bundled installer once:
-  pwsh src/CollisionRenderer.Cli/bin/Debug/net8.0/playwright.ps1 install chromium
-or, from any built project folder, 'playwright install chromium'.
-```
-
-Fix it by running the CLI installer once:
-
-```
+```powershell
 dotnet run --project src/CollisionRenderer.Cli -- install-browser
 ```
 
-This is also the cause of failing integration tests on a fresh checkout. Install the
-browser before running `dotnet test`. The container image does not need this step.
+Then retry the render.
 
-### Fonts on Linux
+## Run the MCP host
 
-If body text renders with the wrong width or falls back to a substitute face on Linux,
-the Arial-metric fonts are missing. The container handles this by installing
-`fonts-liberation` (and `fonts-dejavu-core` as a fallback). When running the API
-outside the provided image, install the equivalent packages, for example:
+Start the standalone stdio host with:
 
+```sh
+dotnet run --project src/CollisionRenderer.Mcp
 ```
+
+The host registers `render_health`, `list_templates`, `validate`, `render`, `render_valuation_outputs`, `open_valuation_output` and `install_browser`. Rendered local artefacts are stored under `%LOCALAPPDATA%\CollisionRenderer\output` on Windows. Keep stdout reserved for the MCP protocol; route diagnostics through the configured logging channel.
+
+This guide intentionally contains no extension-publication or distribution procedure.
+
+## Container build and run
+
+From the workspace root, use the repository-root build context required by linked design assets:
+
+```sh
+docker build -f Dockerfile -t collisionrenderer-api ../..
+```
+
+Run the API on port 8080:
+
+```sh
+docker run --rm -p 8080:8080 collisionrenderer-api
+curl http://localhost:8080/healthz
+```
+
+Enable compatibility-token authentication:
+
+```sh
+docker run --rm -p 8080:8080 \
+  -e CR_API_TOKEN='current-secret' \
+  collisionrenderer-api
+```
+
+Rotation and hash variables can be supplied in the same way. The final image uses `mcr.microsoft.com/playwright/dotnet:v1.61.0-jammy`, includes matching Chromium/native dependencies, installs Liberation and DejaVu fonts, listens on `8080` and keeps globalisation enabled. Building an image does not establish that it has been deployed.
+
+## Host-parity checks
+
+For a meaningful parity check, use the same template ID, JSON payload and density on each host:
+
+1. Generate one Core-owned starter with the CLI.
+2. Validate and render it through the CLI.
+3. Submit the same JSON to `/v1/validate` and `/v1/render.pdf`.
+4. Open the same draft in the GUI and render without changing it.
+5. Where an MCP tool supports the operation, call it with the same template/data and compare returned metadata.
+
+Compare template resolution, validation errors/warnings, used density, page count and PDF SHA-256 only under equivalent browser, font, OS and attachment conditions. Byte identity should not be promised across differing Chromium/font environments; contract and visual parity are the portable guarantees.
+
+## Troubleshooting
+
+### Chromium is missing or revision-mismatched
+
+Symptoms include an executable-not-found error, an instruction to install Chromium, or browser integration test failures.
+
+```sh
+dotnet run --project src/CollisionRenderer.Cli -- install-browser
+```
+
+If the problem follows a package update, clear only the relevant Playwright browser cache after recording its location, then reinstall. Do not copy a random system Chromium into the expected revision directory.
+
+### Linux text has different widths
+
+Install Arial-metric fonts and keep globalisation enabled when running outside the supplied container:
+
+```sh
 apt-get update && apt-get install -y --no-install-recommends fonts-liberation fonts-dejavu-core
 ```
 
-Also keep globalisation enabled. The Dockerfile sets
-`DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false`; if you run in invariant-globalisation
-mode, currency and number formatting (for example `£12,500.00`) will not format as
-expected.
+Invariant globalisation can alter currency and number formatting; the supplied image sets `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false`.
 
-### Generated artifacts
+### GUI build fails on non-Windows
 
-Generated PDFs and GUI UI-test output belong under `artifacts/`. The helper scripts
-write to `artifacts/rendered-starters/` and `artifacts/gui-ui-tests/`; both are ignored.
-Do not commit regenerated PDFs, screenshots or UI-test JSON output.
+This is expected. Build the six cross-platform shipped/test projects individually and build `CollisionRenderer.Gui` on Windows.
 
-### Reference data folders
+### API returns 401 unexpectedly
 
-The `documentexamples/` and `stylexamples/` folders hold real customer data
-(personally identifiable information). `collision-engineers-design-dev/` and
-`report-renderer/` are prior-art/design references. None of these four folders is part
-of the product source or build; if present locally, they are git-ignored and must never
-be committed.
+Check all four supported settings: `CR_API_TOKEN`, `CR_API_TOKENS`, `CR_API_TOKEN_SHA256` and `CR_API_TOKEN_SHA256S`. Setting any one enables authentication for every endpoint except `/healthz`. Confirm that the client sends the raw token in the Bearer header, including when configured server-side by hash.
+
+### Multipart or path attachment is rejected
+
+Verify that:
+
+- the field path exists in the current Core form/model;
+- the slot permits an image or PDF as supplied;
+- the file is within the endpoint size policy;
+- the image is PNG, JPEG or WebP;
+- a PDF is used only in a PDF evidence slot;
+- the request is not trying to expose an arbitrary server filesystem path.
+
+### Generated and private material
+
+Keep generated PDFs, rasterised pages, screenshots, UI automation output, temporary uploads and local reference inventories under ignored `artifacts/` or user-local storage. Never commit customer reports, extracted customer text, registrations, claims or sensitive local filenames.

@@ -1,5 +1,8 @@
 # Defending CE Diminution Reports
 
+> **Source-workspace boundary:** Retain case-evidence workflow, remove firm-position authority and serving implication. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
+
+
 Use this reference when Collision Engineers has prepared the diminution report and the user needs to answer insurer objections, solicitor concerns, written questions, or requests for inspection/testing.
 
 Related references:

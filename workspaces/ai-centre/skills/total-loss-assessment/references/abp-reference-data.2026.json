@@ -7,7 +7,7 @@
   "review_by": "2027-01-01",
   "source_basis": "ABP 2026 Guide to Retail and Non-Contract Charges, effective 1 January 2026; verified value-by-value against the source PDF (2026 ABP guide.pdf) on 2026-07-07. All values exclude VAT. Treat as a pricing guide/benchmark, not a binding tariff; charge categories that depend on vehicle class, repairer status, geography, EV/HV status, diagnostics, or storage require case evidence.",
   "historical_note": "This file is the current maintained default from 2026-01-01. ABP 2025 (or earlier) figures are not defaults anywhere in this skill; use earlier-year figures only when the assessment, repair, or estimate date requires them, stated as date-scoped historical evidence.",
-  "ownership": "skill-local",
+  "ownership": "versioned evidence fixture; current source and Core/operator approval required",
   "labour_rates": {
     "standard_per_hour": 83.28,
     "prestige_per_hour": 103.06,
@@ -16,9 +16,47 @@
     "manufacturer_approval_note": "ABP presents this uplift and the BS 10125 compliance charge as alternatives ('or'); do not stack both on one job unless the engineer directs it.",
     "regional_uplift_pct": 15,
     "regional_uplift_note": "ABP marks the hourly rates and the storage charge as subject to a 15% uplift for regional cost variations such as London and the home counties.",
-    "standard_marques": ["Kia", "Hyundai", "Honda", "Toyota", "Lexus", "Ford", "Vauxhall", "Nissan", "Renault", "Dacia", "Peugeot", "Citroen", "DS", "Fiat", "Alfa Romeo", "SEAT", "Skoda", "Mazda", "Mitsubishi", "Suzuki", "Subaru", "MG", "Volkswagen"],
-    "prestige_marques": ["BMW", "Mercedes-Benz", "Audi", "Land Rover", "Range Rover", "Jaguar", "Porsche", "Tesla"],
-    "above_prestige_if_engineer_specifies": ["Bentley", "Rolls-Royce", "Aston Martin", "Maserati"]
+    "standard_marques": [
+      "Kia",
+      "Hyundai",
+      "Honda",
+      "Toyota",
+      "Lexus",
+      "Ford",
+      "Vauxhall",
+      "Nissan",
+      "Renault",
+      "Dacia",
+      "Peugeot",
+      "Citroen",
+      "DS",
+      "Fiat",
+      "Alfa Romeo",
+      "SEAT",
+      "Skoda",
+      "Mazda",
+      "Mitsubishi",
+      "Suzuki",
+      "Subaru",
+      "MG",
+      "Volkswagen"
+    ],
+    "prestige_marques": [
+      "BMW",
+      "Mercedes-Benz",
+      "Audi",
+      "Land Rover",
+      "Range Rover",
+      "Jaguar",
+      "Porsche",
+      "Tesla"
+    ],
+    "above_prestige_if_engineer_specifies": [
+      "Bentley",
+      "Rolls-Royce",
+      "Aston Martin",
+      "Maserati"
+    ]
   },
   "materials": {
     "note": "Only sundry_parts_pct appears in the ABP schedule ('Sundries / clips / fixings - 3.5% of parts total'). sundry_paint_fixed, pre_sundry_fixed, and paint_material_base_ranges are house/Audatex defaults with no ABP schedule equivalent.",
@@ -26,74 +64,354 @@
     "sundry_paint_fixed": 120.16,
     "pre_sundry_fixed": 46.43,
     "paint_material_base_ranges": [
-      { "job_size": "single_panel_repair", "min": 120, "max": 250 },
-      { "job_size": "two_to_three_panels_basic", "min": 250, "max": 400 },
-      { "job_size": "three_to_five_panels_metallic_with_blends", "min": 400, "max": 700 },
-      { "job_size": "multi_panel_side_damage", "min": 700, "max": 1200 },
-      { "job_size": "major_work_five_plus_or_aluminium", "min": 1200, "max": 2000 }
+      {
+        "job_size": "single_panel_repair",
+        "min": 120,
+        "max": 250
+      },
+      {
+        "job_size": "two_to_three_panels_basic",
+        "min": 250,
+        "max": 400
+      },
+      {
+        "job_size": "three_to_five_panels_metallic_with_blends",
+        "min": 400,
+        "max": 700
+      },
+      {
+        "job_size": "multi_panel_side_damage",
+        "min": 700,
+        "max": 1200
+      },
+      {
+        "job_size": "major_work_five_plus_or_aluminium",
+        "min": 1200,
+        "max": 2000
+      }
     ]
   },
   "always_include_extras": [
-    { "description": "Assessment Fee", "type": "specialist_fixed", "value": 176.96 },
-    { "description": "BS 10125 Compliance Charge", "type": "specialist_fixed", "value": 41.64, "note": "ABP presents this per-job charge and the VM approval hourly uplift as alternatives ('or'); do not stack both on one job unless the engineer directs it." },
-    { "description": "Environmental (EPA) Charge", "type": "specialist_fixed", "value": 31.23 },
-    { "description": "Environmental Sustainability", "type": "specialist_fixed", "value": 26.02 },
-    { "description": "Vehicle Care Kit", "type": "specialist_fixed", "value": 10.41 },
-    { "description": "Pre Repair Clean", "type": "specialist_wu", "value": 5 },
-    { "description": "Wash And Vacuum", "type": "specialist_wu", "value": 10 },
-    { "description": "Pre Repair System Diagnostic Check", "type": "specialist_wu", "value": 10 },
-    { "description": "Post Repair System Diagnostic Check", "type": "specialist_wu", "value": 10 },
-    { "description": "Standard Vehicle Shutdown", "type": "specialist_wu", "value": 10 },
-    { "description": "QC And Road Test", "type": "specialist_wu", "value": 10 },
-    { "description": "Personal Belongings Removal", "type": "specialist_wu", "value": 3 },
-    { "description": "Specialist Valet", "type": "specialist_wu", "value": 10 },
-    { "description": "Yard Charge", "type": "specialist_wu", "value": 10 }
+    {
+      "description": "Assessment Fee",
+      "type": "specialist_fixed",
+      "value": 176.96
+    },
+    {
+      "description": "BS 10125 Compliance Charge",
+      "type": "specialist_fixed",
+      "value": 41.64,
+      "note": "ABP presents this per-job charge and the VM approval hourly uplift as alternatives ('or'); do not stack both on one job unless the engineer directs it."
+    },
+    {
+      "description": "Environmental (EPA) Charge",
+      "type": "specialist_fixed",
+      "value": 31.23
+    },
+    {
+      "description": "Environmental Sustainability",
+      "type": "specialist_fixed",
+      "value": 26.02
+    },
+    {
+      "description": "Vehicle Care Kit",
+      "type": "specialist_fixed",
+      "value": 10.41
+    },
+    {
+      "description": "Pre Repair Clean",
+      "type": "specialist_wu",
+      "value": 5
+    },
+    {
+      "description": "Wash And Vacuum",
+      "type": "specialist_wu",
+      "value": 10
+    },
+    {
+      "description": "Pre Repair System Diagnostic Check",
+      "type": "specialist_wu",
+      "value": 10
+    },
+    {
+      "description": "Post Repair System Diagnostic Check",
+      "type": "specialist_wu",
+      "value": 10
+    },
+    {
+      "description": "Standard Vehicle Shutdown",
+      "type": "specialist_wu",
+      "value": 10
+    },
+    {
+      "description": "QC And Road Test",
+      "type": "specialist_wu",
+      "value": 10
+    },
+    {
+      "description": "Personal Belongings Removal",
+      "type": "specialist_wu",
+      "value": 3
+    },
+    {
+      "description": "Specialist Valet",
+      "type": "specialist_wu",
+      "value": 10
+    },
+    {
+      "description": "Yard Charge",
+      "type": "specialist_wu",
+      "value": 10
+    }
   ],
   "conditional_extras": [
-    { "description": "Older Vehicle Allowance", "type": "specialist_wu", "value": 10, "condition": "vehicle_over_10_years_old" },
-    { "description": "Air Conditioning Recharge", "type": "specialist_fixed", "value": 271.7, "condition": "ac_system_disturbed" },
-    { "description": "Wheel Alignment 4-Wheel Check Only", "type": "specialist_fixed", "value": 112.42, "condition": "geometry_verification_without_adjustment" },
-    { "description": "Wheel Alignment Check And Adjust Toe", "type": "specialist_fixed", "value": 174.88, "condition": "suspension_or_wheels_disturbed", "note": "Camber and castor adjustment is a further ABP charge with no fixed price in the schedule; agree per job." },
-    { "description": "Steering Angle Reset", "type": "specialist_wu", "value": 5, "condition": "prior_to_adas_calibration" },
-    { "description": "ADAS 1st Calibration", "type": "specialist_fixed", "value": 312.3, "condition": "first_adas_system_calibrated" },
-    { "description": "ADAS Subsequent Calibration", "type": "specialist_fixed", "value": 156.15, "condition": "each_additional_adas_system" },
-    { "description": "Dynamic ADAS Second Technician", "type": "specialist_wu", "value": 5, "unit": "calibration_process", "condition": "dynamic_adas_calibration", "note": "Second technician operates the equipment while the other drives the vehicle, to comply with UK law." },
-    { "description": "Extensive Road Test Post ADAS Calibrations", "type": "specialist_wu", "value": 5, "condition": "any_adas_calibration_on_job", "note": "Required for IIR verification even when the calibration was performed by a dealer or sub-contractor." },
-    { "description": "Paint Protection 1st Panel", "type": "specialist_fixed", "value": 135.33, "condition": "first_painted_panel" },
-    { "description": "Paint Protection Additional", "type": "specialist_fixed", "value": 33.31, "condition": "each_subsequent_painted_panel" },
-    { "description": "Corrosion Protection Labour First Panel", "type": "specialist_wu", "value": 3, "condition": "panel_work_once_per_job" },
-    { "description": "Corrosion Protection Labour Additional Panel", "type": "specialist_wu", "value": 1, "unit": "panel", "condition": "per_additional_panel_treated" },
-    { "description": "Corrosion Protection Materials First Panel", "type": "specialist_fixed", "value": 15.61, "condition": "panel_work_once_per_job" },
-    { "description": "Corrosion Protection Materials Additional Panel", "type": "specialist_fixed", "value": 7.29, "unit": "panel", "condition": "per_additional_panel_treated" },
-    { "description": "Machine Polish", "type": "specialist_wu", "value": 3, "unit": "panel", "condition": "per_panel_polished" },
-    { "description": "Sill Dressing", "type": "specialist_wu", "value": 7, "unit": "side", "condition": "sill_work_per_side" },
-    { "description": "Trial Panel Fit", "type": "specialist_wu", "value": 5, "unit": "fit", "condition": "second_and_subsequent_trial_fits_only", "note": "First trial fit is included in standard hours; charge 2nd and subsequent fits only." },
-    { "description": "Storage Charge", "type": "specialist_fixed", "value": 41.64, "unit": "day", "condition": "vehicle_non_driveable_or_held" },
-    { "description": "Salvage / Total Loss Administration Charge", "type": "specialist_fixed", "value": 98.89, "condition": "vehicle_deemed_total_loss", "note": "Excludes the assessment compilation fee (Assessment Fee); both may appear on one job." },
-    { "description": "Alloy Wheel Refurb Standard", "type": "specialist_fixed", "value": 110.35, "unit": "wheel", "condition": "per_kerbed_wheel" },
-    { "description": "Alloy Wheel Refurb Diamond Cut", "type": "specialist_fixed", "value": 196.74, "unit": "wheel", "condition": "per_damaged_diamond_cut_wheel", "note": "Includes remove/refit tyre, replace valve, and balance (same as standard refurb)." },
-    { "description": "Swap Wheel With Spare", "type": "specialist_wu", "value": 5, "condition": "wheel_swapped_with_spare_wheel" },
-    { "description": "EV / Hybrid Risk Management", "type": "specialist_wu", "value": 5, "condition": "phev_or_bev" },
-    { "description": "Power Down PHEV Vehicle", "type": "specialist_wu", "value": 30, "condition": "phev_or_bev_after_impact" },
-    { "description": "Quarantine Vehicle PHEV Procedure", "type": "specialist_wu", "value": 40, "condition": "damaged_hv_system" },
-    { "description": "EV Full Recharge", "type": "specialist_fixed", "value": 52.05, "condition": "bev_discharged_during_repair_or_storage" },
-    { "description": "PHEV Full Recharge", "type": "specialist_fixed", "value": 20.82, "condition": "phev_discharged_during_repair_or_storage" }
+    {
+      "description": "Older Vehicle Allowance",
+      "type": "specialist_wu",
+      "value": 10,
+      "condition": "vehicle_over_10_years_old"
+    },
+    {
+      "description": "Air Conditioning Recharge",
+      "type": "specialist_fixed",
+      "value": 271.7,
+      "condition": "ac_system_disturbed"
+    },
+    {
+      "description": "Wheel Alignment 4-Wheel Check Only",
+      "type": "specialist_fixed",
+      "value": 112.42,
+      "condition": "geometry_verification_without_adjustment"
+    },
+    {
+      "description": "Wheel Alignment Check And Adjust Toe",
+      "type": "specialist_fixed",
+      "value": 174.88,
+      "condition": "suspension_or_wheels_disturbed",
+      "note": "Camber and castor adjustment is a further ABP charge with no fixed price in the schedule; agree per job."
+    },
+    {
+      "description": "Steering Angle Reset",
+      "type": "specialist_wu",
+      "value": 5,
+      "condition": "prior_to_adas_calibration"
+    },
+    {
+      "description": "ADAS 1st Calibration",
+      "type": "specialist_fixed",
+      "value": 312.3,
+      "condition": "first_adas_system_calibrated"
+    },
+    {
+      "description": "ADAS Subsequent Calibration",
+      "type": "specialist_fixed",
+      "value": 156.15,
+      "condition": "each_additional_adas_system"
+    },
+    {
+      "description": "Dynamic ADAS Second Technician",
+      "type": "specialist_wu",
+      "value": 5,
+      "unit": "calibration_process",
+      "condition": "dynamic_adas_calibration",
+      "note": "Second technician operates the equipment while the other drives the vehicle, to comply with UK law."
+    },
+    {
+      "description": "Extensive Road Test Post ADAS Calibrations",
+      "type": "specialist_wu",
+      "value": 5,
+      "condition": "any_adas_calibration_on_job",
+      "note": "Required for IIR verification even when the calibration was performed by a dealer or sub-contractor."
+    },
+    {
+      "description": "Paint Protection 1st Panel",
+      "type": "specialist_fixed",
+      "value": 135.33,
+      "condition": "first_painted_panel"
+    },
+    {
+      "description": "Paint Protection Additional",
+      "type": "specialist_fixed",
+      "value": 33.31,
+      "condition": "each_subsequent_painted_panel"
+    },
+    {
+      "description": "Corrosion Protection Labour First Panel",
+      "type": "specialist_wu",
+      "value": 3,
+      "condition": "panel_work_once_per_job"
+    },
+    {
+      "description": "Corrosion Protection Labour Additional Panel",
+      "type": "specialist_wu",
+      "value": 1,
+      "unit": "panel",
+      "condition": "per_additional_panel_treated"
+    },
+    {
+      "description": "Corrosion Protection Materials First Panel",
+      "type": "specialist_fixed",
+      "value": 15.61,
+      "condition": "panel_work_once_per_job"
+    },
+    {
+      "description": "Corrosion Protection Materials Additional Panel",
+      "type": "specialist_fixed",
+      "value": 7.29,
+      "unit": "panel",
+      "condition": "per_additional_panel_treated"
+    },
+    {
+      "description": "Machine Polish",
+      "type": "specialist_wu",
+      "value": 3,
+      "unit": "panel",
+      "condition": "per_panel_polished"
+    },
+    {
+      "description": "Sill Dressing",
+      "type": "specialist_wu",
+      "value": 7,
+      "unit": "side",
+      "condition": "sill_work_per_side"
+    },
+    {
+      "description": "Trial Panel Fit",
+      "type": "specialist_wu",
+      "value": 5,
+      "unit": "fit",
+      "condition": "second_and_subsequent_trial_fits_only",
+      "note": "First trial fit is included in standard hours; charge 2nd and subsequent fits only."
+    },
+    {
+      "description": "Storage Charge",
+      "type": "specialist_fixed",
+      "value": 41.64,
+      "unit": "day",
+      "condition": "vehicle_non_driveable_or_held"
+    },
+    {
+      "description": "Salvage / Total Loss Administration Charge",
+      "type": "specialist_fixed",
+      "value": 98.89,
+      "condition": "vehicle_deemed_total_loss",
+      "note": "Excludes the assessment compilation fee (Assessment Fee); both may appear on one job."
+    },
+    {
+      "description": "Alloy Wheel Refurb Standard",
+      "type": "specialist_fixed",
+      "value": 110.35,
+      "unit": "wheel",
+      "condition": "per_kerbed_wheel"
+    },
+    {
+      "description": "Alloy Wheel Refurb Diamond Cut",
+      "type": "specialist_fixed",
+      "value": 196.74,
+      "unit": "wheel",
+      "condition": "per_damaged_diamond_cut_wheel",
+      "note": "Includes remove/refit tyre, replace valve, and balance (same as standard refurb)."
+    },
+    {
+      "description": "Swap Wheel With Spare",
+      "type": "specialist_wu",
+      "value": 5,
+      "condition": "wheel_swapped_with_spare_wheel"
+    },
+    {
+      "description": "EV / Hybrid Risk Management",
+      "type": "specialist_wu",
+      "value": 5,
+      "condition": "phev_or_bev"
+    },
+    {
+      "description": "Power Down PHEV Vehicle",
+      "type": "specialist_wu",
+      "value": 30,
+      "condition": "phev_or_bev_after_impact"
+    },
+    {
+      "description": "Quarantine Vehicle PHEV Procedure",
+      "type": "specialist_wu",
+      "value": 40,
+      "condition": "damaged_hv_system"
+    },
+    {
+      "description": "EV Full Recharge",
+      "type": "specialist_fixed",
+      "value": 52.05,
+      "condition": "bev_discharged_during_repair_or_storage"
+    },
+    {
+      "description": "PHEV Full Recharge",
+      "type": "specialist_fixed",
+      "value": 20.82,
+      "condition": "phev_discharged_during_repair_or_storage"
+    }
   ],
   "parts_charges": {
     "note": "ABP parts-section fixed prices; these are parts lines, not specialist extras. All other parts-section items (bead sealer, brake fluid, coolant, engine oil, bonding kits) are OE price, and tyres are as agreed on a retail basis. Panel Repair Sundries is a separate ABP line from the 3.5% sundries/clips/fixings percentage, not a duplicate.",
     "items": [
-      { "description": "Panel Repair Sundries (inc body filler)", "value": 26.02, "unit": "panel_repaired" },
-      { "description": "New Welded / Bonded Panels Materials", "value": 12.49, "unit": "panel_joined" },
-      { "description": "Boron Drill 8mm UHSS", "value": 72.87, "unit": "each" },
-      { "description": "Number Plate (exc fitting)", "value": 26.02, "unit": "each" },
-      { "description": "Glass Moulding Lifting Tape", "value": 15.61, "unit": "each" },
-      { "description": "Sound Deadening Pad Large", "value": 16.65, "unit": "each" },
-      { "description": "Sound Deadening Pad Small", "value": 13.53, "unit": "each" },
-      { "description": "Screenwash", "value": 7.28, "unit": "litre" }
+      {
+        "description": "Panel Repair Sundries (inc body filler)",
+        "value": 26.02,
+        "unit": "panel_repaired"
+      },
+      {
+        "description": "New Welded / Bonded Panels Materials",
+        "value": 12.49,
+        "unit": "panel_joined"
+      },
+      {
+        "description": "Boron Drill 8mm UHSS",
+        "value": 72.87,
+        "unit": "each"
+      },
+      {
+        "description": "Number Plate (exc fitting)",
+        "value": 26.02,
+        "unit": "each"
+      },
+      {
+        "description": "Glass Moulding Lifting Tape",
+        "value": 15.61,
+        "unit": "each"
+      },
+      {
+        "description": "Sound Deadening Pad Large",
+        "value": 16.65,
+        "unit": "each"
+      },
+      {
+        "description": "Sound Deadening Pad Small",
+        "value": 13.53,
+        "unit": "each"
+      },
+      {
+        "description": "Screenwash",
+        "value": 7.28,
+        "unit": "litre"
+      }
     ]
   },
   "exclusions": [
-    { "description": "Recovery charge", "default": "exclude", "reason": "Engineer adds manually only when specifically required.", "abp_2026_figures": { "standard_per_return_journey": 182.17, "standard_includes_first_miles": 20, "standard_per_mile_thereafter": 4.68, "specialist_and_inherited": "contractor rate + 20% admin", "vehicle_movement_driven_per_journey": 78.07 } },
-    { "description": "Standard ABP package on transcription jobs", "default": "exclude", "reason": "Avoid double-counting source estimate extras." }
-  ]
+    {
+      "description": "Recovery charge",
+      "default": "exclude",
+      "reason": "Engineer adds manually only when specifically required.",
+      "abp_2026_figures": {
+        "standard_per_return_journey": 182.17,
+        "standard_includes_first_miles": 20,
+        "standard_per_mile_thereafter": 4.68,
+        "specialist_and_inherited": "contractor rate + 20% admin",
+        "vehicle_movement_driven_per_journey": 78.07
+      }
+    },
+    {
+      "description": "Standard ABP package on transcription jobs",
+      "default": "exclude",
+      "reason": "Avoid double-counting source estimate extras."
+    }
+  ],
+  "authority_boundary": "Versioned source-workspace experiment fixture only. Values and review/category flags are candidate evaluation data, not Pegasus policy, accepted facts, economics, categories, outcomes, or approval."
 }
