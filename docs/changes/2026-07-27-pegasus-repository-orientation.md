@@ -435,18 +435,20 @@ The accepted documentation-centralization plan is identified by SHA-256
 `9efd6e39b6f01dfbb449e8d0f39533b63b1cac2f5b6120cd7c63e4428fcb66d7`.
 The executable baseline is commit
 `467284f23b268e199d7fbe77dbb2163b50f00e23` plus the pre-consolidation
-working-tree bytes of the exact 512-path disposition census. The exact
-`docs/reference/imp-docs/` prefix remained opaque: it was excluded before
-enumeration and produced `excludedOperations=0`.
+working-tree evidence of the exact 512-path disposition census. For the 131
+byte-retained (`K`) paths, the baseline manifest uses that commit's Git blob
+bytes so exact comparison is independent of checkout line-ending conversion.
+The exact `docs/reference/imp-docs/` prefix remained opaque: it was excluded
+before enumeration and produced `excludedOperations=0`.
 
 The independently hashed temporary proof inputs are outside the repository:
 
 | Proof input | SHA-256 |
 | --- | --- |
 | Disposition manifest | `4d0ddab6f49e17a053b07df7e2433e60971c653aadf5e1fe4ed74d722129f658` |
-| Baseline manifest | `1114bcc81d139772defca1fc09589e15bdf2276a3d0aaf63982725c6aeec1d3b` |
-| Material-claim inventory | `f6c1327c679c140f7d59d38257ec6d7d8fefcfdfc2ad1d1312ea2d9d58c88992` |
-| Callsite inventory | `8cdb9adecba87ebba2bec18c0b214e16c5eab0110537cf19ad02797b7845fbc0` |
+| Baseline manifest | `429ee9dbc3c6ce746098c7e2207b73975791538266df8962713935dcf3aa6864` |
+| Material-claim inventory | `5d997b319f03c5005aeee8183e4f9c8704b1557599cec9188bbe07ef602f5338` |
+| Callsite inventory | `095ff29859eff0090b1f04409ec91b29c8d2c3d06aac7795937a32c935f9c616` |
 
 The accepted disposition is exact: 512 baseline artifacts (`K=131`, `R=92`,
 `M=2`, `D=287`) plus 13 created owners produce a 238-artifact head, a
@@ -495,6 +497,31 @@ anchor, reachability, language, source-boundary, and workspace-manifest checks
 pass. The change remains `in_review`; the PR's final exact head, check run, and
 independent-review outcome are recorded against the frozen PR head rather than
 inferred from this implementation commit.
+
+### Pull request 18 exact-head remediation
+
+Independent review of head `48559b8f9e7204e14d5ee053c91c12c0300ea03b`
+established four blockers and three required findings. The follow-up patch:
+
+- canonicalises every operation path against the repository root before any
+  file access, rejects rooted/out-of-root paths, and fails on the opaque prefix;
+- requires a full `ExpectedHeadCommit` and clean allowed index, then materialises
+  the allowed tree from that commit's Git blobs so unrelated working-tree edits
+  cannot enter the proof; the head manifest records that commit and all four
+  pinned proof-input hashes;
+- authenticates the exact 27,762-row material-claim inventory, enforces
+  sequential unique claim identities and changed-text-source coverage, and
+  verifies every landing section/blob hash;
+- authenticates and accounts for all 3,111 baseline callsites through a unique
+  callsite identity and a material-claim landing, byte-retained source, exact
+  active-head callsite, or explicit many-to-one active-origin migration; the
+  eight immutable exceptions remain exact;
+- replaces migration notes and source-authority contradictions in the
+  diminution benchmark, visual-design skill, house-style skill, total-loss
+  rendering workflow, and document-extraction DOCX architecture label.
+
+These remediations require a new exact-head independent review; this record does
+not infer acceptance from implementation or green checks.
 
 ## Verification and evidence
 

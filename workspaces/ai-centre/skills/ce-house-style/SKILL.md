@@ -13,10 +13,17 @@ description: >-
   to write in CE's voice — even if the skill is not named.
 ---
 
-> **Source-workspace boundary:** Retain skill-local tone/lint behavior, replace 'source-pack style guidance; root/operator authority prevails' with 'source-pack style guidance; root/operator authority prevails'. This is evidence, an example, a package-local format, or an experiment only; `Pegasus.Core`, current operator authority, and an authorised human own every accepted fact, cost, category, outcome, legal position, send, report issue, and approval.
 # Collision Engineers — House Style
 
-The single authority for **how Collision Engineers writes**. All written output — from a two-line delivery note to a sixteen-page expert report — follows this voice.
+## Authority boundary
+
+This package provides tone examples and lint candidates only. Root
+design/product authority and current operator authority prevail; `Pegasus.Core`
+and an authorised human own every accepted fact, cost, category, outcome, legal
+position, send, report issue, and approval.
+
+This is package-local source guidance for drafting and review, not the single
+authority for accepted Collision Engineers or Pegasus wording.
 
 **One sentence:** *Communicate as an independent vehicle engineering expert: concise, professional, evidence-based, calm under challenge, and confident without being confrontational.*
 
