@@ -40,7 +40,6 @@ The accepted documentation predecessor is exact commit
   allocation ledger.
 - [Operations](../operations.md): release sequencing, activation discipline,
   and evidence-state separation.
-- [Roadmap](../roadmap.md): horizon summary only; no exact release ledger.
 - [Product traceability](../../design/product/traceability-matrix.md): mirror of
   canonical horizon/target allocations plus separate development-evidence
   qualifiers.
@@ -67,6 +66,19 @@ The accepted documentation predecessor is exact commit
 6. Prove exact repository counts, milestone/project readback, local restore,
    Release build, focused/full tests, and caller-independent exact-head review
    before presenting a stacked pull request.
+
+## Execution scope update
+
+Current user direction on 2026-07-29 stopped further GitHub Project
+presentation work and directed effort to alpha delivery. Before that direction,
+the Project API mirror had already been populated with all 229 keyed draft
+items and exact capability fields. The two saved views exist but their
+grouping, filters, displayed fields, and visual samples were not configured or
+accepted; they are not a completion gate or evidence for this change.
+
+Repository allocation remains the only product authority. No subsequent alpha
+claim may depend on Project presentation. No further Project mutation or
+readback was performed after the direction changed.
 
 ## Exact release sequence
 
@@ -106,22 +118,45 @@ or activation issue.
 
 ## External writes
 
-| Target | Intended write | Evidence |
-| --- | --- | --- |
-| Repository issue #19 | Create and assign to `0.1.0-alpha.1` | Pending readback |
-| Repository issue #3 | Preserve assignment to `0.1.0-alpha.1` | Pending readback |
-| Repository milestones | Preserve/create the exact twelve open dateless release milestones | Pending readback |
-| User Project 3 | Field, option, view, and 229 draft-item synchronization | Pending readback |
+| Target | Write and evidence |
+| --- | --- |
+| GitHub CLI credential | The active `collisionengineers` credential was explicitly authorised and refreshed with `project` scope after the initial Project read failed for missing `read:project`; `gh auth status` then reported `project`. |
+| Repository issue #19 | Existing task issue remained assigned to milestone `0.1.0-alpha.1` (milestone number 1) and was added to Project item `PVTI_lAHOERCoDM4BeiWXzg0exlk`. |
+| Repository issue #3 | API preflight and final card-sync readback preserved its one unkeyed Project item `PVTI_lAHOERCoDM4BeiWXzg0K22I` and its existing milestone, title, body, Status `Ready`, Priority `P1 High`, and Horizon `Now` values. |
+| Repository milestones | Preserved `0.1.0-alpha.1` and created open, dateless milestone numbers 2–12 for `0.2.0` through `1.4.0`; paginated readback matched all twelve exact titles and descriptions. |
+| Project fields | Selected `Capability ID` `PVTF_lAHOERCoDM4BeiWXzhZIots`, `Pegasus Target release` `PVTSSF_lAHOERCoDM4BeiWXzhZIpx0`, `Pegasus Horizon` `PVTSSF_lAHOERCoDM4BeiWXzhZIovg`, `Pegasus Delivery status` `PVTSSF_lAHOERCoDM4BeiWXzhZIot0`, and existing `Priority` `PVTSSF_lAHOERCoDM4BeiWXzhY7yPU`. |
+| Project field correction | An empty preferred `Target release` field `PVTSSF_lAHOERCoDM4BeiWXzhZIotw` was created with only the twelve planned releases before the required `unallocated` option was rechecked. No item was assigned to it. It was left untouched and the compatible prefixed fallback above was selected, rather than perform an unauthorised destructive field deletion. |
+| Project capability items | Sequential GraphQL writes created and keyed 229 draft items. Paginated readback proved 229 unique unarchived IDs: Horizon `128/32/40/29`, Delivery status `128 In progress / 72 Triage / 29 Not planned`, exact release counts `128/8/19/5/5/5/1/12/6/5/3/3`, and `29 unallocated`; no Priority value or milestone was inferred on any draft. |
+| Project views | Created `Release sequence` `PVTV_lAHOERCoDM4BeiWXzgLIBfw` and `Permanent boundaries` `PVTV_lAHOERCoDM4BeiWXzgLIBno`. Their layout shells exist, but filters/grouping/display fields and visual verification were explicitly skipped under the later user direction and are not claimed as complete. |
 
-No Azure, deployment, mailbox, Box, EVA, provider, WhatsApp, AI, credential,
-account, data, or other external-service operation is authorised by this change.
+No Azure, deployment, mailbox, Box, EVA, provider, WhatsApp, AI, account, case
+data, or other external-service operation was performed by this change.
 
 ## Verification and evidence
 
-Pending implementation, local validation, exact GitHub API/UI readback, green
-exact-head pull request checks, and independent review.
+- Immutable allocation input and pushed branch head:
+  `19b69aaec49c9cef357d8d6f435ca34f2c258fb3`.
+- `pwsh -NoProfile -File ./scripts/Test-RepositoryPolicy.ps1`: passed with
+  229 unique capabilities, 200 exact allocations across 12 releases, 29
+  permanent unallocated boundaries, and exact horizon/matrix parity.
+- `pwsh -NoProfile -File ./scripts/Test-RepositoryLanguage.ps1`: passed.
+- `dotnet restore ./Pegasus.slnx`: passed.
+- `dotnet build ./Pegasus.slnx --configuration Release --no-restore`: passed.
+- `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter
+  "Category!=Corpus"`: 35 Architecture, 62 Core, and 87 Integration tests
+  passed.
+- Temporary fail-closed synchronization readback proved exact field option
+  order, 229 unique draft IDs, zero missing/extra/duplicate IDs, 29 permanent
+  boundary drafts, exact status/horizon/target counts, zero Priority
+  exceptions, no draft milestones, exact immutable draft bodies, and unchanged
+  issue #3 content/fields.
+- Saved Project view presentation and visual samples are deliberately
+  unverified under the 2026-07-29 user scope update. They are not repository,
+  implementation, deployment, or acceptance evidence.
 
 ## Outcome
 
-In progress. Allocation records and GitHub planning state are not implementation,
-deployment, live verification, operator acceptance, or release evidence.
+In progress pending the allocation pull request and exact-head independent
+review. The repository allocation is complete. GitHub planning state is not
+implementation, deployment, live verification, operator acceptance, or release
+evidence.
