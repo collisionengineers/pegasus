@@ -1,0 +1,134 @@
+using System.Security.Cryptography;
+
+namespace Pegasus.Infrastructure.Custody;
+
+internal sealed class LocalDocumentContentStore(string rootPath)
+{
+    private readonly string rootPath = Path.GetFullPath(rootPath);
+
+    public async Task StoreAsync(
+        Guid caseId,
+        Guid versionId,
+        ReadOnlyMemory<byte> content,
+        string expectedSha256,
+        CancellationToken cancellationToken)
+    {
+        ValidateIdentifiers(caseId, versionId);
+        var normalizedHash = NormalizeSha256(expectedSha256);
+        var actualHash = Convert.ToHexString(SHA256.HashData(content.Span)).ToLowerInvariant();
+        if (!string.Equals(normalizedHash, actualHash, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("Document content does not match its custody hash.");
+        }
+
+        var path = Resolve(caseId, versionId);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        try
+        {
+            await using var stream = new FileStream(
+                path,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None,
+                64 * 1024,
+                FileOptions.Asynchronous | FileOptions.WriteThrough);
+            await stream.WriteAsync(content, cancellationToken);
+            await stream.FlushAsync(cancellationToken);
+            return;
+        }
+        catch (IOException) when (File.Exists(path))
+        {
+            // Idempotent and concurrent writes verify the immutable bytes below.
+        }
+
+        await VerifyAsync(path, normalizedHash, content.Length, cancellationToken);
+    }
+
+    public async Task<Stream> OpenReadAsync(
+        Guid caseId,
+        Guid versionId,
+        string expectedSha256,
+        long expectedLength,
+        CancellationToken cancellationToken)
+    {
+        ValidateIdentifiers(caseId, versionId);
+        var path = Resolve(caseId, versionId);
+        if (!File.Exists(path))
+        {
+            throw new FileNotFoundException("The document content is unavailable.");
+        }
+
+        await VerifyAsync(path, NormalizeSha256(expectedSha256), expectedLength, cancellationToken);
+        return new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            64 * 1024,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+    }
+
+    private static async Task VerifyAsync(
+        string path,
+        string expectedSha256,
+        long expectedLength,
+        CancellationToken cancellationToken)
+    {
+        await using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            64 * 1024,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        if (stream.Length != expectedLength)
+        {
+            throw new InvalidDataException("Document custody length verification failed.");
+        }
+
+        var actualHash = Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellationToken))
+            .ToLowerInvariant();
+        if (!string.Equals(expectedSha256, actualHash, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("Document custody hash verification failed.");
+        }
+    }
+
+    private string Resolve(Guid caseId, Guid versionId)
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            rootPath,
+            "cases",
+            caseId.ToString("N"),
+            "managed",
+            versionId.ToString("N"),
+            "content"));
+        var rootPrefix = rootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+        if (!path.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new UnauthorizedAccessException("The document content is outside the configured custody root.");
+        }
+
+        return path;
+    }
+
+    private static void ValidateIdentifiers(Guid caseId, Guid versionId)
+    {
+        if (caseId == Guid.Empty || versionId == Guid.Empty)
+        {
+            throw new ArgumentException("Case and document version identifiers are required.");
+        }
+    }
+
+    private static string NormalizeSha256(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        if (value.Length != SHA256.HashSizeInBytes * 2 || !value.All(Uri.IsHexDigit))
+        {
+            throw new ArgumentException("A SHA-256 hash is required.", nameof(value));
+        }
+
+        return value.ToLowerInvariant();
+    }
+}

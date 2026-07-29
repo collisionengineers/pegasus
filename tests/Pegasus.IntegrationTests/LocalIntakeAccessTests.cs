@@ -74,9 +74,15 @@ public sealed class LocalIntakeAccessTests
     }
 
     [Theory]
-    [InlineData("DevelopmentOffline", false, "permitted only in the Development environment")]
-    [InlineData("Production", true, "requires the DevelopmentOffline runtime profile")]
-    public void ProductionRefusesDevelopmentOnlyConfiguration(
+    [InlineData(
+        "DevelopmentOffline",
+        false,
+        "The DevelopmentOffline runtime profile is permitted only in the Development environment.")]
+    [InlineData(
+        "Production",
+        true,
+        "Features:LocalIntake requires the DevelopmentOffline runtime profile.")]
+    public void ProductionRejectsDevelopmentOnlyConfigurationBeforeAuthenticationStartup(
         string runtimeProfile,
         bool localIntakeEnabled,
         string expectedMessage)
@@ -96,8 +102,9 @@ public sealed class LocalIntakeAccessTests
             });
 
         var exception = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
+        var configurationException = Assert.IsType<InvalidOperationException>(exception.GetBaseException());
 
-        Assert.Contains(expectedMessage, exception.ToString(), StringComparison.Ordinal);
+        Assert.Equal(expectedMessage, configurationException.Message);
     }
 
     private static async Task<long> CountRowsIfPresentAsync(DbConnection connection, DatabaseTable table)

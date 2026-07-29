@@ -9,6 +9,32 @@ namespace Pegasus.IntegrationTests;
 
 public sealed class IntakeWebNegativeTests
 {
+    private static readonly string[] BusinessTables =
+    [
+        "IntakeReceipts",
+        "IntakeAssets",
+        "InstructionDrafts",
+        "IntakeReceiptEvents",
+        "IntakeStagedReceipts",
+        "IntakeWorkItems",
+        "IntakeEvaluations",
+        "Organizations",
+        "OrganizationRoles",
+        "PrincipalSequenceLineages",
+        "Principals",
+        "CaseSequences",
+        "Cases",
+        "CaseHistory",
+        "ExternalWorkItems",
+        "CaseIntakeLinks",
+        "BoxFileRequests",
+        "CaseDocuments",
+        "RequestUploadLinks",
+        "DocumentVersions",
+        "DocumentOccurrences",
+        "RequestUploadReceipts"
+    ];
+
     [Fact]
     public async Task ArtifactFailureShowsRetryMessageCreatesNoReceiptAndSameTokenCanRetry()
     {
@@ -327,25 +353,13 @@ public sealed class IntakeWebNegativeTests
         await context.Database.OpenConnectionAsync();
         try
         {
-            foreach (var table in new[]
-                     {
-                         "IntakeReceipts",
-                         "IntakeAssets",
-                         "InstructionDrafts",
-                         "IntakeReceiptEvents"
-                     })
+            foreach (var table in BusinessTables)
             {
                 await using var command = context.Database.GetDbConnection().CreateCommand();
                 command.CommandText = $"SELECT COUNT(*) FROM [{table}]";
                 Assert.Equal(0L, Convert.ToInt64(await command.ExecuteScalarAsync(),
                     System.Globalization.CultureInfo.InvariantCulture));
             }
-
-            await using var obsoleteTables = context.Database.GetDbConnection().CreateCommand();
-            obsoleteTables.CommandText =
-                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('Cases', 'PrincipalYearCounters')";
-            Assert.Equal(0L, Convert.ToInt64(await obsoleteTables.ExecuteScalarAsync(),
-                System.Globalization.CultureInfo.InvariantCulture));
         }
         finally
         {
