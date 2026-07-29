@@ -3,12 +3,12 @@
 ```yaml
 id: 2026-07-29-version-all-planned-capabilities
 type: task
-status: in_progress
+status: in_review
 risk: medium
 created: 2026-07-29
 updated: 2026-07-29
 issue: https://github.com/collisionengineers/pegasus/issues/19
-pull_request: pending
+pull_request: https://github.com/collisionengineers/pegasus/pull/20
 baseline: 7f9f088150ff04d8336a38a27e25804dac412d8a
 target_release: multiple
 roadmap_horizon: Now, Next, Later, Not planned
@@ -156,7 +156,6 @@ data, or other external-service operation was performed by this change.
 
 ## Outcome
 
-In progress pending the allocation pull request and exact-head independent
-review. The repository allocation is complete. GitHub planning state is not
-implementation, deployment, live verification, operator acceptance, or release
-evidence.
+In review in pull request 20. The repository allocation is complete. GitHub
+planning state is not implementation, deployment, live verification, operator
+acceptance, or release evidence.
