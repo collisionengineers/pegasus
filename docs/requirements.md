@@ -121,8 +121,11 @@ Every intake path must:
 - retain sender, recipients, subject, message identifiers, timestamps, attachment names, content types, byte lengths, hashes, and parent/placement relationships where available;
 - be idempotent for the same source occurrence without collapsing distinct visible placements;
 - surface unsupported, incomplete, corrupt, encrypted, oversized, ambiguous, or technically failed input as an explicit decision rather than silently dropping or accepting it;
+
 - record the actor, time, caller, source, policy version, and reason for every transition;
 - prevent untrusted content from becoming instructions, policy, identity, or authority.
+
+When a retained source remains `Needs sorting` because no category can be determined, the UI explains the missing, ambiguous, or contradictory predicates rather than presenting the positive rationale for an unrelated category.
 
 ### Request-scoped upload links
 
@@ -507,6 +510,8 @@ assignment, which remain EVA-owned events. An image/document upload into
 Pegasus, Box custody, or the presence of a report PDF is not this handoff and is
 not external delivery evidence.
 
+Successful focused manual generation makes the complete JSON, selected-image, and manifest bundle available for immediate staff download. Download proves neither EVA receipt nor report delivery and does not change Case state.
+
 The focused handoff readiness review keeps four source-labelled inputs distinct:
 the saved source email, vehicle images, valuation evidence, and initial
 instructions. A missing item remains visible and cannot be represented as
@@ -566,7 +571,7 @@ owners.
 
 | Received family | Confirmed examples or subtypes |
 | --- | --- |
-| `General` | `autoreply`; `undeliverable`; acknowledgements such as “thank you” |
+| `General` | `autoreply`; `undeliverable`; acknowledgements such as “thank you”; `general-chase`; `case-summary` |
 | `billing` | payment notifications; remittances; invoice requests; `billing-query`; `general-billing` |
 | `new-instruction-received` | initial work instructions: `audit`, `diminution`, `inspection`, `new-client`, `website-enquiry` |
 | `non-client-related` | internal/company email from tools, services, software packages, and similar sources |
@@ -587,6 +592,8 @@ Received messages mirror the underlying Received category with reply context;
 a correspondent’s replies to Sent messages mirror the underlying Sent category
 with reply context. The settled taxonomy also permits `Other`, which requires
 both a new category name and reasoning.
+
+A `general-chase` message may refer to several Cases but remains a single unlinked General source occurrence: Pegasus neither copies it nor creates one-to-many Case associations. A `case-summary` is likewise retained as non-actionable General correspondence and creates no intake, Triage, or Case work.
 
 Classification, application queue, Triage routing, and Outlook folder
 destination are separate facts. `new-instruction-received` is a Received family
