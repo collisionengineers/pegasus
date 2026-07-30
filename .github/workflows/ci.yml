@@ -36,6 +36,10 @@ jobs:
 
   qdos-pressure:
     runs-on: windows-latest
+    # Local deterministic pressure completes in seconds; allow setup variance
+    # but fail a deadlocked caller path rather than consuming GitHub's six-hour
+    # default job window.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
