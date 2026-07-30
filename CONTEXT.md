@@ -29,7 +29,7 @@ An organisation that routes work without thereby becoming the Principal.
 _Avoid_: Principal, client
 
 **Repairer**:
-The vehicle holder or repair organisation associated deliberately with a Case.
+A reusable organisation with name, full address, and contacts that may relate to multiple Principals and is deliberately associated with a Case as its vehicle holder or repair organisation.
 _Avoid_: Principal, image sender
 
 **Image Source**:
@@ -84,6 +84,10 @@ _Avoid_: Service account, staff impersonation, background task
 A created Case state for an Image Case or instructed Case whose ordinary business details, required source images, or other progression requirements remain incomplete. Image quality and coverage assessments are advisory and never make a Case `Not ready`.
 _Avoid_: Needs sorting, Blocked intake
 
+**Review**:
+A Case state in which staff manually review its readiness and accepted evidence before Engineer-queue eligibility or direct Engineer assignment.
+_Avoid_: Automatic approval, Engineer assignment
+
 **Field provenance**:
 The current evidential origin of a Case datum; direct values identify their source, while derived values identify their accepted inputs and calculation.
 _Avoid_: Source label, value status
@@ -95,3 +99,7 @@ _Avoid_: Case validity, image validation
 **Always-image-based Principal**:
 A Principal whose accepted route policy waives only the image-readiness reflection advisory. It does not waive other image-readiness advisories or the report-image reflection exclusion.
 _Avoid_: Image-based client, provider exception
+
+**Vehicle enrichment**:
+The acquisition of externally sourced vehicle observations after case intake to enhance, but never silently replace, Case data.
+_Avoid_: Vehicle-data integration, automatic correction

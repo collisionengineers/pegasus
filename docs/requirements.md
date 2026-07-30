@@ -192,6 +192,11 @@ Matching uses explainable evidence. Message identifiers, provider/domain policy,
 
 VRM correlation is a suggestion until confirmed by accepted evidence or an authorised operator. Source deduplication is occurrence-aware: exact bytes and transport identifiers support correlation, while each visible placement and chronology entry remains auditable.
 
+Arrival-time proximity never associates or consolidates material. A mismatch
+between accepted incident dates may eliminate a candidate; a matching incident
+date proves nothing alone and requires corroborating accepted evidence before
+association or consolidation.
+
 The immutable source occurrence and its evidence remain distinct from the accepted, editable Case projection. Linking creates a versioned source-to-case relationship; it never converts the source into the case, rewrites source facts, or changes the original intake origin.
 
 An Image Case with an Image Intake Reference remains a distinct pre-report Case until Core can consolidate it into exactly one eligible instructed Case. Automatic consolidation requires an unambiguous normalised VRM match and no explicit contradictory identity evidence. A Case after report delivery is not eligible. Otherwise, an authorised staff member must make the reasoned decision. Consolidation retains both source histories and both permanent identities: the instructed Case/PO remains the Case identity and the Image Intake Reference becomes linked history. An authorised reversal is allowed only before report delivery, requires a reason and restores both Cases to `Not ready` without reusing or rewriting either identity or history.
@@ -218,17 +223,27 @@ requirement.
 Vehicle details are extracted from the instruction where available, otherwise
 obtained from the applicable DVLA/MOT source. Mileage evidence ranks as:
 
-1. directly extracted instruction text;
-2. Document Intelligence extraction from a scanned instruction or future
+1. an accepted staff-entered value;
+2. directly extracted instruction text;
+3. Document Intelligence extraction from a scanned instruction or future
    odometer-vision evidence; and
-3. a DVSA-derived estimate.
+4. a DVSA-derived estimate.
 
 DVSA is run for every Case. Where no higher-tier mileage value is available, it
 supplies the source-labelled estimate. A difference between DVSA mileage and
-any instruction-extracted, Document Intelligence, or odometer value is a
-visible Case discrepancy. The later odometer-vision capability does not imply
-an activated AI caller before its own accepted evaluation and integration
-contract.
+any accepted staff-entered, instruction-extracted, Document Intelligence, or
+odometer value is a visible Case discrepancy. The later odometer-vision
+capability does not imply an activated AI caller before its own accepted
+evaluation and integration contract.
+
+The DVSA estimate follows [ADR-0012](adr/0012-conservative-mot-mileage-estimation.md):
+it preserves raw observations, validates units, groups fail/retest episodes,
+segments corroborated odometer drops, and excludes implausible or
+low-information intervals without deleting them. It uses a recency- and
+quality-weighted median of clean rates, with a versioned cohort prior only for
+eligible sparse histories; interpolation and forecasting remain bounded. An
+estimate without eligible chronological holdouts is a wider, explicitly
+non-probabilistic range and never defaults into the Case.
 
 Definitive authorised intake creates exactly one instructed Case idempotently. A definitive match to an existing instructed Case allocates no duplicate. A new instructed Case enters `Not ready` until its ordinary business detail, required source images, and applicable progression requirements are satisfied; the route may move it to `Review` only when its explicit policy permits that transition. The allocation decision adds no universal manual acceptance gate.
 
@@ -313,6 +328,10 @@ Web and MCP Automation Actor callers use the same guard. Background append-only 
 
 Manual chasing remains a staff action in the alpha unless an allocated capability and accepted integration explicitly authorize automation. The history records what was attempted, by whom, through which channel, against which party/address, when, and with what evidence. A recorded action is not proof of external delivery.
 
+Each chaser retains its recipient, channel, prepared draft or draft reference,
+staff disposition, and attributable timestamps. Free-text notes may accompany a
+structured chaser without implying that it was sent or answered.
+
 For each item awaiting material, the current work projection keeps the
 missing-material reason, `Due by`, next chase, most recent recorded
 channel/outcome, optional note, and next permitted action together. Prepared or
@@ -322,6 +341,11 @@ completed work.
 ## Parties, principals, organisations, accounts, and access
 
 Pegasus distinguishes principals, reusable organisations, staff accounts, roles, and case-party roles. A repairer, broker, agent, client, legal representative, provider, vehicle keeper, or other contact may occupy different roles on different cases. Reusable repairer-directory identity is separate from the inspection address and role snapshot retained by each historical case; raw provider/contact workbooks are evidence, not import authority.
+
+A Repairer directory records its name, full address, and contacts. A Repairer
+may relate to multiple Principals, and a Principal may relate to multiple
+Repairers; these reusable relationships do not rewrite the accepted address or
+party-role snapshot on an existing Case.
 
 ### Staff role access matrix
 
@@ -388,6 +412,17 @@ only. A provider setting may suggest a mode later, but it cannot overwrite
 explicit evidence or operator confirmation. The current provider-domain
 reference package contains no address or address-mode default, so none may be
 inferred from a provider or domain match.
+
+Selecting `Image Based Assessment` requires an attributed staff reason in
+permanent Case history; it is never inferred from a corpus row or route match.
+
+When `DATA-02` activates, its separately approved reference-data pipeline
+accepts only reviewed full addresses, retaining each complete display address
+with a normalized postcode. It preserves operator-maintained confirmed rows
+across refresh and is deterministic and auditable. Frequency, recency,
+proximity, accepted Principal, Repairer, Image Source, and normalized search
+text may rank suggestions but never select an address. This activates no
+spreadsheet import, route, or caller before its separate acceptance evidence.
 
 ### Ordinary-image VRM and image analysis
 
@@ -511,6 +546,9 @@ Pegasus, Box custody, or the presence of a report PDF is not this handoff and is
 not external delivery evidence.
 
 Successful focused manual generation makes the complete JSON, selected-image, and manifest bundle available for immediate staff download. Download proves neither EVA receipt nor report delivery and does not change Case state.
+The container format is intentionally unspecified: its selection must evaluate
+whether a single archive is the clearest usable representation without changing
+the exact package contents, manifest, or manual-handoff boundary.
 
 The focused handoff readiness review keeps four source-labelled inputs distinct:
 the saved source email, vehicle images, valuation evidence, and initial
@@ -621,6 +659,14 @@ permanent action history; routine polling, retry, lease, and adapter mechanics
 remain telemetry.
 
 At the allocated `Next / 0.3.0` mailbox-workspace activation, each approved mailbox has an exact mailbox filter and queue scope. The email quick preview is keyboard- and screen-reader-accessible, opens on pointer or keyboard intent without clipping or obscuring adjacent controls, and dismisses when focus moves away. It is evidence navigation only: previewing never changes classification, association, read state, Case state, or source custody.
+The same workspace includes a read-only `View in Outlook` action when an
+approved integration can target the exact associated message. Its design review
+must establish whether it adds value beyond the workspace itself; the action
+never changes mailbox, Case, classification, association, or custody state.
+
+The allocated workspace includes read-only search of Deleted Items within each
+exact approved mailbox/folder scope. It does not introduce a backlog scan,
+reconstruction, bulk replay, Case allocation, or mailbox mutation.
 
 An Outlook/Graph route must, before activation:
 
@@ -709,6 +755,14 @@ access and use the Web UI. The Actor invokes only its approved ordinary
 operational Core-action inventory with its own authentication, identity, and
 permanent history; it has no Administrator, configuration, credential, cloud,
 release, deletion, or other management authority.
+
+An externally scheduled Claude Desktop Automation Actor may scan an approved
+network-drive scope and submit immutable source occurrences through its approved
+MCP document-action inventory. The desktop automation, schedule, and filesystem
+remain outside Pegasus; custody begins only with an authenticated accepted MCP
+submission. Each occurrence follows ordinary source-occurrence, idempotency,
+matching, classification, and action-history policy. Scanning neither associates
+material nor allocates a Case or reference.
 
 MCP registration, a tool schema, or an endpoint file is not proof. Each tool
 requires an exercised real caller, expected success result, authorization
@@ -873,7 +927,7 @@ Deferred capabilities remain named in [capabilities](capabilities.md). Preservin
 | EVA API/replacement | manual handoff identity and payload version | network adapter or replacement workflow | vendor access, mapping, auth, idempotency, current-version handling, caller and acceptance |
 | guided capture and vehicle data | request/source/vehicle fact provenance | live vendor route, OCR lookup, auto-acceptance | vendor contract, confidence/human confirmation rule, data-age/source policy, failure/recovery and evaluation |
 | automated correspondence/chasing | action, channel, party, draft and delivery-evidence identities | autonomous send or completion | allocation, approved channel policy, exact send scopes, pre-send approval and delivery proof |
-| AI assistance | typed evidence/proposal/review identity | direct mutation, approval, business policy | accepted Core proposal port, representative evaluation, abstention/challenge gates, human approval and caller proof |
+| AI assistance | typed evidence/proposal/review identity | direct mutation, approval, business policy, shared AI usage ledger | accepted Core proposal port, representative evaluation, abstention/challenge gates, human approval, caller proof, and capability-specific capacity measurement |
 | Diminution, Commercial, post-report dispute and finance | stable case/work/document/action identities | dormant case types, calculations, invoicing/accounting routes | allocated release, accepted Core contract, source/provider decisions, UI/caller and operator acceptance |
 | production deployment and migration | versioned schema/release/evidence identities | provisioning, deployment, predecessor deletion or data migration | exact target approval, validated IaC, migration/rollback plan, deployed caller proof and acceptance |
 
