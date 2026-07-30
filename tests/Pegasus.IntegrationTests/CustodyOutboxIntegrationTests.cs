@@ -974,7 +974,7 @@ public sealed class CustodyOutboxIntegrationTests
 
     private static SourceFixture CreateSource()
     {
-        var email = OfflineAcceptanceTests.CreateEmail(
+        var email = IntakeTestEvidence.CreateEmail(
             $"custody-{Guid.NewGuid():N}.eml",
             "QDOS instruction\r\nClaimant Name: Custody Test\r\nClaim Number: CUS-001\r\nVehicle Registration: AB12 CDE");
         var identity = new IntakeSourceIdentity(

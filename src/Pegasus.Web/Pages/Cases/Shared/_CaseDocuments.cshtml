@@ -21,7 +21,7 @@
             <input type="hidden" name="editLeaseToken" value="@leaseToken" />
             <div class="table-wrap">
                 <table>
-                    <thead><tr><th>Export</th><th>Role / source</th><th>Version</th><th>File</th><th>Custody</th><th>Hash</th><th>Action</th></tr></thead>
+                    <thead><tr><th>Export</th><th>Role / source</th><th>Version</th><th>File</th><th>Custody</th><th>EVA eligibility</th><th>Hash</th><th>Action</th></tr></thead>
                     <tbody>
                     @foreach (var document in details.Documents)
                     {
@@ -35,12 +35,38 @@
                                     <td>@version.Version @(version.IsCurrent ? "(current)" : "(historical)") @(version.IsLogicallyRemoved ? "— logically removed" : null)</td>
                                     <td><a asp-page="/Cases/Documents/Download" asp-route-caseId="@workflow.CaseId" asp-route-documentId="@occurrence.Id" asp-route-versionId="@version.Id">@version.FileName</a></td>
                                     <td>@version.CustodyStatus — @version.ContentLength bytes</td>
+                                    <td>
+                                        @if (occurrence.ThirdPartyVehicleConfirmedAtUtc is not null)
+                                        {
+                                            <span>Excluded — staff confirmed third-party vehicle evidence</span>
+                                        }
+                                        else if (occurrence.SemanticRole == DocumentSemanticRole.Image)
+                                        {
+                                            <span>Eligible unless staff confirms third-party vehicle evidence</span>
+                                        }
+                                        else
+                                        {
+                                            <span>Not an image</span>
+                                        }
+                                    </td>
                                     <td><code>@version.Sha256</code></td>
                                     <td>
                                         @if (mayEdit && !version.IsLogicallyRemoved && version.IsCurrent)
                                         {
                                             <label>Removal reason<input name="reason" form="remove-@occurrence.Id" required maxlength="500" /></label>
                                             <button type="submit" form="remove-@occurrence.Id" class="secondary-action">Remove occurrence</button>
+                                        }
+                                        @if (mayEdit
+                                             && occurrence.SemanticRole == DocumentSemanticRole.Image
+                                             && occurrence.ThirdPartyVehicleConfirmedAtUtc is null
+                                             && !version.IsLogicallyRemoved
+                                             && version.IsCurrent
+                                             && version.CustodyStatus == DocumentCustodyStatus.Confirmed
+                                             && (version.MediaType.Equals("image/jpeg", StringComparison.OrdinalIgnoreCase)
+                                                 || version.MediaType.Equals("image/png", StringComparison.OrdinalIgnoreCase)))
+                                        {
+                                            <label>Confirmation reason<input name="reason" form="confirm-third-party-@occurrence.Id" required maxlength="500" /></label>
+                                            <button type="submit" form="confirm-third-party-@occurrence.Id" class="secondary-action">Confirm third-party vehicle evidence</button>
                                         }
                                     </td>
                                 </tr>
@@ -65,6 +91,12 @@
                     <form id="remove-@occurrence.Id" method="post" asp-page-handler="RemoveDocument">
                         <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="occurrenceId" value="@occurrence.Id" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
                     </form>
+                    @if (occurrence.SemanticRole == DocumentSemanticRole.Image && occurrence.ThirdPartyVehicleConfirmedAtUtc is null)
+                    {
+                        <form id="confirm-third-party-@occurrence.Id" method="post" asp-page-handler="ConfirmThirdPartyVehicleEvidence">
+                            <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="occurrenceId" value="@occurrence.Id" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                        </form>
+                    }
                 }
             }
         }

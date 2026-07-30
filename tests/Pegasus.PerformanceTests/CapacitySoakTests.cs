@@ -29,22 +29,28 @@ public sealed class CapacitySoakTests
         var readDurations = new ConcurrentBag<TimeSpan>();
         var writeDurations = new ConcurrentBag<TimeSpan>();
         var receiptLocations = new ConcurrentBag<Uri>();
+        var queuedUploads = new ConcurrentBag<UploadResult>();
         var unexpectedStatuses = new ConcurrentBag<HttpStatusCode>();
-        using var start = new ManualResetEventSlim(false);
+        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var workers = Enumerable.Range(0, ConcurrentStaff)
             .Select(worker => RunWorkerAsync(
                 factory,
                 worker,
-                start,
+                start.Task,
                 readDurations,
                 writeDurations,
                 receiptLocations,
+                queuedUploads,
                 unexpectedStatuses))
             .ToArray();
 
-        start.Set();
+        start.SetResult();
         await Task.WhenAll(workers);
+        foreach (var queuedUpload in queuedUploads)
+        {
+            await IntakeWebDriver.ProcessQueuedAsync(factory, queuedUpload);
+        }
 
         Assert.Empty(unexpectedStatuses);
         Assert.Equal(10, receiptLocations.Count);
@@ -65,14 +71,15 @@ public sealed class CapacitySoakTests
     private static async Task RunWorkerAsync(
         IntakeWebApplicationFactory factory,
         int worker,
-        ManualResetEventSlim start,
+        Task start,
         ConcurrentBag<TimeSpan> readDurations,
         ConcurrentBag<TimeSpan> writeDurations,
         ConcurrentBag<Uri> receiptLocations,
+        ConcurrentBag<UploadResult> queuedUploads,
         ConcurrentBag<HttpStatusCode> unexpectedStatuses)
     {
         using var client = IntakeWebDriver.CreateClient(factory);
-        start.Wait();
+        await start;
 
         for (var read = 0; read < 3; read++)
         {
@@ -87,7 +94,7 @@ public sealed class CapacitySoakTests
         }
 
         var primary = await MeasureAsync(writeDurations, () => UploadAsync(client, worker, 0));
-        RecordLocation(primary, receiptLocations, unexpectedStatuses);
+        RecordLocation(primary, receiptLocations, queuedUploads, unexpectedStatuses);
 
         if (worker < 4)
         {
@@ -118,7 +125,7 @@ public sealed class CapacitySoakTests
         else
         {
             var secondary = await MeasureAsync(writeDurations, () => UploadAsync(client, worker, 1));
-            RecordLocation(secondary, receiptLocations, unexpectedStatuses);
+            RecordLocation(secondary, receiptLocations, queuedUploads, unexpectedStatuses);
         }
     }
 
@@ -140,11 +147,13 @@ public sealed class CapacitySoakTests
     private static void RecordLocation(
         UploadResult result,
         ConcurrentBag<Uri> receiptLocations,
+        ConcurrentBag<UploadResult> queuedUploads,
         ConcurrentBag<HttpStatusCode> unexpectedStatuses)
     {
         if (result.StatusCode == HttpStatusCode.Redirect && result.Location is not null)
         {
             receiptLocations.Add(result.Location);
+            queuedUploads.Add(result);
             return;
         }
 

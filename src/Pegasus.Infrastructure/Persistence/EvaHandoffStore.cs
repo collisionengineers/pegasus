@@ -91,10 +91,11 @@ public sealed class EvaHandoffStore(
                 where occurrence.CaseId == caseId
                       && occurrence.SemanticRole == DocumentSemanticRole.Image
                       && version.DocumentId == occurrence.DocumentId
-                      && version.IsCurrent
-                      && !version.IsLogicallyRemoved
-                      && version.CustodyStatus == DocumentCustodyStatus.Confirmed
-                      && (version.MediaType == "image/jpeg" || version.MediaType == "image/png")
+                       && version.IsCurrent
+                       && !version.IsLogicallyRemoved
+                       && version.CustodyStatus == DocumentCustodyStatus.Confirmed
+                       && occurrence.ThirdPartyVehicleConfirmedAtUtc == null
+                       && (version.MediaType == "image/jpeg" || version.MediaType == "image/png")
                 orderby occurrence.RecordedAtUtc, occurrence.Id
                 select new EvaHandoffImageOption(
                     occurrence.Id,
@@ -108,9 +109,9 @@ public sealed class EvaHandoffStore(
                     occurrence.Source,
                     occurrence.SourceOccurrenceIdentity))
             .ToArrayAsync(cancellationToken);
-        if (images.Length < 2)
+        if (images.Length == 0)
         {
-            reasons.Add("At least two custody-confirmed current image versions are required.");
+            reasons.Add("At least one custody-confirmed current image version is required.");
         }
 
         var proxyEvidence = await context.EvaFirstHandoffProxies
@@ -272,12 +273,19 @@ public sealed class EvaHandoffStore(
             reasons.Add("Case custody has not been confirmed.");
         }
 
-        var selectedIds = request.OrderedImageOccurrenceIds.ToArray();
         var selectedRows = await (
                 from occurrence in context.Set<DocumentOccurrenceEntity>()
                 join version in context.Set<DocumentVersionEntity>()
                     on occurrence.VersionId equals version.Id
-                where selectedIds.Contains(occurrence.Id)
+                where occurrence.CaseId == request.CaseId
+                      && occurrence.SemanticRole == DocumentSemanticRole.Image
+                      && version.DocumentId == occurrence.DocumentId
+                       && version.CustodyStatus == DocumentCustodyStatus.Confirmed
+                       && version.IsCurrent
+                       && !version.IsLogicallyRemoved
+                       && occurrence.ThirdPartyVehicleConfirmedAtUtc == null
+                       && (version.MediaType == "image/jpeg" || version.MediaType == "image/png")
+                orderby occurrence.RecordedAtUtc, occurrence.Id
                 select new SelectedDocument(
                     occurrence.Id,
                     occurrence.CaseId,
@@ -296,27 +304,9 @@ public sealed class EvaHandoffStore(
                     version.IsCurrent,
                     version.IsLogicallyRemoved))
             .ToArrayAsync(cancellationToken);
-        var selectedById = selectedRows.ToDictionary(item => item.OccurrenceId);
-        foreach (var occurrenceId in selectedIds)
+        if (selectedRows.Length == 0)
         {
-            if (!selectedById.TryGetValue(occurrenceId, out var selected)
-                || selected.CaseId != request.CaseId
-                || selected.DocumentId != selected.VersionDocumentId
-                || selected.SemanticRole != DocumentSemanticRole.Image
-                || selected.CustodyStatus != DocumentCustodyStatus.Confirmed
-                || !selected.IsCurrent
-                || selected.IsLogicallyRemoved
-                || !IsSupportedImage(selected.MediaType))
-            {
-                reasons.Add(
-                    "Every selected image must be a current, custody-confirmed image version belonging to this case.");
-                break;
-            }
-        }
-        if (!selectedIds.Contains(request.OverviewImageOccurrenceId)
-            || !selectedIds.Contains(request.MainDamageImageOccurrenceId))
-        {
-            reasons.Add("The selected overview and main-damage previews must remain in the approved image order.");
+            reasons.Add("At least one custody-confirmed current image version is required.");
         }
         if (reasons.Count != 0 || mapping.Source is null)
         {
@@ -326,10 +316,9 @@ public sealed class EvaHandoffStore(
                 reasons.Distinct(StringComparer.Ordinal).ToArray());
         }
 
-        var bundleImages = new List<EvaBundleImage>(selectedIds.Length);
-        foreach (var occurrenceId in selectedIds)
+        var bundleImages = new List<EvaBundleImage>(selectedRows.Length);
+        foreach (var selected in selectedRows)
         {
-            var selected = selectedById[occurrenceId];
             if (selected.ContentLength > int.MaxValue)
             {
                 return Blocked($"The selected image '{selected.FileName}' is too large for the offline EVA handoff.");
@@ -361,10 +350,7 @@ public sealed class EvaHandoffStore(
 
         var bundle = EvaBundleSchema.CreateOfflineReplay(
             mapping.Source,
-            new(
-                request.OverviewImageOccurrenceId,
-                request.MainDamageImageOccurrenceId,
-                bundleImages));
+            new(bundleImages));
         var existingRevision = await context.EvaHandoffRevisions
             .SingleOrDefaultAsync(
                 item => item.CaseId == request.CaseId
@@ -768,25 +754,11 @@ public sealed class EvaHandoffStore(
         ArgumentException.ThrowIfNullOrWhiteSpace(request.OperationKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Reason);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.EditLeaseToken);
-        ArgumentNullException.ThrowIfNull(request.OrderedImageOccurrenceIds);
         if (request.OperationKey.Length > 100
             || request.Reason.Length > 300
             || request.EditLeaseToken.Length > 128)
         {
             throw new ArgumentException("The EVA operation key, reason, or edit-lease token is too long.", nameof(request));
-        }
-        if (request.OverviewImageOccurrenceId == Guid.Empty
-            || request.MainDamageImageOccurrenceId == Guid.Empty
-            || request.OverviewImageOccurrenceId == request.MainDamageImageOccurrenceId
-            || request.OrderedImageOccurrenceIds.Count < 2
-            || request.OrderedImageOccurrenceIds.Count > 100
-            || request.OrderedImageOccurrenceIds.Any(id => id == Guid.Empty)
-            || request.OrderedImageOccurrenceIds.Distinct().Count()
-                != request.OrderedImageOccurrenceIds.Count)
-        {
-            throw new ArgumentException(
-                "Distinct overview and main-damage images and a unique approved image order are required.",
-                nameof(request));
         }
     }
 
@@ -826,12 +798,6 @@ public sealed class EvaHandoffStore(
         Append(hash, "generate-eva-handoff/v1");
         Append(hash, request.CaseId.ToString("D"));
         Append(hash, request.ExpectedCaseVersion.ToString(CultureInfo.InvariantCulture));
-        Append(hash, request.OverviewImageOccurrenceId.ToString("D"));
-        Append(hash, request.MainDamageImageOccurrenceId.ToString("D"));
-        foreach (var id in request.OrderedImageOccurrenceIds)
-        {
-            Append(hash, id.ToString("D"));
-        }
         Append(hash, request.Actor.Kind.ToString());
         Append(hash, request.Actor.SubjectId);
         foreach (var role in request.Actor.Roles.OrderBy(role => role))

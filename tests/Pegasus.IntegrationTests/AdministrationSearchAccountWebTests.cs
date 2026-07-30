@@ -68,7 +68,7 @@ public sealed class AdministrationSearchAccountWebTests
     [Fact]
     public async Task AdministrationRoutesDenyARequestWithoutCurrentAdministratorRole()
     {
-        using var factory = new IntakeWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: false);
         _ = factory.Services;
         await using (var scope = factory.Services.CreateAsyncScope())
         {

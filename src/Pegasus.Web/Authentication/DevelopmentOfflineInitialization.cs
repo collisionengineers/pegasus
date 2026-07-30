@@ -4,7 +4,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Persistence;
-using Pegasus.Web.Pages.Connect;
 
 namespace Pegasus.Web.Authentication;
 
@@ -23,8 +22,6 @@ internal static class DevelopmentOfflineIdentity
 internal static class DevelopmentOfflineInitialization
 {
     private const string DevelopmentOfflineProfile = "DevelopmentOffline";
-    private const string DevelopmentMcpClientId = "pegasus-development-mcp";
-    private const string DevelopmentMcpRedirectUri = "http://127.0.0.1:7890/callback";
 
     public static async Task InitializeAsync(
         IServiceProvider services,
@@ -34,10 +31,6 @@ internal static class DevelopmentOfflineInitialization
         await MigrateAsync(services, cancellationToken);
         await EnsureIdentityAsync(services);
         await EnsureQdosPrincipalAsync(services, cancellationToken);
-        await RegisterMcpClientAsync(
-            services,
-            "development-initialization",
-            cancellationToken);
     }
 
     public static async Task MigrateAsync(
@@ -48,54 +41,6 @@ internal static class DevelopmentOfflineInitialization
         var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await context.Database.MigrateAsync(cancellationToken);
-    }
-
-    public static async Task RegisterMcpClientAsync(
-        IServiceProvider services,
-        string operationKey = "development-mcp-client-register",
-        CancellationToken cancellationToken = default)
-    {
-        RequireLocalOnly(services);
-        var command = services.GetRequiredService<IRegisterPublicMcpClient>();
-        var result = await command.ExecuteAsync(
-            new(
-                DevelopmentAdministratorActor(),
-                CreateMcpClientMetadata(
-                    services.GetRequiredService<StaffMcpOAuthOptions>().Resource),
-                "Register the deterministic DevelopmentOffline public MCP client.",
-                operationKey),
-            cancellationToken);
-        if (!result.WasReplay)
-        {
-            await AppendClientEventAsync(
-                services,
-                operationKey,
-                "development_mcp_client_registered",
-                cancellationToken);
-        }
-    }
-
-    public static async Task RevokeMcpClientAsync(
-        IServiceProvider services,
-        CancellationToken cancellationToken = default)
-    {
-        RequireLocalOnly(services);
-        var command = services.GetRequiredService<IRevokePublicMcpClient>();
-        var result = await command.ExecuteAsync(
-            new(
-                DevelopmentAdministratorActor(),
-                DevelopmentMcpClientId,
-                "Revoke the deterministic DevelopmentOffline public MCP client.",
-                "development-mcp-client-revoke"),
-            cancellationToken);
-        if (!result.WasReplay)
-        {
-            await AppendClientEventAsync(
-                services,
-                "development-mcp-client-revoke",
-                "development_mcp_client_revoked",
-                cancellationToken);
-        }
     }
 
     private static async Task EnsureIdentityAsync(IServiceProvider services)
@@ -215,33 +160,6 @@ internal static class DevelopmentOfflineInitialization
                 "development-qdos-principal"),
             cancellationToken);
     }
-
-    private static Task AppendClientEventAsync(
-        IServiceProvider services,
-        string operationKey,
-        string reasonCode,
-        CancellationToken cancellationToken)
-    {
-        var timeProvider = services.GetRequiredService<TimeProvider>();
-        return services.GetRequiredService<ISecurityEventWriter>().AppendAsync(
-            new(
-                Guid.NewGuid(),
-                SecurityEventType.Client,
-                SecurityEventOutcome.Succeeded,
-                DevelopmentMcpClientId,
-                timeProvider.GetUtcNow(),
-                operationKey,
-                reasonCode),
-            cancellationToken);
-    }
-
-    private static PublicMcpClientMetadata CreateMcpClientMetadata(Uri resource) =>
-        new(
-            DevelopmentMcpClientId,
-            "Pegasus Development MCP client",
-            [new Uri(DevelopmentMcpRedirectUri)],
-            resource,
-            [StaffMcpClientContract.ReadScope, StaffMcpClientContract.WriteScope]);
 
     private static ActionActor DevelopmentAdministratorActor() =>
         ActionActor.Staff(

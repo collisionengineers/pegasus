@@ -23,7 +23,6 @@ public sealed class ConcurrencyTokenPersistenceTests
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var options = new DbContextOptionsBuilder<PegasusDbContext>()
-            .UseOpenIddict()
             .UseSqlServer(database.ConnectionString)
             .Options;
         var factory = new PooledDbContextFactory<PegasusDbContext>(options);

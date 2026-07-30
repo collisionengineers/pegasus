@@ -140,7 +140,7 @@ public sealed class SentEvidencePollPersistenceTests
             true,
             extractionPolicy: new AcceptedSentPollTriagePolicy());
         using var client = IntakeWebDriver.CreateClient(factory);
-        var email = OfflineAcceptanceTests.CreateEmail(
+        var email = IntakeTestEvidence.CreateEmail(
             "triage-request.eml",
             "QDOS instruction\r\nClaimant Name: Triage Claimant\r\nClaim Number: TRIAGE-001\r\nVehicle Registration: AB12 CDE");
         var upload = await IntakeWebDriver.UploadAndProcessAsync(factory, client, email.FileName,

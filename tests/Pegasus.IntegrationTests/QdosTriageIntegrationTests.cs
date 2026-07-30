@@ -28,7 +28,7 @@ public sealed partial class QdosTriageIntegrationTests
             true,
             extractionPolicy: new AcceptedTriageMatchPolicy());
         using var client = IntakeWebDriver.CreateClient(factory);
-        var email = OfflineAcceptanceTests.CreateEmail(
+        var email = IntakeTestEvidence.CreateEmail(
             "triage-request.eml",
             "QDOS instruction\r\nClaimant Name: Triage Claimant\r\nClaim Number: TRIAGE-001\r\nVehicle Registration: AB12 CDE");
         const string replayToken = "77777777777777777777777777777777";
@@ -74,7 +74,7 @@ public sealed partial class QdosTriageIntegrationTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var email = OfflineAcceptanceTests.CreateEmail(
+        var email = IntakeTestEvidence.CreateEmail(
             "ordinary-instruction.eml",
             "QDOS instruction\r\nClaimant Name: Ordinary Claimant\r\nClaim Number: ORDINARY-001\r\nVehicle Registration: AB12 CDE");
 
@@ -107,7 +107,7 @@ public sealed partial class QdosTriageIntegrationTests
             true,
             extractionPolicy: new AcceptedTriageMatchPolicy(matchCount: 2));
         using var client = IntakeWebDriver.CreateClient(factory);
-        var email = OfflineAcceptanceTests.CreateEmail(
+        var email = IntakeTestEvidence.CreateEmail(
             "ambiguous-triage-request.eml",
             "QDOS instruction\r\nClaimant Name: Ambiguous Claimant\r\nClaim Number: AMBIGUOUS-001\r\nVehicle Registration: AB12 CDE");
 
@@ -142,7 +142,7 @@ public sealed partial class QdosTriageIntegrationTests
             "MIME-Version: 1.0\r\n" +
             "Content-Type: text/plain; charset=utf-8\r\n\r\n" +
             "This retained correspondence contains no supported instruction evidence.");
-        var missingRegistration = OfflineAcceptanceTests.CreateEmail(
+        var missingRegistration = IntakeTestEvidence.CreateEmail(
             "missing-registration.eml",
             "QDOS instruction\r\nClaimant Name: No Registration\r\nClaim Number: TRIAGE-002");
 
@@ -188,7 +188,7 @@ public sealed partial class QdosTriageIntegrationTests
             true,
             extractionPolicy: new AcceptedTriageMatchPolicy());
         using var client = IntakeWebDriver.CreateClient(factory);
-        var email = OfflineAcceptanceTests.CreateEmail(
+        var email = IntakeTestEvidence.CreateEmail(
             "triage-lifecycle.eml",
             "QDOS instruction\r\nClaimant Name: Lifecycle Claimant\r\nClaim Number: TRIAGE-LIFECYCLE\r\nVehicle Registration: XY12 ZZZ");
         var upload = await IntakeWebDriver.UploadAndProcessAsync(factory, client, email.FileName,

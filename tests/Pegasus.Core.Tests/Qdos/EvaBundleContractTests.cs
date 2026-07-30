@@ -28,11 +28,9 @@ public sealed class EvaBundleContractTests
         Assert.Equal(
             [
                 "EVA-QDOS001.json",
-                "001-overview.jpg",
-                "002-damage.png",
-                "003-overview.jpg",
-                "004-damage.png",
-                "005-other.jpg",
+                "11111111111111111111111111111111-overview.jpg",
+                "22222222222222222222222222222222-damage.png",
+                "33333333333333333333333333333333-other.jpg",
                 "provenance.json",
                 "manifest.sha256"
             ],
@@ -43,7 +41,7 @@ public sealed class EvaBundleContractTests
         using var provenance = JsonDocument.Parse(first.ProvenanceContent);
         Assert.Equal(EvaBundleSchema.SchemaVersion, provenance.RootElement.GetProperty("schemaVersion").GetString());
         Assert.Equal(13, provenance.RootElement.GetProperty("fields").GetArrayLength());
-        Assert.Equal(5, provenance.RootElement.GetProperty("images").GetArrayLength());
+        Assert.Equal(3, provenance.RootElement.GetProperty("images").GetArrayLength());
         Assert.Equal(
             OverviewOccurrenceId,
             provenance.RootElement.GetProperty("images")[0].GetProperty("occurrenceId").GetGuid());
@@ -57,7 +55,7 @@ public sealed class EvaBundleContractTests
     }
 
     [Fact]
-    public void ChangedAcceptedImageOrderChangesBundleAndRetainsPreviewSlots()
+    public void ChangedRetainedImageSequenceChangesBundleWithoutSelectingOrDuplicatingImages()
     {
         var first = EvaBundleSchema.CreateOfflineReplay(Source(), Images());
         var changed = EvaBundleSchema.CreateOfflineReplay(
@@ -66,11 +64,32 @@ public sealed class EvaBundleContractTests
 
         Assert.NotEqual(first.Sha256, changed.Sha256);
         using var archive = new ZipArchive(new MemoryStream(changed.Content), ZipArchiveMode.Read);
-        Assert.Equal("001-overview.jpg", archive.Entries[1].FullName);
-        Assert.Equal("002-damage.png", archive.Entries[2].FullName);
-        Assert.Equal("003-other.jpg", archive.Entries[3].FullName);
-        Assert.Equal("004-overview.jpg", archive.Entries[4].FullName);
-        Assert.Equal("005-damage.png", archive.Entries[5].FullName);
+        Assert.Equal("33333333333333333333333333333333-other.jpg", archive.Entries[1].FullName);
+        Assert.Equal("11111111111111111111111111111111-overview.jpg", archive.Entries[2].FullName);
+        Assert.Equal("22222222222222222222222222222222-damage.png", archive.Entries[3].FullName);
+    }
+
+    [Fact]
+    public void OneRetainedImageIsExportedExactlyOnceWithoutPreviewSelection()
+    {
+        var bundle = EvaBundleSchema.CreateOfflineReplay(
+            Source(),
+            new([Images().RetainedImages[0]]));
+
+        using var archive = new ZipArchive(new MemoryStream(bundle.Content), ZipArchiveMode.Read);
+        Assert.Equal(
+            [
+                "EVA-QDOS001.json",
+                "11111111111111111111111111111111-overview.jpg",
+                "provenance.json",
+                "manifest.sha256"
+            ],
+            archive.Entries.Select(entry => entry.FullName));
+        using var provenance = JsonDocument.Parse(bundle.ProvenanceContent);
+        Assert.Equal(1, provenance.RootElement.GetProperty("images").GetArrayLength());
+        Assert.Equal(
+            OverviewOccurrenceId,
+            provenance.RootElement.GetProperty("images")[0].GetProperty("occurrenceId").GetGuid());
     }
 
     [Fact]
@@ -110,8 +129,8 @@ public sealed class EvaBundleContractTests
     [Fact]
     public void NonCurrentOrUnconfirmedImageVersionIsRejected()
     {
-        var order = Images();
-        var unconfirmed = order.OrderedImages
+        var images = Images();
+        var unconfirmed = images.RetainedImages
             .Select(image => image.OccurrenceId == DamageOccurrenceId
                 ? image with { CustodyConfirmed = false }
                 : image)
@@ -120,7 +139,7 @@ public sealed class EvaBundleContractTests
         var exception = Assert.Throws<InvalidOperationException>(() =>
             EvaBundleSchema.CreateOfflineReplay(
                 Source(),
-                order with { OrderedImages = unconfirmed }));
+                images with { RetainedImages = unconfirmed }));
 
         Assert.Contains("custody-confirmed current", exception.Message, StringComparison.Ordinal);
     }
@@ -172,7 +191,7 @@ public sealed class EvaBundleContractTests
             "accepted-evidence:test");
     }
 
-    private static EvaBundleImageOrder Images(IReadOnlyList<Guid>? order = null)
+    private static EvaBundleImages Images(IReadOnlyList<Guid>? order = null)
     {
         var images = new[]
         {
@@ -183,7 +202,7 @@ public sealed class EvaBundleContractTests
         var ordered = order is null
             ? images
             : order.Select(id => images.Single(image => image.OccurrenceId == id)).ToArray();
-        return new(OverviewOccurrenceId, DamageOccurrenceId, ordered);
+        return new(ordered);
     }
 
     private static EvaBundleImage Image(

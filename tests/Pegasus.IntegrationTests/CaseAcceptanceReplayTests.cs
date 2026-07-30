@@ -32,7 +32,7 @@ public sealed partial class CaseAcceptanceReplayTests
     [Fact]
     public async Task ExactReplayReturnsOriginalAcceptanceAndEveryChangedCommandConflicts()
     {
-        using var factory = new IntakeWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
         var receipt = await CreateReadyReceiptAsync(factory.Services, PrincipalCode);
         await SeedPrincipalAsync(factory.Services, PrincipalCode);
         var reviewedVersion = await ReadReceiptVersionAsync(factory.Services);
@@ -108,7 +108,7 @@ public sealed partial class CaseAcceptanceReplayTests
     [Fact]
     public async Task ReceiptChangedAfterReviewCannotBeAccepted()
     {
-        using var factory = new IntakeWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
         var receipt = await CreateReadyReceiptAsync(factory.Services, PrincipalCode);
         await SeedPrincipalAsync(factory.Services, PrincipalCode);
         var reviewedVersion = await ReadReceiptVersionAsync(factory.Services);
@@ -136,7 +136,7 @@ public sealed partial class CaseAcceptanceReplayTests
     [Fact]
     public async Task MissingAcceptanceReasonIsRejectedBeforePersistence()
     {
-        using var factory = new IntakeWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
         var receipt = await CreateReadyReceiptAsync(factory.Services, PrincipalCode);
         await SeedPrincipalAsync(factory.Services, PrincipalCode);
         var reviewedVersion = await ReadReceiptVersionAsync(factory.Services);
@@ -163,7 +163,7 @@ public sealed partial class CaseAcceptanceReplayTests
     [Fact]
     public async Task AcceptedOriginCanBeUnlinkedAndRelinkedWithoutDeletingLineage()
     {
-        using var factory = new IntakeWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
         var receipt = await CreateReadyReceiptAsync(factory.Services, PrincipalCode);
         await SeedPrincipalAsync(factory.Services, PrincipalCode);
         var reviewedVersion = await ReadReceiptVersionAsync(factory.Services);

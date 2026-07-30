@@ -132,7 +132,6 @@ public sealed class DependencyDirectionTests
 
         Assert.Equal(
             [
-                "src/Pegasus.Bootstrap/Pegasus.Bootstrap.csproj",
                 "src/Pegasus.Core/Pegasus.Core.csproj",
                 "src/Pegasus.Infrastructure/Pegasus.Infrastructure.csproj",
                 "src/Pegasus.Web/Pegasus.Web.csproj",
@@ -290,6 +289,15 @@ public sealed class DependencyDirectionTests
             PoisonedIds.Add(workItemId);
             return Task.CompletedTask;
         }
+
+        public Task FailProcessingAsync(
+            Guid workItemId,
+            string leaseToken,
+            DateTimeOffset failedAtUtc,
+            string failureCode,
+            string failureReason,
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
     }
 
     [Fact]

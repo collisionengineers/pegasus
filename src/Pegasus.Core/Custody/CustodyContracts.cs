@@ -102,6 +102,14 @@ public interface IExternalWorkStore
         Guid workItemId,
         DateTimeOffset failedAtUtc,
         CancellationToken cancellationToken);
+
+    Task FailProcessingAsync(
+        Guid workItemId,
+        string leaseToken,
+        DateTimeOffset failedAtUtc,
+        string failureCode,
+        string failureReason,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>

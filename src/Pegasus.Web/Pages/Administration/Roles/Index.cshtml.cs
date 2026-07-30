@@ -95,7 +95,7 @@ public sealed class IndexModel(
                     new(actor, StaffId, roles, Reason, OperationKey),
                     cancellationToken);
                 TempData["AdministrationStatus"] =
-                    "Roles updated. Existing browser and MCP sessions were revoked.";
+                    "Roles updated. Existing browser sessions were revoked.";
                 return RedirectToPage();
             }
             catch (StaffAccountAdministrationException exception)

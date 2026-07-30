@@ -53,7 +53,7 @@ public sealed class EditModel(
                     new(actor, id, Reason, OperationKey),
                     cancellationToken);
                 TempData["AdministrationStatus"] =
-                    "The account was disabled. Existing browser and MCP sessions were revoked.";
+                    "The account was disabled. Existing browser sessions were revoked.";
                 return RedirectToPage(new { id });
             }
             catch (StaffAccountAdministrationException exception)

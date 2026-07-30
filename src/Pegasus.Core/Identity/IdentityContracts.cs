@@ -23,8 +23,7 @@ public enum ActorKind
 {
     Staff,
     SystemWorker,
-    RequestLink,
-    Bootstrap
+    RequestLink
 }
 
 public sealed class ActionActor
@@ -83,22 +82,6 @@ public sealed class ActionActor
         }
 
         return new ActionActor(ActorKind.RequestLink, requestId.ToString("D"), NoRoles);
-    }
-
-    internal static ActionActor Bootstrap(string manifestSha256)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(manifestSha256);
-        if (manifestSha256.Length != 64 || manifestSha256.Any(character => !char.IsAsciiHexDigit(character)))
-        {
-            throw new ArgumentException(
-                "A bootstrap actor requires a 64-character hexadecimal manifest SHA-256.",
-                nameof(manifestSha256));
-        }
-
-        return new ActionActor(
-            ActorKind.Bootstrap,
-            manifestSha256.ToLowerInvariant(),
-            NoRoles);
     }
 
     private static ActionActor CreateNonStaff(ActorKind kind, string subjectId, string parameterName)

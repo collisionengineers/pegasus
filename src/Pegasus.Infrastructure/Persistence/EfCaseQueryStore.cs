@@ -285,7 +285,9 @@ public sealed class EfCaseQueryStore(
                         item.SemanticRole,
                         item.Source,
                         item.SourceOccurrenceIdentity,
-                        item.RecordedAtUtc))
+                        item.RecordedAtUtc,
+                        item.ThirdPartyVehicleConfirmedAtUtc,
+                        item.ThirdPartyVehicleConfirmationReason))
                     .ToArray(),
                 versions
                     .Where(item => item.DocumentId == document.Id)

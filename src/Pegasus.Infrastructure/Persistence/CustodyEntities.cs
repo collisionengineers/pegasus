@@ -38,6 +38,9 @@ internal sealed class DocumentOccurrenceEntity
     public string SourceOccurrenceIdentity { get; set; } = string.Empty;
     public DateTimeOffset RecordedAtUtc { get; set; }
     public string OperationKey { get; set; } = string.Empty;
+    public DateTimeOffset? ThirdPartyVehicleConfirmedAtUtc { get; set; }
+    public string? ThirdPartyVehicleConfirmationReason { get; set; }
+    public string? ThirdPartyVehicleConfirmationOperationKey { get; set; }
 }
 
 internal sealed class BoxFileRequestEntity

@@ -6,19 +6,8 @@ using Pegasus.Core.Intake;
 
 namespace Pegasus.Infrastructure.Intake;
 
-public interface IIntakeEvaluationReportStore
-{
-    Task<string> StoreReportAsync(
-        ReadOnlyMemory<byte> report,
-        CancellationToken cancellationToken);
-
-    Task<ReadOnlyMemory<byte>?> ReadReportAsync(
-        string reportKey,
-        CancellationToken cancellationToken);
-}
-
 public sealed partial class FileSystemIntakeArtifactStore(string rootPath)
-    : IIntakeArtifactStore, IIntakeQuarantineArtifactStore, IIntakeEvaluationReportStore, IDisposable
+    : IIntakeArtifactStore, IIntakeQuarantineArtifactStore, IDisposable
 {
     private readonly string rootPath = Path.GetFullPath(rootPath);
     private readonly SemaphoreSlim stagingGate = new(1, 1);
@@ -391,46 +380,6 @@ public sealed partial class FileSystemIntakeArtifactStore(string rootPath)
             stagingGate.Release();
         }
     }
-    public async Task<string> StoreReportAsync(
-        ReadOnlyMemory<byte> report,
-        CancellationToken cancellationToken)
-    {
-        if (report.IsEmpty)
-        {
-            throw new ArgumentException("An evaluation report is required.", nameof(report));
-        }
-
-        var reportHash = Convert.ToHexString(SHA256.HashData(report.Span));
-        var reportKey = $"evaluation-reports/sha256/{reportHash[..2]}/{reportHash}.json";
-        await StoreImmutableAsync(
-            ResolveReport(reportKey),
-            reportHash,
-            report,
-            cancellationToken);
-        return reportKey;
-    }
-
-    public async Task<ReadOnlyMemory<byte>?> ReadReportAsync(
-        string reportKey,
-        CancellationToken cancellationToken)
-    {
-        var path = ResolveReport(reportKey);
-        if (!File.Exists(path))
-        {
-            return null;
-        }
-
-        var content = await File.ReadAllBytesAsync(path, cancellationToken);
-        var expectedHash = Path.GetFileNameWithoutExtension(path);
-        var actualHash = Convert.ToHexString(SHA256.HashData(content));
-        if (!actualHash.Equals(expectedHash, StringComparison.Ordinal))
-        {
-            throw new IntakeArtifactIntegrityException();
-        }
-
-        return content;
-    }
-
     public void Dispose()
     {
         if (Interlocked.Exchange(ref disposeState, 1) == 0)
@@ -657,36 +606,6 @@ public sealed partial class FileSystemIntakeArtifactStore(string rootPath)
         if (!path.StartsWith(requiredPrefix, StringComparison.OrdinalIgnoreCase))
         {
             throw new ArgumentException("The artifact storage key is outside the configured root.", nameof(storageKey));
-        }
-
-        return path;
-    }
-
-    private string ResolveReport(string reportKey)
-    {
-        var segments = reportKey.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        if (segments.Length != 4
-            || !segments[0].Equals("evaluation-reports", StringComparison.Ordinal)
-            || !segments[1].Equals("sha256", StringComparison.Ordinal)
-            || segments[2].Length != 2
-            || !Path.GetFileName(segments[3]).Equals(segments[3], StringComparison.Ordinal)
-            || !segments[3].EndsWith(".json", StringComparison.Ordinal)
-            || !HashRegex().IsMatch(Path.GetFileNameWithoutExtension(segments[3]))
-            || !segments[3].StartsWith(segments[2], StringComparison.Ordinal))
-        {
-            throw new ArgumentException("The evaluation report key is invalid.", nameof(reportKey));
-        }
-
-        var path = Path.GetFullPath(Path.Combine(rootPath, segments[0], segments[1], segments[2], segments[3]));
-        var reportRoot = Path.GetFullPath(Path.Combine(rootPath, "evaluation-reports"));
-        var requiredPrefix = reportRoot.EndsWith(Path.DirectorySeparatorChar)
-            ? reportRoot
-            : reportRoot + Path.DirectorySeparatorChar;
-        if (!path.StartsWith(requiredPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new ArgumentException(
-                "The evaluation report key is outside the configured root.",
-                nameof(reportKey));
         }
 
         return path;

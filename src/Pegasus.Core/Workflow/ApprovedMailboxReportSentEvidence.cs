@@ -49,8 +49,8 @@ public interface IApprovedMailboxReportSentEvidenceQueries
 }
 
 /// <summary>
-/// Trusted persistence boundary used by approved-mailbox ingestion. Staff Web and MCP
-/// callers receive only the query interface and cannot manufacture retained evidence.
+/// Trusted persistence boundary used by approved-mailbox ingestion. Staff Web callers
+/// receive only the query interface and cannot manufacture retained evidence.
 /// </summary>
 public interface IApprovedMailboxReportSentEvidenceStore : IApprovedMailboxReportSentEvidenceQueries
 {

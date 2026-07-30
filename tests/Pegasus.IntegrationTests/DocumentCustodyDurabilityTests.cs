@@ -14,6 +14,55 @@ namespace Pegasus.IntegrationTests;
 public sealed class DocumentCustodyDurabilityTests
 {
     [Fact]
+    public async Task StaffConfirmationOfThirdPartyVehicleEvidenceIsDurableAndExactlyReplayable()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database);
+            var occurrenceId = await SeedCurrentImageAsync(database, caseId);
+            await using var scope = database.CreateAsyncScope();
+            var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+            var lease = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>()
+                .ClaimAsync(
+                    new(caseId, 0, actor, $"third-party-image-lease:{Guid.NewGuid():N}"),
+                    CancellationToken.None);
+            var command = new ConfirmThirdPartyVehicleEvidenceCommand(
+                caseId,
+                occurrenceId,
+                actor,
+                "The retained image depicts the other vehicle.",
+                $"third-party-image-confirmation:{Guid.NewGuid():N}",
+                lease.Version,
+                lease.Token);
+            var confirmer = scope.ServiceProvider.GetRequiredService<IConfirmThirdPartyVehicleEvidence>();
+
+            await confirmer.ExecuteAsync(command, CancellationToken.None);
+            await confirmer.ExecuteAsync(command, CancellationToken.None);
+
+            await using var verification = await database.CreateContextAsync();
+            var occurrence = await verification.Set<DocumentOccurrenceEntity>()
+                .SingleAsync(item => item.Id == occurrenceId);
+            Assert.NotNull(occurrence.ThirdPartyVehicleConfirmedAtUtc);
+            Assert.Equal(command.Reason, occurrence.ThirdPartyVehicleConfirmationReason);
+            Assert.Equal(command.OperationKey, occurrence.ThirdPartyVehicleConfirmationOperationKey);
+            var history = await verification.ActionHistory.SingleAsync(item =>
+                item.CorrelationId == command.OperationKey);
+            Assert.Equal("third_party_vehicle_evidence_confirmed", history.EventKind);
+            Assert.Equal(command.Reason, history.Reason);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task CancelledContentWriteLeavesNoImmutableDestinationAndRetrySucceeds()
     {
         var root = Path.Combine(
@@ -363,6 +412,49 @@ public sealed class DocumentCustodyDurabilityTests
             });
         await context.SaveChangesAsync();
         return caseId;
+    }
+
+    private static async Task<Guid> SeedCurrentImageAsync(LocalDbTestDatabase database, Guid caseId)
+    {
+        await using var context = await database.CreateContextAsync();
+        var documentId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        var occurrenceId = Guid.NewGuid();
+        context.AddRange(
+            new CaseDocumentEntity
+            {
+                Id = documentId,
+                CaseId = caseId,
+                SourceOccurrenceIdentity = $"test-image:{occurrenceId:N}"
+            },
+            new DocumentVersionEntity
+            {
+                Id = versionId,
+                DocumentId = documentId,
+                Version = 1,
+                FileName = "third-party.jpg",
+                MediaType = "image/jpeg",
+                ContentLength = 1,
+                Sha256 = new string('a', 64),
+                CustodyStatus = DocumentCustodyStatus.Confirmed,
+                CreatedAtUtc = DateTimeOffset.UtcNow,
+                CreatedBy = "Staff:test",
+                IsCurrent = true
+            },
+            new DocumentOccurrenceEntity
+            {
+                Id = occurrenceId,
+                CaseId = caseId,
+                DocumentId = documentId,
+                VersionId = versionId,
+                SemanticRole = DocumentSemanticRole.Image,
+                Source = DocumentSource.StaffUpload,
+                SourceOccurrenceIdentity = $"test-image:{occurrenceId:N}",
+                RecordedAtUtc = DateTimeOffset.UtcNow,
+                OperationKey = $"seed-image:{occurrenceId:N}"
+            });
+        await context.SaveChangesAsync();
+        return occurrenceId;
     }
 
     private sealed class FailNextDocumentSaveInterceptor : SaveChangesInterceptor

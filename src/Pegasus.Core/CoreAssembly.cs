@@ -73,7 +73,6 @@ public sealed class QdosAlphaAcceptanceGate : IQdosAlphaAcceptanceGate
         "DOC-01", "DOC-02", "DOC-03", "DOC-04", "DOC-05", "DOC-06", "DOC-07",
         "DOC-08",
         "EXT-01", "EXT-02", "EXT-03", "EXT-14", "EXT-18",
-        "MCP-01", "MCP-02", "MCP-03", "MCP-04",
         "OPS-01", "OPS-02", "OPS-03", "OPS-04", "OPS-05", "OPS-06", "OPS-07",
         "OPS-08", "OPS-09", "OPS-11", "OPS-13", "OPS-14", "OPS-20", "OPS-24",
         "DATA-01", "OPS-23", "OPS-25", "INT-31"

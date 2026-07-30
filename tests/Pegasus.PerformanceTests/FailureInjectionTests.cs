@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
 using Microsoft.Extensions.DependencyInjection;
@@ -44,8 +45,12 @@ public sealed class FailureInjectionTests
             form.ExternalReceiptToken);
 
         Assert.Equal(HttpStatusCode.Redirect, replay.StatusCode);
+        await IntakeWebDriver.ProcessQueuedAsync(factory, replay);
         Assert.Single(await ListReceiptsAsync(factory));
-        Assert.Equal(2, store.Attempts);
+        // The replay first re-stages the source, then the worker retains the
+        // verified content for durable processing. Together with the
+        // cancelled original attempt, that is three store calls.
+        Assert.Equal(3, store.Attempts);
     }
 
     [Fact]
@@ -73,7 +78,8 @@ public sealed class FailureInjectionTests
             var results = await Task.WhenAll(requests);
 
             Assert.All(results, result => Assert.Equal(HttpStatusCode.Redirect, result.StatusCode));
-            Assert.Single(results.Select(result => result.Location).Distinct());
+            Assert.Single(results.Select(IntakeWebDriver.QueuedReceiptId).Distinct());
+            await IntakeWebDriver.ProcessQueuedAsync(factory, results[0]);
             Assert.Single(await ListReceiptsAsync(factory));
         }
         finally
@@ -106,6 +112,7 @@ public sealed class FailureInjectionTests
     {
         private readonly TaskCompletionSource firstAttemptEntered = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly ConcurrentDictionary<string, byte[]> artifacts = new(StringComparer.Ordinal);
         private int attempts;
 
         public Task FirstAttemptEntered => firstAttemptEntered.Task;
@@ -123,12 +130,15 @@ public sealed class FailureInjectionTests
                 await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             }
 
-            return $"sha256/{contentHash[..2]}/{contentHash}";
+            var storageKey = $"sha256/{contentHash[..2]}/{contentHash}";
+            artifacts.TryAdd(storageKey, content.ToArray());
+            return storageKey;
         }
 
         public Task<ReadOnlyMemory<byte>?> ReadAsync(
             string storageKey,
             CancellationToken cancellationToken) =>
-            Task.FromResult<ReadOnlyMemory<byte>?>(null);
+            Task.FromResult<ReadOnlyMemory<byte>?>(
+                artifacts.TryGetValue(storageKey, out var content) ? content : null);
     }
 }

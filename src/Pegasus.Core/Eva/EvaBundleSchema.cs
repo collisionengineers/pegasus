@@ -37,10 +37,7 @@ public sealed record EvaBundleImage(
     bool CustodyConfirmed,
     bool IsCurrent);
 
-public sealed record EvaBundleImageOrder(
-    Guid OverviewImageOccurrenceId,
-    Guid MainDamageImageOccurrenceId,
-    IReadOnlyList<EvaBundleImage> OrderedImages);
+public sealed record EvaBundleImages(IReadOnlyList<EvaBundleImage> RetainedImages);
 
 public sealed record EvaBundle(
     byte[] Content,
@@ -99,9 +96,6 @@ public sealed record EvaHandoffPreparation(
 public sealed record GenerateEvaHandoffRequest(
     Guid CaseId,
     long ExpectedCaseVersion,
-    Guid OverviewImageOccurrenceId,
-    Guid MainDamageImageOccurrenceId,
-    IReadOnlyList<Guid> OrderedImageOccurrenceIds,
     ActionActor Actor,
     string OperationKey,
     string Reason,
@@ -193,18 +187,18 @@ public static class EvaBundleSchema
 
     public static EvaBundle CreateOfflineReplay(
         EvaBundleSource source,
-        EvaBundleImageOrder imageOrder)
+        EvaBundleImages images)
     {
         ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(imageOrder);
-        ArgumentNullException.ThrowIfNull(imageOrder.OrderedImages);
+        ArgumentNullException.ThrowIfNull(images);
+        ArgumentNullException.ThrowIfNull(images.RetainedImages);
 
         var normalizedSource = ValidateSource(source);
         var reference = SafeFileComponent(normalizedSource.Fields.Reference!);
         var jsonName = $"EVA-{reference}.json";
         var json = WriteOrderedJson(normalizedSource.Fields);
         var jsonHash = Hash(json);
-        var imageEntries = ValidateAndNameImages(imageOrder);
+        var imageEntries = ValidateAndNameImages(images);
         var provenance = WriteProvenance(normalizedSource, imageEntries);
         var provenanceHash = Hash(provenance);
         var manifest = WriteManifest(jsonName, jsonHash, imageEntries, provenanceHash);
@@ -280,62 +274,35 @@ public static class EvaBundleSchema
             source.MappingAcceptanceEvidence.Trim());
     }
 
-    private static List<ImageEntry> ValidateAndNameImages(EvaBundleImageOrder imageOrder)
+    private static List<ImageEntry> ValidateAndNameImages(EvaBundleImages images)
     {
-        if (imageOrder.OverviewImageOccurrenceId == Guid.Empty
-            || imageOrder.MainDamageImageOccurrenceId == Guid.Empty
-            || imageOrder.OverviewImageOccurrenceId == imageOrder.MainDamageImageOccurrenceId)
-        {
-            throw new InvalidDataException(
-                "Distinct overview and main-damage preview image occurrences are required.");
-        }
-
         var ids = new HashSet<Guid>();
-        var accepted = new List<ValidatedImage>(imageOrder.OrderedImages.Count);
-        foreach (var image in imageOrder.OrderedImages)
+        var retained = new List<ValidatedImage>(images.RetainedImages.Count);
+        foreach (var image in images.RetainedImages)
         {
             var validated = ValidateImage(image);
             if (!ids.Add(validated.Image.OccurrenceId))
             {
                 throw new InvalidDataException(
-                    "Accepted EVA image occurrence identities must be unique.");
+                    "Retained EVA image occurrence identities must be unique.");
             }
 
-            accepted.Add(validated);
+            retained.Add(validated);
         }
 
-        if (accepted.Count < 2)
+        if (retained.Count == 0)
         {
-            throw new InvalidDataException("At least two accepted EVA images are required.");
+            throw new InvalidDataException("At least one retained EVA image is required.");
         }
 
-        var overview = accepted.SingleOrDefault(
-            item => item.Image.OccurrenceId == imageOrder.OverviewImageOccurrenceId)
-            ?? throw new InvalidDataException(
-                "The overview preview must also be present in the accepted image order.");
-        var mainDamage = accepted.SingleOrDefault(
-            item => item.Image.OccurrenceId == imageOrder.MainDamageImageOccurrenceId)
-            ?? throw new InvalidDataException(
-                "The main-damage preview must also be present in the accepted image order.");
-
-        var entries = new List<ImageEntry>(accepted.Count + 2)
-        {
-            CreateImageEntry(overview, 1, "overview-preview"),
-            CreateImageEntry(mainDamage, 2, "main-damage-preview")
-        };
-        for (var index = 0; index < accepted.Count; index++)
-        {
-            entries.Add(CreateImageEntry(accepted[index], index + 3, "accepted"));
-        }
-
-        return entries;
+        return retained.Select(CreateImageEntry).ToList();
     }
 
     private static ValidatedImage ValidateImage(EvaBundleImage? image)
     {
         if (image is null)
         {
-            throw new InvalidDataException("A selected EVA image is missing.");
+            throw new InvalidDataException("A retained EVA image is missing.");
         }
         if (image.OccurrenceId == Guid.Empty
             || image.DocumentId == Guid.Empty
@@ -343,12 +310,12 @@ public static class EvaBundleSchema
             || image.Version <= 0)
         {
             throw new InvalidDataException(
-                "Selected EVA images require occurrence, document, and version identities.");
+                "Retained EVA images require occurrence, document, and version identities.");
         }
         if (!image.CustodyConfirmed || !image.IsCurrent)
         {
             throw new InvalidOperationException(
-                "Every selected EVA image must be the custody-confirmed current document version.");
+                "Every retained EVA image must be the custody-confirmed current document version.");
         }
         if (image.SemanticRole != DocumentSemanticRole.Image
             || !IsSupportedImageMediaType(image.MediaType))
@@ -360,24 +327,20 @@ public static class EvaBundleSchema
             || image.Content.IsEmpty)
         {
             throw new InvalidDataException(
-                "A selected EVA image is missing retained content or source provenance.");
+                "A retained EVA image is missing content or source provenance.");
         }
 
         var actualHash = Hash(image.Content.Span);
         if (!string.Equals(actualHash, image.Sha256, StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidDataException("A selected EVA image failed SHA-256 integrity validation.");
+            throw new InvalidDataException("A retained EVA image failed SHA-256 integrity validation.");
         }
 
         return new(image, actualHash);
     }
 
-    private static ImageEntry CreateImageEntry(
-        ValidatedImage image,
-        int sequence,
-        string slot) => new(
-        $"{sequence:D3}-{SafeFileComponent(image.Image.FileName)}",
-        slot,
+    private static ImageEntry CreateImageEntry(ValidatedImage image) => new(
+        $"{image.Image.OccurrenceId:N}-{SafeFileComponent(image.Image.FileName)}",
         image.Image,
         image.Sha256);
 
@@ -433,7 +396,6 @@ public static class EvaBundleSchema
             {
                 writer.WriteStartObject();
                 writer.WriteString("entryName", entry.Name);
-                writer.WriteString("slot", entry.Slot);
                 writer.WriteString("occurrenceId", entry.Image.OccurrenceId);
                 writer.WriteString("documentId", entry.Image.DocumentId);
                 writer.WriteString("versionId", entry.Image.VersionId);
@@ -583,7 +545,6 @@ public static class EvaBundleSchema
 
     private sealed record ImageEntry(
         string Name,
-        string Slot,
         EvaBundleImage Image,
         string Sha256);
 }

@@ -62,7 +62,9 @@ public sealed record DocumentOccurrence(
     DocumentSemanticRole SemanticRole,
     DocumentSource Source,
     string SourceOccurrenceIdentity,
-    DateTimeOffset RecordedAtUtc);
+    DateTimeOffset RecordedAtUtc,
+    DateTimeOffset? ThirdPartyVehicleConfirmedAtUtc,
+    string? ThirdPartyVehicleConfirmationReason);
 
 public sealed record CaseDocument(
     Guid Id,
@@ -158,6 +160,15 @@ public sealed record LogicallyRemoveDocumentCommand(
     long ExpectedCaseVersion,
     string EditLeaseToken);
 
+public sealed record ConfirmThirdPartyVehicleEvidenceCommand(
+    Guid CaseId,
+    Guid OccurrenceId,
+    ActionActor Actor,
+    string Reason,
+    string OperationKey,
+    long ExpectedCaseVersion,
+    string EditLeaseToken);
+
 public sealed record CreateBoxFileRequestCommand(
     Guid CaseId,
     ActionActor Actor,
@@ -235,6 +246,13 @@ public interface ILogicallyRemoveDocument
 {
     Task ExecuteAsync(
         LogicallyRemoveDocumentCommand command,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IConfirmThirdPartyVehicleEvidence
+{
+    Task ExecuteAsync(
+        ConfirmThirdPartyVehicleEvidenceCommand command,
         CancellationToken cancellationToken = default);
 }
 

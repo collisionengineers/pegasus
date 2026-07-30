@@ -16,6 +16,7 @@ internal sealed class EfDocumentCustodyStore(
     IDownloadCaseDocument,
     IExportCaseDocuments,
     ILogicallyRemoveDocument,
+    IConfirmThirdPartyVehicleEvidence,
     ICaseDocumentStateQueries
 {
     public async Task<AddCaseDocumentResult> ExecuteAsync(
@@ -419,6 +420,99 @@ internal sealed class EfDocumentCustodyStore(
         await transaction.CommitAsync(cancellationToken);
     }
 
+    async Task IConfirmThirdPartyVehicleEvidence.ExecuteAsync(
+        ConfirmThirdPartyVehicleEvidenceCommand command,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ValidateActor(command.Actor);
+        ArgumentException.ThrowIfNullOrWhiteSpace(command.Reason);
+        var operationKey = ValidateOperationKey(command.OperationKey);
+        var reason = command.Reason.Trim();
+        if (reason.Length > 500)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(command),
+                "The third-party vehicle confirmation reason cannot exceed 500 characters.");
+        }
+
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var occurrence = await context.Set<DocumentOccurrenceEntity>()
+            .SingleOrDefaultAsync(
+                value => value.CaseId == command.CaseId && value.Id == command.OccurrenceId,
+                cancellationToken)
+            ?? throw new InvalidOperationException("The document occurrence is unavailable.");
+        var history = await FindDocumentHistoryAsync(context, operationKey, cancellationToken);
+        var afterJson = DocumentActionHistory.Serialize(new ThirdPartyVehicleEvidenceHistoryValue(
+            occurrence.Id,
+            occurrence.ThirdPartyVehicleConfirmedAtUtc,
+            occurrence.ThirdPartyVehicleConfirmationReason));
+        if (history is not null)
+        {
+            if (occurrence.ThirdPartyVehicleConfirmedAtUtc is null)
+            {
+                throw new InvalidDataException(
+                    "The audited third-party vehicle confirmation is missing from the document occurrence.");
+            }
+
+            DocumentActionHistory.RequireExactReplay(
+                history,
+                "case_document",
+                command.CaseId.ToString("D"),
+                "third_party_vehicle_evidence_confirmed",
+                command.Actor,
+                reason,
+                afterJson);
+            return;
+        }
+
+        var version = await context.Set<DocumentVersionEntity>()
+            .SingleAsync(value => value.Id == occurrence.VersionId, cancellationToken);
+        if (occurrence.SemanticRole != DocumentSemanticRole.Image
+            || version.CustodyStatus != DocumentCustodyStatus.Confirmed
+            || !version.IsCurrent
+            || version.IsLogicallyRemoved
+            || !IsSupportedImageMediaType(version.MediaType))
+        {
+            throw new InvalidOperationException(
+                "Only a custody-confirmed current JPEG or PNG image may be confirmed as third-party vehicle evidence.");
+        }
+        if (occurrence.ThirdPartyVehicleConfirmedAtUtc is not null)
+        {
+            throw new InvalidOperationException(
+                "This image has already been confirmed as third-party vehicle evidence.");
+        }
+
+        var workflow = await RequireWorkflowAsync(context, command.CaseId, cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        CaseMutationGuard.Require(
+            workflow,
+            command.Actor,
+            command.ExpectedCaseVersion,
+            command.EditLeaseToken,
+            now);
+        occurrence.ThirdPartyVehicleConfirmedAtUtc = now;
+        occurrence.ThirdPartyVehicleConfirmationReason = reason;
+        occurrence.ThirdPartyVehicleConfirmationOperationKey = operationKey;
+        afterJson = DocumentActionHistory.Serialize(new ThirdPartyVehicleEvidenceHistoryValue(
+            occurrence.Id,
+            occurrence.ThirdPartyVehicleConfirmedAtUtc,
+            occurrence.ThirdPartyVehicleConfirmationReason));
+        context.ActionHistory.Add(DocumentActionHistory.Succeeded(
+            "case_document",
+            command.CaseId.ToString("D"),
+            "third_party_vehicle_evidence_confirmed",
+            command.Actor,
+            now,
+            operationKey,
+            reason,
+            afterJson: afterJson));
+        CaseMutationGuard.Complete(workflow);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
     private async Task<DocumentExport> BuildExportAsync(
         Guid caseId,
         IReadOnlyList<ExportItem> items,
@@ -563,6 +657,10 @@ internal sealed class EfDocumentCustodyStore(
         return value;
     }
 
+    private static bool IsSupportedImageMediaType(string mediaType) =>
+        string.Equals(mediaType, "image/jpeg", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(mediaType, "image/png", StringComparison.OrdinalIgnoreCase);
+
     private static string MakeUniqueFileName(string fileName, HashSet<string> names)
     {
         if (names.Add(fileName))
@@ -593,7 +691,9 @@ internal sealed class EfDocumentCustodyStore(
         value.SemanticRole,
         value.Source,
         value.SourceOccurrenceIdentity,
-        value.RecordedAtUtc);
+        value.RecordedAtUtc,
+        value.ThirdPartyVehicleConfirmedAtUtc,
+        value.ThirdPartyVehicleConfirmationReason);
 
     private static DocumentVersion ToVersion(DocumentVersionEntity value) => new(
         value.Id,
@@ -728,6 +828,11 @@ internal sealed class EfDocumentCustodyStore(
         Guid OccurrenceId,
         Guid VersionId,
         string Sha256);
+
+    private sealed record ThirdPartyVehicleEvidenceHistoryValue(
+        Guid OccurrenceId,
+        DateTimeOffset? ConfirmedAtUtc,
+        string? Reason);
 
     private sealed record ExportItem(
         DocumentOccurrenceEntity Occurrence,

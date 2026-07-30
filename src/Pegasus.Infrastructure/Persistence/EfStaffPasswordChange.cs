@@ -1,7 +1,6 @@
 using System.Data;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using OpenIddict.Abstractions;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -9,8 +8,6 @@ namespace Pegasus.Infrastructure.Persistence;
 public sealed class EfStaffPasswordChange(
     PegasusDbContext context,
     UserManager<PegasusIdentityUser> userManager,
-    IOpenIddictAuthorizationManager authorizationManager,
-    IOpenIddictTokenManager tokenManager,
     TimeProvider timeProvider) : IStaffPasswordChangeStore
 {
     public async Task<ChangeStaffPasswordResult> ChangeAsync(
@@ -64,10 +61,6 @@ public sealed class EfStaffPasswordChange(
         }
 
         var subject = request.StaffId.ToString("D");
-        var tokens = await tokenManager.RevokeBySubjectAsync(subject, cancellationToken);
-        var authorizations = await authorizationManager.RevokeBySubjectAsync(
-            subject,
-            cancellationToken);
         context.SecurityEvents.Add(new SecurityEventEntity
         {
             Id = Guid.NewGuid(),
@@ -82,8 +75,8 @@ public sealed class EfStaffPasswordChange(
         await transaction.CommitAsync(cancellationToken);
         return new(
             request.StaffId,
-            authorizations,
-            tokens,
+            RevokedAuthorizations: 0,
+            RevokedTokens: 0,
             WasReplay: false);
     }
 }

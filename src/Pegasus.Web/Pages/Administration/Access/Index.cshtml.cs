@@ -8,8 +8,7 @@ namespace Pegasus.Web.Pages.Administration.Access;
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed class IndexModel(
     IGetAccessReview getAccessReview,
-    IReviewStaffAccess reviewStaffAccess,
-    IRevokeStaffMcpAuthorizations revokeStaffMcpAuthorizations)
+    IReviewStaffAccess reviewStaffAccess)
     : AdministrationPageModel
 {
     public IReadOnlyList<StaffAccessReviewProjection> Accounts { get; private set; } = [];
@@ -67,48 +66,6 @@ public sealed class IndexModel(
             catch (ArgumentException)
             {
                 ModelState.AddModelError(string.Empty, "The access review was not accepted.");
-            }
-        }
-
-        return await ReloadForFailureAsync(actor, cancellationToken);
-    }
-
-    public async Task<IActionResult> OnPostRevokeMcpAsync(
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        ValidateSubmittedOperation();
-        if (ModelState.IsValid)
-        {
-            try
-            {
-                await revokeStaffMcpAuthorizations.ExecuteAsync(
-                    new(actor, StaffId, Reason, OperationKey),
-                    cancellationToken);
-                TempData["AdministrationStatus"] =
-                    "The staff member's MCP authorizations and tokens were revoked.";
-                return RedirectToPage();
-            }
-            catch (AuthenticationClientAdministrationException exception)
-            {
-                ModelState.AddModelError(string.Empty, exception.Error switch
-                {
-                    AuthenticationClientAdministrationError.StaffAccountNotFound =>
-                        "The staff account no longer exists.",
-                    AuthenticationClientAdministrationError.OperationConflict =>
-                        "The form was already used for a different operation. Retry from the current page.",
-                    _ => "The MCP authorization revocation was not accepted."
-                });
-            }
-            catch (ArgumentException)
-            {
-                ModelState.AddModelError(
-                    string.Empty,
-                    "The MCP authorization revocation was not accepted.");
             }
         }
 
