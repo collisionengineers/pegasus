@@ -46,6 +46,14 @@ public static class DependencyInjection
         services.AddScoped<EfIntakeReceiptStore>();
         services.AddScoped<IIntakeReceiptStore>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
         services.AddScoped<IIntakeReceiptQueries>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
+        services.AddScoped<IListIntake, ListIntake>();
+        services.AddScoped<IGetIntake, GetIntake>();
+        services.AddScoped<IDownloadIntakeSource, DownloadIntakeSource>();
+        services.AddScoped<IIntakeMutationStore, EfIntakeMutationStore>();
+        services.AddScoped<IResolveIntake, ResolveIntake>();
+        services.AddScoped<IReevaluateIntake, ReevaluateIntake>();
+        services.AddScoped<ILinkIntake, LinkIntake>();
+        services.AddScoped<IReverseIntakeLink, ReverseIntakeLink>();
         services.AddScoped<EfTriageStore>();
         services.AddScoped<ITriageStore>(provider => provider.GetRequiredService<EfTriageStore>());
         services.AddScoped<ITriageQueries>(provider => provider.GetRequiredService<EfTriageStore>());

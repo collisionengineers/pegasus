@@ -181,7 +181,9 @@ internal sealed class IntegrationTestAuthenticationHandler(
 
         var claims = new[]
         {
-            new Claim(ClaimTypes.NameIdentifier, "00000000-0000-0000-0000-000000000001"),
+            new Claim(
+                ClaimTypes.NameIdentifier,
+                DevelopmentOfflineIdentity.AdministratorId.ToString("D")),
             new Claim(ClaimTypes.Name, "integration-user"),
             new Claim("display_name", "Integration User"),
             new Claim(ClaimTypes.Role, "Administrator")
