@@ -5,6 +5,7 @@ namespace Pegasus.Infrastructure.Persistence;
 
 internal sealed class EfQueuedCustodyProcessor(
     IDbContextFactory<PegasusDbContext> dbContextFactory,
+    IExternalWorkStore workStore,
     ICaseCustody caseCustody,
     TimeProvider timeProvider) : IProcessQueuedCustody
 {
@@ -78,10 +79,12 @@ internal sealed class EfQueuedCustodyProcessor(
             }
             catch (Exception exception)
             {
-                await ReleaseLeaseAsync(
+                await workStore.FailProcessingAsync(
                     workId,
                     leaseToken,
+                    timeProvider.GetUtcNow(),
                     GetFailureCode(exception),
+                    "Custody evidence could not be confirmed and requires authorized staff retry.",
                     CancellationToken.None);
                 throw;
             }
@@ -154,12 +157,24 @@ internal sealed class EfQueuedCustodyProcessor(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            await ReleaseLeaseAsync(workId, leaseToken, "cancelled", CancellationToken.None);
+            await workStore.FailProcessingAsync(
+                workId,
+                leaseToken,
+                timeProvider.GetUtcNow(),
+                "cancelled",
+                "Custody processing was cancelled and requires authorized staff retry.",
+                CancellationToken.None);
             throw;
         }
         catch (Exception exception)
         {
-            await ReleaseLeaseAsync(workId, leaseToken, GetFailureCode(exception), CancellationToken.None);
+            await workStore.FailProcessingAsync(
+                workId,
+                leaseToken,
+                timeProvider.GetUtcNow(),
+                GetFailureCode(exception),
+                "Custody evidence could not be confirmed and requires authorized staff retry.",
+                CancellationToken.None);
             throw;
         }
     }
@@ -404,31 +419,6 @@ internal sealed class EfQueuedCustodyProcessor(
         });
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-    }
-
-    private async Task ReleaseLeaseAsync(
-        Guid workId,
-        string leaseToken,
-        string failureCode,
-        CancellationToken cancellationToken)
-    {
-        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        var work = await context.Set<ExternalWorkItemEntity>()
-            .SingleOrDefaultAsync(
-                value => value.Id == workId && value.LeaseToken == leaseToken,
-                cancellationToken);
-        if (work is null || string.Equals(work.State, "completed", StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        work.State = "queued";
-        work.FailureCode = failureCode;
-        work.FailureReason = "Custody dependency did not confirm the operation.";
-        work.DueAtUtc = timeProvider.GetUtcNow();
-        work.LeaseToken = null;
-        work.LeaseExpiresAtUtc = null;
-        await context.SaveChangesAsync(cancellationToken);
     }
 
     private static string GetFailureCode(Exception exception) => exception switch

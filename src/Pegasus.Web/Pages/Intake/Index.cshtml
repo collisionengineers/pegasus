@@ -1,16 +1,7 @@
 @page "/Intake"
 @model Pegasus.Web.Pages.Intake.IndexModel
-@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
-@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment Environment
-@using Pegasus.Core.Identity
 @{
     ViewData["Title"] = "Intake";
-    var developmentEvaluatorEnabled = Environment.IsDevelopment()
-        && string.Equals(
-            Configuration["Runtime:Profile"],
-            "DevelopmentOffline",
-            StringComparison.Ordinal)
-        && Configuration.GetValue<bool>("Features:LocalIntake");
 }
 
 <header class="page-heading">
@@ -19,10 +10,6 @@
         <h1>@(Model.Decision is null ? "Intake queue" : IndexModel.DecisionLabel(Model.Decision.Value))</h1>
         <p class="lede">Receive instructions and review retained manual or approved-inbox receipts.</p>
     </div>
-    @if (developmentEvaluatorEnabled && User.IsInRole(StaffRoleNames.Administrator))
-    {
-        <a class="secondary-action" asp-page="/Development/EmailEvaluation">Evaluate email</a>
-    }
 </header>
 
 @if (TempData["IntakeQueueStatus"] is string queueStatus)

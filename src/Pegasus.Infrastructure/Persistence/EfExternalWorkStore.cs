@@ -232,6 +232,104 @@ internal sealed class EfExternalWorkStore(
         await transaction.CommitAsync(cancellationToken);
     }
 
+    public async Task FailProcessingAsync(
+        Guid workItemId,
+        string leaseToken,
+        DateTimeOffset failedAtUtc,
+        string failureCode,
+        string failureReason,
+        CancellationToken cancellationToken)
+    {
+        if (workItemId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "An external work item identifier is required.",
+                nameof(workItemId));
+        }
+        ArgumentException.ThrowIfNullOrWhiteSpace(leaseToken);
+        ArgumentException.ThrowIfNullOrWhiteSpace(failureCode);
+        ArgumentException.ThrowIfNullOrWhiteSpace(failureReason);
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var work = await context.ExternalWorkItems
+            .Include(item => item.Case)
+            .SingleOrDefaultAsync(item => item.Id == workItemId, cancellationToken)
+            ?? throw new InvalidOperationException("The external work item is unavailable.");
+        if (work.State is "completed" or "failed")
+        {
+            return;
+        }
+        if (!string.Equals(work.LeaseToken, leaseToken, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("The custody work item lease was lost before its failure could be recorded.");
+        }
+
+        switch (work.Kind)
+        {
+            case ExternalWorkKinds.CreateCaseCustody:
+                if (string.Equals(work.Case.CustodyState, "confirmed", StringComparison.Ordinal))
+                {
+                    CompletePoisonReplay(work, failedAtUtc);
+                    break;
+                }
+
+                FailWork(work, failedAtUtc, failureCode, failureReason);
+                if (!string.Equals(work.Case.CustodyState, "failed", StringComparison.Ordinal))
+                {
+                    var beforeVersion = work.Case.Version;
+                    work.Case.CustodyState = "failed";
+                    work.Case.Version = checked(work.Case.Version + 1);
+                    context.CaseHistory.Add(new()
+                    {
+                        Id = Guid.NewGuid(),
+                        CaseId = work.CaseId,
+                        EventType = "custody_failed",
+                        Actor = "system",
+                        Reason = failureReason,
+                        OccurredAtUtc = failedAtUtc,
+                        OperationKey = $"{work.OperationKey}:failed",
+                        BeforeVersion = beforeVersion,
+                        AfterVersion = work.Case.Version
+                    });
+                }
+                break;
+
+            case ExternalWorkKinds.CreateAuditReferenceCustody:
+                if (!string.IsNullOrWhiteSpace(work.Case.AuditCustodyRemoteId))
+                {
+                    CompletePoisonReplay(work, failedAtUtc);
+                    break;
+                }
+
+                FailWork(work, failedAtUtc, failureCode, failureReason);
+                var beforeAuditVersion = work.Case.Version;
+                work.Case.Version = checked(work.Case.Version + 1);
+                context.CaseHistory.Add(new()
+                {
+                    Id = Guid.NewGuid(),
+                    CaseId = work.CaseId,
+                    EventType = "audit_custody_failed",
+                    Actor = "system",
+                    Reason = failureReason,
+                    OccurredAtUtc = failedAtUtc,
+                    OperationKey = $"{work.OperationKey}:failed",
+                    BeforeVersion = beforeAuditVersion,
+                    AfterVersion = work.Case.Version
+                });
+                break;
+
+            default:
+                FailWork(work, failedAtUtc, failureCode, failureReason);
+                break;
+        }
+
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
     private static void CompletePoisonReplay(
         ExternalWorkItemEntity work,
         DateTimeOffset completedAtUtc)

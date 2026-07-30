@@ -83,43 +83,6 @@ public sealed class QdosAlphaAcceptanceGateTests
         Assert.Contains("capability:INT-01:cannot-defer", decision.Blockers);
     }
 
-    [Theory]
-    [InlineData("MCP-01")]
-    [InlineData("MCP-02")]
-    [InlineData("MCP-03")]
-    [InlineData("MCP-04")]
-    public void OfflineGateDoesNotAcceptDeferredMcpCallerEvidence(string capabilityId)
-    {
-        var observations = QdosAlphaAcceptanceGate.RequiredCapabilityIds
-            .Select(id => new QdosAlphaCapabilityObservation(
-                id,
-                id == capabilityId
-                    ? QdosAlphaCapabilityEvidenceOutcome.DeferredToExternalGate
-                    : QdosAlphaCapabilityEvidenceOutcome.Passed,
-                "offline acceptance runner",
-                $"{id}.trx",
-                new string('c', 64)))
-            .ToArray();
-        var externalEvidence = QdosAlphaAcceptanceGate.RequiredOfflineGateIds
-            .Select(id => new QdosAlphaExternalGateEvidence(
-                id,
-                $"{id}-approval",
-                $"{id}.json",
-                new string('d', 64)))
-            .ToArray();
-
-        var decision = new QdosAlphaAcceptanceGate().Evaluate(new(
-            1,
-            QdosAlphaAcceptanceGate.AcceptanceManifestKind,
-            new string('a', 40),
-            new string('b', 32),
-            observations,
-            externalEvidence));
-
-        Assert.False(decision.OfflineCandidateAccepted);
-        Assert.Contains($"capability:{capabilityId}:cannot-defer", decision.Blockers);
-    }
-
     [QdosAlphaAcceptanceManifestFact]
     [Trait("Category", "QdosAlphaAcceptance")]
     public async Task RunnerManifestInvokesCoreGateThroughActualWebHost()

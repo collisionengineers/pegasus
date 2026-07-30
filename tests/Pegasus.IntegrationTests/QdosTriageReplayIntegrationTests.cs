@@ -15,7 +15,7 @@ public sealed partial class QdosTriageIntegrationTests
             true,
             extractionPolicy: new AcceptedTriageMatchPolicy());
         using var client = IntakeWebDriver.CreateClient(factory);
-        var email = OfflineAcceptanceTests.CreateEmail(
+        var email = IntakeTestEvidence.CreateEmail(
             "triage-replay.eml",
             "QDOS instruction\r\nClaimant Name: Replay Claimant\r\nClaim Number: TRIAGE-REPLAY\r\nVehicle Registration: AB12 CDE");
         _ = await IntakeWebDriver.UploadAndProcessAsync(factory, client, email.FileName,

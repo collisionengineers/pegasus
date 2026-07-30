@@ -20,12 +20,12 @@ Pegasus is a four-project modular monolith:
 flowchart LR
     Staff[Collision Engineers staff] --> Web[Pegasus.Web]
     Provider[Provider API\nplanned] -. separate Web boundary .-> Web
-    MCP[Claude Automation\nMCP planned] -. separate Web boundary .-> Web
+    MCP[Automation MCP\nseparately gated] -. separate Web boundary .-> Web
 
     Web --> Core[Pegasus.Core]
-    Worker[Pegasus.Worker\nno trigger or Core caller] -. target .-> Core
+    Worker[Pegasus.Worker\ntimer and queue callers] --> Core
     Web --> Infra[Pegasus.Infrastructure]
-    Worker -. target .-> Infra
+    Worker --> Infra
     Infra --> Core
 
     Infra --> SQL[(LocalDB local / Azure SQL deployed)]
@@ -36,7 +36,7 @@ flowchart LR
     Infra -. target .-> EVA[EVA]
 ```
 
-The current repository exposes an ASP.NET Core Razor Pages host, and dated local HTTP integration evidence exercises one Development-only manual intake mutation. That evidence does not show staff use of a deployed Pegasus application, a supported non-Development intake route, live traffic, or operator acceptance. Future accepted provider API and Claude Automation MCP calls would enter through separate Web boundaries. The .NET 10 isolated Azure Functions Worker is the intended mailbox and background composition root, but currently has no trigger, input, or Core caller.
+The current repository exposes an ASP.NET Core Razor Pages host and a .NET 10 isolated Azure Functions Worker. The Worker has timer and queue-trigger callers that translate bounded work into Core use cases. Local evidence does not show staff use of a deployed Pegasus application, supported non-Development intake, live traffic, external-system activation, or operator acceptance. Any provider API or Automation MCP caller remains separately gated.
 
 The repository identifies its package and release target as `0.1.0-alpha.1`; no Pegasus Azure deployment has occurred.
 
@@ -48,7 +48,7 @@ The repository identifies its package and release target as `0.1.0-alpha.1`; no 
 | `src/Pegasus.Core/ReferenceData/` | Exact provider/domain-suffix package validation, deterministic candidate semantics, and the catalog port. It contains no workbook, package-file, or EF implementation. |
 | `src/Pegasus.Infrastructure/` | EF persistence and source, artifact, package, and future external-system adapters implementing Core ports. It depends on Core. |
 | `src/Pegasus.Web/` | Razor Pages and HTTP composition root, request translation, configuration, route gates, and health endpoints. It invokes Core through configured ports and Infrastructure adapters. |
-| `src/Pegasus.Worker/` | Isolated Functions composition root. It currently builds and runs a telemetry-capable host but contains no timer, queue, mailbox trigger, input, or Core caller. |
+| `src/Pegasus.Worker/` | Isolated Functions composition root. Its timer and queue triggers translate persisted intake, external-work, mailbox, sent-evidence, and reconciliation signals into Core use cases; it contains no duplicate business policy. |
 
 Web and Worker may translate transport, identity, and configuration. They must not reproduce business policy. Infrastructure may implement Core ports but does not own business decisions.
 
@@ -87,7 +87,7 @@ than attempts.
 - The prior dated local proof exercised the now-retired Development-only `/Intake/Upload` thin slice. It remains historical evidence only.
 - `GET /Intake` calls Core `ListIntake`; the `ReceiveIntake` POST handler submits one bounded authenticated manual source and preserves the selected filter/page through PRG. `GET /Intake/{id}` calls `GetIntake`, and its mutations call the named Core intake commands with a server-derived actor, expected versions or case lease, operation key, and reason as applicable.
 - `GET /Intake/{id}/Source` calls Core `DownloadIntakeSource`, which authorises the current staff actor, resolves the receipt-owned source, validates retained length and SHA-256, and returns only a no-sniff attachment with a safe filename and content type.
-- `/Triage` and `/Triage/{id}` are the physical list/detail owners for Core triage queries and commands. The non-persistent evaluator exists only at `/Development/EmailEvaluation` while the DevelopmentOffline local-intake profile is active; otherwise its route selector is absent.
+- `/Triage` and `/Triage/{id}` are the physical list/detail owners for Core triage queries and commands. The former Development web evaluator is not an application caller; the separately owned desktop evaluator remains outside the Web runtime.
 - Anonymous request submission exists only at `/Uploads/{token}`. The PageModel calls `GetRequestUpload` and one `UploadToRequest` command, uses antiforgery and an idempotent operation key, and presents generic non-disclosing outcomes through PRG.
 - These implemented callers are local/offline-alpha source state. This change does not establish deployment, browser accessibility acceptance, or operator acceptance.
 
@@ -97,9 +97,9 @@ than attempts.
 - `/health/ready` invokes the registered database health check.
 - These endpoints are technical probes, not evidence of a product mutation or external integration.
 
-### Implemented host without a business caller
+### Worker callers
 
-`src/Pegasus.Worker/Program.cs` constructs and runs a Functions host. It has no trigger and makes no Core call. Dependency registration and host startup are not caller evidence.
+`src/Pegasus.Worker/Program.cs` constructs the Functions host. The concrete functions in `IntakeFunctions.cs`, `MailboxFunctions.cs`, `EmailEvidenceFunctions.cs`, and `Functions/ExternalWorkFunctions.cs` are the caller evidence for their timer and queue paths. Registration and host startup alone remain insufficient evidence of external-system activation or operator acceptance.
 
 A Worker `local.settings.json` is unnecessary at this baseline. Copy `src/Pegasus.Worker/local.settings.example.json` to the ignored `local.settings.json` only when an actual trigger requires local Functions storage.
 
@@ -116,7 +116,7 @@ The following are planned or absent, not merely unverified:
 - DVLA/DVSA lookup;
 - EVA export;
 - provider API, which is deferred to the exact target owned by the [capability inventory](capabilities.md);
-- management/development-controlled Claude Automation MCP, identified as a `0.1.0-alpha.1` target;
+- a vendor-neutral Automation MCP, identified as a `0.1.0-alpha.1` target and separately gated pending its actor contract;
 - authenticated case lifecycle actions;
 - live Azure telemetry and deployed Azure callers.
 
@@ -365,7 +365,7 @@ A first Document Intelligence caller may submit only persisted scan-like PDF pag
 
 ### Provider API and Automation MCP
 
-Provider API and Claude Automation MCP are separate Web ingress boundaries. They must invoke the same Core business actions as staff UI or Worker callers rather than introducing parallel policy engines.
+Provider API and Automation MCP are separate Web ingress boundaries. They must invoke the same Core business actions as staff UI or Worker callers rather than introducing parallel policy engines. Their exact client, actor, authentication, and activation evidence remain separately gated.
 
 ### EVA and case lifecycle
 
@@ -405,7 +405,7 @@ Workspace provenance and source manifests are owned by [the workspace index](../
 
 Exact release allocation in [capabilities](capabilities.md) does not by itself define implementation order. The restored [dependency-ordered delivery roadmap](history/plans/delivery-roadmap.md) is subordinate, source-labelled pre-conversion planning evidence retained because it uniquely records prerequisite edges, safe parallel branches, and rejoin gates. Its historical `CollisionSpike` labels do not name a current caller, and every edge must be revalidated against current requirements, allocation, decisions, architecture, and code before use.
 
-The retained alpha spine orders relational intake state before staff identity and action history; those before principal/configuration, durable custody, image/address evidence, and the allocator; those before definitive acceptance; and acceptance before case files, edit leases, lifecycle, UI, the real Outlook Worker, Triage, vehicle/EVA work, Claude Automation MCP, Azure/recovery evidence, and operator acceptance. Provider activation and later parallel branches rejoin only after their shared actor, source, case, Worker, and history contracts are stable. This summary neither activates a capability nor proves implementation, deployment, recovery, or acceptance.
+The retained alpha spine orders relational intake state before staff identity and action history; those before principal/configuration, durable custody, image/address evidence, and the allocator; those before definitive acceptance; and acceptance before case files, edit leases, lifecycle, UI, Worker callers, Triage, vehicle/EVA work, Automation MCP, Azure/recovery evidence, and operator acceptance. Provider activation and later parallel branches rejoin only after their shared actor, source, case, Worker, and history contracts are stable. This summary neither activates an external capability nor proves deployment, recovery, or acceptance.
 
 ## Failure and recovery boundaries
 
@@ -413,7 +413,7 @@ Source limits, incomplete processing, identity ambiguity, unsupported formats, i
 
 Transient work may retry only within named bounds. Terminal failures must remain visible. Local bytes may outlive a failed SQL write and are not evidence of accepted custody.
 
-The current Web path has no background retry coordinator, poison queue, or automated recovery caller. A retention failure asks the local user to retry with the same receipt token; a later persistence failure can leave unreferenced content-addressed bytes for diagnosis. Those source-level behaviors are not production retry, deletion, or recovery proof.
+Worker timer and poison-queue callers reconcile persisted intake and external-work failures. For Box custody, an initial failed operation remains terminal and visible for authorised staff to retry; no automatic business retry is permitted. These source-level callers do not prove live Azure queue delivery, deployment, or operator acceptance.
 
 Production recovery is forward-oriented:
 
@@ -504,7 +504,7 @@ The Intake routes and Development evaluator are deny-by-default and return `404`
 | Database model and migrations | `src/Pegasus.Infrastructure/Persistence/PegasusDbContext.cs`, `src/Pegasus.Infrastructure/Persistence/Migrations/` |
 | Web composition, feature gates and route safety | `src/Pegasus.Web/Program.cs` |
 | Canonical Intake callers | `src/Pegasus.Web/Pages/Intake/Index.cshtml.cs`, `src/Pegasus.Web/Pages/Intake/Details.cshtml.cs`, `src/Pegasus.Web/Pages/Intake/Source.cshtml.cs` |
-| Canonical Triage, evaluator and public-upload callers | `src/Pegasus.Web/Pages/Triage/`, `src/Pegasus.Web/Pages/Development/EmailEvaluation.cshtml.cs`, `src/Pegasus.Web/Pages/Uploads/Request.cshtml.cs` |
+| Canonical Triage and public-upload callers | `src/Pegasus.Web/Pages/Triage/`, `src/Pegasus.Web/Pages/Uploads/Request.cshtml.cs` |
 | Genuine-input Web evidence | `tests/Pegasus.IntegrationTests/QdosIntakeWebTests.cs` |
 | Route-denial evidence | `tests/Pegasus.IntegrationTests/LocalIntakeAccessTests.cs` |
 | Stable persistence and unsupported-source evidence | `tests/Pegasus.IntegrationTests/IntakeStablePersistenceTests.cs` |

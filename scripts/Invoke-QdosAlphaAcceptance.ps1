@@ -151,9 +151,7 @@ function Assert-LocalRunEvidence {
             'initializationCompleted',
             'subjectId',
             'userName',
-            'role',
-            'oauthClientId',
-            'oauthCallback') `
+            'role') `
         -Label 'local run identity'
     Assert-JsonProperties `
         -Value $LocalRun.verification `
@@ -180,7 +178,6 @@ function Assert-LocalRunEvidence {
             'functionsRunning',
             'identityInitialized',
             'httpsOriginValidated',
-            'oauthMetadataValidated',
             'administratorRouteValidated') `
         -Label 'local run smoke evidence'
 
@@ -202,9 +199,7 @@ function Assert-LocalRunEvidence {
         -not $LocalRun.identity.initializationCompleted -or
         [string]$LocalRun.identity.subjectId -cne 'd47fbbae-ea22-4ca6-b983-01e2ed1fbd13' -or
         [string]$LocalRun.identity.userName -cne 'development-offline-administrator' -or
-        [string]$LocalRun.identity.role -cne 'Administrator' -or
-        [string]$LocalRun.identity.oauthClientId -cne 'pegasus-development-mcp' -or
-        [string]$LocalRun.identity.oauthCallback -cne 'http://127.0.0.1:7890/callback') {
+        [string]$LocalRun.identity.role -cne 'Administrator') {
         throw 'OfflineCandidate is blocked: the local run manifest is not the successful exact-source DevelopmentOffline run for this acceptance invocation.'
     }
 
@@ -229,8 +224,6 @@ function Assert-LocalRunEvidence {
         -not $smoke.identityInitialized -or
         $smoke.httpsOriginValidated -isnot [bool] -or
         -not $smoke.httpsOriginValidated -or
-        $smoke.oauthMetadataValidated -isnot [bool] -or
-        -not $smoke.oauthMetadataValidated -or
         $smoke.administratorRouteValidated -isnot [bool] -or
         -not $smoke.administratorRouteValidated) {
         throw 'OfflineCandidate is blocked: the local run manifest has no successful current-attempt readiness and smoke evidence.'

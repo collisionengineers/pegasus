@@ -153,217 +153,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
-            modelBuilder.Entity("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreApplication", b =>
-                {
-                    b.Property<string>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("ApplicationType")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("ClientId")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("ClientSecret")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ClientType")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("ConcurrencyToken")
-                        .IsConcurrencyToken()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("ConsentType")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("DisplayName")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("DisplayNames")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("JsonWebKeySet")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Permissions")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("PostLogoutRedirectUris")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Properties")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("RedirectUris")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Requirements")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Settings")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ClientId")
-                        .IsUnique()
-                        .HasFilter("[ClientId] IS NOT NULL");
-
-                    b.ToTable("OpenIddictApplications", (string)null);
-                });
-
-            modelBuilder.Entity("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreAuthorization", b =>
-                {
-                    b.Property<string>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("ApplicationId")
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("ConcurrencyToken")
-                        .IsConcurrencyToken()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<DateTime?>("CreationDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Properties")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Scopes")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Status")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("Subject")
-                        .HasMaxLength(400)
-                        .HasColumnType("nvarchar(400)");
-
-                    b.Property<string>("Type")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ApplicationId", "Status", "Subject", "Type");
-
-                    b.ToTable("OpenIddictAuthorizations", (string)null);
-                });
-
-            modelBuilder.Entity("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreScope", b =>
-                {
-                    b.Property<string>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("ConcurrencyToken")
-                        .IsConcurrencyToken()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Descriptions")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("DisplayName")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("DisplayNames")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Name")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("Properties")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Resources")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Name")
-                        .IsUnique()
-                        .HasFilter("[Name] IS NOT NULL");
-
-                    b.ToTable("OpenIddictScopes", (string)null);
-                });
-
-            modelBuilder.Entity("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreToken", b =>
-                {
-                    b.Property<string>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("ApplicationId")
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("AuthorizationId")
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("ConcurrencyToken")
-                        .IsConcurrencyToken()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<DateTime?>("CreationDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("ExpirationDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Payload")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Properties")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("RedemptionDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("ReferenceId")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("Status")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("Subject")
-                        .HasMaxLength(400)
-                        .HasColumnType("nvarchar(400)");
-
-                    b.Property<string>("Type")
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AuthorizationId");
-
-                    b.HasIndex("ReferenceId")
-                        .IsUnique()
-                        .HasFilter("[ReferenceId] IS NOT NULL");
-
-                    b.HasIndex("ApplicationId", "Status", "Subject", "Type");
-
-                    b.ToTable("OpenIddictTokens", (string)null);
-                });
-
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ActionHistoryEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -435,36 +224,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasIndex("AggregateType", "AggregateId", "OccurredAtUtc");
 
                     b.ToTable("ActionHistory", (string)null);
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ApplicationInitializationEntity", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
-
-                    b.Property<DateTimeOffset>("CompletedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("ManifestSha256")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nchar(64)")
-                        .IsFixedLength();
-
-                    b.Property<string>("MigrationId")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
-                    b.Property<string>("TargetIdentity")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("ApplicationInitializations", (string)null);
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ApprovedInboxPoisonMessageEntity", b =>
@@ -1143,8 +902,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.ToTable("CaseDueWork", null, t =>
                         {
-                            t.HasCheckConstraint("CK_CaseDueWork_Version", "[Version] >= 0");
                             t.HasCheckConstraint("CK_CaseDueWork_NextChaseOrdering", "([NextChaseAtUtc] IS NULL AND [NextChaseAtUtcTicks] IS NULL) OR ([NextChaseAtUtc] IS NOT NULL AND [NextChaseAtUtcTicks] IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_CaseDueWork_Version", "[Version] >= 0");
                         });
                 });
 
@@ -2022,6 +1782,17 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(512)
                         .HasColumnType("nvarchar(512)");
 
+                    b.Property<string>("ThirdPartyVehicleConfirmationOperationKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ThirdPartyVehicleConfirmationReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTimeOffset?>("ThirdPartyVehicleConfirmedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<Guid>("VersionId")
                         .HasColumnType("uniqueidentifier");
 
@@ -2035,6 +1806,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CaseId", "OperationKey")
                         .IsUnique();
+
+                    b.HasIndex("CaseId", "ThirdPartyVehicleConfirmedAtUtc");
 
                     b.ToTable("DocumentOccurrences", (string)null);
                 });
@@ -3707,6 +3480,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid?>("AssigneeId")
                         .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("ConcurrencyToken")
                         .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
@@ -4300,30 +4074,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreAuthorization", b =>
-                {
-                    b.HasOne("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreApplication", "Application")
-                        .WithMany("Authorizations")
-                        .HasForeignKey("ApplicationId");
-
-                    b.Navigation("Application");
-                });
-
-            modelBuilder.Entity("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreToken", b =>
-                {
-                    b.HasOne("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreApplication", "Application")
-                        .WithMany("Tokens")
-                        .HasForeignKey("ApplicationId");
-
-                    b.HasOne("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreAuthorization", "Authorization")
-                        .WithMany("Tokens")
-                        .HasForeignKey("AuthorizationId");
-
-                    b.Navigation("Application");
-
-                    b.Navigation("Authorization");
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ApprovedInboxPoisonMessageEntity", b =>
@@ -5041,18 +4791,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("Case");
 
                     b.Navigation("WorkItem");
-                });
-
-            modelBuilder.Entity("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreApplication", b =>
-                {
-                    b.Navigation("Authorizations");
-
-                    b.Navigation("Tokens");
-                });
-
-            modelBuilder.Entity("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreAuthorization", b =>
-                {
-                    b.Navigation("Tokens");
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseDataSnapshotEntity", b =>

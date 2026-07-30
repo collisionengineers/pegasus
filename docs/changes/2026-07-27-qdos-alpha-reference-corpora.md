@@ -4,9 +4,9 @@ type: feature
 status: in_progress
 risk: high
 created: 2026-07-27
-updated: 2026-07-29
+updated: 2026-07-30
 issue: https://github.com/collisionengineers/pegasus/issues/3
-pull_request: pending
+pull_request: https://github.com/collisionengineers/pegasus/pull/23
 baseline: b2f40a2b68b5b1a906ff2e736fa43653006dba61
 target_release: 0.1.0-alpha.1
 roadmap_horizon: Now
@@ -28,7 +28,7 @@ The provider-domain Step 2 implementation and local verification are complete. T
 
 Issue #3 remains open until both mandatory delivery stages complete:
 
-1. **Offline development acceptance:** the complete application runs locally through real Web, Worker, Functions, SQL, storage, authentication, MCP, and operator callers without cloud credentials or external-service calls.
+1. **Offline development acceptance:** the application runs locally through real Web, Worker, Functions, SQL, storage, authentication, and operator callers without cloud credentials or external-service calls. Automation MCP remains deferred until its identity and client contract is accepted.
 2. **Approved live integration and release:** live adapters, Azure changes, deployment, recovery proof, operator acceptance, management approval, and production cutover occur only after the offline gate and their own exact-target approvals.
 
 Offline acceptance is neither a reduced alpha nor a substitute for live evidence.
@@ -60,7 +60,7 @@ The four-project modular monolith remains: Core owns policy and ports; Infrastru
 
 ### Checkpoint 1 activation
 
-[ADR-0013](../adr/0013-qdos-alpha-implementation-contract.md) activates the clause-specific QDOS implementation and Razor/Worker/MCP caller contract without changing accepted decision bodies or capability allocation. Checkpoint 1 starts from merged `main` at `46b0328b149d7da887fa899c8aa39e01fcf159dc`, whose parents are the pull request 18 documentation merge `536f5fc470a541281f86ebc711564d49432ed73f` and capability child/source head `f77e1492b25abdd5a14725f4c15129333482b743`.
+[ADR-0013](../adr/0013-qdos-alpha-implementation-contract.md) activates the clause-specific QDOS implementation and Razor/Worker caller boundaries without changing accepted decision bodies or capability allocation. It preserves, but does not activate, the separately gated Automation MCP boundary. Checkpoint 1 starts from merged `main` at `46b0328b149d7da887fa899c8aa39e01fcf159dc`, whose parents are the pull request 18 documentation merge `536f5fc470a541281f86ebc711564d49432ed73f` and capability child/source head `f77e1492b25abdd5a14725f4c15129333482b743`.
 
 Issue #3 and this record remain the sole implementation, evidence, review, and delivery identity. The addendum creates no second status ledger and promotes no implementation, caller, deployment, live-verification, or acceptance claim. The Development/local evaluator remains a separately delivered evidence harness under `DOC-CON-052`; it is not a QDOS caller or checkpoint. Repository-policy verification remains disabled until post-alpha; current direct and repository-language invocations are successful no-ops recorded only as **skipped/deferred**, never **passed**.
 
@@ -107,7 +107,7 @@ Issue #3 and this record remain the sole implementation, evidence, review, and d
 - Activate only genuinely evidenced routes. The only currently accepted QDOS direct identity is the exact suffix `@qdosassist.co.uk`.
 - Implement the sole live alpha mailbox caller for `instructions@collisionengineers.co.uk`.
 - Complete QDOS Inspection, standalone Audit, and Inspection + Audit through durable intake, fail-closed acceptance, immutable identity, Box custody, work and review, EVA JSON/image handoff, exact report evidence, lifecycle, observability, recovery, deployment, and acceptance.
-- Implement the selected Operations-first `0.1.0-alpha.1` staff UI, authenticated Automation Actor MCP, and all workflow, error, stale, denied, retry, and accessibility states required by the active flow.
+- Implement the selected Operations-first `0.1.0-alpha.1` staff UI and all workflow, error, stale, denied, retry, and accessibility states required by the active flow. Automation MCP is deferred: no endpoint or staff-identity substitute may be introduced before its actor and client contract is accepted.
 - Support authenticated manual intake and bounded request-scoped unauthenticated uploads through the same Core use cases.
 
 ### Excluded or deferred
@@ -119,7 +119,7 @@ Issue #3 and this record remain the sole implementation, evidence, review, and d
 - `Not planned` external/customer accounts, malware scanning, SMS, Teams, portal, predecessor application reuse/import after cutover, separate QA/UAT/staging/demo/training environments, GitHub Actions/OIDC deployment, slots/S1, private networking, zone or multi-region resilience, and quarterly recovery exercises.
 - Live-service client construction, Azure/IaC mutation, cloud reads or writes, deployment, predecessor retirement, or production cutover before complete offline acceptance and separate exact-target authorization.
 - Dormant services, speculative projects, duplicate engines, or deferred features treated as current release gates.
-- The Development/local email evaluator, `/Development/EmailEvaluation`, its `unchecked`/`checked` workspaces, reviewer workflow, evaluator command, report campaign, and UI/checkpoint acceptance mechanics. These are separately owned prerequisites under `DOC-CON-052`, not QDOS delivery.
+- The separately owned desktop email evaluator, its `unchecked`/`checked` workspaces, reviewer workflow, evaluator command, report campaign, and acceptance mechanics. These are separately owned prerequisites under `DOC-CON-052`, not QDOS delivery.
 
 Clean seams for deferred work are permitted; dormant implementations are not.
 
@@ -224,11 +224,11 @@ Corrections or removals require new accepted authority and a new explicit contra
 
 ### Separately owned evaluation prerequisite
 
-The Development/local email evaluator is not implemented or accepted by this
-QDOS change. Its owner supplies any required reviewed genuine-input evidence;
-QDOS defines no `/Development/EmailEvaluation` route, `unchecked`/`checked`
-workspace workflow, evaluator command, reviewer report campaign, Administrator
-approval, or evaluator UI acceptance checkpoint.
+The separately owned desktop email evaluator is not implemented or accepted by
+this QDOS change. Its owner supplies any required reviewed genuine-input
+evidence; QDOS defines no evaluator route, `unchecked`/`checked` workspace
+workflow, evaluator command, reviewer report campaign, Administrator approval,
+or evaluator UI acceptance checkpoint.
 
 Route, Triage, and automatic-report policies still require genuine positive,
 negative, ambiguous, forwarded, reply-chain, and untouched holdout evidence
@@ -263,10 +263,10 @@ aggregate counts, hashes, policy versions, and evidence limits may be committed.
 
 ## Identity, authorization, leases, and history
 
-- Use ASP.NET Core Identity and OpenIddict in the existing DbContext and migration stream.
+- Use ASP.NET Core Identity in the existing DbContext and migration stream. No OAuth persistence, client-registration contract, or Automation MCP caller is retained in this delivery revision.
 - Roles are `Administrator`, `Engineer`, and `User`; there is no public registration, MFA, or external/customer account in this release.
 - All active staff roles may perform case, intake, document, transition, and pre-Engineer review work.
-- Administrators alone manage accounts, roles, principals, workflow configuration, approved mailboxes, and OAuth clients.
+- Administrators alone manage accounts, roles, principals, workflow configuration, and approved mailboxes. Automation-client administration is deferred with the Automation Actor contract.
 - Passwords use secure non-reversible hashes, require at least eight characters, and impose no digit, uppercase, lowercase, or non-alphanumeric composition requirement.
 - Persistent account lockout is disabled.
 - Login throttling uses:
@@ -276,10 +276,8 @@ aggregate counts, hashes, policy versions, and evidence limits may be committed.
   - a separate global partition of 100 attempts per minute.
 - Production accepts forwarded client IP only from configured trusted proxies.
 - Browser sessions use a two-hour sliding idle cookie and an immutable original-issue claim enforcing an eight-hour absolute maximum.
-- Security-stamp and account-enabled state are revalidated. Account disable or role change revokes later browser and MCP use.
+- Security-stamp and account-enabled state are revalidated. Account disable or role change revokes later browser use; future Automation Actor revocation must be defined by its own contract.
 - Use secure cookies, antiforgery, forced first-password change, and no password, token, or secret telemetry/history.
-- `bootstrap-admin` is a one-shot command.
-- `register-mcp-client` permits only pre-approved public S256 PKCE clients with exact callback, scopes, and resource. No client secret, wildcard callback, or Dynamic Client Registration is allowed.
 - Claims map to an explicit Core `StaffActor`.
 - Permanent `ActionHistory` records business mutations, downloads/exports, material denied or failed business actions, automated business results, and external information actually accepted, linked, or used. It stores structured before/after values, actor, time, required reason, and outcome without secrets or file/message bodies.
 - Sign-ins remain security events. Routine views, searches, refreshes, polling, retries, leases, and heartbeats remain content-safe telemetry.
@@ -404,7 +402,7 @@ The unauthenticated caller may see only the bounded upload form and immediate re
 - EVA remains authoritative for Engineer assignment, estimating, valuation, and report generation until an accepted replacement exists.
 - The source-labelled saved-email/image/valuation/instruction readiness set, Experian boundary, and image eligibility/order/duplication/video-screenshot observations remain pinned through the canonical [focused handoff contract](../requirements.md#focused-eva-manual-handoff) and its retained administration-overview evidence; their presence does not prove an EVA caller or acceptance.
 
-## Operations-first Web, MCP, and UI acceptance
+## Operations-first Web and UI acceptance
 
 ### Web
 
@@ -416,8 +414,6 @@ Required routes are:
 - `/Cases` and `/Cases/{id}`;
 - Administrator account, principal, configuration, and mailbox pages;
 - sign-in, forced password change, sign-out, and access denied;
-- OAuth metadata and authorization endpoints;
-- `/mcp`;
 
 The shell uses the approved adapted Collision Engineers logo at `design/brand/logos/logo_no_margin.png`; the scaffold `CE` CSS logo, Privacy page, and scaffold navigation are removed.
 
@@ -446,15 +442,14 @@ Search and filtering cover Case/PO, registration, claimant, claim number, princi
 
 Case pages expose typed data and provenance, parties, documents/images, vehicle/MOT suggestions, address/mode, tasks, chasers, request-scoped upload links, EVA export, report evidence, `Report preparation` work, lifecycle/history, immutable identity, lease/conflict/retry, and reasoned actions. There is no permanent case or file deletion.
 
-### MCP
+### Automation MCP
 
-- Use OpenIddict authorization code flow with S256 PKCE, exact audience/resource, short access tokens, rotating refresh tokens, protected-resource metadata, and one Streamable HTTP `/mcp` endpoint.
-- Local development uses explicit local keys; production refuses them.
-- Tools invoke only Core-owned case, intake, Triage, document, EVA, and report actions also available through Web.
-- Exclude accounts, roles, principals, configuration, OAuth client administration, cloud operations, arbitrary custody IDs, generic email, credential management, and deletion.
-- Prove browser/MCP parity, real HTTP caller behavior, staff attribution, stale/lease handling, and immediate account-disable/role-change enforcement.
-- Direct service invocation does not count as MCP caller proof.
-- Claude-hosted callback behavior and production key custody remain live gates.
+Automation MCP is deliberately absent from this delivery revision. The deferred
+capability preserves distinct Automation Actor, client, action, and permanent
+history identities without an endpoint, OAuth client, credential, staff
+impersonation path, or dormant tool implementation. Activation requires the
+accepted actor/client/authentication/scopes/rate-limit/revocation contract,
+real HTTP caller proof, and exact deployment and security approval.
 
 ### Accessibility and interaction
 
@@ -489,15 +484,15 @@ This index accounts for all 128 `Now` capability IDs after explicit deferral of 
 | `MAIL-21`, `MAIL-22` | 4, 10, 11 | shared Core taxonomy/route evidence and production-intake caller proof, then approved Graph replay/live parity |
 | `MAIL-14`, `MAIL-15`, `MAIL-16` | 6–8, 10, 11 | exact local Sent evidence/linking and approved automatic matcher holdout, then Graph parity |
 | `MAIL-18` | 6, 9, 10 | Core chaser policy and authenticated copyable Web output |
-| `ACC-01`, `ACC-02`, `ACC-03`, `ACC-04`, `ACC-05`, `ACC-06`, `ACC-07`, `ACC-08`, `ACC-09`, `ACC-10`, `ACC-11` | 3, 9, 10 | Identity/OpenIddict, authorization, history, authenticated browser/MCP |
+| `ACC-01`, `ACC-02`, `ACC-03`, `ACC-04`, `ACC-05`, `ACC-06`, `ACC-07`, `ACC-08`, `ACC-09`, `ACC-10`, `ACC-11` | 3, 9, 10 | Identity, authorization, history, and authenticated browser proof; Automation MCP is separately deferred |
 | `INT-01`, `INT-02`, `INT-03`, `INT-08`, `INT-09`, `INT-10`, `INT-11`, `INT-12`, `INT-13`, `INT-17`, `INT-18`, `INT-19`, `INT-20`, `INT-21`, `INT-22`, `INT-23`, `INT-24`, `INT-25`, `INT-26`, `INT-27`, `INT-29`, `INT-30` | 4–10 | shared Core classification/extraction, separately supplied accepted evidence where required, durable receipt/outbox/Worker, acceptance and negative recovery smoke |
 | `INT-31` | 7, 9, 10 | request-scoped upload token/limit/custody/retry/revocation/abuse contract, real authenticated staff creator, bounded unauthenticated upload caller, negative isolation proof, and operator acceptance; release remains blocked until implemented |
-| `TRI-01`, `TRI-02`, `TRI-03`, `TRI-04`, `TRI-05`, `TRI-06`, `TRI-07`, `TRI-08`, `TRI-09` | 4, 6, 8–10 | approved matcher evidence, Core transitions, Worker Sent evidence, UI/MCP |
-| `CASE-01`, `CASE-02`, `CASE-03`, `CASE-04`, `CASE-07`, `CASE-08`, `CASE-09`, `CASE-10`, `CASE-11`, `CASE-12`, `CASE-13`, `CASE-14`, `CASE-15`, `CASE-16`, `CASE-17`, `CASE-18`, `CASE-19`, `CASE-20`, `CASE-21`, `CASE-24`, `CASE-25`, `CASE-26`, `CASE-27`, `CASE-28`, `CASE-29`, `CASE-30` | 6–10 | Core/persistence contract, local adapters, Worker, UI/MCP, lifecycle smoke |
+| `TRI-01`, `TRI-02`, `TRI-03`, `TRI-04`, `TRI-05`, `TRI-06`, `TRI-07`, `TRI-08`, `TRI-09` | 4, 6, 8–10 | approved matcher evidence, Core transitions, Worker Sent evidence, and UI |
+| `CASE-01`, `CASE-02`, `CASE-03`, `CASE-04`, `CASE-07`, `CASE-08`, `CASE-09`, `CASE-10`, `CASE-11`, `CASE-12`, `CASE-13`, `CASE-14`, `CASE-15`, `CASE-16`, `CASE-17`, `CASE-18`, `CASE-19`, `CASE-20`, `CASE-21`, `CASE-24`, `CASE-25`, `CASE-26`, `CASE-27`, `CASE-28`, `CASE-29`, `CASE-30` | 6–10 | Core/persistence contract, local adapters, Worker, UI, and lifecycle smoke |
 | `UI-01`, `UI-02`, `UI-03`, `UI-04`, `UI-05`, `UI-06`, `UI-07`, `UI-08`, `UI-09`, `UI-11`, `UI-13` | 9, 10 | authenticated Razor Pages caller and Playwright/accessibility acceptance |
 | `DOC-01`, `DOC-02`, `DOC-03`, `DOC-04`, `DOC-05`, `DOC-06`, `DOC-07`, `DOC-08` | 6, 7, 9–11 | Core custody contract, local adapter/UI smoke, then Box parity/live proof |
 | `EXT-01`, `EXT-02`, `EXT-03`, `EXT-14`, `EXT-18` | 7, 10, 11 | local replay/export contract and operator smoke, then approved live parity |
-| `MCP-01`, `MCP-02`, `MCP-03`, `MCP-04` | 3, 9, 10, 13 | OpenIddict actor enforcement and real Streamable HTTP caller |
+| `MCP-01`, `MCP-02`, `MCP-03`, `MCP-04` | separate delivery | accepted Automation Actor/client contract, real HTTP caller proof, and exact deployment/security approval |
 | `DATA-01` | 2, 10 | deterministic cumulative provider-domain package/migration and exact count/hash/suffix-only proof |
 
 **Count assertion: 128 distinct allocated IDs; no duplicate or omission. `DOC-CON-052` separately owns seven of those IDs and creates no QDOS delivery step.**
@@ -555,7 +550,7 @@ Required behavior:
 - `Initialize-LocalDevelopment` runs `npm ci`, installs pinned Playwright browsers, verifies/trusts Development HTTPS, validates LocalDB/Functions/Azurite, and creates ignored local state only. It does not silently install global/system packages or retrieve secrets.
 - `Invoke-LocalDevelopment` allocates a run ID, loopback ports, GUID-named LocalDB database, Azurite state, local mailbox, local case-file root, logs, and ownership manifest under ignored `artifacts/local-development/<run-id>/`.
 - Dependencies start in order and wait for real readiness. A Development-only explicit command applies migrations; Web and Worker never migrate on normal startup.
-- First start securely prompts for an Administrator password of at least eight characters, passes it only as a child-process environment value to the one-shot bootstrap command, does not echo or persist it, and forces change at first sign-in. Later starts refuse bootstrap if an Administrator exists.
+- The DevelopmentOffline fixture creates a deterministic passwordless local Administrator and roles only. A first-run or production administrator bootstrap requires its own accepted identity and custody contract; no bootstrap executable is introduced by this delivery.
 - `Stop` and `Reset` affect only resources whose run ID and ownership manifest match.
 - `Reset` refuses ambiguous database, process, or path ownership and never touches tracked files, corpus, another run, Azure, or predecessor resources.
 - Failures retain content-safe diagnostics.
@@ -569,7 +564,7 @@ Application runtime reads SQL only. Provider-domain evidence does not activate a
 
 ### 3. Add staff identity, authorization, leases, and history
 
-Implement the Identity/OpenIddict, roles, session limits, login throttles, bootstrap, OAuth-client registration, `StaffActor`, account revocation, business history, edit lease, and optimistic-version contracts above in the existing DbContext and migration stream.
+Implement the Identity, roles, session limits, login throttles, `StaffActor`, account revocation, business history, edit lease, and optimistic-version contracts above in the existing DbContext and migration stream. Bootstrap and Automation MCP client registration remain deferred pending their accepted contracts.
 
 ### 4. Build the shared classification policy and consume genuine evidence
 
@@ -603,7 +598,7 @@ Implement every allocation, Audit, lifecycle, Held/chaser, report, Triage, repla
 | DVLA/DVSA | Development replay adapter accepting only owner-approved ignored responses and typed failures | live contract, licence, limits, mileage rule, and availability |
 | VRM | selected local engine after a genuine labelled benchmark | no engine is registered until accepted |
 | EVA | deterministic local JSON/image/manifest bundle | EVA import, receipt, or named assignment |
-| OAuth/MCP | local HTTPS OpenIddict, registered public PKCE client, and actual Streamable HTTP calls | Claude-hosted callback and production key custody |
+| Automation MCP | distinct Automation Actor/client/action identities only; no ingress is implemented | accepted actor/client/authentication contract, actual HTTP caller proof, and deployment/security approval |
 | Telemetry | structured console/test exporter and optional local OTLP collector | Azure Monitor ingestion, alerts, retention, and cost |
 
 Run one Core port contract suite against every local implementation. A future live adapter must pass the same suite; a contract change returns the work through the offline gate.
@@ -623,11 +618,11 @@ Each trigger claims persisted work, invokes one Core use case, and acknowledges 
 
 `DevelopmentOffline` Worker startup must prove that no external client was constructed.
 
-### 9. Complete the authenticated Web and local MCP
+### 9. Complete the authenticated Web
 
-Build the Operations-first routes, queues, intake, Triage, case, document, administration, authentication, OAuth, MCP, error, stale, retry, lease, and accessibility behavior above.
+Build the Operations-first routes, queues, intake, Triage, case, document, administration, authentication, error, stale, retry, lease, and accessibility behavior above.
 
-PageModels bind, authorize, and translate only. Business decisions remain in Core. Prove browser/MCP parity through real HTTP endpoints.
+PageModels bind, authorize, and translate only. Business decisions remain in Core. Automation MCP remains a separate delivery after its actor/client contract is accepted.
 
 ### 10. Pass the complete offline acceptance gate
 
@@ -639,15 +634,14 @@ Run from a fresh setup:
 4. Actual Web, Functions host, Azurite, LocalDB, local mailbox, and local custody smoke for QDOS Inspection, standalone Audit repairable/total loss, and Inspection + Audit. Duplicate, retry, and crash must still produce one immutable case/reference/evaluation/custody/outbox result.
 5. Negative and recovery smoke for unsupported, corrupt, oversized, incomplete, unknown/non-QDOS, route overlap, missing Audit assessment, unavailable dependency, identity/hash conflict, sequence `9999` exhaustion, poison exhaustion, stale lease/version, unauthorized actor, and terminal external failure.
 6. Full local lifecycle through `Not ready`, chasing, `Held`, `Review`, `Report preparation`, custody, selected VRM/address/vehicle suggestions, one-time EVA event, exact local Sent evidence, `Post report`, terminal outcomes, valid reopen, created-in-error replacement, archive/read-only, and Triage exact-reply completion/correction.
-7. Real HTTP Identity and OAuth/MCP:
+7. Real HTTP Identity:
    - reject a seven-character password;
    - accept an eight-character composition-free password;
    - repeated failures never persist lockout;
    - per-IP and global partitions return generic `429` and `Retry-After`;
    - clock-test two-hour idle and eight-hour absolute expiry;
-   - reject disabled or role-changed users;
-   - complete actual MCP calls with the approved Automation Actor client and resource-bound token.
-8. Playwright interaction evidence for Operations, intake, Triage, case, administration, authentication, and MCP-visible effects at 1280+, constrained desktop, 200% zoom, keyboard-only, focus/error handling, forced colours, reduced motion, and multi-session conflicts.
+   - reject disabled or role-changed users.
+8. Playwright interaction evidence for Operations, intake, Triage, case, administration, and authentication at 1280+, constrained desktop, 200% zoom, keyboard-only, focus/error handling, forced colours, reduced motion, and multi-session conflicts.
 9. Active repository checks that perform validation, exact-head CI, independent implementation review, clean-operator runbook execution, and proof that every QDOS-owned locally exercisable `Now` capability has real caller evidence. `scripts/Test-RepositoryPolicy.ps1` and its repository-language caller are excluded as described below. The seven `DOC-CON-052` evaluator allocations are separately owned prerequisites and have no QDOS checkpoint.
 
 Repository-policy enforcement is temporarily disabled and deferred until after
@@ -1022,7 +1016,7 @@ pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Reset
 - Restore and Release-build the complete solution.
 - Run all Architecture, Core, Integration, Web, provider-package, LocalDB concurrency, Azurite/Functions, browser, accessibility, adapter-contract, negative, retry, and recovery tests. Separately owned evaluator tests and report campaigns are not QDOS gates.
 - Treat `scripts/Test-RepositoryPolicy.ps1` and its `scripts/Test-RepositoryLanguage.ps1` caller as deferred no-ops, not alpha-required repository evidence; do not cite their successful exit as green evidence.
-- Exercise actual Web, Functions, SQL, storage, OAuth, MCP, and Worker callers. Direct service invocation is insufficient.
+- Exercise actual Web, Functions, SQL, storage, and Worker callers. Direct service invocation is insufficient; Automation MCP has no current caller to exercise.
 - Record exact-head CI and obtain independent exact-head review after the final tracked change.
 - Preserve source and corpus immutability and keep generated evidence beneath ignored `artifacts/`.
 

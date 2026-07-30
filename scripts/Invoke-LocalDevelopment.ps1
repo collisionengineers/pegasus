@@ -147,6 +147,33 @@ function Get-Initialization {
         }
     }
 
+    $runtimeArtifactPaths = [ordered]@{
+        web = $webAssembly
+        worker = $workerAssembly
+    }
+    foreach ($runtimeArtifact in $runtimeArtifactPaths.GetEnumerator()) {
+        $record = $initialization.runtimeArtifacts.PSObject.Properties[$runtimeArtifact.Key].Value
+        if ($null -eq $record -or
+            [string]::IsNullOrWhiteSpace([string]$record.relativePath) -or
+            $null -eq $record.byteLength -or
+            [string]::IsNullOrWhiteSpace([string]$record.sha256)) {
+            throw 'The local initialization marker does not contain complete runtime artifact evidence. Re-run Initialize-LocalDevelopment.ps1.'
+        }
+
+        Assert-ExactPath `
+            -Actual (Join-Path $repositoryRoot ([string]$record.relativePath)) `
+            -Expected $runtimeArtifact.Value `
+            -Label "Initialized $($runtimeArtifact.Key) runtime artifact"
+
+        $currentArtifact = [System.IO.FileInfo]::new($runtimeArtifact.Value)
+        if ($currentArtifact.Length -ne [int64]$record.byteLength -or
+            -not (Get-Sha256 -Path $currentArtifact.FullName).Equals(
+                [string]$record.sha256,
+                [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "The initialized runtime artifact changed after the clean build: $($record.relativePath). Re-run Initialize-LocalDevelopment.ps1."
+        }
+    }
+
     return $initialization
 }
 
@@ -272,16 +299,17 @@ function New-RunManifest {
         runtime = [ordered]@{
             profile = 'DevelopmentOffline'
             environment = 'Development'
+            artifacts = $Initialization.runtimeArtifacts
         }
         identity = [ordered]@{
             initializationCompleted = $false
             subjectId = 'd47fbbae-ea22-4ca6-b983-01e2ed1fbd13'
             userName = 'development-offline-administrator'
             role = 'Administrator'
-            oauthClientId = 'pegasus-development-mcp'
-            oauthCallback = 'http://127.0.0.1:7890/callback'
-            issuer = "https://localhost:$webPort/"
-            resource = "https://localhost:$webPort/mcp"
+        }
+        verification = [ordered]@{
+            readiness = $null
+            smoke = $null
         }
         resources = [ordered]@{
             database = [ordered]@{
@@ -348,12 +376,7 @@ function Assert-OwnedManifest {
         $Manifest.runtime.profile -ne 'DevelopmentOffline' -or
         $Manifest.runtime.environment -ne 'Development' -or
         $Manifest.ownership.cloudOperations -ne 'disabled' -or
-        $Manifest.identity.initializationCompleted -isnot [bool] -or
-        $Manifest.identity.subjectId -ne 'd47fbbae-ea22-4ca6-b983-01e2ed1fbd13' -or
-        $Manifest.identity.userName -ne 'development-offline-administrator' -or
-        $Manifest.identity.role -ne 'Administrator' -or
-        $Manifest.identity.oauthClientId -ne 'pegasus-development-mcp' -or
-        $Manifest.identity.oauthCallback -ne 'http://127.0.0.1:7890/callback') {
+        $Manifest.identity.initializationCompleted -isnot [bool]) {
         throw "The local development manifest has an invalid ownership contract: $ManifestPath"
     }
 
@@ -419,12 +442,6 @@ function Assert-OwnedManifest {
             throw "Endpoint '$name' does not match run '$id'."
         }
     }
-    if ($Manifest.identity.issuer -ne "$($expectedEndpoints.webBase)/" -or
-        $Manifest.identity.resource -ne "$($expectedEndpoints.webBase)/mcp") {
-        throw "The local OAuth identity endpoints do not match run '$id'."
-    }
-
-
     foreach ($role in @('azurite', 'web', 'worker')) {
         $record = $Manifest.processes.PSObject.Properties[$role].Value
         if ($null -eq $record) {
@@ -545,8 +562,6 @@ function Get-WebEnvironment {
         Mailbox__LocalRootPath = [string]$Manifest.resources.paths.mailbox
         Features__LocalIntake = 'true'
         Features__LocalDocumentCustody = 'true'
-        OpenIddict__Issuer = "$webBase/"
-        OpenIddict__StaffMcpResource = "$webBase/mcp"
     }
 }
 
@@ -1077,66 +1092,32 @@ function Invoke-RunSmoke {
     }
 
     $webBase = [string]$Manifest.endpoints.webBase
-    $expectedIssuer = "$webBase/"
-    $expectedResource = "$webBase/mcp"
-    $openIdResponse = Invoke-LoopbackRequest `
-        -Uri "$webBase/.well-known/openid-configuration" `
-        -SkipCertificateCheck
-    if ($openIdResponse.StatusCode -ne 200) {
-        throw "Run '$($Manifest.runId)' OpenID metadata returned HTTP $($openIdResponse.StatusCode)."
-    }
-    $openIdMetadata = $openIdResponse.Content | ConvertFrom-Json
-    if ([string]$openIdMetadata.issuer -ne $expectedIssuer) {
-        throw "Run '$($Manifest.runId)' OpenID issuer does not match its HTTPS origin."
-    }
-
-    $resourceResponse = Invoke-LoopbackRequest `
-        -Uri "$webBase/.well-known/oauth-protected-resource" `
-        -SkipCertificateCheck
-    if ($resourceResponse.StatusCode -ne 200) {
-        throw "Run '$($Manifest.runId)' protected-resource metadata returned HTTP $($resourceResponse.StatusCode)."
-    }
-    $resourceMetadata = $resourceResponse.Content | ConvertFrom-Json
-    $authorizationServers = @($resourceMetadata.authorization_servers)
-    if ([string]$resourceMetadata.resource -ne $expectedResource -or
-        $authorizationServers.Count -ne 1 -or
-        [string]$authorizationServers[0] -ne $expectedIssuer) {
-        throw "Run '$($Manifest.runId)' protected-resource metadata does not match its HTTPS origin."
-    }
-    $mcpResourceResponse = Invoke-LoopbackRequest `
-        -Uri "$webBase/.well-known/oauth-protected-resource/mcp" `
-        -SkipCertificateCheck
-    if ($mcpResourceResponse.StatusCode -ne 200) {
-        throw "Run '$($Manifest.runId)' MCP protected-resource metadata returned HTTP $($mcpResourceResponse.StatusCode)."
-    }
-    $mcpResourceMetadata = $mcpResourceResponse.Content | ConvertFrom-Json
-    $mcpAuthorizationServers = @($mcpResourceMetadata.authorization_servers)
-    if ([string]$mcpResourceMetadata.resource -ne $expectedResource -or
-        $mcpAuthorizationServers.Count -ne 1 -or
-        [string]$mcpAuthorizationServers[0] -ne $expectedIssuer) {
-        throw "Run '$($Manifest.runId)' MCP protected-resource metadata does not match its HTTPS origin."
-    }
-
     $operationsResponse = Invoke-LoopbackRequest `
         -Uri "$webBase/Operations" `
         -SkipCertificateCheck
     if ($operationsResponse.StatusCode -ne 200) {
-        throw "Run '$($Manifest.runId)' initialized Administrator caller returned HTTP $($operationsResponse.StatusCode)."
+        throw "Run '$($Manifest.runId)' Operations route returned HTTP $($operationsResponse.StatusCode)."
     }
 
 
-    return [pscustomobject][ordered]@{
+    $smokeEvidence = [pscustomobject][ordered]@{
         RunId = [string]$Manifest.runId
         Result = 'Passed'
+        StartAttempt = [int]$Manifest.startAttempt
+        ObservedUtc = [DateTimeOffset]::UtcNow.ToString('O')
         WebReady = $true
         FunctionsRunning = $true
         Version = [string]$version.version
         SourceSha = ([string]$version.sourceSha).ToLowerInvariant()
-        Issuer = [string]$openIdMetadata.issuer
-        Resource = [string]$resourceMetadata.resource
+        IdentityInitialized = [bool]$Manifest.identity.initializationCompleted
+        HttpsOriginValidated = $true
+        AdministratorRouteValidated = $true
         SubjectId = [string]$Manifest.identity.subjectId
         UserName = [string]$Manifest.identity.userName
     }
+    $Manifest.verification.smoke = $smokeEvidence
+    Write-OwnedManifest -Manifest $Manifest
+    return $smokeEvidence
 }
 
 function Assert-NoReparsePoints {
@@ -1357,6 +1338,14 @@ function Start-LocalRun {
             -ProcessRecord $manifest.processes.worker `
             -Probe { Test-FunctionsRunning -Manifest $manifest }
 
+        $manifest.verification.readiness = [pscustomobject][ordered]@{
+            Result = 'Passed'
+            StartAttempt = [int]$manifest.startAttempt
+            ObservedUtc = [DateTimeOffset]::UtcNow.ToString('O')
+            AzuriteReady = $true
+            WebReady = $true
+            FunctionsRunning = $true
+        }
         $manifest.state = 'Running'
         $manifest.failure = $null
         Write-OwnedManifest -Manifest $manifest

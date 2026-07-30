@@ -28,14 +28,14 @@
 <section class="section-gap" aria-labelledby="operations-workspaces-title">
     <h2 id="operations-workspaces-title" class="section-label">Operations workspaces</h2>
     <div class="queue-grid">
-        <a class="queue-card queue-card--blue" asp-page="/Operations/Email" data-queue-state="current">
+        <a class="queue-card queue-card--unavailable" asp-page="/Operations/Email" data-queue-state="unavailable">
             <span class="queue-icon" aria-hidden="true">E</span>
-            <div><strong>Email</strong><span>Received and Sent</span><small>Mailbox processing outcomes and owned retries</small></div>
+            <div><strong>Unavailable</strong><span>Email: Received and Sent</span><small>Open the operations route for mailbox outcomes and owned retries; no dashboard aggregate is available.</small></div>
             <span class="arrow" aria-hidden="true">›</span>
         </a>
-        <a class="queue-card queue-card--blue" asp-page="/Operations/Requests" data-queue-state="current">
+        <a class="queue-card queue-card--unavailable" asp-page="/Operations/Requests" data-queue-state="unavailable">
             <span class="queue-icon" aria-hidden="true">R</span>
-            <div><strong>Requests</strong><span>Box and Pegasus</span><small>Request-link, upload and external-work outcomes</small></div>
+            <div><strong>Unavailable</strong><span>Requests: Box and Pegasus</span><small>Open the operations route for request-link, upload, and external-work outcomes; no dashboard aggregate is available.</small></div>
             <span class="arrow" aria-hidden="true">›</span>
         </a>
     </div>

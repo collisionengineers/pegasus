@@ -209,6 +209,40 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         """;
 
     [Fact]
+    public async Task LatestMigrationRemovesDormantBootstrapAndOAuthStateAndAddsThirdPartyVehicleEvidenceState()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'ApplicationInitializations'"));
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*)
+            FROM sys.tables
+            WHERE name IN (
+                N'OpenIddictApplications',
+                N'OpenIddictAuthorizations',
+                N'OpenIddictScopes',
+                N'OpenIddictTokens')
+            """));
+        Assert.Equal(
+            3,
+            await database.ScalarAsync<int>(
+                """
+                SELECT COUNT(*)
+                FROM sys.columns
+                WHERE object_id = OBJECT_ID(N'[dbo].[DocumentOccurrences]')
+                  AND name IN (
+                      N'ThirdPartyVehicleConfirmationOperationKey',
+                      N'ThirdPartyVehicleConfirmationReason',
+                      N'ThirdPartyVehicleConfirmedAtUtc')
+                """));
+    }
+
+    [Fact]
     public async Task TerminalUpgradeReconcilesEveryRuntimeTableToTheExactCallerMatrix()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);

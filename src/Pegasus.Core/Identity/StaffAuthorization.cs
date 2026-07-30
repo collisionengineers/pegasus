@@ -14,8 +14,6 @@ public enum StaffAccessRight
     ManageOrganizationsAndPrincipals,
     ManageWorkflowConfiguration,
     ManageApprovedMailboxes,
-    ManageAuthenticationClients,
-    InitializeApplication,
     ExecuteSystemWork,
     SubmitRequestUpload
 }
@@ -40,11 +38,9 @@ public static class StaffAuthorization
             StaffAccessRight.AssignStaffRoles or
             StaffAccessRight.ManageOrganizationsAndPrincipals or
             StaffAccessRight.ManageWorkflowConfiguration or
-            StaffAccessRight.ManageApprovedMailboxes or
-            StaffAccessRight.ManageAuthenticationClients =>
+            StaffAccessRight.ManageApprovedMailboxes =>
                 actor.Kind == ActorKind.Staff && actor.IsInRole(StaffRole.Administrator),
 
-            StaffAccessRight.InitializeApplication => actor.Kind == ActorKind.Bootstrap,
             StaffAccessRight.ExecuteSystemWork => actor.Kind == ActorKind.SystemWorker,
             StaffAccessRight.SubmitRequestUpload => actor.Kind == ActorKind.RequestLink,
             _ => false

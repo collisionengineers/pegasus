@@ -389,11 +389,11 @@ public sealed class RequestsModel(
 
     private void StoreLease(Guid caseId, string token, string? operationKey = null)
     {
-        TempData[LeaseCaseIdKey] = caseId.ToString("D");
-        TempData[LeaseTokenKey] = token;
+        TempData[LeaseCaseIdKey] = caseId;
+        TempData[LeaseTokenKey] = new[] { token };
         if (!string.IsNullOrWhiteSpace(operationKey))
         {
-            TempData[LeaseOperationKeyKey] = operationKey.Trim();
+            TempData[LeaseOperationKeyKey] = new[] { operationKey.Trim() };
         }
     }
 
@@ -407,8 +407,8 @@ public sealed class RequestsModel(
     private Guid? ReadLeaseCaseId()
     {
         var caseId = ReadGuidTempData(LeaseCaseIdKey, peek: true);
-        var token = TempData.Peek(LeaseTokenKey) as string;
-        var operationKey = TempData.Peek(LeaseOperationKeyKey) as string;
+        var token = ReadStringTempData(LeaseTokenKey, peek: true);
+        var operationKey = ReadStringTempData(LeaseOperationKeyKey, peek: true);
         if (caseId is not null &&
             !string.IsNullOrWhiteSpace(token) &&
             !string.IsNullOrWhiteSpace(operationKey))
@@ -426,7 +426,7 @@ public sealed class RequestsModel(
     private void RestoreLeaseState(ActionActor actor)
     {
         var storedCaseId = ReadLeaseCaseId();
-        var storedOperationKey = TempData.Peek(LeaseOperationKeyKey) as string;
+        var storedOperationKey = ReadStringTempData(LeaseOperationKeyKey, peek: true);
         if (storedCaseId is { } caseId &&
             Operations.Items.Any(item =>
                 item.CaseId == caseId &&
@@ -453,13 +453,30 @@ public sealed class RequestsModel(
     private Guid? ReadGuidTempData(string key, bool peek = false)
     {
         var value = peek ? TempData.Peek(key) : TempData[key];
-        return value is string text && Guid.TryParse(text, out var parsed) ? parsed : null;
+        return value switch
+        {
+            Guid parsed => parsed,
+            string text when Guid.TryParse(text, out var parsed) => parsed,
+            _ => null
+        };
+    }
+
+    private string? ReadStringTempData(string key, bool peek = false)
+    {
+        var value = peek ? TempData.Peek(key) : TempData[key];
+        return value switch
+        {
+            string text when !string.IsNullOrWhiteSpace(text) => text,
+            string[] values when values.Length == 1 &&
+                                 !string.IsNullOrWhiteSpace(values[0]) => values[0],
+            _ => null
+        };
     }
 
     private bool TryGetLease(Guid caseId, out string leaseToken)
     {
         var storedCaseId = ReadLeaseCaseId();
-        var storedToken = TempData.Peek(LeaseTokenKey) as string;
+        var storedToken = ReadStringTempData(LeaseTokenKey, peek: true);
         if (storedCaseId == caseId && !string.IsNullOrWhiteSpace(storedToken))
         {
             leaseToken = storedToken;

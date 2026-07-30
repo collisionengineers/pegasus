@@ -12,6 +12,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using MimeKit;
 using Pegasus.Core.Intake;
 using Pegasus.Web.Authentication;
 
@@ -25,17 +26,30 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     private readonly TimeProvider timeProvider;
     private readonly IIntakeArtifactStore? artifactStore;
     private readonly IInstructionExtractionPolicy? extractionPolicy;
+    private readonly bool useIntegrationTestAuthentication;
+    private readonly bool initializeDevelopmentOffline;
     private readonly LocalDbTestDatabase database;
     private readonly string workingDirectory = Path.Combine(
         Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
 
     public IntakeWebApplicationFactory()
-        : this("Development", true)
+        : this("Development", true, useIntegrationTestAuthentication: false)
     {
     }
 
     internal IntakeWebApplicationFactory(TimeProvider timeProvider)
-        : this("Development", true, timeProvider)
+        : this("Development", true, timeProvider, useIntegrationTestAuthentication: false)
+    {
+    }
+
+    internal IntakeWebApplicationFactory(
+        bool useIntegrationTestAuthentication = false,
+        bool initializeDevelopmentOffline = true)
+        : this(
+            "Development",
+            true,
+            useIntegrationTestAuthentication: useIntegrationTestAuthentication,
+            initializeDevelopmentOffline: initializeDevelopmentOffline)
     {
     }
 
@@ -44,13 +58,17 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         bool? localIntakeEnabled,
         TimeProvider? timeProvider = null,
         IIntakeArtifactStore? artifactStore = null,
-        IInstructionExtractionPolicy? extractionPolicy = null)
+        IInstructionExtractionPolicy? extractionPolicy = null,
+        bool useIntegrationTestAuthentication = false,
+        bool initializeDevelopmentOffline = true)
     {
         this.environment = environment;
         this.localIntakeEnabled = localIntakeEnabled;
         this.timeProvider = timeProvider ?? new TestTimeProvider(FixedUtcNow);
         this.artifactStore = artifactStore;
         this.extractionPolicy = extractionPolicy;
+        this.useIntegrationTestAuthentication = useIntegrationTestAuthentication;
+        this.initializeDevelopmentOffline = initializeDevelopmentOffline;
         database = LocalDbTestDatabase.CreateAsync(migrate: false).GetAwaiter().GetResult();
     }
 
@@ -105,11 +123,14 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         });
         builder.ConfigureServices(services =>
         {
-            services.AddAuthentication(options =>
+            if (useIntegrationTestAuthentication)
             {
-                options.DefaultAuthenticateScheme = "IntegrationTest";
-                options.DefaultChallengeScheme = "IntegrationTest";
-            }).AddScheme<AuthenticationSchemeOptions, IntegrationTestAuthenticationHandler>("IntegrationTest", _ => { });
+                services.AddAuthentication(options =>
+                {
+                    options.DefaultAuthenticateScheme = "IntegrationTest";
+                    options.DefaultChallengeScheme = "IntegrationTest";
+                }).AddScheme<AuthenticationSchemeOptions, IntegrationTestAuthenticationHandler>("IntegrationTest", _ => { });
+            }
             services.RemoveAll<TimeProvider>();
             services.AddSingleton(timeProvider);
             if (artifactStore is not null)
@@ -129,9 +150,18 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     {
         var host = base.CreateHost(builder);
         using var scope = host.Services.CreateScope();
-        DevelopmentOfflineInitialization.InitializeAsync(scope.ServiceProvider)
-            .GetAwaiter()
-            .GetResult();
+        if (initializeDevelopmentOffline)
+        {
+            DevelopmentOfflineInitialization.InitializeAsync(scope.ServiceProvider)
+                .GetAwaiter()
+                .GetResult();
+        }
+        else
+        {
+            DevelopmentOfflineInitialization.MigrateAsync(scope.ServiceProvider)
+                .GetAwaiter()
+                .GetResult();
+        }
         return host;
     }
 
@@ -430,6 +460,30 @@ internal sealed record UploadResult(
     Guid? ProcessedReceiptId = null);
 
 internal sealed record UploadFormTokens(string AntiforgeryToken, string ExternalReceiptToken);
+
+internal static class IntakeTestEvidence
+{
+    public static TestEmail CreateEmail(string fileName, string body)
+    {
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress("QDOS Alpha", "engineers@qdosassist.co.uk"));
+        message.To.Add(new MailboxAddress("Pegasus Intake", "intake@example.test"));
+        message.Subject = "QDOS test instruction";
+        message.Body = new TextPart("plain") { Text = body };
+        using var output = new MemoryStream();
+        message.WriteTo(output);
+        return new(fileName, "message/rfc822", output.ToArray());
+    }
+
+    public static async Task AssertNoDurableIntakeReceiptsAsync(IntakeWebApplicationFactory factory)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var receipts = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
+        Assert.Empty(await receipts.ListAsync(null, CancellationToken.None));
+    }
+}
+
+internal sealed record TestEmail(string FileName, string MediaType, byte[] Content);
 
 internal sealed record GenuineCorpusSample(string Hash, string UploadName, string MediaType, byte[] Bytes);
 

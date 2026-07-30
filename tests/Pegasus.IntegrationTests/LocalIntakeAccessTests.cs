@@ -42,9 +42,8 @@ public sealed class LocalIntakeAccessTests
 
         foreach (var path in new[]
                  {
-                     "/Intake",
-                     "/Development/EmailEvaluation",
-                     $"/Intake/{Guid.NewGuid()}",
+                      "/Intake",
+                      $"/Intake/{Guid.NewGuid()}",
                      $"/Intake/{Guid.NewGuid()}/Source"
                  })
         {
@@ -52,17 +51,6 @@ public sealed class LocalIntakeAccessTests
             Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         }
         var endpoints = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints;
-        Assert.DoesNotContain(
-            endpoints.OfType<RouteEndpoint>(),
-            endpoint => endpoint.RoutePattern.RawText?.Contains(
-                "Development/EmailEvaluation",
-                StringComparison.OrdinalIgnoreCase) == true);
-
-
-        using var multipart = new MultipartFormDataContent();
-        using var post = await client.PostAsync("/Development/EmailEvaluation", multipart);
-        Assert.Equal(HttpStatusCode.NotFound, post.StatusCode);
-
         using var uploadMultipart = new MultipartFormDataContent();
         using var uploadPost = await client.PostAsync("/Intake?handler=ReceiveIntake", uploadMultipart);
         Assert.Equal(HttpStatusCode.NotFound, uploadPost.StatusCode);

@@ -232,12 +232,12 @@ public sealed class RecoveryTests
             clock.GetUtcNow(),
             TimeSpan.FromMinutes(5),
             CancellationToken.None));
-        await OfflineAcceptanceTests.AssertNoDurableIntakeReceiptsAsync(factory);
+        await IntakeTestEvidence.AssertNoDurableIntakeReceiptsAsync(factory);
     }
 
     private static IntakeSource CreateSource(string identity)
     {
-        var email = OfflineAcceptanceTests.CreateEmail(
+        var email = IntakeTestEvidence.CreateEmail(
             $"{identity}.eml",
             $"QDOS instruction\r\nClaimant Name: Recovery Claimant\r\nClaim Number: {identity}\r\nVehicle Registration: AB12 CDE");
         return new(

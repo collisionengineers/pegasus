@@ -15,7 +15,6 @@ using Pegasus.Core.Vehicle;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Web.Health;
-using Pegasus.Web.Mcp;
 using Pegasus.Web.Authentication;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
@@ -23,20 +22,14 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
-using OpenIddict.Abstractions;
-using OpenIddict.Server.AspNetCore;
 using Pegasus.Core.Identity;
 using Pegasus.Web.Pages.Uploads;
-using Pegasus.Web.Pages.Connect;
 
 const string OriginalIssueClaim = "pegasus:original-issued-at";
 const string DevelopmentOfflineProfile = "DevelopmentOffline";
 const string DevelopmentOfflineAuthenticationScheme = "DevelopmentOffline";
 const string AuthenticationRoutingScheme = "Pegasus";
 const string StaffSignInRateLimitPolicy = "StaffSignIn";
-const string StaffMcpOAuthRateLimitPolicy = "StaffMcpOAuth";
-const string RegisterDevelopmentMcpClientArgument = "--register-development-mcp-client";
-const string RevokeDevelopmentMcpClientArgument = "--revoke-development-mcp-client";
 const string InitializeDevelopmentArgument = "--initialize-development";
 const string BuildDiagnosticsArgument = "--diagnostics-version";
 var informationalVersion = typeof(Program).Assembly
@@ -77,72 +70,25 @@ if (args.Contains(BuildDiagnosticsArgument, StringComparer.Ordinal))
 var initializeDevelopment =
     args.Contains(InitializeDevelopmentArgument, StringComparer.Ordinal);
 var migrateDevelopment = args.Contains("--migrate-development", StringComparer.Ordinal);
-var registerDevelopmentMcpClient =
-    args.Contains(RegisterDevelopmentMcpClientArgument, StringComparer.Ordinal);
-var revokeDevelopmentMcpClient =
-    args.Contains(RevokeDevelopmentMcpClientArgument, StringComparer.Ordinal);
 if ((initializeDevelopment ? 1 : 0)
-    + (migrateDevelopment ? 1 : 0)
-    + (registerDevelopmentMcpClient ? 1 : 0)
-    + (revokeDevelopmentMcpClient ? 1 : 0) > 1)
+    + (migrateDevelopment ? 1 : 0) > 1)
 {
     throw new InvalidOperationException(
-        "Development initialization, migration, and MCP client commands must be run separately.");
+        "Development initialization and migration commands must be run separately.");
 }
 
 var applicationArgs = args
     .Where(argument =>
         !argument.Equals(InitializeDevelopmentArgument, StringComparison.Ordinal)
-        && !argument.Equals("--migrate-development", StringComparison.Ordinal)
-        && !argument.Equals(RegisterDevelopmentMcpClientArgument, StringComparison.Ordinal)
-        && !argument.Equals(RevokeDevelopmentMcpClientArgument, StringComparison.Ordinal))
+        && !argument.Equals("--migrate-development", StringComparison.Ordinal))
     .ToArray();
 var builder = WebApplication.CreateBuilder(applicationArgs);
 var configuredRuntimeProfile = builder.Configuration["Runtime:Profile"]
     ?? throw new InvalidOperationException("Runtime:Profile is required.");
-var developmentOfflineOAuth = builder.Environment.IsDevelopment()
+var developmentOfflineProfile = builder.Environment.IsDevelopment()
     && configuredRuntimeProfile.Equals(DevelopmentOfflineProfile, StringComparison.Ordinal);
-var requestedStaffMcpOAuth =
-    builder.Configuration.GetValue<bool>("Features:StaffMcpOAuth");
-if (requestedStaffMcpOAuth && !developmentOfflineOAuth)
-{
-    throw new InvalidOperationException(
-        "Production staff MCP OAuth activation is blocked until the exact issuer/resource, " +
-        "approved public client metadata, and Web-only signing/encryption certificate custody " +
-        "have separately approved target evidence.");
-}
-
-var staffMcpOAuthEnabled = developmentOfflineOAuth || requestedStaffMcpOAuth;
-var developmentEvaluatorEnabled = developmentOfflineOAuth
-    && builder.Configuration.GetValue<bool>("Features:LocalIntake");
-StaffMcpOAuthOptions? staffMcpOAuth = null;
-if (staffMcpOAuthEnabled)
-{
-    var issuer = ParseAbsoluteHttpsUri(
-        builder.Configuration["OpenIddict:Issuer"] ?? "https://localhost:7139/",
-        "OpenIddict:Issuer");
-    var resource = ParseAbsoluteHttpsUri(
-        builder.Configuration["OpenIddict:StaffMcpResource"]
-            ?? new Uri(issuer, "/mcp").AbsoluteUri,
-        "OpenIddict:StaffMcpResource");
-    if (!resource.AbsolutePath.Equals("/mcp", StringComparison.Ordinal)
-        || !resource.GetLeftPart(UriPartial.Authority)
-            .Equals(issuer.GetLeftPart(UriPartial.Authority), StringComparison.OrdinalIgnoreCase))
-    {
-        throw new InvalidOperationException(
-            "OpenIddict:StaffMcpResource must be the /mcp endpoint on the configured issuer.");
-    }
-
-    staffMcpOAuth = new(issuer, resource);
-    builder.Services.AddSingleton(staffMcpOAuth);
-}
 var localDocumentCustodyConfigured =
     builder.Configuration.GetValue<bool>("Features:LocalDocumentCustody");
-if (staffMcpOAuthEnabled && !localDocumentCustodyConfigured)
-{
-    throw new InvalidOperationException(
-        "Staff MCP requires the approved document-custody boundary; it cannot expose an incomplete tool map.");
-}
 Func<IServiceProvider, RequestUploadLimits>? requestUploadLimitsFactory = null;
 var acceptedRequestLimitsVersion =
     builder.Configuration["DocumentRequests:AcceptedLimitsVersion"];
@@ -180,19 +126,7 @@ if (localDocumentCustodyConfigured
 }
 
 
-builder.Services.AddRazorPages(options =>
-{
-    if (developmentEvaluatorEnabled)
-    {
-        options.Conventions.AuthorizePage("/Development/EmailEvaluation", "Administrator");
-    }
-    else
-    {
-        options.Conventions.AddPageRouteModelConvention(
-            "/Development/EmailEvaluation",
-            model => model.Selectors.Clear());
-    }
-});
+builder.Services.AddRazorPages();
 builder.Services
     .AddIdentity<PegasusIdentityUser, IdentityRole<Guid>>(options =>
     {
@@ -216,7 +150,7 @@ builder.Services.AddRateLimiter(options =>
             "/Account/SignIn",
             StringComparison.OrdinalIgnoreCase)
             ? "sign_in_rate_limited"
-            : "oauth_rate_limited";
+            : "authentication_rate_limited";
         return new ValueTask(AppendRateLimitedSecurityEventAsync(
             context.HttpContext,
             reasonCode,
@@ -230,17 +164,6 @@ builder.Services.AddRateLimiter(options =>
             {
                 AutoReplenishment = true,
                 PermitLimit = StaffSessionPolicy.SignInAttemptsPerClientPerMinute,
-                QueueLimit = 0,
-                Window = TimeSpan.FromMinutes(1)
-            }));
-    options.AddPolicy(
-        StaffMcpOAuthRateLimitPolicy,
-        context => RateLimitPartition.GetFixedWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            _ => new FixedWindowRateLimiterOptions
-            {
-                AutoReplenishment = true,
-                PermitLimit = 10,
                 QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1)
             }));
@@ -428,56 +351,6 @@ builder.Services.AddAuthorizationBuilder()
         .Build())
     .AddPolicy("Administrator", policy =>
         policy.RequireRole(StaffRoleNames.Administrator));
-var openIddict = builder.Services.AddOpenIddict()
-    .AddCore(options =>
-    {
-        options.UseEntityFrameworkCore()
-            .UseDbContext<PegasusDbContext>();
-    });
-if (staffMcpOAuth is not null)
-{
-    openIddict
-        .AddServer(options =>
-        {
-            options.SetIssuer(staffMcpOAuth.Issuer);
-            options.RegisterResources(staffMcpOAuth.Resource.AbsoluteUri);
-            options.SetAuthorizationEndpointUris("/connect/authorize")
-                .SetRevocationEndpointUris("/connect/revoke")
-                .SetTokenEndpointUris("/connect/token");
-            options.AllowAuthorizationCodeFlow()
-                .AllowRefreshTokenFlow()
-                .RequireProofKeyForCodeExchange();
-            options.Configure(serverOptions =>
-            {
-                serverOptions.CodeChallengeMethods.Clear();
-                serverOptions.CodeChallengeMethods.Add(
-                    OpenIddictConstants.CodeChallengeMethods.Sha256);
-            });
-            options.SetAccessTokenLifetime(TimeSpan.FromMinutes(15));
-            options.SetRefreshTokenLifetime(StaffSessionPolicy.AbsoluteLifetime);
-            options.DisableSlidingRefreshTokenExpiration();
-            options.RegisterScopes(
-                OpenIddictConstants.Scopes.OpenId,
-                OpenIddictConstants.Scopes.Profile,
-                OpenIddictConstants.Scopes.OfflineAccess,
-                StaffMcpOAuthOptions.ReadScope,
-                StaffMcpOAuthOptions.WriteScope);
-            options.AddDevelopmentEncryptionCertificate()
-                .AddDevelopmentSigningCertificate();
-            options.UseAspNetCore()
-                .EnableAuthorizationEndpointPassthrough()
-                .EnableTokenEndpointPassthrough();
-        })
-        .AddValidation(options =>
-        {
-            options.UseLocalServer();
-            options.EnableTokenEntryValidation();
-            options.EnableAuthorizationEntryValidation();
-            options.UseAspNetCore();
-        });
-    builder.Services.AddPegasusStaffMcp(staffMcpOAuth);
-}
-
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseReadinessHealthCheck>("database", tags: ["ready"]);
 builder.Services.Configure<FormOptions>(options =>
@@ -518,18 +391,10 @@ evaMappingAcceptanceFactory: serviceProvider =>
         configuration.GetValue<int?>("Eva:AcceptedMapping:Version"),
         configuration["Eva:AcceptedMapping:EvidenceReference"]);
 });
-if (developmentOfflineOAuth && initializeDevelopment)
-{
-    builder.Services.AddPegasusApplicationInitialization();
-}
-if (developmentOfflineOAuth)
+if (developmentOfflineProfile)
 {
     builder.Services.AddSingleton(VehicleLookupAvailability.DevelopmentOfflineReplay);
 }
-builder.Services.AddSingleton<IIntakeEvaluationReportStore>(serviceProvider =>
-    serviceProvider.GetRequiredService<IIntakeArtifactStore>() as IIntakeEvaluationReportStore
-    ?? throw new InvalidOperationException(
-        "The configured local intake artifact store must support evaluation reports."));
 builder.Services.AddSingleton<QdosAlphaAcceptanceGate>();
 builder.Services.AddScoped<EfIdentityAuditStore>();
 builder.Services.AddScoped<ISecurityEventWriter>(serviceProvider =>
@@ -596,44 +461,12 @@ if (initializeDevelopment)
 {
     await using var scope = app.Services.CreateAsyncScope();
     await DevelopmentOfflineInitialization.InitializeAsync(scope.ServiceProvider);
-    Console.WriteLine(
-        "DevelopmentOffline database, local test identity, roles, and public PKCE MCP client initialized.");
-    return;
-}
-if (registerDevelopmentMcpClient || revokeDevelopmentMcpClient)
-{
-    await using var scope = app.Services.CreateAsyncScope();
-    if (revokeDevelopmentMcpClient)
-    {
-        await DevelopmentOfflineInitialization.RevokeMcpClientAsync(scope.ServiceProvider);
-        Console.WriteLine("The deterministic DevelopmentOffline MCP client is revoked.");
-        return;
-    }
-
-    await DevelopmentOfflineInitialization.RegisterMcpClientAsync(scope.ServiceProvider);
-    Console.WriteLine(
-        "The deterministic DevelopmentOffline public PKCE MCP client is registered.");
+    Console.WriteLine("DevelopmentOffline database, local test identity, and roles initialized.");
     return;
 }
 
 
 
-
-if (!staffMcpOAuthEnabled)
-{
-    app.Use(async (context, next) =>
-    {
-        if (context.Request.Path.StartsWithSegments("/connect")
-            || context.Request.Path.StartsWithSegments(
-                "/.well-known/oauth-protected-resource"))
-        {
-            context.Response.StatusCode = StatusCodes.Status404NotFound;
-            return;
-        }
-
-        await next(context);
-    });
-}
 
 if (!app.Environment.IsDevelopment())
 {
@@ -653,20 +486,6 @@ if (!localIntakeEnabled)
     app.Use(async (context, next) =>
     {
         if (context.Request.Path.StartsWithSegments("/Intake"))
-        {
-            context.Response.StatusCode = StatusCodes.Status404NotFound;
-            return;
-        }
-
-        await next(context);
-    });
-}
-
-if (!developmentEvaluatorEnabled)
-{
-    app.Use(async (context, next) =>
-    {
-        if (context.Request.Path.StartsWithSegments("/Development/EmailEvaluation"))
         {
             context.Response.StatusCode = StatusCodes.Status404NotFound;
             return;
@@ -721,13 +540,6 @@ app.Use(async (context, next) =>
             || path.StartsWithSegments("/favicon.ico");
         if (user?.MustChangePassword == true && !allowedWhilePasswordChangeRequired)
         {
-            if (path.StartsWithSegments("/mcp"))
-            {
-                context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                context.Response.Headers.CacheControl = "no-store";
-                return;
-            }
-
             context.Response.Redirect("/Account/PasswordChange");
             return;
         }
@@ -736,10 +548,6 @@ app.Use(async (context, next) =>
     await next(context);
 });
 app.UseAuthorization();
-if (staffMcpOAuth is not null)
-{
-    app.UseMiddleware<StaffMcpToolRateLimitMiddleware>();
-}
 if (!localDocumentCustodyEnabled)
 {
     app.Use(async (context, next) =>
@@ -792,133 +600,14 @@ app.MapGet("/diagnostics/version", () => Results.Ok(new
     version = productVersion,
     sourceSha
 })).AllowAnonymous();
-if (staffMcpOAuth is not null)
-{
-    app.MapPegasusStaffMcp();
-    var protectedResourceMetadata = new
-    {
-        resource = staffMcpOAuth.Resource.AbsoluteUri,
-        authorization_servers = new[] { staffMcpOAuth.Issuer.AbsoluteUri },
-        scopes_supported = new[]
-        {
-            StaffMcpOAuthOptions.ReadScope,
-            StaffMcpOAuthOptions.WriteScope
-        },
-        bearer_methods_supported = Program.BearerMethodsSupported
-    };
-    app.MapGet(
-        "/.well-known/oauth-protected-resource",
-        () => Results.Json(protectedResourceMetadata))
-        .AllowAnonymous();
-    app.MapGet(
-        "/.well-known/oauth-protected-resource/mcp",
-        () => Results.Json(protectedResourceMetadata))
-        .AllowAnonymous();
-    app.MapPost(
-        "/connect/token",
-        async (
-            HttpContext context,
-            UserManager<PegasusIdentityUser> userManager,
-            SignInManager<PegasusIdentityUser> signInManager) =>
-        {
-            var request = context.GetOpenIddictServerRequest()
-                ?? throw new InvalidOperationException(
-                    "The OpenIddict token request is unavailable.");
-            var requestedResources = request.GetResources();
-            if (requestedResources.Length != 1
-                || !requestedResources[0].Equals(
-                    staffMcpOAuth.Resource.AbsoluteUri,
-                    StringComparison.Ordinal))
-            {
-                return Results.Forbid(
-                    new AuthenticationProperties(new Dictionary<string, string?>
-                    {
-                        [OpenIddictServerAspNetCoreConstants.Properties.Error] =
-                            OpenIddictConstants.Errors.InvalidTarget,
-                        [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] =
-                            "The exact Pegasus staff MCP resource is required."
-                    }),
-                    [OpenIddictServerAspNetCoreDefaults.AuthenticationScheme]);
-            }
-
-            if (!request.IsAuthorizationCodeGrantType()
-                && !request.IsRefreshTokenGrantType())
-            {
-                return Results.Forbid(
-                    new AuthenticationProperties(new Dictionary<string, string?>
-                    {
-                        [OpenIddictServerAspNetCoreConstants.Properties.Error] =
-                            OpenIddictConstants.Errors.UnsupportedGrantType,
-                        [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] =
-                            "Only authorization-code and refresh-token grants are supported."
-                    }),
-                    [OpenIddictServerAspNetCoreDefaults.AuthenticationScheme]);
-            }
-
-            var authentication = await context.AuthenticateAsync(
-                OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
-            var authenticationPrincipal = authentication.Principal;
-            var subject = authenticationPrincipal?.GetClaim(
-                OpenIddictConstants.Claims.Subject);
-            var user = string.IsNullOrWhiteSpace(subject)
-                ? null
-                : await userManager.FindByIdAsync(subject);
-            if (authenticationPrincipal is null
-                || user is null
-                || !user.IsEnabled
-                || user.MustChangePassword)
-            {
-                return Results.Forbid(
-                    new AuthenticationProperties(new Dictionary<string, string?>
-                    {
-                        [OpenIddictServerAspNetCoreConstants.Properties.Error] =
-                            OpenIddictConstants.Errors.InvalidGrant,
-                        [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] =
-                            "The staff authorization is no longer valid."
-                    }),
-                    [OpenIddictServerAspNetCoreDefaults.AuthenticationScheme]);
-            }
-
-            var principal = await StaffMcpTokenPrincipal.CreateAsync(
-                user,
-                userManager,
-                signInManager,
-                authenticationPrincipal.GetScopes(),
-                [staffMcpOAuth.Resource.AbsoluteUri]);
-            principal.SetAuthorizationId(authenticationPrincipal.GetAuthorizationId());
-            return Results.SignIn(
-                principal,
-                properties: null,
-                OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
-        })
-        .AllowAnonymous()
-        .RequireRateLimiting(StaffMcpOAuthRateLimitPolicy);
-}
-
 app.MapRazorPages()
    .WithStaticAssets();
 
 app.Run();
 
 
-static Uri ParseAbsoluteHttpsUri(string value, string configurationKey)
-{
-    if (!Uri.TryCreate(value, UriKind.Absolute, out var uri)
-        || !uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
-        || !string.IsNullOrEmpty(uri.UserInfo)
-        || !string.IsNullOrEmpty(uri.Query)
-        || !string.IsNullOrEmpty(uri.Fragment))
-    {
-        throw new InvalidOperationException(
-            $"{configurationKey} must be an absolute HTTPS URI without user information, query, or fragment.");
-    }
-
-    return uri;
-}
-
 public partial class Program
 {
-    internal static readonly string[] BearerMethodsSupported = ["header"];
 }
 
 internal sealed class DevelopmentOfflineAuthenticationHandler(

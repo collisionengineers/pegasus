@@ -35,7 +35,6 @@ public static class DependencyInjection
 
         services.AddDbContextFactory<PegasusDbContext>((serviceProvider, options) =>
         {
-            options.UseOpenIddict();
             configureDatabase(serviceProvider, options);
         });
 
@@ -108,14 +107,6 @@ public static class DependencyInjection
         services.AddScoped<IDisableStaffAccount, DisableStaffAccount>();
         services.AddScoped<IAssignStaffRoles, AssignStaffRoles>();
         services.AddScoped<IReviewStaffAccess, ReviewStaffAccess>();
-        services.AddScoped<OpenIddictMcpClientAdministration>();
-        services.AddScoped<IPublicMcpClientStore>(provider =>
-            provider.GetRequiredService<OpenIddictMcpClientAdministration>());
-        services.AddScoped<IStaffMcpAuthorizationStore>(provider =>
-            provider.GetRequiredService<OpenIddictMcpClientAdministration>());
-        services.AddScoped<IRegisterPublicMcpClient, RegisterPublicMcpClient>();
-        services.AddScoped<IRevokePublicMcpClient, RevokePublicMcpClient>();
-        services.AddScoped<IRevokeStaffMcpAuthorizations, RevokeStaffMcpAuthorizations>();
         services.AddScoped<IStaffPasswordChangeStore, EfStaffPasswordChange>();
         services.AddScoped<IChangeStaffPassword, ChangeStaffPassword>();
         services.AddScoped<EfOrganizationAdministration>();
@@ -284,6 +275,8 @@ public static class DependencyInjection
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<ILogicallyRemoveDocument>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
+            services.AddScoped<IConfirmThirdPartyVehicleEvidence>(provider =>
+                provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<ICaseDocumentStateQueries>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
 
@@ -328,14 +321,6 @@ public static class DependencyInjection
         }
         return services;
     }
-    public static IServiceCollection AddPegasusApplicationInitialization(
-        this IServiceCollection services)
-    {
-        services.AddScoped<IApplicationInitializationStore, EfApplicationInitialization>();
-        services.AddScoped<IInitializeApplication, InitializeApplication>();
-        return services;
-    }
-
     public static IServiceCollection AddLocalApprovedInbox(
         this IServiceCollection services,
         Func<IServiceProvider, LocalApprovedInboxOptions> optionsFactory)

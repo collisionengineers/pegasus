@@ -47,6 +47,7 @@ public sealed partial class DetailsModel(
     IGenerateEvaHandoff generateEvaHandoff,
     IAddCaseDocument addCaseDocument,
     ILogicallyRemoveDocument logicallyRemoveDocument,
+    IConfirmThirdPartyVehicleEvidence confirmThirdPartyVehicleEvidence,
     ICreateBoxFileRequest createBoxFileRequest,
     IRevokeBoxFileRequest revokeBoxFileRequest,
     ICreateRequestUploadLink createRequestUploadLink,
@@ -953,10 +954,10 @@ public sealed partial class DetailsModel(
         try
         {
             var preparation = await evaHandoffQueries.GetPreparationAsync(id, cancellationToken);
-            if (preparation is null || preparation.Images.Count < 2)
+            if (preparation is null || preparation.Images.Count == 0)
             {
                 PreserveLeaseState(id, editLeaseToken);
-                TempData["CaseError"] = "The EVA handoff was not generated because two eligible images are not available.";
+                TempData["CaseError"] = "The EVA handoff was not generated because no eligible images are available.";
                 return RedirectToDetails(id);
             }
 
@@ -964,9 +965,6 @@ public sealed partial class DetailsModel(
                 new(
                     id,
                     expectedVersion,
-                    preparation.Images[0].OccurrenceId,
-                    preparation.Images[1].OccurrenceId,
-                    preparation.Images.Select(image => image.OccurrenceId).ToArray(),
                     actor,
                     operationKey,
                     reason,
@@ -982,7 +980,7 @@ public sealed partial class DetailsModel(
             {
                 PreserveLeaseState(id, editLeaseToken);
                 TempData["CaseError"] = result.Reasons.Count == 0
-                    ? "The EVA handoff was not generated because the case or selected images changed."
+                    ? "The EVA handoff was not generated because the case evidence changed."
                     : string.Join(" ", result.Reasons);
             }
         }
@@ -1088,6 +1086,30 @@ public sealed partial class DetailsModel(
                     editLeaseToken),
                 cancellationToken),
             "The document occurrence was logically removed; custody content and history were retained.");
+
+    public Task<IActionResult> OnPostConfirmThirdPartyVehicleEvidenceAsync(
+        Guid id,
+        Guid occurrenceId,
+        long expectedVersion,
+        string operationKey,
+        string reason,
+        string editLeaseToken,
+        CancellationToken cancellationToken) =>
+        ExecuteTransportCommandAsync(
+            id,
+            editLeaseToken,
+            "confirm_third_party_vehicle_evidence",
+            actor => confirmThirdPartyVehicleEvidence.ExecuteAsync(
+                new(
+                    id,
+                    occurrenceId,
+                    actor,
+                    reason,
+                    operationKey,
+                    expectedVersion,
+                    editLeaseToken),
+                cancellationToken),
+            "The custody-confirmed image was recorded as third-party vehicle evidence and is excluded from EVA export.");
 
     public async Task<IActionResult> OnPostCreateBoxFileRequestAsync(
         Guid id,

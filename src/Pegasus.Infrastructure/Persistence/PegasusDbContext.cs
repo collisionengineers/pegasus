@@ -7,10 +7,6 @@ namespace Pegasus.Infrastructure.Persistence;
 public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     : IdentityDbContext<PegasusIdentityUser, IdentityRole<Guid>, Guid>(options)
 {
-    internal DbSet<ApplicationInitializationEntity> ApplicationInitializations =>
-        Set<ApplicationInitializationEntity>();
-
-
     internal DbSet<OrganizationEntity> Organizations => Set<OrganizationEntity>();
     internal DbSet<OrganizationRoleEntity> OrganizationRoles => Set<OrganizationRoleEntity>();
     internal DbSet<OrganizationAdministrationOperationEntity> OrganizationAdministrationOperations =>
@@ -99,7 +95,6 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
-        EnforceImmutableApplicationInitialization();
         RegenerateConcurrencyTokens();
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
@@ -108,19 +103,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         bool acceptAllChangesOnSuccess,
         CancellationToken cancellationToken = default)
     {
-        EnforceImmutableApplicationInitialization();
         RegenerateConcurrencyTokens();
         return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
-    }
-
-    private void EnforceImmutableApplicationInitialization()
-    {
-        if (ChangeTracker.Entries<ApplicationInitializationEntity>()
-            .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted))
-        {
-            throw new InvalidOperationException(
-                "The application-initialization completion marker is immutable.");
-        }
     }
 
     private void RegenerateConcurrencyTokens()
@@ -149,16 +133,6 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         {
             entity.Property(item => item.IsEnabled).HasDefaultValue(true);
             entity.Property(item => item.MustChangePassword).HasDefaultValue(true);
-        });
-
-        builder.Entity<ApplicationInitializationEntity>(entity =>
-        {
-            entity.ToTable("ApplicationInitializations");
-            entity.HasKey(item => item.Id);
-            entity.Property(item => item.Id).HasMaxLength(32);
-            entity.Property(item => item.ManifestSha256).HasMaxLength(64).IsFixedLength().IsRequired();
-            entity.Property(item => item.MigrationId).HasMaxLength(150).IsRequired();
-            entity.Property(item => item.TargetIdentity).HasMaxLength(200).IsRequired();
         });
 
         builder.Entity<IntakeReceiptEntity>(entity =>
@@ -753,18 +727,6 @@ public sealed class PegasusIdentityUser : IdentityUser<Guid>
     public bool MustChangePassword { get; set; } = true;
 }
 
-internal sealed class ApplicationInitializationEntity
-{
-    public required string Id { get; set; }
-
-    public required string ManifestSha256 { get; set; }
-
-    public required string MigrationId { get; set; }
-    public required string TargetIdentity { get; set; }
-
-
-    public DateTimeOffset CompletedAtUtc { get; set; }
-}
 internal sealed class OrganizationEntity
 {
     public Guid Id { get; set; }

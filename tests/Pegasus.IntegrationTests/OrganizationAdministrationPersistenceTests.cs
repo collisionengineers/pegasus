@@ -20,7 +20,7 @@ public sealed class OrganizationAdministrationPersistenceTests
     [Fact]
     public async Task CreateReplayConflictDuplicateAndBoundedProjectionsUseCoreAndEf()
     {
-        using var factory = new IntakeWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
         await using var scope = factory.Services.CreateAsyncScope();
         var createOrganization = scope.ServiceProvider.GetRequiredService<ICreateOrganization>();
         var createPrincipal = scope.ServiceProvider.GetRequiredService<ICreatePrincipal>();
@@ -224,7 +224,7 @@ public sealed class OrganizationAdministrationPersistenceTests
     [Fact]
     public async Task ReplacementDisablesAndLinksPredecessorWithoutChangingAllocatedCaseIdentity()
     {
-        using var factory = new IntakeWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
         await using var scope = factory.Services.CreateAsyncScope();
         var createOrganization = scope.ServiceProvider.GetRequiredService<ICreateOrganization>();
         var createPrincipal = scope.ServiceProvider.GetRequiredService<ICreatePrincipal>();

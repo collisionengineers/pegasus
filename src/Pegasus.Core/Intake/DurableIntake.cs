@@ -490,18 +490,22 @@ public sealed class ProcessQueuedIntake(
                 timeProvider.GetUtcNow(),
                 cancellationToken);
         }
+        catch (IntakeArtifactIntegrityException exception)
+        {
+            await FailProcessingAsync(workItem, exception, terminal: true, cancellationToken);
+            return;
+        }
+        catch (InvalidDataException exception)
+        {
+            await FailProcessingAsync(workItem, exception, terminal: true, cancellationToken);
+            return;
+        }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
-            var terminal = workItem.AttemptCount >= RetryDelays.Length;
-            var dueAtUtc = terminal
-                ? timeProvider.GetUtcNow()
-                : timeProvider.GetUtcNow().Add(RetryDelays[workItem.AttemptCount - 1]);
-            await workStore.RetryProcessingAsync(
-                workItem.Id,
-                workItem.LeaseToken,
-                dueAtUtc,
-                FailureCode(exception),
-                terminal,
+            await FailProcessingAsync(
+                workItem,
+                exception,
+                terminal: workItem.AttemptCount >= RetryDelays.Length,
                 cancellationToken);
             return;
         }
@@ -551,6 +555,26 @@ public sealed class ProcessQueuedIntake(
         }
     }
 
+    private async Task FailProcessingAsync(
+        IntakeWorkItem workItem,
+        Exception exception,
+        bool terminal,
+        CancellationToken cancellationToken)
+    {
+        var nowUtc = timeProvider.GetUtcNow();
+        var dueAtUtc = terminal
+            ? nowUtc
+            : nowUtc.Add(RetryDelays[workItem.AttemptCount - 1]);
+        await workStore.RetryProcessingAsync(
+            workItem.Id,
+            workItem.LeaseToken
+                ?? throw new InvalidOperationException("A claimed intake work item must have a lease token."),
+            dueAtUtc,
+            FailureCode(exception),
+            terminal,
+            cancellationToken);
+    }
+
     private async Task CreateTriageIfQualifyingAsync(
         IntakeReceipt receipt,
         IntakeEvaluationRevision evaluation,
@@ -588,6 +612,7 @@ public sealed class ProcessQueuedIntake(
     private static string FailureCode(Exception exception) => exception switch
     {
         IntakeArtifactIntegrityException => "staged_artifact_integrity_failure",
+        InvalidDataException => "invalid_intake_data",
         IntakeArtifactRetentionException => "artifact_retention_failure",
         IntakeSourceIdentityConflictException => "source_identity_conflict",
         _ => "intake_processing_failure"

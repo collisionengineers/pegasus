@@ -2,7 +2,6 @@ using System.Data;
 using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using OpenIddict.Abstractions;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -10,8 +9,6 @@ namespace Pegasus.Infrastructure.Persistence;
 public sealed class EfStaffAccountAdministration(
     PegasusDbContext context,
     UserManager<PegasusIdentityUser> userManager,
-    IOpenIddictAuthorizationManager authorizationManager,
-    IOpenIddictTokenManager tokenManager,
     TimeProvider timeProvider)
     : IStaffAccountQueries,
       ICreateStaffAccountStore,
@@ -211,7 +208,7 @@ public sealed class EfStaffAccountAdministration(
 
         var before = Snapshot(user, roles);
         user.IsEnabled = false;
-        var revoked = await RevokeMcpAccessAsync(user.Id, cancellationToken);
+        var revoked = (Authorizations: 0L, Tokens: 0L);
         if (before != Snapshot(user, roles))
         {
             ThrowIfFailed(await userManager.UpdateSecurityStampAsync(user));
@@ -293,7 +290,6 @@ public sealed class EfStaffAccountAdministration(
         var revoked = (Authorizations: 0L, Tokens: 0L);
         if (rolesChanged)
         {
-            revoked = await RevokeMcpAccessAsync(user.Id, cancellationToken);
             ThrowIfFailed(await userManager.RemoveFromRolesAsync(
                 user,
                 currentRoles.Select(RoleName)));
@@ -371,32 +367,6 @@ public sealed class EfStaffAccountAdministration(
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(user.Id, now, WasReplay: false);
-    }
-
-    internal async Task<StaffAccountSummary> CreateInitialAdministratorAsync(
-        ActionActor actor,
-        InitialAdministratorCredentials administrator,
-        string operationKey,
-        CancellationToken cancellationToken)
-    {
-        var normalizedUserName = NormalizeUserName(administrator.UserName);
-        if (await context.Users.AnyAsync(
-                item => item.NormalizedUserName == normalizedUserName,
-                cancellationToken))
-        {
-            throw new ApplicationInitializationException(
-                ApplicationInitializationError.InvalidInitialAccount);
-        }
-
-        return await CreateUserCoreAsync(
-            actor,
-            administrator.UserName,
-            administrator.TemporaryPassword,
-            [StaffRole.Administrator],
-            "staff_account_created",
-            operationKey,
-            $"Approved initial Administrator: {administrator.ManifestIdentity}",
-            cancellationToken);
     }
 
     private async Task<StaffAccountSummary> CreateUserCoreAsync(
@@ -492,18 +462,6 @@ public sealed class EfStaffAccountAdministration(
                 && item.EventKind == "access_reviewed")
             .Select(item => (DateTimeOffset?)item.OccurredAtUtc)
             .MaxAsync(cancellationToken);
-
-    private async Task<(long Authorizations, long Tokens)> RevokeMcpAccessAsync(
-        Guid staffId,
-        CancellationToken cancellationToken)
-    {
-        var subject = staffId.ToString("D");
-        var tokens = await tokenManager.RevokeBySubjectAsync(subject, cancellationToken);
-        var authorizations = await authorizationManager.RevokeBySubjectAsync(
-            subject,
-            cancellationToken);
-        return (authorizations, tokens);
-    }
 
     private void AddHistory(
         ActionActor actor,

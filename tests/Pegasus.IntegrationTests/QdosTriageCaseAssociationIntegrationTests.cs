@@ -17,7 +17,7 @@ public sealed partial class QdosTriageIntegrationTests
             true,
             extractionPolicy: new AcceptedTriageMatchPolicy());
         using var client = IntakeWebDriver.CreateClient(factory);
-        var email = OfflineAcceptanceTests.CreateEmail(
+        var email = IntakeTestEvidence.CreateEmail(
             "triage-case-association.eml",
             "QDOS instruction\r\nClaimant Name: Association Claimant\r\nClaim Number: TRIAGE-ASSOCIATION\r\nVehicle Registration: CD34 EFG");
         var upload = await IntakeWebDriver.UploadAndProcessAsync(factory, client, email.FileName,

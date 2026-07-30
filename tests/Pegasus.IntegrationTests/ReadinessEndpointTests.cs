@@ -1,6 +1,4 @@
 using System.Net;
-using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
 using Deque.AxeCore.Playwright;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -244,61 +242,10 @@ internal sealed class ConfiguredWebApplicationFactory(
     string environment,
     IReadOnlyDictionary<string, string?> settings) : WebApplicationFactory<Program>
 {
-    private readonly X509Certificate2 encryptionCertificate = CreateDevelopmentCertificate(
-        "Pegasus integration test encryption",
-        X509KeyUsageFlags.KeyEncipherment);
-    private readonly X509Certificate2 signingCertificate = CreateDevelopmentCertificate(
-        "Pegasus integration test signing",
-        X509KeyUsageFlags.DigitalSignature);
-
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(environment);
         builder.ConfigureAppConfiguration((_, configuration) =>
             configuration.AddInMemoryCollection(settings));
-        builder.ConfigureServices(services =>
-        {
-            services.AddOpenIddict()
-                .AddServer(options => options
-                    .AddEncryptionCertificate(encryptionCertificate)
-                    .AddSigningCertificate(signingCertificate));
-        });
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        try
-        {
-            base.Dispose(disposing);
-        }
-        finally
-        {
-            if (disposing)
-            {
-                encryptionCertificate.Dispose();
-                signingCertificate.Dispose();
-            }
-        }
-    }
-
-    private static X509Certificate2 CreateDevelopmentCertificate(
-        string commonName,
-        X509KeyUsageFlags keyUsage)
-    {
-        using var key = RSA.Create(2048);
-        var request = new CertificateRequest(
-            $"CN={commonName}",
-            key,
-            HashAlgorithmName.SHA256,
-            RSASignaturePadding.Pkcs1);
-        request.CertificateExtensions.Add(
-            new X509BasicConstraintsExtension(false, false, 0, critical: true));
-        request.CertificateExtensions.Add(new X509KeyUsageExtension(keyUsage, critical: true));
-        request.CertificateExtensions.Add(
-            new X509SubjectKeyIdentifierExtension(request.PublicKey, critical: false));
-
-        return request.CreateSelfSigned(
-            DateTimeOffset.UtcNow.AddMinutes(-5),
-            DateTimeOffset.UtcNow.AddDays(1));
     }
 }
