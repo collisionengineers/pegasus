@@ -77,7 +77,7 @@ The four-project modular monolith remains: Core owns policy and ports; Infrastru
 - Activate only genuinely evidenced routes. The only currently accepted QDOS direct identity is the exact suffix `@qdosassist.co.uk`.
 - Implement the sole live alpha mailbox caller for `instructions@collisionengineers.co.uk`.
 - Complete QDOS Inspection, standalone Audit, and Inspection + Audit through durable intake, fail-closed acceptance, immutable identity, Box custody, work and review, EVA JSON/image handoff, exact report evidence, lifecycle, observability, recovery, deployment, and acceptance.
-- Implement the selected Operations-first `0.1.0-alpha.1` staff UI, authenticated staff MCP, and all workflow, error, stale, denied, retry, and accessibility states required by the active flow.
+- Implement the selected Operations-first `0.1.0-alpha.1` staff UI, authenticated Automation Actor MCP, and all workflow, error, stale, denied, retry, and accessibility states required by the active flow.
 - Support authenticated manual intake and bounded request-scoped unauthenticated uploads through the same Core use cases.
 
 ### Excluded or deferred
@@ -262,10 +262,10 @@ aggregate counts, hashes, policy versions, and evidence limits may be committed.
 
 - One transaction allocates acceptance, case/intake link, immutable history, and custody/external outbox work.
 - Use one atomic principal-lineage and Europe/London year counter shared across all QDOS types.
-- Base reference is `{principalCode}{yy}{nnn}`.
+- Base reference is `{principalCode}{yy}{sequence}` with a three-digit minimum: `001`–`999`, then `1000`–`9999`.
 - Standalone Audit displays `a.` or `ap.` only from retained Repairable or Total-loss evidence in the original Engineer report, never from Triage.
 - Inspection + Audit starts with the inspection reference and adds the later Audit display reference in the same case and folder after Collision Engineers’ assigned Engineer records the applicable finding. It consumes no second sequence number.
-- At sequence 999, allocate nothing.
+- After sequence `9999`, allocate nothing.
 - A principal code becomes immutable after first allocation.
 - A legitimate successor is created in one Administrator transaction: close the predecessor for new work, share sequence lineage, preserve both identities, prohibit overlap, aliasing, in-place rename, or reference rewrite, and continue the predecessor’s next sequence in the cutover year. Later years begin at `001`.
 - A wrong-principal allocation closes the original as `Created in error`, requires a reason, allocates a normal corrected replacement, links both, preserves both folders and references, and never reopens or reuses either identity.
@@ -403,11 +403,11 @@ Operations presents exact, clickable filtered queues for:
 - `Blocked intake`;
 - Triage;
 - `Due today`;
-- `In today`;
+- `New cases today`;
 - `Sent to Engineer` today and week;
 - `Reports sent` today and week.
 
-Days use Europe/London midnight boundaries; weeks are Monday-to-Monday. `In today` counts created cases. `Sent to Engineer` counts the first successful EVA bundle generation as an explicit proxy that does not prove EVA receipt. `Reports sent` counts every successfully sent report.
+Days use Europe/London midnight boundaries; weeks are Monday-to-Monday. `New cases today` counts every instructed Case created that day, including one later closed that day, and excludes Image intakes, Triage, `Needs sorting`, and `Blocked intake`. `Sent to Engineer` counts the first successful EVA bundle generation as an explicit proxy that does not prove EVA receipt. `Reports sent` counts every successfully sent report.
 
 Each count exposes last-updated time and distinct zero, loading, stale, partial, unavailable, and failure states. `Receiving work`, `Queries`, `Other`, saved views, bulk actions, calendars, mobile design, and `Next`/`unallocated` mailbox management remain excluded.
 
@@ -606,7 +606,7 @@ Run from a fresh setup:
 2. Provider generation from the pinned source: exact hash and A/E contract, 11 providers, 16 associations, suffix-only bytes, repeat-byte equality, exact package/migration equality, fresh SQLite and LocalDB migration idempotency, tuple/suffix fail-closed behavior, and monotonic synthetic later-version growth.
 3. Automated Core-policy proof against accepted genuine route evidence for every activated route, including QDOS, direct/intermediary collision, malformed forwards, Triage positives/negatives/ambiguities/replies, report predicates, determinism, and source/corpus immutability. The separately owned evaluator supplies reviewed cohorts and holdouts; this gate creates no QDOS evaluator UI, report campaign, or acceptance checkpoint.
 4. Actual Web, Functions host, Azurite, LocalDB, local mailbox, and local custody smoke for QDOS Inspection, standalone Audit repairable/total loss, and Inspection + Audit. Duplicate, retry, and crash must still produce one immutable case/reference/evaluation/custody/outbox result.
-5. Negative and recovery smoke for unsupported, corrupt, oversized, incomplete, unknown/non-QDOS, route overlap, missing Audit assessment, unavailable dependency, identity/hash conflict, sequence 999, poison exhaustion, stale lease/version, unauthorized actor, and terminal external failure.
+5. Negative and recovery smoke for unsupported, corrupt, oversized, incomplete, unknown/non-QDOS, route overlap, missing Audit assessment, unavailable dependency, identity/hash conflict, sequence `9999` exhaustion, poison exhaustion, stale lease/version, unauthorized actor, and terminal external failure.
 6. Full local lifecycle through `Not ready`, chasing, `Held`, `Review`, `Report preparation`, custody, selected VRM/address/vehicle suggestions, one-time EVA event, exact local Sent evidence, `Post report`, terminal outcomes, valid reopen, created-in-error replacement, archive/read-only, and Triage exact-reply completion/correction.
 7. Real HTTP Identity and OAuth/MCP:
    - reject a seven-character password;
@@ -615,7 +615,7 @@ Run from a fresh setup:
    - per-IP and global partitions return generic `429` and `Retry-After`;
    - clock-test two-hour idle and eight-hour absolute expiry;
    - reject disabled or role-changed users;
-   - complete actual MCP calls with the public PKCE client.
+   - complete actual MCP calls with the approved Automation Actor client and resource-bound token.
 8. Playwright interaction evidence for Operations, intake, Triage, case, administration, authentication, and MCP-visible effects at 1280+, constrained desktop, 200% zoom, keyboard-only, focus/error handling, forced colours, reduced motion, and multi-session conflicts.
 9. Active repository checks that perform validation, exact-head CI, independent implementation review, clean-operator runbook execution, and proof that every QDOS-owned locally exercisable `Now` capability has real caller evidence. `scripts/Test-RepositoryPolicy.ps1` and its repository-language caller are excluded as described below. The seven `DOC-CON-052` evaluator allocations are separately owned prerequisites and have no QDOS checkpoint.
 

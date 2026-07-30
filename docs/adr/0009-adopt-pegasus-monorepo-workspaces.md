@@ -34,9 +34,10 @@ Keep the three corresponding Pegasus test projects in `Pegasus.slnx`. Add a
 - `report-renderer/`, imported from `collisionrenderer`; and
 - `ai-centre/`, imported from Collision AI Centre.
 
-Repository-development agent workflows are installed from `.agents/skills/`.
-That directory is the authority for those workflows, and its instructions win
-over conflicting agent instructions elsewhere in the repository. The
+Repository-specific engineering workflow remains owned by
+`docs/engineering.md`; root `AGENTS.md` routes work into that policy.
+Reusable procedures are installed under `.agents/skills/` and must operate
+within the repository policy rather than override it. The
 `workspaces/ai-centre/skills/` tree contains application-facing AI-agent skill
 packages, not skills for developing Pegasus. Those packages remain outside the
 application caller, runtime-project, deployment-unit, and business-policy

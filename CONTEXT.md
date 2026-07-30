@@ -5,7 +5,7 @@ Pegasus is Collision Engineers’ case-management and reporting domain. This glo
 ## Language
 
 **Case**:
-A permanent record of Collision Engineers work. An instructed Case has a Case/PO; an Image Case has an Image Intake Reference and begins `Not ready`.
+A permanent record of Collision Engineers work created only after the accepted Principal, Case type, and identity-critical gates are settled. An instructed Case has a Case/PO; a pre-Case Image intake is not a Case.
 _Avoid_: Job
 
 **Principal**:
@@ -16,12 +16,12 @@ _Avoid_: Client, Work Provider, sender
 Collision Engineers’ immutable internal reference, allocated from the accepted Principal’s sequence to an instructed Case.
 _Avoid_: Claim number, external reference
 
-**Image Case**:
-A Case created from image-only intake with a usable normalised VRM. It begins `Not ready`, carries an Image Intake Reference rather than a Case/PO, and may consolidate into one eligible instructed Case.
-_Avoid_: Image-only intake, temporary Case
+**Image intake**:
+A durable pre-Case record for image-only material with a usable normalised VRM. It carries an Image Intake Reference, may associate its evidence with one eligible instructed Case, and otherwise awaits definitive instruction; VRM alone never promotes it to a Case.
+_Avoid_: Image Case, temporary Case
 
 **Image Intake Reference**:
-A registration-based identity allocated to an Image Case as `{normalised VRM}-{sequence}`, using a two-digit minimum (`-01`) and expanding after `-99` without reuse. It is not a Case/PO; a confirmed consolidation retains it permanently as linked history.
+A registration-based identity allocated to an Image intake as `{normalised VRM}-{sequence}`, using a two-digit minimum (`-01`) and expanding after `-99` without reuse. It is not a Case/PO; confirmed association retains it permanently as linked history.
 _Avoid_: Case/PO, external reference
 
 **Intermediary**:
@@ -53,7 +53,7 @@ A distinct staff workflow for a recorded matter requiring a finding and, where a
 _Avoid_: Inbox sorting, generic sorting
 
 **Needs sorting**:
-An email-receiving outcome for material that can be persisted safely but cannot be classified into a category. It is never an Image Case or `Not ready`.
+An email-receiving outcome for material that can be persisted safely but cannot be classified into a category. It is never a pre-Case Image intake or `Not ready`.
 _Avoid_: Triage, Blocked intake
 
 **Blocked intake**:
@@ -68,9 +68,9 @@ _Avoid_: Cancelled, closed
 The terminal outcome for a Case created against the wrong Principal; the original reference remains consumed and links to its replacement.
 _Avoid_: Delete, reopen
 
-**Merged**:
-The terminal outcome for an Image Case whose evidence has been consolidated into one eligible pre-report instructed Case. Before report delivery, authorised staff may reasonedly reverse the merge, restoring both Cases to `Not ready` with their permanent identities and history intact.
-_Avoid_: Delete, erase
+**Associated**:
+The terminal outcome for an Image intake whose evidence has been linked to one eligible pre-report instructed Case. Before report delivery, authorised staff may reasonedly reverse the association; the intake reference, Case identity, source evidence, and relationship history remain permanent.
+_Avoid_: Merged, delete, erase
 
 **AI Proposal**:
 An immutable model-generated candidate repair specification, never a report document, retained separately from the Case until a named Engineer explicitly accepts or applies it.
@@ -80,8 +80,16 @@ _Avoid_: AI assessment, automatic repair specification
 A named non-human principal that performs one explicitly authorised Pegasus action inventory through Core use cases with its own permanent history.
 _Avoid_: Service account, staff impersonation, background task
 
+**Send to AI**:
+The stable user-triggered domain action that creates a later AI work request and may return a proposed repair specification for named-Engineer review. Provider wording does not rename the action or permit direct Case mutation.
+_Avoid_: Send to Claude, AI assessment, automatic report
+
+**New cases today**:
+The Operations metric for instructed Cases created since Europe/London midnight, including Cases later closed that day and excluding Image intakes, Triage, `Needs sorting`, and `Blocked intake`.
+_Avoid_: In today, Due today, received today
+
 **Not ready**:
-A created Case state for an Image Case or instructed Case whose ordinary business details, required source images, or other progression requirements remain incomplete. Image quality and coverage assessments are advisory and never make a Case `Not ready`.
+A created Case state for an instructed Case whose ordinary business details, required source images, or other progression requirements remain incomplete. Image quality and coverage assessments are advisory and never make a Case `Not ready`; pre-Case Image intake is not a Case state.
 _Avoid_: Needs sorting, Blocked intake
 
 **Review**:

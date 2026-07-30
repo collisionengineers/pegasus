@@ -19,7 +19,6 @@ Every comment or issue posted to the issue tracker during vetting **must** start
 ## Reference docs
 
 - [AGENT-BRIEF.md](AGENT-BRIEF.md) — how to write durable agent briefs
-- [OUT-OF-SCOPE.md](OUT-OF-SCOPE.md) — how the `.out-of-scope/` knowledge base works
 
 ## Roles
 
@@ -67,7 +66,7 @@ Show counts and a one-line summary per item. Let the maintainer pick.
 
 ## Vet an issue or PR
 
-1. **Gather context.** Read the full issue or PR (body, comments, labels, author, dates; for a PR, the diff too). Parse any prior vetting notes so you don't re-ask resolved questions. Explore the codebase using the project's domain glossary, respecting ADRs in the area. Run two checks against the codebase: (a) **redundancy** — search for an existing implementation of the requested behavior by domain concept (not just the request's wording), and report where you looked. If found, it's an already-implemented `wontfix` (step 5). (b) **prior rejection** — read `.out-of-scope/*.md` and surface any that resembles this request.
+1. **Gather context.** Read the full issue or PR (body, comments, labels, author, dates; for a PR, the diff too). Parse any prior vetting notes so you don't re-ask resolved questions. Explore the codebase using the project's domain glossary, respecting ADRs in the area. Run two checks against the codebase: (a) **redundancy** — search for an existing implementation of the requested behavior by domain concept (not just the request's wording), and report where you looked. If found, it is an already-implemented `wontfix` (step 5). (b) **prior rejection** — search closed tracker items and approved repository decision/evidence routes for a materially similar rejection; do not create or consult an unowned top-level rejection store.
 
 2. **Recommend.** Tell the maintainer your category and state recommendation with reasoning, plus a brief codebase summary relevant to the request — including whether it's already implemented. Wait for direction.
 
@@ -80,14 +79,13 @@ Show counts and a one-line summary per item. Let the maintainer pick.
    - `ready-for-human` — same structure as an agent brief, but note why it can't be delegated (judgment calls, external access, design decisions, manual testing).
    - `needs-info` — post Vetting Notes (template below).
    - `wontfix` — close, with the comment depending on *why*:
-     - **Already implemented** — the change already exists in the codebase. Point to where it lives; do **not** write to `.out-of-scope/` (that KB is for *rejected* requests, not built ones).
-     - **Rejected (bug)** — polite explanation, then close.
-     - **Rejected (enhancement)** — write to `.out-of-scope/`, link to it from a comment, then close ([OUT-OF-SCOPE.md](OUT-OF-SCOPE.md)).
+     - **Already implemented** — the change already exists in the codebase. Point to where it lives.
+     - **Rejected (bug or enhancement)** — preserve the reason in the issue's closing comment, then close it. The closed tracker item is the rejection history; create no unowned repository store.
    - `needs-vetting` — apply the role. Optional comment if there's partial progress.
 
 ## Quick state override
 
-If the maintainer says "move #42 to ready-for-agent", trust them and apply the role directly. Confirm what you're about to do (role changes, comment, close), then act. Skip grilling. If moving to `ready-for-agent` without a grilling session, ask whether they want to write an agent brief.
+If the maintainer says "move #42 to ready-for-agent", trust the intended destination and skip grilling, but do not apply `ready-for-agent` until the required agent brief has been posted. Confirm the exact role and comment mutations, post the brief, then apply the role.
 
 ## Needs-info template
 

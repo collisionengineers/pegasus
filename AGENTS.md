@@ -15,7 +15,7 @@ work and the nearest nested `AGENTS.md` for local deltas.
 
 ## Repository workflow routes
 
-- Select and execute the applicable workflow in `.agents/skills/`; use `docs/agents/` for this repository's issue-tracker and domain configuration. The installed skill is authoritative for planning, issue-tracker, implementation, testing, review, and commit steps.
+- `docs/engineering.md` is the sole owner of Pegasus-specific repository workflow. Select the applicable reusable procedure from `.agents/skills/`, apply `docs/agents/` for issue-tracker and domain configuration, and resolve any conflict in favor of `docs/engineering.md`.
 
 ## Authority and protected material
 

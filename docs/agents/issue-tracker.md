@@ -2,6 +2,8 @@
 
 Issues and PRDs for this repo live as GitHub issues. Use the `gh` CLI for all operations.
 
+GitHub is an external tracker. Before every read or write, obtain the repository-required explicit approval naming the exact repository and issue or pull-request targets. Approval for one target or operation does not authorize another; use only the approved targets and stop if the resolved remote identity differs.
+
 ## Conventions
 
 - **Create an issue**: `gh issue create --title "..." --body "..."`.
