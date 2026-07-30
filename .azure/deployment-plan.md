@@ -82,7 +82,7 @@ close these gaps before any command below is treated as executable.
 
 ## Target release order (not executable)
 
-This is the ADR-0009 order, not a command runbook. Every cloud action requires
+This is the ADR-0007 order, not a command runbook. Every cloud action requires
 separate exact approval for its target, scope, cost, and data boundary. The
 placeholders below cannot be resolved until the listed gaps have a separate
 infrastructure implementation.

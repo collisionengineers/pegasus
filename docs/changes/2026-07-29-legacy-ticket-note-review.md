@@ -26,8 +26,8 @@ as product authority.
 
 ## Affected canonical owners
 
-- [Domain glossary](../../CONTEXT.md): Case, Image Case, Image Intake Reference,
-  `Not ready`, and image-readiness terminology.
+- [Domain glossary](../../CONTEXT.md): Case, Image intake, Image Intake Reference,
+  Principal, Needs sorting, and related terms.
 - [Product requirements](../requirements.md): intake, Case identity and
   lifecycle, image evidence, engineering handoff, dashboard, and interaction
   requirements.
@@ -40,21 +40,23 @@ as product authority.
 
 ### Image-led intake, identity, and evidence
 
-- Image-only intake with a usable normalised VRM creates an **Image Case** in
-  `Not ready`, carrying an Image Intake Reference rather than a Case/PO.
-  It is not `Needs sorting` solely for lacking a formal instruction or Principal.
+- Image-only intake with a usable normalised VRM creates a pre-Case **Image
+  intake** carrying an Image Intake Reference. It is not a Case, receives no
+  Case/PO or lifecycle state, and is not `Needs sorting` solely for lacking a
+  formal instruction or Principal.
 - An Image Intake Reference is `{normalised VRM}-{sequence}`, begins at `-01`,
   has a two-digit minimum, expands after `-99`, and is never reused.
-- An Image Case may consolidate only into one eligible instructed pre-report
-  Case. Automatic consolidation needs an unambiguous normalised VRM and no
-  explicit contradictory identity evidence; otherwise an authorised staff
-  member makes a reasoned decision. Both identities, evidence histories, and
-  source origins remain permanent. Reversal is permitted only before report
-  delivery and restores both Cases to `Not ready`.
-- A reliable different-VRM or vehicle-colour indication excludes the retained
-  image from Case-vehicle and report-image selection. It is third-party vehicle
-  evidence when enough detail identifies that other vehicle, otherwise
-  unmatched-vehicle evidence.
+- An Image intake may associate with only one eligible instructed pre-report
+  Case. Automatic association requires an unambiguous normalised VRM and no
+  explicit contradictory identity evidence; otherwise authorised staff make a
+  reasoned decision. Both identities, evidence histories, and source origins
+  remain permanent. A reasoned reversal before report delivery restores the
+  Image intake to its pre-Case state and leaves the instructed Case unchanged.
+- A raw recognizer result remains a suggestion and cannot exclude an image.
+  Only staff-confirmed or otherwise accepted different-VRM/vehicle-colour
+  evidence excludes the retained image from the Case-vehicle set and automatic
+  EVA bundle. It is third-party vehicle evidence when enough accepted detail
+  identifies that other vehicle, otherwise unmatched-vehicle evidence.
 - A normal Case/PO sequence keeps `001`–`999`, expands to `1000`–`9999`, and
   then fails closed. No reference is truncated, wrapped, or reused.
 
@@ -77,12 +79,12 @@ as product authority.
 ### Engineering image selection
 
 - The evidence surface retains source images, provenance, categories, and
-  advisories. It does not host opposing report-image inclusion/exclusion
-  controls.
-- The Engineer report-generation section owns human report-image selection and
-  order. A staff override may reject automated registration visibility advice,
-  but the first overview still requires a human-confirmed full readable
-  registration. Reflections remain excluded.
+  advisories. It does not host competing report-image inclusion/exclusion or
+  ordering controls.
+- The focused alpha EVA handoff automatically includes every eligible
+  custody-confirmed Case-vehicle image in deterministic order. EVA retains
+  downstream report-image selection and ordering until its accepted
+  replacement; Pegasus exposes no alpha selection step.
 
 ### Mailbox interaction
 
@@ -94,7 +96,7 @@ as product authority.
 - A `Needs sorting` item explains the missing, ambiguous, or contradictory
   predicate; it never borrows the rationale for a different classification.
 - A successful focused manual EVA package is immediately downloadable with its
-  JSON, selected images, and manifest. The download alone proves neither EVA
+  JSON, every eligible custody-confirmed Case-vehicle image, and manifest. The download alone proves neither EVA
   receipt nor report delivery and does not change Case state.
 - At the allocated mailbox-workspace activation, staff can filter and queue
   each approved mailbox exactly. The accessible email quick preview is
@@ -123,12 +125,13 @@ as product authority.
 ## Deferred-capability impact
 
 No new capability, project, runtime, store, integration, or deployment unit is
-created. The Image Case terms refine existing `INT-27` and related current
-intake/case capabilities. The report-generation selection section is a
-preserved product seam: it creates no alpha control, caller, model, provider,
-or dormant UI. Any activation remains subject to the existing capability
-allocation, accepted engineering-work contract, real Core caller, visual review,
-and operator acceptance.
+created. The Image intake terms refine existing `INT-27` and related current
+intake capabilities without allocating a Case. The report-generation selection
+section remains a future product seam: it creates no alpha control, caller,
+model, provider, or dormant UI because the focused alpha exports all eligible
+Case-vehicle images. Any later activation remains subject to the existing
+capability allocation, accepted engineering-work contract, real Core caller,
+visual review, and operator acceptance.
 
 ## Evidence and review state
 

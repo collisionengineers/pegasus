@@ -50,7 +50,7 @@ reference evidence, not current product authority.
   by frequency, recency, proximity, accepted Principal, Repairer, Image Source,
   and normalized search text. It never selects an address. `Image Based
   Assessment` needs an attributed staff reason.
-- The manual EVA handoff download contains the generated JSON, selected images,
+- The manual EVA handoff download contains the generated JSON, every eligible custody-confirmed Case-vehicle image,
   and manifest, but its container is intentionally unspecified. A single archive
   is to be evaluated for usability without changing package content or the
   manual-handoff boundary.

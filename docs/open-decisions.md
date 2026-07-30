@@ -123,15 +123,15 @@ transport must conform to that contract rather than weakening the queue.
 
 The current direction distinguishes these tracks:
 
-1. a management/development-controlled Claude Automation Actor performing ordinary operational Core actions through approved MCP tools, with Pegasus attribution and history;
-2. a user-triggered `Send to Claude` assessment request that may return only a proposed repair specification, never a report document or direct Case mutation; and
+1. one named, vendor-neutral Automation Actor performing ordinary operational Core actions through approved MCP tools, with Pegasus attribution and history; Claude Desktop may supply the initial client evidence without owning that actor identity;
+2. a user-triggered domain action `Send to AI` that may return only a proposed repair specification, never a report document or direct Case mutation; Claude is the current provider candidate, but provider-specific UI wording does not redefine the action; and
 3. Microsoft Foundry as the intended candidate, pending evaluation, for later AI query-response proposals.
 
-Direct Anthropic or other model API integration is neither an assumed candidate nor a fallback. The separate Send to Claude transport must still satisfy the Core work-request, proposal, review, identity, recovery, and cost contract.
+Direct Anthropic or other model API integration is neither an assumed implementation nor a fallback. Any `Send to AI` transport must satisfy the Core work-request, proposal, review, identity, recovery, and cost contract. A later provider change must not change the `Send to AI` domain action or stored identity.
 
 | Evidence needed | Impact | Recommended default | Decision question |
 |---|---|---|---|
-| Actual Claude-client and Foundry support; OAuth and Automation Actor identity; the exact approved operational MCP inventory; user-triggered assessment selection; leasing, cancellation, recovery, proposal return, cost, model evaluation, and named Engineer review. | An unsupported client or model could weaken actor accountability, queue recovery, proposal review, or create an unintended direct-model dependency. | Retain one Core contract; permit only the documented operational MCP and proposal paths; do not activate either AI transport until it proves that contract. | Which specific Claude-client and Foundry model/transport choices prove the complete Core contract with acceptable identity, recovery, proposal return, evaluation, and cost? |
+| Actual supported automation client and Foundry support; authentication and Automation Actor identity; the exact approved operational MCP inventory; user-triggered assessment selection and current provider label; leasing, cancellation, recovery, proposal return, cost, model evaluation, and named Engineer review. | An unsupported client or model could weaken actor accountability, queue recovery, proposal review, or create an unintended direct-model dependency. | Retain one vendor-neutral Core contract; permit only the documented operational MCP and proposal paths; do not activate either AI transport until it proves that contract. | Which specific client and Foundry model/transport choices prove the complete Core contract with acceptable identity, recovery, proposal return, evaluation, and cost? |
 
 ## Future custom assessor
 

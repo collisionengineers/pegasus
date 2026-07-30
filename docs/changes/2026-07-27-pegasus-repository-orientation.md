@@ -101,11 +101,11 @@ not represented as matched source evidence.
 | `DOC-CON-006` | `0.1.0-alpha.1` gains `INT-31`: staff may create temporary, revocable, request-scoped upload links. The link creates no external account and exposes no case or request state. |
 | `DOC-CON-007` | General authenticated staff compose/reply/forward/send (`MAIL-12`) moves from `Not planned` to `Later`/`unallocated`; the separately gated targeted report-send transaction remains `MAIL-17`. |
 | `DOC-CON-008` | Administrator is the superuser role. Andrew and Alex are initial assignments held as application data/configuration; no person, email address or bypass is compiled into authorization. |
-| `DOC-CON-009` | The current release uses deterministic, operator-approved EVA drag-and-drop JSON, selected custody-confirmed images and a hash manifest. EVA retains engineering authority until each replacement slice is separately contracted, caller-proved and accepted. |
+| `DOC-CON-009` | The current release uses deterministic, operator-approved EVA drag-and-drop JSON, every eligible custody-confirmed Case-vehicle image, and a hash manifest. Staff-confirmed third-party vehicle evidence is excluded; Pegasus exposes no alpha image-selection or ordering controls. EVA retains engineering authority until each replacement slice is separately contracted, caller-proved and accepted. |
 | `DOC-CON-010` | EVA screenshots are data/decision evidence, not navigation authority. Pegasus uses one case-centred Engineer workbench with progressive sections and no duplicate domain ownership. |
 | `DOC-CON-011` | PdfPig remains the authoritative embedded-PDF extraction path for the current release. The legacy `cedocumentmapper` is not reused; a bespoke extractor may replace PdfPig only after separate hardening, caller proof and acceptance. |
-| `DOC-CON-012` | `AI-05` is automatic advisory image readiness assessment, not image-based repair assessment. It assesses the current Case image set on each change for registration overview, damage close-up, and the applicable reflection criterion; an always-image-based Principal waives only that reflection advisory. It may run before valuation but does not allocate, mutate, transition, queue, chase, or propose Case work. |
-| `DOC-CON-013` | Box is a required day-one alpha case-file-custody integration. Pegasus allocates the immutable Case/PO reference after safe source processing, then creates the reference-named Box folder and files retained Case material. Blob is temporary hot staging only. A Box failure leaves the Case `Not ready` with failure and staff-initiated idempotent retry/recovery evidence; no background or automatic business retry is permitted, and the failure never rolls back, reuses, or reallocates the reference. Local testing and explicitly approved non-production test deployments may create/update controlled non-corpus artifacts only in the separately approved test subtree. Readiness requires an actual controlled Case/PO-to-Box happy path that creates/files exactly once and a denied/wrong-target fence test with no broader write, visible `Not ready`, and staff retry. The first accepted production release remains blocked until production target, permissions, recovery, caller, and acceptance evidence are recorded. |
+| `DOC-CON-053` | `AI-05` is automatic advisory image readiness assessment, not image-based repair assessment. It assesses the current Case image set on each change for registration overview, damage close-up, and the applicable reflection criterion; an always-image-based Principal waives only that reflection advisory. It may run before valuation but does not allocate, mutate, transition, queue, chase, or propose Case work. |
+| `DOC-CON-054` | Box is a required day-one alpha case-file-custody integration. Pegasus allocates the immutable Case/PO reference after safe source processing, then creates the reference-named Box folder and files retained Case material. Blob is temporary hot staging only. A Box failure leaves the Case `Not ready` with failure and staff-initiated idempotent retry/recovery evidence; no background or automatic business retry is permitted, and the failure never rolls back, reuses, or reallocates the reference. Local testing and explicitly approved non-production test deployments may create/update controlled non-corpus artifacts only in the separately approved test subtree. Readiness requires an actual controlled Case/PO-to-Box happy path that creates/files exact-target-approved non-corpus artifacts and retains identifiers, outcome, and recovery evidence. |
 
 ## Scope
 
@@ -556,7 +556,7 @@ on 2026-07-29. The cutover:
 - changes no capability allocation, runtime seam, caller, deployment unit,
   provider integration, business rule, or external system.
 
-`DOC-CON-012` records the implementation conflict discovered during the move.
+`DOC-CON-055` records the implementation conflict discovered during the move.
 Existing published ADR bodies contained relative links to `ADR-000N-*`
 filenames, while the accepted target required standard `000N-*` filenames and
 no compatibility aliases. The user explicitly selected editing those immutable
@@ -564,9 +564,9 @@ bodies over retaining legacy filenames or creating aliases. The authorized body
 edits are limited to relative link destinations; decision clauses, rationale,
 status, and provenance remain unchanged.
 
-Decision `0014` records the hard-to-reverse path choice. The unaccepted QDOS
-implementation-contract proposal advances from `0014` to `0015` without changing
-its proposed product clauses.
+ADR-0010 records the hard-to-reverse single-context path choice. The unaccepted
+QDOS implementation-contract proposal uses the next free identity, ADR-0013,
+without changing its proposed product clauses.
 
 The user subsequently classified root workflow ADRs 0007, 0008, 0010, and 0012
 as documentation bloat and explicitly authorized their removal. Their workflow
@@ -575,11 +575,37 @@ migration evidence remains in
 remains in `AGENTS.md` and the installed `.agents/skills/` workflows. No application, test, CI, or
 runtime consumer depended on those ADRs.
 
+### QDOS plan contradiction resolutions
+
+The user settled the following clauses directly during review of the QDOS alpha
+plan on 2026-07-30. [ADR-0013](../adr/0013-qdos-alpha-implementation-contract.md)
+records their durable implementation boundary. These decisions do not accept the
+delivery plan as a whole or authorize any Azure, Box, mailbox, credential,
+deployment, migration, or destructive operation.
+
+| Decision | Resolution |
+| --- | --- |
+| `DOC-CON-056` | Image-only material with a usable normalised VRM remains a pre-Case Image intake. It associates with one eligible instructed pre-report Case on an unambiguous non-contradictory VRM match or a reasoned authorised-staff decision; otherwise it awaits instruction. Association is reversible before report delivery with both identities and all history retained. |
+| `DOC-CON-057` | Vehicle identity/specification, vehicle-history/risk, and market valuation are all mandatory before review acceptance and Engineers-queue eligibility. Only a named, reasoned authorised-staff exception may satisfy a genuinely unavailable or inapplicable check. |
+| `DOC-CON-058` | Instruction completeness, image completeness, and staff review are separate mandatory Case gates. Provider policy may define accepted evidence but may not remove a gate. Named-Engineer assignment remains EVA-owned through alpha and transfers only with the accepted `1.0.0` workbench and caller. |
+| `DOC-CON-059` | Incoming cancellation remains a manual alpha staff decision. Automation neither cancels nor mutates the Case; hold, confirmed `Provider cancelled`, release, recategorisation, unlinking, and reassociation retain attributable permanent history. |
+| `DOC-CON-060` | A Box custody failure retains the allocated Case/PO, leaves the Case `Not ready`, and permits only authorised staff-initiated idempotent retry. No scheduled background or automatic business retry is allowed. |
+| `DOC-CON-061` | The dashboard term is `New cases today`: instructed Cases created since Europe/London midnight, including those later closed that day, excluding Image intakes, Triage, `Needs sorting`, and `Blocked intake`. |
+| `DOC-CON-062` | The shared Principal/year Case sequence uses a three-digit minimum, expands through `9999`, then fails closed without wrap, fabricated year rollover, or reuse. |
+| `DOC-CON-063` | The focused EVA handoff includes every eligible custody-confirmed Case-vehicle image in deterministic manifest order. Staff-confirmed third-party evidence is excluded; recognizer suggestions alone do not exclude. Pegasus has no alpha selection/order controls and EVA retains downstream authority until replacement. |
+| `DOC-CON-064` | `AI-05` remains `Later / 1.0.0` advisory image-readiness assessment with no alpha caller, surface, Case-state effect, or AI Proposal. |
+| `DOC-CON-065` | MCP uses one named vendor-neutral Automation Actor with distinct authentication, authorization, scopes, throttles, attribution, and history. Ordinary staff never receive MCP access or impersonation; Claude Desktop may be a client without owning the actor or Core policy. |
+| `DOC-CON-066` | The stable domain/UI action is `Send to AI`. Claude is the current provider candidate; Microsoft Foundry is the intended candidate for later AI query-response proposals. Exact client, model, transport, credential, evaluation, recovery, cost, and caller choices remain activation gates. |
+| `DOC-CON-067` | Alpha login protection is transient generic-failure throttling under the accepted per-source and global limits, not persistent ASP.NET Identity account lockout. |
+| `DOC-CON-068` | The Development/local email evaluation workbench remains separate evidence-producing work, not a QDOS alpha product surface, route, deployment unit, or acceptance checkpoint. |
+| `DOC-CON-069` | Every Azure target and dependent identity, recipient, scope, command, migration, and disposition remains unresolved until fresh exact-target approval. Plan placeholders are not executable authority. |
+| `DOC-CON-070` | `docs/engineering.md` is the sole owner of Pegasus-specific repository workflow. Root `AGENTS.md` routes work into that policy and `.agents/skills/` provides subordinate reusable procedures; no imported skill or plan may silently override it. |
+
 ## Verification and evidence
 
 - [x] Canonical product documents and the capability inventory agree with every
   crosswalk row.
-- [x] Capability inventory contains 229 unique IDs: Now 128, Next 32, Later 40,
+- [x] Capability inventory contains 229 unique IDs: Now 128, Next 31, Later 41,
   Not planned 29.
 - [x] EVA examples retain the exact ordered 13 keys and all 12 Engineer screens
   have reviewed findings.
