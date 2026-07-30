@@ -19,6 +19,7 @@ GitHub issues and Projects own actionable work state. [Requirements](../requirem
 ## Current records
 
 - [Repository orientation and documentation centralization](2026-07-27-pegasus-repository-orientation.md)
+- [Minimal desktop email evaluator](2026-07-29-minimal-desktop-email-evaluator.md) — accepted implementation boundary; implementation evidence is in progress.
 - [Capability release allocation](2026-07-29-version-all-planned-capabilities.md)
 - [QDOS alpha reference corpora and delivery](2026-07-27-qdos-alpha-reference-corpora.md)
 - [Legacy ticket-note product-decision review](2026-07-29-legacy-ticket-note-review.md)
