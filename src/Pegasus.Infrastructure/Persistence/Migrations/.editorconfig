@@ -1,0 +1,4 @@
+# EF migration sources preserve their generated inline operation arguments; hoisting
+# these one-shot arrays would obscure immutable migration history without saving work.
+[*.cs]
+dotnet_diagnostic.CA1861.severity = none

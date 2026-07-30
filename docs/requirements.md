@@ -6,6 +6,8 @@ This document is the sole owner of Pegasus intended product requirements. The [c
 
 The [operator notes](operator-notes.md) are the binding source for Collision Engineers’ business process and current-system knowledge. [Architecture](architecture.md) owns what is currently implemented and called. [Operations](operations.md) owns procedures and evidence profiles. [Open decisions](open-decisions.md) owns unresolved material questions. [Design](../design/README.md) owns the durable UI contract.
 
+The accepted [QDOS alpha implementation contract](adr/0013-qdos-alpha-implementation-contract.md) fixes checkpoint 1's clause-specific implementation and Razor/Worker/MCP caller boundary. The existing [QDOS change record](changes/2026-07-27-qdos-alpha-reference-corpora.md) remains the sole delivery/evidence owner. Neither document changes capability allocation or promotes an intended caller to implementation, caller, deployment, or acceptance evidence.
+
 Evidence states remain distinct:
 
 1. allocated to `Now` or a version;
@@ -302,7 +304,11 @@ Each unmet progression requirement is an individual actionable blocker. The UI i
 
 Durable receipt acknowledgement, retained correspondence, prepared or copied text, the `First sent to Engineer` export proxy, and a `Report sent` event are not terminal case outcomes. Report-sent evidence enters post-report work; post-report completion is a separate named closure action.
 
-Every Case closure selects exactly one named terminal outcome and records the authenticated actor, time, reason and prior/new state in permanent history. Every Image-intake association, reversal, or correction records the same attributable relationship evidence without closing or creating a Case. The Case, Case/PO, Image Intake Reference, source relationships, and chronology remain intact. A closed Case and its files remain application-level read-only until an authorised, reasoned reopen passes the normal destination gates. `Created in error` never reopens.
+The named Core workflow records the policy key and version used for every configured readiness gate. It permits Engineer assignment only when the configured instruction-completeness, image-completeness, instruction-review, and image-review gates each pass; no caller, assignment, prepared artifact, or later workflow event supplies a missing gate by implication. A Report approval identifies one immutable artifact and its approving staff actor. `Report sent` requires one retained exact approved-mailbox Sent item with its mailbox/Sent-folder scope, immutable item, conversation/reply-chain identities, authoritative Sent time, and separate link time; an assertion, draft, queue result, generated file, or export proxy fails closed.
+
+Every closure selects exactly one named terminal outcome, records the authenticated actor, time, reason and prior/new state in permanent history, and leaves the Case, Case/PO, source relationships, and closure chronology intact. A closed case and its files remain application-level read-only until an authorised, reasoned reopen passes the normal destination gates. `Created in error` never reopens.
+
+Every Image-intake association, reversal, or correction records the same attributable relationship evidence without closing or creating a Case. The Case, Case/PO, Image Intake Reference, source relationships, and chronology remain intact.
 
 State changes are explicit Core transitions. UI labels, Worker handlers, APIs, and MCP tools call the same use cases; they do not implement parallel policy.
 
@@ -684,15 +690,17 @@ An Outlook/Graph route must, before activation:
 
 ### QDOS-alpha evaluation boundary
 
-The Development/local email evaluation workbench is delivered separately and is
-not a QDOS-alpha product surface or acceptance checkpoint. QDOS alpha defines
-no `/Development/EmailEvaluation` route, `unchecked`/`checked` workspace
-workflow, evaluator command, reviewer report, or Administrator evaluator
-approval. Separately produced accepted evidence remains a prerequisite where
-the shared mail policy requires it, but the evaluation implementation and
-review mechanics are not QDOS delivery. Shared Core mail policy, production
-intake, Graph replay/live adapters, and their genuine-evidence and caller
-requirements remain in scope.
+The Development/local email evaluation workbench is a separately delivered
+evidence harness and is not a QDOS-alpha product surface, caller, or acceptance
+checkpoint. QDOS adds and claims no evaluator route, `unchecked`/`checked`
+workspace workflow, evaluator command, reviewer report campaign, or
+Administrator evaluator approval. A separately delivered evaluator may exercise
+shared policy and produce accepted, source-labelled evidence where the shared
+mail policy requires it; that call and its review mechanics remain evaluator
+evidence, not QDOS delivery or activation proof. The capability inventory's
+`DOC-CON-052` boundary owns the unchanged evaluator allocations. Shared Core
+mail policy, production intake, Graph replay/live adapters, and their
+genuine-evidence and caller requirements remain in QDOS scope.
 
 ### Outbound correspondence evidence
 

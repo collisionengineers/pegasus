@@ -58,6 +58,36 @@ Operator truth outranks historical plans and predecessor behavior. Accepted deci
 
 The four-project modular monolith remains: Core owns policy and ports; Infrastructure owns persistence and adapters; Web and Worker are composition roots. This change adds no project, top-level store, runtime, migration stream, deployment unit, generic rules engine, or second classifier.
 
+### Checkpoint 1 activation
+
+[ADR-0013](../adr/0013-qdos-alpha-implementation-contract.md) activates the clause-specific QDOS implementation and Razor/Worker/MCP caller contract without changing accepted decision bodies or capability allocation. Checkpoint 1 starts from merged `main` at `46b0328b149d7da887fa899c8aa39e01fcf159dc`, whose parents are the pull request 18 documentation merge `536f5fc470a541281f86ebc711564d49432ed73f` and capability child/source head `f77e1492b25abdd5a14725f4c15129333482b743`.
+
+Issue #3 and this record remain the sole implementation, evidence, review, and delivery identity. The addendum creates no second status ledger and promotes no implementation, caller, deployment, live-verification, or acceptance claim. The Development/local evaluator remains a separately delivered evidence harness under `DOC-CON-052`; it is not a QDOS caller or checkpoint. Repository-policy verification remains disabled until post-alpha; current direct and repository-language invocations are successful no-ops recorded only as **skipped/deferred**, never **passed**.
+
+### `DOC-CON-053`: SQL Server-only database contract
+
+- **Evidence.** On 2026-07-29 the user explicitly selected SQL Server Express
+  LocalDB for local development and integration acceptance, and Azure SQL for
+  deployed persistence. ADR-0006 decision item 7 had selected Development
+  SQLite and a provider-neutral initial migration alongside an explicit SQL
+  Server release/test path; this record and current operations also carried
+  fresh-SQLite and dual-provider acceptance gates.
+- **Impact.** Keeping both providers would leave competing runtime, migration,
+  and baseline contracts. SQLite results cannot establish the SQL Server
+  constraints, locking, concurrency, or recovery behavior required by the local
+  and deployed paths, so those results would make acceptance ambiguous rather
+  than additive.
+- **Resolution.** Current explicit direction prevails. SQL Server is the only
+  supported database contract: LocalDB is canonical local persistence,
+  migration, concurrency, recovery, and integration-acceptance evidence, while
+  Azure SQL is deployed persistence. SQLite runtime, dependencies, migrations,
+  tests, baselines, and gates are removed. Existing SQL Server migration IDs and
+  schema/data semantics remain stable. This resolution supersedes ADR-0006
+  decision item 7 only where it selected Development SQLite and
+  provider-neutral dual-provider migration behavior; the immutable ADR body and
+  every unaffected clause, including the unaffected parts of item 7, remain
+  unchanged.
+
 ## Scope
 
 ### Included
@@ -105,6 +135,7 @@ Clean seams for deferred work are permitted; dormant implementations are not.
 8. **The predecessor is stale evidence, not a target.** The 2026-07-23 Azure inventory is a dated snapshot. Owner direction says the predecessor is not in active use and needs no restart window, but that is not live telemetry proof. Any deletion requires refreshed exact-resource evidence and separate approval.
 9. **No guessed evidence.** Missing genuine evidence blocks the corresponding policy, matcher, adapter, or release slice. It does not justify fabricated fixtures, placeholder rules, silent local fallback, or reduced release scope.
 10. **Separate evaluator ownership (`DOC-CON-052`).** The Development/local email evaluation harness and review/report mechanics are delivered separately. QDOS alpha has no evaluator route, command, workspace UI, report campaign, or checkpoint acceptance owner. Accepted evidence from that delivery may satisfy genuine-evidence prerequisites, but the shared Core mail policy, production intake, Graph replay/live adapters, and their caller and activation proof remain QDOS scope. The inventory allocations for `OPS-22`, `EVAL-01` through `EVAL-05`, and `MAIL-20` remain unchanged pending an authorised replacement target and must not be read as QDOS implementation commitments.
+11. **SQL Server-only persistence (`DOC-CON-053`).** Local development and integration acceptance use SQL Server Express LocalDB; deployed persistence uses Azure SQL. The committed SQL Server migration identity and schema/data semantics remain stable, and no SQLite runtime, migration, baseline, or acceptance gate remains.
 
 ## Provider-domain reference contract
 
@@ -552,7 +583,7 @@ Implement the Identity/OpenIddict, roles, session limits, login throttles, boots
 
 ### 5. Make intake durable and idempotent
 
-Implement staged receipt, immutable revisions, manual resolution, SQL outbox, ID-only queue messages, actual queue-trigger processing, bounded retries, and all negative/recovery paths. Prove LocalDB transaction, contention, duplicate, replay, crash, and poison behavior rather than relying only on SQLite tests.
+Implement staged receipt, immutable revisions, manual resolution, SQL outbox, ID-only queue messages, actual queue-trigger processing, bounded retries, and all negative/recovery paths. Prove transaction, contention, duplicate, replay, crash, and poison behavior against LocalDB as the canonical local persistence provider.
 
 ### 6. Implement case, reference, Triage, work, and lifecycle policy
 
@@ -603,7 +634,7 @@ PageModels bind, authorize, and translate only. Business decisions remain in Cor
 Run from a fresh setup:
 
 1. Offline doctor, initialization, start/status/smoke/stop/reset, a second parallel run, induced startup failure, recovery, and proof that no cloud credential, login, client, hostname, or stale Azure resource was used.
-2. Provider generation from the pinned source: exact hash and A/E contract, 11 providers, 16 associations, suffix-only bytes, repeat-byte equality, exact package/migration equality, fresh SQLite and LocalDB migration idempotency, tuple/suffix fail-closed behavior, and monotonic synthetic later-version growth.
+2. Provider generation from the pinned source: exact hash and A/E contract, 11 providers, 16 associations, suffix-only bytes, repeat-byte equality, exact package/migration equality, fresh LocalDB migration idempotency, tuple/suffix fail-closed behavior, and monotonic synthetic later-version growth.
 3. Automated Core-policy proof against accepted genuine route evidence for every activated route, including QDOS, direct/intermediary collision, malformed forwards, Triage positives/negatives/ambiguities/replies, report predicates, determinism, and source/corpus immutability. The separately owned evaluator supplies reviewed cohorts and holdouts; this gate creates no QDOS evaluator UI, report campaign, or acceptance checkpoint.
 4. Actual Web, Functions host, Azurite, LocalDB, local mailbox, and local custody smoke for QDOS Inspection, standalone Audit repairable/total loss, and Inspection + Audit. Duplicate, retry, and crash must still produce one immutable case/reference/evaluation/custody/outbox result.
 5. Negative and recovery smoke for unsupported, corrupt, oversized, incomplete, unknown/non-QDOS, route overlap, missing Audit assessment, unavailable dependency, identity/hash conflict, sequence `9999` exhaustion, poison exhaustion, stale lease/version, unauthorized actor, and terminal external failure.
@@ -768,8 +799,8 @@ The existing local thin slice can, under its explicit Development feature bounda
 - treat `Draft ready` as a reviewable extraction draft, not definitive mailbox classification, case acceptance, or reference allocation;
 - identify manual upload by a stable channel occurrence token while retaining SHA-256 as integrity and duplicate evidence;
 - persist provider-neutral receipts, read-only relational drafts, assets, evidence, candidates, and extraction policy key/version without creating a case or reference;
-- initialize and migrate the default `PegasusDevelopment` SQL Server LocalDB database;
-- refuse an old or mismatched SQLite migration/schema baseline before mutation when SQLite is explicitly selected for isolated testing;
+- initialize and migrate the default `PegasusDevelopment` SQL Server LocalDB database through the sole committed SQL Server migration stream;
+- reject an unexpected LocalDB schema or migration history before mutation;
 - render persisted dashboard counts, queues, and review pages;
 - return the existing receipt for replay of the same occurrence while retaining equal bytes under different occurrence identities as separate review evidence;
 - deny every `/Intake` route outside Development or when the feature is disabled;
@@ -868,7 +899,7 @@ This establishes that PdfPig decoded the sampled embedded-text cohort without ex
 - Four synthetic opacity, growth, immutability, and lock-order tests passed.
 - Focused provider-domain Core tests passed 34/34, including strict JSON/schema/version/hash checks and deterministic found/unknown/ambiguous/invalid outcomes.
 - Embedded package, source, migration, and seeded rows matched exactly.
-- Provider persistence and baseline tests passed.
+- At the superseded pre-cutover checkpoint, provider persistence and baseline tests passed; that provider-baseline result is retained as historical provenance and is not current database-acceptance evidence.
 - Direct catalog smoke observed:
   - `Found` with `QDOS`;
   - `Unknown` with no candidates;

@@ -1,0 +1,88 @@
+@page
+@model Pegasus.Web.Pages.Administration.Principals.IndexModel
+@{
+    ViewData["Title"] = "Principals";
+}
+
+<h1>Principals</h1>
+<p><a asp-page="/Administration/Index">Back to Administration</a></p>
+<p><a asp-page="Create">Create principal</a></p>
+<p>Principal codes and existing case/reference ownership are immutable. Replacement disables the predecessor and creates a linked successor on the same sequence lineage.</p>
+
+@if (TempData["AdministrationStatus"] is string status)
+{
+    <div role="status">@status</div>
+}
+
+@if (Model.Organizations.Organizations.Count == 0)
+{
+    <p>No organizations or principals are available on this page.</p>
+}
+else
+{
+    @foreach (var organization in Model.Organizations.Organizations)
+    {
+        <section aria-labelledby="organization-@organization.Id">
+            <h2 id="organization-@organization.Id">@organization.Name</h2>
+            @if (organization.Roles.Contains(Pegasus.Core.Cases.OrganizationRole.WorkProvider))
+            {
+                <p>
+                    <a asp-page="Create"
+                       asp-route-organizationId="@organization.Id">Create principal for this organization</a>
+                </p>
+            }
+            @if (organization.Principals.Count == 0)
+            {
+                <p>No principals belong to this organization.</p>
+            }
+            else
+            {
+                <table>
+                    <thead>
+                        <tr><th>Code</th><th>Status</th><th>Sequence lineage</th><th>Predecessor</th><th>Successor</th><th>Allocated cases</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var principal in organization.Principals)
+                    {
+                        <tr>
+                            <td>@principal.Code</td>
+                            <td>@(principal.IsActive ? "Active" : "Disabled")</td>
+                            <td>@principal.SequenceLineageId</td>
+                            <td>@(principal.PredecessorId?.ToString("D") ?? "None")</td>
+                            <td>@(principal.SuccessorId?.ToString("D") ?? "None")</td>
+                            <td>@principal.AllocatedCaseCount</td>
+                            <td>
+                                @if (principal.IsActive && principal.SuccessorId is null)
+                                {
+                                    <a asp-page="Replace"
+                                       asp-route-organizationId="@organization.Id"
+                                       asp-route-principalId="@principal.Id">Replace</a>
+                                }
+                                else
+                                {
+                                    <span>No replacement action</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+                @if (organization.HasMorePrincipals)
+                {
+                    <p>The principal projection is bounded; additional principals exist.</p>
+                }
+            }
+        </section>
+    }
+}
+
+<nav aria-label="Principal organization pages">
+    @if (Model.Organizations.HasPreviousPage)
+    {
+        <a asp-page="Index" asp-route-pageNumber="@(Model.Organizations.PageNumber - 1)">Previous</a>
+    }
+    @if (Model.Organizations.HasMoreOrganizations)
+    {
+        <a asp-page="Index" asp-route-pageNumber="@(Model.Organizations.PageNumber + 1)">Next</a>
+    }
+</nav>

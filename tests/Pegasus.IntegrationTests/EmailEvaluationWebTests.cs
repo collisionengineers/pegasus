@@ -7,6 +7,7 @@ using Pegasus.Core.Intake;
 
 namespace Pegasus.IntegrationTests;
 
+[Collection(LocalDbFixtureDefinition.Name)]
 public sealed partial class EmailEvaluationWebTests
 {
     private const string EvaluationMarker = "LOCAL_EMAIL_EVALUATION_MARKER_2031";
@@ -16,12 +17,13 @@ public sealed partial class EmailEvaluationWebTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
+        var beforeArtifacts = ArtifactFiles(factory);
         var token = await GetAntiforgeryTokenAsync(client);
+        Assert.Equal(beforeArtifacts, ArtifactFiles(factory));
         var source = Serialize(CreateMessage(
             "Synthetic local evaluation",
             $"QDOS instruction\r\n{EvaluationMarker}\r\nClaimant Name: Local Evaluation Claimant\r\nClaim Number: LOCAL-EVAL-001\r\nVehicle Registration: AB12 CDE\r\n<script>literal body text</script>"));
         var beforeReceipts = await ListReceiptsAsync(factory);
-        var beforeArtifacts = ArtifactFiles(factory);
 
         using var response = await PostAsync(client, token, "local-evaluation.eml", source);
         var html = await response.Content.ReadAsStringAsync();
@@ -75,6 +77,54 @@ public sealed partial class EmailEvaluationWebTests
         }
     }
 
+    [Fact]
+    public async Task AcceptedBatchCreatesOneDeterministicReport()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var token = await GetAntiforgeryTokenAsync(client);
+        var beforeArtifacts = ArtifactFiles(factory);
+        var first = new EmailCase(
+            "batch-a.eml",
+            Serialize(CreateMessage(
+                "Batch evaluation A",
+                "QDOS instruction\r\nClaimant Name: Batch Claimant A\r\nClaim Number: BATCH-001\r\nVehicle Registration: AB12 CDE")),
+            string.Empty);
+        var second = new EmailCase(
+            "batch-b.eml",
+            Serialize(CreateMessage(
+                "Batch evaluation B",
+                "QDOS instruction\r\nClaimant Name: Batch Claimant B\r\nClaim Number: BATCH-002\r\nVehicle Registration: XY34 ZZZ")),
+            string.Empty);
+
+        using (var invalidResponse = await PostBatchAsync(
+                   client,
+                   token,
+                   first,
+                   new("empty.eml", [], string.Empty)))
+        {
+            var invalidHtml = await invalidResponse.Content.ReadAsStringAsync();
+            Assert.Equal(HttpStatusCode.OK, invalidResponse.StatusCode);
+            Assert.Contains("The selected file is empty.", invalidHtml, StringComparison.Ordinal);
+            Assert.Equal(beforeArtifacts, ArtifactFiles(factory));
+        }
+
+        using var response = await PostBatchAsync(client, token, first, second);
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Download deterministic JSON report", html, StringComparison.Ordinal);
+        var afterArtifacts = ArtifactFiles(factory);
+        var reportFile = Assert.Single(
+            afterArtifacts.Except(beforeArtifacts, StringComparer.Ordinal));
+        Assert.Equal(".json", Path.GetExtension(reportFile));
+        Assert.Contains("\"total\": 2", await File.ReadAllTextAsync(reportFile), StringComparison.Ordinal);
+
+        using var repeatedResponse = await PostBatchAsync(client, token, second, first);
+        Assert.Equal(HttpStatusCode.OK, repeatedResponse.StatusCode);
+        Assert.Equal(afterArtifacts, ArtifactFiles(factory));
+    }
+
     private static async Task<IReadOnlyList<IntakeReceiptSummary>> ListReceiptsAsync(
         IntakeWebApplicationFactory factory)
     {
@@ -92,7 +142,7 @@ public sealed partial class EmailEvaluationWebTests
 
     private static async Task<string> GetAntiforgeryTokenAsync(HttpClient client)
     {
-        using var response = await client.GetAsync("/Intake/EmailEvaluation");
+        using var response = await client.GetAsync("/Development/EmailEvaluation");
         response.EnsureSuccessStatusCode();
         var html = await response.Content.ReadAsStringAsync();
         var tag = AntiforgeryTagRegex().Match(html);
@@ -102,22 +152,34 @@ public sealed partial class EmailEvaluationWebTests
         return WebUtility.HtmlDecode(value.Groups["value"].Value);
     }
 
-    private static async Task<HttpResponseMessage> PostAsync(
+    private static Task<HttpResponseMessage> PostAsync(
         HttpClient client,
         string antiforgeryToken,
         string? fileName,
-        byte[]? bytes)
+        byte[]? bytes) =>
+        PostBatchAsync(
+            client,
+            antiforgeryToken,
+            new EmailCase(fileName, bytes, string.Empty));
+
+    private static async Task<HttpResponseMessage> PostBatchAsync(
+        HttpClient client,
+        string antiforgeryToken,
+        params EmailCase[] cases)
     {
         using var multipart = new MultipartFormDataContent();
         multipart.Add(new StringContent(antiforgeryToken), "__RequestVerificationToken");
-        if (fileName is not null && bytes is not null)
+        foreach (var testCase in cases)
         {
-            var file = new ByteArrayContent(bytes);
-            file.Headers.ContentType = MediaTypeHeaderValue.Parse("message/rfc822");
-            multipart.Add(file, "Upload", fileName);
+            if (testCase.FileName is not null && testCase.Bytes is not null)
+            {
+                var file = new ByteArrayContent(testCase.Bytes);
+                file.Headers.ContentType = MediaTypeHeaderValue.Parse("message/rfc822");
+                multipart.Add(file, "Upload", testCase.FileName);
+            }
         }
 
-        return await client.PostAsync("/Intake/EmailEvaluation", multipart);
+        return await client.PostAsync("/Development/EmailEvaluation", multipart);
     }
 
     private static MimeMessage CreateMessage(string subject, string body)

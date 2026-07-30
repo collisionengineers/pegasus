@@ -1,9 +1,13 @@
 using System.Net;
-using Microsoft.Data.Sqlite;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
+using Deque.AxeCore.Playwright;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Playwright;
 
 namespace Pegasus.IntegrationTests;
 
@@ -18,7 +22,6 @@ public sealed class SqlServerReadinessEndpointTests
             "Production",
             new Dictionary<string, string?>
             {
-                ["Database:Provider"] = "SqlServer",
                 ["ConnectionStrings:Pegasus"] =
                     "Server=127.0.0.1,1;Database=Pegasus_Unavailable;Integrated Security=true;" +
                     "Encrypt=false;Connect Timeout=1"
@@ -77,7 +80,6 @@ public sealed class SqlServerReadinessEndpointTests
             "Production",
             new Dictionary<string, string?>
             {
-                ["Database:Provider"] = "SqlServer",
                 ["ConnectionStrings:Pegasus"] =
                     $"Server=127.0.0.1,1;Database={databaseName};Application Name={applicationName};" +
                     "Integrated Security=true;" +
@@ -99,7 +101,6 @@ public sealed class SqlServerReadinessEndpointTests
         "Production",
         new Dictionary<string, string?>
         {
-            ["Database:Provider"] = "SqlServer",
             ["ConnectionStrings:Pegasus"] = connectionString
         });
 
@@ -111,10 +112,12 @@ public sealed class SqlServerReadinessEndpointTests
         });
 }
 
-public sealed class SqliteReadinessEndpointTests
+[Collection(LocalDbFixtureDefinition.Name)]
+[Trait("Category", "SqlServer")]
+public sealed class LocalDbReadinessEndpointTests
 {
     [Fact]
-    public async Task DevelopmentSqliteDatabaseMakesReadinessSuccessful()
+    public async Task DevelopmentLocalDbMakesReadinessSuccessful()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -126,24 +129,23 @@ public sealed class SqliteReadinessEndpointTests
     }
 
     [Fact]
-    public async Task DevelopmentStartupDoesNotApplySqliteMigrations()
+    public async Task DevelopmentStartupDoesNotApplyMigrations()
     {
         var workingDirectory = Path.Combine(
             Path.GetTempPath(),
             "Pegasus.StartupMigrationTests",
             Guid.NewGuid().ToString("N"));
-        var databasePath = Path.Combine(workingDirectory, "startup.db");
         Directory.CreateDirectory(workingDirectory);
 
         try
         {
+            await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
             using var factory = new ConfiguredWebApplicationFactory(
                 "Development",
                 new Dictionary<string, string?>
                 {
                     ["Runtime:Profile"] = "DevelopmentOffline",
-                    ["Database:Provider"] = "Sqlite",
-                    ["Database:LocalPath"] = databasePath,
+                    ["ConnectionStrings:Pegasus"] = database.ConnectionString,
                     ["Intake:LocalArtifactPath"] = Path.Combine(workingDirectory, "intake"),
                     ["Features:LocalIntake"] = "false"
                 });
@@ -153,23 +155,88 @@ public sealed class SqliteReadinessEndpointTests
                 BaseAddress = new Uri("https://localhost")
             });
 
-            using var response = await client.GetAsync("/health/ready");
+            using var liveResponse = await client.GetAsync("/health/live");
+            using var readyResponse = await client.GetAsync("/health/ready");
 
-            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
-            await using var connection = new SqliteConnection($"Data Source={databasePath}");
-            await connection.OpenAsync();
-            await using var command = connection.CreateCommand();
-            command.CommandText =
-                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = '__EFMigrationsHistory'";
-            Assert.Equal(0L, Convert.ToInt64(
-                await command.ExecuteScalarAsync(),
-                System.Globalization.CultureInfo.InvariantCulture));
+            Assert.Equal(HttpStatusCode.OK, liveResponse.StatusCode);
+            Assert.Equal("Healthy", await liveResponse.Content.ReadAsStringAsync());
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, readyResponse.StatusCode);
+            Assert.Equal("Unhealthy", await readyResponse.Content.ReadAsStringAsync());
+            Assert.Equal(
+                0,
+                await database.ScalarAsync<int>(
+                    "SELECT COUNT(*) FROM sys.tables WHERE name = N'__EFMigrationsHistory'"));
         }
         finally
         {
-            SqliteConnection.ClearAllPools();
             Directory.Delete(workingDirectory, recursive: true);
         }
+    }
+}
+
+[Trait("Category", "Browser")]
+public sealed class OfflineBrowserReadinessTests
+{
+    [Fact]
+    public async Task PinnedChromiumAndAxeRunWithoutNetworkDependency()
+    {
+        const string readinessDocument =
+            """
+            <!doctype html>
+            <html lang="en">
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <title>Pegasus offline browser readiness</title>
+            </head>
+            <body>
+                <main>
+                    <h1>Browser dependencies ready</h1>
+                </main>
+            </body>
+            </html>
+            """;
+
+        var violationIds = await OfflineBrowserAxe.FindViolationIdsAsync(readinessDocument);
+
+        Assert.Empty(violationIds);
+    }
+}
+
+internal static class OfflineBrowserAxe
+{
+    public static async Task<IReadOnlyList<string>> FindViolationIdsAsync(string html)
+    {
+        using var playwright = await Playwright.CreateAsync();
+        await using var browser = await playwright.Chromium.LaunchAsync(
+            new BrowserTypeLaunchOptions
+            {
+                Headless = true
+            });
+        var page = await browser.NewPageAsync(
+            new BrowserNewPageOptions
+            {
+                ColorScheme = ColorScheme.Light,
+                ReducedMotion = ReducedMotion.Reduce,
+                ViewportSize = new ViewportSize
+                {
+                    Width = 1280,
+                    Height = 720
+                }
+            });
+
+        await page.SetContentAsync(
+            html,
+            new PageSetContentOptions
+            {
+                WaitUntil = WaitUntilState.DOMContentLoaded
+            });
+        var axeResult = await page.RunAxe();
+
+        return axeResult.Violations?
+            .Select(violation => violation.Id)
+            .Order(StringComparer.Ordinal)
+            .ToArray() ?? [];
     }
 }
 
@@ -177,10 +244,61 @@ internal sealed class ConfiguredWebApplicationFactory(
     string environment,
     IReadOnlyDictionary<string, string?> settings) : WebApplicationFactory<Program>
 {
+    private readonly X509Certificate2 encryptionCertificate = CreateDevelopmentCertificate(
+        "Pegasus integration test encryption",
+        X509KeyUsageFlags.KeyEncipherment);
+    private readonly X509Certificate2 signingCertificate = CreateDevelopmentCertificate(
+        "Pegasus integration test signing",
+        X509KeyUsageFlags.DigitalSignature);
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(environment);
         builder.ConfigureAppConfiguration((_, configuration) =>
             configuration.AddInMemoryCollection(settings));
+        builder.ConfigureServices(services =>
+        {
+            services.AddOpenIddict()
+                .AddServer(options => options
+                    .AddEncryptionCertificate(encryptionCertificate)
+                    .AddSigningCertificate(signingCertificate));
+        });
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        try
+        {
+            base.Dispose(disposing);
+        }
+        finally
+        {
+            if (disposing)
+            {
+                encryptionCertificate.Dispose();
+                signingCertificate.Dispose();
+            }
+        }
+    }
+
+    private static X509Certificate2 CreateDevelopmentCertificate(
+        string commonName,
+        X509KeyUsageFlags keyUsage)
+    {
+        using var key = RSA.Create(2048);
+        var request = new CertificateRequest(
+            $"CN={commonName}",
+            key,
+            HashAlgorithmName.SHA256,
+            RSASignaturePadding.Pkcs1);
+        request.CertificateExtensions.Add(
+            new X509BasicConstraintsExtension(false, false, 0, critical: true));
+        request.CertificateExtensions.Add(new X509KeyUsageExtension(keyUsage, critical: true));
+        request.CertificateExtensions.Add(
+            new X509SubjectKeyIdentifierExtension(request.PublicKey, critical: false));
+
+        return request.CreateSelfSigned(
+            DateTimeOffset.UtcNow.AddMinutes(-5),
+            DateTimeOffset.UtcNow.AddDays(1));
     }
 }

@@ -13,7 +13,7 @@ Intended, planned, implemented, caller-proved, deployed and accepted are distinc
 - **Accepted** requires the specified accessibility and operator review evidence.
 - The three retained comparison rasters record the shell-selection comparison. Operations-first is the selected strategy; raster pixels and details are not design approval or runtime evidence.
 
-The only currently called Pegasus UI is the Development-only Razor Pages dashboard and `/Intake/Upload` path through Core `ProcessIntake`, including retained-asset download. It is unauthenticated, creates no case or reference, and is not the planned staff UI. The Operations, Intake, Triage, Cases and Administration surfaces remain planned. The current proof has no accepted complete accessibility evidence.
+The prior dated caller proof covered the now-retired Development-only `/Intake/Upload` thin slice. The implemented offline QDOS-alpha surface now assigns authenticated manual receipt/list/detail/source work to `/Intake`, `/Intake/{id}`, and `/Intake/{id}/Source`, keeps the non-persistent evaluator at `/Development/EmailEvaluation`, and exposes token-bound public request submission only at `/Uploads/{token}`. This cutover is not deployment, accessibility acceptance, or operator acceptance evidence.
 
 Detailed durable product-design owners are the
 [operator-experience requirements](product/requirements.md),
@@ -333,8 +333,8 @@ Only the first table describes exercised components. Planned contracts do not cr
 | --- | --- | --- |
 | Development shell/navigation | Identify the current proof and reach Development routes; normal, hover and focus; local-intake link is conditional | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` |
 | Queue/metric card | Show persisted Development intake counts and open the exact list; empty/value links are exercised; stale/unavailable is planned but unimplemented | `src/Pegasus.Web/Pages/Index.cshtml`, `src/Pegasus.Web/wwwroot/css/site.css` |
-| Upload form | Submit one supported local source through the real caller; validation, refusal and success | `src/Pegasus.Web/Pages/Intake/Upload.cshtml` |
-| Intake queue/review | List persisted receipts and inspect source, evidence, draft and assets; filters, empty state, failure detail and retained-asset download | `src/Pegasus.Web/Pages/Intake/` |
+| Intake receipt and upload | Submit one bounded authenticated source through `ReceiveIntake`; list retained receipts; inspect provenance and decisions; download the retained source only as an authorised safe attachment | `src/Pegasus.Web/Pages/Intake/{Index,Details,Source}.cshtml(.cs)` |
+| Triage queue/detail | List and filter triage records and execute the Core-owned detail commands without adding due/chaser controls | `src/Pegasus.Web/Pages/Triage/{Index,Details}.cshtml(.cs)` |
 
 ### Planned component contracts
 

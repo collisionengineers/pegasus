@@ -1,15 +1,14 @@
 using System.IO.Compression;
 using System.Net;
-using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.RegularExpressions;
 using Pegasus.Core.Intake;
 using Microsoft.Extensions.DependencyInjection;
 using MimeKit;
 
 namespace Pegasus.IntegrationTests;
 
+[Collection(LocalDbFixtureDefinition.Name)]
 public sealed partial class MultiFormatIntakeWebTests
 {
     [Fact]
@@ -23,11 +22,9 @@ public sealed partial class MultiFormatIntakeWebTests
             "Vehicle Registration: AB12 CDE",
             "Claimant Name: Synthetic Person");
 
-        var result = await UploadAsync(
-            client,
-            "synthetic-instruction.docx",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            docx);
+        var result = await UploadAsync(factory, client, "synthetic-instruction.docx",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        docx);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
@@ -43,6 +40,33 @@ public sealed partial class MultiFormatIntakeWebTests
         Assert.Contains("Instruction draft", reviewHtml, StringComparison.Ordinal);
     }
 
+    [Fact]
+    [Trait("Category", "Browser")]
+    public async Task PinnedChromiumRendersActualIntakeReviewWithoutAutomatedAxeViolations()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory);
+        var docx = CreateDocx(
+            "QDOS instruction",
+            "Claim Number: SYN-BROWSER-001",
+            "Vehicle Registration: AB12 CDE",
+            "Claimant Name: Synthetic Person");
+
+        var result = await UploadAsync(factory, client, "synthetic-browser-instruction.docx",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        docx);
+        var reviewHtml = await GetReviewHtmlAsync(client, result);
+        var stylesheet = await client.GetStringAsync("/css/site.css");
+        var styledReviewHtml = reviewHtml.Replace(
+            "</head>",
+            $"<style>{stylesheet}</style></head>",
+            StringComparison.Ordinal);
+
+        var violationIds = await OfflineBrowserAxe.FindViolationIdsAsync(styledReviewHtml);
+
+        Assert.Empty(violationIds);
+    }
+
     [Theory]
     [InlineData("legacy-instruction.doc", "application/msword")]
     [InlineData("outlook-message.msg", "application/vnd.ms-outlook")]
@@ -53,7 +77,7 @@ public sealed partial class MultiFormatIntakeWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
 
-        var result = await UploadAsync(client, fileName, mediaType, CreateOleHeader());
+        var result = await UploadAsync(factory, client, fileName, mediaType, CreateOleHeader());
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
@@ -75,7 +99,7 @@ public sealed partial class MultiFormatIntakeWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
 
-        var result = await UploadAsync(client, fileName, mediaType, Convert.FromBase64String(base64));
+        var result = await UploadAsync(factory, client, fileName, mediaType, Convert.FromBase64String(base64));
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
@@ -113,7 +137,7 @@ public sealed partial class MultiFormatIntakeWebTests
             ("vehicle.jpg", "image/jpeg", image));
         AttachNestedMessage(message, "forwarded-message.eml", nested);
 
-        var result = await UploadAsync(client, "mixed-intake.eml", "message/rfc822", Serialize(message));
+        var result = await UploadAsync(factory, client, "mixed-intake.eml", "message/rfc822", Serialize(message));
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
@@ -142,7 +166,7 @@ public sealed partial class MultiFormatIntakeWebTests
             ("vehicle-front-original.jpg", "image/jpeg", image),
             ("vehicle-front-copy.jpg", "image/jpeg", image));
 
-        var result = await UploadAsync(client, "duplicate-images.eml", "message/rfc822", Serialize(message));
+        var result = await UploadAsync(factory, client, "duplicate-images.eml", "message/rfc822", Serialize(message));
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
@@ -165,11 +189,9 @@ public sealed partial class MultiFormatIntakeWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
 
-        var result = await UploadAsync(
-            client,
-            "malformed.docx",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "PK not a valid Open XML package"u8.ToArray());
+        var result = await UploadAsync(factory, client, "malformed.docx",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "PK not a valid Open XML package"u8.ToArray());
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
@@ -186,7 +208,7 @@ public sealed partial class MultiFormatIntakeWebTests
         using var client = CreateClient(factory);
         var message = CreateNestedMessageChain(10);
 
-        var result = await UploadAsync(client, "too-deep.eml", "message/rfc822", Serialize(message));
+        var result = await UploadAsync(factory, client, "too-deep.eml", "message/rfc822", Serialize(message));
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
@@ -202,7 +224,7 @@ public sealed partial class MultiFormatIntakeWebTests
         using var client = CreateClient(factory);
         var pdf = CreateImagePdf(new PdfImagePlacement(0, 0, 612, 792, 0xff, 0xff, 0xff));
 
-        var result = await UploadAsync(client, "full-page-scan.pdf", "application/pdf", pdf);
+        var result = await UploadAsync(factory, client, "full-page-scan.pdf", "application/pdf", pdf);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
@@ -225,7 +247,7 @@ public sealed partial class MultiFormatIntakeWebTests
         using var client = CreateClient(factory);
         var pdf = CreateImagePdf(new PdfImagePlacement(20, 20, 100, 100, 0xff, 0xff, 0xff));
 
-        var result = await UploadAsync(client, "small-raster.pdf", "application/pdf", pdf);
+        var result = await UploadAsync(factory, client, "small-raster.pdf", "application/pdf", pdf);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
@@ -238,7 +260,7 @@ public sealed partial class MultiFormatIntakeWebTests
     }
 
     [Fact]
-    public async Task TwoDiscretePdfImageObjectsRemainSeparateAndDownloadAsImages()
+    public async Task TwoDiscretePdfImageObjectsRemainSeparateInReceipt()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
@@ -246,7 +268,7 @@ public sealed partial class MultiFormatIntakeWebTests
             new PdfImagePlacement(20, 20, 100, 100, 0xff, 0x00, 0x00),
             new PdfImagePlacement(180, 20, 100, 100, 0x00, 0x00, 0xff));
 
-        var result = await UploadAsync(client, "two-images.pdf", "application/pdf", pdf);
+        var result = await UploadAsync(factory, client, "two-images.pdf", "application/pdf", pdf);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var images = receipt.AssetRecords
             .Where(asset => asset.Kind == IntakeAssetKind.EmbeddedImage)
@@ -259,18 +281,34 @@ public sealed partial class MultiFormatIntakeWebTests
         Assert.NotEqual(images[0].Id, images[1].Id);
         Assert.NotEqual(images[0].ContentHash, images[1].ContentHash);
 
-        foreach (var image in images)
-        {
-            using var response = await client.GetAsync(
-                $"/Intake/Review/{receipt.Id}?handler=Asset&assetId={image.Id}");
-            response.EnsureSuccessStatusCode();
-            var downloaded = await response.Content.ReadAsByteArrayAsync();
+    }
 
-            Assert.Equal(image.MediaType, response.Content.Headers.ContentType?.MediaType);
-            Assert.StartsWith("image/", image.MediaType, StringComparison.Ordinal);
-            Assert.Equal(image.ContentLength, downloaded.LongLength);
-            Assert.Equal(image.ContentHash, Convert.ToHexString(SHA256.HashData(downloaded)));
-        }
+    [Fact]
+    public async Task RetainedHtmlSourceDownloadsOnlyAsANoSniffAttachmentAndUnknownIdDoesNotDisclose()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory);
+        var htmlSource = Encoding.UTF8.GetBytes(
+            "<!doctype html><script>document.body.dataset.executed='true'</script>");
+        var result = await UploadAsync(factory, client, "inbound.html", "text/html", htmlSource);
+        var receiptId = ReceiptId(result);
+
+        using var response = await client.GetAsync($"/Intake/{receiptId}/Source");
+        response.EnsureSuccessStatusCode();
+        var downloaded = await response.Content.ReadAsByteArrayAsync();
+
+        Assert.Equal("application/octet-stream", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("attachment", response.Content.Headers.ContentDisposition?.DispositionType);
+        Assert.True(response.Headers.TryGetValues("X-Content-Type-Options", out var contentTypeOptions));
+        Assert.Contains("nosniff", contentTypeOptions);
+        Assert.Equal(htmlSource, downloaded);
+
+        using var unknownResponse = await client.GetAsync($"/Intake/{Guid.NewGuid()}/Source");
+        var unknownBody = await unknownResponse.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.NotFound, unknownResponse.StatusCode);
+        Assert.DoesNotContain(receiptId.ToString(), unknownBody, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("inbound.html", unknownBody, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("document.body.dataset", unknownBody, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -283,7 +321,7 @@ public sealed partial class MultiFormatIntakeWebTests
             .ToArray();
         var pdf = CreateTextPdf(pageTexts);
 
-        var result = await UploadAsync(client, "thirty-page-instruction.pdf", "application/pdf", pdf);
+        var result = await UploadAsync(factory, client, "thirty-page-instruction.pdf", "application/pdf", pdf);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
         Assert.Equal(IntakeDecision.DraftReady, receipt.Decision);
@@ -304,7 +342,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var pdf = CreateTextPdf(Enumerable.Repeat(string.Empty, 40).ToArray());
         Assert.InRange(pdf.LongLength, 1, 10L * 1024 * 1024);
 
-        var result = await UploadAsync(client, "many-blank-pages.pdf", "application/pdf", pdf);
+        var result = await UploadAsync(factory, client, "many-blank-pages.pdf", "application/pdf", pdf);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
@@ -335,7 +373,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var pdf = CreateImagePdf(images);
         Assert.InRange(pdf.LongLength, 1, 10L * 1024 * 1024);
 
-        var result = await UploadAsync(client, "too-many-pdf-images.pdf", "application/pdf", pdf);
+        var result = await UploadAsync(factory, client, "too-many-pdf-images.pdf", "application/pdf", pdf);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
@@ -359,7 +397,7 @@ public sealed partial class MultiFormatIntakeWebTests
             SampleWidth: 10_001,
             SampleHeight: 10_000));
 
-        var result = await UploadAsync(client, "oversized-pdf-raster.pdf", "application/pdf", pdf);
+        var result = await UploadAsync(factory, client, "oversized-pdf-raster.pdf", "application/pdf", pdf);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
@@ -376,7 +414,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var pdf = CreatePdf(text);
         Assert.InRange(pdf.LongLength, 1, 10L * 1024 * 1024);
 
-        var result = await UploadAsync(client, "excessive-pdf-text.pdf", "application/pdf", pdf);
+        var result = await UploadAsync(factory, client, "excessive-pdf-text.pdf", "application/pdf", pdf);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
@@ -409,7 +447,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var source = Serialize(message);
         Assert.InRange(source.LongLength, 1, 10L * 1024 * 1024);
 
-        var result = await UploadAsync(client, "shared-pdf-budget.eml", "message/rfc822", source);
+        var result = await UploadAsync(factory, client, "shared-pdf-budget.eml", "message/rfc822", source);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
@@ -433,7 +471,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var pdf = CreateRepeatedJpegImagePdf(jpeg, placementCount);
         Assert.InRange(pdf.LongLength, jpeg.LongLength, 10L * 1024 * 1024);
 
-        var result = await UploadAsync(client, "reused-large-jpeg.pdf", "application/pdf", pdf);
+        var result = await UploadAsync(factory, client, "reused-large-jpeg.pdf", "application/pdf", pdf);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
@@ -459,7 +497,7 @@ public sealed partial class MultiFormatIntakeWebTests
             multipart.Add(new TextPart("plain") { Text = $"Synthetic part {index}" });
         }
 
-        var result = await UploadAsync(client, "many-parts.eml", "message/rfc822", Serialize(message));
+        var result = await UploadAsync(factory, client, "many-parts.eml", "message/rfc822", Serialize(message));
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
@@ -480,7 +518,7 @@ public sealed partial class MultiFormatIntakeWebTests
             multipart.Add(new TextPart("plain") { Text = $"Synthetic part {index}" });
         }
 
-        var result = await UploadAsync(client, "confirming-many-parts.eml", "message/rfc822", Serialize(message));
+        var result = await UploadAsync(factory, client, "confirming-many-parts.eml", "message/rfc822", Serialize(message));
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
@@ -495,7 +533,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var message = CreateNestedMessageChain(10);
         SetFirstTextBody(message, ConfirmingQdosBody);
 
-        var result = await UploadAsync(client, "confirming-too-deep.eml", "message/rfc822", Serialize(message));
+        var result = await UploadAsync(factory, client, "confirming-too-deep.eml", "message/rfc822", Serialize(message));
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
@@ -513,7 +551,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var source = Serialize(message);
         Assert.InRange(source.LongLength, 1, 10L * 1024 * 1024);
 
-        var result = await UploadAsync(client, "confirming-decoded-limit.eml", "message/rfc822", source);
+        var result = await UploadAsync(factory, client, "confirming-decoded-limit.eml", "message/rfc822", source);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
@@ -528,11 +566,9 @@ public sealed partial class MultiFormatIntakeWebTests
         var docx = CreateResourceHeavyDocx(additionalEntryCount: 513, additionalUncompressedBytes: 0);
         Assert.InRange(docx.LongLength, 1, 10L * 1024 * 1024);
 
-        var result = await UploadAsync(
-            client,
-            "too-many-entries.docx",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            docx);
+        var result = await UploadAsync(factory, client, "too-many-entries.docx",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        docx);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
@@ -551,11 +587,9 @@ public sealed partial class MultiFormatIntakeWebTests
             additionalUncompressedBytes: (51L * 1024 * 1024));
         Assert.InRange(docx.LongLength, 1, 10L * 1024 * 1024);
 
-        var result = await UploadAsync(
-            client,
-            "too-large-expanded.docx",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            docx);
+        var result = await UploadAsync(factory, client, "too-large-expanded.docx",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        docx);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
@@ -574,11 +608,9 @@ public sealed partial class MultiFormatIntakeWebTests
             additionalUncompressedBytes: (11L * 1024 * 1024));
         Assert.InRange(docx.LongLength, 1, 10L * 1024 * 1024);
 
-        var result = await UploadAsync(
-            client,
-            "oversized-xml-part.docx",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            docx);
+        var result = await UploadAsync(factory, client, "oversized-xml-part.docx",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        docx);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
         Assert.Equal(IntakeDecision.Unsupported, receipt.Decision);
@@ -595,7 +627,9 @@ public sealed partial class MultiFormatIntakeWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         const string attachmentName = "oversized-extracted-image.docx";
-        var docx = CreateDocxWithLargeImage((26L * 1024 * 1024));
+        var docx = CreateDocxWithImagePlacements(
+            [13L * 1024 * 1024, 13L * 1024 * 1024],
+            [0, 1]);
         var message = CreateMessage(
             "Synthetic oversized DOCX image attachment",
             ConfirmingQdosBody,
@@ -603,11 +637,9 @@ public sealed partial class MultiFormatIntakeWebTests
         var source = Serialize(message);
         Assert.InRange(source.LongLength, 1, 10L * 1024 * 1024);
 
-        var result = await UploadAsync(
-            client,
-            "oversized-docx-image-attachment.eml",
-            "message/rfc822",
-            source);
+        var result = await UploadAsync(factory, client, "oversized-docx-image-attachment.eml",
+        "message/rfc822",
+        source);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
@@ -623,6 +655,42 @@ public sealed partial class MultiFormatIntakeWebTests
     }
 
     [Fact]
+    public async Task ConfirmingEmailWithRepeatedDocxImagePlacementCountsSharedContentOnce()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory);
+        var docx = CreateDocxWithImagePlacements(
+            [13L * 1024 * 1024],
+            [0, 0]);
+        var message = CreateMessage(
+            "Synthetic repeated DOCX image placement",
+            ConfirmingQdosBody,
+            ("repeated-image.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", docx));
+
+        var result = await UploadAsync(factory, client, "repeated-docx-image-attachment.eml",
+        "message/rfc822",
+        Serialize(message));
+        var receipt = await GetReceiptAsync(factory, ReceiptId(result));
+        var images = receipt.AssetRecords
+            .Where(asset => asset.Kind == IntakeAssetKind.EmbeddedImage)
+            .OrderBy(asset => asset.SourceLabel, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(IntakeDecision.DraftReady, receipt.Decision);
+        Assert.DoesNotContain(receipt.Evidence, evidence => evidence.Signal == "intake_limit_exceeded");
+        Assert.Equal(2, images.Length);
+        Assert.Equal(
+            "uploaded repeated-docx-image-attachment.eml, attachment 1: repeated-image.docx, embedded image 1",
+            images[0].SourceLabel);
+        Assert.Equal(
+            "uploaded repeated-docx-image-attachment.eml, attachment 1: repeated-image.docx, embedded image 2",
+            images[1].SourceLabel);
+        Assert.NotEqual(images[0].Id, images[1].Id);
+        Assert.All(images, image => Assert.Equal(13L * 1024 * 1024, image.ContentLength));
+        Assert.Equal(images[0].ContentHash, images[1].ContentHash);
+    }
+
+    [Fact]
     public async Task ConfirmingEmailKeepsBodyDecisionAndSurfacesCorruptDocumentAttachments()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -633,7 +701,7 @@ public sealed partial class MultiFormatIntakeWebTests
             ("corrupt.pdf", "application/pdf", "not a PDF"u8.ToArray()),
             ("corrupt.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "PK invalid"u8.ToArray()));
 
-        var result = await UploadAsync(client, "corrupt-attachments.eml", "message/rfc822", Serialize(message));
+        var result = await UploadAsync(factory, client, "corrupt-attachments.eml", "message/rfc822", Serialize(message));
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
@@ -651,7 +719,7 @@ public sealed partial class MultiFormatIntakeWebTests
         using var client = CreateClient(factory);
         var pdf = CreateImagePdf(new PdfImagePlacement(500, 0, 612, 792, 0xff, 0xff, 0xff));
 
-        var result = await UploadAsync(client, "mostly-off-page.pdf", "application/pdf", pdf);
+        var result = await UploadAsync(factory, client, "mostly-off-page.pdf", "application/pdf", pdf);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
@@ -669,7 +737,7 @@ public sealed partial class MultiFormatIntakeWebTests
             800,
             new PdfImagePlacement(0, 0, 480, 800, 0xff, 0xff, 0xff));
 
-        var result = await UploadAsync(client, "exact-boundary.pdf", "application/pdf", pdf);
+        var result = await UploadAsync(factory, client, "exact-boundary.pdf", "application/pdf", pdf);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
         Assert.Equal(IntakeDecision.OcrRequired, receipt.Decision);
@@ -677,14 +745,14 @@ public sealed partial class MultiFormatIntakeWebTests
     }
 
     [Fact]
-    public async Task TamperedStoredImageReturnsConflictWithoutIntegrityDetailLeakage()
+    public async Task TamperedRetainedSourceReturnsConflictWithoutIntegrityDetailLeakage()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var original = Convert.FromBase64String(TinyPngBase64)
             .Concat(Guid.NewGuid().ToByteArray())
             .ToArray();
-        var result = await UploadAsync(client, "unique-integrity.png", "image/png", original);
+        var result = await UploadAsync(factory, client, "unique-integrity.png", "image/png", original);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var asset = Assert.Single(
             receipt.AssetRecords,
@@ -706,12 +774,11 @@ public sealed partial class MultiFormatIntakeWebTests
             Assert.True(File.Exists(artifactPath), "The real intake caller did not retain its source artifact.");
             await File.WriteAllBytesAsync(artifactPath, Encoding.UTF8.GetBytes(tamperedText));
 
-            using var response = await client.GetAsync(
-                $"/Intake/Review/{receipt.Id}?handler=Asset&assetId={asset.Id}");
+            using var response = await client.GetAsync($"/Intake/{receipt.Id}/Source");
             var responseBody = await response.Content.ReadAsStringAsync();
 
             Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-            Assert.Contains("integrity", responseBody, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal("The retained source could not be downloaded safely.", responseBody);
             Assert.False(
                 responseBody.Contains(asset.StorageKey, StringComparison.Ordinal),
                 "The integrity response exposed its storage key.");
@@ -750,52 +817,21 @@ public sealed partial class MultiFormatIntakeWebTests
             BaseAddress = new Uri("https://localhost")
         });
 
-    private static async Task<MultiFormatUploadResult> UploadAsync(
+    private static Task<UploadResult> UploadAsync(
+        IntakeWebApplicationFactory factory,
         HttpClient client,
         string fileName,
         string mediaType,
-        byte[] bytes)
-    {
-        using var formPage = await client.GetAsync("/Intake/Upload");
-        formPage.EnsureSuccessStatusCode();
-        var formHtml = await formPage.Content.ReadAsStringAsync();
-        var tokenTag = AntiforgeryTagRegex().Match(formHtml);
-        Assert.True(tokenTag.Success, "The real upload page must render an antiforgery token.");
-        var tokenValue = AntiforgeryValueRegex().Match(tokenTag.Value);
-        Assert.True(tokenValue.Success, "The antiforgery token must have a value.");
-        var receiptTokenTag = ExternalReceiptTokenTagRegex().Match(formHtml);
-        Assert.True(receiptTokenTag.Success, "The real upload page must render an external receipt token.");
-        var receiptTokenValue = AntiforgeryValueRegex().Match(receiptTokenTag.Value);
-        Assert.True(receiptTokenValue.Success, "The external receipt token must have a value.");
+        byte[] bytes) =>
+        IntakeWebDriver.UploadAndProcessAsync(
+            factory,
+            client,
+            fileName,
+            mediaType,
+            bytes);
 
-        using var multipart = new MultipartFormDataContent();
-        multipart.Add(
-            new StringContent(WebUtility.HtmlDecode(tokenValue.Groups["value"].Value)),
-            "__RequestVerificationToken");
-        multipart.Add(
-            new StringContent(WebUtility.HtmlDecode(receiptTokenValue.Groups["value"].Value)),
-            "ExternalReceiptToken");
-        var file = new ByteArrayContent(bytes);
-        file.Headers.ContentType = MediaTypeHeaderValue.Parse(mediaType);
-        multipart.Add(file, "Upload", fileName);
-
-        using var response = await client.PostAsync("/Intake/Upload", multipart);
-        return new(
-            response.StatusCode,
-            response.Headers.Location,
-            await response.Content.ReadAsStringAsync());
-    }
-
-    private static Guid ReceiptId(MultiFormatUploadResult result)
-    {
-        Assert.True(
-            result.StatusCode == HttpStatusCode.Redirect,
-            $"Expected the real caller to accept the source, but received {(int)result.StatusCode}: {result.ResponseBody}");
-        Assert.NotNull(result.Location);
-        var path = result.Location!.OriginalString.Split('?', 2)[0];
-        Assert.True(Guid.TryParse(path.Split('/', StringSplitOptions.RemoveEmptyEntries).Last(), out var id));
-        return id;
-    }
+    private static Guid ReceiptId(UploadResult result) =>
+        IntakeWebDriver.ReceiptId(result);
 
     private static async Task<IntakeReceipt> GetReceiptAsync(
         IntakeWebApplicationFactory factory,
@@ -808,7 +844,7 @@ public sealed partial class MultiFormatIntakeWebTests
 
     private static async Task<string> GetReviewHtmlAsync(
         HttpClient client,
-        MultiFormatUploadResult result)
+        UploadResult result)
     {
         using var response = await client.GetAsync(result.Location);
         response.EnsureSuccessStatusCode();
@@ -901,7 +937,9 @@ public sealed partial class MultiFormatIntakeWebTests
         return output.ToArray();
     }
 
-    private static byte[] CreateDocxWithLargeImage(long imageBytes)
+    private static byte[] CreateDocxWithImagePlacements(
+        IReadOnlyList<long> imageByteCounts,
+        IReadOnlyList<int> placementImageIndexes)
     {
         var baseDocx = CreateDocx(
             "QDOS instruction",
@@ -927,25 +965,65 @@ public sealed partial class MultiFormatIntakeWebTests
                     "</Types>",
                     "<Default Extension=\"png\" ContentType=\"image/png\" /></Types>",
                     StringComparison.Ordinal));
+
+            var relationships = string.Join(
+                string.Empty,
+                imageByteCounts.Select((_, index) =>
+                    $"<Relationship Id=\"rIdImage{index}\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/image-{index}.png\" />"));
             WriteZipEntry(
                 archive,
                 "word/_rels/document.xml.rels",
-                """
-                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-                  <Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/large.png" />
-                </Relationships>
-                """);
+                $"""
+                 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                   {relationships}
+                 </Relationships>
+                 """);
 
-            var imageEntry = archive.CreateEntry("word/media/large.png", CompressionLevel.SmallestSize);
-            using var imageStream = imageEntry.Open();
-            var buffer = new byte[64 * 1024];
-            long written = 0;
-            while (written < imageBytes)
+            var documentEntry = Assert.IsType<ZipArchiveEntry>(archive.GetEntry("word/document.xml"));
+            string document;
+            using (var reader = new StreamReader(documentEntry.Open(), Encoding.UTF8))
             {
-                var count = (int)Math.Min(buffer.Length, imageBytes - written);
-                imageStream.Write(buffer, 0, count);
-                written += count;
+                document = reader.ReadToEnd();
+            }
+
+            var placements = string.Join(
+                string.Empty,
+                placementImageIndexes.Select(index =>
+                    $"""
+                     <w:p><w:r><w:drawing>
+                       <wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
+                         <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+                           <a:graphicData>
+                             <pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                               <pic:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="rIdImage{index}" /></pic:blipFill>
+                             </pic:pic>
+                           </a:graphicData>
+                         </a:graphic>
+                       </wp:inline>
+                     </w:drawing></w:r></w:p>
+                     """));
+            documentEntry.Delete();
+            WriteZipEntry(
+                archive,
+                "word/document.xml",
+                document.Replace("<w:sectPr />", $"{placements}<w:sectPr />", StringComparison.Ordinal));
+
+            for (var imageIndex = 0; imageIndex < imageByteCounts.Count; imageIndex++)
+            {
+                var imageEntry = archive.CreateEntry(
+                    $"word/media/image-{imageIndex}.png",
+                    CompressionLevel.SmallestSize);
+                using var imageStream = imageEntry.Open();
+                var buffer = new byte[64 * 1024];
+                Array.Fill(buffer, (byte)(imageIndex + 1));
+                long written = 0;
+                while (written < imageByteCounts[imageIndex])
+                {
+                    var count = (int)Math.Min(buffer.Length, imageByteCounts[imageIndex] - written);
+                    imageStream.Write(buffer, 0, count);
+                    written += count;
+                }
             }
         }
 
@@ -1261,19 +1339,6 @@ public sealed partial class MultiFormatIntakeWebTests
     private static void WriteAscii(Stream stream, string value) =>
         stream.Write(Encoding.ASCII.GetBytes(value));
 
-    [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex AntiforgeryTagRegex();
-
-    [GeneratedRegex("<input[^>]*name=\"ExternalReceiptToken\"[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex ExternalReceiptTokenTagRegex();
-
-    [GeneratedRegex("value=\"(?<value>[^\"]+)\"", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex AntiforgeryValueRegex();
-
-    private sealed record MultiFormatUploadResult(
-        HttpStatusCode StatusCode,
-        Uri? Location,
-        string ResponseBody);
 
     private sealed record PdfImagePlacement(
         int X,
