@@ -449,9 +449,7 @@
         {
             <form method="post" asp-page-handler="GenerateEvaHandoff" class="form-grid">
                 <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                <label>Overview image<select name="overviewImageOccurrenceId" required><option value="">Select</option>@foreach (var image in eva.Images){<option value="@image.OccurrenceId">@image.FileName (v@image.Version)</option>}</select></label>
-                <label>Main-damage image<select name="mainDamageImageOccurrenceId" required><option value="">Select</option>@foreach (var image in eva.Images){<option value="@image.OccurrenceId">@image.FileName (v@image.Version)</option>}</select></label>
-                <fieldset class="field-wide"><legend>Ordered image set</legend>@foreach (var image in eva.Images){<label><input type="checkbox" name="orderedImageOccurrenceIds" value="@image.OccurrenceId" /> @image.FileName (v@image.Version)</label>}</fieldset>
+                <p class="field-wide">The focused handoff includes every eligible custody-confirmed vehicle image in deterministic order. EVA owns downstream selection and ordering.</p>
                 <label class="field-wide">Reason<input name="reason" required maxlength="300" /></label><button type="submit" class="primary-action">Generate deterministic EVA handoff</button>
             </form>
         }
