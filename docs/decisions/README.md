@@ -23,6 +23,7 @@ acceptance.
 | [ADR-0007: Repository-local planning plugin boundaries](ADR-0007-repository-local-codex-planning-plugin-boundaries.md) | Superseded historical record. Decision 0012 is the current tool-neutral workflow authority. |
 | [ADR-0008: Focused repository workflow plugins](ADR-0008-focused-repository-workflow-plugins.md) | Superseded historical record. Decision 0010 succeeded it and Decision 0012 superseded 0010. |
 | [ADR-0009: Direct authorised-terminal Azure deployment](ADR-0009-direct-terminal-azure-deployment.md) | Accepted target deployment mechanism, superseding only ADR-0002's mechanism. It authorizes no command and proves no deployment. |
+| [ADR-0010: Standalone local desktop email evaluator](ADR-0010-standalone-desktop-email-evaluator.md) | Accepted local-development boundary. The desktop tool is independently runnable, omitted from `Pegasus.slnx`, and has no production, mailbox, Box, cloud, or deployment caller. |
 
 ## Repository decisions
 
