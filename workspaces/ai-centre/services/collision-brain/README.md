@@ -99,4 +99,5 @@ PostgreSQL/pgvector, S3, and container proof are reported only when their exact
 local targets are available and exercised. This workspace remains implementation
 and local-evaluation evidence; it is not deployment, caller proof for Pegasus, or
 operator acceptance. See [architecture](docs/architecture.md),
-[operations](docs/operations.md), and [security](docs/security.md).
+[operations](docs/operations.md), [security](docs/security.md), and the
+[provider evaluation evidence](docs/provider-evaluation.md).
