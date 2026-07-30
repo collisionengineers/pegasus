@@ -78,11 +78,10 @@ The upstream token source was `styles/colors_and_type.css` in the provided `coll
 | Border | `#E6E4E1` |
 | Muted text | `#6B6B6B` |
 | Confirmed-success green | `#16833B` |
-| Incomplete/pending amber | Semantic role accepted; target value remains open |
-| Review navy | Semantic role accepted; target value remains open |
+ | Incomplete/pending amber | `#7A3E00` (fg) / `#FFF4D6` (bg) / `#A15C00` (border) |
+ | Review navy | `#143A5E` (fg) / `#EAF1F8` (bg) / `#365F87` (border) |
 
-Amber incomplete/pending and navy **Review** are approved Pegasus semantics, but their final token values are unresolved. The current `site.css` values `#B87A00` and `#173B5F` are runtime-divergence evidence only and must not be promoted to approved targets without a reviewed reconciliation. Green must not represent progress, availability or a generic positive action; it is reserved for confirmed completion.
-
+ Amber incomplete/pending (`#7A3E00`/`#FFF4D6`/`#A15C00`) and navy **Review** (`#143A5E`/`#EAF1F8`/`#365F87`) are approved Pegasus state tokens implemented across `site.css` and status partials. Green must not represent progress, availability or a generic positive action; it is reserved for confirmed completion.
 Excluded marketing tokens include WhatsApp green/pills, large display scales, CTA shadows, document red and brand-font declarations.
 
 ### Typography
@@ -173,6 +172,12 @@ Rules:
 
 The upstream source directory may be absent from a clean checkout. The checksum-pinned repository copy is the durable source.
 
+
+ #### Logo source-to-runtime mapping
+
+ | Asset | Upstream source & SHA-256 | Web runtime destination & SHA-256 | Mapping & usage |
+ | --- | --- | --- | --- |
+ | Primary logo | `design/brand/logos/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | `src/Pegasus.Web/wwwroot/images/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | Byte-for-byte copy embedded in `_Layout.cshtml` header navbar link. Replaces fake `CE` mark and unproven favicon link. |
 ### Icons
 
 Lucide is the only approved Web/UI icon system:
@@ -187,6 +192,30 @@ Do not use emoji, Unicode dingbats, hand-drawn icons or infrastructure symbols.
 
 No Lucide package or copied SVG set is currently exercised. A selected implementation must choose a repository-owned delivery path, map every used glyph and provide accessible labels whenever an icon is not decorative. `src/Pegasus.Web/wwwroot/favicon.ico` has unrecorded provenance and is not icon-system authority.
 
+
+ #### Lucide icons source-to-runtime mapping
+
+ Upstream source: Lucide official SVG vectors release (v0.344.0).
+ Runtime sprite: `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg` (SHA-256 `C81F067708B5EF1C2CEDABF4A38BADC175A11DEFE7919DA69192100EE6922BF1`).
+
+ | Icon glyph | Glyph SHA-256 | Usage & accessibility mapping |
+ | --- | --- | --- |
+ | `search` | `832472670DB14C3420D64D80271A04FE90AE32D47F4834F4E70E9A8E2678EE7E` | Global search action and input field prefix icon (`aria-hidden="true"`) |
+ | `user` | `F12759D8CA6B092DCA70B2E265F4CD8921C6DC61B408C9DA3FFFC8650BE76AA2` | Authenticated user menu / profile identity icon |
+ | `refresh-cw` | `C795E4B7F739E9CF2D5C5996CBDF8A0541734F0DC99EBE169BAE945FD04E2AA2` | Manual refresh action / freshness banner status icon |
+ | `clock` | `EE847E37391A579398EA5CB111A4893642085DEA959EF3812F210ED69EABC5C6` | Freshness timestamp and due date indicator icon |
+ | `calendar` | `9164C7178F10683EF0FB999F773149CD7AF5964875E6E896C6826F5A8988C67F` | Date range and instruction date filter icon |
+ | `check-circle` | `CB9B89AA467B527393B51229F14E0314DB15D75792D2071C5FE599AB595C7678` | Confirmed success status badge icon |
+ | `alert-triangle` | `40DEB35C6E3562DB12C1962989A7D9E24C758489247929C156DEDD8476DBE233` | Incomplete / pending / warning status chip icon |
+ | `alert-circle` | `69DA72930B08F89FA5C1AFDA3D5813BFAFA124D3E86F66B2100300F2B7DEB415` | Error summary / blocked intake status icon |
+ | `info` | `9B266C26D53D1F6661CD45D11E5138FE00AF4289EA4EC8D4C320D41AB272CC3F` | Provenance panel and field detail information icon |
+ | `file-text` | `A6AF7723E87920CF322C8C39F0A1080075BFA19B3E966A8E21D2D81A93772936` | Source document and instruction evidence icon |
+ | `filter` | `C4319C676F5B160213319934EB2DEC6F60DD6F73C344C0D6C84AE1699430D45C` | Table and workbench queue filter control icon |
+ | `shield` | `456B29F0717F73785AE1CA5A492EF0B21693BDA13045B509E845BA38F08717AE` | Administration workspace navigation icon |
+ | `chevron-right` | `07C6F850908E2A9ABA2AD8B7B91AA8E525D463398D479DAD5EF10CB534FE3710` | Interactive table row expansion indicator |
+ | `arrow-right` | `D8B246C7FDBAB41053F2016892C0664BB64C0C6D1ED4594C9D80470C1B219C70` | Action transition and external link indicator |
+ | `upload` | `EE63E95EFECDAF141338475D367A54EF891E337491993DCDC1F3ED7936A42660` | Intake manual upload action icon |
+ | `lock` | `1F0A0861A3752428E1D5CABDAC22608E645A008229EF58415EC0C0E112F5BF2D` | Case edit lease indicator icon |
 ### Imagery and evidence
 
 No brand or decorative imagery is needed for the internal Web application. Upstream marketing photography is excluded.

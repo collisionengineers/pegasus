@@ -1,0 +1,20 @@
+@model string
+@{
+    var state = Model ?? "Unknown";
+    var (chipClass, iconId) = state.ToLowerInvariant() switch
+    {
+        "review" => ("status-chip--review", "icon-info"),
+        "not ready" or "pending" => ("status-chip--not-ready", "icon-alert-triangle"),
+        "held" or "blocked intake" or "blocked" or "error" => ("status-chip--blocked", "icon-alert-circle"),
+        "completed" or "success" or "draft ready" => ("status-chip--completed", "icon-check-circle"),
+        _ => ("", "icon-info")
+    };
+
+    var hasDigit = state.Any(char.IsDigit);
+    var count = ViewData["StatusCount"] as int? ?? 0;
+    var displayText = hasDigit ? state : $"{state} ({count})";
+}
+<span class="status-chip @chipClass">
+    <svg class="icon" aria-hidden="true"><use href="#@iconId"/></svg>
+    <span>@displayText</span>
+</span>

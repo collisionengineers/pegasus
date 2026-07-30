@@ -2,8 +2,12 @@
 @inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 @inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment Environment
 @{
-    var localIntakeEnabled = Environment.IsDevelopment()
-        && Configuration.GetValue<bool>("Features:LocalIntake");
+    var path = Context.Request.Path.Value ?? "";
+    bool isOps = path == "/" || path.Equals("/Index", StringComparison.OrdinalIgnoreCase) || path.StartsWith("/Operations", StringComparison.OrdinalIgnoreCase);
+    bool isIntake = path.StartsWith("/Intake", StringComparison.OrdinalIgnoreCase);
+    bool isTriage = path.StartsWith("/Triage", StringComparison.OrdinalIgnoreCase);
+    bool isCases = path.StartsWith("/Cases", StringComparison.OrdinalIgnoreCase);
+    bool signedIn = User.Identity?.IsAuthenticated == true;
 }
 <html lang="en">
 <head>
@@ -13,28 +17,45 @@
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
 <body>
+    @await Html.PartialAsync("_LucideSprite")
+
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+
     <header class="app-nav">
         <div class="nav-inner">
-            <a class="navbar-brand" asp-area="" asp-page="/Index"><span class="brand-mark">CE</span><span>Pegasus</span></a>
+            <a class="navbar-brand" asp-area="" asp-page="/Index" aria-label="Pegasus Operations Cockpit">
+                <img src="~/images/logo_no_margin.png" alt="Collision Engineers" class="brand-logo" width="140" height="28" />
+            </a>
+
             <nav class="nav-links" aria-label="Primary">
-                <a class="nav-link" asp-area="" asp-page="/Index">Case intake</a>
-                @if (localIntakeEnabled)
+                @if (signedIn)
                 {
-                    <a class="nav-link" asp-area="" asp-page="/Intake/Upload">Upload instruction</a>
+                    <a class="nav-link @(isOps ? "active" : "")" asp-area="" asp-page="/Index" aria-current="@(isOps ? "page" : null)">Operations</a>
+                    <a class="nav-link @(isIntake ? "active" : "")" asp-area="" asp-page="/Intake/Queue" aria-current="@(isIntake ? "page" : null)">Intake</a>
+                    <a class="nav-link @(isTriage ? "active" : "")" href="/Triage" aria-current="@(isTriage ? "page" : null)">Triage</a>
+                    <a class="nav-link @(isCases ? "active" : "")" href="/Cases" aria-current="@(isCases ? "page" : null)">Cases</a>
+                    <a class="nav-link" href="/Account/PasswordChange">Account</a>
+                    <form method="post" action="/Account/SignOut" class="nav-form"><button class="nav-link nav-button" type="submit">Sign out</button></form>
                 }
-                <a class="nav-link" asp-area="" asp-page="/Privacy">Privacy</a>
+                else
+                {
+                    <a class="nav-link" href="/Account/SignIn">Sign in</a>
+                }
             </nav>
+
         </div>
     </header>
+
     <div class="app-shell">
-        <main role="main">
+        <main id="main-content" role="main">
             @RenderBody()
         </main>
     </div>
 
-    <footer class="footer text-muted">
+    <footer class="footer">
         <div class="footer-inner">
-            Pegasus · Collision Engineers case management
+            <span>Pegasus · Collision Engineers case management</span>
+            <span class="updated">London Time · Operational System</span>
         </div>
     </footer>
 

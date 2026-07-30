@@ -1,0 +1,22 @@
+@page "/Triage"
+@using Pegasus.Core.Triage
+@model Pegasus.Web.Pages.Triage.IndexModel
+@{
+    ViewData["Title"] = "Triage";
+}
+<main class="page-shell">
+    <header class="page-heading"><p class="eyebrow">Operations</p><h1>Triage</h1><p>Pre-case records awaiting a registration gate, finding, or approved response evidence.</p></header>
+    <form method="get" class="panel filter-grid" aria-label="Triage filters">
+        <label>State<select name="State"><option value="">Any state</option>@foreach (var state in Enum.GetValues<TriageState>()) { <option selected="@(Model.State == state)" value="@state">@state</option> }</select></label>
+        <label>Registration<input name="Registration" value="@Model.Registration" autocomplete="off" /></label>
+        <label>Page<input name="PageNumber" type="number" min="1" value="@Model.PageNumber" /></label>
+        <button class="button button-secondary" type="submit">Filter</button>
+    </form>
+    @if (Model.Error is not null) { <div class="panel error-panel" role="alert">@Model.Error</div> }
+    else if (Model.Items.Count == 0) { <div class="panel empty-state"><h2>No Triage records</h2><p>There are no records matching these filters.</p></div> }
+    else {
+        <div class="panel table-wrap"><table class="data-table"><caption class="sr-only">Triage records</caption><thead><tr><th scope="col">Registration</th><th scope="col">State</th><th scope="col">Assignee</th><th scope="col">Last change</th><th scope="col">Action</th></tr></thead><tbody>
+        @foreach (var item in Model.Items) { <tr><td><a href="/Triage/@item.Id">@item.Registration</a></td><td>@item.State</td><td>@(item.AssigneeName ?? "Unassigned")</td><td>@item.LastChangedAtUtc.ToLocalTime().ToString("g")</td><td><a class="button button-small" href="/Triage/@item.Id">Open</a></td></tr> }
+        </tbody></table></div>
+    }
+</main>

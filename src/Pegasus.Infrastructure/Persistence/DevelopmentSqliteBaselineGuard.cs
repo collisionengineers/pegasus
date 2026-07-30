@@ -6,6 +6,12 @@ namespace Pegasus.Infrastructure.Persistence;
 
 public static class DevelopmentSqliteBaselineGuard
 {
+    private static readonly HashSet<string> WorkflowTables =
+    [
+        "AspNetRoles", "AspNetUsers", "AspNetRoleClaims", "AspNetUserClaims", "AspNetUserLogins",
+        "AspNetUserRoles", "AspNetUserTokens", "BusinessActions", "CaseLeases", "Cases",
+        "CaseSequences", "Triages", "TriageCaseLinks", "TriageFindings", "TriageReplyEvidence"
+    ];
     private static readonly Dictionary<string, ColumnDefinition[]> ExpectedColumns =
         new Dictionary<string, ColumnDefinition[]>(StringComparer.Ordinal)
         {
@@ -170,12 +176,11 @@ public static class DevelopmentSqliteBaselineGuard
         }
 
         var migrations = context.Database.GetMigrations().ToArray();
-        if (migrations.Length != 2)
+        if (migrations.Length != 3)
         {
             throw new InvalidOperationException(
-                $"The Development SQLite baseline requires exactly two current migrations; found {migrations.Length}.");
+                $"The Development SQLite baseline requires exactly three current migrations; found {migrations.Length}.");
         }
-
         var connection = context.Database.GetDbConnection();
         var closeWhenComplete = connection.State == ConnectionState.Closed;
         if (closeWhenComplete)
@@ -191,7 +196,8 @@ public static class DevelopmentSqliteBaselineGuard
                 return;
             }
 
-            if (!tables.SetEquals(ExpectedColumns.Keys))
+            var allowedTables = ExpectedColumns.Keys.Concat(WorkflowTables).ToHashSet(StringComparer.Ordinal);
+            if (!tables.SetEquals(allowedTables))
             {
                 throw IncompatibleSchema("table set");
             }

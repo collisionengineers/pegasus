@@ -18,9 +18,9 @@ public sealed class IntakeSqliteBaselineGuardTests
 
         await using var connection = new SqliteConnection($"Data Source={factory.DatabasePath}");
         await connection.OpenAsync();
-        Assert.Equal(2L, await ScalarAsync<long>(connection,
+        Assert.Equal(3L, await ScalarAsync<long>(connection,
             "SELECT COUNT(*) FROM __EFMigrationsHistory"));
-        Assert.Equal("20260727170804_ProviderDomainReferenceSnapshotV1",
+        Assert.Equal("20260730101145_StaffTriageCaseWorkspaceV1",
             await ScalarAsync<string>(connection,
                 "SELECT MigrationId FROM __EFMigrationsHistory ORDER BY MigrationId DESC LIMIT 1"));
         Assert.Equal(1L, await ScalarAsync<long>(connection,

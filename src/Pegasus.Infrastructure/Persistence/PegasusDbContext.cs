@@ -1,8 +1,10 @@
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace Pegasus.Infrastructure.Persistence;
 
-public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options) : DbContext(options)
+public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
+    : IdentityDbContext<StaffAccount, StaffRoleEntity, Guid>(options)
 {
     internal DbSet<IntakeReceiptEntity> IntakeReceipts => Set<IntakeReceiptEntity>();
 
@@ -17,9 +19,106 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<ProviderReferenceEntity> ProviderReferences => Set<ProviderReferenceEntity>();
 
     internal DbSet<ProviderDomainEvidenceEntity> ProviderDomainEvidence => Set<ProviderDomainEvidenceEntity>();
+    internal DbSet<TriageEntity> Triages => Set<TriageEntity>();
+    internal DbSet<TriageFindingEntity> TriageFindings => Set<TriageFindingEntity>();
+    internal DbSet<TriageEvidenceEntity> TriageEvidence => Set<TriageEvidenceEntity>();
+    internal DbSet<TriageCaseLinkEntity> TriageCaseLinks => Set<TriageCaseLinkEntity>();
+    internal DbSet<CaseEntity> Cases => Set<CaseEntity>();
+    internal DbSet<CaseSequenceEntity> CaseSequences => Set<CaseSequenceEntity>();
+    internal DbSet<CaseLeaseEntity> CaseLeases => Set<CaseLeaseEntity>();
+    internal DbSet<BusinessActionEntity> BusinessActions => Set<BusinessActionEntity>();
 
+#pragma warning disable CA1725
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<StaffAccount>(entity =>
+        {
+            entity.Property(item => item.DisplayName).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.Version).IsConcurrencyToken();
+        });
+        modelBuilder.Entity<TriageEntity>(entity =>
+        {
+            entity.ToTable("Triages");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Registration).HasMaxLength(20).IsRequired();
+            entity.Property(item => item.State).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.Version).IsConcurrencyToken();
+            entity.Ignore(item => item.CurrentFinding);
+        });
+        modelBuilder.Entity<TriageFindingEntity>(entity =>
+        {
+            entity.ToTable("TriageFindings");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Roadworthiness).HasMaxLength(40);
+            entity.Property(item => item.Assessment).HasMaxLength(40);
+            entity.Property(item => item.Reason).HasMaxLength(1000);
+            entity.HasOne(item => item.Triage).WithMany(item => item.Findings).HasForeignKey(item => item.TriageId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<TriageEvidenceEntity>(entity =>
+        {
+            entity.ToTable("TriageReplyEvidence");
+            entity.HasKey(item => item.TriageId);
+            entity.Property(item => item.ExternalMessageId).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.ConversationId).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.ApprovedMailbox).HasMaxLength(320).IsRequired();
+            entity.Property(item => item.ReplyHash).HasMaxLength(128).IsRequired();
+            entity.HasIndex(item => new { item.ExternalMessageId, item.ConversationId }).IsUnique();
+        });
+        modelBuilder.Entity<TriageCaseLinkEntity>(entity =>
+        {
+            entity.ToTable("TriageCaseLinks");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Reason).HasMaxLength(1000);
+            entity.HasIndex(item => new { item.TriageId, item.UnlinkedAtUtc });
+            entity.HasOne(item => item.Triage).WithMany(item => item.CaseLinks).HasForeignKey(item => item.TriageId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<CaseEntity>(entity =>
+        {
+            entity.ToTable("Cases");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.PrincipalCode).HasMaxLength(20).IsRequired();
+            entity.Property(item => item.BaseReference).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.DisplayReference).HasMaxLength(60).IsRequired();
+            entity.Property(item => item.Type).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.Registration).HasMaxLength(20).IsRequired();
+            entity.Property(item => item.Claimant).HasMaxLength(300);
+            entity.Property(item => item.ClaimNumber).HasMaxLength(100);
+            entity.Property(item => item.State).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.TerminalOutcome).HasMaxLength(60);
+            entity.Property(item => item.Version).IsConcurrencyToken();
+            entity.HasIndex(item => item.DisplayReference).IsUnique();
+            entity.HasIndex(item => new { item.State, item.IsHeld, item.NextDueAtUtc });
+            entity.HasIndex(item => new { item.Registration, item.PrincipalCode });
+        });
+        modelBuilder.Entity<CaseSequenceEntity>(entity =>
+        {
+            entity.ToTable("CaseSequences");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.PrincipalCode).HasMaxLength(20).IsRequired();
+            entity.HasIndex(item => new { item.PrincipalCode, item.Year }).IsUnique();
+            entity.ToTable("CaseSequences", table => table.HasCheckConstraint("CK_CaseSequences_LastSequence", "[LastSequence] BETWEEN 0 AND 999"));
+        });
+        modelBuilder.Entity<CaseLeaseEntity>(entity =>
+        {
+            entity.ToTable("CaseLeases");
+            entity.HasKey(item => item.CaseId);
+            entity.Property(item => item.TokenHash).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.HolderName).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.Version).IsConcurrencyToken();
+        });
+        modelBuilder.Entity<BusinessActionEntity>(entity =>
+        {
+            entity.ToTable("BusinessActions");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.ActorKind).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.Caller).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.Action).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.Outcome).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.Reason).HasMaxLength(1000);
+            entity.HasIndex(item => new { item.CaseId, item.OccurredAtUtc });
+            entity.HasIndex(item => new { item.TriageId, item.OccurredAtUtc });
+        });
         modelBuilder.Entity<IntakeReceiptEntity>(entity =>
         {
             entity.ToTable("IntakeReceipts");
@@ -136,6 +235,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasIndex(item => new { item.Version, item.DomainSuffix });
         });
     }
+#pragma warning restore CA1725
 }
 
 internal sealed class IntakeReceiptEntity

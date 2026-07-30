@@ -1,0 +1,13 @@
+@page "/Cases"
+@model Pegasus.Web.Pages.Cases.IndexModel
+@using Pegasus.Core.Cases
+@{
+    ViewData["Title"] = "Cases";
+}
+<main class="page-shell">
+    <header class="page-heading"><p class="eyebrow">Operations</p><h1>Cases</h1><p>Authoritative case identity, workflow, due work, and history.</p></header>
+    <form method="get" class="panel filter-grid" aria-label="Case filters">
+        <label>Case / PO<input name="CaseReference" value="@Model.CaseReference" /></label><label>Registration<input name="Registration" value="@Model.Registration" /></label><label>Claimant<input name="Claimant" value="@Model.Claimant" /></label><label>Claim number<input name="ClaimNumber" value="@Model.ClaimNumber" /></label><label>Principal<input name="PrincipalCode" value="@Model.PrincipalCode" /></label><label>State<select name="State"><option value="">Any state</option>@foreach(var state in Enum.GetValues<CaseWorkflowState>()){<option value="@state" selected="@(Model.State == state)">@state</option>}</select></label><label>Queue<select name="Queue"><option value="">Any queue</option>@foreach(var queue in Enum.GetValues<CaseQueue>()){var value=queue.ToString().ToLowerInvariant();<option value="@value" selected="@(Model.Queue == value)">@queue</option>}</select></label><label>Origin<input name="Origin" value="@Model.Origin" /></label><label>Page<input name="PageNumber" type="number" min="1" value="@Model.PageNumber" /></label><button class="button button-secondary" type="submit">Filter</button>
+    </form>
+    @if(Model.Error is not null){<div class="panel error-panel" role="alert">@Model.Error</div>}else if(Model.Items.Count == 0){<div class="panel empty-state"><h2>No Cases</h2><p>There are no cases matching these filters.</p></div>}else{<div class="panel table-wrap"><table class="data-table"><caption class="sr-only">Cases</caption><thead><tr><th scope="col">Case / PO</th><th scope="col">Registration</th><th scope="col">Claimant</th><th scope="col">Principal</th><th scope="col">State</th><th scope="col">Due work</th></tr></thead><tbody>@foreach(var item in Model.Items){<tr><td><a href="/Cases/@item.Id">@item.DisplayReference</a></td><td>@item.Registration</td><td>@(item.Claimant ?? "—")</td><td>@item.PrincipalCode</td><td>@item.State@if(item.IsHeld){<span> · Held</span>}</td><td>@(item.DueWork.IsOverdue ? "Overdue" : item.DueWork.NextDueAtUtc?.ToLocalTime().ToString("g") ?? "—")</td></tr>}</tbody></table></div>}
+</main>

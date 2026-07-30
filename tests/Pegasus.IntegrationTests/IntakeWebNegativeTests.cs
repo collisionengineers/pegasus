@@ -341,10 +341,13 @@ public sealed class IntakeWebNegativeTests
                     System.Globalization.CultureInfo.InvariantCulture));
             }
 
-            await using var obsoleteTables = context.Database.GetDbConnection().CreateCommand();
-            obsoleteTables.CommandText =
-                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('Cases', 'PrincipalYearCounters')";
-            Assert.Equal(0L, Convert.ToInt64(await obsoleteTables.ExecuteScalarAsync(),
+            await using var caseRows = context.Database.GetDbConnection().CreateCommand();
+            caseRows.CommandText = "SELECT COUNT(*) FROM [Cases]";
+            Assert.Equal(0L, Convert.ToInt64(await caseRows.ExecuteScalarAsync(),
+                System.Globalization.CultureInfo.InvariantCulture));
+            await using var sequenceRows = context.Database.GetDbConnection().CreateCommand();
+            sequenceRows.CommandText = "SELECT COUNT(*) FROM [CaseSequences]";
+            Assert.Equal(0L, Convert.ToInt64(await sequenceRows.ExecuteScalarAsync(),
                 System.Globalization.CultureInfo.InvariantCulture));
         }
         finally

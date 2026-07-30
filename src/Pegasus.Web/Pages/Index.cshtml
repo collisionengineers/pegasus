@@ -1,63 +1,12 @@
 @page
 @model IndexModel
 @{
-    ViewData["Title"] = "Pegasus case intake";
+    ViewData["Title"] = "Operations";
 }
-
-<header class="page-heading">
-    <div>
-        <p class="eyebrow">Overview</p>
-        <h1>Pegasus case intake</h1>
-        <p class="lede">The Pegasus operator workspace is ready for the first intake workflow.</p>
-    </div>
-    <div class="updated">Updated <time datetime="@Model.LoadedAtUtc.ToString("O")">@Model.LoadedAtUtc.ToLocalTime().ToString("HH:mm")</time></div>
-</header>
-
-<section aria-labelledby="case-queues-title">
-    <h2 id="case-queues-title" class="section-label">Case queues</h2>
-    <div class="queue-grid">
-        <article class="queue-card queue-card--amber">
-            <span class="queue-icon" aria-hidden="true">!</span>
-            <div><strong>0</strong><span>Not ready</span></div>
-            <span class="arrow" aria-hidden="true">›</span>
-        </article>
-        <article class="queue-card queue-card--blue">
-            <span class="queue-icon" aria-hidden="true">◉</span>
-            <div><strong>0</strong><span>Review</span></div>
-            <span class="arrow" aria-hidden="true">›</span>
-        </article>
-        <article class="queue-card queue-card--red">
-            <span class="queue-icon" aria-hidden="true">!</span>
-            <div><strong>0</strong><span>Held</span></div>
-            <span class="arrow" aria-hidden="true">›</span>
-        </article>
-    </div>
-</section>
-
-<div class="dashboard-grid">
-    <section class="panel" aria-labelledby="inbox-title">
-        <h2 id="inbox-title" class="section-label">Inbox</h2>
-        <div class="tile-grid">
-            <article class="metric-tile"><span>▣</span><div><strong>0</strong><small>Receiving work</small></div></article>
-            <article class="metric-tile"><span>✉</span><div><strong>0</strong><small>Queries</small></div></article>
-            <article class="metric-tile"><span>□</span><div><strong>0</strong><small>Other</small></div></article>
-            @if (Model.LocalIntakeEnabled)
-            {
-                <a class="metric-tile" asp-page="/Intake/Queue" asp-route-decision="draft_ready"><span>▤</span><div><strong>@Model.Counts.DraftReady</strong><small>Instruction drafts</small></div></a>
-                <a class="metric-tile metric-tile--attention" asp-page="/Intake/Queue" asp-route-decision="needs_sorting"><span>!</span><div><strong>@Model.Counts.NeedsSorting</strong><small>Needs sorting</small></div></a>
-            }
-            else
-            {
-                <article class="metric-tile metric-tile--attention"><span>!</span><div><strong>0</strong><small>Needs sorting</small></div></article>
-            }
-        </div>
-    </section>
-    <section class="panel" aria-labelledby="today-title">
-        <h2 id="today-title" class="section-label">Today / this week</h2>
-        <div class="tile-grid tile-grid--wide">
-            <article class="metric-tile"><span>▱</span><div><strong>0</strong><small>Due today</small></div></article>
-            <article class="metric-tile"><span>↗</span><div><strong>0</strong><small>Submitted today</small></div></article>
-            <article class="metric-tile metric-tile--span"><span>▦</span><div><strong>0</strong><small>Cleared this week</small></div></article>
-        </div>
-    </section>
-</div>
+<main class="page-shell">
+<header class="page-heading"><div><p class="eyebrow">Operations Cockpit</p><h1>Operations</h1><p class="lede">Collision Engineers staff case management and queue metrics.</p></div><div class="updated"><span>Data as of: <time datetime="@Model.LoadedAtUtc.ToString("O")">@Model.LoadedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</time> London</span></div></header>
+@if(Model.Error is not null){<div class="panel error-panel" role="alert">@Model.Error</div>}
+<section aria-labelledby="case-queues-title" style="margin-bottom: var(--space-7);"><h2 id="case-queues-title" class="section-label">Active Case queues</h2><div class="queue-grid"><a class="queue-card" href="/Cases?queue=not_ready"><span>Not ready</span><strong>@Model.CaseCounts.NotReady</strong></a><a class="queue-card queue-card--blue" href="/Cases?queue=review"><span>Review</span><strong>@Model.CaseCounts.Review</strong></a><a class="queue-card queue-card--red" href="/Cases?queue=held"><span>Held</span><strong>@Model.CaseCounts.Held</strong></a></div></section>
+<div class="dashboard-grid"><section class="panel" aria-labelledby="intake-triage-title"><h2 id="intake-triage-title" class="section-label">Intake and Triage</h2><div class="tile-grid"><a class="metric-tile metric-tile--blue" href="/Triage"><strong>@Model.TriageOpenCount</strong><small>Open Triage</small></a>@if(Model.LocalIntakeEnabled){<a class="metric-tile metric-tile--red" asp-page="/Intake/Queue" asp-route-decision="needs_sorting"><strong>@Model.Counts.NeedsSorting</strong><small>Needs sorting</small></a><a class="metric-tile metric-tile--blue" asp-page="/Intake/Queue" asp-route-decision="draft_ready"><strong>@Model.Counts.DraftReady</strong><small>Draft ready</small></a>}else{<article class="metric-tile"><strong>—</strong><small>Intake unavailable outside Development</small></article>}</div></section>
+<section class="panel" aria-labelledby="today-activity-title"><h2 id="today-activity-title" class="section-label">Today and weekly operational activity</h2><div class="tile-grid"><a class="metric-tile" href="/Cases?queue=due_today"><strong>@Model.CaseCounts.DueToday</strong><small>Due today</small></a><a class="metric-tile" href="/Cases?queue=in_today"><strong>@Model.CaseCounts.InToday</strong><small>In today</small></a><a class="metric-tile" href="/Cases?queue=sent_to_engineer"><strong>@Model.CaseCounts.SentToEngineer</strong><small>Sent to Engineer</small></a><a class="metric-tile" href="/Cases?queue=reports_sent"><strong>@Model.CaseCounts.ReportsSent</strong><small>Reports sent</small></a></div></section></div>
+</main>

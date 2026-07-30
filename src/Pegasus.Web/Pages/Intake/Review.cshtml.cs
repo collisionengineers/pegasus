@@ -6,11 +6,17 @@ namespace Pegasus.Web.Pages.Intake;
 
 public sealed class ReviewModel(
     IIntakeReceiptQueries queries,
-    IIntakeArtifactStore artifactStore) : PageModel
+    IIntakeArtifactStore artifactStore,
+    Pegasus.Core.Cases.ICaseAcceptance caseAcceptance,
+    Pegasus.Core.Access.IStaffActorAccessor actorAccessor) : PageModel
 {
     public IntakeReceipt Receipt { get; private set; } = null!;
 
     public bool IsDuplicate { get; private set; }
+    [BindProperty] public Pegasus.Core.Cases.CaseType CaseType { get; set; } = Pegasus.Core.Cases.CaseType.Inspection;
+    [BindProperty] public bool InstructionsComplete { get; set; }
+    [BindProperty] public bool ImagesComplete { get; set; }
+    [BindProperty] public Pegasus.Core.Triage.AssessmentFinding? AuditAssessment { get; set; }
 
     public async Task<IActionResult> OnGetAsync(
         Guid id,
@@ -26,6 +32,23 @@ public sealed class ReviewModel(
         Receipt = receipt;
         IsDuplicate = duplicate;
         return Page();
+    }
+    public async Task<IActionResult> OnPostAcceptCaseAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var actor = actorAccessor.Current;
+        if (actor is null) return Challenge();
+        var result = await caseAcceptance.AcceptAsync(
+            new Pegasus.Core.Cases.AcceptCaseDraft(id, CaseType, InstructionsComplete, ImagesComplete, AuditAssessment, Guid.NewGuid()),
+            actor, cancellationToken);
+        if (!result.Succeeded)
+        {
+            ModelState.AddModelError(string.Empty, result.Message ?? result.Failure?.ToString() ?? "Case acceptance was not accepted.");
+            var receipt = await queries.GetAsync(id, cancellationToken);
+            if (receipt is null) return NotFound();
+            Receipt = receipt;
+            return Page();
+        }
+        return RedirectToPage("/Cases/Detail", new { id = result.Detail!.Identity.Id });
     }
 
     public async Task<IActionResult> OnGetAssetAsync(
