@@ -1,0 +1,124 @@
+{
+  "refs": {
+    "our_ref": "ap.qdos261789",
+    "your_ref": "MFI/ND/46885/1",
+    "date": "16/07/2026",
+    "report_for": [
+      "FAO The Court",
+      "C/o QDOS Assistance",
+      "3rd Floor, Crown House",
+      "Manchester Road",
+      "Wilmslow",
+      "SK9 1BH"
+    ],
+    "claimant_name": "Mrs Gurdip Kaur",
+    "incident_date": "13/07/2026"
+  },
+  "vehicle": {
+    "make": "KIA",
+    "model": "PICANTO HALO ECODYNAMICS",
+    "registration": "PK12 TMZ",
+    "vin": "KNABX312LCT122784",
+    "year": "2012 (12 reg)",
+    "odometer_miles": 50500,
+    "engine_cc": 1248,
+    "fuel": "Petrol",
+    "condition": "good",
+    "vehicle_type": "car",
+    "mileage_source": "online_data"
+  },
+  "incident": {
+    "date": "13/07/2026",
+    "instructions_received": "14/07/2026",
+    "assessed": "15/07/2026"
+  },
+  "assessment": {
+    "outcome": "contract_repair",
+    "legal_status": "roadworthy",
+    "category": "",
+    "values": {
+      "engineer": 4011.0,
+      "retail": 4011.0,
+      "trade": 2848.0
+    },
+    "impact_severity": "moderate",
+    "impact_location": "right_rear",
+    "method": "image_based"
+  },
+  "costs": {
+    "labour_hours": 25.9,
+    "hourly_rate": 83.28,
+    "parts": 278.44,
+    "paint_materials": 769.42,
+    "specialist_other": 466.63,
+    "repairer_vat_registered": true
+  },
+  "worklists": {
+    "new_parts": [
+      "Rear Bumper Lining",
+      "Right Rear Bumper Outer Bracket",
+      "Rear Bumper Repair Kit",
+      "Rear Bumper Lining Clip",
+      "Rear Bumper Lining Screw",
+      "Rear Bumper Lining Nut",
+      "Left Side Glass Repair/Bonding Kit",
+      "Right Side Glass Repair/Bonding Kit",
+      "Right Rear Wheel Cover"
+    ],
+    "repairs": [
+      "Right Rear Side Panel with Sill Panel",
+      "Right Rear Side Panel Reinforcement"
+    ],
+    "operations": [
+      "Assessment Damage Appraisal Charge",
+      "Environmental Charge",
+      "Pre-repair Cleaning Charge",
+      "QC & Road Test",
+      "Standard Shutdown",
+      "Sundries",
+      "System Diagnostic Check (Post Repair)",
+      "System Diagnostic Check (Pre Repair)",
+      "Vehicle Care Kit",
+      "Wash/Clean",
+      "Clamp and Pull",
+      "Corrosion Protection",
+      "De-nib",
+      "OSR Tyre",
+      "Wheel Alignment (Check)",
+      "Yard Charge",
+      "Paint Left Rear Side Panel, Complete",
+      "Paint Right Rear Side Panel, Complete",
+      "Paint Left Fuel Filler Lid",
+      "Paint Rear Bumper k/b-c",
+      "Paint Prep. Metal (on vehicle without pre-painting)",
+      "Paint Prep. Synthetics (combined-operation work)",
+      "Paint Colour Mixing (1)",
+      "Paint Sample Colour Creation (1)"
+    ]
+  },
+  "narrative": {
+    "history_check": "We confirm having checked this vehicle on the Experian AutoCheck database and there is no record of any adverse history."
+  },
+  "engineer": {
+    "name": "A Patterson",
+    "qualifications": "M.Inst.IAEA",
+    "signature": "andy_patterson"
+  },
+  "fee": {
+    "agreed_fee": 100.0,
+    "description_lines": [
+      "Collate data, compile repair specification, calculate estimate, research valuation.",
+      "Produce Vehicle Damage Assessment report.",
+      "Storage of all material case files and images."
+    ]
+  },
+  "photos": [
+    "photos/img-002.jpg",
+    "photos/img-004.jpg",
+    "photos/img-008.jpg",
+    "photos/img-009.jpg",
+    "photos/img-010.jpg",
+    "photos/img-012.jpg"
+  ],
+  "impact_diagram": "photos/img-003.jpg"
+}
