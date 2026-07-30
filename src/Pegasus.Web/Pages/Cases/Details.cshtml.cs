@@ -940,9 +940,6 @@ public sealed partial class DetailsModel(
     public async Task<IActionResult> OnPostGenerateEvaHandoffAsync(
         Guid id,
         long expectedVersion,
-        Guid overviewImageOccurrenceId,
-        Guid mainDamageImageOccurrenceId,
-        Guid[]? orderedImageOccurrenceIds,
         string operationKey,
         string reason,
         string editLeaseToken,
@@ -955,13 +952,21 @@ public sealed partial class DetailsModel(
 
         try
         {
+            var preparation = await evaHandoffQueries.GetPreparationAsync(id, cancellationToken);
+            if (preparation is null || preparation.Images.Count < 2)
+            {
+                PreserveLeaseState(id, editLeaseToken);
+                TempData["CaseError"] = "The EVA handoff was not generated because two eligible images are not available.";
+                return RedirectToDetails(id);
+            }
+
             var result = await generateEvaHandoff.ExecuteAsync(
                 new(
                     id,
                     expectedVersion,
-                    overviewImageOccurrenceId,
-                    mainDamageImageOccurrenceId,
-                    orderedImageOccurrenceIds ?? [],
+                    preparation.Images[0].OccurrenceId,
+                    preparation.Images[1].OccurrenceId,
+                    preparation.Images.Select(image => image.OccurrenceId).ToArray(),
                     actor,
                     operationKey,
                     reason,
