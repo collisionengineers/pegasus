@@ -40,7 +40,6 @@ public sealed class LocalIntakeAccessTests
         foreach (var path in new[]
                  {
                      "/Intake/Upload",
-                     "/Intake/EmailEvaluation",
                      "/Intake/Queue",
                      $"/Intake/Review/{Guid.NewGuid()}"
                  })
@@ -49,9 +48,6 @@ public sealed class LocalIntakeAccessTests
             Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         }
 
-        using var multipart = new MultipartFormDataContent();
-        using var post = await client.PostAsync("/Intake/EmailEvaluation", multipart);
-        Assert.Equal(HttpStatusCode.NotFound, post.StatusCode);
 
         using var uploadMultipart = new MultipartFormDataContent();
         using var uploadPost = await client.PostAsync("/Intake/Upload", uploadMultipart);

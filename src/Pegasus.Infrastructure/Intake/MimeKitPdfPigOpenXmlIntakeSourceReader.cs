@@ -13,7 +13,7 @@ using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
 
 namespace Pegasus.Infrastructure.Intake;
 
-internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider timeProvider) : IIntakeSourceReader
+public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider timeProvider) : IIntakeSourceReader
 {
     private const string ReaderKey = "mimekit_pdfpig_openxml";
     private const string ReaderVersion = "mimekit-4.17.0;pdfpig-0.1.15;openxml-3.5.1";
