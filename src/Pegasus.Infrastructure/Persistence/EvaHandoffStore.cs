@@ -1,166 +1,931 @@
+using System.Buffers.Binary;
+using System.Data;
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Cases;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
+using Pegasus.Core.Identity;
+using Pegasus.Core.Vehicle;
+using Pegasus.Core.Workflow;
+using Pegasus.Infrastructure.Custody;
+using Pegasus.Infrastructure.Eva;
 
 namespace Pegasus.Infrastructure.Persistence;
 
-/// <summary>
-/// Reads the accepted case and retained intake-image boundary for EVA preparation.
-/// Generation remains fail closed while the external source mapping gate is unresolved.
-/// </summary>
 public sealed class EvaHandoffStore(
-    IDbContextFactory<PegasusDbContext> contextFactory) : IEvaHandoffStore
+    IDbContextFactory<PegasusDbContext> contextFactory,
+    ICaseDataQueries caseDataQueries,
+    IVehicleEvidenceQueries vehicleEvidenceQueries,
+    LocalDocumentContentStore contentStore,
+    IEvaHandoffProxy proxy,
+    EvaMappingAcceptance mappingAcceptance,
+    TimeProvider timeProvider) : IEvaHandoffQueries, IGenerateEvaHandoff
 {
+    private const string GeneratedEvent = "eva_handoff_generated";
+    private const string ReusedEvent = "eva_handoff_revision_reused";
+
     public async Task<EvaHandoffPreparation?> GetPreparationAsync(
         Guid caseId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default)
     {
         if (caseId == Guid.Empty)
         {
             return null;
         }
 
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var caseRecord = await context.Cases
-            .AsNoTracking()
-            .Include(item => item.Principal)
-            .SingleOrDefaultAsync(item => item.Id == caseId, cancellationToken);
-        if (caseRecord is null)
+        var caseData = await caseDataQueries.GetAsync(caseId, cancellationToken);
+        if (caseData is null)
         {
             return null;
         }
 
-        var receipt = await context.IntakeReceipts
+        var vehicle = await vehicleEvidenceQueries.GetAsync(caseId, cancellationToken);
+        var mapping = MapAcceptedCase(caseData, vehicle);
+        var reasons = mapping.BlockingReasons.ToList();
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var caseState = await (
+                from workflow in context.CaseWorkflows.AsNoTracking()
+                join caseRecord in context.Cases.AsNoTracking()
+                    on workflow.CaseId equals caseRecord.Id
+                where workflow.CaseId == caseId
+                select new
+                {
+                    workflow.Version,
+                    workflow.State,
+                    workflow.ArchivedAtUtc,
+                    caseRecord.CustodyState,
+                    caseRecord.CustodyConfirmedAtUtc
+                })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (caseState is null)
+        {
+            return null;
+        }
+
+        if (caseData.Version != caseState.Version)
+        {
+            reasons.Add("Accepted case evidence is stale relative to the current case version.");
+        }
+        if (!IsConfirmedCustody(caseState.CustodyState, caseState.CustodyConfirmedAtUtc))
+        {
+            reasons.Add("Case custody has not been confirmed.");
+        }
+        if (caseState.ArchivedAtUtc is not null)
+        {
+            reasons.Add("Archived cases cannot generate EVA handoffs.");
+        }
+        if (IsTerminalWorkflow(caseState.State))
+        {
+            reasons.Add("Terminal cases cannot generate EVA handoffs until they are reasoned and reopened.");
+        }
+
+        var images = await (
+                from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                join version in context.Set<DocumentVersionEntity>().AsNoTracking()
+                    on occurrence.VersionId equals version.Id
+                where occurrence.CaseId == caseId
+                      && occurrence.SemanticRole == DocumentSemanticRole.Image
+                      && version.DocumentId == occurrence.DocumentId
+                      && version.IsCurrent
+                      && !version.IsLogicallyRemoved
+                      && version.CustodyStatus == DocumentCustodyStatus.Confirmed
+                      && (version.MediaType == "image/jpeg" || version.MediaType == "image/png")
+                orderby occurrence.RecordedAtUtc, occurrence.Id
+                select new EvaHandoffImageOption(
+                    occurrence.Id,
+                    occurrence.DocumentId,
+                    version.Id,
+                    version.Version,
+                    version.FileName,
+                    version.MediaType,
+                    version.ContentLength,
+                    version.Sha256,
+                    occurrence.Source,
+                    occurrence.SourceOccurrenceIdentity))
+            .ToArrayAsync(cancellationToken);
+        if (images.Length < 2)
+        {
+            reasons.Add("At least two custody-confirmed current image versions are required.");
+        }
+
+        var proxyEvidence = await context.EvaFirstHandoffProxies
             .AsNoTracking()
-            .Include(item => item.InstructionDraft)
-            .Include(item => item.Assets)
-            .SingleOrDefaultAsync(
-                item => item.Id == caseRecord.OriginIntakeReceiptId,
-                cancellationToken);
+            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
+        var firstProxyRevisionId = proxyEvidence?.RevisionId;
+        var revisions = await context.EvaHandoffRevisions
+            .AsNoTracking()
+            .Where(item => item.CaseId == caseId)
+            .OrderBy(item => item.Revision)
+            .Select(item => new EvaHandoffRevisionSummary(
+                item.Revision,
+                item.FileName,
+                item.BundleSha256,
+                item.JsonSha256,
+                item.GeneratedAtUtc,
+                item.GeneratedBy,
+                firstProxyRevisionId == item.Id))
+            .ToArrayAsync(cancellationToken);
 
-        var draft = receipt?.InstructionDraft;
-        var suggested = EvaEvidenceStatus.Suggested;
-        var sourceVersion = receipt?.ExtractionPolicyVersion?.ToString(CultureInfo.InvariantCulture)
-            ?? "unversioned";
-        var source = receipt?.ExtractionPolicyKey ?? "intake-extraction";
-        EvaEvidenceValue Evidence(string? value) => new(value, suggested, source, sourceVersion);
+        return new(
+            caseId,
+            caseState.Version,
+            caseData.Identity.Reference,
+            images,
+            revisions,
+            proxyEvidence?.RecordedAtUtc,
+            reasons.Distinct(StringComparer.Ordinal).ToArray());
+    }
 
-        var inspectionValue = draft?.InspectionAddress;
-        var inspectionMode = string.Equals(
-            inspectionValue?.Trim(),
-            CaseEvaMapping.ImageBasedAssessment,
-            StringComparison.Ordinal)
-            ? EvaInspectionMode.ImageBasedAssessment
-            : EvaInspectionMode.PhysicalAddress;
+    public async Task<EvaHandoffRevisionArtifact?> GetRevisionAsync(
+        Guid caseId,
+        int revision,
+        ActionActor actor,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if (caseId == Guid.Empty || revision <= 0)
+        {
+            return null;
+        }
 
-        var evidence = new EvaAcceptedCaseEvidence(
-            caseRecord.Id,
-            caseRecord.Version,
-            CaseAccepted: receipt is not null,
-            caseRecord.InstructionComplete && caseRecord.InstructionConfirmedByStaff,
-            caseRecord.ImagesComplete && caseRecord.ImagesConfirmedByStaff,
-            caseRecord.Reference,
-            new(caseRecord.Principal.Code, EvaEvidenceStatus.Accepted, "accepted-principal", caseRecord.Version.ToString(CultureInfo.InvariantCulture)),
-            Evidence(draft?.VehicleRegistration),
-            Evidence(JoinVehicleModel(draft?.VehicleMake, draft?.VehicleModel)),
-            Evidence(draft?.ClaimantName),
-            Evidence(draft?.DateOfIncident?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
-            Evidence(draft?.InstructionDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
-            Evidence(null),
-            new(inspectionMode, Evidence(inspectionValue)),
-            Evidence(draft?.AccidentCircumstances),
-            Evidence(null),
-            Evidence(draft?.VehicleMileage?.ToString(CultureInfo.InvariantCulture)),
-            Evidence(draft?.VehicleMileage is null ? null : "miles"));
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var artifact = await context.EvaHandoffRevisions
+            .AsNoTracking()
+            .Where(item => item.CaseId == caseId && item.Revision == revision)
+            .Select(item => new EvaHandoffRevisionArtifact(
+                item.Revision,
+                item.FileName,
+                item.BundleContent,
+                item.BundleSha256))
+            .SingleOrDefaultAsync(cancellationToken);
+        if (artifact is null)
+        {
+            return null;
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!IsSafeBundleFileName(artifact.FileName)
+            || !HashesMatch(artifact.BundleSha256, Hash(artifact.Content)))
+        {
+            throw new InvalidDataException("The persisted EVA handoff artifact failed its integrity check.");
+        }
 
-        var reasons = CaseEvaMapping.MapForProduction(evidence).BlockingReasons.ToList();
-        if (!string.Equals(caseRecord.CustodyState, "confirmed", StringComparison.Ordinal)
-            || caseRecord.CustodyConfirmedAtUtc is null)
+        return artifact;
+    }
+
+    public async Task<GenerateEvaHandoffResult> ExecuteAsync(
+        GenerateEvaHandoffRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        Validate(request);
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        var operationKey = request.OperationKey.Trim();
+        var requestHash = HashRequest(request);
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+
+        var replay = await context.EvaHandoffOperations
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.OperationKey == operationKey, cancellationToken);
+        if (replay is not null)
+        {
+            if (replay.CaseId != request.CaseId
+                || !HashesMatch(replay.RequestHash, requestHash))
+            {
+                return Conflict("The EVA handoff operation key was already used for a different request.");
+            }
+
+            var replayRevision = await context.EvaHandoffRevisions
+                .AsNoTracking()
+                .SingleAsync(item => item.Id == replay.RevisionId, cancellationToken);
+            var firstProxyOperation = await context.EvaFirstHandoffProxies
+                .AsNoTracking()
+                .Where(item => item.CaseId == request.CaseId)
+                .Select(item => item.OperationKey)
+                .SingleOrDefaultAsync(cancellationToken);
+            return Generated(
+                replayRevision,
+                string.Equals(firstProxyOperation, operationKey, StringComparison.Ordinal));
+        }
+
+        var workflow = await context.CaseWorkflows
+            .Include(item => item.Case)
+            .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken);
+        if (workflow is null)
+        {
+            return new(
+                GenerateEvaHandoffOutcome.NotFound,
+                null,
+                ["The case was not found."]);
+        }
+        if (workflow.ArchivedAtUtc is not null)
+        {
+            return Blocked("Archived cases cannot generate EVA handoffs.");
+        }
+        if (IsTerminalWorkflow(workflow.State))
+        {
+            return Blocked(
+                "Terminal cases cannot generate EVA handoffs until they are reasoned and reopened.");
+        }
+        if (workflow.Version != request.ExpectedCaseVersion)
+        {
+            return Conflict("The case changed after the EVA handoff was loaded. Reload before retrying.");
+        }
+
+        var now = timeProvider.GetUtcNow();
+        try
+        {
+            RequireLease(workflow, request.Actor, request.EditLeaseToken, now);
+        }
+        catch (InvalidOperationException exception)
+            when (exception is CaseEditLeaseExpiredException or CaseEditLeaseConflictException)
+        {
+            return Conflict(exception.Message);
+        }
+
+        var caseData = await caseDataQueries.GetAsync(request.CaseId, cancellationToken);
+        if (caseData is null)
+        {
+            return new(
+                GenerateEvaHandoffOutcome.NotFound,
+                null,
+                ["The accepted case data was not found."]);
+        }
+        if (caseData.Version != workflow.Version)
+        {
+            return Conflict("The accepted case evidence changed during EVA generation. Reload before retrying.");
+        }
+
+        var vehicle = await vehicleEvidenceQueries.GetAsync(request.CaseId, cancellationToken);
+        var mapping = MapAcceptedCase(caseData, vehicle);
+        var reasons = mapping.BlockingReasons.ToList();
+        if (!IsConfirmedCustody(workflow.Case.CustodyState, workflow.Case.CustodyConfirmedAtUtc))
         {
             reasons.Add("Case custody has not been confirmed.");
         }
 
-        var images = receipt?.Assets
-            .Where(IsImage)
-            .OrderBy(item => item.SourceLabel, StringComparer.Ordinal)
-            .ThenBy(item => item.Id)
-            .Select(item => new EvaHandoffImageOption(
-                item.Id,
-                item.FileName,
-                item.MediaType,
-                item.ContentLength,
-                item.ContentHash,
-                CustodyConfirmed: false))
-            .ToArray() ?? [];
-
-        if (images.Length == 0)
+        var selectedIds = request.OrderedImageOccurrenceIds.ToArray();
+        var selectedRows = await (
+                from occurrence in context.Set<DocumentOccurrenceEntity>()
+                join version in context.Set<DocumentVersionEntity>()
+                    on occurrence.VersionId equals version.Id
+                where selectedIds.Contains(occurrence.Id)
+                select new SelectedDocument(
+                    occurrence.Id,
+                    occurrence.CaseId,
+                    occurrence.DocumentId,
+                    occurrence.Source,
+                    occurrence.SourceOccurrenceIdentity,
+                    occurrence.SemanticRole,
+                    version.Id,
+                    version.DocumentId,
+                    version.Version,
+                    version.FileName,
+                    version.MediaType,
+                    version.ContentLength,
+                    version.Sha256,
+                    version.CustodyStatus,
+                    version.IsCurrent,
+                    version.IsLogicallyRemoved))
+            .ToArrayAsync(cancellationToken);
+        var selectedById = selectedRows.ToDictionary(item => item.OccurrenceId);
+        foreach (var occurrenceId in selectedIds)
         {
-            reasons.Add("No retained intake images are available for selection.");
+            if (!selectedById.TryGetValue(occurrenceId, out var selected)
+                || selected.CaseId != request.CaseId
+                || selected.DocumentId != selected.VersionDocumentId
+                || selected.SemanticRole != DocumentSemanticRole.Image
+                || selected.CustodyStatus != DocumentCustodyStatus.Confirmed
+                || !selected.IsCurrent
+                || selected.IsLogicallyRemoved
+                || !IsSupportedImage(selected.MediaType))
+            {
+                reasons.Add(
+                    "Every selected image must be a current, custody-confirmed image version belonging to this case.");
+                break;
+            }
+        }
+        if (!selectedIds.Contains(request.OverviewImageOccurrenceId)
+            || !selectedIds.Contains(request.MainDamageImageOccurrenceId))
+        {
+            reasons.Add("The selected overview and main-damage previews must remain in the approved image order.");
+        }
+        if (reasons.Count != 0 || mapping.Source is null)
+        {
+            return new(
+                GenerateEvaHandoffOutcome.Blocked,
+                null,
+                reasons.Distinct(StringComparer.Ordinal).ToArray());
+        }
+
+        var bundleImages = new List<EvaBundleImage>(selectedIds.Length);
+        foreach (var occurrenceId in selectedIds)
+        {
+            var selected = selectedById[occurrenceId];
+            if (selected.ContentLength > int.MaxValue)
+            {
+                return Blocked($"The selected image '{selected.FileName}' is too large for the offline EVA handoff.");
+            }
+
+            await using var content = await contentStore.OpenReadAsync(
+                request.CaseId,
+                selected.VersionId,
+                selected.Sha256,
+                selected.ContentLength,
+                cancellationToken);
+            var bytes = GC.AllocateUninitializedArray<byte>(checked((int)selected.ContentLength));
+            await content.ReadExactlyAsync(bytes, cancellationToken);
+            bundleImages.Add(new(
+                selected.OccurrenceId,
+                selected.DocumentId,
+                selected.VersionId,
+                selected.Version,
+                selected.FileName,
+                selected.MediaType,
+                selected.SemanticRole,
+                selected.Source,
+                selected.SourceOccurrenceIdentity,
+                bytes,
+                selected.Sha256,
+                CustodyConfirmed: true,
+                IsCurrent: true));
+        }
+
+        var bundle = EvaBundleSchema.CreateOfflineReplay(
+            mapping.Source,
+            new(
+                request.OverviewImageOccurrenceId,
+                request.MainDamageImageOccurrenceId,
+                bundleImages));
+        var existingRevision = await context.EvaHandoffRevisions
+            .SingleOrDefaultAsync(
+                item => item.CaseId == request.CaseId
+                        && item.InputFingerprint == bundle.Sha256,
+                cancellationToken);
+
+        var firstSentToEngineerRecorded = false;
+        EvaHandoffRevisionEntity revision;
+        if (existingRevision is null)
+        {
+            var nextRevision = await context.EvaHandoffRevisions
+                .Where(item => item.CaseId == request.CaseId)
+                .Select(item => (int?)item.Revision)
+                .MaxAsync(cancellationToken) ?? 0;
+            revision = NewRevision(
+                request,
+                checked(nextRevision + 1),
+                bundle,
+                now);
+            context.EvaHandoffRevisions.Add(revision);
+
+            var hasFirstProxy = await context.EvaFirstHandoffProxies
+                .AnyAsync(item => item.CaseId == request.CaseId, cancellationToken);
+            if (!hasFirstProxy)
+            {
+                var receipt = await proxy.RecordFirstGenerationAsync(
+                    new(
+                        request.CaseId,
+                        revision.Revision,
+                        bundle.Sha256,
+                        request.Actor,
+                        operationKey),
+                    cancellationToken);
+                if (receipt.ClaimsExternalDelivery || receipt.ClaimsEngineerAssignment)
+                {
+                    throw new InvalidDataException(
+                        "The offline EVA proxy must not claim delivery or Engineer assignment.");
+                }
+
+                context.EvaFirstHandoffProxies.Add(new()
+                {
+                    CaseId = request.CaseId,
+                    RevisionId = revision.Id,
+                    OperationKey = operationKey,
+                    AdapterKey = receipt.AdapterKey,
+                    AdapterVersion = receipt.AdapterVersion,
+                    RecordedAtUtc = receipt.RecordedAtUtc,
+                    ActorSubjectId = request.Actor.SubjectId,
+                    ClaimsExternalDelivery = false,
+                    ClaimsEngineerAssignment = false
+                });
+                firstSentToEngineerRecorded = true;
+            }
         }
         else
         {
-            reasons.Add("Selected intake images do not yet have per-version custody confirmation.");
+            revision = existingRevision;
         }
 
-        return new(
-            caseRecord.Id,
-            caseRecord.Version,
-            caseRecord.Reference,
-            images,
-            reasons.Distinct(StringComparer.Ordinal).ToArray());
+        context.EvaHandoffOperations.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            CaseId = request.CaseId,
+            RevisionId = revision.Id,
+            OperationKey = operationKey,
+            RequestHash = requestHash,
+            RecordedAtUtc = now,
+            ActorSubjectId = request.Actor.SubjectId
+        });
+
+        var beforeVersion = workflow.Version;
+        workflow.Version = checked(workflow.Version + 1);
+        ClearLease(workflow);
+        AddAuditEvidence(
+            context,
+            workflow,
+            request,
+            operationKey,
+            requestHash,
+            existingRevision is null ? GeneratedEvent : ReusedEvent,
+            beforeVersion,
+            workflow.Version,
+            revision,
+            firstSentToEngineerRecorded,
+            now);
+
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Conflict("The case changed during EVA generation. Reload before retrying.");
+        }
+
+        return Generated(revision, firstSentToEngineerRecorded);
     }
 
-    public async Task<GenerateEvaHandoffResult> GenerateAsync(
-        GenerateEvaHandoffRequest request,
-        CancellationToken cancellationToken)
+    private EvaMappingResult MapAcceptedCase(
+        CaseDataProjection caseData,
+        CaseVehicleEvidence? vehicle)
     {
-        ArgumentNullException.ThrowIfNull(request);
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.Actor);
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.OperationKey);
-        ArgumentNullException.ThrowIfNull(request.SelectedImageIds);
+        var caseId = caseData.Identity.CaseId;
+        var inspection = ResolveInspection(caseData);
+        var acceptedVehicle = vehicle?.CaseId == caseId
+            ? vehicle.Confirmed
+            : null;
+        var evidence = new EvaAcceptedCaseEvidence(
+            caseId,
+            caseData.Version,
+            caseData.AcceptedAtUtc != default,
+            caseData.Completeness.Values.InstructionComplete
+                && caseData.Completeness.Evaluation.SatisfiesPolicy,
+            caseData.Completeness.Values.ImagesComplete
+                && caseData.Completeness.Evaluation.SatisfiesPolicy,
+            new(
+                caseData.Identity.Reference,
+                EvaEvidenceStatus.Accepted,
+                $"case-identity:{caseId:D}",
+                "case-reference/v1"),
+            FromCaseField(caseData.Provider.WorkProviderCode, static value => value),
+            FromVehicleField(acceptedVehicle?.Registration, static value => value),
+            VehicleModel(acceptedVehicle),
+            FromCaseField(caseData.Claimant.Name, static value => value),
+            FromCaseField(caseData.Accident.IncidentDate, static value => value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)),
+            FromCaseField(caseData.Instruction.InstructionDate, static value => value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)),
+            FromCaseField(caseData.Inspection.InspectionDate, static value => value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)),
+            inspection,
+            FromCaseField(caseData.Accident.Circumstances, static value => value),
+            FromCaseField(caseData.Instruction.VatStatus, static value => value),
+            FromVehicleField(acceptedVehicle?.Mileage, static value => value.ToString(CultureInfo.InvariantCulture)),
+            FromVehicleField(acceptedVehicle?.MileageUnit, static value => value switch
+            {
+                VehicleMileageUnit.Miles => "miles",
+                VehicleMileageUnit.Kilometres => "kilometres",
+                _ => value.ToString()
+            }));
+        return CaseEvaMapping.MapForProduction(evidence, mappingAcceptance);
+    }
 
-        var preparation = await GetPreparationAsync(request.CaseId, cancellationToken);
-        if (preparation is null)
-        {
-            return new(GenerateEvaHandoffOutcome.NotFound, null, ["The case was not found."]);
-        }
-
-        if (preparation.CaseVersion != request.ExpectedCaseVersion)
+    private static EvaAddressResolution ResolveInspection(CaseDataProjection caseData)
+    {
+        var mode = Accepted(caseData.Inspection.Mode);
+        var address = Accepted(caseData.Inspection.Address);
+        if (mode is null || address is null)
         {
             return new(
-                GenerateEvaHandoffOutcome.Conflict,
-                null,
-                ["The case changed after the EVA handoff page was loaded. Reload before retrying."]);
+                mode?.Value == CaseInspectionMode.ImageBasedAssessment
+                    ? EvaInspectionMode.ImageBasedAssessment
+                    : EvaInspectionMode.PhysicalAddress,
+                MissingEvidence);
         }
 
-        var reasons = preparation.BlockingReasons.ToList();
-        var knownIds = preparation.Images.Select(item => item.AssetId).ToHashSet();
-        if (request.SelectedImageIds.Count == 0)
+        var modeEvidence = FromCaseValue(mode, static value => value.ToString());
+        var addressEvidence = FromCaseValue(address, static value => value);
+        var evidence = addressEvidence with
         {
-            reasons.Add("Select at least one custody-confirmed image.");
-        }
-        else if (request.SelectedImageIds.Any(id => id == Guid.Empty || !knownIds.Contains(id))
-                 || request.SelectedImageIds.Distinct().Count() != request.SelectedImageIds.Count)
+            Status = modeEvidence.Status == EvaEvidenceStatus.Corrected
+                     || addressEvidence.Status == EvaEvidenceStatus.Corrected
+                ? EvaEvidenceStatus.Corrected
+                : EvaEvidenceStatus.Accepted,
+            Source = $"{modeEvidence.Source}|{addressEvidence.Source}",
+            SourceVersion = $"{modeEvidence.SourceVersion}|{addressEvidence.SourceVersion}"
+        };
+        return mode.Value switch
         {
-            reasons.Add("The selected images are invalid or no longer belong to this case intake.");
-        }
-
-        return new(
-            GenerateEvaHandoffOutcome.Blocked,
-            null,
-            reasons.Distinct(StringComparer.Ordinal).ToArray());
+            CaseInspectionMode.ImageBasedAssessment => new(
+                EvaInspectionMode.ImageBasedAssessment,
+                evidence),
+            CaseInspectionMode.PhysicalAddress
+                when !string.Equals(
+                    address.Value.Trim(),
+                    CaseEvaMapping.ImageBasedAssessment,
+                    StringComparison.Ordinal) => new(
+                        EvaInspectionMode.PhysicalAddress,
+                        evidence),
+            _ => new(EvaInspectionMode.PhysicalAddress, evidence with
+            {
+                Status = EvaEvidenceStatus.Suggested
+            })
+        };
     }
 
-    private static bool IsImage(IntakeAssetEntity asset) =>
-        asset.MediaType.Equals("image/jpeg", StringComparison.OrdinalIgnoreCase)
-        || asset.MediaType.Equals("image/png", StringComparison.OrdinalIgnoreCase);
-
-    private static string? JoinVehicleModel(string? make, string? model)
+    private static EvaEvidenceValue VehicleModel(ConfirmedVehicleEvidence? vehicle)
     {
-        var values = new[] { make, model }
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Select(value => value!.Trim())
-            .ToArray();
-        return values.Length == 0 ? null : string.Join(' ', values);
+        var values = new List<EvaEvidenceValue>(2);
+        if (vehicle?.Make is not null)
+        {
+            values.Add(FromVehicleField(vehicle.Make, static value => value));
+        }
+        if (vehicle?.Model is not null)
+        {
+            values.Add(FromVehicleField(vehicle.Model, static value => value));
+        }
+        if (values.Count == 0)
+        {
+            return MissingEvidence;
+        }
+
+        return values.Aggregate(Combine);
     }
+
+    private static EvaEvidenceValue FromCaseField<T>(
+        CaseField<T> field,
+        Func<T, string> format)
+        where T : notnull =>
+        Accepted(field) is { } value
+            ? FromCaseValue(value, format)
+            : MissingEvidence;
+
+    private static CaseDataValue<T>? Accepted<T>(CaseField<T> field)
+        where T : notnull =>
+        field.Confirmed is { IsAccepted: true } confirmed
+            ? confirmed
+            : field.Fact is { IsAccepted: true } fact
+                ? fact
+                : null;
+
+    private static EvaEvidenceValue FromCaseValue<T>(
+        CaseDataValue<T> value,
+        Func<T, string> format)
+        where T : notnull
+    {
+        var sourceVersion = !string.IsNullOrWhiteSpace(value.Source.PolicyKey)
+                            && value.Source.PolicyVersion > 0
+            ? $"{value.Source.PolicyKey.Trim()}/v{value.Source.PolicyVersion}"
+            : string.Empty;
+        var confirmed = value.ConfirmedByActor is null
+            ? string.Empty
+            : $";confirmed={value.ConfirmedByActor}@{value.ConfirmedAtUtc:O}";
+        return new(
+            format(value.Value),
+            value.Source.Kind == CaseDataSourceKind.StaffCorrection
+                ? EvaEvidenceStatus.Corrected
+                : EvaEvidenceStatus.Accepted,
+            $"case-data:{value.Source.Kind}:{value.Source.Identity}:{value.Source.Label}{confirmed}",
+            sourceVersion);
+    }
+
+    private static EvaEvidenceValue FromVehicleField<T>(
+        ConfirmedVehicleField<T>? field,
+        Func<T, string> format)
+        where T : notnull
+    {
+        if (field is null)
+        {
+            return MissingEvidence;
+        }
+
+        var external = field.ExternalProvenance is null
+            ? string.Empty
+            : $";provider={field.ExternalProvenance.Provider};response={field.ExternalProvenance.ResponseIdentity};observed={field.ExternalProvenance.RetrievedAtUtc:O}";
+        var sourceVersion = !string.IsNullOrWhiteSpace(field.PolicyKey)
+                            && field.PolicyVersion > 0
+            ? $"{field.PolicyKey.Trim()}/v{field.PolicyVersion}"
+            : string.Empty;
+        return new(
+            format(field.Value),
+            field.SourceKind.Equals("staff-correction", StringComparison.Ordinal)
+                ? EvaEvidenceStatus.Corrected
+                : EvaEvidenceStatus.Accepted,
+            $"vehicle:{field.SourceKind}:{field.SourceIdentity}:{field.SourceLabel};confirmed={field.ConfirmedByActor}@{field.ConfirmedAtUtc:O}{external}",
+            sourceVersion);
+    }
+
+    private static EvaEvidenceValue Combine(EvaEvidenceValue first, EvaEvidenceValue second) => new(
+        string.Join(' ', new[] { first.Value, second.Value }
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value!.Trim())),
+        first.Status == EvaEvidenceStatus.Corrected || second.Status == EvaEvidenceStatus.Corrected
+            ? EvaEvidenceStatus.Corrected
+            : first.IsAccepted && second.IsAccepted
+                ? EvaEvidenceStatus.Accepted
+                : EvaEvidenceStatus.Suggested,
+        $"{first.Source}|{second.Source}",
+        $"{first.SourceVersion}|{second.SourceVersion}");
+
+    private static EvaEvidenceValue MissingEvidence { get; } =
+        new(null, EvaEvidenceStatus.Suggested, "missing", "missing");
+
+    private static EvaHandoffRevisionEntity NewRevision(
+        GenerateEvaHandoffRequest request,
+        int revision,
+        EvaBundle bundle,
+        DateTimeOffset now) => new()
+    {
+        Id = Guid.NewGuid(),
+        CaseId = request.CaseId,
+        Revision = revision,
+        AcceptedCaseVersion = request.ExpectedCaseVersion,
+        SchemaVersion = EvaBundleSchema.SchemaVersion,
+        InputFingerprint = bundle.Sha256,
+        FileName = bundle.FileName,
+        BundleContent = bundle.Content,
+        BundleSha256 = bundle.Sha256,
+        JsonContent = bundle.JsonContent,
+        JsonSha256 = bundle.JsonSha256,
+        ProvenanceContent = bundle.ProvenanceContent,
+        ProvenanceSha256 = bundle.ProvenanceSha256,
+        ManifestContent = bundle.ManifestContent,
+        GeneratedAtUtc = now,
+        GeneratedBy = request.Actor.SubjectId
+    };
+
+    private static GenerateEvaHandoffResult Generated(
+        EvaHandoffRevisionEntity revision,
+        bool firstSentToEngineerRecorded) => new(
+        GenerateEvaHandoffOutcome.Generated,
+        Bundle(revision),
+        [],
+        revision.Revision,
+        firstSentToEngineerRecorded);
+
+    private static EvaBundle Bundle(EvaHandoffRevisionEntity revision) => new(
+        revision.BundleContent,
+        revision.BundleSha256,
+        revision.JsonContent,
+        revision.JsonSha256,
+        revision.ProvenanceContent,
+        revision.ProvenanceSha256,
+        revision.ManifestContent,
+        revision.FileName);
+
+
+    private static void AddAuditEvidence(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        GenerateEvaHandoffRequest request,
+        string operationKey,
+        string requestHash,
+        string eventType,
+        long beforeVersion,
+        long afterVersion,
+        EvaHandoffRevisionEntity revision,
+        bool firstSentToEngineerRecorded,
+        DateTimeOffset now)
+    {
+        var evidenceReason = firstSentToEngineerRecorded
+            ? $"Generated immutable EVA handoff revision {revision.Revision} and recorded the once-per-case First sent to Engineer export proxy. No delivery or Engineer assignment was claimed."
+            : eventType == ReusedEvent
+                ? $"Reused immutable EVA handoff revision {revision.Revision} for unchanged accepted inputs. No delivery or Engineer assignment was claimed."
+                : $"Generated immutable EVA handoff revision {revision.Revision}. No delivery or Engineer assignment was claimed.";
+        var reason = $"{request.Reason.Trim()} {evidenceReason}";
+        var roles = RolesJson(request.Actor);
+        var result = JsonSerializer.Serialize(new
+        {
+            revision.Revision,
+            revision.FileName,
+            Sha256 = revision.BundleSha256,
+            FirstSentToEngineerRecorded = firstSentToEngineerRecorded
+        });
+        context.CaseWorkflowEvents.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            CaseId = request.CaseId,
+            Workflow = workflow,
+            EventType = eventType,
+            OperationKey = operationKey,
+            RequestHash = requestHash,
+            ActorKind = request.Actor.Kind.ToString(),
+            ActorSubjectId = request.Actor.SubjectId,
+            ActorRolesJson = roles,
+            Reason = reason,
+            OccurredAtUtc = now,
+            BeforeVersion = beforeVersion,
+            AfterVersion = afterVersion,
+            ResultJson = result
+        });
+        context.ActionHistory.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            AggregateType = "case",
+            AggregateId = request.CaseId.ToString("D"),
+            EventKind = eventType,
+            ActorKind = request.Actor.Kind.ToString(),
+            ActorSubjectId = request.Actor.SubjectId,
+            ActorRolesJson = roles,
+            OccurredAtUtc = now,
+            Outcome = "Succeeded",
+            CorrelationId = operationKey,
+            Reason = reason,
+            BeforeJson = JsonSerializer.Serialize(new { Version = beforeVersion }),
+            AfterJson = result,
+            PolicyVersion = $"{CaseEvaMapping.MappingKey}/v{CaseEvaMapping.MappingVersion}"
+        });
+    }
+
+    private static void Validate(GenerateEvaHandoffRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.CaseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(request));
+        }
+        if (request.ExpectedCaseVersion < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(request), "The expected case version cannot be negative.");
+        }
+        ArgumentNullException.ThrowIfNull(request.Actor);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.OperationKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Reason);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.EditLeaseToken);
+        ArgumentNullException.ThrowIfNull(request.OrderedImageOccurrenceIds);
+        if (request.OperationKey.Length > 100
+            || request.Reason.Length > 300
+            || request.EditLeaseToken.Length > 128)
+        {
+            throw new ArgumentException("The EVA operation key, reason, or edit-lease token is too long.", nameof(request));
+        }
+        if (request.OverviewImageOccurrenceId == Guid.Empty
+            || request.MainDamageImageOccurrenceId == Guid.Empty
+            || request.OverviewImageOccurrenceId == request.MainDamageImageOccurrenceId
+            || request.OrderedImageOccurrenceIds.Count < 2
+            || request.OrderedImageOccurrenceIds.Count > 100
+            || request.OrderedImageOccurrenceIds.Any(id => id == Guid.Empty)
+            || request.OrderedImageOccurrenceIds.Distinct().Count()
+                != request.OrderedImageOccurrenceIds.Count)
+        {
+            throw new ArgumentException(
+                "Distinct overview and main-damage images and a unique approved image order are required.",
+                nameof(request));
+        }
+    }
+
+    private static void RequireLease(
+        CaseWorkflowEntity workflow,
+        ActionActor actor,
+        string token,
+        DateTimeOffset now)
+    {
+        if (workflow.EditLeaseExpiresAtUtc is null
+            || workflow.EditLeaseExpiresAtUtc <= now
+            || workflow.EditLeaseTokenHash is null
+            || workflow.EditLeaseHolder is null)
+        {
+            throw new CaseEditLeaseExpiredException(workflow.CaseId);
+        }
+        if (!string.Equals(workflow.EditLeaseHolder, actor.SubjectId, StringComparison.Ordinal)
+            || !HashesMatch(workflow.EditLeaseTokenHash, Hash(token)))
+        {
+            throw new CaseEditLeaseConflictException(workflow.CaseId);
+        }
+    }
+
+    private static void ClearLease(CaseWorkflowEntity workflow)
+    {
+        workflow.EditLeaseToken = null;
+        workflow.EditLeaseTokenHash = null;
+        workflow.EditLeaseRequestHash = null;
+        workflow.EditLeaseHolder = null;
+        workflow.EditLeaseOperationKey = null;
+        workflow.EditLeaseExpiresAtUtc = null;
+    }
+
+    private static string HashRequest(GenerateEvaHandoffRequest request)
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        Append(hash, "generate-eva-handoff/v1");
+        Append(hash, request.CaseId.ToString("D"));
+        Append(hash, request.ExpectedCaseVersion.ToString(CultureInfo.InvariantCulture));
+        Append(hash, request.OverviewImageOccurrenceId.ToString("D"));
+        Append(hash, request.MainDamageImageOccurrenceId.ToString("D"));
+        foreach (var id in request.OrderedImageOccurrenceIds)
+        {
+            Append(hash, id.ToString("D"));
+        }
+        Append(hash, request.Actor.Kind.ToString());
+        Append(hash, request.Actor.SubjectId);
+        foreach (var role in request.Actor.Roles.OrderBy(role => role))
+        {
+            Append(hash, role.ToString());
+        }
+        Append(hash, request.Reason.Trim());
+        Append(hash, Hash(request.EditLeaseToken));
+        return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+    }
+
+    private static void Append(IncrementalHash hash, string value)
+    {
+        var bytes = Encoding.UTF8.GetBytes(value);
+        Span<byte> length = stackalloc byte[sizeof(int)];
+        BinaryPrimitives.WriteInt32BigEndian(length, bytes.Length);
+        hash.AppendData(length);
+        hash.AppendData(bytes);
+    }
+
+    private static string Hash(string value) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+
+    private static string Hash(ReadOnlySpan<byte> value) =>
+        Convert.ToHexString(SHA256.HashData(value)).ToLowerInvariant();
+
+
+    private static bool HashesMatch(string? stored, string expected)
+    {
+        if (stored is null || stored.Length != expected.Length)
+        {
+            return false;
+        }
+        try
+        {
+            return CryptographicOperations.FixedTimeEquals(
+                Convert.FromHexString(stored),
+                Convert.FromHexString(expected));
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
+
+    private static bool IsSafeBundleFileName(string fileName) =>
+        !string.IsNullOrWhiteSpace(fileName)
+        && fileName.Length <= 260
+        && fileName.Equals(fileName.Trim(), StringComparison.Ordinal)
+        && fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
+        && !fileName.Contains('/')
+        && !fileName.Contains('\\')
+        && !fileName.Any(char.IsControl)
+        && fileName.IndexOfAny(Path.GetInvalidFileNameChars()) < 0;
+
+    private static bool IsTerminalWorkflow(string state) =>
+        Enum.TryParse<CaseLifecycleState>(state, out var parsed)
+        && parsed is CaseLifecycleState.PostReportComplete
+            or CaseLifecycleState.ProviderCancelled
+            or CaseLifecycleState.CollisionEngineersRejected
+            or CaseLifecycleState.CreatedInError;
+
+    private static bool IsConfirmedCustody(string state, DateTimeOffset? confirmedAtUtc) =>
+        state.Equals("confirmed", StringComparison.OrdinalIgnoreCase)
+        && confirmedAtUtc is not null;
+
+    private static bool IsSupportedImage(string mediaType) =>
+        mediaType.Equals("image/jpeg", StringComparison.OrdinalIgnoreCase)
+        || mediaType.Equals("image/png", StringComparison.OrdinalIgnoreCase);
+
+    private static string RolesJson(ActionActor actor) =>
+        JsonSerializer.Serialize(actor.Roles.OrderBy(role => role).Select(role => role.ToString()));
+
+    private static GenerateEvaHandoffResult Blocked(string reason) =>
+        new(GenerateEvaHandoffOutcome.Blocked, null, [reason]);
+
+    private static GenerateEvaHandoffResult Conflict(string reason) =>
+        new(GenerateEvaHandoffOutcome.Conflict, null, [reason]);
+
+    private sealed record SelectedDocument(
+        Guid OccurrenceId,
+        Guid CaseId,
+        Guid DocumentId,
+        DocumentSource Source,
+        string SourceOccurrenceIdentity,
+        DocumentSemanticRole SemanticRole,
+        Guid VersionId,
+        Guid VersionDocumentId,
+        int Version,
+        string FileName,
+        string MediaType,
+        long ContentLength,
+        string Sha256,
+        DocumentCustodyStatus CustodyStatus,
+        bool IsCurrent,
+        bool IsLogicallyRemoved);
 }

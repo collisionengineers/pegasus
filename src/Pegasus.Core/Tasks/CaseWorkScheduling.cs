@@ -69,22 +69,30 @@ public interface IRecordManualCaseChase
 /// </summary>
 public static class CaseChaseSchedule
 {
+    public const string PolicyKey = "case-chase-schedule";
+    public const int PolicyVersion = 1;
+    public const string PolicyIdentity = PolicyKey + "/v1";
+
     private static readonly TimeZoneInfo LondonTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Europe/London");
 
     public static DateTimeOffset FirstChaseAt(DateTimeOffset enteredNotReadyAtUtc)
     {
         var local = TimeZoneInfo.ConvertTime(enteredNotReadyAtUtc, LondonTimeZone).DateTime;
-        return ToLondonInstant(local.Date.AddDays(7).Add(local.TimeOfDay));
+        return LondonCalendar.ToUtc(local.Date.AddDays(7).Add(local.TimeOfDay));
     }
 
     public static DateTimeOffset NextChaseAt(DateTimeOffset previousChaseAtUtc)
     {
         var local = TimeZoneInfo.ConvertTime(previousChaseAtUtc, LondonTimeZone).DateTime;
-        return ToLondonInstant(local.Date.AddDays(7).Add(local.TimeOfDay));
+        return LondonCalendar.ToUtc(local.Date.AddDays(7).Add(local.TimeOfDay));
     }
 
-    public static TimeSpan RemainingInterval(DateTimeOffset nextChaseAtUtc, DateTimeOffset heldAtUtc) =>
-        nextChaseAtUtc <= heldAtUtc ? TimeSpan.Zero : nextChaseAtUtc - heldAtUtc;
+    public static TimeSpan RemainingInterval(DateTimeOffset nextChaseAtUtc, DateTimeOffset heldAtUtc)
+    {
+        var nextLocal = TimeZoneInfo.ConvertTime(nextChaseAtUtc, LondonTimeZone).DateTime;
+        var heldLocal = TimeZoneInfo.ConvertTime(heldAtUtc, LondonTimeZone).DateTime;
+        return nextLocal <= heldLocal ? TimeSpan.Zero : nextLocal - heldLocal;
+    }
 
     public static DateTimeOffset ResumeAt(DateTimeOffset releasedAtUtc, TimeSpan remainingInterval)
     {
@@ -95,21 +103,8 @@ public static class CaseChaseSchedule
                 "The held chase interval cannot be negative.");
         }
 
-        return releasedAtUtc + remainingInterval;
+        var releasedLocal = TimeZoneInfo.ConvertTime(releasedAtUtc, LondonTimeZone).DateTime;
+        return LondonCalendar.ToUtc(releasedLocal + remainingInterval);
     }
 
-    private static DateTimeOffset ToLondonInstant(DateTime local)
-    {
-        // A local time in the spring-forward gap has no instant. Move to the first valid
-        // London local time so scheduling remains deterministic and never silently skips work.
-        while (LondonTimeZone.IsInvalidTime(local))
-        {
-            local = local.AddMinutes(1);
-        }
-
-        var offset = LondonTimeZone.IsAmbiguousTime(local)
-            ? LondonTimeZone.GetAmbiguousTimeOffsets(local).Min()
-            : LondonTimeZone.GetUtcOffset(local);
-        return new DateTimeOffset(local, offset).ToUniversalTime();
-    }
 }

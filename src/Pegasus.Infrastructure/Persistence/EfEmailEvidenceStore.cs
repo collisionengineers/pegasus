@@ -4,29 +4,18 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Triage;
+using Pegasus.Core.Identity;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
 
 public sealed class EfEmailEvidenceStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     TimeProvider? timeProvider = null)
-    : IRecordSentEmailEvidence, IRecordEmailResponseEvidence, IEmailEvidenceChaseReadModel
+    : IRecordSentEmailEvidence,
+      IRecordEmailResponseEvidence,
+      IExactEmailResponseEvidenceQueries
 {
-    private static readonly IComparer<EmailEvidenceChaseRow> ChaseDueComparer =
-        Comparer<EmailEvidenceChaseRow>.Create(static (left, right) =>
-        {
-            var dueComparison = left.ChaseDueAtUtc.CompareTo(right.ChaseDueAtUtc);
-            return dueComparison != 0 ? dueComparison : left.Id.CompareTo(right.Id);
-        });
-
-    private sealed record EmailEvidenceChaseRow(
-        Guid Id,
-        Guid TriageId,
-        string MessageIdentity,
-        string Subject,
-        string RecipientsJson,
-        DateTimeOffset SentAtUtc,
-        DateTimeOffset ChaseDueAtUtc);
 
     public async Task<SentEmailEvidence> ExecuteAsync(
         RecordSentEmailEvidenceRequest request,
@@ -68,7 +57,6 @@ public sealed class EfEmailEvidenceStore(
         {
             throw new TriageVersionConflictException(triage.Id, request.ExpectedTriageVersion, triage.Version);
         }
-        EnsureLiveLease(triage, request.Actor, request.EditLeaseToken);
 
 
         var duplicateMessage = await context.SentEmailEvidence
@@ -96,14 +84,6 @@ public sealed class EfEmailEvidenceStore(
             Version = 0
         };
         context.SentEmailEvidence.Add(entity);
-        AppendHistory(
-            context,
-            triage,
-            "sent_email_evidence_recorded",
-            entity.Actor,
-            entity.OperationKey,
-            "Recorded exact Sent email evidence",
-            requestHash);
 
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -116,9 +96,45 @@ public sealed class EfEmailEvidenceStore(
     {
         Validate(request);
         var messageIdentity = request.MessageIdentity.Trim();
-        var mimeSha256 = request.MimeSha256.ToLowerInvariant();
-        var requestHash = Hash(
-            $"response|{request.SentEvidenceId:N}|{request.ExpectedSentEvidenceVersion}|{messageIdentity}|{mimeSha256}|{request.ReceivedAtUtc:O}|{request.Actor.Trim()}");
+        var mailboxAddress = ApprovedMailboxAddress.Normalize(request.MailboxAddress);
+        var inReplyToIdentities = request.InReplyToIdentities
+            .Select(identity => identity.Trim())
+            .ToArray();
+        var actor = $"system-worker:{request.Actor.SubjectId}";
+        var operationKey = request.OperationKey.Trim();
+        var mimeSha256 = request.MimeSha256.ToUpperInvariant();
+        var sourceSha256 = request.SourceSha256.ToUpperInvariant();
+        var mailboxId = request.MailboxId.Trim();
+        var sentFolderIdentity = request.SentFolderIdentity.Trim();
+        var currentLocationIdentity = request.CurrentLocationIdentity.Trim();
+        var cursorAfterItem = request.CursorAfterItem.Trim();
+        var pollLeaseToken = request.PollLeaseToken.Trim();
+        var pollOutcomeOperationKey = request.PollOutcomeOperationKey.Trim();
+        var requestHash = Hash(string.Join(
+            '\n',
+            [
+                "response",
+                request.SentEvidenceId.ToString("N"),
+                request.PollOutcomeId.ToString("N"),
+                mailboxId,
+                mailboxAddress,
+                sentFolderIdentity,
+                currentLocationIdentity,
+                request.ImmutableItemIdentity.Trim(),
+                messageIdentity,
+                request.ConversationIdentity.Trim(),
+                request.ReplyChainIdentity.Trim(),
+                string.Join('\n', inReplyToIdentities),
+                request.SourceOccurrenceIdentity.Trim(),
+                sourceSha256,
+                mimeSha256,
+                request.SentAtUtc.ToString("O"),
+                request.DiscoveredAtUtc.ToString("O"),
+                cursorAfterItem,
+                pollOutcomeOperationKey,
+                actor,
+                request.Reason.Trim()
+            ]));
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(
@@ -127,22 +143,43 @@ public sealed class EfEmailEvidenceStore(
 
         var replay = await context.EmailResponseEvidence
             .AsNoTracking()
-            .SingleOrDefaultAsync(item => item.OperationKey == request.OperationKey.Trim(), cancellationToken);
+            .SingleOrDefaultAsync(item => item.OperationKey == operationKey, cancellationToken);
         if (replay is not null)
         {
             EnsureSameResponse(replay, requestHash);
             return;
         }
+
         var conflictingHistory = await context.TriageHistory.AsNoTracking().SingleOrDefaultAsync(
-            item => item.OperationKey == request.OperationKey.Trim(),
+            item => item.OperationKey == operationKey,
             cancellationToken);
         if (conflictingHistory is not null)
         {
             throw new TriageOperationConflictException(
                 conflictingHistory.TriageId,
-                request.OperationKey.Trim());
+                operationKey);
         }
 
+        var pollState = await context.ApprovedSentPollStates.SingleOrDefaultAsync(
+            item => item.MailboxId == mailboxId,
+            cancellationToken);
+        if (pollState is null
+            || !string.Equals(pollState.MailboxAddress, mailboxAddress, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(pollState.SentFolderIdentity, sentFolderIdentity, StringComparison.Ordinal)
+            || !string.Equals(pollState.LeaseToken, pollLeaseToken, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "The approved-Sent poll lease was lost before its exact response could be retained.");
+        }
+
+        if (await context.ApprovedSentPollOutcomes.AnyAsync(
+                item => item.Id == request.PollOutcomeId
+                    || item.OperationKey == pollOutcomeOperationKey,
+                cancellationToken))
+        {
+            throw new InvalidDataException(
+                "The approved-Sent outcome is already retained without its atomic response evidence.");
+        }
 
         var sentEvidence = await context.SentEmailEvidence
             .Include(item => item.Triage)
@@ -154,14 +191,26 @@ public sealed class EfEmailEvidenceStore(
             throw new DbUpdateConcurrencyException(
                 $"Sent email evidence '{sentEvidence.Id}' changed before its response could be recorded.");
         }
-        EnsureLiveLease(sentEvidence.Triage, request.Actor, request.EditLeaseToken);
 
+        if (!inReplyToIdentities.Contains(sentEvidence.MessageIdentity, StringComparer.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "The approved-mailbox Sent item is not an exact reply to the selected Triage evidence.");
+        }
+
+        if (await context.TriageResponseEvidenceLinks.AnyAsync(
+                item => item.TriageId == sentEvidence.TriageId,
+                cancellationToken))
+        {
+            throw new TriageResponseEvidenceAlreadyLinkedException(sentEvidence.TriageId);
+        }
         if (sentEvidence.Response is not null)
         {
             throw new InvalidOperationException("A response is already recorded for the Sent evidence.");
         }
 
-        if (request.ReceivedAtUtc < sentEvidence.SentAtUtc)
+
+        if (request.SentAtUtc < sentEvidence.SentAtUtc)
         {
             throw new ArgumentException("Response evidence cannot predate the Sent evidence.", nameof(request));
         }
@@ -173,88 +222,155 @@ public sealed class EfEmailEvidenceStore(
             throw new InvalidOperationException("The response message identity is already recorded by another operation.");
         }
 
-        var actor = request.Actor.Trim();
-        var operationKey = request.OperationKey.Trim();
+        context.ApprovedSentPollOutcomes.Add(new()
+        {
+            Id = request.PollOutcomeId,
+            MailboxId = mailboxId,
+            MailboxAddress = mailboxAddress,
+            SourceOccurrenceIdentity = request.SourceOccurrenceIdentity.Trim(),
+            SourceSha256 = sourceSha256,
+            CurrentLocationIdentity = currentLocationIdentity,
+            ObservationKind = ApprovedSentItemObservationKind.Discovered.ToString(),
+            SentFolderIdentity = sentFolderIdentity,
+            ImmutableItemIdentity = request.ImmutableItemIdentity.Trim(),
+            InternetMessageIdentity = messageIdentity,
+            ConversationIdentity = request.ConversationIdentity.Trim(),
+            ReplyChainIdentity = request.ReplyChainIdentity.Trim(),
+            InReplyToIdentitiesJson = JsonSerializer.Serialize(inReplyToIdentities),
+            AuthoritativeCaseIdentitiesJson = JsonSerializer.Serialize(Array.Empty<Guid>()),
+            SentAtUtc = request.SentAtUtc,
+            MimeSha256 = mimeSha256,
+            OutcomeKind = SentEvidencePollOutcomeKind.TriageResponseRecorded.ToString(),
+            RelatedEvidenceId = sentEvidence.Id,
+            RecordedAtUtc = request.DiscoveredAtUtc,
+            CursorAfterItem = cursorAfterItem,
+            OperationKey = pollOutcomeOperationKey
+        });
+
         context.EmailResponseEvidence.Add(new()
         {
-            Id = Guid.NewGuid(),
+            Id = request.PollOutcomeId,
             SentEvidenceId = sentEvidence.Id,
             SentEvidence = sentEvidence,
+            PollOutcomeId = request.PollOutcomeId,
+            MailboxId = mailboxId,
+            MailboxAddress = mailboxAddress,
+            SentFolderIdentity = sentFolderIdentity,
+            ImmutableItemIdentity = request.ImmutableItemIdentity.Trim(),
             MessageIdentity = messageIdentity,
+            ConversationIdentity = request.ConversationIdentity.Trim(),
+            ReplyChainIdentity = request.ReplyChainIdentity.Trim(),
+            InReplyToIdentitiesJson = JsonSerializer.Serialize(inReplyToIdentities),
+            SourceOccurrenceIdentity = request.SourceOccurrenceIdentity.Trim(),
+            SourceSha256 = sourceSha256,
             MimeSha256 = mimeSha256,
-            ReceivedAtUtc = request.ReceivedAtUtc,
+            SentAtUtc = request.SentAtUtc,
+            DiscoveredAtUtc = request.DiscoveredAtUtc,
             Actor = actor,
             OperationKey = operationKey,
             RequestHash = requestHash
         });
         sentEvidence.Version++;
-        AppendHistory(
+        var linkedAtUtc = UtcNow();
+        context.TriageResponseEvidenceLinks.Add(new()
+        {
+            TriageId = sentEvidence.TriageId,
+            Triage = sentEvidence.Triage,
+            SentEvidenceId = sentEvidence.Id,
+            SentEvidence = sentEvidence,
+            Actor = actor,
+            OperationKey = operationKey,
+            Reason = request.Reason.Trim(),
+            LinkedAtUtc = linkedAtUtc
+        });
+        AppendResponseHistory(
             context,
             sentEvidence.Triage,
-            "email_response_evidence_recorded",
             actor,
             operationKey,
-            "Recorded exact reply-chain response evidence",
-            requestHash);
+            request.Reason.Trim(),
+            requestHash,
+            linkedAtUtc);
 
-        await context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception)
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            await using var verification =
+                await contextFactory.CreateDbContextAsync(CancellationToken.None);
+            var committedReplay = await verification.EmailResponseEvidence
+                .AsNoTracking()
+                .SingleOrDefaultAsync(
+                    item => item.OperationKey == operationKey,
+                    CancellationToken.None);
+            if (committedReplay is not null)
+            {
+                EnsureSameResponse(committedReplay, requestHash);
+                return;
+            }
+            if (await verification.TriageHistory.AsNoTracking().AnyAsync(
+                    item => item.OperationKey == operationKey,
+                    CancellationToken.None))
+            {
+                throw new TriageOperationConflictException(
+                    sentEvidence.TriageId,
+                    operationKey);
+            }
+
+
+            if (await verification.TriageResponseEvidenceLinks.AsNoTracking().AnyAsync(
+                    item => item.TriageId == sentEvidence.TriageId,
+                    CancellationToken.None))
+            {
+                throw new TriageResponseEvidenceAlreadyLinkedException(
+                    sentEvidence.TriageId,
+                    exception);
+            }
+
+            throw;
+        }
     }
 
-    public async Task<IReadOnlyList<EmailEvidenceChaseProjection>> GetDueAsync(
-        DateTimeOffset asOfUtc,
-        int maximumResults,
+    public async Task<IReadOnlyList<ExactEmailResponseEvidenceCandidate>> FindExactCandidatesAsync(
+        IReadOnlyList<string> replyChainIdentities,
         CancellationToken cancellationToken)
     {
-        if (maximumResults is < 1 or > 1000)
+        ArgumentNullException.ThrowIfNull(replyChainIdentities);
+        if (replyChainIdentities.Count is < 1 or > 100
+            || replyChainIdentities.Any(identity => string.IsNullOrWhiteSpace(identity)
+                || identity.Trim().Length > 500)
+            || replyChainIdentities.Distinct(StringComparer.Ordinal).Count()
+                != replyChainIdentities.Count)
         {
-            throw new ArgumentOutOfRangeException(nameof(maximumResults), "Maximum results must be between one and 1000.");
+            throw new ArgumentException(
+                "Between one and 100 distinct exact reply-chain identities are required.",
+                nameof(replyChainIdentities));
         }
 
+        var identities = replyChainIdentities.Select(identity => identity.Trim()).ToArray();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        if (!context.Database.IsSqlite())
-        {
-            var rows = await context.SentEmailEvidence
-                .AsNoTracking()
-                .Where(item => item.ChaseDueAtUtc <= asOfUtc && item.Response == null)
-                .OrderBy(item => item.ChaseDueAtUtc)
-                .ThenBy(item => item.Id)
-                .Take(maximumResults)
-                .ToListAsync(cancellationToken);
-            return rows.Select(MapChaseProjection).ToArray();
-        }
-
-        // SQLite cannot translate DateTimeOffset comparison or ordering. Stream unanswered rows
-        // and retain at most the requested number while applying instant ordering in memory.
-        var dueRows = new SortedSet<EmailEvidenceChaseRow>(ChaseDueComparer);
-        await foreach (var row in context.SentEmailEvidence
+        var rows = await context.SentEmailEvidence
             .AsNoTracking()
-            .Where(item => item.Response == null)
-            .Select(item => new EmailEvidenceChaseRow(
+            .Include(item => item.Response)
+            .Where(item => identities.Contains(item.MessageIdentity))
+            .ToArrayAsync(cancellationToken);
+        return rows
+            .Where(item => identities.Contains(item.MessageIdentity, StringComparer.Ordinal))
+            .Select(item => new ExactEmailResponseEvidenceCandidate(
                 item.Id,
-                item.TriageId,
+                item.Response is null
+                    ? item.Version
+                    : checked(item.Version - 1),
                 item.MessageIdentity,
-                item.Subject,
-                item.RecipientsJson,
-                item.SentAtUtc,
-                item.ChaseDueAtUtc))
-            .AsAsyncEnumerable()
-            .WithCancellation(cancellationToken))
-        {
-            if (row.ChaseDueAtUtc > asOfUtc)
-            {
-                continue;
-            }
-
-            dueRows.Add(row);
-            if (dueRows.Count > maximumResults)
-            {
-                dueRows.Remove(dueRows.Max!);
-            }
-        }
-
-        return dueRows.Select(MapChaseProjection).ToArray();
+                item.Response?.MessageIdentity))
+            .ToArray();
     }
+
 
     private static void Validate(RecordSentEmailEvidenceRequest request)
     {
@@ -264,11 +380,6 @@ public sealed class EfEmailEvidenceStore(
         ArgumentNullException.ThrowIfNull(request.Recipients);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.MimeSha256);
         ValidateActorAndOperation(request.Actor, request.OperationKey);
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.EditLeaseToken);
-        if (request.EditLeaseToken.Length > 64)
-        {
-            throw new ArgumentException("The edit lease token cannot exceed 64 characters.", nameof(request));
-        }
 
         if (request.TriageId == Guid.Empty || request.ExpectedTriageVersion < 0)
         {
@@ -298,20 +409,66 @@ public sealed class EfEmailEvidenceStore(
     private static void Validate(RecordEmailResponseEvidenceRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.MessageIdentity);
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.MimeSha256);
-        ValidateActorAndOperation(request.Actor, request.OperationKey);
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.EditLeaseToken);
-        if (request.ExpectedSentEvidenceVersion < 0 || request.EditLeaseToken.Length > 64)
+        ArgumentNullException.ThrowIfNull(request.Actor);
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.ExecuteSystemWork);
+        if (request.Actor.Kind != ActorKind.SystemWorker)
         {
-            throw new ArgumentException("A valid expected evidence version and edit lease token are required.", nameof(request));
-        }
-        if (request.SentEvidenceId == Guid.Empty || request.MessageIdentity.Trim().Length > 200)
-        {
-            throw new ArgumentException("A valid Sent evidence and response message identity are required.", nameof(request));
+            throw new UnauthorizedAccessException(
+                "Automatic response evidence requires a system-worker actor.");
         }
 
+        if (request.SentEvidenceId == Guid.Empty
+            || request.PollOutcomeId == Guid.Empty
+            || request.ExpectedSentEvidenceVersion < 0)
+        {
+            throw new ArgumentException(
+                "Valid Sent-evidence, poll-outcome and expected-version identities are required.",
+                nameof(request));
+        }
+
+        ValidateText(request.MailboxId, 100, nameof(request));
+        ValidateText(request.PollLeaseToken, 64, nameof(request));
+        _ = ApprovedMailboxAddress.Normalize(request.MailboxAddress);
+        ValidateText(request.SentFolderIdentity, 200, nameof(request));
+        ValidateText(request.ImmutableItemIdentity, 500, nameof(request));
+        ValidateText(request.MessageIdentity, 500, nameof(request));
+        ValidateText(request.ConversationIdentity, 500, nameof(request));
+        ValidateText(request.ReplyChainIdentity, 500, nameof(request));
+        ValidateText(request.SourceOccurrenceIdentity, 200, nameof(request));
+        ValidateText(request.CurrentLocationIdentity, 500, nameof(request));
+        ValidateText(request.OperationKey, 100, nameof(request));
+        ValidateText(request.PollOutcomeOperationKey, 100, nameof(request));
+        ValidateText(request.CursorAfterItem, int.MaxValue, nameof(request));
+        ValidateText(request.Reason, 500, nameof(request));
+        ValidateSha256(request.SourceSha256, nameof(request));
         ValidateSha256(request.MimeSha256, nameof(request));
+        if (request.SentAtUtc == default
+            || request.DiscoveredAtUtc == default
+            || request.SentAtUtc.Offset != TimeSpan.Zero
+            || request.DiscoveredAtUtc.Offset != TimeSpan.Zero
+            || request.DiscoveredAtUtc < request.SentAtUtc)
+        {
+            throw new ArgumentException(
+                "Authoritative response Sent and discovery times must be ordered UTC instants.",
+                nameof(request));
+        }
+
+        ArgumentNullException.ThrowIfNull(request.InReplyToIdentities);
+        if (request.InReplyToIdentities.Count is < 1 or > 100
+            || request.InReplyToIdentities.Any(identity => string.IsNullOrWhiteSpace(identity)
+                || identity.Trim().Length > 500)
+            || request.InReplyToIdentities.Distinct(StringComparer.Ordinal).Count()
+                != request.InReplyToIdentities.Count)
+        {
+            throw new ArgumentException(
+                "Automatic response evidence requires distinct exact reply-chain identities.",
+                nameof(request));
+        }
+
+        if ($"system-worker:{request.Actor.SubjectId}".Length > 200)
+        {
+            throw new ArgumentException("The system-worker identity exceeds its storage limit.", nameof(request));
+        }
     }
 
     private static void ValidateActorAndOperation(string actor, string operationKey)
@@ -321,6 +478,16 @@ public sealed class EfEmailEvidenceStore(
         if (actor.Trim().Length > 200 || operationKey.Trim().Length > 100)
         {
             throw new ArgumentException("Actor or operation key exceeds its storage limit.");
+        }
+    }
+
+    private static void ValidateText(string value, int maximumLength, string parameterName)
+    {
+        if (string.IsNullOrWhiteSpace(value)
+            || value.Trim().Length > maximumLength
+            || value.Any(char.IsControl))
+        {
+            throw new ArgumentException("An exact response-evidence value is invalid.", parameterName);
         }
     }
 
@@ -359,36 +526,20 @@ public sealed class EfEmailEvidenceStore(
         entity.ChaseDueAtUtc,
         entity.Version);
 
-    private static EmailEvidenceChaseProjection MapChaseProjection(SentEmailEvidenceEntity entity) => new(
-        entity.Id,
-        entity.TriageId,
-        entity.MessageIdentity,
-        entity.Subject,
-        DeserializeRecipients(entity.RecipientsJson),
-        entity.SentAtUtc,
-        entity.ChaseDueAtUtc);
 
-    private static EmailEvidenceChaseProjection MapChaseProjection(EmailEvidenceChaseRow row) => new(
-        row.Id,
-        row.TriageId,
-        row.MessageIdentity,
-        row.Subject,
-        DeserializeRecipients(row.RecipientsJson),
-        row.SentAtUtc,
-        row.ChaseDueAtUtc);
 
     private static string[] DeserializeRecipients(string json) =>
         JsonSerializer.Deserialize<string[]>(json)
         ?? throw new InvalidDataException("Persisted email recipients are invalid.");
 
-    private void AppendHistory(
+    private static void AppendResponseHistory(
         PegasusDbContext context,
         TriageEntity triage,
-        string eventType,
         string actor,
         string operationKey,
         string reason,
-        string requestHash)
+        string requestHash,
+        DateTimeOffset occurredAtUtc)
     {
         var beforeVersion = triage.Version;
         triage.Version++;
@@ -397,12 +548,12 @@ public sealed class EfEmailEvidenceStore(
             Id = Guid.NewGuid(),
             TriageId = triage.Id,
             Triage = triage,
-            EventType = eventType,
+            EventType = "triage_response_linked",
             Actor = actor,
             Reason = reason,
             OperationKey = operationKey,
             RequestHash = requestHash,
-            OccurredAtUtc = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow(),
+            OccurredAtUtc = occurredAtUtc,
             BeforeVersion = beforeVersion,
             AfterVersion = triage.Version,
             AfterState = triage.State,
@@ -411,26 +562,10 @@ public sealed class EfEmailEvidenceStore(
         });
     }
 
-    private void EnsureLiveLease(TriageEntity triage, string actor, string leaseToken)
-    {
-        var now = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
-        if (triage.EditLeaseExpiresAtUtc is null
-            || triage.EditLeaseExpiresAtUtc <= now
-            || string.IsNullOrEmpty(triage.EditLeaseTokenHash)
-            || string.IsNullOrEmpty(triage.EditLeaseHolder))
-        {
-            throw new TriageEditLeaseExpiredException(triage.Id);
-        }
+    private DateTimeOffset UtcNow() =>
+        timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
 
-        var suppliedHash = Hash(leaseToken);
-        if (!string.Equals(triage.EditLeaseHolder, actor.Trim(), StringComparison.Ordinal)
-            || !CryptographicOperations.FixedTimeEquals(
-                Convert.FromHexString(triage.EditLeaseTokenHash),
-                Convert.FromHexString(suppliedHash)))
-        {
-            throw new TriageEditLeaseConflictException(triage.Id);
-        }
-    }
+
 
     private static string Hash(string value) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();

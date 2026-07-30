@@ -43,6 +43,15 @@ public interface ICaseCustody
         string operationKey,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Resolves the immutable custody root already allocated for the case. This read does not
+    /// create or relabel a root and must validate the retained case identity.
+    /// </summary>
+    Task<CaseCustodyRoot> GetExistingCaseRootAsync(
+        Guid caseId,
+        string caseReference,
+        CancellationToken cancellationToken);
+
     Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
         CaseCustodyRoot root,
         IntakeSourceCustodyReference source,
@@ -54,6 +63,12 @@ public interface ICaseCustody
         string auditReference,
         string operationKey,
         CancellationToken cancellationToken);
+}
+
+public sealed class CaseCustodyUnavailableException()
+    : InvalidOperationException(
+        "Case custody is unavailable until an approved production adapter is configured.")
+{
 }
 
 public sealed record ExternalWorkDispatchClaim(

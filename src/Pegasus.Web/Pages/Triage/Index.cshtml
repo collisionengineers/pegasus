@@ -1,4 +1,4 @@
-@page
+@page "/Triage"
 @model Pegasus.Web.Pages.Triage.IndexModel
 @{
     ViewData["Title"] = "Triage queue";
@@ -22,16 +22,16 @@
 </nav>
 
 <section class="panel">
-    @if (Model.Items.Count == 0)
+    @if (Model.Results.Items.Count == 0)
     {
         <p class="empty-state">No triage records match this view.</p>
     }
     else
     {
         <div class="queue-list">
-            @foreach (var item in Model.Items)
+            @foreach (var item in Model.Results.Items)
             {
-                <a asp-page="/Triage/Detail" asp-route-id="@item.Id">
+                <a asp-page="/Triage/Details" asp-route-id="@item.Id">
                     <span>
                         <strong>@item.NormalizedVehicleRegistration</strong>
                         <small>Opened @item.CreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</small>
@@ -45,3 +45,18 @@
         </div>
     }
 </section>
+
+@if (Model.Results.TotalPages > 1)
+{
+    <nav class="queue-filters" aria-label="Triage pages">
+        @if (Model.Results.Page > 1)
+        {
+            <a asp-page="/Triage/Index" asp-route-state="@Model.StateFilter" asp-route-page="@(Model.Results.Page - 1)">Previous</a>
+        }
+        <span>Page @Model.Results.Page of @Model.Results.TotalPages</span>
+        @if (Model.Results.Page < Model.Results.TotalPages)
+        {
+            <a asp-page="/Triage/Index" asp-route-state="@Model.StateFilter" asp-route-page="@(Model.Results.Page + 1)">Next</a>
+        }
+    </nav>
+}

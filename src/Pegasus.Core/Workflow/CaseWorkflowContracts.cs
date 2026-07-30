@@ -13,7 +13,6 @@ public enum CaseLifecycleState
     NotReady,
     Held,
     Review,
-    Active,
     ReportPreparation,
     PostReport,
     PostReportComplete,
@@ -34,7 +33,6 @@ public enum CaseReopenDestination
 {
     NotReady,
     Review,
-    Active,
     ReportPreparation,
     PostReport
 }
@@ -49,7 +47,7 @@ public sealed record CaseWorkflowConfiguration(
 
 public interface ICaseWorkflowConfiguration
 {
-    CaseWorkflowConfiguration GetCurrent();
+    Task<CaseWorkflowConfiguration> GetCurrentAsync(CancellationToken cancellationToken);
 }
 
 public sealed record CaseReadinessEvidence(
@@ -70,6 +68,15 @@ public sealed record ReportApprovalEvidence(
     DateTimeOffset ApprovedAtUtc);
 
 /// <summary>
+/// Caller-supplied identity of the immutable report artifact being approved. The approving
+/// actor and approval time are assigned by the authenticated mutation boundary.
+/// </summary>
+public sealed record ReportApprovalSubmission(
+    Guid ApprovalId,
+    string ArtifactIdentity,
+    string ArtifactSha256);
+
+/// <summary>
 /// Exact retained approved-mailbox Sent evidence. A caller cannot substitute a draft,
 /// manual assertion, queue result, prepared text, or a report file for this evidence.
 /// </summary>
@@ -78,9 +85,15 @@ public sealed record ApprovedMailboxReportSentEvidence(
     string MailboxIdentity,
     string SentFolderIdentity,
     string ImmutableItemIdentity,
+    string InternetMessageIdentity,
     string ConversationIdentity,
     string ReplyChainIdentity,
+    string SourceOccurrenceIdentity,
+    string SourceSha256,
+    string MimeSha256,
     DateTimeOffset SentAtUtc,
+    DateTimeOffset DiscoveredAtUtc,
+    ActionActor DiscoveredBy,
     DateTimeOffset LinkedAtUtc,
     ActionActor LinkedBy);
 
@@ -93,7 +106,12 @@ public sealed record CaseWorkflowRecord(
     ApprovedMailboxReportSentEvidence? ReportSentEvidence,
     CaseDueWork? DueWork,
     CaseClosureOutcome? ClosureOutcome,
-    long Version);
+    Guid? OriginalCaseId,
+    Guid? ReplacementCaseId,
+    long Version)
+{
+    public CaseArchive? Archive { get; init; }
+}
 
 public sealed record CaseEditLease(
     Guid CaseId,
@@ -132,6 +150,10 @@ public sealed class CaseOperationConflictException(Guid caseId, string operation
     public string OperationKey { get; } = operationKey;
 }
 
+/// <summary>
+/// Claims one short-lived edit lease. Within a case, the normalized operation key identifies this
+/// exact request, including the expected version and the complete authorized actor identity.
+/// </summary>
 public sealed record ClaimCaseEditLeaseRequest(
     Guid CaseId,
     long ExpectedVersion,
@@ -142,11 +164,13 @@ public sealed record RenewCaseEditLeaseRequest(
     Guid CaseId,
     long ExpectedVersion,
     ActionActor Actor,
+    string OperationKey,
     string LeaseToken);
 
 public sealed record ReleaseCaseEditLeaseRequest(
     Guid CaseId,
     ActionActor Actor,
+    string OperationKey,
     string LeaseToken);
 
 public abstract record CaseMutationRequest(
@@ -172,8 +196,7 @@ public sealed record PutCaseOnHoldRequest(
     ActionActor Actor,
     string OperationKey,
     string Reason,
-    string EditLeaseToken,
-    DateTimeOffset HeldAtUtc)
+    string EditLeaseToken)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 
 public sealed record ReturnCaseToReviewRequest(
@@ -204,17 +227,63 @@ public sealed record RecordCaseReportApprovalRequest(
     string OperationKey,
     string Reason,
     string EditLeaseToken,
-    ReportApprovalEvidence Approval)
+    ReportApprovalSubmission Approval)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 
-public sealed record RecordCaseReportSentRequest(
+public sealed record LinkReportEvidenceRequest(
     Guid CaseId,
     long ExpectedVersion,
     ActionActor Actor,
     string OperationKey,
     string Reason,
     string EditLeaseToken,
-    ApprovedMailboxReportSentEvidence Evidence)
+    Guid EvidenceId)
+    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
+
+/// <summary>
+/// System-worker request to associate retained exact approved-mailbox Sent evidence when
+/// the polling policy supplied one unambiguous authoritative Case identity.
+/// </summary>
+public sealed record AutoLinkReportEvidenceRequest(
+    Guid CaseId,
+    Guid EvidenceId,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason);
+
+public enum AutoLinkReportEvidenceDisposition
+{
+    Linked,
+    NotLinked
+}
+
+/// <summary>
+/// Minimal committed association returned to the Worker without exposing the broader
+/// case projection or requiring unrelated Case/Principal reads.
+/// </summary>
+public sealed record AutoLinkedReportEvidence(
+    Guid CaseId,
+    Guid EvidenceId,
+    CaseLifecycleState State,
+    long Version);
+
+/// <summary>
+/// A policy denial or a concurrent staff change is a retained, visible non-link rather
+/// than an overwrite. Link is present only for the canonical committed/replayed association.
+/// </summary>
+public sealed record AutoLinkReportEvidenceResult(
+    AutoLinkReportEvidenceDisposition Disposition,
+    AutoLinkedReportEvidence? Link,
+    string? NotLinkedReasonCode);
+
+public sealed record UnlinkReportEvidenceRequest(
+    Guid CaseId,
+    long ExpectedVersion,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason,
+    string EditLeaseToken,
+    Guid EvidenceId)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 
 public sealed record CloseCaseRequest(
@@ -224,8 +293,7 @@ public sealed record CloseCaseRequest(
     string OperationKey,
     string Reason,
     string EditLeaseToken,
-    CaseClosureOutcome Outcome,
-    Guid? ReplacementCaseId = null)
+    CaseClosureOutcome Outcome)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 
 public sealed record ReopenCaseRequest(
@@ -246,6 +314,13 @@ public interface ICaseWorkflowQueries
     Task<bool> HasOperationAsync(Guid caseId, string operationKey, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// Atomic persistence boundary for case edit leases. An exact claim or renewal replay returns the
+/// same opaque token and expiry, and an exact release replay returns success, before mutable-state,
+/// version, ownership, or expiry preconditions are evaluated. Reusing an operation key with
+/// different request material fails with <see cref="CaseOperationConflictException"/>.
+/// Actor authorization always precedes replay recovery.
+/// </summary>
 public interface ILeaseCaseForEdit
 {
     Task<CaseEditLease> ClaimAsync(ClaimCaseEditLeaseRequest request, CancellationToken cancellationToken);
@@ -285,13 +360,29 @@ public interface ICaseWorkflowStore : ICaseWorkflowQueries, ILeaseCaseForEdit
         RecordCaseReportApprovalRequest request,
         CancellationToken cancellationToken);
 
-    Task<CaseWorkflowRecord> RecordReportSentAsync(
-        RecordCaseReportSentRequest request,
+    Task<CaseWorkflowRecord> LinkReportEvidenceAsync(
+        LinkReportEvidenceRequest request,
+        CancellationToken cancellationToken);
+
+    Task<CaseWorkflowRecord> UnlinkReportEvidenceAsync(
+        UnlinkReportEvidenceRequest request,
         CancellationToken cancellationToken);
 
     Task<CaseWorkflowRecord> CloseAsync(CloseCaseRequest request, CancellationToken cancellationToken);
 
     Task<CaseWorkflowRecord> ReopenAsync(ReopenCaseRequest request, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Transactional persistence boundary for the system-worker auto-link path. It shares the
+/// staff link's evidence and chronology guards without requiring a staff lease; a successful
+/// versioned mutation invalidates any active lease so concurrent staff work cannot overwrite it.
+/// </summary>
+public interface IAutoLinkReportEvidenceStore
+{
+    Task<AutoLinkReportEvidenceResult> TryAutoLinkAsync(
+        AutoLinkReportEvidenceRequest request,
+        CancellationToken cancellationToken);
 }
 
 public interface IPutCaseOnHold
@@ -319,10 +410,6 @@ public interface IStartCaseWork
     Task<CaseWorkflowRecord> ExecuteAsync(CaseMutationRequest request, CancellationToken cancellationToken);
 }
 
-public interface IBeginCaseReportPreparation
-{
-    Task<CaseWorkflowRecord> ExecuteAsync(CaseMutationRequest request, CancellationToken cancellationToken);
-}
 
 public interface IRecordCaseReportApproval
 {
@@ -331,10 +418,24 @@ public interface IRecordCaseReportApproval
         CancellationToken cancellationToken);
 }
 
-public interface IRecordCaseReportSent
+public interface ILinkReportEvidence
 {
     Task<CaseWorkflowRecord> ExecuteAsync(
-        RecordCaseReportSentRequest request,
+        LinkReportEvidenceRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IAutoLinkReportEvidence
+{
+    Task<AutoLinkReportEvidenceResult> ExecuteAsync(
+        AutoLinkReportEvidenceRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IUnlinkReportEvidence
+{
+    Task<CaseWorkflowRecord> ExecuteAsync(
+        UnlinkReportEvidenceRequest request,
         CancellationToken cancellationToken);
 }
 

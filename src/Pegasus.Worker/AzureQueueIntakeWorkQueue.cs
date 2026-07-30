@@ -1,6 +1,4 @@
-using Azure.Identity;
 using Azure.Storage.Queues;
-using Microsoft.Extensions.Configuration;
 using Pegasus.Core.Intake;
 
 namespace Pegasus.Worker;
@@ -8,24 +6,19 @@ namespace Pegasus.Worker;
 internal sealed class AzureQueueIntakeWorkQueue : IIntakeWorkEnqueuer
 {
     private readonly QueueClient queueClient;
+    private readonly WorkerStorageProvisioning storageProvisioning;
 
-    public AzureQueueIntakeWorkQueue(IConfiguration configuration)
+    public AzureQueueIntakeWorkQueue(
+        WorkerQueueClients queueClients,
+        WorkerStorageProvisioning storageProvisioning)
     {
-        var serviceUri = configuration["IntakeQueue:ServiceUri"];
-        queueClient = !string.IsNullOrWhiteSpace(serviceUri)
-            ? new QueueServiceClient(new Uri(serviceUri, UriKind.Absolute), new DefaultAzureCredential())
-                .GetQueueClient("intake-work")
-            : new QueueClient(
-                configuration.GetConnectionString("AzureWebJobsStorage")
-                    ?? configuration["AzureWebJobsStorage"]
-                    ?? throw new InvalidOperationException(
-                        "IntakeQueue:ServiceUri or AzureWebJobsStorage is required for intake work dispatch."),
-                "intake-work");
+        queueClient = queueClients.IntakeWorkQueue;
+        this.storageProvisioning = storageProvisioning;
     }
 
     public async Task EnqueueAsync(Guid stagedReceiptId, CancellationToken cancellationToken)
     {
-        await queueClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+        await storageProvisioning.EnsureQueueExistsAsync(queueClient, cancellationToken);
         await queueClient.SendMessageAsync(stagedReceiptId.ToString("D"), cancellationToken: cancellationToken);
     }
 }

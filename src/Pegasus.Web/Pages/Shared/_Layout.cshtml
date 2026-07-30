@@ -24,24 +24,24 @@
                 <a class="nav-link" asp-page="/Index">Operations</a>
                 @if (localIntakeEnabled)
                 {
-                    <a class="nav-link" asp-page="/Intake/Queue">Intake</a>
+                    <a class="nav-link" asp-page="/Intake/Index">Intake</a>
                 }
                 else
                 {
                     <span class="nav-link nav-link--unavailable" aria-disabled="true">Intake unavailable</span>
                 }
                 <a class="nav-link" asp-page="/Triage/Index">Triage</a>
-                <span class="nav-link nav-link--unavailable" aria-disabled="true">Cases unavailable</span>
+                <a class="nav-link" asp-page="/Cases/Index">Cases</a>
                 @if (User.IsInRole(Pegasus.Core.Identity.StaffRoleNames.Administrator))
                 {
                     <a class="nav-link" asp-page="/Administration/Index">Administration</a>
                 }
-                <span class="nav-link nav-link--unavailable" aria-disabled="true">Search unavailable</span>
+                <a class="nav-link" asp-page="/Search/Index">Search</a>
                 @if (User.Identity?.IsAuthenticated == true)
                 {
                     <span class="user-menu" role="group" aria-label="User">
                         <span class="user-name">@User.Identity.Name</span>
-                        <a class="nav-link" asp-page="/Account/ChangePassword">Change password</a>
+                        <a class="nav-link" asp-page="/Account/PasswordChange">Change password</a>
                         <form method="post" asp-page="/Account/SignOut">
                             <button class="nav-link" type="submit">Sign out</button>
                         </form>

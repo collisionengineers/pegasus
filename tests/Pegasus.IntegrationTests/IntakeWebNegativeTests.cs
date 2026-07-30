@@ -7,32 +7,33 @@ using MimeKit;
 
 namespace Pegasus.IntegrationTests;
 
+[Collection(LocalDbFixtureDefinition.Name)]
 public sealed class IntakeWebNegativeTests
 {
-    private static readonly string[] BusinessTables =
+    private static readonly (string Table, long ExpectedCount)[] BusinessTableBaselines =
     [
-        "IntakeReceipts",
-        "IntakeAssets",
-        "InstructionDrafts",
-        "IntakeReceiptEvents",
-        "IntakeStagedReceipts",
-        "IntakeWorkItems",
-        "IntakeEvaluations",
-        "Organizations",
-        "OrganizationRoles",
-        "PrincipalSequenceLineages",
-        "Principals",
-        "CaseSequences",
-        "Cases",
-        "CaseHistory",
-        "ExternalWorkItems",
-        "CaseIntakeLinks",
-        "BoxFileRequests",
-        "CaseDocuments",
-        "RequestUploadLinks",
-        "DocumentVersions",
-        "DocumentOccurrences",
-        "RequestUploadReceipts"
+        ("IntakeReceipts", 0),
+        ("IntakeAssets", 0),
+        ("InstructionDrafts", 0),
+        ("IntakeReceiptEvents", 0),
+        ("IntakeStagedReceipts", 0),
+        ("IntakeWorkItems", 0),
+        ("IntakeEvaluations", 0),
+        ("Organizations", 1),
+        ("OrganizationRoles", 1),
+        ("PrincipalSequenceLineages", 1),
+        ("Principals", 1),
+        ("CaseSequences", 0),
+        ("Cases", 0),
+        ("CaseHistory", 0),
+        ("ExternalWorkItems", 0),
+        ("CaseIntakeLinks", 0),
+        ("BoxFileRequests", 0),
+        ("CaseDocuments", 0),
+        ("RequestUploadLinks", 0),
+        ("DocumentVersions", 0),
+        ("DocumentOccurrences", 0),
+        ("RequestUploadReceipts", 0)
     ];
 
     [Fact]
@@ -71,8 +72,9 @@ public sealed class IntakeWebNegativeTests
             form.ExternalReceiptToken);
 
         Assert.Equal(HttpStatusCode.Redirect, retried.StatusCode);
+        _ = await IntakeWebDriver.ProcessQueuedAsync(factory, retried);
         Assert.Single(await ListAllAsync(factory));
-        Assert.Equal(2, artifactStore.Attempts);
+        Assert.Equal(3, artifactStore.Attempts);
     }
 
     [Fact]
@@ -90,7 +92,8 @@ public sealed class IntakeWebNegativeTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        var upload = await IntakeWebDriver.UploadAsync(
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
             client,
             "QDOS-forward.eml",
             "message/rfc822",
@@ -165,7 +168,8 @@ public sealed class IntakeWebNegativeTests
             client, form.AntiforgeryToken, "payload.bin", "application/octet-stream", [0x00, 0x01], form.ExternalReceiptToken);
 
         Assert.Equal(HttpStatusCode.Redirect, result.StatusCode);
-        var receipt = await GetAsync(factory, IntakeWebDriver.ReceiptId(result));
+        var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, result);
+        var receipt = await GetAsync(factory, IntakeWebDriver.ReceiptId(processed));
         Assert.Equal(IntakeDecision.Unsupported, receipt.Decision);
         Assert.Null(receipt.InstructionDraft);
         Assert.Single(receipt.AssetRecords);
@@ -202,6 +206,7 @@ public sealed class IntakeWebNegativeTests
             form.ExternalReceiptToken);
 
         Assert.Equal(HttpStatusCode.Redirect, result.StatusCode);
+        _ = await IntakeWebDriver.ProcessQueuedAsync(factory, result);
         var receipt = Assert.Single(await ListAllAsync(factory));
         Assert.Equal(TenMiB, (await GetAsync(factory, receipt.Id)).SourceLength);
     }
@@ -257,13 +262,15 @@ public sealed class IntakeWebNegativeTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        var first = await IntakeWebDriver.UploadAsync(
+        var first = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
             client,
             "unknown.bin",
             "application/octet-stream",
             bytes,
             canonicalToken.ToUpperInvariant());
-        var replay = await IntakeWebDriver.UploadAsync(
+        var replay = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
             client,
             "unknown.bin",
             "application/octet-stream",
@@ -286,7 +293,7 @@ public sealed class IntakeWebNegativeTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        using var response = await client.GetAsync($"/Intake/Review/{Guid.NewGuid()}");
+        using var response = await client.GetAsync($"/Intake/{Guid.NewGuid()}");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -323,7 +330,7 @@ public sealed class IntakeWebNegativeTests
             null,
             null), CancellationToken.None);
 
-        using var response = await client.GetAsync($"/Intake/Review/{record.Id}");
+        using var response = await client.GetAsync($"/Intake/{record.Id}");
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -353,11 +360,11 @@ public sealed class IntakeWebNegativeTests
         await context.Database.OpenConnectionAsync();
         try
         {
-            foreach (var table in BusinessTables)
+            foreach (var (table, expectedCount) in BusinessTableBaselines)
             {
                 await using var command = context.Database.GetDbConnection().CreateCommand();
                 command.CommandText = $"SELECT COUNT(*) FROM [{table}]";
-                Assert.Equal(0L, Convert.ToInt64(await command.ExecuteScalarAsync(),
+                Assert.Equal(expectedCount, Convert.ToInt64(await command.ExecuteScalarAsync(),
                     System.Globalization.CultureInfo.InvariantCulture));
             }
         }

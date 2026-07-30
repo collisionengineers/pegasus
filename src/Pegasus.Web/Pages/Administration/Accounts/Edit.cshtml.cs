@@ -6,8 +6,9 @@ using Pegasus.Core.Identity;
 namespace Pegasus.Web.Pages.Administration.Accounts;
 
 [Authorize(Policy = StaffRoleNames.Administrator)]
-public sealed class EditModel(IStaffAccountAdministration administration)
-    : AdministrationPageModel
+public sealed class EditModel(
+    IGetStaffAccount getStaffAccount,
+    IDisableStaffAccount disableStaffAccount) : AdministrationPageModel
 {
     public StaffAccountSummary? Account { get; private set; }
 
@@ -15,11 +16,12 @@ public sealed class EditModel(IStaffAccountAdministration administration)
     [Required, StringLength(1000, MinimumLength = 1)]
     public string Reason { get; set; } = string.Empty;
 
-
     [BindProperty]
     public string OperationKey { get; set; } = NewOperationKey();
 
-    public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnGetAsync(
+        Guid id,
+        CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
         {
@@ -29,16 +31,8 @@ public sealed class EditModel(IStaffAccountAdministration administration)
         return await LoadAsync(actor, id, cancellationToken) ? Page() : NotFound();
     }
 
-    public Task<IActionResult> OnPostEnableAsync(Guid id, CancellationToken cancellationToken) =>
-        ChangeEnabledAsync(id, enabled: true, cancellationToken);
-
-    public Task<IActionResult> OnPostDisableAsync(Guid id, CancellationToken cancellationToken) =>
-        ChangeEnabledAsync(id, enabled: false, cancellationToken);
-
-
-    private async Task<IActionResult> ChangeEnabledAsync(
+    public async Task<IActionResult> OnPostDisableAsync(
         Guid id,
-        bool enabled,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -55,21 +49,28 @@ public sealed class EditModel(IStaffAccountAdministration administration)
         {
             try
             {
-                await administration.SetEnabledAsync(actor, id, enabled, Reason, OperationKey, cancellationToken);
-                TempData["AdministrationStatus"] = enabled
-                    ? "The account was enabled. A fresh sign-in is required."
-                    : "The account was disabled and its existing browser sessions were invalidated.";
+                await disableStaffAccount.ExecuteAsync(
+                    new(actor, id, Reason, OperationKey),
+                    cancellationToken);
+                TempData["AdministrationStatus"] =
+                    "The account was disabled. Existing browser and MCP sessions were revoked.";
                 return RedirectToPage(new { id });
             }
             catch (StaffAccountAdministrationException exception)
             {
                 ModelState.AddModelError(string.Empty, MutationErrorMessage(exception.Error));
             }
+            catch (ArgumentException)
+            {
+                ModelState.AddModelError(string.Empty, "The access change was not accepted.");
+            }
         }
 
         OperationKey = NewOperationKey();
+        ModelState.Remove(nameof(OperationKey));
         return await LoadAsync(actor, id, cancellationToken) ? Page() : NotFound();
     }
+
     private static string MutationErrorMessage(StaffAccountAdministrationError error) => error switch
     {
         StaffAccountAdministrationError.StaffAccountNotFound =>
@@ -81,19 +82,15 @@ public sealed class EditModel(IStaffAccountAdministration administration)
         _ => "The access change was not accepted."
     };
 
-
     private async Task<bool> LoadAsync(
         ActionActor actor,
         Guid id,
         CancellationToken cancellationToken)
     {
-        StaffAuthorization.Require(actor, StaffAccessRight.ManageStaffAccounts);
-        Account = (await administration.ListAsync(actor, cancellationToken))
-            .SingleOrDefault(account => account.Id == id);
-        if (Account is null)
-        {
-            return false;
-        }
-        return true;
+        var result = await getStaffAccount.ExecuteAsync(
+            new(actor, id),
+            cancellationToken);
+        Account = result?.Account;
+        return Account is not null;
     }
 }

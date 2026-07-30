@@ -16,8 +16,6 @@ param sqlAdministratorObjectId string
 @description('Display name or UPN for the Microsoft Entra administrator of the Azure SQL logical server.')
 param sqlAdministratorLogin string
 
-@description('Deploy Document Intelligence only after the PDF benchmark and old F0 ownership decision.')
-param documentIntelligenceEnabled bool = false
 @allowed([
   'offline-replay'
 ])
@@ -49,7 +47,6 @@ module platform 'modules/platform.bicep' = if (activationAllowed) {
     tags: commonTags
     sqlAdministratorObjectId: sqlAdministratorObjectId
     sqlAdministratorLogin: sqlAdministratorLogin
-    documentIntelligenceEnabled: documentIntelligenceEnabled
   }
 }
 
@@ -59,11 +56,9 @@ output AZURE_LOCATION string = location
 output WEB_APP_NAME string = activationAllowed ? platform!.outputs.webAppName : ''
 output WEB_IDENTITY_NAME string = activationAllowed ? platform!.outputs.webIdentityName : ''
 output WEB_IDENTITY_CLIENT_ID string = activationAllowed ? platform!.outputs.webIdentityClientId : ''
-output WEB_SQL_USER_NAME string = activationAllowed ? platform!.outputs.webSqlUserName : ''
 output WORKER_APP_NAME string = activationAllowed ? platform!.outputs.workerAppName : ''
 output WORKER_IDENTITY_NAME string = activationAllowed ? platform!.outputs.workerIdentityName : ''
 output WORKER_IDENTITY_CLIENT_ID string = activationAllowed ? platform!.outputs.workerIdentityClientId : ''
-output WORKER_SQL_USER_NAME string = activationAllowed ? platform!.outputs.workerSqlUserName : ''
 output AZURE_SQL_SERVER_FQDN string = activationAllowed ? platform!.outputs.sqlServerFqdn : ''
 output AZURE_SQL_DATABASE_NAME string = activationAllowed ? platform!.outputs.sqlDatabaseName : ''
 output AZURE_STORAGE_ACCOUNT_NAME string = activationAllowed ? platform!.outputs.storageAccountName : ''

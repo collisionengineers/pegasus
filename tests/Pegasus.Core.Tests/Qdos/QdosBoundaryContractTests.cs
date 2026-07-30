@@ -83,14 +83,60 @@ public sealed class QdosBoundaryContractTests
     }
 
     [Fact]
-    public void EvaProductionMappingRemainsFailClosedWithoutAcceptedExternalEvidence()
+    public void EvaProductionMappingUsesOnlyAcceptedVersionedEvidence()
     {
-        var mapping = CaseEvaMapping.MapForProduction(AcceptedEvaEvidence());
+        var mapping = CaseEvaMapping.MapForProduction(
+            AcceptedEvaEvidence(),
+            AcceptedEvaMapping());
+
+        Assert.True(mapping.IsReady);
+        Assert.NotNull(mapping.Fields);
+        Assert.Equal("AB12CDE", mapping.Fields.Vrm);
+        Assert.Equal(CaseEvaMapping.ImageBasedAssessment, mapping.Fields.InspectionAddress);
+        Assert.Equal(13, mapping.Provenance.Count);
+        Assert.All(mapping.Provenance, item =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(item.Source));
+            Assert.False(string.IsNullOrWhiteSpace(item.SourceVersion));
+        });
+    }
+
+    [Fact]
+    public void EvaProductionMappingFailsClosedWithoutAcceptedMappingVersion()
+    {
+        var mapping = CaseEvaMapping.MapForProduction(
+            AcceptedEvaEvidence(),
+            EvaMappingAcceptance.Unaccepted);
 
         Assert.False(mapping.IsReady);
-        Assert.Null(mapping.Fields);
+        Assert.Null(mapping.Source);
         Assert.Equal(CaseEvaMapping.ActivationGateReason, mapping.BlockingReasons[0]);
-        Assert.DoesNotContain("does not have accepted evidence", mapping.BlockingReasons[0], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EvaProductionMappingBlocksMissingReadinessAndUnacceptedAddress()
+    {
+        var accepted = AcceptedEvaEvidence();
+        var mapping = CaseEvaMapping.MapForProduction(accepted with
+        {
+            InstructionComplete = false,
+            Inspection = accepted.Inspection with
+            {
+                Evidence = accepted.Inspection.Evidence with
+                {
+                    Status = EvaEvidenceStatus.Suggested
+                }
+            }
+        }, AcceptedEvaMapping());
+
+        Assert.False(mapping.IsReady);
+        Assert.Null(mapping.Source);
+        Assert.Contains(
+            "Instruction and image completeness must both be confirmed.",
+            mapping.BlockingReasons);
+        Assert.Contains(
+            "The inspection address or exact Image Based Assessment mode is unresolved.",
+            mapping.BlockingReasons);
     }
 
     [Fact]
@@ -109,8 +155,7 @@ public sealed class QdosBoundaryContractTests
                 ["recipient@example.test"],
                 new string('a', 64),
                 Now,
-                Now.AddDays(7),
-                "lease-1"),
+                Now.AddDays(7)),
             ActionActor.Staff(Guid.NewGuid(), [StaffRole.User])));
 
         Assert.Null(recorder.Request);
@@ -159,20 +204,27 @@ public sealed class QdosBoundaryContractTests
             true,
             true,
             true,
-            "QDOS-001",
+            accepted with { Value = "QDOS-001", Source = "case", SourceVersion = "1" },
             accepted,
-            accepted with { Value = "AB12CDE" },
+            accepted with { Value = "AB12 CDE" },
             accepted with { Value = "Model" },
             accepted with { Value = "Claimant" },
             accepted with { Value = "2031-05-01" },
             accepted with { Value = "2031-05-02" },
             accepted with { Value = "2031-05-03" },
-            new(EvaInspectionMode.ImageBasedAssessment, accepted with { Value = CaseEvaMapping.ImageBasedAssessment }),
+            new(
+                EvaInspectionMode.ImageBasedAssessment,
+                accepted with { Value = CaseEvaMapping.ImageBasedAssessment }),
             accepted with { Value = "Impact" },
             accepted with { Value = "VAT registered" },
             accepted with { Value = "12000" },
             accepted with { Value = "miles" });
     }
+
+    private static EvaMappingAcceptance AcceptedEvaMapping() => new(
+        CaseEvaMapping.MappingKey,
+        CaseEvaMapping.MappingVersion,
+        "accepted-evidence:test");
 
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {

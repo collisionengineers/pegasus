@@ -1,4 +1,5 @@
 using Pegasus.Core.Intake;
+using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Triage;
 
@@ -37,29 +38,6 @@ public sealed record TriageRecord(
     Guid? AssigneeId,
     Guid? LinkedCaseId,
     long Version);
-public sealed record TriageEditLease(
-    Guid TriageId,
-    string Token,
-    string Holder,
-    long Version,
-    DateTimeOffset ExpiresAtUtc);
-
-public sealed record ClaimTriageEditLeaseRequest(
-    Guid TriageId,
-    long ExpectedVersion,
-    string Actor,
-    string OperationKey);
-
-public sealed record RenewTriageEditLeaseRequest(
-    Guid TriageId,
-    long ExpectedVersion,
-    string Actor,
-    string LeaseToken);
-
-public sealed record ReleaseTriageEditLeaseRequest(
-    Guid TriageId,
-    string Actor,
-    string LeaseToken);
 
 
 public sealed class TriageVersionConflictException(
@@ -76,17 +54,6 @@ public sealed class TriageVersionConflictException(
     public long ActualVersion { get; } = actualVersion;
 }
 
-public sealed class TriageEditLeaseConflictException(Guid triageId)
-    : InvalidOperationException($"Triage '{triageId}' is currently being edited by another actor.")
-{
-    public Guid TriageId { get; } = triageId;
-}
-
-public sealed class TriageEditLeaseExpiredException(Guid triageId)
-    : InvalidOperationException($"The edit lease for triage '{triageId}' is no longer valid.")
-{
-    public Guid TriageId { get; } = triageId;
-}
 public sealed class TriageOperationConflictException(Guid triageId, string operationKey)
     : InvalidOperationException(
         $"Operation '{operationKey}' was already applied to triage '{triageId}' with different inputs.")
@@ -95,27 +62,23 @@ public sealed class TriageOperationConflictException(Guid triageId, string opera
 
     public string OperationKey { get; } = operationKey;
 }
-
-
-public interface ILeaseTriageForEdit
+public sealed class TriageResponseEvidenceAlreadyLinkedException(
+    Guid triageId,
+    Exception? innerException = null)
+    : InvalidOperationException(
+        $"Triage '{triageId}' already has current response evidence.",
+        innerException)
 {
-    Task<TriageEditLease> ClaimAsync(
-        ClaimTriageEditLeaseRequest request,
-        CancellationToken cancellationToken);
-
-    Task<TriageEditLease> RenewAsync(
-        RenewTriageEditLeaseRequest request,
-        CancellationToken cancellationToken);
-
-    Task ReleaseAsync(
-        ReleaseTriageEditLeaseRequest request,
-        CancellationToken cancellationToken);
+    public Guid TriageId { get; } = triageId;
 }
+
+
 
 
 public sealed record CreateTriageFromIntakeRequest(
     TriageOrigin Origin,
     string NormalizedVehicleRegistration,
+    IntakeEvidence AcceptedMatchEvidence,
     string Actor,
     string OperationKey);
 
@@ -124,8 +87,7 @@ public sealed record TriageMutationRequest(
     long ExpectedVersion,
     string Actor,
     string OperationKey,
-    string Reason,
-    string EditLeaseToken);
+    string Reason);
 
 public sealed record AssignTriageRequest(
     Guid TriageId,
@@ -133,8 +95,7 @@ public sealed record AssignTriageRequest(
     Guid AssigneeId,
     string Actor,
     string OperationKey,
-    string Reason,
-    string EditLeaseToken);
+    string Reason);
 
 public sealed record RecordTriageFindingRequest(
     Guid TriageId,
@@ -144,27 +105,34 @@ public sealed record RecordTriageFindingRequest(
     string Reason,
     RoadworthinessFinding? Roadworthiness,
     AssessmentFinding? Assessment,
-    Guid? SupersedesFindingId,
-    string EditLeaseToken);
+    Guid? SupersedesFindingId);
 
 public sealed record TriageCaseLinkRequest(
     Guid TriageId,
     Guid CaseId,
     long ExpectedTriageVersion,
     long ExpectedCaseVersion,
-    string Actor,
+    ActionActor Actor,
     string OperationKey,
     string Reason,
-    string EditLeaseToken);
+    string CaseEditLeaseToken);
 
 public sealed record TriageResponseEvidenceLinkRequest(
+    Guid TriageId,
+    Guid PollOutcomeId,
+    Guid SentEvidenceId,
+    long ExpectedVersion,
+    string Actor,
+    string OperationKey,
+    string Reason);
+
+public sealed record TriageResponseEvidenceUnlinkRequest(
     Guid TriageId,
     Guid SentEvidenceId,
     long ExpectedVersion,
     string Actor,
     string OperationKey,
-    string Reason,
-    string EditLeaseToken);
+    string Reason);
 
 public interface ICreateTriageFromIntake
 {
@@ -207,7 +175,7 @@ public interface ILinkTriageResponseEvidence
 public interface IUnlinkTriageResponseEvidence
 {
     Task ExecuteAsync(
-        TriageResponseEvidenceLinkRequest request,
+        TriageResponseEvidenceUnlinkRequest request,
         CancellationToken cancellationToken);
 }
 public interface IAwaitTriageInformation
@@ -260,6 +228,36 @@ public sealed record TriageResponseEvidenceLink(
     string Reason,
     DateTimeOffset LinkedAtUtc);
 
+public sealed record TriageResponseEvidenceCandidate(
+    Guid PollOutcomeId,
+    Guid SentEvidenceId,
+    string MailboxAddress,
+    string SentFolderIdentity,
+    string ImmutableItemIdentity,
+    string InternetMessageIdentity,
+    string ConversationIdentity,
+    string ReplyChainIdentity,
+    DateTimeOffset SentAtUtc,
+    DateTimeOffset DiscoveredAtUtc);
+
+public sealed record TriageSentEvidenceReference(
+    Guid SentEvidenceId,
+    string MessageIdentity);
+
+public sealed record TriageHistoryEntry(
+    Guid Id,
+    Guid TriageId,
+    string EventType,
+    string Actor,
+    string Reason,
+    string OperationKey,
+    DateTimeOffset OccurredAtUtc,
+    long BeforeVersion,
+    long AfterVersion,
+    TriageState AfterState,
+    Guid? AfterAssigneeId,
+    Guid? AfterLinkedCaseId);
+
 public sealed record TriageSummary(
     Guid Id,
     string NormalizedVehicleRegistration,
@@ -273,7 +271,9 @@ public sealed record TriageDetail(
     TriageRecord Record,
     DateTimeOffset CreatedAtUtc,
     IReadOnlyList<TriageFinding> Findings,
-    IReadOnlyList<TriageResponseEvidenceLink> ResponseEvidence);
+    IReadOnlyList<TriageResponseEvidenceLink> ResponseEvidence,
+    IReadOnlyList<TriageHistoryEntry> History,
+    IReadOnlyList<TriageResponseEvidenceCandidate> ResponseEvidenceCandidates);
 
 public interface ITriageQueries
 {
@@ -284,13 +284,51 @@ public interface ITriageQueries
     Task<TriageDetail?> GetAsync(Guid id, CancellationToken cancellationToken);
 }
 
+public interface ITriageResponseEvidenceCandidateQueries
+{
+    Task<IReadOnlyList<TriageSentEvidenceReference>> ListSentEvidenceReferencesAsync(
+        Guid triageId,
+        int maximumResults,
+        CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// The historical post-operation result for an exact committed request.
+/// A replay probe returns <see langword="null"/> only for an unseen operation key;
+/// a committed key with a different request fingerprint throws
+/// <see cref="TriageOperationConflictException"/>.
+/// </summary>
+public sealed record TriageOperationReplay(TriageRecord Result);
+
 /// <summary>
 /// Persists triage lifecycle mutations. Implementations must enforce the supplied version
 /// and operation key atomically, because the aggregate is read for transition validation
-/// before each mutation.
+/// before each mutation. Replay probes must verify the complete request fingerprint and
+/// return the historical post-operation result.
 /// </summary>
-public interface ITriageStore : ITriageQueries, ILeaseTriageForEdit
+public interface ITriageStore : ITriageQueries, ITriageResponseEvidenceCandidateQueries
 {
+    Task<TriageOperationReplay?> ProbeRecordFindingReplayAsync(
+        RecordTriageFindingRequest request,
+        CancellationToken cancellationToken);
+
+    Task<TriageOperationReplay?> ProbeSupersedeFindingReplayAsync(
+        RecordTriageFindingRequest request,
+        CancellationToken cancellationToken);
+
+    Task<TriageOperationReplay?> ProbeStateChangeReplayAsync(
+        TriageMutationRequest request,
+        TriageState targetState,
+        CancellationToken cancellationToken);
+
+    Task<TriageOperationReplay?> ProbeLinkResponseEvidenceReplayAsync(
+        TriageResponseEvidenceLinkRequest request,
+        CancellationToken cancellationToken);
+
+    Task<TriageOperationReplay?> ProbeUnlinkResponseEvidenceReplayAsync(
+        TriageResponseEvidenceUnlinkRequest request,
+        CancellationToken cancellationToken);
+
     Task<TriageRecord> CreateAsync(
         CreateTriageFromIntakeRequest request,
         CancellationToken cancellationToken);
@@ -316,7 +354,7 @@ public interface ITriageStore : ITriageQueries, ILeaseTriageForEdit
         CancellationToken cancellationToken);
 
     Task UnlinkResponseEvidenceAsync(
-        TriageResponseEvidenceLinkRequest request,
+        TriageResponseEvidenceUnlinkRequest request,
         CancellationToken cancellationToken);
 
     Task<TriageRecord> ChangeStateAsync(

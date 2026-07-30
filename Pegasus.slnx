@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Pegasus.Bootstrap/Pegasus.Bootstrap.csproj" />
     <Project Path="src/Pegasus.Core/Pegasus.Core.csproj" />
     <Project Path="src/Pegasus.Infrastructure/Pegasus.Infrastructure.csproj" />
     <Project Path="src/Pegasus.Web/Pegasus.Web.csproj" />

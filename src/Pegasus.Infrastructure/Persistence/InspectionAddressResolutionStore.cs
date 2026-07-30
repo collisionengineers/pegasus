@@ -57,6 +57,14 @@ public sealed class InspectionAddressResolutionStore(
             EnsureDuplicateMatches(request, duplicate);
             return CreateSnapshot(receipt, evidence);
         }
+        if (await context.CaseIntakeLinks.AsNoTracking().AnyAsync(
+                item => item.IntakeReceiptId == request.IntakeReceiptId,
+                cancellationToken))
+        {
+            throw new InvalidOperationException(
+                "Accepted intake evidence is immutable; use the versioned SaveCase command.");
+        }
+
 
         if (receipt.Version != request.ExpectedReceiptVersion)
         {
@@ -155,6 +163,10 @@ public sealed class InspectionAddressResolutionStore(
 
         return CreateSnapshot(receipt, evidence);
     }
+
+    internal static InspectionAddressResolutionSnapshot CreateSnapshot(
+        IntakeReceiptEntity receipt) =>
+        CreateSnapshot(receipt, DeserializeEvidence(receipt.EvidenceJson));
 
     private static InspectionAddressResolutionSnapshot CreateSnapshot(
         IntakeReceiptEntity receipt,

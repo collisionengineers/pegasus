@@ -7,6 +7,7 @@ using Pegasus.Core.Intake;
 
 namespace Pegasus.IntegrationTests;
 
+[Collection(LocalDbFixtureDefinition.Name)]
 public sealed partial class EmailEvaluationWebTests
 {
     private const string EvaluationMarker = "LOCAL_EMAIL_EVALUATION_MARKER_2031";
@@ -141,7 +142,7 @@ public sealed partial class EmailEvaluationWebTests
 
     private static async Task<string> GetAntiforgeryTokenAsync(HttpClient client)
     {
-        using var response = await client.GetAsync("/Intake/EmailEvaluation");
+        using var response = await client.GetAsync("/Development/EmailEvaluation");
         response.EnsureSuccessStatusCode();
         var html = await response.Content.ReadAsStringAsync();
         var tag = AntiforgeryTagRegex().Match(html);
@@ -178,7 +179,7 @@ public sealed partial class EmailEvaluationWebTests
             }
         }
 
-        return await client.PostAsync("/Intake/EmailEvaluation", multipart);
+        return await client.PostAsync("/Development/EmailEvaluation", multipart);
     }
 
     private static MimeMessage CreateMessage(string subject, string body)

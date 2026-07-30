@@ -10,5 +10,6 @@ public sealed class DefaultCaseWorkflowConfiguration : ICaseWorkflowConfiguratio
         PolicyKey: "case-workflow",
         PolicyVersion: 1);
 
-    public CaseWorkflowConfiguration GetCurrent() => Current;
+    public Task<CaseWorkflowConfiguration> GetCurrentAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(Current);
 }

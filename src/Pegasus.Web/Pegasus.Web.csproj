@@ -7,6 +7,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Pegasus.IntegrationTests" />
+    <InternalsVisibleTo Include="Pegasus.ArchitectureTests" />
   </ItemGroup>
 
   <PropertyGroup>

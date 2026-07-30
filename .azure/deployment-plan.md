@@ -38,7 +38,7 @@ Last reviewed: 2026-07-23, Europe/London.
 - Web and Worker use distinct user-assigned identities.
 - The Worker identity exists before the Function App so Flex deployment and host storage can use identity-based access.
 - Storage roles are separated between Functions transport/deployment and application custody/protection accounts. Shared-key access is disabled; roles are container/queue scoped except the Function host roles that Azure Functions requires at account scope.
-- Azure SQL uses a Microsoft Entra administrator and Entra-only authentication. Runtime contained users are created by client ID with `SID` and `TYPE = E`; runtime principals receive data access only. A temporary migrator group owns schema changes and has no standing runtime use.
+- Azure SQL uses a Microsoft Entra administrator and Entra-only authentication. Migration `20260729176000_AzureSqlRuntimeLeastPrivilege` creates distinct fixed Web and Worker roles. Terminal migration `20260729199000_RuntimeRoleReconciliation` resets their direct DML across the complete application-table census, grants only the exhaustive caller-derived matrix, denies Worker `DELETE` everywhere, and denies Web `DELETE` except on its four required relationship/value workflows. Neither role receives DDL or broad built-in data roles. The post-migration bootstrap creates the fixed managed-identity users from client-ID `SID` plus `TYPE = E`, validates their exact type and membership, and binds each user only to its corresponding role. A temporary migrator group owns schema changes and has no standing runtime use.
 - Private networking is a `Not planned` boundary. The scaffold therefore uses public
   service endpoints and the Azure SQL `AllowAllWindowsAzureIps` firewall rule so
   App Service and Flex can reach SQL. Authentication remains Entra-only. This
@@ -61,39 +61,64 @@ Before provisioning, recheck:
 ## Runnable offline/replay route
 
 The release owner may create reproducible, local-only artifacts from a clean
-Git working tree and clean output path. This route resolves a supplied full
-revision or unambiguous short prefix to the exact checked-out `HEAD`, uses
-source-cleared, cache-only locked .NET and tool restore, publishes the existing
-Web and Worker projects once with that revision, generates the existing EF
-idempotent migration script, verifies the published Web diagnostic source SHA,
-writes deterministic ZIP metadata, and records SHA-256 hashes with the exact
-revision. It does not authenticate to Azure, create resources, apply migrations,
-or deploy packages.
+Git working tree and a new output path. The builder resolves the supplied
+revision to the exact checked-out `HEAD`, keeps restore cache-only and locked,
+publishes the Web and Worker for `linux-x64`, builds self-contained `win-x64`
+migration and bootstrap executables, validates the separately approved
+bootstrap manifest, verifies the Web version/source diagnostic, and requires
+two byte-identical packaging passes. It does not authenticate to Azure, create
+resources, apply migrations, initialize identities, or deploy packages.
 
-From the repository root, use the approved green revision as provenance:
+From the repository root, use the approved green revision and approved
+environment-specific bootstrap manifest as provenance:
 
 ```powershell
+$SourceRevision = (git rev-parse --verify HEAD).Trim()
+$ReleaseDirectory = "./artifacts/release-$SourceRevision"
+$BootstrapManifest = "./artifacts/approved/bootstrap-manifest-$SourceRevision.json"
+
 pwsh ./scripts/Build-ReleaseArtifacts.ps1 `
-  -SourceRevision 1c2fa19 `
-  -OutputDirectory ./artifacts/release/1c2fa19
+  -SourceRevision $SourceRevision `
+  -Configuration Release `
+  -ApplicationRuntime linux-x64 `
+  -MigrationRuntime win-x64 `
+  -BootstrapRuntime win-x64 `
+  -BootstrapManifestPath $BootstrapManifest `
+  -VerifyReproducible `
+  -OutputDirectory $ReleaseDirectory
 
 pwsh ./scripts/Test-AzureDeploymentPlan.ps1 `
-  -ArtifactDirectory ./artifacts/release/1c2fa19
+  -Mode Local `
+  -ArtifactDirectory $ReleaseDirectory
 ```
 
-`Build-ReleaseArtifacts.ps1` refuses a revision mismatch, a dirty checkout, or
-an existing output directory before it can produce a promotable manifest. Its
-three deployable inputs are `web.zip`, `worker.zip`, and `migration.zip`;
-`release-manifest.json` binds their names, lengths, hashes, runtimes, the
-verified Web build diagnostic, and the exact 40-character revision. The test
-script re-hashes all inputs, verifies that diagnostic binding, required archive
-contents, and fixed ZIP timestamps, then compiles Bicep locally.
+`Build-ReleaseArtifacts.ps1` refuses a revision mismatch, a dirty checkout, a
+changed bootstrap manifest, or an existing output directory before it can
+produce a promotable manifest. The release directory contains exactly
+`web-linux-x64.zip`, `worker-linux-x64.zip`,
+`migration-bundle-win-x64.zip`, `bootstrap-win-x64.zip`,
+`azure-deployment-inputs.zip`, `release-manifest.json`, and
+`release-manifest.sha256`. The manifest binds `0.1.0-alpha.1`, terminal
+migration `20260729199000_RuntimeRoleReconciliation`, the approved bootstrap
+manifest digest, the deterministic source-input tree, runtimes, toolchain,
+diagnostic source SHA, and every artifact name, length, and SHA-256. Local
+validation independently binds those bytes to the clean checkout, requires the
+exact nine packaged Worker triggers and matching disabled settings, and compiles
+only the hash-verified packaged Bicep inputs.
 
 The Bicep entrypoint permits only `deploymentMode=offline-replay`. Its resource
 group and platform module are conditioned on the unreachable
 `approved-live-deployment` value, so parameter validation prevents Azure resource
 creation from this revision. This is deliberate fail-closed behavior, not a
 deployment switch.
+
+The platform module also provisions every packaged Worker business function with
+its exact `AzureWebJobs.<FUNCTION_NAME>.Disabled=true` app setting. Offline
+release validation compares those settings with the packaged
+`functions.metadata`, so adding a trigger cannot silently make the initial
+deployed target live. Any later trigger enablement is a separate, reviewed
+app-setting change after its production adapter, evidence boundary, and caller
+are approved; one enabled trigger does not enable any other function.
 
 ## Azure activation gate
 
@@ -113,7 +138,6 @@ an explicit pre-application step; schema rollback is not a down-migration.
 
 - User approval to create chargeable Azure resources has not been given.
 - The predecessor is pre-release and its test application data is not migrated into `0.1.0-alpha.1`. Retirement remains a separately approved operation, not a deployment prerequisite.
-- Document Intelligence F0 ownership/reuse has not been decided.
 - SQL Entra administrator name/object ID must be confirmed at deployment time.
 - GitHub Actions/OIDC deployment is a `Not planned` boundary, not a missing scaffold item.
 - Offline Web, Worker, and migration artifact creation and hash verification are implemented; Azure deployment remains blocked because no activation approval exists, the Entra identity/resolution route is unresolved, and remote-build removal has not been implemented.

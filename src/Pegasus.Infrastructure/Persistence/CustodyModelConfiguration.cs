@@ -60,6 +60,8 @@ internal static class CustodyModelConfiguration
             entity.Property(value => value.Version).IsConcurrencyToken();
             entity.HasIndex(value => new { value.CaseId, value.CreateOperationKey }).IsUnique();
             entity.HasIndex(value => value.LinkTokenDigest).IsUnique();
+            entity.HasIndex(value => new { value.CreatedAtUtc, value.Id }).IsDescending(true, false);
+            entity.HasIndex(value => new { value.DeactivatedAtUtc, value.Id }).IsDescending(true, false);
             entity.HasOne<CaseEntity>().WithMany().HasForeignKey(value => value.CaseId).OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -79,6 +81,8 @@ internal static class CustodyModelConfiguration
             entity.Property(value => value.Version).IsConcurrencyToken();
             entity.HasIndex(value => value.TokenDigest).IsUnique();
             entity.HasIndex(value => new { value.CaseId, value.CreateOperationKey }).IsUnique();
+            entity.HasIndex(value => new { value.CreatedAtUtc, value.Id }).IsDescending(true, false);
+            entity.HasIndex(value => new { value.RevokedAtUtc, value.Id }).IsDescending(true, false);
             entity.HasOne<CaseEntity>().WithMany().HasForeignKey(value => value.CaseId).OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -89,6 +93,7 @@ internal static class CustodyModelConfiguration
             entity.Property(value => value.OperationKey).HasMaxLength(256).IsRequired();
             entity.Property(value => value.ContentHash).HasMaxLength(64).IsFixedLength().IsRequired();
             entity.HasIndex(value => new { value.RequestId, value.OperationKey }).IsUnique();
+            entity.HasIndex(value => new { value.RequestId, value.ReceivedAtUtc }).IsDescending(false, true);
             entity.HasOne<RequestUploadLinkEntity>().WithMany().HasForeignKey(value => value.RequestId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<DocumentOccurrenceEntity>().WithMany().HasForeignKey(value => value.OccurrenceId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<DocumentVersionEntity>().WithMany().HasForeignKey(value => value.VersionId).OnDelete(DeleteBehavior.Restrict);

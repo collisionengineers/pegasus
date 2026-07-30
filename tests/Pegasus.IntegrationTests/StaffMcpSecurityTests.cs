@@ -1,13 +1,14 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using Microsoft.Data.Sqlite;
 
 namespace Pegasus.IntegrationTests;
 
+[Collection(LocalDbFixtureDefinition.Name)]
+[Trait("Category", "SqlServer")]
 public sealed class StaffMcpSecurityTests
 {
-    private const int McpRequestsPerMinute = 60;
+    private const int AnonymousAttempts = 61;
 
     [Fact]
     public async Task McpTransportRejectsABrowserCookieAndAdvertisesBearerMetadata()
@@ -31,38 +32,24 @@ public sealed class StaffMcpSecurityTests
     }
 
     [Fact]
-    public async Task McpTransportRateLimitFailsClosedAndPersistsSecurityEvidence()
+    public async Task AnonymousCallsRemainAuthenticationFailuresAndDoNotConsumeActorClientLimits()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        for (var attempt = 0; attempt < McpRequestsPerMinute; attempt++)
+        for (var attempt = 0; attempt < AnonymousAttempts; attempt++)
         {
             using var request = CreateInitializeRequest();
             using var response = await client.SendAsync(request);
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+            Assert.False(response.Headers.Contains("Retry-After"));
         }
 
-        using var rejectedRequest = CreateInitializeRequest();
-        using var rejectedResponse = await client.SendAsync(rejectedRequest);
-
-        Assert.Equal(HttpStatusCode.TooManyRequests, rejectedResponse.StatusCode);
-        Assert.Equal("60", Assert.Single(rejectedResponse.Headers.GetValues("Retry-After")));
-
-        await using var connection = new SqliteConnection(
-            new SqliteConnectionStringBuilder
-            {
-                DataSource = factory.DatabasePath,
-                Mode = SqliteOpenMode.ReadOnly
-            }.ToString());
-        await connection.OpenAsync();
-        await using var command = connection.CreateCommand();
-        command.CommandText =
-            "SELECT COUNT(*) FROM SecurityEvents " +
-            "WHERE Type = 'RateLimited' AND Outcome = 'Denied' " +
-            "AND SubjectId = 'anonymous' AND ReasonCode = 'mcp_rate_limited';";
-
-        Assert.Equal(1L, (long)(await command.ExecuteScalarAsync())!);
+        Assert.Equal(
+            0L,
+            await factory.Database.ScalarAsync<long>(
+                "SELECT COUNT(*) FROM SecurityEvents " +
+                "WHERE Type = 'RateLimited' AND ReasonCode LIKE 'mcp_%_rate_limited';"));
     }
 
     private static HttpRequestMessage CreateInitializeRequest()

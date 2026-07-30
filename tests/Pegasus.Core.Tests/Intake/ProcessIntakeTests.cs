@@ -689,6 +689,13 @@ public sealed class ProcessIntakeTests
             Drafts.Add(draft);
             return store(draft, cancellationToken);
         }
+        public Task<IntakeReceipt> ReplaceEvaluationAsync(
+            IntakeReceiptDraft draft,
+            CancellationToken cancellationToken)
+        {
+            Drafts.Add(draft);
+            return store(draft, cancellationToken);
+        }
 
         public static IntakeReceipt RecordFrom(IntakeReceiptDraft draft) =>
             new(

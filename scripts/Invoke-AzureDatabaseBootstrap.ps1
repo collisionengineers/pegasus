@@ -9,22 +9,6 @@ param(
     [string]$Database,
 
     [Parameter(Mandatory)]
-    [ValidatePattern('^[A-Za-z][A-Za-z0-9_]{0,127}$')]
-    [string]$WebUserName,
-
-    [Parameter(Mandatory)]
-    [ValidatePattern('^[A-Za-z][A-Za-z0-9_]{0,127}$')]
-    [string]$WorkerUserName,
-
-    [Parameter(Mandatory)]
-    [ValidatePattern('^[A-Za-z][A-Za-z0-9_]{0,127}$')]
-    [string]$WebRoleName,
-
-    [Parameter(Mandatory)]
-    [ValidatePattern('^[A-Za-z][A-Za-z0-9_]{0,127}$')]
-    [string]$WorkerRoleName,
-
-    [Parameter(Mandatory)]
     [guid]$WebClientId,
 
     [Parameter(Mandatory)]
@@ -35,85 +19,232 @@ param(
     [string]$ApprovalReference,
 
     [Parameter(Mandatory)]
+    [ValidatePattern('^EVIDENCE-[A-Za-z0-9._-]+$')]
+    [string]$EvidenceReference,
+
+    [string]$DeploymentMode = $env:DEPLOYMENT_MODE,
+
+    [Parameter(Mandatory)]
     [switch]$ApprovedOperation
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $false
 
-if (-not $ApprovedOperation) {
-    throw 'An explicit exact-target approval is required. This script never infers approval from authentication, installed tools, or configuration.'
-}
-if ($WebUserName -eq $WorkerUserName) {
-    throw 'Web and Worker users must be distinct managed identities.'
-}
-if ($WebRoleName -eq $WorkerRoleName) {
-    throw 'Web and Worker roles must be distinct schema-managed roles.'
-}
+$webUserName = 'pegasus_web_runtime'
+$workerUserName = 'pegasus_worker_runtime'
+$webRoleName = 'pegasus_web_runtime_role'
+$workerRoleName = 'pegasus_worker_runtime_role'
 
-$sqlcmd = Get-Command -Name 'sqlcmd' -CommandType Application -ErrorAction SilentlyContinue
-if ($null -eq $sqlcmd) {
-    throw 'Microsoft Go sqlcmd 1.10.0 is required. Run Invoke-Doctor.ps1 -Profile Cloud for the exact CurrentUser repair command.'
-}
-$version = (& sqlcmd --version 2>&1 | Out-String).Trim()
-if ($LASTEXITCODE -ne 0 -or $version -notmatch '1\.10\.0') {
-    throw "Microsoft Go sqlcmd 1.10.0 is required; observed '$version'."
-}
+function Get-RequiredApplication {
+    param([Parameter(Mandatory)][string]$Name)
 
-function Convert-ClientIdToSqlSid {
-    param([Parameter(Mandatory)] [guid]$ClientId)
-    return '0x' + [Convert]::ToHexString($ClientId.ToByteArray())
+    $command = Get-Command -Name $Name -CommandType Application -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if ($null -eq $command) {
+        throw "$Name is required. Install the pinned SQL command-line tooling before retrying."
+    }
+
+    return $command
 }
 
-$webSid = Convert-ClientIdToSqlSid $WebClientId
-$workerSid = Convert-ClientIdToSqlSid $WorkerClientId
+function ConvertTo-SqlGuidSidHex {
+    param([Parameter(Mandatory)][guid]$Value)
 
+    return '0x' + [Convert]::ToHexString($Value.ToByteArray())
+}
+
+if ($DeploymentMode -ne 'approved-live-deployment') {
+    throw "Azure SQL bootstrap is blocked for deployment mode '$DeploymentMode'."
+}
+if (-not $ApprovedOperation.IsPresent) {
+    throw 'Azure SQL bootstrap is blocked without -ApprovedOperation for the exact approved target.'
+}
+if ($WebClientId -eq [guid]::Empty -or $WorkerClientId -eq [guid]::Empty) {
+    throw 'WebClientId and WorkerClientId must both be non-empty managed-identity client IDs.'
+}
+if ($WebClientId -eq $WorkerClientId) {
+    throw 'Web and Worker managed-identity client IDs must be distinct.'
+}
+
+$sqlcmd = Get-RequiredApplication -Name 'sqlcmd'
+& $sqlcmd.Source '--version' | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    throw "sqlcmd failed its version check with exit code $LASTEXITCODE."
+}
+
+$webSid = ConvertTo-SqlGuidSidHex -Value $WebClientId
+$workerSid = ConvertTo-SqlGuidSidHex -Value $WorkerClientId
 $bootstrapSql = @"
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
 BEGIN TRANSACTION;
 
-IF DATABASE_PRINCIPAL_ID(N'$WebRoleName') IS NULL
-    THROW 51000, 'The required Web role does not exist. Apply the reviewed migration bundle before SQL bootstrap.', 1;
-IF DATABASE_PRINCIPAL_ID(N'$WorkerRoleName') IS NULL
-    THROW 51001, 'The required Worker role does not exist. Apply the reviewed migration bundle before SQL bootstrap.', 1;
+DECLARE @webSid varbinary(16) = $webSid;
+DECLARE @workerSid varbinary(16) = $workerSid;
+DECLARE @dboPrincipalId int = DATABASE_PRINCIPAL_ID(N'dbo');
+DECLARE @webRoleId int = DATABASE_PRINCIPAL_ID(N'$webRoleName');
+DECLARE @workerRoleId int = DATABASE_PRINCIPAL_ID(N'$workerRoleName');
 
-IF DATABASE_PRINCIPAL_ID(N'$WebUserName') IS NULL
-    CREATE USER [$WebUserName] WITH SID = $webSid, TYPE = E;
-ELSE IF NOT EXISTS (
-    SELECT 1 FROM sys.database_principals
-    WHERE name = N'$WebUserName' AND type = 'E' AND sid = $webSid)
-    THROW 51002, 'The existing Web user does not match the approved client ID.', 1;
+IF @webRoleId IS NULL
+   OR NOT EXISTS (
+       SELECT 1
+       FROM sys.database_principals
+       WHERE principal_id = @webRoleId
+         AND [type] = 'R'
+         AND is_fixed_role = 0
+         AND owning_principal_id = @dboPrincipalId)
+    THROW 51000, N'The migration-managed Pegasus Web runtime role is missing or invalid.', 1;
+IF @workerRoleId IS NULL
+   OR NOT EXISTS (
+       SELECT 1
+       FROM sys.database_principals
+       WHERE principal_id = @workerRoleId
+         AND [type] = 'R'
+         AND is_fixed_role = 0
+         AND owning_principal_id = @dboPrincipalId)
+    THROW 51000, N'The migration-managed Pegasus Worker runtime role is missing or invalid.', 1;
+IF @webRoleId = @workerRoleId
+    THROW 51000, N'The Web and Worker runtime roles must be distinct.', 1;
+IF EXISTS (
+    SELECT 1
+    FROM sys.database_permissions
+    WHERE grantee_principal_id IN (@webRoleId, @workerRoleId)
+      AND (class <> 1
+           OR minor_id <> 0
+           OR [state] NOT IN ('G', 'D')
+           OR permission_name NOT IN (N'SELECT', N'INSERT', N'UPDATE', N'DELETE')
+           OR ([state] = 'D' AND permission_name <> N'DELETE')))
+    THROW 51000, N'Runtime roles may contain only migration-managed object-level DML grants.', 1;
+IF EXISTS (
+    SELECT 1 FROM sys.schemas WHERE principal_id IN (@webRoleId, @workerRoleId))
+   OR EXISTS (
+    SELECT 1
+    FROM sys.database_principals
+    WHERE owning_principal_id IN (@webRoleId, @workerRoleId))
+    THROW 51000, N'Runtime roles must not own schemas or database principals.', 1;
 
-IF DATABASE_PRINCIPAL_ID(N'$WorkerUserName') IS NULL
-    CREATE USER [$WorkerUserName] WITH SID = $workerSid, TYPE = E;
-ELSE IF NOT EXISTS (
-    SELECT 1 FROM sys.database_principals
-    WHERE name = N'$WorkerUserName' AND type = 'E' AND sid = $workerSid)
-    THROW 51003, 'The existing Worker user does not match the approved client ID.', 1;
+IF EXISTS (
+    SELECT 1
+    FROM sys.database_principals
+    WHERE sid = @webSid AND name <> N'$webUserName')
+    THROW 51000, N'The Web managed-identity SID is already bound to another database principal.', 1;
+IF EXISTS (
+    SELECT 1
+    FROM sys.database_principals
+    WHERE sid = @workerSid AND name <> N'$workerUserName')
+    THROW 51000, N'The Worker managed-identity SID is already bound to another database principal.', 1;
+
+IF DATABASE_PRINCIPAL_ID(N'$webUserName') IS NULL
+    CREATE USER [$webUserName] WITH SID = $webSid, TYPE = E;
+IF DATABASE_PRINCIPAL_ID(N'$workerUserName') IS NULL
+    CREATE USER [$workerUserName] WITH SID = $workerSid, TYPE = E;
+
+DECLARE @webUserId int = DATABASE_PRINCIPAL_ID(N'$webUserName');
+DECLARE @workerUserId int = DATABASE_PRINCIPAL_ID(N'$workerUserName');
+IF @webUserId IS NULL
+   OR NOT EXISTS (
+       SELECT 1
+       FROM sys.database_principals
+       WHERE principal_id = @webUserId
+         AND [type] = 'E'
+         AND authentication_type = 4
+         AND DATALENGTH(sid) = 16
+         AND sid = @webSid)
+    THROW 51000, N'The existing Web database user does not match the approved managed identity.', 1;
+IF @workerUserId IS NULL
+   OR NOT EXISTS (
+       SELECT 1
+       FROM sys.database_principals
+       WHERE principal_id = @workerUserId
+         AND [type] = 'E'
+         AND authentication_type = 4
+         AND DATALENGTH(sid) = 16
+         AND sid = @workerSid)
+    THROW 51000, N'The existing Worker database user does not match the approved managed identity.', 1;
+IF @webUserId = @workerUserId
+    THROW 51000, N'The Web and Worker managed identities must use distinct database users.', 1;
+
+IF EXISTS (
+    SELECT 1
+    FROM sys.database_permissions
+    WHERE grantee_principal_id IN (@webUserId, @workerUserId))
+    THROW 51000, N'Runtime database users must not have direct permissions.', 1;
+IF EXISTS (
+    SELECT 1 FROM sys.schemas WHERE principal_id IN (@webUserId, @workerUserId))
+   OR EXISTS (
+    SELECT 1
+    FROM sys.database_principals
+    WHERE owning_principal_id IN (@webUserId, @workerUserId))
+    THROW 51000, N'Runtime database users must not own schemas or database principals.', 1;
+IF EXISTS (
+    SELECT 1
+    FROM sys.database_role_members
+    WHERE member_principal_id = @webRoleId
+       OR member_principal_id = @workerRoleId)
+    THROW 51000, N'Runtime roles must not be nested in broader database roles.', 1;
+IF EXISTS (
+    SELECT 1
+    FROM sys.database_role_members
+    WHERE (role_principal_id = @webRoleId AND member_principal_id <> @webUserId)
+       OR (role_principal_id = @workerRoleId AND member_principal_id <> @workerUserId))
+    THROW 51000, N'Runtime roles contain an unexpected database principal.', 1;
+IF EXISTS (
+    SELECT 1
+    FROM sys.database_role_members
+    WHERE (member_principal_id = @webUserId AND role_principal_id <> @webRoleId)
+       OR (member_principal_id = @workerUserId AND role_principal_id <> @workerRoleId))
+    THROW 51000, N'A runtime database user is already assigned to a broader or incorrect role.', 1;
 
 IF NOT EXISTS (
     SELECT 1
-    FROM sys.database_role_members AS membership
-    INNER JOIN sys.database_principals AS role_principal ON role_principal.principal_id = membership.role_principal_id
-    INNER JOIN sys.database_principals AS member_principal ON member_principal.principal_id = membership.member_principal_id
-    WHERE role_principal.name = N'$WebRoleName' AND member_principal.name = N'$WebUserName')
-    ALTER ROLE [$WebRoleName] ADD MEMBER [$WebUserName];
-
+    FROM sys.database_role_members
+    WHERE role_principal_id = @webRoleId
+      AND member_principal_id = @webUserId)
+    ALTER ROLE [$webRoleName] ADD MEMBER [$webUserName];
 IF NOT EXISTS (
     SELECT 1
-    FROM sys.database_role_members AS membership
-    INNER JOIN sys.database_principals AS role_principal ON role_principal.principal_id = membership.role_principal_id
-    INNER JOIN sys.database_principals AS member_principal ON member_principal.principal_id = membership.member_principal_id
-    WHERE role_principal.name = N'$WorkerRoleName' AND member_principal.name = N'$WorkerUserName')
-    ALTER ROLE [$WorkerRoleName] ADD MEMBER [$WorkerUserName];
+    FROM sys.database_role_members
+    WHERE role_principal_id = @workerRoleId
+      AND member_principal_id = @workerUserId)
+    ALTER ROLE [$workerRoleName] ADD MEMBER [$workerUserName];
+
+IF (SELECT COUNT(*) FROM sys.database_role_members WHERE role_principal_id = @webRoleId) <> 1
+   OR (SELECT COUNT(*) FROM sys.database_role_members WHERE role_principal_id = @workerRoleId) <> 1
+   OR (SELECT COUNT(*) FROM sys.database_role_members WHERE member_principal_id = @webUserId) <> 1
+   OR (SELECT COUNT(*) FROM sys.database_role_members WHERE member_principal_id = @workerUserId) <> 1
+    THROW 51000, N'Runtime role membership verification failed.', 1;
 
 COMMIT TRANSACTION;
 "@
 
-$bootstrapSql | & sqlcmd -S "tcp:$Server,1433" -d $Database --authentication-method ActiveDirectoryDefault -N -b
-if ($LASTEXITCODE -ne 0) {
-    throw "SQL bootstrap failed for the explicitly approved target '$Server/$Database'."
+$queryPath = Join-Path ([System.IO.Path]::GetTempPath()) (
+    "pegasus-azure-sql-bootstrap-$([guid]::NewGuid().ToString('N')).sql")
+try {
+    [System.IO.File]::WriteAllText(
+        $queryPath,
+        $bootstrapSql,
+        [System.Text.UTF8Encoding]::new($false))
+    $arguments = @(
+        '-S', "tcp:$Server,1433",
+        '-d', $Database,
+        '--authentication-method', 'ActiveDirectoryDefault',
+        '-N',
+        '-b',
+        '-r', '1',
+        '-i', $queryPath)
+    & $sqlcmd.Source @arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "SQL bootstrap failed for the approved target '$Server/$Database' with exit code $LASTEXITCODE."
+    }
+}
+finally {
+    if ([System.IO.File]::Exists($queryPath)) {
+        [System.IO.File]::Delete($queryPath)
+    }
 }
 
-Write-Output "SQL runtime-role bootstrap completed for the approved target '$Server/$Database' under approval reference '$ApprovalReference'. No password, secret, or Azure login was supplied by this script."
+Write-Output "Azure SQL runtime identities are bound to the fixed least-privilege roles for '$Server/$Database'."
+Write-Output "Approval reference: $ApprovalReference"
+Write-Output "Evidence reference: $EvidenceReference"

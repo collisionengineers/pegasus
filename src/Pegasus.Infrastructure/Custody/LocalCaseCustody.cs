@@ -38,6 +38,20 @@ internal sealed class LocalCaseCustody(
         return new(caseId, relativeId, caseReference);
     }
 
+    public async Task<CaseCustodyRoot> GetExistingCaseRootAsync(
+        Guid caseId,
+        string caseReference,
+        CancellationToken cancellationToken)
+    {
+        ValidateCaseIdentity(caseId, caseReference);
+        var root = new CaseCustodyRoot(
+            caseId,
+            GetCaseRelativeId(caseId),
+            caseReference);
+        await ValidateRootAsync(root, cancellationToken);
+        return root;
+    }
+
     public async Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
         CaseCustodyRoot root,
         IntakeSourceCustodyReference source,
@@ -136,6 +150,10 @@ internal sealed class LocalCaseCustody(
             stream,
             cancellationToken: cancellationToken)
             ?? throw new InvalidDataException("The case custody root metadata is incomplete.");
+        if (string.IsNullOrWhiteSpace(metadata.OperationKey))
+        {
+            throw new InvalidDataException("The case custody root metadata is incomplete.");
+        }
         if (metadata.CaseId != root.CaseId
             || !string.Equals(metadata.Reference, root.Reference, StringComparison.Ordinal))
         {
@@ -163,22 +181,42 @@ internal sealed class LocalCaseCustody(
         string expectedHash,
         CancellationToken cancellationToken)
     {
-        try
+        if (!File.Exists(path))
         {
-            await using var stream = new FileStream(
-                path,
-                FileMode.CreateNew,
-                FileAccess.Write,
-                FileShare.None,
-                64 * 1024,
-                FileOptions.Asynchronous | FileOptions.WriteThrough);
-            await stream.WriteAsync(content, cancellationToken);
-            await stream.FlushAsync(cancellationToken);
-            return;
-        }
-        catch (IOException) when (File.Exists(path))
-        {
-            // An idempotent or concurrent call created the immutable content first.
+            var temporaryPath = CreateSiblingTemporaryPath(path);
+            try
+            {
+                await using (var stream = new FileStream(
+                                 temporaryPath,
+                                 FileMode.CreateNew,
+                                 FileAccess.Write,
+                                 FileShare.None,
+                                 64 * 1024,
+                                 FileOptions.Asynchronous | FileOptions.WriteThrough))
+                {
+                    await stream.WriteAsync(content, cancellationToken);
+                    await stream.FlushAsync(cancellationToken);
+                    RandomAccess.FlushToDisk(stream.SafeFileHandle);
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    File.Move(temporaryPath, path, overwrite: false);
+                    return;
+                }
+                catch (IOException) when (File.Exists(path))
+                {
+                    // An idempotent or concurrent call published the immutable content first.
+                }
+            }
+            finally
+            {
+                if (File.Exists(temporaryPath))
+                {
+                    File.Delete(temporaryPath);
+                }
+            }
         }
 
         await using var existing = new FileStream(
@@ -202,22 +240,45 @@ internal sealed class LocalCaseCustody(
         Func<T, bool> isExpected,
         CancellationToken cancellationToken)
     {
-        try
+        if (!File.Exists(path))
         {
-            await using var stream = new FileStream(
-                path,
-                FileMode.CreateNew,
-                FileAccess.Write,
-                FileShare.None,
-                4096,
-                FileOptions.Asynchronous | FileOptions.WriteThrough);
-            await JsonSerializer.SerializeAsync(stream, value, cancellationToken: cancellationToken);
-            await stream.FlushAsync(cancellationToken);
-            return;
-        }
-        catch (IOException) when (File.Exists(path))
-        {
-            // An idempotent or concurrent call created the immutable metadata first.
+            var temporaryPath = CreateSiblingTemporaryPath(path);
+            try
+            {
+                await using (var stream = new FileStream(
+                                 temporaryPath,
+                                 FileMode.CreateNew,
+                                 FileAccess.Write,
+                                 FileShare.None,
+                                 4096,
+                                 FileOptions.Asynchronous | FileOptions.WriteThrough))
+                {
+                    await JsonSerializer.SerializeAsync(
+                        stream,
+                        value,
+                        cancellationToken: cancellationToken);
+                    await stream.FlushAsync(cancellationToken);
+                    RandomAccess.FlushToDisk(stream.SafeFileHandle);
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    File.Move(temporaryPath, path, overwrite: false);
+                    return;
+                }
+                catch (IOException) when (File.Exists(path))
+                {
+                    // An idempotent or concurrent call published the immutable metadata first.
+                }
+            }
+            finally
+            {
+                if (File.Exists(temporaryPath))
+                {
+                    File.Delete(temporaryPath);
+                }
+            }
         }
 
         await using var existingStream = new FileStream(
@@ -227,7 +288,9 @@ internal sealed class LocalCaseCustody(
             FileShare.Read,
             4096,
             FileOptions.Asynchronous | FileOptions.SequentialScan);
-        var existing = await JsonSerializer.DeserializeAsync<T>(existingStream, cancellationToken: cancellationToken)
+        var existing = await JsonSerializer.DeserializeAsync<T>(
+                existingStream,
+                cancellationToken: cancellationToken)
             ?? throw new InvalidDataException("Custody metadata is incomplete.");
         if (!isExpected(existing))
         {
@@ -235,9 +298,20 @@ internal sealed class LocalCaseCustody(
         }
     }
 
+    private static string CreateSiblingTemporaryPath(string path) =>
+        Path.Combine(
+            Path.GetDirectoryName(path)!,
+            $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
+
     private static string GetCaseRelativeId(Guid caseId) => $"cases/{caseId:N}";
 
     private static void ValidateIdentity(Guid caseId, string caseReference, string operationKey)
+    {
+        ValidateCaseIdentity(caseId, caseReference);
+        ValidateOperationKey(operationKey);
+    }
+
+    private static void ValidateCaseIdentity(Guid caseId, string caseReference)
     {
         if (caseId == Guid.Empty)
         {
@@ -245,7 +319,6 @@ internal sealed class LocalCaseCustody(
         }
 
         ArgumentException.ThrowIfNullOrWhiteSpace(caseReference);
-        ValidateOperationKey(operationKey);
     }
 
     private static void ValidateOperationKey(string operationKey) =>
@@ -272,4 +345,37 @@ internal sealed class LocalCaseCustody(
         string OperationKey);
 
     private sealed record AuditFolderMetadata(string AuditReference, string OperationKey);
+}
+
+internal sealed class UnavailableCaseCustody : ICaseCustody
+{
+    public Task<CaseCustodyRoot> CreateCaseRootAsync(
+        Guid caseId,
+        string caseReference,
+        string operationKey,
+        CancellationToken cancellationToken) =>
+        Unavailable<CaseCustodyRoot>();
+
+    public Task<CaseCustodyRoot> GetExistingCaseRootAsync(
+        Guid caseId,
+        string caseReference,
+        CancellationToken cancellationToken) =>
+        Unavailable<CaseCustodyRoot>();
+
+    public Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
+        CaseCustodyRoot root,
+        IntakeSourceCustodyReference source,
+        string operationKey,
+        CancellationToken cancellationToken) =>
+        Unavailable<CustodyDocumentVersion>();
+
+    public Task<string> CreateAuditReferenceFolderAsync(
+        CaseCustodyRoot root,
+        string auditReference,
+        string operationKey,
+        CancellationToken cancellationToken) =>
+        Unavailable<string>();
+
+    private static Task<T> Unavailable<T>() =>
+        Task.FromException<T>(new CaseCustodyUnavailableException());
 }

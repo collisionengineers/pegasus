@@ -6,10 +6,13 @@ using Pegasus.Core.Identity;
 namespace Pegasus.Web.Pages.Administration.Access;
 
 [Authorize(Policy = StaffRoleNames.Administrator)]
-public sealed class IndexModel(IStaffAccountAdministration administration)
+public sealed class IndexModel(
+    IGetAccessReview getAccessReview,
+    IReviewStaffAccess reviewStaffAccess,
+    IRevokeStaffMcpAuthorizations revokeStaffMcpAuthorizations)
     : AdministrationPageModel
 {
-    public IReadOnlyList<StaffAccountSummary> Accounts { get; private set; } = [];
+    public IReadOnlyList<StaffAccessReviewProjection> Accounts { get; private set; } = [];
 
     [BindProperty]
     public Guid StaffId { get; set; }
@@ -28,8 +31,7 @@ public sealed class IndexModel(IStaffAccountAdministration administration)
             return Forbid();
         }
 
-        StaffAuthorization.Require(actor, StaffAccessRight.ReviewStaffAccess);
-        Accounts = await administration.ListAsync(actor, cancellationToken);
+        await LoadAsync(actor, cancellationToken);
         return Page();
     }
 
@@ -40,40 +42,104 @@ public sealed class IndexModel(IStaffAccountAdministration administration)
             return Forbid();
         }
 
-        if (StaffId == Guid.Empty || !IsOperationKeyValid(OperationKey))
-        {
-            ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
-        }
-
+        ValidateSubmittedOperation();
         if (ModelState.IsValid)
         {
             try
             {
-                await administration.ReviewAccessAsync(
-                    actor,
-                    StaffId,
-                    Reason,
-                    OperationKey,
+                await reviewStaffAccess.ExecuteAsync(
+                    new(actor, StaffId, Reason, OperationKey),
                     cancellationToken);
                 TempData["AdministrationStatus"] = "The access review was recorded.";
                 return RedirectToPage();
             }
             catch (StaffAccountAdministrationException exception)
             {
-                var message = exception.Error switch
+                ModelState.AddModelError(string.Empty, exception.Error switch
                 {
                     StaffAccountAdministrationError.StaffAccountNotFound =>
                         "The staff account no longer exists.",
                     StaffAccountAdministrationError.OperationConflict =>
                         "The form was already used for a different operation. Retry from the current page.",
                     _ => "The access review was not accepted."
-                };
-                ModelState.AddModelError(string.Empty, message);
+                });
+            }
+            catch (ArgumentException)
+            {
+                ModelState.AddModelError(string.Empty, "The access review was not accepted.");
             }
         }
 
+        return await ReloadForFailureAsync(actor, cancellationToken);
+    }
+
+    public async Task<IActionResult> OnPostRevokeMcpAsync(
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        ValidateSubmittedOperation();
+        if (ModelState.IsValid)
+        {
+            try
+            {
+                await revokeStaffMcpAuthorizations.ExecuteAsync(
+                    new(actor, StaffId, Reason, OperationKey),
+                    cancellationToken);
+                TempData["AdministrationStatus"] =
+                    "The staff member's MCP authorizations and tokens were revoked.";
+                return RedirectToPage();
+            }
+            catch (AuthenticationClientAdministrationException exception)
+            {
+                ModelState.AddModelError(string.Empty, exception.Error switch
+                {
+                    AuthenticationClientAdministrationError.StaffAccountNotFound =>
+                        "The staff account no longer exists.",
+                    AuthenticationClientAdministrationError.OperationConflict =>
+                        "The form was already used for a different operation. Retry from the current page.",
+                    _ => "The MCP authorization revocation was not accepted."
+                });
+            }
+            catch (ArgumentException)
+            {
+                ModelState.AddModelError(
+                    string.Empty,
+                    "The MCP authorization revocation was not accepted.");
+            }
+        }
+
+        return await ReloadForFailureAsync(actor, cancellationToken);
+    }
+
+    private void ValidateSubmittedOperation()
+    {
+        if (StaffId == Guid.Empty || !IsOperationKeyValid(OperationKey))
+        {
+            ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
+        }
+    }
+
+    private async Task<IActionResult> ReloadForFailureAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
         OperationKey = NewOperationKey();
-        Accounts = await administration.ListAsync(actor, cancellationToken);
+        ModelState.Remove(nameof(OperationKey));
+        await LoadAsync(actor, cancellationToken);
         return Page();
+    }
+
+    private async Task LoadAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        var result = await getAccessReview.ExecuteAsync(
+            new(actor),
+            cancellationToken);
+        Accounts = result.Accounts;
     }
 }

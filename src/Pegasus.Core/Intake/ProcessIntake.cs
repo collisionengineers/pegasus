@@ -15,20 +15,22 @@ public sealed class ProcessIntake(
     public Task<IntakeReceipt> ExecuteAsync(
         IntakeSource source,
         CancellationToken cancellationToken = default) =>
-        ExecuteCoreAsync(source, retainedSourceStorageKey: null, cancellationToken);
+        ExecuteCoreAsync(source, retainedSourceStorageKey: null, replaceExisting: false, cancellationToken);
 
     internal Task<IntakeReceipt> ExecuteRetainedAsync(
         IntakeSource source,
         string retainedSourceStorageKey,
+        bool replaceExisting = false,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(retainedSourceStorageKey);
-        return ExecuteCoreAsync(source, retainedSourceStorageKey, cancellationToken);
+        return ExecuteCoreAsync(source, retainedSourceStorageKey, replaceExisting, cancellationToken);
     }
 
     private async Task<IntakeReceipt> ExecuteCoreAsync(
         IntakeSource source,
         string? retainedSourceStorageKey,
+        bool replaceExisting,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(source.FileName);
@@ -50,10 +52,13 @@ public sealed class ProcessIntake(
                 throw new IntakeSourceIdentityConflictException();
             }
 
-            activity?.SetTag("intake.reader_result", "not_read_replay");
-            activity?.SetTag("intake.reader_key", existing.SourceReaderKey);
-            RecordTelemetry(activity, existing, "replay", started);
-            return existing with { IsDuplicate = true };
+            if (!replaceExisting)
+            {
+                activity?.SetTag("intake.reader_result", "not_read_replay");
+                activity?.SetTag("intake.reader_key", existing.SourceReaderKey);
+                RecordTelemetry(activity, existing, "replay", started);
+                return existing with { IsDuplicate = true };
+            }
         }
 
         IntakeAssetRecord sourceAsset;
@@ -173,7 +178,9 @@ public sealed class ProcessIntake(
         IntakeReceipt receipt;
         try
         {
-            receipt = await receiptStore.StoreAsync(draft, cancellationToken);
+            receipt = replaceExisting
+                ? await receiptStore.ReplaceEvaluationAsync(draft, cancellationToken)
+                : await receiptStore.StoreAsync(draft, cancellationToken);
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
@@ -486,6 +493,7 @@ public sealed class ProcessIntake(
     {
         IntakeDecision.DraftReady => "draft_ready",
         IntakeDecision.NeedsSorting => "needs_sorting",
+        IntakeDecision.BlockedIntake => "blocked_intake",
         IntakeDecision.Unsupported => "unsupported",
         IntakeDecision.OcrRequired => "ocr_required",
         IntakeDecision.TechnicalFailure => "technical_failure",

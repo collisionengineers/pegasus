@@ -3,7 +3,8 @@ using System.Text.RegularExpressions;
 
 namespace Pegasus.Core.Intake;
 
-public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtractionPolicy, IMailRoutePolicy
+public sealed partial class QdosInstructionExtractionPolicy(
+    IIntakeTriageMatcher? triageMatcher = null) : IInstructionExtractionPolicy, IMailRoutePolicy
 {
     public const string Key = "qdos_instruction";
     public const int Version = 1;
@@ -12,6 +13,8 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
     private const string PrincipalCode = "QDOS";
     private const string AcceptedDirectDomain = "qdosassist.co.uk";
     private const string StaffTransportDomain = "collisionengineers.co.uk";
+    private readonly IIntakeTriageMatcher triageMatcher =
+        triageMatcher ?? new NoAcceptedIntakeTriageMatcher();
 
     private static readonly FieldDefinition[] FieldDefinitions =
     [
@@ -24,7 +27,8 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
         new("Accident circumstances", ["Accident Circumstances", "Circumstances"]),
         new("Date of incident", ["Date of Incident", "Incident Date", "Accident Date"]),
         new("Instruction date", ["Instruction Date", "Date of Instruction"]),
-        new("Inspection address", ["Inspection Address", "Vehicle Location", "Inspection Location"])
+        new("Inspection address", ["Inspection Address", "Vehicle Location", "Inspection Location"]),
+        new("Inspection date", ["Inspection Date", "Date of Inspection", "Inspection Deadline", "Due By"], IsRequired: false)
     ];
 
     public MailRouteEvaluationResult Evaluate(IntakeSourceReadResult readResult)
@@ -236,6 +240,21 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
         {
             var (fields, missingFields, fieldEvidence) = ExtractFields(readResult.Content, processedAtUtc);
             evidence.AddRange(fieldEvidence);
+            var draft = CreateInstructionDraft(fields);
+            var triageMatches = triageMatcher.Match(readResult, draft);
+            ArgumentNullException.ThrowIfNull(triageMatches);
+            foreach (var match in triageMatches)
+            {
+                ValidateTriageMatch(match);
+                evidence.Add(new(
+                    match.Source,
+                    IntakeEvidenceStrength.Strong,
+                    IntakeEvidenceFinding.AcceptedTriageMatch,
+                    match.Signal.Trim(),
+                    match.Detail.Trim(),
+                    match.MatcherKey.Trim(),
+                    match.MatcherVersion));
+            }
             if (readResult.RequiresOcr)
             {
                 evidence.Add(new(
@@ -250,7 +269,7 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
                 InstructionPolicyApplicability.Applicable,
                 evidence,
                 fields,
-                CreateInstructionDraft(fields),
+                draft,
                 missingFields,
                 Key,
                 Version);
@@ -285,7 +304,8 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
             TypedString(values["Accident circumstances"], 2000),
             ParseDate(values["Date of incident"]),
             ParseDate(values["Instruction date"]),
-            TypedString(values["Inspection address"], 1000));
+            TypedString(values["Inspection address"], 1000),
+            ParseDate(values["Inspection date"]));
     }
 
     private static void AddTransportEvidence(
@@ -428,13 +448,16 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
             if (candidates.Length == 0)
             {
                 fields.Add(new(definition.Name, null, [], false, false));
-                missing.Add(definition.Name);
-                evidence.Add(new(
-                    IntakeEvidenceSource.SystemDefault,
-                    IntakeEvidenceStrength.Strong,
-                    IntakeEvidenceFinding.MissingField,
-                    definition.Name,
-                    $"No {definition.Name.ToLowerInvariant()} suggestion was found."));
+                if (definition.IsRequired)
+                {
+                    missing.Add(definition.Name);
+                    evidence.Add(new(
+                        IntakeEvidenceSource.SystemDefault,
+                        IntakeEvidenceStrength.Strong,
+                        IntakeEvidenceFinding.MissingField,
+                        definition.Name,
+                        $"No {definition.Name.ToLowerInvariant()} suggestion was found."));
+                }
                 continue;
             }
 
@@ -460,6 +483,15 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
         }
 
         return (fields, missing, evidence);
+    }
+
+    private static void ValidateTriageMatch(IntakeTriageMatch match)
+    {
+        ArgumentNullException.ThrowIfNull(match);
+        ArgumentException.ThrowIfNullOrWhiteSpace(match.Signal);
+        ArgumentException.ThrowIfNullOrWhiteSpace(match.Detail);
+        ArgumentException.ThrowIfNullOrWhiteSpace(match.MatcherKey);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(match.MatcherVersion);
     }
 
     private static IEnumerable<InstructionFieldCandidate> FindCandidates(
@@ -600,5 +632,8 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
     [GeneratedRegex("^[A-Z0-9]+$", RegexOptions.CultureInvariant)]
     private static partial Regex RegistrationRegex();
 
-    private sealed record FieldDefinition(string Name, string[] Labels);
+    private sealed record FieldDefinition(
+        string Name,
+        string[] Labels,
+        bool IsRequired = true);
 }

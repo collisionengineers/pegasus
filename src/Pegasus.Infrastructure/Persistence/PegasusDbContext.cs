@@ -10,16 +10,31 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<ApplicationInitializationEntity> ApplicationInitializations =>
         Set<ApplicationInitializationEntity>();
 
+
     internal DbSet<OrganizationEntity> Organizations => Set<OrganizationEntity>();
     internal DbSet<OrganizationRoleEntity> OrganizationRoles => Set<OrganizationRoleEntity>();
+    internal DbSet<OrganizationAdministrationOperationEntity> OrganizationAdministrationOperations =>
+        Set<OrganizationAdministrationOperationEntity>();
     internal DbSet<PrincipalSequenceLineageEntity> PrincipalSequenceLineages =>
         Set<PrincipalSequenceLineageEntity>();
     internal DbSet<PrincipalEntity> Principals => Set<PrincipalEntity>();
     internal DbSet<CaseSequenceEntity> CaseSequences => Set<CaseSequenceEntity>();
     internal DbSet<CaseEntity> Cases => Set<CaseEntity>();
     internal DbSet<CaseIntakeLinkEntity> CaseIntakeLinks => Set<CaseIntakeLinkEntity>();
+    internal DbSet<CaseDataSnapshotEntity> CaseDataSnapshots => Set<CaseDataSnapshotEntity>();
+    internal DbSet<CaseDataFieldEntity> CaseDataFields => Set<CaseDataFieldEntity>();
+    internal DbSet<IntakeManualAssociationEntity> IntakeManualAssociations =>
+        Set<IntakeManualAssociationEntity>();
+    internal DbSet<IntakeMutationHistoryEntity> IntakeMutationHistory =>
+        Set<IntakeMutationHistoryEntity>();
     internal DbSet<CaseHistoryEntity> CaseHistory => Set<CaseHistoryEntity>();
     internal DbSet<ExternalWorkItemEntity> ExternalWorkItems => Set<ExternalWorkItemEntity>();
+    internal DbSet<VehicleLookupRequestEntity> VehicleLookupRequests =>
+        Set<VehicleLookupRequestEntity>();
+    internal DbSet<VehicleLookupObservationEntity> VehicleLookupObservations =>
+        Set<VehicleLookupObservationEntity>();
+    internal DbSet<VehicleConfirmationEntity> VehicleConfirmations =>
+        Set<VehicleConfirmationEntity>();
     internal DbSet<TriageEntity> Triage => Set<TriageEntity>();
     internal DbSet<TriageFindingEntity> TriageFindings => Set<TriageFindingEntity>();
     internal DbSet<TriageResponseEvidenceLinkEntity> TriageResponseEvidenceLinks =>
@@ -29,12 +44,26 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<EmailResponseEvidenceEntity> EmailResponseEvidence => Set<EmailResponseEvidenceEntity>();
     internal DbSet<ActionHistoryEntity> ActionHistory => Set<ActionHistoryEntity>();
     internal DbSet<SecurityEventEntity> SecurityEvents => Set<SecurityEventEntity>();
+    internal DbSet<WorkflowConfigurationEntity> WorkflowConfigurations =>
+        Set<WorkflowConfigurationEntity>();
+    internal DbSet<ApprovedMailboxEntity> ApprovedMailboxes =>
+        Set<ApprovedMailboxEntity>();
     internal DbSet<CaseWorkflowEntity> CaseWorkflows => Set<CaseWorkflowEntity>();
     internal DbSet<CaseWorkflowEventEntity> CaseWorkflowEvents => Set<CaseWorkflowEventEntity>();
+    internal DbSet<CaseEditLeaseOperationEntity> CaseEditLeaseOperations =>
+        Set<CaseEditLeaseOperationEntity>();
+    internal DbSet<EvaHandoffRevisionEntity> EvaHandoffRevisions =>
+        Set<EvaHandoffRevisionEntity>();
+    internal DbSet<EvaFirstHandoffProxyEntity> EvaFirstHandoffProxies =>
+        Set<EvaFirstHandoffProxyEntity>();
+    internal DbSet<EvaHandoffOperationEntity> EvaHandoffOperations =>
+        Set<EvaHandoffOperationEntity>();
     internal DbSet<CaseReportApprovalEntity> CaseReportApprovals => Set<CaseReportApprovalEntity>();
     internal DbSet<CaseReportSentEvidenceEntity> CaseReportSentEvidence => Set<CaseReportSentEvidenceEntity>();
     internal DbSet<CaseDueWorkEntity> CaseDueWork => Set<CaseDueWorkEntity>();
     internal DbSet<CaseManualChaseEntity> CaseManualChases => Set<CaseManualChaseEntity>();
+    internal DbSet<CaseTaskEntity> CaseTasks => Set<CaseTaskEntity>();
+    internal DbSet<CaseDueChaserEntity> CaseDueChasers => Set<CaseDueChaserEntity>();
 
 
     internal DbSet<IntakeReceiptEntity> IntakeReceipts => Set<IntakeReceiptEntity>();
@@ -50,6 +79,12 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<IntakeEvaluationEntity> IntakeEvaluations => Set<IntakeEvaluationEntity>();
     internal DbSet<ApprovedInboxPollStateEntity> ApprovedInboxPollStates =>
         Set<ApprovedInboxPollStateEntity>();
+    internal DbSet<ApprovedInboxPoisonMessageEntity> ApprovedInboxPoisonMessages =>
+        Set<ApprovedInboxPoisonMessageEntity>();
+    internal DbSet<ApprovedSentPollStateEntity> ApprovedSentPollStates =>
+        Set<ApprovedSentPollStateEntity>();
+    internal DbSet<ApprovedSentPollOutcomeEntity> ApprovedSentPollOutcomes =>
+        Set<ApprovedSentPollOutcomeEntity>();
     internal DbSet<IntakeMailRouteDecisionEntity> IntakeMailRouteDecisions =>
         Set<IntakeMailRouteDecisionEntity>();
 
@@ -64,6 +99,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
+        EnforceImmutableApplicationInitialization();
         RegenerateConcurrencyTokens();
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
@@ -72,8 +108,19 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         bool acceptAllChangesOnSuccess,
         CancellationToken cancellationToken = default)
     {
+        EnforceImmutableApplicationInitialization();
         RegenerateConcurrencyTokens();
         return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void EnforceImmutableApplicationInitialization()
+    {
+        if (ChangeTracker.Entries<ApplicationInitializationEntity>()
+            .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted))
+        {
+            throw new InvalidOperationException(
+                "The application-initialization completion marker is immutable.");
+        }
     }
 
     private void RegenerateConcurrencyTokens()
@@ -92,6 +139,11 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         base.OnModelCreating(builder);
         CustodyModelConfiguration.Configure(builder);
         MailboxModelConfiguration.Configure(builder);
+        AuditIdentityModelConfiguration.Configure(builder);
+        AdministrationPolicyModelConfiguration.Configure(builder);
+        CaseDataModelConfiguration.Configure(builder);
+        VehicleModelConfiguration.Configure(builder);
+        EvaHandoffModelConfiguration.Configure(builder);
 
         builder.Entity<PegasusIdentityUser>(entity =>
         {
@@ -106,6 +158,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.Id).HasMaxLength(32);
             entity.Property(item => item.ManifestSha256).HasMaxLength(64).IsFixedLength().IsRequired();
             entity.Property(item => item.MigrationId).HasMaxLength(150).IsRequired();
+            entity.Property(item => item.TargetIdentity).HasMaxLength(200).IsRequired();
         });
 
         builder.Entity<IntakeReceiptEntity>(entity =>
@@ -130,6 +183,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.OcrCandidatesJson).IsRequired();
             entity.HasIndex(item => item.SourceHash);
             entity.HasIndex(item => new { item.SourceChannel, item.ExternalReceiptToken }).IsUnique();
+            entity.HasIndex(item => new { item.SourceChannel, item.ProcessedAtUtc, item.Id }).IsDescending(false, true, false);
         });
 
         builder.Entity<IntakeAssetEntity>(entity =>
@@ -236,9 +290,26 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             });
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Name).HasMaxLength(300).IsRequired();
+            entity.Property(item => item.NormalizedName)
+                .HasMaxLength(300)
+                .IsRequired()
+                .HasComputedColumnSql("UPPER(LTRIM(RTRIM([Name])))", stored: true);
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.HasIndex(item => item.Name);
+            entity.HasIndex(item => item.NormalizedName)
+                .IsUnique()
+                .HasFilter(null);
         });
+        builder.Entity<OrganizationAdministrationOperationEntity>(entity =>
+        {
+            entity.ToTable("OrganizationAdministrationOperations");
+            entity.HasKey(item => item.OperationKey);
+            entity.Property(item => item.OperationKey).HasMaxLength(100);
+            entity.Property(item => item.CommandKind).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.RequestHash).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.Property(item => item.ResultJson).IsRequired();
+        });
+
 
         builder.Entity<OrganizationRoleEntity>(entity =>
         {
@@ -329,15 +400,15 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.CustodySourceETag).HasMaxLength(200);
             entity.HasIndex(item => item.Reference).IsUnique();
             entity.HasIndex(item => item.AuditReference).IsUnique();
-            entity.HasIndex(item => item.OriginIntakeReceiptId).IsUnique();
+            entity.HasIndex(item => item.OriginIntakeReceiptId);
             entity.HasIndex(item => new { item.SequenceLineageId, item.Year, item.Sequence }).IsUnique();
             entity.HasOne(item => item.Principal)
                 .WithMany(item => item.Cases)
                 .HasForeignKey(item => item.PrincipalId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<IntakeReceiptEntity>()
-                .WithOne()
-                .HasForeignKey<CaseEntity>(item => item.OriginIntakeReceiptId)
+                .WithMany()
+                .HasForeignKey(item => item.OriginIntakeReceiptId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -355,6 +426,9 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.FailureReason).HasMaxLength(500);
             entity.HasIndex(item => item.OperationKey).IsUnique();
             entity.HasIndex(item => new { item.State, item.DueAtUtc });
+            entity.HasIndex(item => new { item.DueAtUtc, item.Id }).IsDescending(true, false);
+            entity.HasIndex(item => new { item.LeaseExpiresAtUtc, item.Id }).IsDescending(true, false);
+            entity.HasIndex(item => new { item.CompletedAtUtc, item.Id }).IsDescending(true, false);
             entity.HasOne(item => item.Case)
                 .WithMany(item => item.ExternalWork)
                 .HasForeignKey(item => item.CaseId)
@@ -365,7 +439,10 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         {
             entity.ToTable("CaseIntakeLinks");
             entity.HasKey(item => item.IntakeReceiptId);
-            entity.Property(item => item.Actor).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.ActorKind).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.ActorSubjectId).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.ActorRolesJson).IsRequired();
+            entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
             entity.Property(item => item.OperationKey).HasMaxLength(100).IsRequired();
             entity.Property(item => item.AcceptanceCommandMaterialJson).HasMaxLength(2048);
             entity.Property(item => item.AcceptanceCommandFingerprint).HasMaxLength(64).IsFixedLength();
@@ -382,6 +459,54 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasOne(item => item.CustodyWork)
                 .WithOne()
                 .HasForeignKey<CaseIntakeLinkEntity>(item => item.CustodyWorkId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Entity<IntakeManualAssociationEntity>(entity =>
+        {
+            entity.ToTable("IntakeManualAssociations", table =>
+                table.HasCheckConstraint(
+                    "CK_IntakeManualAssociations_Version",
+                    "[Version] >= 0"));
+            entity.HasKey(item => item.IntakeReceiptId);
+            entity.Property(item => item.Version).IsConcurrencyToken();
+            entity.Property(item => item.ActorKind).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.ActorSubjectId).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.ActorRolesJson).IsRequired();
+            entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.LastOperationKey).HasMaxLength(100).IsRequired();
+            entity.HasIndex(item => item.CaseId);
+            entity.HasIndex(item => item.LastOperationKey).IsUnique();
+            entity.HasOne(item => item.IntakeReceipt)
+                .WithOne(item => item.ManualAssociation)
+                .HasForeignKey<IntakeManualAssociationEntity>(item => item.IntakeReceiptId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Case)
+                .WithMany()
+                .HasForeignKey(item => item.CaseId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<IntakeMutationHistoryEntity>(entity =>
+        {
+            entity.ToTable("IntakeMutationHistory");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.EventType).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.ActorKind).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.ActorSubjectId).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.ActorRolesJson).IsRequired();
+            entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.OperationKey).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.RequestFingerprint).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.HasIndex(item => item.OperationKey).IsUnique();
+            entity.HasIndex(item => new { item.IntakeReceiptId, item.OccurredAtUtc });
+            entity.HasIndex(item => new { item.CaseId, item.OccurredAtUtc });
+            entity.HasOne(item => item.IntakeReceipt)
+                .WithMany()
+                .HasForeignKey(item => item.IntakeReceiptId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Case)
+                .WithMany()
+                .HasForeignKey(item => item.CaseId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -414,9 +539,6 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.CreationOperationKey).HasMaxLength(100).IsRequired();
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.Property(item => item.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();
-            entity.Property(item => item.EditLeaseTokenHash).HasMaxLength(64).IsFixedLength();
-            entity.Property(item => item.EditLeaseHolder).HasMaxLength(200);
-            entity.Property(item => item.EditLeaseOperationKey).HasMaxLength(100);
             entity.HasIndex(item => item.OriginReceiptId).IsUnique();
             entity.HasIndex(item => new { item.SourceChannel, item.ExternalReceiptToken }).IsUnique();
             entity.HasIndex(item => item.CreationOperationKey).IsUnique();
@@ -469,6 +591,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasIndex(item => item.MessageIdentity).IsUnique();
             entity.HasIndex(item => item.OperationKey).IsUnique();
             entity.HasIndex(item => new { item.ChaseDueAtUtc, item.TriageId });
+            entity.HasIndex(item => new { item.SentAtUtc, item.Id }).IsDescending(true, false);
             entity.HasOne(item => item.Triage)
                 .WithMany(item => item.SentEmailEvidence)
                 .HasForeignKey(item => item.TriageId)
@@ -479,17 +602,32 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         {
             entity.ToTable("EmailResponseEvidence");
             entity.HasKey(item => item.Id);
-            entity.Property(item => item.MessageIdentity).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.MailboxId).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.MailboxAddress).HasMaxLength(320).IsRequired();
+            entity.Property(item => item.SentFolderIdentity).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.ImmutableItemIdentity).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.MessageIdentity).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.ConversationIdentity).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.ReplyChainIdentity).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.InReplyToIdentitiesJson).IsRequired();
+            entity.Property(item => item.SourceOccurrenceIdentity).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.SourceSha256).HasMaxLength(64).IsFixedLength().IsRequired();
             entity.Property(item => item.MimeSha256).HasMaxLength(64).IsFixedLength().IsRequired();
             entity.Property(item => item.Actor).HasMaxLength(200).IsRequired();
             entity.Property(item => item.OperationKey).HasMaxLength(100).IsRequired();
             entity.Property(item => item.RequestHash).HasMaxLength(64).IsFixedLength().IsRequired();
             entity.HasIndex(item => item.SentEvidenceId).IsUnique();
+            entity.HasIndex(item => item.PollOutcomeId).IsUnique();
             entity.HasIndex(item => item.MessageIdentity).IsUnique();
             entity.HasIndex(item => item.OperationKey).IsUnique();
+            entity.HasIndex(item => new { item.DiscoveredAtUtc, item.Id }).IsDescending(true, false);
             entity.HasOne(item => item.SentEvidence)
                 .WithOne(item => item.Response)
                 .HasForeignKey<EmailResponseEvidenceEntity>(item => item.SentEvidenceId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ApprovedSentPollOutcomeEntity>()
+                .WithOne()
+                .HasForeignKey<EmailResponseEvidenceEntity>(item => item.PollOutcomeId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -501,6 +639,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.OperationKey).HasMaxLength(100).IsRequired();
             entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
             entity.HasIndex(item => item.OperationKey).IsUnique();
+            entity.HasIndex(item => item.TriageId).IsUnique();
             entity.HasOne(item => item.Triage)
                 .WithMany(item => item.ResponseEvidenceLinks)
                 .HasForeignKey(item => item.TriageId)
@@ -603,6 +742,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasIndex(item => new { item.Version, item.DomainSuffix });
         });
         CaseWorkflowModelConfiguration.Configure(builder);
+        CaseDueChaserModelConfiguration.Configure(builder);
     }
 }
 
@@ -620,6 +760,8 @@ internal sealed class ApplicationInitializationEntity
     public required string ManifestSha256 { get; set; }
 
     public required string MigrationId { get; set; }
+    public required string TargetIdentity { get; set; }
+
 
     public DateTimeOffset CompletedAtUtc { get; set; }
 }
@@ -627,10 +769,20 @@ internal sealed class OrganizationEntity
 {
     public Guid Id { get; set; }
     public required string Name { get; set; }
+    public string NormalizedName { get; private set; } = string.Empty;
     public long Version { get; set; }
     public List<OrganizationRoleEntity> Roles { get; set; } = [];
     public List<PrincipalEntity> Principals { get; set; } = [];
 }
+internal sealed class OrganizationAdministrationOperationEntity
+{
+    public required string OperationKey { get; set; }
+    public required string CommandKind { get; set; }
+    public required string RequestHash { get; set; }
+    public required string ResultJson { get; set; }
+    public DateTimeOffset CompletedAtUtc { get; set; }
+}
+
 
 internal sealed class OrganizationRoleEntity
 {
@@ -692,6 +844,8 @@ internal sealed class CaseEntity : IApplicationManagedConcurrencyToken
     public required string CustodyState { get; set; }
     public Guid OriginIntakeReceiptId { get; set; }
     public string? StandaloneAuditAssessment { get; set; }
+    public Guid? StandaloneAuditEvidenceId { get; set; }
+    public DateOnly? AcceptedInspectionDeadline { get; set; }
     public bool InstructionComplete { get; set; }
     public bool ImagesComplete { get; set; }
     public bool InstructionConfirmedByStaff { get; set; }
@@ -704,6 +858,9 @@ internal sealed class CaseEntity : IApplicationManagedConcurrencyToken
     public string? CustodySourceContentHash { get; set; }
     public string? CustodySourceETag { get; set; }
     public DateTimeOffset? CustodyConfirmedAtUtc { get; set; }
+    public string? AuditCustodyRemoteId { get; set; }
+    public DateTimeOffset? AuditCustodyConfirmedAtUtc { get; set; }
+    public CaseEngineerFindingEntity? EngineerFinding { get; set; }
     public List<CaseIntakeLinkEntity> IntakeLinks { get; set; } = [];
     public List<CaseHistoryEntity> History { get; set; } = [];
     public List<ExternalWorkItemEntity> ExternalWork { get; set; } = [];
@@ -717,11 +874,55 @@ internal sealed class CaseIntakeLinkEntity
     public Guid CustodyWorkId { get; set; }
     public ExternalWorkItemEntity CustodyWork { get; set; } = null!;
     public DateTimeOffset LinkedAtUtc { get; set; }
-    public required string Actor { get; set; }
+    public required string ActorKind { get; set; }
+    public required string ActorSubjectId { get; set; }
+    public required string ActorRolesJson { get; set; }
+    public required string Reason { get; set; }
     public required string OperationKey { get; set; }
     public long? ExpectedIntakeVersion { get; set; }
     public string? AcceptanceCommandMaterialJson { get; set; }
     public string? AcceptanceCommandFingerprint { get; set; }
+}
+internal sealed class IntakeManualAssociationEntity
+{
+    public Guid IntakeReceiptId { get; set; }
+    public IntakeReceiptEntity IntakeReceipt { get; set; } = null!;
+    public Guid CaseId { get; set; }
+    public CaseEntity Case { get; set; } = null!;
+    public bool IsActive { get; set; }
+    public long Version { get; set; }
+    public DateTimeOffset LinkedAtUtc { get; set; }
+    public DateTimeOffset? UnlinkedAtUtc { get; set; }
+    public required string ActorKind { get; set; }
+    public required string ActorSubjectId { get; set; }
+    public required string ActorRolesJson { get; set; }
+    public required string Reason { get; set; }
+    public required string LastOperationKey { get; set; }
+}
+
+internal sealed class IntakeMutationHistoryEntity
+{
+    public Guid Id { get; set; }
+    public Guid IntakeReceiptId { get; set; }
+    public IntakeReceiptEntity IntakeReceipt { get; set; } = null!;
+    public Guid? CaseId { get; set; }
+    public CaseEntity? Case { get; set; }
+    public required string EventType { get; set; }
+    public required string ActorKind { get; set; }
+    public required string ActorSubjectId { get; set; }
+    public required string ActorRolesJson { get; set; }
+    public required string Reason { get; set; }
+    public required string OperationKey { get; set; }
+    public required string RequestFingerprint { get; set; }
+    public DateTimeOffset OccurredAtUtc { get; set; }
+    public long ExpectedIntakeVersion { get; set; }
+    public long BeforeIntakeVersion { get; set; }
+    public long AfterIntakeVersion { get; set; }
+    public long? ExpectedCaseVersion { get; set; }
+    public long? BeforeCaseVersion { get; set; }
+    public long? AfterCaseVersion { get; set; }
+    public string? BeforeJson { get; set; }
+    public string? AfterJson { get; set; }
 }
 
 internal sealed class CaseHistoryEntity
@@ -772,10 +973,6 @@ internal sealed class TriageEntity : IApplicationManagedConcurrencyToken
     public required string CreationOperationKey { get; set; }
     public long Version { get; set; }
     public Guid ConcurrencyToken { get; set; }
-    public string? EditLeaseTokenHash { get; set; }
-    public string? EditLeaseHolder { get; set; }
-    public string? EditLeaseOperationKey { get; set; }
-    public DateTimeOffset? EditLeaseExpiresAtUtc { get; set; }
     public List<TriageFindingEntity> Findings { get; set; } = [];
     public List<TriageResponseEvidenceLinkEntity> ResponseEvidenceLinks { get; set; } = [];
     public List<TriageHistoryEntity> History { get; set; } = [];
@@ -820,9 +1017,20 @@ internal sealed class EmailResponseEvidenceEntity
     public Guid Id { get; set; }
     public Guid SentEvidenceId { get; set; }
     public SentEmailEvidenceEntity SentEvidence { get; set; } = null!;
+    public Guid PollOutcomeId { get; set; }
+    public required string MailboxId { get; set; }
+    public required string MailboxAddress { get; set; }
+    public required string SentFolderIdentity { get; set; }
+    public required string ImmutableItemIdentity { get; set; }
     public required string MessageIdentity { get; set; }
+    public required string ConversationIdentity { get; set; }
+    public required string ReplyChainIdentity { get; set; }
+    public required string InReplyToIdentitiesJson { get; set; }
+    public required string SourceOccurrenceIdentity { get; set; }
+    public required string SourceSha256 { get; set; }
     public required string MimeSha256 { get; set; }
-    public DateTimeOffset ReceivedAtUtc { get; set; }
+    public DateTimeOffset SentAtUtc { get; set; }
+    public DateTimeOffset DiscoveredAtUtc { get; set; }
     public required string Actor { get; set; }
     public required string OperationKey { get; set; }
     public required string RequestHash { get; set; }
@@ -913,6 +1121,7 @@ internal sealed class IntakeReceiptEntity
     public required string OcrCandidatesJson { get; set; }
     public InstructionDraftEntity? InstructionDraft { get; set; }
     public IntakeMailRouteDecisionEntity? MailRouteDecision { get; set; }
+    public IntakeManualAssociationEntity? ManualAssociation { get; set; }
     public List<IntakeAssetEntity> Assets { get; set; } = [];
 }
 
@@ -930,6 +1139,7 @@ internal sealed class InstructionDraftEntity
     public string? AccidentCircumstances { get; set; }
     public DateOnly? DateOfIncident { get; set; }
     public DateOnly? InstructionDate { get; set; }
+    public DateOnly? InspectionDate { get; set; }
     public string? InspectionAddress { get; set; }
 }
 

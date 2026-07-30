@@ -200,14 +200,6 @@
         "resolved": "6.0.2",
         "contentHash": "f+pRODTWX7Y67jXO3T5S2dIPZ9qMJNySjlZT/TKmWVNWe19N8jcWmHaqHnnchaq3gxEKv1SWVY5EFzOD06l41w=="
       },
-      "Microsoft.Data.Sqlite.Core": {
-        "type": "Transitive",
-        "resolved": "10.0.10",
-        "contentHash": "TPCs0ldm7AWqcKmp6f/Xr+14sat7hx4rHfRlS4RgCURBH2thEWbAKEyX7cCWr63zVJVOJIJZTg2cBiUXa8ys6g==",
-        "dependencies": {
-          "SQLitePCLRaw.core": "2.1.11"
-        }
-      },
       "Microsoft.EntityFrameworkCore": {
         "type": "Transitive",
         "resolved": "10.0.10",
@@ -238,34 +230,6 @@
           "Microsoft.Extensions.Caching.Memory": "10.0.10",
           "Microsoft.Extensions.Configuration.Abstractions": "10.0.10",
           "Microsoft.Extensions.Logging": "10.0.10"
-        }
-      },
-      "Microsoft.EntityFrameworkCore.Sqlite": {
-        "type": "Transitive",
-        "resolved": "10.0.10",
-        "contentHash": "kzg9MuQNJvZQxAU+piSkEzc7/1tpW6n1nVSGGMObu2GgxLK8Nf+6fvZundaznTZ+O2KhfPZ8HFNCzMH3PWDUmA==",
-        "dependencies": {
-          "Microsoft.EntityFrameworkCore.Sqlite.Core": "10.0.10",
-          "Microsoft.Extensions.Caching.Memory": "10.0.10",
-          "Microsoft.Extensions.Configuration.Abstractions": "10.0.10",
-          "Microsoft.Extensions.DependencyModel": "10.0.10",
-          "Microsoft.Extensions.Logging": "10.0.10",
-          "SQLitePCLRaw.bundle_e_sqlite3": "2.1.11",
-          "SQLitePCLRaw.core": "2.1.11"
-        }
-      },
-      "Microsoft.EntityFrameworkCore.Sqlite.Core": {
-        "type": "Transitive",
-        "resolved": "10.0.10",
-        "contentHash": "YbVWMIouzwTKBiLms8boa7xeRT88wI14R1msv3XExFk9n0/sa8nU7MwDa1CKtfLGMJs7O7QWuS9/xhcQ72AD2A==",
-        "dependencies": {
-          "Microsoft.Data.Sqlite.Core": "10.0.10",
-          "Microsoft.EntityFrameworkCore.Relational": "10.0.10",
-          "Microsoft.Extensions.Caching.Memory": "10.0.10",
-          "Microsoft.Extensions.Configuration.Abstractions": "10.0.10",
-          "Microsoft.Extensions.DependencyModel": "10.0.10",
-          "Microsoft.Extensions.Logging": "10.0.10",
-          "SQLitePCLRaw.core": "2.1.11"
         }
       },
       "Microsoft.EntityFrameworkCore.SqlServer": {
@@ -1095,33 +1059,6 @@
           "System.Threading.RateLimiting": "8.0.0"
         }
       },
-      "SQLitePCLRaw.bundle_e_sqlite3": {
-        "type": "Transitive",
-        "resolved": "2.1.11",
-        "contentHash": "DC4nA7yWnf4UZdgJDF+9Mus4/cb0Y3Sfgi3gDnAoKNAIBwzkskNAbNbyu+u4atT0ruVlZNJfwZmwiEwE5oz9LQ==",
-        "dependencies": {
-          "SQLitePCLRaw.lib.e_sqlite3": "2.1.11",
-          "SQLitePCLRaw.provider.e_sqlite3": "2.1.11"
-        }
-      },
-      "SQLitePCLRaw.core": {
-        "type": "Transitive",
-        "resolved": "2.1.11",
-        "contentHash": "PK0GLFkfhZzLQeR3PJf71FmhtHox+U3vcY6ZtswoMjrefkB9k6ErNJEnwXqc5KgXDSjige2XXrezqS39gkpQKA=="
-      },
-      "SQLitePCLRaw.lib.e_sqlite3": {
-        "type": "Transitive",
-        "resolved": "2.1.12",
-        "contentHash": "fWi8Dbknuhgg72fWinIdjXVaqO1hHL4YBBwVLnr7e1c9TAZwJ0QE38j9syW1hwx6HaqEVTwI+O07WPdZn8Rp0w=="
-      },
-      "SQLitePCLRaw.provider.e_sqlite3": {
-        "type": "Transitive",
-        "resolved": "2.1.11",
-        "contentHash": "Y/0ZkR+r0Cg3DQFuCl1RBnv/tmxpIZRU3HUvelPw6MVaKHwYYR8YNvgs0vuNuXCMvlyJ+Fh88U1D4tah1tt6qw==",
-        "dependencies": {
-          "SQLitePCLRaw.core": "2.1.11"
-        }
-      },
       "System.ClientModel": {
         "type": "Transitive",
         "resolved": "1.5.1",
@@ -1246,12 +1183,10 @@
           "DocumentFormat.OpenXml": "[3.5.1, )",
           "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.0.10, )",
           "Microsoft.EntityFrameworkCore.SqlServer": "[10.0.10, )",
-          "Microsoft.EntityFrameworkCore.Sqlite": "[10.0.10, )",
           "MimeKit": "[4.17.0, )",
           "OpenIddict.EntityFrameworkCore": "[7.6.0, )",
           "PdfPig": "[0.1.15, )",
-          "Pegasus.Core": "[0.1.0-alpha.1, )",
-          "SQLitePCLRaw.lib.e_sqlite3": "[2.1.12, )"
+          "Pegasus.Core": "[0.1.0-alpha.1, )"
         }
       },
       "pegasus.web": {

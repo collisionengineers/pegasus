@@ -5,6 +5,7 @@ internal sealed class CaseWorkflowEntity : IApplicationManagedConcurrencyToken
     public Guid CaseId { get; set; }
     public CaseEntity Case { get; set; } = null!;
     public required string State { get; set; }
+    public string? PreHoldState { get; set; }
     public Guid? AssignedEngineerId { get; set; }
     public Guid? ReportApprovalId { get; set; }
     public CaseReportApprovalEntity? ReportApproval { get; set; }
@@ -14,8 +15,18 @@ internal sealed class CaseWorkflowEntity : IApplicationManagedConcurrencyToken
     public string? ClosureOutcome { get; set; }
     public Guid? ReplacementCaseId { get; set; }
     public CaseEntity? ReplacementCase { get; set; }
+    public Guid? OriginalCaseId { get; set; }
+    public CaseEntity? OriginalCase { get; set; }
+    public DateTimeOffset? ArchivedAtUtc { get; set; }
+    public string? ArchivedByKind { get; set; }
+    public string? ArchivedBySubjectId { get; set; }
+    public string? ArchivedByRolesJson { get; set; }
+    public string? ArchiveReason { get; set; }
     public long Version { get; set; }
+    // Server-only, short-lived replay recovery material; never project, log, or copy to history.
+    public string? EditLeaseToken { get; set; }
     public string? EditLeaseTokenHash { get; set; }
+    public string? EditLeaseRequestHash { get; set; }
     public string? EditLeaseHolder { get; set; }
     public string? EditLeaseOperationKey { get; set; }
     public DateTimeOffset? EditLeaseExpiresAtUtc { get; set; }
@@ -37,6 +48,23 @@ internal sealed class CaseWorkflowEventEntity
     public DateTimeOffset OccurredAtUtc { get; set; }
     public long BeforeVersion { get; set; }
     public long AfterVersion { get; set; }
+    public string? ResultJson { get; set; }
+}
+
+internal sealed class CaseEditLeaseOperationEntity
+{
+    public Guid CaseId { get; set; }
+    public CaseWorkflowEntity Workflow { get; set; } = null!;
+    public required string OperationKey { get; set; }
+    public required string OperationKind { get; set; }
+    public required string RequestHash { get; set; }
+    public required string ActorKind { get; set; }
+    public required string ActorSubjectId { get; set; }
+    public required string ActorRolesJson { get; set; }
+    public DateTimeOffset CompletedAtUtc { get; set; }
+    public long ResultVersion { get; set; }
+    public string? ResultTokenHash { get; set; }
+    public DateTimeOffset? ResultExpiresAtUtc { get; set; }
 }
 
 internal sealed class CaseReportApprovalEntity
@@ -54,27 +82,47 @@ internal sealed class CaseReportApprovalEntity
 internal sealed class CaseReportSentEvidenceEntity
 {
     public Guid Id { get; set; }
-    public Guid CaseId { get; set; }
+    public Guid? CaseId { get; set; }
     public required string MailboxIdentity { get; set; }
     public required string SentFolderIdentity { get; set; }
     public required string ImmutableItemIdentity { get; set; }
+    public required string InternetMessageIdentity { get; set; }
     public required string ConversationIdentity { get; set; }
     public required string ReplyChainIdentity { get; set; }
+    public required string SourceOccurrenceIdentity { get; set; }
+    public required string SourceSha256 { get; set; }
+    public required string MimeSha256 { get; set; }
     public DateTimeOffset SentAtUtc { get; set; }
-    public DateTimeOffset LinkedAtUtc { get; set; }
-    public required string LinkedByKind { get; set; }
-    public required string LinkedBySubjectId { get; set; }
-    public required string LinkedByRolesJson { get; set; }
+    public DateTimeOffset DiscoveredAtUtc { get; set; }
+    public required string DiscoveredByKind { get; set; }
+    public required string DiscoveredBySubjectId { get; set; }
+    public required string RetentionOperationKey { get; set; }
+    public required string RetentionRequestHash { get; set; }
+    public DateTimeOffset? LinkedAtUtc { get; set; }
+    public string? LinkedByKind { get; set; }
+    public string? LinkedBySubjectId { get; set; }
+    public string? LinkedByRolesJson { get; set; }
 }
 
 internal sealed class CaseDueWorkEntity : IApplicationManagedConcurrencyToken
 {
+    private DateTimeOffset? nextChaseAtUtc;
+
     public Guid CaseId { get; set; }
     public CaseWorkflowEntity Workflow { get; set; } = null!;
     public required string MissingMaterialReason { get; set; }
     public DateOnly? DueBy { get; set; }
     public required string State { get; set; }
-    public DateTimeOffset? NextChaseAtUtc { get; set; }
+    public DateTimeOffset? NextChaseAtUtc
+    {
+        get => nextChaseAtUtc;
+        set
+        {
+            nextChaseAtUtc = value?.ToUniversalTime();
+            NextChaseAtUtcTicks = nextChaseAtUtc?.UtcDateTime.Ticks;
+        }
+    }
+    public long? NextChaseAtUtcTicks { get; private set; }
     public DateTimeOffset? HeldAtUtc { get; set; }
     public long? RemainingChaseIntervalTicks { get; set; }
     public string? MostRecentChannel { get; set; }
@@ -101,4 +149,16 @@ internal sealed class CaseManualChaseEntity
     public required string Outcome { get; set; }
     public string? Note { get; set; }
     public long ResultingVersion { get; set; }
+}
+
+internal sealed class CaseTaskEntity : IApplicationManagedConcurrencyToken
+{
+    public Guid Id { get; set; }
+    public Guid CaseId { get; set; }
+    public CaseWorkflowEntity Workflow { get; set; } = null!;
+    public required string Description { get; set; }
+    public Guid? AssigneeId { get; set; }
+    public required string State { get; set; }
+    public long Version { get; set; }
+    public Guid ConcurrencyToken { get; set; }
 }

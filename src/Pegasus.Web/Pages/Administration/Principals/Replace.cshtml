@@ -1,0 +1,73 @@
+@page "{organizationId:guid}/{principalId:guid}"
+@model Pegasus.Web.Pages.Administration.Principals.ReplaceModel
+@using Pegasus.Core.Cases
+@{
+    ViewData["Title"] = "Replace principal";
+    var workProviders = Model.Organizations.Organizations
+        .Where(organization => organization.Roles.Contains(OrganizationRole.WorkProvider))
+        .ToArray();
+}
+
+@if (Model.Organization is not null && Model.Predecessor is not null)
+{
+    <h1>Replace @Model.Predecessor.Code</h1>
+    <p><a asp-page="Index">Back to Principals</a></p>
+
+    <dl>
+        <dt>Organization</dt><dd>@Model.Organization.Name</dd>
+        <dt>Status</dt><dd>@(Model.Predecessor.IsActive ? "Active" : "Disabled")</dd>
+        <dt>Version</dt><dd>@Model.Predecessor.Version</dd>
+        <dt>Sequence lineage</dt><dd>@Model.Predecessor.SequenceLineageId</dd>
+        <dt>Allocated cases</dt><dd>@Model.Predecessor.AllocatedCaseCount</dd>
+    </dl>
+
+    <p>The existing code, principal row, cases, references, and reference ownership will not be edited. Replacement disables this predecessor, links a new active successor, and continues the same sequence lineage.</p>
+
+    @if (!Model.Predecessor.IsActive || Model.Predecessor.SuccessorId is not null)
+    {
+        <p>This principal has no replacement action because it is disabled or already linked to a successor.</p>
+    }
+    else if (workProviders.Length == 0)
+    {
+        <p>No Work Provider organization is available for the successor.</p>
+    }
+    else
+    {
+        <form method="post"
+              asp-page-handler="Replace"
+              asp-route-organizationId="@Model.Organization.Id"
+              asp-route-principalId="@Model.Predecessor.Id">
+            <div asp-validation-summary="ModelOnly"></div>
+            <input asp-for="ExpectedVersion" type="hidden" />
+            <input asp-for="OperationKey" type="hidden" />
+            <div>
+                <label asp-for="SuccessorOrganizationId">Successor Work Provider organization</label>
+                <select asp-for="SuccessorOrganizationId">
+                    <option value="">Select an organization</option>
+                    @foreach (var organization in workProviders)
+                    {
+                        <option value="@organization.Id">@organization.Name</option>
+                    }
+                </select>
+                <span asp-validation-for="SuccessorOrganizationId"></span>
+            </div>
+            <div>
+                <label asp-for="SuccessorCode">Successor principal code</label>
+                <input asp-for="SuccessorCode" autocomplete="off" />
+                <span asp-validation-for="SuccessorCode"></span>
+                <p>Use letters and numbers only. The new code is normalized to uppercase and is immutable.</p>
+            </div>
+            <div>
+                <label asp-for="Reason">Reason for replacement</label>
+                <textarea asp-for="Reason" rows="3"></textarea>
+                <span asp-validation-for="Reason"></span>
+            </div>
+            <button type="submit">Disable predecessor and create successor</button>
+        </form>
+    }
+
+    @if (Model.Organizations.HasMoreOrganizations)
+    {
+        <p>The organization selector is bounded. Confirm an organization that is not shown in the Organizations workspace.</p>
+    }
+}

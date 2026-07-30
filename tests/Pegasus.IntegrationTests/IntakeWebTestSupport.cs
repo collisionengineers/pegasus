@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Data.Sqlite;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -21,6 +21,8 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     private readonly bool? localIntakeEnabled;
     private readonly TimeProvider timeProvider;
     private readonly IIntakeArtifactStore? artifactStore;
+    private readonly IInstructionExtractionPolicy? extractionPolicy;
+    private readonly LocalDbTestDatabase database;
     private readonly string workingDirectory = Path.Combine(
         Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
 
@@ -38,21 +40,33 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         string environment,
         bool? localIntakeEnabled,
         TimeProvider? timeProvider = null,
-        IIntakeArtifactStore? artifactStore = null)
+        IIntakeArtifactStore? artifactStore = null,
+        IInstructionExtractionPolicy? extractionPolicy = null)
     {
         this.environment = environment;
         this.localIntakeEnabled = localIntakeEnabled;
         this.timeProvider = timeProvider ?? new TestTimeProvider(FixedUtcNow);
         this.artifactStore = artifactStore;
+        this.extractionPolicy = extractionPolicy;
+        database = LocalDbTestDatabase.CreateAsync(migrate: false).GetAwaiter().GetResult();
     }
 
-    internal string DatabasePath => Path.Combine(workingDirectory, "intake-tests.db");
+    internal LocalDbTestDatabase Database => database;
 
     internal string ArtifactDirectory => Path.Combine(workingDirectory, "intake-artifacts");
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(environment);
+        builder.UseSetting(
+            "Features:LocalIntake",
+            (localIntakeEnabled ?? false).ToString());
+        builder.UseSetting(
+            "Features:LocalDocumentCustody",
+            environment.Equals("Development", StringComparison.OrdinalIgnoreCase).ToString());
+        builder.UseSetting(
+            "DocumentRequests:AcceptedLimitsVersion",
+            "integration-fixture-v1");
         builder.ConfigureAppConfiguration((_, configuration) =>
         {
             var values = new Dictionary<string, string?>
@@ -62,10 +76,26 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
                     StringComparison.OrdinalIgnoreCase)
                     ? "DevelopmentOffline"
                     : "Production",
-                ["Database:Provider"] = "Sqlite",
-                ["Database:LocalPath"] = DatabasePath,
+                ["ConnectionStrings:Pegasus"] = database.ConnectionString,
                 ["Intake:LocalArtifactPath"] = ArtifactDirectory,
-                ["Features:LocalIntake"] = (localIntakeEnabled ?? false).ToString()
+                ["Features:LocalIntake"] = (localIntakeEnabled ?? false).ToString(),
+                ["Features:LocalDocumentCustody"] = environment.Equals(
+                    "Development",
+                    StringComparison.OrdinalIgnoreCase).ToString(),
+                ["DocumentRequests:AcceptedLimitsVersion"] = "integration-fixture-v1",
+                ["DocumentRequests:LimitsVersion"] = "integration-fixture-v1",
+                ["DocumentRequests:LifetimeHours"] = "1",
+                ["DocumentRequests:MaximumFileCount"] = "5",
+                ["DocumentRequests:MaximumFileBytes"] = "1048576",
+                ["DocumentRequests:MaximumRequestBytes"] = "5242880",
+                ["DocumentRequests:RateLimit"] = "10",
+                ["DocumentRequests:RateLimitWindowMinutes"] = "1",
+                ["DocumentRequests:AllowedMediaTypes:0"] = "application/pdf",
+                ["DocumentRequests:AllowedMediaTypes:1"] = "text/plain",
+                ["DocumentRequests:AllowedMediaTypes:2"] = "image/jpeg",
+                ["DocumentRequests:AllowedMediaTypes:3"] = "image/png",
+                ["DocumentRequests:AllowedMediaTypes:4"] =
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             };
 
             configuration.AddInMemoryCollection(values);
@@ -78,6 +108,11 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
             {
                 services.RemoveAll<IIntakeArtifactStore>();
                 services.AddSingleton(artifactStore);
+            }
+            if (extractionPolicy is not null)
+            {
+                services.RemoveAll<IInstructionExtractionPolicy>();
+                services.AddSingleton(extractionPolicy);
             }
         });
     }
@@ -94,11 +129,26 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
 
     protected override void Dispose(bool disposing)
     {
-        base.Dispose(disposing);
-        if (disposing && Directory.Exists(workingDirectory))
+        try
         {
-            SqliteConnection.ClearAllPools();
-            Directory.Delete(workingDirectory, recursive: true);
+            base.Dispose(disposing);
+        }
+        finally
+        {
+            if (disposing)
+            {
+                try
+                {
+                    database.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                }
+                finally
+                {
+                    if (Directory.Exists(workingDirectory))
+                    {
+                        Directory.Delete(workingDirectory, recursive: true);
+                    }
+                }
+            }
         }
     }
 
@@ -149,6 +199,88 @@ internal static partial class IntakeWebDriver
             cancellationToken);
     }
 
+    public static async Task<UploadResult> UploadAndProcessAsync(
+        IntakeWebApplicationFactory factory,
+        HttpClient client,
+        GenuineCorpusSample sample,
+        string? externalReceiptToken = null,
+        CancellationToken cancellationToken = default)
+    {
+        var upload = await UploadAsync(
+            client,
+            sample,
+            externalReceiptToken,
+            cancellationToken);
+        return await ProcessQueuedAsync(factory, upload, cancellationToken);
+    }
+
+    public static async Task<UploadResult> UploadAndProcessAsync(
+        IntakeWebApplicationFactory factory,
+        HttpClient client,
+        string uploadName,
+        string mediaType,
+        byte[] bytes,
+        string? externalReceiptToken = null,
+        CancellationToken cancellationToken = default)
+    {
+        var upload = await UploadAsync(
+            client,
+            uploadName,
+            mediaType,
+            bytes,
+            externalReceiptToken,
+            cancellationToken);
+        return await ProcessQueuedAsync(factory, upload, cancellationToken);
+    }
+
+    public static async Task<UploadResult> ProcessQueuedAsync(
+        IntakeWebApplicationFactory factory,
+        UploadResult upload,
+        CancellationToken cancellationToken = default)
+    {
+        var stagedReceiptId = QueuedReceiptId(upload);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var workStore = services.GetRequiredService<IIntakeWorkStore>();
+        var processor = services.GetRequiredService<ProcessQueuedIntake>();
+        var dispatcher = new DispatchPendingIntakeWork(
+            workStore,
+            new ImmediateIntakeWorkEnqueuer(processor),
+            services.GetRequiredService<TimeProvider>());
+        var evaluation = await workStore.GetCompletedEvaluationAsync(
+            stagedReceiptId,
+            cancellationToken);
+        while (evaluation is null)
+        {
+            var dispatched = await dispatcher.ExecuteAsync(1, cancellationToken);
+            Assert.Equal(1, dispatched);
+            evaluation = await workStore.GetCompletedEvaluationAsync(
+                stagedReceiptId,
+                cancellationToken);
+        }
+
+        var query = ParseLocationQuery(upload);
+        var duplicate = query.TryGetValue("duplicate", out var values)
+            && bool.TryParse(values.SingleOrDefault(), out var parsed)
+            && parsed;
+        var detailLocation = $"/Intake/{evaluation.ProcessedReceiptId:D}"
+            + (duplicate ? "?duplicate=true" : string.Empty);
+        return upload with
+        {
+            Location = new Uri(detailLocation, UriKind.Relative),
+            ProcessedReceiptId = evaluation.ProcessedReceiptId
+        };
+    }
+
+    public static Guid QueuedReceiptId(UploadResult result)
+    {
+        Assert.Equal(HttpStatusCode.Redirect, result.StatusCode);
+        var query = ParseLocationQuery(result);
+        Assert.True(query.TryGetValue("queuedReceiptId", out var values));
+        Assert.True(Guid.TryParse(values.SingleOrDefault(), out var id));
+        return id;
+    }
+
     public static async Task<string> GetAntiforgeryTokenAsync(
         HttpClient client,
         CancellationToken cancellationToken = default) =>
@@ -158,7 +290,7 @@ internal static partial class IntakeWebDriver
         HttpClient client,
         CancellationToken cancellationToken = default)
     {
-        using var formPage = await client.GetAsync("/Intake/Upload", cancellationToken);
+        using var formPage = await client.GetAsync("/Intake", cancellationToken);
         formPage.EnsureSuccessStatusCode();
         var html = await formPage.Content.ReadAsStringAsync(cancellationToken);
         var tokenTag = AntiforgeryTagRegex().Match(html);
@@ -202,7 +334,7 @@ internal static partial class IntakeWebDriver
             multipart.Add(file, "Upload", uploadName);
         }
 
-        using var response = await client.PostAsync("/Intake/Upload", multipart, cancellationToken);
+        using var response = await client.PostAsync("/Intake?handler=ReceiveIntake", multipart, cancellationToken);
         var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
         return new(response.StatusCode, response.Headers.Location, responseBody);
     }
@@ -211,9 +343,33 @@ internal static partial class IntakeWebDriver
     {
         Assert.Equal(HttpStatusCode.Redirect, result.StatusCode);
         Assert.NotNull(result.Location);
+        if (result.ProcessedReceiptId is { } processedReceiptId)
+        {
+            return processedReceiptId;
+        }
+
         var path = result.Location!.OriginalString.Split('?', 2)[0];
         Assert.True(Guid.TryParse(path.Split('/', StringSplitOptions.RemoveEmptyEntries).Last(), out var id));
         return id;
+    }
+
+    private static Dictionary<string, Microsoft.Extensions.Primitives.StringValues> ParseLocationQuery(
+        UploadResult result)
+    {
+        Assert.NotNull(result.Location);
+        var location = result.Location!.OriginalString;
+        var queryIndex = location.IndexOf('?', StringComparison.Ordinal);
+        Assert.True(queryIndex >= 0);
+        return QueryHelpers.ParseQuery(location[queryIndex..]);
+    }
+
+    private sealed class ImmediateIntakeWorkEnqueuer(ProcessQueuedIntake processor)
+        : IIntakeWorkEnqueuer
+    {
+        public Task EnqueueAsync(
+            Guid stagedReceiptId,
+            CancellationToken cancellationToken) =>
+            processor.ExecuteAsync(stagedReceiptId, cancellationToken);
     }
 
     [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
@@ -226,7 +382,11 @@ internal static partial class IntakeWebDriver
     private static partial Regex AntiforgeryValueRegex();
 }
 
-internal sealed record UploadResult(HttpStatusCode StatusCode, Uri? Location, string ResponseBody);
+internal sealed record UploadResult(
+    HttpStatusCode StatusCode,
+    Uri? Location,
+    string ResponseBody,
+    Guid? ProcessedReceiptId = null);
 
 internal sealed record UploadFormTokens(string AntiforgeryToken, string ExternalReceiptToken);
 

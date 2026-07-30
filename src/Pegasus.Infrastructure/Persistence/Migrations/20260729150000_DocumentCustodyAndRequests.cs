@@ -27,22 +27,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            var isSqlite = ActiveProvider == "Microsoft.EntityFrameworkCore.Sqlite";
-            string SqlType(string sqlServerType) => isSqlite
-                ? sqlServerType switch
-                {
-                    "bigint" or "bit" or "int" => "INTEGER",
-                    "datetime2" or "datetimeoffset" or "uniqueidentifier" => "TEXT",
-                    _ when sqlServerType.StartsWith("nchar", StringComparison.Ordinal)
-                        || sqlServerType.StartsWith("nvarchar", StringComparison.Ordinal) => "TEXT",
-                    _ => throw new InvalidOperationException($"Unsupported SQLite column type mapping for '{sqlServerType}'.")
-                }
-                : sqlServerType;
-
             migrationBuilder.AddColumn<long>(
                 name: "Version",
                 table: "IntakeReceipts",
-                type: SqlType("bigint"),
+                type: "bigint",
                 nullable: false,
                 defaultValue: 0L);
 
@@ -50,10 +38,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "ApplicationInitializations",
                 columns: table => new
                 {
-                    Id = table.Column<string>(type: SqlType("nvarchar(32)"), maxLength: 32, nullable: false),
-                    ManifestSha256 = table.Column<string>(type: SqlType("nchar(64)"), fixedLength: true, maxLength: 64, nullable: false),
-                    MigrationId = table.Column<string>(type: SqlType("nvarchar(150)"), maxLength: 150, nullable: false),
-                    CompletedAtUtc = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: false)
+                    Id = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
+                    ManifestSha256 = table.Column<string>(type: "nchar(64)", fixedLength: true, maxLength: 64, nullable: false),
+                    MigrationId = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: false),
+                    CompletedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -64,10 +52,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "AspNetRoles",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    Name = table.Column<string>(type: SqlType("nvarchar(256)"), maxLength: 256, nullable: true),
-                    NormalizedName = table.Column<string>(type: SqlType("nvarchar(256)"), maxLength: 256, nullable: true),
-                    ConcurrencyStamp = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    NormalizedName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    ConcurrencyStamp = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -78,23 +66,23 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "AspNetUsers",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    IsEnabled = table.Column<bool>(type: SqlType("bit"), nullable: false, defaultValue: true),
-                    MustChangePassword = table.Column<bool>(type: SqlType("bit"), nullable: false, defaultValue: true),
-                    UserName = table.Column<string>(type: SqlType("nvarchar(256)"), maxLength: 256, nullable: true),
-                    NormalizedUserName = table.Column<string>(type: SqlType("nvarchar(256)"), maxLength: 256, nullable: true),
-                    Email = table.Column<string>(type: SqlType("nvarchar(256)"), maxLength: 256, nullable: true),
-                    NormalizedEmail = table.Column<string>(type: SqlType("nvarchar(256)"), maxLength: 256, nullable: true),
-                    EmailConfirmed = table.Column<bool>(type: SqlType("bit"), nullable: false),
-                    PasswordHash = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true),
-                    SecurityStamp = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true),
-                    ConcurrencyStamp = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true),
-                    PhoneNumber = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true),
-                    PhoneNumberConfirmed = table.Column<bool>(type: SqlType("bit"), nullable: false),
-                    TwoFactorEnabled = table.Column<bool>(type: SqlType("bit"), nullable: false),
-                    LockoutEnd = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: true),
-                    LockoutEnabled = table.Column<bool>(type: SqlType("bit"), nullable: false),
-                    AccessFailedCount = table.Column<int>(type: SqlType("int"), nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    IsEnabled = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    MustChangePassword = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    UserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    NormalizedUserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    Email = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    NormalizedEmail = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    EmailConfirmed = table.Column<bool>(type: "bit", nullable: false),
+                    PasswordHash = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    SecurityStamp = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ConcurrencyStamp = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    PhoneNumber = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    PhoneNumberConfirmed = table.Column<bool>(type: "bit", nullable: false),
+                    TwoFactorEnabled = table.Column<bool>(type: "bit", nullable: false),
+                    LockoutEnd = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    LockoutEnabled = table.Column<bool>(type: "bit", nullable: false),
+                    AccessFailedCount = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -105,17 +93,17 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "IntakeStagedReceipts",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    SourceFileName = table.Column<string>(type: SqlType("nvarchar(260)"), maxLength: 260, nullable: false),
-                    MediaType = table.Column<string>(type: SqlType("nvarchar(200)"), maxLength: 200, nullable: false),
-                    SourceLength = table.Column<long>(type: SqlType("bigint"), nullable: false),
-                    SourceHash = table.Column<string>(type: SqlType("nvarchar(64)"), maxLength: 64, nullable: false),
-                    SourceChannel = table.Column<string>(type: SqlType("nvarchar(40)"), maxLength: 40, nullable: false),
-                    ExternalReceiptToken = table.Column<string>(type: SqlType("nvarchar(200)"), maxLength: 200, nullable: false),
-                    ReceivedAtUtc = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: false),
-                    Actor = table.Column<string>(type: SqlType("nvarchar(200)"), maxLength: 200, nullable: false),
-                    StorageKey = table.Column<string>(type: SqlType("nvarchar(200)"), maxLength: 200, nullable: false),
-                    StagedAtUtc = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    SourceFileName = table.Column<string>(type: "nvarchar(260)", maxLength: 260, nullable: false),
+                    MediaType = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    SourceLength = table.Column<long>(type: "bigint", nullable: false),
+                    SourceHash = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    SourceChannel = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
+                    ExternalReceiptToken = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    ReceivedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    Actor = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    StorageKey = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    StagedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -126,22 +114,22 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "OpenIddictApplications",
                 columns: table => new
                 {
-                    Id = table.Column<string>(type: SqlType("nvarchar(450)"), nullable: false),
-                    ApplicationType = table.Column<string>(type: SqlType("nvarchar(50)"), maxLength: 50, nullable: true),
-                    ClientId = table.Column<string>(type: SqlType("nvarchar(100)"), maxLength: 100, nullable: true),
-                    ClientSecret = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true),
-                    ClientType = table.Column<string>(type: SqlType("nvarchar(50)"), maxLength: 50, nullable: true),
-                    ConcurrencyToken = table.Column<string>(type: SqlType("nvarchar(50)"), maxLength: 50, nullable: true),
-                    ConsentType = table.Column<string>(type: SqlType("nvarchar(50)"), maxLength: 50, nullable: true),
-                    DisplayName = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true),
-                    DisplayNames = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true),
-                    JsonWebKeySet = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true),
-                    Permissions = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true),
-                    PostLogoutRedirectUris = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true),
-                    Properties = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true),
-                    RedirectUris = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true),
-                    Requirements = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true),
-                    Settings = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true)
+                    Id = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    ApplicationType = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    ClientId = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    ClientSecret = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ClientType = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    ConcurrencyToken = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    ConsentType = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    DisplayName = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    DisplayNames = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    JsonWebKeySet = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Permissions = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    PostLogoutRedirectUris = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Properties = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    RedirectUris = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Requirements = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Settings = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -152,15 +140,15 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "OpenIddictScopes",
                 columns: table => new
                 {
-                    Id = table.Column<string>(type: SqlType("nvarchar(450)"), nullable: false),
-                    ConcurrencyToken = table.Column<string>(type: SqlType("nvarchar(50)"), maxLength: 50, nullable: true),
-                    Description = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true),
-                    Descriptions = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true),
-                    DisplayName = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true),
-                    DisplayNames = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true),
-                    Name = table.Column<string>(type: SqlType("nvarchar(200)"), maxLength: 200, nullable: true),
-                    Properties = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true),
-                    Resources = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true)
+                    Id = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    ConcurrencyToken = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    Description = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Descriptions = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    DisplayName = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    DisplayNames = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    Properties = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Resources = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -171,9 +159,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "Organizations",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    Name = table.Column<string>(type: SqlType("nvarchar(300)"), maxLength: 300, nullable: false),
-                    Version = table.Column<long>(type: SqlType("bigint"), nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(300)", maxLength: 300, nullable: false),
+                    Version = table.Column<long>(type: "bigint", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -186,8 +174,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "PrincipalSequenceLineages",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    CreatedAtUtc = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -198,11 +186,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "AspNetRoleClaims",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: SqlType("int"), nullable: false)
+                    Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    RoleId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    ClaimType = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true),
-                    ClaimValue = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true)
+                    RoleId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ClaimType = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ClaimValue = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -219,11 +207,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "AspNetUserClaims",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: SqlType("int"), nullable: false)
+                    Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    UserId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    ClaimType = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true),
-                    ClaimValue = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true)
+                    UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ClaimType = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ClaimValue = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -240,10 +228,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "AspNetUserLogins",
                 columns: table => new
                 {
-                    LoginProvider = table.Column<string>(type: SqlType("nvarchar(450)"), nullable: false),
-                    ProviderKey = table.Column<string>(type: SqlType("nvarchar(450)"), nullable: false),
-                    ProviderDisplayName = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true),
-                    UserId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false)
+                    LoginProvider = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    ProviderKey = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    ProviderDisplayName = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -260,8 +248,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "AspNetUserRoles",
                 columns: table => new
                 {
-                    UserId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    RoleId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false)
+                    UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    RoleId = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -284,10 +272,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "AspNetUserTokens",
                 columns: table => new
                 {
-                    UserId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    LoginProvider = table.Column<string>(type: SqlType("nvarchar(450)"), nullable: false),
-                    Name = table.Column<string>(type: SqlType("nvarchar(450)"), nullable: false),
-                    Value = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true)
+                    UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    LoginProvider = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    Value = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -304,11 +292,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "IntakeEvaluations",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    StagedReceiptId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    ProcessedReceiptId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    Revision = table.Column<int>(type: SqlType("int"), nullable: false),
-                    EvaluatedAtUtc = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    StagedReceiptId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ProcessedReceiptId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Revision = table.Column<int>(type: "int", nullable: false),
+                    EvaluatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -325,17 +313,17 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "IntakeWorkItems",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    StagedReceiptId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    OperationKey = table.Column<string>(type: SqlType("nvarchar(100)"), maxLength: 100, nullable: false),
-                    State = table.Column<string>(type: SqlType("nvarchar(40)"), maxLength: 40, nullable: false),
-                    AttemptCount = table.Column<int>(type: SqlType("int"), nullable: false),
-                    DueAtUtc = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: false),
-                    LeaseToken = table.Column<string>(type: SqlType("nvarchar(64)"), maxLength: 64, nullable: true),
-                    LeaseExpiresAtUtc = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: true),
-                    ProcessedReceiptId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: true),
-                    FailureCode = table.Column<string>(type: SqlType("nvarchar(100)"), maxLength: 100, nullable: true),
-                    CompletedAtUtc = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: true)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    StagedReceiptId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    OperationKey = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    State = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
+                    AttemptCount = table.Column<int>(type: "int", nullable: false),
+                    DueAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    LeaseToken = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true),
+                    LeaseExpiresAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ProcessedReceiptId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    FailureCode = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    CompletedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -353,15 +341,15 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "OpenIddictAuthorizations",
                 columns: table => new
                 {
-                    Id = table.Column<string>(type: SqlType("nvarchar(450)"), nullable: false),
-                    ApplicationId = table.Column<string>(type: SqlType("nvarchar(450)"), nullable: true),
-                    ConcurrencyToken = table.Column<string>(type: SqlType("nvarchar(50)"), maxLength: 50, nullable: true),
-                    CreationDate = table.Column<DateTime>(type: SqlType("datetime2"), nullable: true),
-                    Properties = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true),
-                    Scopes = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true),
-                    Status = table.Column<string>(type: SqlType("nvarchar(50)"), maxLength: 50, nullable: true),
-                    Subject = table.Column<string>(type: SqlType("nvarchar(400)"), maxLength: 400, nullable: true),
-                    Type = table.Column<string>(type: SqlType("nvarchar(50)"), maxLength: 50, nullable: true)
+                    Id = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    ApplicationId = table.Column<string>(type: "nvarchar(450)", nullable: true),
+                    ConcurrencyToken = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    CreationDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    Properties = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Scopes = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Status = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    Subject = table.Column<string>(type: "nvarchar(400)", maxLength: 400, nullable: true),
+                    Type = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -377,8 +365,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "OrganizationRoles",
                 columns: table => new
                 {
-                    OrganizationId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    Role = table.Column<string>(type: SqlType("nvarchar(40)"), maxLength: 40, nullable: false)
+                    OrganizationId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Role = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -396,9 +384,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "CaseSequences",
                 columns: table => new
                 {
-                    SequenceLineageId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    Year = table.Column<int>(type: SqlType("int"), nullable: false),
-                    LastAllocatedSequence = table.Column<int>(type: SqlType("int"), nullable: false)
+                    SequenceLineageId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Year = table.Column<int>(type: "int", nullable: false),
+                    LastAllocatedSequence = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -417,14 +405,14 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "Principals",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    OrganizationId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    Code = table.Column<string>(type: SqlType("nvarchar(20)"), maxLength: 20, nullable: false),
-                    SequenceLineageId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    PredecessorId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: true),
-                    SuccessorId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: true),
-                    IsActive = table.Column<bool>(type: SqlType("bit"), nullable: false),
-                    Version = table.Column<long>(type: SqlType("bigint"), nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    OrganizationId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    SequenceLineageId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    PredecessorId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    SuccessorId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    Version = table.Column<long>(type: "bigint", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -461,19 +449,19 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "OpenIddictTokens",
                 columns: table => new
                 {
-                    Id = table.Column<string>(type: SqlType("nvarchar(450)"), nullable: false),
-                    ApplicationId = table.Column<string>(type: SqlType("nvarchar(450)"), nullable: true),
-                    AuthorizationId = table.Column<string>(type: SqlType("nvarchar(450)"), nullable: true),
-                    ConcurrencyToken = table.Column<string>(type: SqlType("nvarchar(50)"), maxLength: 50, nullable: true),
-                    CreationDate = table.Column<DateTime>(type: SqlType("datetime2"), nullable: true),
-                    ExpirationDate = table.Column<DateTime>(type: SqlType("datetime2"), nullable: true),
-                    Payload = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true),
-                    Properties = table.Column<string>(type: SqlType("nvarchar(max)"), nullable: true),
-                    RedemptionDate = table.Column<DateTime>(type: SqlType("datetime2"), nullable: true),
-                    ReferenceId = table.Column<string>(type: SqlType("nvarchar(100)"), maxLength: 100, nullable: true),
-                    Status = table.Column<string>(type: SqlType("nvarchar(50)"), maxLength: 50, nullable: true),
-                    Subject = table.Column<string>(type: SqlType("nvarchar(400)"), maxLength: 400, nullable: true),
-                    Type = table.Column<string>(type: SqlType("nvarchar(150)"), maxLength: 150, nullable: true)
+                    Id = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    ApplicationId = table.Column<string>(type: "nvarchar(450)", nullable: true),
+                    AuthorizationId = table.Column<string>(type: "nvarchar(450)", nullable: true),
+                    ConcurrencyToken = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    CreationDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ExpirationDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    Payload = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Properties = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    RedemptionDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ReferenceId = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    Status = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    Subject = table.Column<string>(type: "nvarchar(400)", maxLength: 400, nullable: true),
+                    Type = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -494,30 +482,30 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "Cases",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    PrincipalId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    SequenceLineageId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    Year = table.Column<int>(type: SqlType("int"), nullable: false),
-                    Sequence = table.Column<int>(type: SqlType("int"), nullable: false),
-                    Reference = table.Column<string>(type: SqlType("nvarchar(40)"), maxLength: 40, nullable: false),
-                    AuditReference = table.Column<string>(type: SqlType("nvarchar(43)"), maxLength: 43, nullable: true),
-                    Type = table.Column<string>(type: SqlType("nvarchar(40)"), maxLength: 40, nullable: false),
-                    InitialState = table.Column<string>(type: SqlType("nvarchar(40)"), maxLength: 40, nullable: false),
-                    CustodyState = table.Column<string>(type: SqlType("nvarchar(40)"), maxLength: 40, nullable: false),
-                    OriginIntakeReceiptId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    StandaloneAuditAssessment = table.Column<string>(type: SqlType("nvarchar(40)"), maxLength: 40, nullable: true),
-                    InstructionComplete = table.Column<bool>(type: SqlType("bit"), nullable: false),
-                    ImagesComplete = table.Column<bool>(type: SqlType("bit"), nullable: false),
-                    InstructionConfirmedByStaff = table.Column<bool>(type: SqlType("bit"), nullable: false),
-                    ImagesConfirmedByStaff = table.Column<bool>(type: SqlType("bit"), nullable: false),
-                    CreatedAtUtc = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: false),
-                    Version = table.Column<long>(type: SqlType("bigint"), nullable: false),
-                    ConcurrencyToken = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    CustodyRootRemoteId = table.Column<string>(type: SqlType("nvarchar(200)"), maxLength: 200, nullable: true),
-                    CustodySourceRemoteId = table.Column<string>(type: SqlType("nvarchar(200)"), maxLength: 200, nullable: true),
-                    CustodySourceContentHash = table.Column<string>(type: SqlType("nvarchar(64)"), maxLength: 64, nullable: true),
-                    CustodySourceETag = table.Column<string>(type: SqlType("nvarchar(200)"), maxLength: 200, nullable: true),
-                    CustodyConfirmedAtUtc = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: true)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    PrincipalId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    SequenceLineageId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Year = table.Column<int>(type: "int", nullable: false),
+                    Sequence = table.Column<int>(type: "int", nullable: false),
+                    Reference = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
+                    AuditReference = table.Column<string>(type: "nvarchar(43)", maxLength: 43, nullable: true),
+                    Type = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
+                    InitialState = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
+                    CustodyState = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
+                    OriginIntakeReceiptId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    StandaloneAuditAssessment = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: true),
+                    InstructionComplete = table.Column<bool>(type: "bit", nullable: false),
+                    ImagesComplete = table.Column<bool>(type: "bit", nullable: false),
+                    InstructionConfirmedByStaff = table.Column<bool>(type: "bit", nullable: false),
+                    ImagesConfirmedByStaff = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    Version = table.Column<long>(type: "bigint", nullable: false),
+                    ConcurrencyToken = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CustodyRootRemoteId = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    CustodySourceRemoteId = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    CustodySourceContentHash = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true),
+                    CustodySourceETag = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    CustodyConfirmedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -542,16 +530,16 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "BoxFileRequests",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    CaseId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    Status = table.Column<string>(type: SqlType("nvarchar(32)"), maxLength: 32, nullable: false),
-                    CreatedAtUtc = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: false),
-                    ExpiresAtUtc = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: true),
-                    DeactivatedAtUtc = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: true),
-                    Version = table.Column<long>(type: SqlType("bigint"), nullable: false),
-                    CreateOperationKey = table.Column<string>(type: SqlType("nvarchar(256)"), maxLength: 256, nullable: false),
-                    RevokeOperationKey = table.Column<string>(type: SqlType("nvarchar(256)"), maxLength: 256, nullable: true),
-                    LinkTokenDigest = table.Column<string>(type: SqlType("nchar(64)"), fixedLength: true, maxLength: 64, nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CaseId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Status = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
+                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    ExpiresAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    DeactivatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    Version = table.Column<long>(type: "bigint", nullable: false),
+                    CreateOperationKey = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
+                    RevokeOperationKey = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    LinkTokenDigest = table.Column<string>(type: "nchar(64)", fixedLength: true, maxLength: 64, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -568,9 +556,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "CaseDocuments",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    CaseId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    SourceOccurrenceIdentity = table.Column<string>(type: SqlType("nvarchar(512)"), maxLength: 512, nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CaseId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    SourceOccurrenceIdentity = table.Column<string>(type: "nvarchar(512)", maxLength: 512, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -587,15 +575,15 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "CaseHistory",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    CaseId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    EventType = table.Column<string>(type: SqlType("nvarchar(100)"), maxLength: 100, nullable: false),
-                    Actor = table.Column<string>(type: SqlType("nvarchar(200)"), maxLength: 200, nullable: false),
-                    Reason = table.Column<string>(type: SqlType("nvarchar(500)"), maxLength: 500, nullable: false),
-                    OccurredAtUtc = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: false),
-                    OperationKey = table.Column<string>(type: SqlType("nvarchar(100)"), maxLength: 100, nullable: false),
-                    BeforeVersion = table.Column<long>(type: SqlType("bigint"), nullable: true),
-                    AfterVersion = table.Column<long>(type: SqlType("bigint"), nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CaseId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    EventType = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    Actor = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    Reason = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    OccurredAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    OperationKey = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    BeforeVersion = table.Column<long>(type: "bigint", nullable: true),
+                    AfterVersion = table.Column<long>(type: "bigint", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -612,19 +600,19 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "ExternalWorkItems",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    CaseId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    Kind = table.Column<string>(type: SqlType("nvarchar(100)"), maxLength: 100, nullable: false),
-                    OperationKey = table.Column<string>(type: SqlType("nvarchar(100)"), maxLength: 100, nullable: false),
-                    State = table.Column<string>(type: SqlType("nvarchar(40)"), maxLength: 40, nullable: false),
-                    AttemptCount = table.Column<int>(type: SqlType("int"), nullable: false),
-                    DueAtUtc = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: false),
-                    LeaseToken = table.Column<string>(type: SqlType("nvarchar(64)"), maxLength: 64, nullable: true),
-                    LeaseExpiresAtUtc = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: true),
-                    ExternalReceipt = table.Column<string>(type: SqlType("nvarchar(500)"), maxLength: 500, nullable: true),
-                    FailureCode = table.Column<string>(type: SqlType("nvarchar(100)"), maxLength: 100, nullable: true),
-                    FailureReason = table.Column<string>(type: SqlType("nvarchar(500)"), maxLength: 500, nullable: true),
-                    CompletedAtUtc = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: true)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CaseId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Kind = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    OperationKey = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    State = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
+                    AttemptCount = table.Column<int>(type: "int", nullable: false),
+                    DueAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    LeaseToken = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true),
+                    LeaseExpiresAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ExternalReceipt = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    FailureCode = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    FailureReason = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    CompletedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -642,19 +630,19 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "RequestUploadLinks",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    CaseId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    TokenDigest = table.Column<string>(type: SqlType("nchar(64)"), fixedLength: true, maxLength: 64, nullable: false),
-                    Status = table.Column<string>(type: SqlType("nvarchar(32)"), maxLength: 32, nullable: false),
-                    CreatedAtUtc = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: false),
-                    ExpiresAtUtc = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: false),
-                    RevokedAtUtc = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: true),
-                    AcceptedFileCount = table.Column<int>(type: SqlType("int"), nullable: false),
-                    AcceptedByteCount = table.Column<long>(type: SqlType("bigint"), nullable: false),
-                    LimitsVersion = table.Column<string>(type: SqlType("nvarchar(64)"), maxLength: 64, nullable: false),
-                    Version = table.Column<long>(type: SqlType("bigint"), nullable: false),
-                    CreateOperationKey = table.Column<string>(type: SqlType("nvarchar(256)"), maxLength: 256, nullable: false),
-                    RevokeOperationKey = table.Column<string>(type: SqlType("nvarchar(256)"), maxLength: 256, nullable: true)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CaseId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    TokenDigest = table.Column<string>(type: "nchar(64)", fixedLength: true, maxLength: 64, nullable: false),
+                    Status = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
+                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    ExpiresAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    RevokedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    AcceptedFileCount = table.Column<int>(type: "int", nullable: false),
+                    AcceptedByteCount = table.Column<long>(type: "bigint", nullable: false),
+                    LimitsVersion = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    Version = table.Column<long>(type: "bigint", nullable: false),
+                    CreateOperationKey = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
+                    RevokeOperationKey = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -673,20 +661,20 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "DocumentVersions",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    DocumentId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    Version = table.Column<int>(type: SqlType("int"), nullable: false),
-                    FileName = table.Column<string>(type: SqlType("nvarchar(255)"), maxLength: 255, nullable: false),
-                    MediaType = table.Column<string>(type: SqlType("nvarchar(128)"), maxLength: 128, nullable: false),
-                    ContentLength = table.Column<long>(type: SqlType("bigint"), nullable: false),
-                    Sha256 = table.Column<string>(type: SqlType("nchar(64)"), fixedLength: true, maxLength: 64, nullable: false),
-                    CustodyStatus = table.Column<string>(type: SqlType("nvarchar(32)"), maxLength: 32, nullable: false),
-                    CreatedAtUtc = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: false),
-                    CreatedBy = table.Column<string>(type: SqlType("nvarchar(256)"), maxLength: 256, nullable: false),
-                    IsCurrent = table.Column<bool>(type: SqlType("bit"), nullable: false),
-                    IsLogicallyRemoved = table.Column<bool>(type: SqlType("bit"), nullable: false),
-                    RemovalReason = table.Column<string>(type: SqlType("nvarchar(2000)"), maxLength: 2000, nullable: true),
-                    RemovalOperationKey = table.Column<string>(type: SqlType("nvarchar(256)"), maxLength: 256, nullable: true)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    DocumentId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Version = table.Column<int>(type: "int", nullable: false),
+                    FileName = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: false),
+                    MediaType = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: false),
+                    ContentLength = table.Column<long>(type: "bigint", nullable: false),
+                    Sha256 = table.Column<string>(type: "nchar(64)", fixedLength: true, maxLength: 64, nullable: false),
+                    CustodyStatus = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
+                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
+                    IsCurrent = table.Column<bool>(type: "bit", nullable: false),
+                    IsLogicallyRemoved = table.Column<bool>(type: "bit", nullable: false),
+                    RemovalReason = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
+                    RemovalOperationKey = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -705,12 +693,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "CaseIntakeLinks",
                 columns: table => new
                 {
-                    IntakeReceiptId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    CaseId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    CustodyWorkId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    LinkedAtUtc = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: false),
-                    Actor = table.Column<string>(type: SqlType("nvarchar(200)"), maxLength: 200, nullable: false),
-                    OperationKey = table.Column<string>(type: SqlType("nvarchar(100)"), maxLength: 100, nullable: false)
+                    IntakeReceiptId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CaseId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CustodyWorkId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    LinkedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    Actor = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    OperationKey = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -739,15 +727,15 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "DocumentOccurrences",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    CaseId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    DocumentId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    VersionId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    SemanticRole = table.Column<string>(type: SqlType("nvarchar(32)"), maxLength: 32, nullable: false),
-                    Source = table.Column<string>(type: SqlType("nvarchar(32)"), maxLength: 32, nullable: false),
-                    SourceOccurrenceIdentity = table.Column<string>(type: SqlType("nvarchar(512)"), maxLength: 512, nullable: false),
-                    RecordedAtUtc = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: false),
-                    OperationKey = table.Column<string>(type: SqlType("nvarchar(256)"), maxLength: 256, nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CaseId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    DocumentId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    VersionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    SemanticRole = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
+                    Source = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
+                    SourceOccurrenceIdentity = table.Column<string>(type: "nvarchar(512)", maxLength: 512, nullable: false),
+                    RecordedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    OperationKey = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -776,13 +764,13 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "RequestUploadReceipts",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    RequestId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    OccurrenceId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    VersionId = table.Column<Guid>(type: SqlType("uniqueidentifier"), nullable: false),
-                    OperationKey = table.Column<string>(type: SqlType("nvarchar(256)"), maxLength: 256, nullable: false),
-                    ContentHash = table.Column<string>(type: SqlType("nchar(64)"), fixedLength: true, maxLength: 64, nullable: false),
-                    ReceivedAtUtc = table.Column<DateTimeOffset>(type: SqlType("datetimeoffset"), nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    RequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    OccurrenceId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    VersionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    OperationKey = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
+                    ContentHash = table.Column<string>(type: "nchar(64)", fixedLength: true, maxLength: 64, nullable: false),
+                    ReceivedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
                 },
                 constraints: table =>
                 {

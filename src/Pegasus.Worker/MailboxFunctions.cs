@@ -5,28 +5,28 @@ using Microsoft.Extensions.Logging;
 
 namespace Pegasus.Worker;
 
-public sealed partial class ApprovedInboxPollingFunction(
+public sealed partial class InboxPollFunction(
     PollApprovedInbox pollApprovedInbox,
-    ILogger<ApprovedInboxPollingFunction> logger)
+    ILogger<InboxPollFunction> logger)
 {
     private static readonly ActionActor WorkerActor =
         ActionActor.SystemWorker("approved-inbox-poller");
 
-    [Function(nameof(ApprovedInboxPollingFunction))]
+    [Function(nameof(InboxPollFunction))]
     public async Task RunAsync(
         [TimerTrigger("%ApprovedInboxPollSchedule%", RunOnStartup = false)] TimerInfo timer,
         CancellationToken cancellationToken)
     {
-        var received = await pollApprovedInbox.ExecuteAsync(
+        var handled = await pollApprovedInbox.ExecuteAsync(
             50,
             WorkerActor,
             cancellationToken);
-        LogApprovedInboxPoll(logger, received);
+        LogApprovedInboxPoll(logger, handled);
     }
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        Message = "Received {ApprovedInboxMessageCount} immutable approved-inbox messages into durable intake.")]
+        Message = "Handled {ApprovedInboxMessageCount} immutable approved-inbox messages through durable intake or poison recovery.")]
     private static partial void LogApprovedInboxPoll(
         ILogger logger,
         int approvedInboxMessageCount);

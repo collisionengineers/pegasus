@@ -61,14 +61,11 @@ public sealed class SignInModel(
             return Page();
         }
 
-        await WriteSecurityEventAsync(
-            user!.Id.ToString("D"),
-            SecurityEventOutcome.Succeeded,
-            null,
-            cancellationToken);
-        await signInManager.SignInAsync(user, isPersistent: false);
-        return user.MustChangePassword
-            ? RedirectToPage("/Account/ChangePassword")
+        var authenticatedUser = user
+            ?? throw new InvalidOperationException("A successful credential check requires a staff user.");
+        await signInManager.SignInAsync(authenticatedUser, isPersistent: false);
+        return authenticatedUser.MustChangePassword
+            ? RedirectToPage("/Account/PasswordChange")
             : LocalRedirect(SafeReturnUrl());
     }
 

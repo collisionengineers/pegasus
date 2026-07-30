@@ -1,70 +1,78 @@
-using System.Text.Json;
 using Microsoft.Azure.Functions.Worker;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Triage;
+using Pegasus.Core.Tasks;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Worker;
 
-public sealed class SentEmailEvidenceReplayFunction(
-    ReplaySentEmailEvidence replaySentEmailEvidence,
-    IConfiguration configuration)
+public sealed partial class SentEvidencePollFunction(
+    PollSentEvidence pollSentEvidence,
+    ILogger<SentEvidencePollFunction> logger)
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
+    private static readonly ActionActor WorkerActor =
+        ActionActor.SystemWorker("sent-evidence-poll");
 
-    [Function(nameof(SentEmailEvidenceReplayFunction))]
+    [Function(nameof(SentEvidencePollFunction))]
     public async Task RunAsync(
-        [QueueTrigger("email-evidence-replay", Connection = "AzureWebJobsStorage")] string message,
+        [TimerTrigger("%SentEvidencePollSchedule%", RunOnStartup = false)] TimerInfo timer,
         CancellationToken cancellationToken)
     {
-        if (!string.Equals(configuration["EmailEvidence:ReplayEnabled"], "true", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException(
-                "Sent email evidence replay is disabled until EmailEvidence:ReplayEnabled is explicitly set to true.");
-        }
-
-        SentEmailEvidenceReplay? replay;
-        try
-        {
-            replay = JsonSerializer.Deserialize<SentEmailEvidenceReplay>(message, SerializerOptions);
-        }
-        catch (JsonException exception)
-        {
-            throw new InvalidDataException("The sent email evidence replay message is invalid JSON.", exception);
-        }
-
-        if (replay is null)
-        {
-            throw new InvalidDataException("The sent email evidence replay message is empty.");
-        }
-
-        await replaySentEmailEvidence.ExecuteAsync(
-            replay,
-            ActionActor.SystemWorker("email-evidence-replay"),
+        var result = await pollSentEvidence.ExecuteAsync(
+            maximumPages: 5,
+            maximumItemsPerPage: 50,
+            WorkerActor,
             cancellationToken);
-    }
-}
-
-public sealed partial class EmailEvidenceChaseProjectionFunction(
-    IEmailEvidenceChaseReadModel chaseReadModel,
-    TimeProvider timeProvider,
-    ILogger<EmailEvidenceChaseProjectionFunction> logger)
-{
-    [Function(nameof(EmailEvidenceChaseProjectionFunction))]
-    public async Task RunAsync(
-        [TimerTrigger("0 */5 * * * *", RunOnStartup = false)] TimerInfo timer,
-        CancellationToken cancellationToken)
-    {
-        var dueChases = await chaseReadModel.GetDueAsync(
-            timeProvider.GetUtcNow(),
-            maximumResults: 50,
-            cancellationToken);
-        LogDueChases(logger, dueChases.Count);
+        LogPollOutcome(
+            logger,
+            result.PagesRead,
+            result.ItemsHandled,
+            result.TriageResponsesRecorded,
+            result.ReportEvidenceRetained,
+            result.UnlinkedItems,
+            result.QuarantinedItems);
     }
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        Message = "Projected {ChaseCount} due email-evidence chases; no external email was sent.")]
-    private static partial void LogDueChases(ILogger logger, int chaseCount);
+        Message = "Polled {PageCount} approved-Sent pages and handled {ItemCount} immutable items: {TriageResponseCount} exact Triage responses, {ReportEvidenceCount} retained report evidence items, {UnlinkedCount} items left unlinked, and {QuarantineCount} quarantined items. No outbound email was sent and no receipt or delivery was claimed.")]
+    private static partial void LogPollOutcome(
+        ILogger logger,
+        int pageCount,
+        int itemCount,
+        int triageResponseCount,
+        int reportEvidenceCount,
+        int unlinkedCount,
+        int quarantineCount);
+}
+
+public sealed partial class DueWorkSweepFunction(
+    RunDueChasers runDueChasers,
+    ILogger<DueWorkSweepFunction> logger)
+{
+    [Function(nameof(DueWorkSweepFunction))]
+    public async Task RunAsync(
+        [TimerTrigger("%DueWorkSweepSchedule%", RunOnStartup = false)] TimerInfo timer,
+        CancellationToken cancellationToken)
+    {
+        var result = await runDueChasers.ExecuteAsync(
+            maximumItems: 50,
+            cancellationToken);
+        LogSweepOutcome(
+            logger,
+            result.ExaminedCount,
+            result.GeneratedCount,
+            result.ReplayCount,
+            result.SupersededCount);
+    }
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Examined {ExaminedCount} due-work occurrences and persisted {GeneratedCount} copyable chaser drafts; {ReplayCount} were replays and {SupersededCount} were superseded. No outbound communication was attempted and no sending, receipt, or delivery was claimed.")]
+    private static partial void LogSweepOutcome(
+        ILogger logger,
+        int examinedCount,
+        int generatedCount,
+        int replayCount,
+        int supersededCount);
 }

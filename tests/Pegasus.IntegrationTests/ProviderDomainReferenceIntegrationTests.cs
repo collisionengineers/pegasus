@@ -8,13 +8,15 @@ using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Persistence;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
-using Microsoft.Data.Sqlite;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Pegasus.IntegrationTests;
 
+[Collection(LocalDbFixtureDefinition.Name)]
+[Trait("Category", "SqlServer")]
 public sealed class ProviderDomainReferenceIntegrationTests
 {
     private const string PackageResourceName =
@@ -53,18 +55,13 @@ public sealed class ProviderDomainReferenceIntegrationTests
     public async Task MigrationSeedsExactPackageAndCatalogUsesOneBoundedQuery()
     {
         var commandCounter = new ReaderCommandCounter();
-        await using var connection = new SqliteConnection("Data Source=ProviderDomainCatalog;Mode=Memory;Cache=Shared");
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            migrate: false,
+            configureDatabase: options => options.AddInterceptors(commandCounter));
+        await using var connection = database.CreateConnection();
         await connection.OpenAsync();
 
-        var services = new ServiceCollection();
-        services.AddPegasusInfrastructure((_, options) =>
-            options
-                .UsePegasusSqlite(connection)
-                .AddInterceptors(commandCounter));
-        await using var serviceProvider = services.BuildServiceProvider(validateScopes: true);
-
-        var contextFactory = serviceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        await using (var context = await contextFactory.CreateDbContextAsync())
+        await using (var context = await database.CreateContextAsync())
         {
             await context.Database.MigrateAsync();
             await context.Database.MigrateAsync();
@@ -103,7 +100,7 @@ public sealed class ProviderDomainReferenceIntegrationTests
         await SeedSharedDomainFixtureAsync(connection);
 
 
-        await using var scope = serviceProvider.CreateAsyncScope();
+        await using var scope = database.CreateAsyncScope();
         var catalog = scope.ServiceProvider.GetRequiredService<IProviderReferenceCatalog>();
 
         commandCounter.Reset();
@@ -274,7 +271,7 @@ public sealed class ProviderDomainReferenceIntegrationTests
 
 
 
-    private static async Task SeedSharedDomainFixtureAsync(SqliteConnection connection)
+    private static async Task SeedSharedDomainFixtureAsync(SqlConnection connection)
     {
         await using var command = connection.CreateCommand();
         command.CommandText =
@@ -301,7 +298,7 @@ public sealed class ProviderDomainReferenceIntegrationTests
     }
 
     private static async Task<ProviderPackageRow> ProviderPackageRowAsync(
-        SqliteConnection connection)
+        SqlConnection connection)
     {
         await using var command = connection.CreateCommand();
         command.CommandText =
@@ -331,7 +328,7 @@ public sealed class ProviderDomainReferenceIntegrationTests
     }
 
     private static async Task<ImmutableArray<ProviderEvidence>> ProviderEvidenceRowsAsync(
-        SqliteConnection connection)
+        SqlConnection connection)
     {
         await using var command = connection.CreateCommand();
         command.CommandText =
@@ -354,7 +351,7 @@ public sealed class ProviderDomainReferenceIntegrationTests
         return evidence.ToImmutable();
     }
 
-    private static async Task<T> ScalarAsync<T>(SqliteConnection connection, string sql)
+    private static async Task<T> ScalarAsync<T>(SqlConnection connection, string sql)
     {
         await using var command = connection.CreateCommand();
         command.CommandText = sql;

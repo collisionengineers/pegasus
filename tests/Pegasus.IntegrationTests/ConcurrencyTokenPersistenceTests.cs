@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -17,30 +16,10 @@ public sealed class ConcurrencyTokenPersistenceTests
     private static readonly DateTimeOffset FixedUtcNow =
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
-    [Fact]
-    public async Task FreshSqliteCaseAcceptanceAndTriageInsertUpdateGenerateTokensAndRejectStaleWrites()
-    {
-        await using var connection = new SqliteConnection("Data Source=:memory:;Foreign Keys=True");
-        await connection.OpenAsync();
-        var options = new DbContextOptionsBuilder<PegasusDbContext>()
-            .UseOpenIddict()
-            .UsePegasusSqlite(connection)
-            .Options;
-        var factory = new PooledDbContextFactory<PegasusDbContext>(options);
-
-        await using (var context = await factory.CreateDbContextAsync())
-        {
-            Assert.False(context.Database.HasPendingModelChanges());
-            await context.Database.MigrateAsync();
-            await DevelopmentSqliteBaselineGuard.ValidateAsync(context);
-        }
-
-        await AssertPersistenceContractAsync(factory);
-    }
 
     [Fact]
     [Trait("Category", "SqlServer")]
-    public async Task FreshSqlServerCaseAcceptanceAndTriageInsertUpdateGenerateTokensAndRejectStaleWrites()
+    public async Task FreshLocalDbCaseAcceptanceAndTriageInsertUpdateGenerateTokensAndRejectStaleWrites()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var options = new DbContextOptionsBuilder<PegasusDbContext>()
@@ -48,6 +27,11 @@ public sealed class ConcurrencyTokenPersistenceTests
             .UseSqlServer(database.ConnectionString)
             .Options;
         var factory = new PooledDbContextFactory<PegasusDbContext>(options);
+        await using (var context = await factory.CreateDbContextAsync())
+        {
+            Assert.False(context.Database.HasPendingModelChanges());
+            Assert.Empty(await context.Database.GetPendingMigrationsAsync());
+        }
 
         await AssertPersistenceContractAsync(factory);
     }
@@ -64,13 +48,23 @@ public sealed class ConcurrencyTokenPersistenceTests
             new(
                 seed.CaseReceiptId,
                 0,
-                "staff:concurrency-test",
+                Pegasus.Core.Identity.ActionActor.SystemWorker("concurrency-test"),
                 "accept-case-concurrency-test",
+                "Concurrency token persistence fixture",
                 CaseType.Inspection,
                 "QDOS",
                 new(true, true, true, true),
-                null),
+                new(true, "concurrency-test-policy", 1)),
             CancellationToken.None);
+
+        var acceptedMatch = new IntakeEvidence(
+            IntakeEvidenceSource.EmailBody,
+            IntakeEvidenceStrength.Strong,
+            IntakeEvidenceFinding.AcceptedTriageMatch,
+            "concurrency-triage-match",
+            "Accepted match fixture.",
+            "concurrency-test-matcher",
+            1);
 
         var triageStore = new EfTriageStore(factory, timeProvider);
         var triage = await triageStore.CreateAsync(
@@ -80,7 +74,8 @@ public sealed class ConcurrencyTokenPersistenceTests
                     new(IntakeSourceChannel.Mailbox, "triage-concurrency-source"),
                     seed.TriageSourceHash,
                     seed.EvaluationId),
-                "AB12 CDE",
+                "AB12CDE",
+                acceptedMatch,
                 "staff:concurrency-test",
                 "create-triage-concurrency-test"),
             CancellationToken.None);
@@ -116,6 +111,10 @@ public sealed class ConcurrencyTokenPersistenceTests
             Assert.True(property.IsConcurrencyToken);
             Assert.False(property.IsNullable);
             Assert.Equal(ValueGenerated.Never, property.ValueGenerated);
+            var versionProperty = entityType.FindProperty("Version")
+                ?? throw new InvalidOperationException(
+                    $"EF model entity '{entityName}' has no optimistic version.");
+            Assert.True(versionProperty.IsConcurrencyToken);
         }
     }
 
@@ -220,7 +219,8 @@ public sealed class ConcurrencyTokenPersistenceTests
             context,
             triageReceiptId,
             "triage-concurrency-source",
-            triageSourceHash);
+            triageSourceHash,
+            """{"version":1,"data":[{"source":"email_body","strength":"strong","finding":"accepted_triage_match","signal":"concurrency-triage-match","detail":"Accepted match fixture.","matcherKey":"concurrency-test-matcher","matcherVersion":1}]}""");
         await context.Database.ExecuteSqlInterpolatedAsync($"""
             INSERT INTO IntakeStagedReceipts
                 (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel,
@@ -244,7 +244,8 @@ public sealed class ConcurrencyTokenPersistenceTests
         PegasusDbContext context,
         Guid receiptId,
         string externalReceiptToken,
-        string sourceHash) =>
+        string sourceHash,
+        string evidenceJson = """{"version":1,"data":[]}""") =>
         context.Database.ExecuteSqlInterpolatedAsync($"""
             INSERT INTO IntakeReceipts
                 (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel,
@@ -254,7 +255,7 @@ public sealed class ConcurrencyTokenPersistenceTests
             VALUES
                 ({receiptId}, {"source.eml"}, {"message/rfc822"}, {1L}, {sourceHash},
                  {"mailbox"}, {externalReceiptToken}, {FixedUtcNow}, {FixedUtcNow},
-                 {"integration-test"}, {"1"}, {0L}, {"draft_ready"}, {"test"}, {"[]"},
+                 {"integration-test"}, {"1"}, {0L}, {"draft_ready"}, {"test"}, {evidenceJson},
                  {"[]"}, {"[]"})
             """);
 
