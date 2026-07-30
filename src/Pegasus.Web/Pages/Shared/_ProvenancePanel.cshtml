@@ -1,0 +1,36 @@
+@{
+    var sourceId = ViewData["SourceId"] as string ?? "N/A";
+    var custodyHash = ViewData["CustodyHash"] as string;
+    var receivedAt = ViewData["ReceivedAt"] as string;
+    var parserVersion = ViewData["ParserVersion"] as string ?? "1.0.0";
+}
+<div class="panel section-gap">
+    <h2 class="section-label" style="display: flex; align-items: center; gap: 0.5rem;">
+        <svg class="icon" aria-hidden="true"><use href="#icon-info"/></svg>
+        <span>Source Occurrence &amp; Provenance</span>
+    </h2>
+    <dl class="detail-list">
+        <div>
+            <dt>Source ID</dt>
+            <dd><code>@sourceId</code></dd>
+        </div>
+        @if (!string.IsNullOrEmpty(custodyHash))
+        {
+            <div>
+                <dt>Custody Hash</dt>
+                <dd><code style="font-size: 0.8rem;">@custodyHash</code></dd>
+            </div>
+        }
+        @if (!string.IsNullOrEmpty(receivedAt))
+        {
+            <div>
+                <dt>Received</dt>
+                <dd>@receivedAt</dd>
+            </div>
+        }
+        <div>
+            <dt>Parser / Engine</dt>
+            <dd>Pegasus Policy Engine v@parserVersion</dd>
+        </div>
+    </dl>
+</div>

@@ -178,8 +178,8 @@ public sealed class QdosIntakeWebTests
         var sortingQueue = await client.GetStringAsync("/Intake/Queue?decision=NeedsSorting");
 
         Assert.Equal(new IntakeQueueCounts(1, 1), counts);
-        Assert.Contains("<strong>0</strong><span>Review</span>", dashboard, StringComparison.Ordinal);
-        Assert.Contains("<strong>1</strong><small>Instruction drafts</small>", dashboard, StringComparison.Ordinal);
+        Assert.Contains("href=\"/Cases?queue=review\"", dashboard, StringComparison.Ordinal);
+        Assert.Contains("<strong>1</strong><small>Draft ready</small>", dashboard, StringComparison.Ordinal);
         Assert.Contains("<strong>1</strong><small>Needs sorting</small>", dashboard, StringComparison.Ordinal);
         Assert.Contains("Needs sorting", sortingQueue, StringComparison.Ordinal);
         Assert.Contains(NeedsSortingEmailHash[..12], sortingQueue, StringComparison.Ordinal);

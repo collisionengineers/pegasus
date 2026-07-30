@@ -51,6 +51,48 @@ public sealed class QdosInstructionExtractionPolicyTests
             item.Finding == IntakeEvidenceFinding.ContradictsTransport
             && item.Signal == "forwarded-sender");
     }
+    [Theory]
+    [InlineData("QDOS instruction")]
+    [InlineData("QDOS instruction\nClaimant Name: Review Claimant")]
+    public void QdosMarkerWithoutTwoInstructionLabelsCannotProduceDraft(string content)
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(content),
+            ProcessedAtUtc);
+
+        Assert.Equal(InstructionPolicyApplicability.Indeterminate, result.Applicability);
+        Assert.Null(result.InstructionDraft);
+        Assert.Empty(result.Fields);
+        Assert.Empty(result.MissingFields);
+    }
+
+    [Fact]
+    public void ProofCannotBeAssembledAcrossSeparateContentFragments()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            new(
+                IntakeSourceReadStatus.Readable,
+                [
+                    new(
+                        IntakeEvidenceSource.EmailBody,
+                        "untrusted message body",
+                        "QDOS instruction\nClaimant Name: Review Claimant"),
+                    new(
+                        IntakeEvidenceSource.DocumentContent,
+                        "separate attachment",
+                        "QDOS instruction\nClaim Number: Q-423")
+                ],
+                [],
+                [],
+                false),
+            ProcessedAtUtc);
+
+        Assert.Equal(InstructionPolicyApplicability.Indeterminate, result.Applicability);
+        Assert.Null(result.InstructionDraft);
+        Assert.Empty(result.Fields);
+        Assert.Empty(result.MissingFields);
+    }
+
 
     [Fact]
     public void IncompleteResultCannotCrossPolicyBoundary()

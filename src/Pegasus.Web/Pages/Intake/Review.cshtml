@@ -159,3 +159,18 @@
         }
     </ul>
 </section>
+
+@if (Model.Receipt.Decision == Pegasus.Core.Intake.IntakeDecision.DraftReady)
+{
+    <section class="panel section-gap" aria-labelledby="case-acceptance-title">
+        <h2 id="case-acceptance-title" class="section-label">Accept Case</h2>
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+        <form method="post" asp-page-handler="AcceptCase" asp-route-id="@Model.Receipt.Id" class="stack-lg">
+            <label>Case type<select asp-for="CaseType"><option value="Inspection">Inspection</option><option value="StandaloneAudit">Standalone Audit</option><option value="InspectionAndAudit">Inspection + Audit</option></select></label>
+            <label class="checkbox-row"><input asp-for="InstructionsComplete" /> Instructions complete</label>
+            <label class="checkbox-row"><input asp-for="ImagesComplete" /> Images complete</label>
+            <label>Standalone Audit assessment<select asp-for="AuditAssessment"><option value="">Not supplied</option><option value="Repairable">Repairable</option><option value="TotalLoss">Total loss</option></select></label>
+            <button class="button button-primary" type="submit">Accept Case</button>
+        </form>
+    </section>
+}

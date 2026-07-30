@@ -178,6 +178,83 @@ public sealed class ProcessIntakeTests
     }
 
     [Fact]
+    public async Task IncompleteReaderResultRetainsCustodyWithoutConsultingExtractionPolicy()
+    {
+        var derivedAsset = new IntakeAssetCandidate(
+            "embedded vehicle image",
+            "vehicle.jpg",
+            "image/jpeg",
+            new byte[] { 0x02, 0x03 },
+            IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded,
+            PageNumber: 1);
+        var readResult = Readable(content:
+        [
+            new(
+                IntakeEvidenceSource.DocumentContent,
+                "controlled incomplete content",
+                "QDOS instruction\nClaimant Name: A\nClaim Number: B")
+        ]) with
+        {
+            Assets = [derivedAsset],
+            IsIncomplete = true
+        };
+        var store = new RecordingStore();
+        var artifactStore = new RecordingArtifactStore();
+        var sut = CreateSut(
+            new StubReader(readResult),
+            store,
+            artifactStore,
+            new ThrowingPolicy());
+
+        var result = await sut.ExecuteAsync(CreateSource());
+
+        var draft = Assert.Single(store.Drafts);
+        var assets = Assert.IsAssignableFrom<IReadOnlyList<IntakeAssetRecord>>(draft.Assets);
+        Assert.Equal(IntakeDecision.NeedsSorting, result.Decision);
+        Assert.Equal(IntakeDecision.NeedsSorting, draft.Decision);
+        Assert.Null(draft.InstructionDraft);
+        Assert.Null(draft.ExtractionPolicyKey);
+        Assert.Empty(draft.Evidence);
+        Assert.Collection(
+            assets,
+            source =>
+            {
+                Assert.Equal(IntakeAssetKind.Source, source.Kind);
+                Assert.Equal(IntakeAssetDisposition.Source, source.Disposition);
+            },
+            derived =>
+            {
+                Assert.Equal("embedded vehicle image", derived.SourceLabel);
+                Assert.Equal("vehicle.jpg", derived.FileName);
+                Assert.Equal(IntakeAssetKind.EmbeddedImage, derived.Kind);
+                Assert.Equal(IntakeAssetDisposition.Embedded, derived.Disposition);
+            });
+        Assert.Equal(2, artifactStore.StoredHashes.Count);
+    }
+
+    [Fact]
+    public async Task MatchingReceiptReplayDoesNotReadOrRetainSourceAgain()
+    {
+        var reader = new StubReader(Readable());
+        var store = new RecordingStore();
+        var artifactStore = new RecordingArtifactStore();
+        var sut = CreateSut(reader, store, artifactStore);
+        var source = CreateSource();
+
+        var first = await sut.ExecuteAsync(source);
+        store.ExistingRecord = first;
+
+        var replay = await sut.ExecuteAsync(source);
+
+        Assert.Equal(first.Id, replay.Id);
+        Assert.True(replay.IsDuplicate);
+        Assert.Single(reader.Sources);
+        Assert.Single(store.Drafts);
+        Assert.Single(artifactStore.StoredHashes);
+    }
+
+    [Fact]
     public async Task OcrRequirementWithoutConfirmingContentIsPersistedForReview()
     {
         var readResult = Readable(requiresOcr: true);
@@ -560,6 +637,15 @@ public sealed class ProcessIntakeTests
         public InstructionExtractionResult Extract(
             IntakeSourceReadResult readResult,
             DateTimeOffset processedAtUtc) => result;
+    }
+
+    private sealed class ThrowingPolicy : IInstructionExtractionPolicy
+    {
+        public InstructionExtractionResult Extract(
+            IntakeSourceReadResult readResult,
+            DateTimeOffset processedAtUtc) =>
+            throw new InvalidOperationException(
+                "The extraction policy must not run for an incomplete reader result.");
     }
 
     private sealed class RecordingStore : IIntakeReceiptStore

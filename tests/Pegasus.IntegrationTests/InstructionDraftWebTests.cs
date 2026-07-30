@@ -153,7 +153,7 @@ public sealed class InstructionDraftWebTests
             Assert.Contains(value, html, StringComparison.Ordinal);
         }
 
-        Assert.False(await TableExistsAsync(factory, "Cases"));
+        Assert.True(await TableExistsAsync(factory, "Cases"));
         Assert.False(await TableExistsAsync(factory, "PrincipalYearCounters"));
     }
 
