@@ -87,6 +87,15 @@ as product authority.
 ### Mailbox interaction
 
 - `provider-chasing-for-update` is a distinct `in-progress-cases` subtype.
+- A multi-Case provider chase is `General — general-chase`: it remains one
+  unlinked source occurrence, with no source copy or one-to-many Case links.
+- A non-actionable daily case summary is `General — case-summary` and creates
+  no intake, Triage, or Case work.
+- A `Needs sorting` item explains the missing, ambiguous, or contradictory
+  predicate; it never borrows the rationale for a different classification.
+- A successful focused manual EVA package is immediately downloadable with its
+  JSON, selected images, and manifest. The download alone proves neither EVA
+  receipt nor report delivery and does not change Case state.
 - At the allocated mailbox-workspace activation, staff can filter and queue
   each approved mailbox exactly. The accessible email quick preview is
   navigation only and cannot mutate message, classification, association, Case
