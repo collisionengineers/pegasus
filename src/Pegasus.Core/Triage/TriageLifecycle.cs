@@ -1,3 +1,5 @@
+using Pegasus.Core.Identity;
+
 namespace Pegasus.Core.Triage;
 
 public sealed class CreateTriageFromIntake(ITriageStore store) : ICreateTriageFromIntake
@@ -52,6 +54,15 @@ public sealed class AwaitTriageInformation(ITriageStore store) : IAwaitTriageInf
         CancellationToken cancellationToken)
     {
         TriageLifecycleRules.ValidateMutation(request);
+        var replay = await _store.ProbeStateChangeReplayAsync(
+            request,
+            TriageState.AwaitingInformation,
+            cancellationToken);
+        if (replay is not null)
+        {
+            return replay.Result;
+        }
+
         var current = await TriageLifecycleRules.GetRequiredAsync(_store, request.TriageId, cancellationToken);
         if (current.Record.State is not (TriageState.Open or TriageState.FindingRecorded))
         {
@@ -72,8 +83,21 @@ public sealed class RecordTriageFinding(ITriageStore store) : IRecordTriageFindi
         CancellationToken cancellationToken)
     {
         TriageLifecycleRules.ValidateFinding(request, requiresSupersededFinding: false);
+        var replay = await _store.ProbeRecordFindingReplayAsync(request, cancellationToken);
+        if (replay is not null)
+        {
+            return replay.Result;
+        }
+
         var current = await TriageLifecycleRules.GetRequiredAsync(_store, request.TriageId, cancellationToken);
         TriageLifecycleRules.RequireMutable(current.Record, "record a finding");
+        if (current.Record.State is not (TriageState.Open or TriageState.AwaitingInformation)
+            || TriageLifecycleRules.HasActiveFinding(current))
+        {
+            throw new InvalidOperationException(
+                "An existing active finding must be explicitly superseded.");
+        }
+
         return await _store.RecordFindingAsync(request, cancellationToken);
     }
 }
@@ -87,10 +111,25 @@ public sealed class SupersedeTriageFinding(ITriageStore store) : ISupersedeTriag
         CancellationToken cancellationToken)
     {
         TriageLifecycleRules.ValidateFinding(request, requiresSupersededFinding: true);
-        var current = await TriageLifecycleRules.GetRequiredAsync(_store, request.TriageId, cancellationToken);
-        if (current.Record.State != TriageState.FindingRecorded)
+        var replay = await _store.ProbeSupersedeFindingReplayAsync(request, cancellationToken);
+        if (replay is not null)
         {
-            throw new InvalidOperationException("Only a recorded finding can be superseded.");
+            return replay.Result;
+        }
+
+        var current = await TriageLifecycleRules.GetRequiredAsync(_store, request.TriageId, cancellationToken);
+        if (current.Record.State == TriageState.Cancelled)
+        {
+            throw new InvalidOperationException(
+                "Cancelled triage must be reopened before a finding can be corrected.");
+        }
+
+        if (!TriageLifecycleRules.IsActiveFinding(
+                current,
+                request.SupersedesFindingId!.Value))
+        {
+            throw new InvalidOperationException(
+                "Only the current active finding can be superseded.");
         }
 
         return await _store.SupersedeFindingAsync(request, cancellationToken);
@@ -106,6 +145,11 @@ public sealed class LinkTriageResponseEvidence(ITriageStore store) : ILinkTriage
         CancellationToken cancellationToken)
     {
         TriageLifecycleRules.ValidateResponseEvidence(request);
+        if (await _store.ProbeLinkResponseEvidenceReplayAsync(request, cancellationToken) is not null)
+        {
+            return;
+        }
+
         var current = await TriageLifecycleRules.GetRequiredAsync(_store, request.TriageId, cancellationToken);
         TriageLifecycleRules.RequireMutable(current.Record, "link response evidence");
         await _store.LinkResponseEvidenceAsync(request, cancellationToken);
@@ -117,10 +161,15 @@ public sealed class UnlinkTriageResponseEvidence(ITriageStore store) : IUnlinkTr
     private readonly ITriageStore _store = store ?? throw new ArgumentNullException(nameof(store));
 
     public async Task ExecuteAsync(
-        TriageResponseEvidenceLinkRequest request,
+        TriageResponseEvidenceUnlinkRequest request,
         CancellationToken cancellationToken)
     {
         TriageLifecycleRules.ValidateResponseEvidence(request);
+        if (await _store.ProbeUnlinkResponseEvidenceReplayAsync(request, cancellationToken) is not null)
+        {
+            return;
+        }
+
         var current = await TriageLifecycleRules.GetRequiredAsync(_store, request.TriageId, cancellationToken);
         TriageLifecycleRules.RequireMutable(current.Record, "unlink response evidence");
         await _store.UnlinkResponseEvidenceAsync(request, cancellationToken);
@@ -136,6 +185,15 @@ public sealed class CompleteTriage(ITriageStore store) : ICompleteTriage
         CancellationToken cancellationToken)
     {
         TriageLifecycleRules.ValidateMutation(request);
+        var replay = await _store.ProbeStateChangeReplayAsync(
+            request,
+            TriageState.Completed,
+            cancellationToken);
+        if (replay is not null)
+        {
+            return replay.Result;
+        }
+
         var current = await TriageLifecycleRules.GetRequiredAsync(_store, request.TriageId, cancellationToken);
         if (current.Record.State != TriageState.FindingRecorded)
         {
@@ -155,6 +213,15 @@ public sealed class CancelTriage(ITriageStore store) : ICancelTriage
         CancellationToken cancellationToken)
     {
         TriageLifecycleRules.ValidateMutation(request);
+        var replay = await _store.ProbeStateChangeReplayAsync(
+            request,
+            TriageState.Cancelled,
+            cancellationToken);
+        if (replay is not null)
+        {
+            return replay.Result;
+        }
+
         var current = await TriageLifecycleRules.GetRequiredAsync(_store, request.TriageId, cancellationToken);
         TriageLifecycleRules.RequireMutable(current.Record, "cancel");
         return await _store.ChangeStateAsync(request, TriageState.Cancelled, cancellationToken);
@@ -170,6 +237,15 @@ public sealed class ReopenTriage(ITriageStore store) : IReopenTriage
         CancellationToken cancellationToken)
     {
         TriageLifecycleRules.ValidateMutation(request);
+        var replay = await _store.ProbeStateChangeReplayAsync(
+            request,
+            TriageState.Open,
+            cancellationToken);
+        if (replay is not null)
+        {
+            return replay.Result;
+        }
+
         var current = await TriageLifecycleRules.GetRequiredAsync(_store, request.TriageId, cancellationToken);
         if (current.Record.State is not (TriageState.Completed or TriageState.Cancelled))
         {
@@ -187,8 +263,7 @@ public sealed class LinkTriageCase(ITriageStore store) : ILinkTriageCase
     public async Task ExecuteAsync(TriageCaseLinkRequest request, CancellationToken cancellationToken)
     {
         TriageLifecycleRules.ValidateCaseLink(request);
-        var current = await TriageLifecycleRules.GetRequiredAsync(_store, request.TriageId, cancellationToken);
-        TriageLifecycleRules.RequireMutable(current.Record, "link a case");
+        _ = await TriageLifecycleRules.GetRequiredAsync(_store, request.TriageId, cancellationToken);
         await _store.LinkCaseAsync(request, cancellationToken);
     }
 }
@@ -200,8 +275,7 @@ public sealed class UnlinkTriageCase(ITriageStore store) : IUnlinkTriageCase
     public async Task ExecuteAsync(TriageCaseLinkRequest request, CancellationToken cancellationToken)
     {
         TriageLifecycleRules.ValidateCaseLink(request);
-        var current = await TriageLifecycleRules.GetRequiredAsync(_store, request.TriageId, cancellationToken);
-        TriageLifecycleRules.RequireMutable(current.Record, "unlink a case");
+        _ = await TriageLifecycleRules.GetRequiredAsync(_store, request.TriageId, cancellationToken);
         await _store.UnlinkCaseAsync(request, cancellationToken);
     }
 }
@@ -228,6 +302,7 @@ public static class TriageLifecycleRules
         ArgumentNullException.ThrowIfNull(request.Origin, nameof(request));
         ValidateOrigin(request.Origin);
         ValidateNormalizedRegistration(request.NormalizedVehicleRegistration);
+        ValidateAcceptedMatchEvidence(request.AcceptedMatchEvidence);
         ValidateActorAndOperation(request.Actor, request.OperationKey);
     }
 
@@ -237,7 +312,6 @@ public static class TriageLifecycleRules
         ValidateIdAndVersion(request.TriageId, request.ExpectedVersion);
         ValidateActorAndOperation(request.Actor, request.OperationKey);
         RequireText(request.Reason, "A reason is required.", 500, nameof(request));
-        ValidateEditLeaseToken(request.EditLeaseToken);
     }
 
     public static void ValidateAssign(AssignTriageRequest request)
@@ -251,7 +325,6 @@ public static class TriageLifecycleRules
 
         ValidateActorAndOperation(request.Actor, request.OperationKey);
         RequireText(request.Reason, "A reason is required.", 500, nameof(request));
-        ValidateEditLeaseToken(request.EditLeaseToken);
     }
 
     public static void ValidateFinding(
@@ -262,7 +335,6 @@ public static class TriageLifecycleRules
         ValidateIdAndVersion(request.TriageId, request.ExpectedVersion);
         ValidateActorAndOperation(request.Actor, request.OperationKey);
         RequireText(request.Reason, "A reason is required.", 500, nameof(request));
-        ValidateEditLeaseToken(request.EditLeaseToken);
 
         if (request.Roadworthiness is null && request.Assessment is null)
         {
@@ -295,6 +367,11 @@ public static class TriageLifecycleRules
     {
         ArgumentNullException.ThrowIfNull(request);
         ValidateIdAndVersion(request.TriageId, request.ExpectedVersion);
+        if (request.PollOutcomeId == Guid.Empty)
+        {
+            throw new ArgumentException("An approved Sent poll outcome is required.", nameof(request));
+        }
+
         if (request.SentEvidenceId == Guid.Empty)
         {
             throw new ArgumentException("Sent response evidence is required.", nameof(request));
@@ -302,7 +379,19 @@ public static class TriageLifecycleRules
 
         ValidateActorAndOperation(request.Actor, request.OperationKey);
         RequireText(request.Reason, "A reason is required.", 500, nameof(request));
-        ValidateEditLeaseToken(request.EditLeaseToken);
+    }
+
+    public static void ValidateResponseEvidence(TriageResponseEvidenceUnlinkRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ValidateIdAndVersion(request.TriageId, request.ExpectedVersion);
+        if (request.SentEvidenceId == Guid.Empty)
+        {
+            throw new ArgumentException("Sent response evidence is required.", nameof(request));
+        }
+
+        ValidateActorAndOperation(request.Actor, request.OperationKey);
+        RequireText(request.Reason, "A reason is required.", 500, nameof(request));
     }
 
     public static void ValidateCaseLink(TriageCaseLinkRequest request)
@@ -321,9 +410,15 @@ public static class TriageLifecycleRules
                 "The expected case version cannot be negative.");
         }
 
-        ValidateActorAndOperation(request.Actor, request.OperationKey);
+        ArgumentNullException.ThrowIfNull(request.Actor);
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        ValidateActorAndOperation(request.Actor.SubjectId, request.OperationKey);
         RequireText(request.Reason, "A reason is required.", 500, nameof(request));
-        ValidateEditLeaseToken(request.EditLeaseToken);
+        RequireText(
+            request.CaseEditLeaseToken,
+            "An active case edit lease token is required.",
+            128,
+            nameof(request));
     }
 
     public static void RequireMutable(TriageRecord triage, string action)
@@ -333,6 +428,18 @@ public static class TriageLifecycleRules
             throw new InvalidOperationException($"Completed or cancelled triage cannot {action}.");
         }
     }
+
+    internal static bool HasActiveFinding(TriageDetail triage) =>
+        triage.Findings.Any(finding => IsUnsupersededFinding(triage, finding.Id));
+
+    internal static bool IsActiveFinding(TriageDetail triage, Guid findingId) =>
+        triage.Findings.Any(finding => finding.Id == findingId)
+        && IsUnsupersededFinding(triage, findingId)
+        && triage.Findings.Count(
+            finding => IsUnsupersededFinding(triage, finding.Id)) == 1;
+
+    private static bool IsUnsupersededFinding(TriageDetail triage, Guid findingId) =>
+        !triage.Findings.Any(finding => finding.SupersedesFindingId == findingId);
 
     private static void ValidateOrigin(TriageOrigin origin)
     {
@@ -368,6 +475,46 @@ public static class TriageLifecycleRules
         }
     }
 
+    private static void ValidateAcceptedMatchEvidence(Pegasus.Core.Intake.IntakeEvidence evidence)
+    {
+        ArgumentNullException.ThrowIfNull(evidence);
+        if (!Enum.IsDefined(evidence.Source))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(evidence),
+                "The accepted Triage-match evidence source is invalid.");
+        }
+        if (evidence.Strength != Pegasus.Core.Intake.IntakeEvidenceStrength.Strong
+            || evidence.Finding != Pegasus.Core.Intake.IntakeEvidenceFinding.AcceptedTriageMatch)
+        {
+            throw new ArgumentException(
+                "Triage creation requires explicit strong accepted Triage-match evidence.",
+                nameof(evidence));
+        }
+
+        RequireText(
+            evidence.Signal,
+            "The accepted Triage-match signal is required.",
+            100,
+            nameof(evidence));
+        RequireText(
+            evidence.Detail,
+            "The accepted Triage-match detail is required.",
+            500,
+            nameof(evidence));
+        RequireText(
+            evidence.MatcherKey!,
+            "The accepted Triage matcher key is required.",
+            100,
+            nameof(evidence));
+        if (evidence.MatcherVersion is null or <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(evidence),
+                "The accepted Triage matcher version must be positive.");
+        }
+    }
+
     private static void ValidateNormalizedRegistration(string registration)
     {
         RequireText(registration, "A normalized vehicle registration is required.", 20, nameof(registration));
@@ -398,8 +545,6 @@ public static class TriageLifecycleRules
         RequireText(operationKey, "An operation key is required.", 100, nameof(operationKey));
     }
 
-    private static void ValidateEditLeaseToken(string editLeaseToken) =>
-        RequireText(editLeaseToken, "An active edit lease token is required.", 64, nameof(editLeaseToken));
 
     private static void RequireText(string value, string message, int maximumLength, string parameterName)
     {

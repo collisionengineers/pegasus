@@ -6,6 +6,7 @@ using Pegasus.Core;
 
 namespace Pegasus.IntegrationTests;
 
+[Collection(LocalDbFixtureDefinition.Name)]
 public sealed class QdosAlphaAcceptanceGateTests
 {
     private const string ManifestEnvironmentVariable = "PEGASUS_QDOS_ACCEPTANCE_MANIFEST";
@@ -66,7 +67,7 @@ public sealed class QdosAlphaAcceptanceGateTests
         var observation = new QdosAlphaCapabilityObservation(
             "INT-01",
             QdosAlphaCapabilityEvidenceOutcome.DeferredToExternalGate,
-            "Pegasus.Web /Intake/Upload",
+            "Pegasus.Web /Intake",
             "intake-upload.trx",
             new string('c', 64));
         var decision = new QdosAlphaAcceptanceGate().Evaluate(new(

@@ -26,7 +26,7 @@ internal sealed class EfQueuedCustodyProcessor(
                 .AsNoTracking()
                 .SingleOrDefaultAsync(value => value.Id == workId, cancellationToken)
                 ?? throw new InvalidOperationException("The custody work item is unavailable.");
-            if (!string.Equals(work.Kind, "create_case_custody", StringComparison.Ordinal))
+            if (work.Kind is not ("create_case_custody" or "create_audit_reference_custody"))
             {
                 throw new InvalidDataException("The external work item is not a supported custody operation.");
             }
@@ -71,6 +71,7 @@ internal sealed class EfQueuedCustodyProcessor(
             {
                 payload = await LoadPayloadAsync(
                     context,
+                    work.Kind,
                     work.CaseId,
                     work.OperationKey,
                     cancellationToken);
@@ -90,31 +91,66 @@ internal sealed class EfQueuedCustodyProcessor(
 
         try
         {
-            var root = await caseCustody.CreateCaseRootAsync(
-                payload.CaseId,
-                payload.CaseReference,
-                $"{payload.OperationKey}:root",
-                cancellationToken);
-            var version = await caseCustody.RetainAcceptedIntakeSourceAsync(
-                root,
-                new(
-                    payload.IntakeReceiptId,
-                    payload.SourceFileName,
-                    payload.MediaType,
-                    payload.SourceHash,
-                    payload.SourceObjectKey),
-                $"{payload.OperationKey}:source",
-                cancellationToken);
-            if (!string.IsNullOrWhiteSpace(payload.AuditReference))
+            var isAuditCustody = string.Equals(
+                payload.WorkKind,
+                "create_audit_reference_custody",
+                StringComparison.Ordinal);
+            var root = isAuditCustody
+                ? await caseCustody.GetExistingCaseRootAsync(
+                    payload.CaseId,
+                    payload.CaseReference,
+                    cancellationToken)
+                : await caseCustody.CreateCaseRootAsync(
+                    payload.CaseId,
+                    payload.CaseReference,
+                    $"{payload.OperationKey}:root",
+                    cancellationToken);
+            if (isAuditCustody)
             {
-                _ = await caseCustody.CreateAuditReferenceFolderAsync(
+                if (string.IsNullOrWhiteSpace(payload.AuditReference))
+                {
+                    throw new InvalidDataException(
+                        "The later Audit custody operation has no allocated Audit identity.");
+                }
+                var auditFolderRemoteId = await caseCustody.CreateAuditReferenceFolderAsync(
                     root,
                     payload.AuditReference,
                     $"{payload.OperationKey}:audit",
                     cancellationToken);
+                await CompleteAuditCustodyAsync(
+                    workId,
+                    leaseToken,
+                    root,
+                    auditFolderRemoteId,
+                    cancellationToken);
             }
-
-            await CompleteAsync(workId, leaseToken, root, version, cancellationToken);
+            else
+            {
+                var version = await caseCustody.RetainAcceptedIntakeSourceAsync(
+                    root,
+                    new(
+                        payload.IntakeReceiptId,
+                        payload.SourceFileName,
+                        payload.MediaType,
+                        payload.SourceHash,
+                        payload.SourceObjectKey),
+                    $"{payload.OperationKey}:source",
+                    cancellationToken);
+                var auditFolderRemoteId = string.IsNullOrWhiteSpace(payload.AuditReference)
+                    ? null
+                    : await caseCustody.CreateAuditReferenceFolderAsync(
+                        root,
+                        payload.AuditReference,
+                        $"{payload.OperationKey}:audit",
+                        cancellationToken);
+                await CompleteCaseCustodyAsync(
+                    workId,
+                    leaseToken,
+                    root,
+                    version,
+                    auditFolderRemoteId,
+                    cancellationToken);
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -130,6 +166,7 @@ internal sealed class EfQueuedCustodyProcessor(
 
     private static async Task<WorkPayload> LoadPayloadAsync(
         PegasusDbContext context,
+        string workKind,
         Guid caseId,
         string operationKey,
         CancellationToken cancellationToken)
@@ -141,36 +178,39 @@ internal sealed class EfQueuedCustodyProcessor(
             .AsNoTracking()
             .SingleAsync(value => value.Id == caseEntity.OriginIntakeReceiptId, cancellationToken);
 
-        var source = await context.IntakeWorkItems
+        var source = await context.IntakeAssets
+            .AsNoTracking()
+            .Where(value => value.IntakeReceiptId == receipt.Id
+                && value.Kind == "source"
+                && value.Disposition == "source")
+            .Select(value => new SourcePayload(
+                value.FileName,
+                value.MediaType,
+                value.ContentLength,
+                value.ContentHash,
+                value.StorageKey))
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new InvalidDataException(
+                "The processed intake receipt has no retained source lineage.");
+        EnsureSourceMatchesReceipt(receipt, source);
+
+        var stagedSource = await context.IntakeWorkItems
             .AsNoTracking()
             .Where(value => value.ProcessedReceiptId == receipt.Id)
-            .Select(value => new SourcePayload(
+            .Select(value => new StagedSourcePayload(
                 value.StagedReceipt.SourceFileName,
                 value.StagedReceipt.MediaType,
                 value.StagedReceipt.SourceLength,
                 value.StagedReceipt.SourceHash,
-                value.StagedReceipt.StorageKey))
+                value.StagedReceipt.SourceChannel,
+                value.StagedReceipt.ExternalReceiptToken))
             .SingleOrDefaultAsync(cancellationToken);
-        if (source is null)
+        if (stagedSource is not null)
         {
-            source = await context.IntakeAssets
-                .AsNoTracking()
-                .Where(value => value.IntakeReceiptId == receipt.Id
-                    && value.Kind == "source"
-                    && value.Disposition == "source")
-                .Select(value => new SourcePayload(
-                    value.FileName,
-                    value.MediaType,
-                    value.ContentLength,
-                    value.ContentHash,
-                    value.StorageKey))
-                .SingleOrDefaultAsync(cancellationToken)
-                ?? throw new InvalidDataException(
-                    "The processed intake receipt has no retained source lineage.");
+            EnsureStagedSourceMatchesReceipt(receipt, stagedSource);
         }
-
-        EnsureSourceMatchesReceipt(receipt, source);
         return new(
+            workKind,
             caseEntity.Id,
             caseEntity.Reference,
             caseEntity.AuditReference,
@@ -197,11 +237,31 @@ internal sealed class EfQueuedCustodyProcessor(
         }
     }
 
-    private async Task CompleteAsync(
+    private static void EnsureStagedSourceMatchesReceipt(
+        IntakeReceiptEntity receipt,
+        StagedSourcePayload source)
+    {
+        if (source.ContentLength != receipt.SourceLength
+            || !string.Equals(source.SourceHash, receipt.SourceHash, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(source.SourceFileName, receipt.SourceFileName, StringComparison.Ordinal)
+            || !string.Equals(source.MediaType, receipt.MediaType, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(source.SourceChannel, receipt.SourceChannel, StringComparison.Ordinal)
+            || !string.Equals(
+                source.ExternalReceiptToken,
+                receipt.ExternalReceiptToken,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                "The staged intake lineage does not match the processed receipt.");
+        }
+    }
+
+    private async Task CompleteCaseCustodyAsync(
         Guid workId,
         string leaseToken,
         CaseCustodyRoot root,
         CustodyDocumentVersion version,
+        string? auditFolderRemoteId,
         CancellationToken cancellationToken)
     {
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
@@ -228,16 +288,24 @@ internal sealed class EfQueuedCustodyProcessor(
 
         var caseEntity = await context.Cases
             .SingleAsync(value => value.Id == work.CaseId, cancellationToken);
+        var workflow = await context.CaseWorkflows
+            .SingleAsync(value => value.CaseId == work.CaseId, cancellationToken);
+        ArchivedCaseGuard.RequireMutable(workflow);
 
         var now = timeProvider.GetUtcNow();
-        var beforeVersion = caseEntity.Version;
+        var beforeVersion = workflow.Version;
         caseEntity.CustodyRootRemoteId = root.RemoteId;
         caseEntity.CustodySourceRemoteId = version.RemoteId;
         caseEntity.CustodySourceContentHash = version.ContentHash;
         caseEntity.CustodySourceETag = version.ETag;
         caseEntity.CustodyConfirmedAtUtc = now;
         caseEntity.CustodyState = "confirmed";
-        caseEntity.Version = checked(caseEntity.Version + 1);
+        if (auditFolderRemoteId is not null)
+        {
+            caseEntity.AuditCustodyRemoteId = auditFolderRemoteId;
+            caseEntity.AuditCustodyConfirmedAtUtc = now;
+        }
+        CaseMutationGuard.Complete(workflow);
         work.State = "completed";
         work.CompletedAtUtc = now;
         work.ExternalReceipt = version.RemoteId;
@@ -255,7 +323,84 @@ internal sealed class EfQueuedCustodyProcessor(
             OccurredAtUtc = now,
             OperationKey = $"{work.OperationKey}:confirmed",
             BeforeVersion = beforeVersion,
-            AfterVersion = caseEntity.Version
+            AfterVersion = workflow.Version
+        });
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    private async Task CompleteAuditCustodyAsync(
+        Guid workId,
+        string leaseToken,
+        CaseCustodyRoot root,
+        string auditFolderRemoteId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var work = await context.ExternalWorkItems
+            .SingleOrDefaultAsync(
+                value => value.Id == workId && value.LeaseToken == leaseToken,
+                cancellationToken);
+        if (work is null)
+        {
+            var state = await context.ExternalWorkItems
+                .AsNoTracking()
+                .Where(value => value.Id == workId)
+                .Select(value => value.State)
+                .SingleOrDefaultAsync(cancellationToken);
+            if (string.Equals(state, "completed", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            throw new InvalidOperationException(
+                "The Audit custody work item lease was lost before completion could be persisted.");
+        }
+        if (!string.Equals(
+                work.Kind,
+                "create_audit_reference_custody",
+                StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                "The work item is not a later Audit custody operation.");
+        }
+
+        var caseEntity = await context.Cases
+            .SingleAsync(value => value.Id == work.CaseId, cancellationToken);
+        var workflow = await context.CaseWorkflows
+            .SingleAsync(value => value.CaseId == work.CaseId, cancellationToken);
+        ArchivedCaseGuard.RequireMutable(workflow);
+        if (string.IsNullOrWhiteSpace(caseEntity.AuditReference))
+        {
+            throw new InvalidDataException(
+                "The later Audit custody operation has no immutable Audit identity.");
+        }
+
+        var now = timeProvider.GetUtcNow();
+        var beforeVersion = workflow.Version;
+        caseEntity.CustodyRootRemoteId = root.RemoteId;
+        caseEntity.AuditCustodyRemoteId = auditFolderRemoteId;
+        caseEntity.AuditCustodyConfirmedAtUtc = now;
+        CaseMutationGuard.Complete(workflow);
+        work.State = "completed";
+        work.CompletedAtUtc = now;
+        work.ExternalReceipt = auditFolderRemoteId;
+        work.LeaseToken = null;
+        work.LeaseExpiresAtUtc = null;
+        work.FailureCode = null;
+        work.FailureReason = null;
+        context.CaseHistory.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            CaseId = caseEntity.Id,
+            EventType = "audit_custody_confirmed",
+            Actor = "system",
+            Reason = "Later Audit reference custody confirmed.",
+            OccurredAtUtc = now,
+            OperationKey = $"{work.OperationKey}:confirmed",
+            BeforeVersion = beforeVersion,
+            AfterVersion = workflow.Version
         });
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -296,6 +441,7 @@ internal sealed class EfQueuedCustodyProcessor(
     };
 
     private sealed record WorkPayload(
+        string WorkKind,
         Guid CaseId,
         string CaseReference,
         string? AuditReference,
@@ -312,4 +458,12 @@ internal sealed class EfQueuedCustodyProcessor(
         long ContentLength,
         string SourceHash,
         string StorageKey);
+
+    private sealed record StagedSourcePayload(
+        string SourceFileName,
+        string MediaType,
+        long ContentLength,
+        string SourceHash,
+        string SourceChannel,
+        string ExternalReceiptToken);
 }

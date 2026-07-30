@@ -25,27 +25,39 @@ public sealed record RecordSentEmailEvidenceRequest(
     DateTimeOffset SentAtUtc,
     DateTimeOffset ChaseDueAtUtc,
     string Actor,
-    string OperationKey,
-    string EditLeaseToken);
+    string OperationKey);
 
 public sealed record RecordEmailResponseEvidenceRequest(
     Guid SentEvidenceId,
     long ExpectedSentEvidenceVersion,
+    Guid PollOutcomeId,
+    string PollLeaseToken,
+    string MailboxId,
+    string MailboxAddress,
+    string SentFolderIdentity,
+    string ImmutableItemIdentity,
     string MessageIdentity,
+    string ConversationIdentity,
+    string ReplyChainIdentity,
+    IReadOnlyList<string> InReplyToIdentities,
+    string SourceOccurrenceIdentity,
+    string SourceSha256,
+    string CurrentLocationIdentity,
     string MimeSha256,
-    DateTimeOffset ReceivedAtUtc,
-    string Actor,
-    string OperationKey,
-    string EditLeaseToken);
-
-public sealed record EmailEvidenceChaseProjection(
-    Guid SentEvidenceId,
-    Guid TriageId,
-    string MessageIdentity,
-    string Subject,
-    IReadOnlyList<string> Recipients,
     DateTimeOffset SentAtUtc,
-    DateTimeOffset ChaseDueAtUtc);
+    DateTimeOffset DiscoveredAtUtc,
+    ActionActor Actor,
+    string OperationKey,
+    string PollOutcomeOperationKey,
+    string CursorAfterItem,
+    string Reason);
+
+public sealed record ExactEmailResponseEvidenceCandidate(
+    Guid SentEvidenceId,
+    long ExpectedSentEvidenceVersion,
+    string ReplyChainIdentity,
+    string? RecordedResponseMessageIdentity);
+
 
 public sealed record SentEmailEvidenceReplay(
     string ReplayId,
@@ -56,8 +68,7 @@ public sealed record SentEmailEvidenceReplay(
     IReadOnlyList<string> Recipients,
     string MimeSha256,
     DateTimeOffset SentAtUtc,
-    DateTimeOffset ChaseDueAtUtc,
-    string EditLeaseToken);
+    DateTimeOffset ChaseDueAtUtc);
 
 public interface IRecordSentEmailEvidence
 {
@@ -73,13 +84,13 @@ public interface IRecordEmailResponseEvidence
         CancellationToken cancellationToken);
 }
 
-public interface IEmailEvidenceChaseReadModel
+public interface IExactEmailResponseEvidenceQueries
 {
-    Task<IReadOnlyList<EmailEvidenceChaseProjection>> GetDueAsync(
-        DateTimeOffset asOfUtc,
-        int maximumResults,
+    Task<IReadOnlyList<ExactEmailResponseEvidenceCandidate>> FindExactCandidatesAsync(
+        IReadOnlyList<string> replyChainIdentities,
         CancellationToken cancellationToken);
 }
+
 
 public sealed class ReplaySentEmailEvidence(IRecordSentEmailEvidence recordSentEmailEvidence)
 {
@@ -118,8 +129,7 @@ public sealed class ReplaySentEmailEvidence(IRecordSentEmailEvidence recordSentE
                 replay.SentAtUtc,
                 replay.ChaseDueAtUtc,
                 actorCode,
-                CreateOperationKey(replay.ReplayId),
-                replay.EditLeaseToken),
+                CreateOperationKey(replay.ReplayId)),
             cancellationToken);
     }
 
@@ -129,7 +139,6 @@ public sealed class ReplaySentEmailEvidence(IRecordSentEmailEvidence recordSentE
         ArgumentException.ThrowIfNullOrWhiteSpace(replay.MessageIdentity);
         ArgumentException.ThrowIfNullOrWhiteSpace(replay.Subject);
         ArgumentNullException.ThrowIfNull(replay.Recipients);
-        ArgumentException.ThrowIfNullOrWhiteSpace(replay.EditLeaseToken);
         ArgumentException.ThrowIfNullOrWhiteSpace(replay.MimeSha256);
         if (replay.TriageId == Guid.Empty)
         {
@@ -144,10 +153,6 @@ public sealed class ReplaySentEmailEvidence(IRecordSentEmailEvidence recordSentE
         if (replay.ReplayId.Length > 200 || replay.MessageIdentity.Trim().Length > 200)
         {
             throw new ArgumentException("The replay and message identities cannot exceed 200 characters.", nameof(replay));
-        }
-        if (replay.EditLeaseToken.Length > 64)
-        {
-            throw new ArgumentException("The edit lease token cannot exceed 64 characters.", nameof(replay));
         }
 
         if (replay.Subject.Trim().Length > 500)

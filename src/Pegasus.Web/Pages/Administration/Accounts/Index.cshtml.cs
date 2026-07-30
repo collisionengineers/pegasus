@@ -6,8 +6,9 @@ using Pegasus.Core.Identity;
 namespace Pegasus.Web.Pages.Administration.Accounts;
 
 [Authorize(Policy = StaffRoleNames.Administrator)]
-public sealed class IndexModel(IStaffAccountAdministration administration)
-    : AdministrationPageModel
+public sealed class IndexModel(
+    IListStaffAccounts listStaffAccounts,
+    ICreateStaffAccount createStaffAccount) : AdministrationPageModel
 {
     public IReadOnlyList<StaffAccountSummary> Accounts { get; private set; } = [];
 
@@ -20,6 +21,12 @@ public sealed class IndexModel(IStaffAccountAdministration administration)
     public string TemporaryPassword { get; set; } = string.Empty;
 
     [BindProperty]
+    [Required, StringLength(
+        StaffAccountAdministrationPolicy.MaximumReasonLength,
+        MinimumLength = 1)]
+    public string Reason { get; set; } = string.Empty;
+
+    [BindProperty]
     public string OperationKey { get; set; } = NewOperationKey();
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
@@ -29,7 +36,7 @@ public sealed class IndexModel(IStaffAccountAdministration administration)
             return Forbid();
         }
 
-        Accounts = await administration.ListAsync(actor, cancellationToken);
+        await LoadAsync(actor, cancellationToken);
         return Page();
     }
 
@@ -49,13 +56,12 @@ public sealed class IndexModel(IStaffAccountAdministration administration)
         {
             try
             {
-                await administration.CreateAsync(
-                    actor,
-                    UserName,
-                    TemporaryPassword,
-                    OperationKey,
+                await createStaffAccount.ExecuteAsync(
+                    new(actor, UserName, TemporaryPassword, Reason, OperationKey),
                     cancellationToken);
-                TempData["AdministrationStatus"] = "The staff account was created and must change its password at first sign-in.";
+                TemporaryPassword = string.Empty;
+                TempData["AdministrationStatus"] =
+                    "The staff account was created and must change its password at first sign-in.";
                 return RedirectToPage();
             }
             catch (StaffAccountAdministrationException exception)
@@ -70,10 +76,27 @@ public sealed class IndexModel(IStaffAccountAdministration administration)
                 };
                 ModelState.AddModelError(string.Empty, message);
             }
+            catch (ArgumentException)
+            {
+                ModelState.AddModelError(string.Empty, "The account details were not accepted.");
+            }
         }
 
+        TemporaryPassword = string.Empty;
+        ModelState.Remove(nameof(TemporaryPassword));
         OperationKey = NewOperationKey();
-        Accounts = await administration.ListAsync(actor, cancellationToken);
+        ModelState.Remove(nameof(OperationKey));
+        await LoadAsync(actor, cancellationToken);
         return Page();
+    }
+
+    private async Task LoadAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        var result = await listStaffAccounts.ExecuteAsync(
+            new(actor, PageSize: ListStaffAccounts.MaximumPageSize),
+            cancellationToken);
+        Accounts = result.Accounts;
     }
 }

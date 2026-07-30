@@ -107,16 +107,22 @@ public partial class CaseWorkflowRuntime : Migration
 
         migrationBuilder.Sql(
             """
-            INSERT INTO CaseWorkflows (CaseId, State, Version)
+            INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken)
             SELECT Id,
                    CASE InitialState WHEN 'not_ready' THEN 'NotReady' WHEN 'review' THEN 'Review' END,
-                   0
+                   0,
+                   NEWID()
             FROM Cases
             WHERE InitialState IN ('not_ready', 'review');
 
             INSERT INTO CaseDueWork
-                (CaseId, MissingMaterialReason, State, NextChaseAtUtc, Version)
-            SELECT Id, 'Accepted intake is incomplete', 'Scheduled', CURRENT_TIMESTAMP, 0
+                (CaseId, MissingMaterialReason, State, NextChaseAtUtc, Version, ConcurrencyToken)
+            SELECT Id,
+                   'Accepted intake is incomplete',
+                   'Scheduled',
+                   CURRENT_TIMESTAMP,
+                   0,
+                   NEWID()
             FROM Cases
             WHERE InitialState = 'not_ready';
             """);

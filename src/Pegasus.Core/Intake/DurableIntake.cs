@@ -1,16 +1,18 @@
 using System.Security.Cryptography;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Triage;
 
 namespace Pegasus.Core.Intake;
 
 public enum IntakeWorkState
 {
-    Pending,
-    Dispatched,
-    Processing,
-    RetryScheduled,
-    Completed,
-    Failed
+    Pending = 0,
+    Dispatched = 1,
+    Processing = 2,
+    RetryScheduled = 3,
+    Completed = 4,
+    Failed = 5,
+    Dispatching = 6
 }
 
 public sealed record IntakeStagedReceipt(
@@ -35,7 +37,37 @@ public sealed record IntakeWorkItem(
     string? LeaseToken,
     DateTimeOffset? LeaseExpiresAtUtc,
     Guid? ProcessedReceiptId,
-    string? FailureCode);
+    string? FailureCode,
+    bool IsReevaluation = false);
+
+public enum StagedArtifactAuthorityState
+{
+    Pending = 0,
+    Failed = 1,
+    Completed = 2,
+    Unmatched = 3
+}
+
+public sealed record StagedArtifactAuthority(
+    string StorageKey,
+    string ExpectedContentHash,
+    long ExpectedContentLength,
+    StagedArtifactAuthorityState State);
+
+public interface IStagedArtifactAuthority
+{
+    Task<StagedArtifactAuthority?> FindAsync(
+        string storageKey,
+        CancellationToken cancellationToken);
+}
+
+public sealed record ReconcileStagedArtifactsResult(
+    int RecoveredLeases,
+    int Completed,
+    int Retained,
+    int Orphans,
+    int Unmatched,
+    int Failures);
 
 public sealed record ReceivedIntake(Guid StagedReceiptId, bool IsDuplicate);
 
@@ -180,7 +212,6 @@ public sealed class ReceiveIntake(
     IIntakeWorkStore workStore,
     TimeProvider timeProvider) : IIntakeSubmission
 {
-    private const int MaximumSourceLength = 10 * 1024 * 1024;
     private const int MaximumFileNameLength = 260;
     private const int MaximumMediaTypeLength = 200;
     private const int MaximumActorLength = 200;
@@ -228,7 +259,7 @@ public sealed class ReceiveIntake(
             throw new InvalidDataException("The intake source is empty.");
         }
 
-        if (source.Content.Length > MaximumSourceLength)
+        if (source.Content.Length > IntakeEnvelopeLimits.MaximumContentLength)
         {
             throw new InvalidDataException("The intake source exceeds the 10 MB limit.");
         }
@@ -250,7 +281,7 @@ public sealed class ReceiveIntake(
         {
             if (!string.Equals(existing.SourceHash, sourceHash, StringComparison.Ordinal))
             {
-                throw new IntakeSourceIdentityConflictException();
+                throw new IntakeSourceIdentityConflictException(existing.SourceHash, sourceHash);
             }
 
             return processInline
@@ -264,19 +295,25 @@ public sealed class ReceiveIntake(
                     cancellationToken);
         }
 
-        string storageKey;
+        var stagedReceiptId = Guid.NewGuid();
+        var nowUtc = timeProvider.GetUtcNow();
+        StagedArtifactInventoryItem stagedArtifact;
         try
         {
-            storageKey = await artifactStore.StoreAsync(sourceHash, source.Content, cancellationToken);
+            stagedArtifact = await artifactStore.StageAsync(
+                stagedReceiptId,
+                sourceHash,
+                source.Content,
+                nowUtc,
+                cancellationToken);
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
             throw new IntakeArtifactRetentionException(exception);
         }
 
-        var nowUtc = timeProvider.GetUtcNow();
         var stagedReceipt = new IntakeStagedReceipt(
-            Guid.NewGuid(),
+            stagedReceiptId,
             safeFileName,
             source.MediaType,
             source.Content.Length,
@@ -284,7 +321,7 @@ public sealed class ReceiveIntake(
             source.SourceIdentity,
             source.ReceivedAtUtc,
             source.Actor,
-            storageKey,
+            stagedArtifact.StorageKey,
             nowUtc);
         return processInline
             ? await workStore.ReceiveForProcessingAsync(
@@ -431,6 +468,10 @@ public sealed class ProcessQueuedIntake(
                 throw new IntakeArtifactIntegrityException();
             }
 
+            var durableStorageKey = await artifactStore.StoreAsync(
+                stagedReceipt.SourceHash,
+                content,
+                cancellationToken);
             processed = await processIntake.ExecuteRetainedAsync(
                 new(
                     stagedReceipt.SourceFileName,
@@ -439,7 +480,8 @@ public sealed class ProcessQueuedIntake(
                     stagedReceipt.ReceivedAtUtc,
                     stagedReceipt.Actor,
                     stagedReceipt.SourceIdentity),
-                stagedReceipt.StorageKey,
+                durableStorageKey,
+                workItem.IsReevaluation,
                 cancellationToken);
             evaluation = await workStore.CompleteProcessingAsync(
                 workItem.Id,
@@ -464,7 +506,49 @@ public sealed class ProcessQueuedIntake(
             return;
         }
 
+        await TryDeleteCompletedStagingAsync(
+            stagedReceipt.StorageKey,
+            cancellationToken);
+
         await CreateTriageIfQualifyingAsync(processed, evaluation, cancellationToken);
+    }
+
+    private async Task TryDeleteCompletedStagingAsync(
+        string storageKey,
+        CancellationToken cancellationToken)
+    {
+
+        try
+        {
+            var staged = await artifactStore.GetStagedAsync(
+                storageKey,
+                cancellationToken);
+            if (staged is null)
+            {
+                return;
+            }
+
+            if (staged.Disposition != StagedArtifactDisposition.Completed)
+            {
+                staged = await artifactStore.TrySetStagedDispositionAsync(
+                    staged.StorageKey,
+                    staged.ConcurrencyToken,
+                    StagedArtifactDisposition.Completed,
+                    cancellationToken);
+            }
+
+            if (staged is not null)
+            {
+                await artifactStore.DeleteCompletedStagedAsync(
+                    staged.StorageKey,
+                    staged.ConcurrencyToken,
+                    cancellationToken);
+            }
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            // ReconcileStagedArtifacts repairs a completion/tag/delete interruption.
+        }
     }
 
     private async Task CreateTriageIfQualifyingAsync(
@@ -473,10 +557,16 @@ public sealed class ProcessQueuedIntake(
         CancellationToken cancellationToken)
     {
         var registration = receipt.InstructionDraft?.VehicleRegistration;
+        var acceptedMatches = receipt.Evidence
+            .Where(evidence => evidence.Finding == IntakeEvidenceFinding.AcceptedTriageMatch)
+            .Take(2)
+            .ToArray();
         if (receipt.Decision != IntakeDecision.DraftReady
-            || string.IsNullOrWhiteSpace(receipt.ExtractionPolicyKey)
-            || receipt.ExtractionPolicyVersion is null or <= 0
-            || string.IsNullOrWhiteSpace(registration))
+            || string.IsNullOrWhiteSpace(registration)
+            || acceptedMatches.Length != 1
+            || acceptedMatches[0].Strength != IntakeEvidenceStrength.Strong
+            || string.IsNullOrWhiteSpace(acceptedMatches[0].MatcherKey)
+            || acceptedMatches[0].MatcherVersion is null or <= 0)
         {
             return;
         }
@@ -489,6 +579,7 @@ public sealed class ProcessQueuedIntake(
                     receipt.SourceHash,
                     evaluation.Id),
                 registration,
+                acceptedMatches[0],
                 SystemActor,
                 $"triage-from-intake-evaluation:{evaluation.Id:N}"),
             cancellationToken);
@@ -511,32 +602,270 @@ public sealed class ReconcilePoisonedIntakeWork(
         workStore.MarkPoisonedAsync(stagedReceiptId, timeProvider.GetUtcNow(), cancellationToken);
 }
 
-public sealed class ReconcileStagedIntakeArtifacts(
+public sealed class ReconcileStagedArtifacts(
     IIntakeWorkStore workStore,
+    IStagedArtifactAuthority authority,
+    IIntakeArtifactStore artifactStore,
     TimeProvider timeProvider)
 {
-    public Task<int> ExecuteAsync(int maximumItems, CancellationToken cancellationToken = default)
+    public async Task<ReconcileStagedArtifactsResult> ExecuteAsync(
+        int maximumItems,
+        CancellationToken cancellationToken = default)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
-        return workStore.RecoverExpiredLeasesAsync(
+
+        var recoveredLeases = await workStore.RecoverExpiredLeasesAsync(
             timeProvider.GetUtcNow(),
             maximumItems,
             cancellationToken);
+        var items = await artifactStore.ListStagedAsync(maximumItems, cancellationToken);
+        var completed = 0;
+        var retained = 0;
+        var orphans = 0;
+        var unmatched = 0;
+        var failures = 0;
+
+        foreach (var item in items)
+        {
+            try
+            {
+                var durable = await authority.FindAsync(item.StorageKey, cancellationToken);
+                var target = Classify(item, durable);
+                var current = item;
+                if (current.Disposition != target)
+                {
+                    current = await artifactStore.TrySetStagedDispositionAsync(
+                        item.StorageKey,
+                        item.ConcurrencyToken,
+                        target,
+                        cancellationToken);
+                    if (current is null)
+                    {
+                        failures++;
+                        continue;
+                    }
+                }
+
+                switch (target)
+                {
+                    case StagedArtifactDisposition.Completed:
+                        if (await artifactStore.DeleteCompletedStagedAsync(
+                                current.StorageKey,
+                                current.ConcurrencyToken,
+                                cancellationToken))
+                        {
+                            completed++;
+                        }
+                        else
+                        {
+                            failures++;
+                        }
+                        break;
+                    case StagedArtifactDisposition.Orphan:
+                        orphans++;
+                        break;
+                    case StagedArtifactDisposition.Unmatched:
+                        unmatched++;
+                        break;
+                    case StagedArtifactDisposition.Pending:
+                    case StagedArtifactDisposition.Failed:
+                        retained++;
+                        break;
+                    default:
+                        throw new InvalidOperationException(
+                            $"Unknown staged artifact disposition '{(int)target}'.");
+                }
+            }
+            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+            {
+                failures++;
+            }
+        }
+
+        return new(
+            recoveredLeases,
+            completed,
+            retained,
+            orphans,
+            unmatched,
+            failures);
+    }
+
+    private static StagedArtifactDisposition Classify(
+        StagedArtifactInventoryItem item,
+        StagedArtifactAuthority? durable)
+    {
+        if (durable is null)
+        {
+            return StagedArtifactDisposition.Orphan;
+        }
+
+        if (!string.Equals(
+                item.ContentHash,
+                durable.ExpectedContentHash,
+                StringComparison.Ordinal)
+            || item.ContentLength != durable.ExpectedContentLength)
+        {
+            return StagedArtifactDisposition.Unmatched;
+        }
+
+        return durable.State switch
+        {
+            StagedArtifactAuthorityState.Pending => StagedArtifactDisposition.Pending,
+            StagedArtifactAuthorityState.Failed => StagedArtifactDisposition.Failed,
+            StagedArtifactAuthorityState.Completed => StagedArtifactDisposition.Completed,
+            StagedArtifactAuthorityState.Unmatched => StagedArtifactDisposition.Unmatched,
+            _ => throw new InvalidOperationException(
+                $"Unknown staged artifact authority state '{(int)durable.State}'.")
+        };
     }
 }
 
 public sealed class ResolveIntake(
-    IIntakeWorkStore workStore,
-    TimeProvider timeProvider)
+    IIntakeMutationStore store,
+    TimeProvider timeProvider) : IResolveIntake
 {
-    public Task ExecuteAsync(Guid stagedReceiptId, CancellationToken cancellationToken = default) =>
-        workStore.ScheduleReevaluationAsync(stagedReceiptId, timeProvider.GetUtcNow(), cancellationToken);
+    public Task<IntakeReceipt> ExecuteAsync(
+        ResolveIntakeRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        IntakeCommandValidation.RequireStaffMutation(
+            request.ReceiptId,
+            request.ExpectedVersion,
+            request.Actor,
+            request.OperationKey,
+            request.Reason);
+        if (!Enum.IsDefined(request.Kind))
+        {
+            throw new ArgumentOutOfRangeException(nameof(request), "The resolution kind is invalid.");
+        }
+        if ((request.Kind == IntakeResolutionKind.CorrectDraft) != (request.CorrectedDraft is not null))
+        {
+            throw new ArgumentException(
+                "A corrected draft is required only for a draft correction.",
+                nameof(request));
+        }
+
+        return store.ResolveAsync(request, timeProvider.GetUtcNow(), cancellationToken);
+    }
 }
 
 public sealed class ReevaluateIntake(
-    IIntakeWorkStore workStore,
-    TimeProvider timeProvider)
+    IIntakeMutationStore store,
+    TimeProvider timeProvider) : IReevaluateIntake
 {
-    public Task ExecuteAsync(Guid stagedReceiptId, CancellationToken cancellationToken = default) =>
-        workStore.ScheduleReevaluationAsync(stagedReceiptId, timeProvider.GetUtcNow(), cancellationToken);
+    public Task<IntakeReceipt> ExecuteAsync(
+        ReevaluateIntakeRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        IntakeCommandValidation.RequireStaffMutation(
+            request.ReceiptId,
+            request.ExpectedVersion,
+            request.Actor,
+            request.OperationKey,
+            request.Reason);
+        return store.ScheduleReevaluationAsync(
+            request,
+            timeProvider.GetUtcNow(),
+            cancellationToken);
+    }
+}
+
+public sealed class LinkIntake(
+    IIntakeMutationStore store,
+    TimeProvider timeProvider) : ILinkIntake
+{
+    public Task ExecuteAsync(
+        LinkIntakeRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        IntakeCommandValidation.RequireStaffMutation(
+            request.ReceiptId,
+            request.ExpectedIntakeVersion,
+            request.Actor,
+            request.OperationKey,
+            request.Reason);
+        IntakeCommandValidation.RequireCase(
+            request.CaseId,
+            request.ExpectedCaseVersion,
+            request.EditLeaseToken);
+        return store.LinkAsync(request, timeProvider.GetUtcNow(), cancellationToken);
+    }
+}
+
+public sealed class ReverseIntakeLink(
+    IIntakeMutationStore store,
+    TimeProvider timeProvider) : IReverseIntakeLink
+{
+    public Task ExecuteAsync(
+        ReverseIntakeLinkRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        IntakeCommandValidation.RequireStaffMutation(
+            request.ReceiptId,
+            request.ExpectedIntakeVersion,
+            request.Actor,
+            request.OperationKey,
+            request.Reason);
+        IntakeCommandValidation.RequireCase(
+            request.CaseId,
+            request.ExpectedCaseVersion,
+            request.EditLeaseToken);
+        return store.ReverseLinkAsync(request, timeProvider.GetUtcNow(), cancellationToken);
+    }
+}
+
+internal static class IntakeCommandValidation
+{
+    public static void RequireStaffMutation(
+        Guid receiptId,
+        long expectedVersion,
+        ActionActor actor,
+        string operationKey,
+        string reason)
+    {
+        if (receiptId == Guid.Empty)
+        {
+            throw new ArgumentException("An intake receipt identifier is required.", nameof(receiptId));
+        }
+        ArgumentOutOfRangeException.ThrowIfNegative(expectedVersion);
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        if (operationKey.Length > 100)
+        {
+            throw new ArgumentException(
+                "The operation key must be 100 characters or fewer.",
+                nameof(operationKey));
+        }
+        if (reason.Trim().Length > 500)
+        {
+            throw new ArgumentException(
+                "The reason must be 500 characters or fewer.",
+                nameof(reason));
+        }
+    }
+
+    public static void RequireCase(
+        Guid caseId,
+        long expectedVersion,
+        string editLeaseToken)
+    {
+        if (caseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(caseId));
+        }
+        ArgumentOutOfRangeException.ThrowIfNegative(expectedVersion);
+        ArgumentException.ThrowIfNullOrWhiteSpace(editLeaseToken);
+        if (editLeaseToken.Length > 64)
+        {
+            throw new ArgumentException(
+                "The case edit lease token must be 64 characters or fewer.",
+                nameof(editLeaseToken));
+        }
+    }
 }

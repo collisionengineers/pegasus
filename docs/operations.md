@@ -54,6 +54,12 @@ Chromium browser. It requires no Azure, Graph, Box, DVLA/DVSA, EVA, Infisical,
 Docker, cloud login, or vendor authentication. Package and browser restoration
 may use package feeds; an initialized run's Start and Smoke paths do not.
 
+Pegasus has one supported database-provider contract: SQL Server. SQL Server
+Express LocalDB is the canonical local development and integration-acceptance
+provider for persistence, migrations, concurrency, and recovery evidence; Azure
+SQL is the deployed provider. Both use the committed SQL Server migration
+stream, and supported configuration exposes no provider choice.
+
 Use the owned commands rather than manually composing service terminals:
 
 ```powershell
@@ -135,21 +141,58 @@ Application staff identity initialization remains a separately controlled applic
 
 ### Approved Azure SQL runtime-role bootstrap
 
-`Invoke-AzureDatabaseBootstrap.ps1` is a post-provision, post-migration
-boundary for the exact approved Azure SQL server and database. It uses the
-already-approved terminal identity through `sqlcmd`'s
-`ActiveDirectoryDefault` authentication, strict TLS, and no password or secret
-argument. It does not log in, create Azure resources, apply migrations, or
-create permissions beyond membership of the two existing schema-managed runtime
-roles.
+`Invoke-AzureDatabaseBootstrap.ps1` is the sole separately invoked
+post-provision, post-migration boundary for the exact approved Azure SQL server
+and database. `azure.yaml` has no automatic database-grant hook. The script uses
+the already-approved terminal identity through
+`sqlcmd`'s `ActiveDirectoryDefault` authentication, strict TLS, and no password
+or secret argument. It does not log in, create Azure resources, apply
+migrations, or create permissions.
 
-The operator must supply the approved server/database, distinct Web and Worker
-managed-identity client IDs, deterministic user/role names, approval reference,
-and `-ApprovedOperation`; missing roles, mismatched existing users, shared
-identities/roles, absent approval, or any SQL error fail closed. The command
-does not bootstrap staff accounts or public clients; that one-shot,
-concealed-input application command remains a separately controlled release
-step.
+Migration `20260729176000_AzureSqlRuntimeLeastPrivilege` creates and owns the
+fixed custom roles `pegasus_web_runtime_role` and
+`pegasus_worker_runtime_role`. Terminal migration
+`20260729199000_RuntimeRoleReconciliation` first removes every direct
+object-level DML permission for those roles across the complete application
+table census, then grants the exhaustive caller-derived matrix. It explicitly
+denies `DELETE` on every table except the four Web workflows that require it
+(`AspNetUserRoles`, `CaseDataFields`, `OrganizationRoles`, and
+`TriageResponseEvidenceLinks`); Worker has no `DELETE` grant. Neither role
+receives DDL, schema-wide access, `db_datareader`, `db_datawriter`, or
+`db_owner`. Web owns staff identity and administration, case editing,
+document-custody, request-upload, and operator intake persistence. Worker owns
+mailbox polling, queued intake, due-work and sent-evidence processing, and
+vehicle-observation persistence. Runtime migration tests compare the complete
+schema census, grants, and delete denials rather than sampling named tables.
+The bootstrap owns only the fixed external-user aliases
+`pegasus_web_runtime` and `pegasus_worker_runtime`, created from the
+corresponding managed-identity client-ID SID.
+
+After a separately approved live deployment mode has provisioned the outputs
+and the reviewed migration bundle has completed, the approved command is:
+
+```powershell
+pwsh ./scripts/Invoke-AzureDatabaseBootstrap.ps1 `
+  -Server $env:AZURE_SQL_SERVER_FQDN `
+  -Database $env:AZURE_SQL_DATABASE_NAME `
+  -WebClientId $env:WEB_IDENTITY_CLIENT_ID `
+  -WorkerClientId $env:WORKER_IDENTITY_CLIENT_ID `
+  -ApprovalReference $env:AZURE_DATABASE_ACCESS_APPROVAL_REFERENCE `
+  -EvidenceReference $env:AZURE_DATABASE_ACCESS_EVIDENCE_REFERENCE `
+  -DeploymentMode $env:DEPLOYMENT_MODE `
+  -ApprovedOperation:($env:AZURE_DATABASE_ACCESS_APPROVED -eq 'true')
+```
+
+The script requires `approved-live-deployment`, distinct non-empty identity
+client IDs, exact approval/evidence references, and `-ApprovedOperation`. It
+validates each existing user's external type and exact 16-byte SID; fixed role
+type and ownership; only object-level DML grants plus migration-managed
+`DELETE` denials (every other denial or permission fails closed); no direct
+user permissions, ownership, nested roles, broader memberships, or unexpected
+role members; and the final one-user/one-role binding. Any mismatch or SQL error
+fails the transaction closed. It does not bootstrap staff accounts or public
+clients; that concealed-input application command remains a separately
+controlled release step.
 
 ## Locked restore, build, and test
 
@@ -272,6 +315,16 @@ pwsh ./scripts/Initialize-LocalDevelopment.ps1
 pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start
 ```
 
+Initialization resolves the exact checkout `HEAD` and requires the tracked and
+untracked working tree to remain clean before restore, immediately before and
+after the Debug build, and before publishing its marker. The build disables
+incremental compilation so the dependency graph is rebuilt from those clean
+inputs. The marker records the relative paths, byte lengths, and SHA-256 hashes
+of the Web and Worker runtime assemblies. `Start` refuses a changed revision,
+package lock, missing artifact, or runtime-byte mismatch before it creates or
+restarts a run.
+
+
 `Start` prints a generated 32-character run ID. It creates
 `artifacts/local-development/<run-id>/` with its ownership manifest, logs,
 Azurite store, intake/mailbox/case-file roots, dynamic loopback ports, and a
@@ -310,6 +363,14 @@ Smoke also proves that the manifest HTTPS origin is listening, the OpenID issuer
 and both generic and `/mcp` protected-resource metadata resolve to that exact
 origin, the initialized local Administrator can reach the Operations route, and
 the version diagnostic matches the manifest source SHA.
+A successful `Start` persists current-attempt readiness evidence only after
+Azurite, Web health, and the Functions host have all passed. `Smoke` takes the
+lifecycle mutex, invalidates any earlier smoke result before probing, and then
+atomically persists either `Passed` evidence or a failed result for that same
+start attempt. The passed record binds the version diagnostic source SHA,
+initialized identity, HTTPS/OAuth metadata, Administrator route, and service
+readiness to the run manifest.
+
 
 These checks prove the local process graph and the exercised health/diagnostic
 paths only. They do not prove a business caller, durable cloud behavior,
@@ -351,7 +412,7 @@ Configuration ownership is:
 
 | Boundary | Owner |
 | --- | --- |
-| Web composition and database selection | `src/Pegasus.Web/Program.cs` and environment configuration |
+| Web composition and named SQL Server connection | `src/Pegasus.Web/Program.cs` and environment configuration |
 | Development profile and launch path | `src/Pegasus.Web/Properties/launchSettings.json` |
 | Ignored local state | `artifacts/` |
 | Target Azure parameters and topology | `infra/`, `azure.yaml`, and `.azure/deployment-plan.md` |
@@ -430,7 +491,7 @@ The runner requires Git metadata and a clean working tree, resolves the supplied
 
 This lane proves bounded in-process Web-caller concurrency, latency, antiforgery denial, cancellation recovery, and idempotent replay against controlled fixtures. It does **not** prove the approved 30-minute workload, 2,000-case/source distribution, Worker/Azurite queue recovery, LocalDB restore, full case/EVA/report journeys, deployment, or acceptance.
 
-`-Profile OfflineCandidate` is deliberately fail closed. It first requires a schema-version-1 local manifest naming an operator approval reference, exactly 2,000 cases, an immutable dataset path, and its matching SHA-256; it then reports the remaining concrete source gate: the Core `QdosAlphaAcceptanceGate` and complete 128-capability caller-observation map are not implemented. The script never promotes `CiPressure` evidence to `OfflineCandidate`, `ImplementationCandidate`, deployed, live-verified, or accepted evidence.
+`-Profile OfflineCandidate` is deliberately fail closed. It requires the operator-approved immutable 2,000-case dataset and hash, the complete QDOS-owned caller-evidence manifest, and the exact run-owned `artifacts/local-development/<run-id>/run-manifest.json`. That local manifest must identify the same clean source revision and acceptance run ID, remain `Running`, record completed fixed local identity initialization, and contain `Passed` readiness and smoke observations from the current start attempt in timestamp order. The runner also re-hashes the exact Web and Worker runtime paths recorded at initialization, so missing or altered local binaries fail before any acceptance tests execute. The script never promotes this offline evidence to deployed, live-verified, release-accepted, QDOS operator-accepted, or Collision Engineers management-accepted evidence.
 
 Stable planned traits are:
 
@@ -445,7 +506,7 @@ For each delivered capability, identify the authoritative rule, Core policy owne
 1. **Static/build/architecture** — compile the four approved projects, enforce dependency direction and one policy owner, compile Bicep, inspect dependencies, and prevent tracked corpus or secret material. This proves consistency only.
 2. **Core/domain** — positive, contradictory, ambiguous, and failure cases for intake, references, matching, lifecycle, roles, completeness, and case invariants.
 3. **Parser/adapter contracts** — EML/PDF/DOCX and later approved DOC/MSG handling; corruption, encryption, expansion/resource limits, cancellation, path/integrity safety, stable contract codes, and deterministic external failures.
-4. **SQLite and LocalDB persistence** — fresh and incompatible schemas, committed migrations, rollback, state/action-history/outbox atomicity, reference allocation, constraints, pagination, leases, stale versions, concurrency, and backup/restore.
+4. **LocalDB persistence** — fresh and incompatible schemas, committed SQL Server migrations, rollback, state/action-history/outbox atomicity, reference allocation, constraints, pagination, leases, stale versions, concurrency, and backup/restore.
 5. **Web/API/MCP caller** — actual routes reach Core; authentication, antiforgery, validation, scope, idempotency, exception translation, and action-history actor are observable.
 6. **Functions/Azurite caller** — actual timer/queue trigger, Blob staging, identifier-only messages, duplicate/retry/poison/restart behavior, and delete-after-Box-confirmation.
 7. **Browser/accessibility** — authenticated workflows, dashboard/queue agreement, two-session editing, keyboard, focus and error behavior, semantic labels, text-plus-colour states, 200% zoom, and supported-browser coverage. Automated axe results do not replace manual keyboard or assistive-technology review.
@@ -462,7 +523,7 @@ Run policy tests first, adapter contracts second, persistence/transaction tests 
 | Boundary | Local evidence | Separately approved live evidence |
 | --- | --- | --- |
 | ASP.NET Core / App Service | Kestrel, `WebApplicationFactory`, Playwright, local HTTPS | Linux App Service runtime, F1/B1 limits, health platform, restart, managed identity |
-| SQL / Azure SQL | SQLite and disposable LocalDB for migrations, locking, allocation, rollback, backup, and restore | Entra identity, Azure SQL configuration/throttling, point-in-time restore, 15-minute RPO and four-hour RTO |
+| SQL Server / Azure SQL | Disposable LocalDB for migrations, locking, allocation, rollback, backup, and restore | Entra identity, Azure SQL configuration/throttling, point-in-time restore, 15-minute RPO and four-hour RTO |
 | Blob / Queue / Functions | Azurite and actual Functions host for staging, identifiers, duplicate/poison/restart behavior | Storage RBAC, managed identity, durability, Flex scale/concurrency, platform diagnostics |
 | Key Vault / identity | Mock the owned port; developer credentials only for approved development resources | Deployed managed identity, least-privilege RBAC, firewall behavior |
 | Application Insights / Log Analytics | In-memory OpenTelemetry and optional local Collector | Ingestion, sampling, KQL, retention, alert rules, recipient delivery |
@@ -499,7 +560,7 @@ dotnet run --project ./src/Pegasus.Web -- --register-development-mcp-client
 The command registers public client `pegasus-development-mcp`, the RFC 8252
 loopback redirect `http://127.0.0.1:7890/callback`, authorization-code and
 refresh-token grants, S256 PKCE, explicit consent, and only
-`pegasus.mcp.read`/`pegasus.mcp.write`. It emits no token or credential. A
+`pegasus.read`/`pegasus.write`. It emits no token or credential. A
 successful create or idempotent update appends the content-safe
 `development_mcp_client_registered` `Client` security event against that client
 ID. Exercise the real HTTPS protocol rather than calling a PageModel or manager
@@ -703,34 +764,99 @@ The accepted direct-terminal Azure design is indexed by [architecture](architect
 ### Offline/replay release artifacts
 
 The implemented release slice is local only. From the checked-out approved green
-revision, create a new release directory and validate it:
+revision, choose a new output path, build two byte-identical packaging passes,
+and validate the resulting immutable inputs:
 
 ```powershell
+$SourceRevision = (git rev-parse --verify HEAD).Trim()
+$ReleaseDirectory = "./artifacts/release-$SourceRevision"
+$BootstrapManifest = "./artifacts/approved/bootstrap-manifest-$SourceRevision.json"
+
 pwsh ./scripts/Build-ReleaseArtifacts.ps1 `
-  -SourceRevision 1c2fa19 `
-  -OutputDirectory ./artifacts/release/1c2fa19
+  -SourceRevision $SourceRevision `
+  -Configuration Release `
+  -ApplicationRuntime linux-x64 `
+  -MigrationRuntime win-x64 `
+  -BootstrapRuntime win-x64 `
+  -BootstrapManifestPath $BootstrapManifest `
+  -VerifyReproducible `
+  -OutputDirectory $ReleaseDirectory
 
 pwsh ./scripts/Test-AzureDeploymentPlan.ps1 `
-  -ArtifactDirectory ./artifacts/release/1c2fa19
+  -Mode Local `
+  -ArtifactDirectory $ReleaseDirectory
 ```
 
-The build accepts either the full 40-character revision or an unambiguous
-lowercase or uppercase 7-to-39-character Git prefix, while the documented short
-form keeps output paths readable. Before restore or staging, it requires Git
-metadata and a clean working tree, resolves that input to the exact checked-out
-`HEAD`, and rejects any different or ambiguous commit. It supplies the resolved
-revision to the SDK build, invokes the published Web assembly's
-`--diagnostics-version` command, and requires the compiled source SHA to match
-before creating deterministic `web.zip`, `worker.zip`, and `migration.zip`
-archives or writing `release-manifest.json`. The manifest records only the exact
-40-character revision, the verified Web version/source diagnostic, and each
-artifact's length and SHA-256 hash. The output path must not exist before the
-build; this prevents a replay from mixing stale and newly generated bytes.
+`SourceRevision` may be the full 40-character revision or an unambiguous
+7-to-39-character hexadecimal prefix. The builder resolves it to the exact
+checked-out `HEAD`, requires the tree to remain clean and at that revision
+before and after every restore/build/package boundary, and refuses an output
+path that already exists or appears while packaging. Restore is locked and uses
+an empty package-source configuration, so missing cached packages or the pinned
+`dotnet-ef` `10.0.10` tool fail rather than contacting a feed.
 
-The test re-hashes those archives, verifies the required publish/migration
-contents and fixed ZIP metadata, and compiles `infra/main.bicep` locally. Neither
-script signs in, invokes `az` or `azd`, provisions a resource, applies a
-migration, deploys a package, or contacts a cloud control plane.
+Web and Worker are explicitly published for `linux-x64` as
+framework-dependent applications. The database artifact is a self-contained
+`win-x64` EF migrations executable, not a SQL script. The one-shot
+`Pegasus.Bootstrap` console is a self-contained `win-x64` executable. Its
+mandatory `-BootstrapManifestPath` is a separately reviewed, non-secret,
+environment-specific input; the project must not publish a generic placeholder.
+The builder validates its exact version/source/target/client DTO, copies the
+canonical bytes to `bootstrap-manifest.json`, and records its length and
+SHA-256 in the single release manifest. It also invokes the Web
+`--diagnostics-version` command and requires the genuine
+`0.1.0-alpha.1`/source-SHA result before it packages anything. A second staging
+pass must reproduce every output byte.
+
+The release directory contains exactly:
+
+- `web-linux-x64.zip`;
+- `worker-linux-x64.zip`;
+- `migration-bundle-win-x64.zip`;
+- `bootstrap-win-x64.zip`;
+- `azure-deployment-inputs.zip`, containing the exact `azure.yaml`, Bicep entry,
+  parameter file, and local Bicep module used by validation;
+- `release-manifest.json`; and
+- `release-manifest.sha256`.
+
+No publish directory, Development settings, local settings, key/certificate
+material, or other raw build tree is released. The single manifest records the
+exact lowercase source revision, deterministic tracked path/mode/blob-byte tree
+hash and permitted excluded-prefix path counts, release version, verified Web
+diagnostic, approved bootstrap-manifest digest, pinned SDK/EF versions,
+locked/offline restore mode, runtimes, deployment kind, and the path, length,
+and SHA-256 of every named input and artifact. The canonical digest file binds
+the manifest bytes.
+
+Local validation first matches that manifest and digest to a clean exact
+checkout, rejects missing or extra files/directories, re-hashes every input and
+artifact, and checks fixed ZIP metadata, duplicate/case-colliding names, path
+traversal, forbidden secret/development files, the exact nine Worker functions,
+and their fail-closed trigger settings. It extracts only the hash-verified
+`azure-deployment-inputs.zip` to an isolated temporary directory and compiles
+that packaged `infra/main.bicep`; it never compiles the repository copy and
+never invokes `dotnet`, `azd package`, or another application rebuild.
+
+After the separately approved migration and SQL-principal steps, the bootstrap
+artifact's non-secret invocation contract is:
+
+```powershell
+.\Pegasus.Bootstrap.exe `
+  --manifest .\bootstrap-manifest.json `
+  --approved-manifest-sha256 <release-manifest-bootstrap-sha256> `
+  --server <approved-sql-host> `
+  --database <approved-database> `
+  --issuer <approved-https-origin>
+```
+
+The independently checked `bootstrapManifest.sha256` value from
+`release-manifest.json` is passed explicitly; the executable re-hashes the
+manifest before initialization. The two initial passwords are read only through
+concealed interactive prompts; they are never command arguments, environment
+values, manifest fields, files, or log output. Packaging and local validation do
+not run either the migration or bootstrap executable. Neither script signs in,
+invokes `azd`, provisions a resource, deploys a package, or contacts a cloud
+control plane.
 
 ### Azure activation remains fail-closed
 

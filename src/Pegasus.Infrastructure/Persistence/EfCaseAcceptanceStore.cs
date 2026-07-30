@@ -4,9 +4,9 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 
@@ -24,10 +24,25 @@ public sealed class EfCaseAcceptanceStore(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.Actor);
+        ArgumentNullException.ThrowIfNull(request.Actor);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.OperationKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Reason);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.PrincipalCode);
+        if (request.Actor.Kind is not (ActorKind.Staff or ActorKind.SystemWorker))
+        {
+            throw new ArgumentException(
+                "Case acceptance requires a staff or system-worker actor.",
+                nameof(request));
+        }
         ArgumentNullException.ThrowIfNull(request.Completeness);
+        ArgumentNullException.ThrowIfNull(request.CompletenessEvaluation);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.CompletenessEvaluation.PolicyKey);
+        if (request.CompletenessEvaluation.PolicyVersion < 1)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(request),
+                "The completeness policy version must be positive.");
+        }
         if (request.IntakeReceiptId == Guid.Empty)
         {
             throw new ArgumentException("An intake receipt is required for case acceptance.", nameof(request));
@@ -38,21 +53,32 @@ public sealed class EfCaseAcceptanceStore(
             throw new ArgumentOutOfRangeException(nameof(request), "The expected intake version cannot be negative.");
         }
 
-        if (!Enum.IsDefined(request.CaseType)
-            || (request.StandaloneAuditAssessment is { } assessment && !Enum.IsDefined(assessment)))
+        if (!Enum.IsDefined(request.CaseType))
         {
-            throw new ArgumentOutOfRangeException(nameof(request), "The case type or Audit assessment is invalid.");
+            throw new ArgumentOutOfRangeException(nameof(request), "The case type is invalid.");
         }
-
-        if ((request.CaseType == CaseType.Audit) != (request.StandaloneAuditAssessment is not null))
+        if (request.CaseType == CaseType.Audit
+            && (request.StandaloneAuditEvidenceId is null
+                || request.StandaloneAuditEvidenceId == Guid.Empty))
         {
             throw new ArgumentException(
-                "A standalone Audit, and only a standalone Audit, requires an assessment.",
+                "A standalone Audit requires retained original-report evidence.",
                 nameof(request));
         }
-        if (request.Actor.Length > 200)
+        if (request.CaseType != CaseType.Audit && request.StandaloneAuditEvidenceId is not null)
         {
-            throw new ArgumentException("The case acceptance actor cannot exceed 200 characters.", nameof(request));
+            throw new ArgumentException(
+                "Only a standalone Audit can link standalone Audit evidence.",
+                nameof(request));
+        }
+        if (request.Actor.SubjectId.Length > 200)
+        {
+            throw new ArgumentException("The case acceptance actor subject cannot exceed 200 characters.", nameof(request));
+        }
+        var reason = request.Reason.Trim();
+        if (reason.Length > 500)
+        {
+            throw new ArgumentException("The case acceptance reason cannot exceed 500 characters.", nameof(request));
         }
 
         if (request.OperationKey.Length > 100)
@@ -65,7 +91,13 @@ public sealed class EfCaseAcceptanceStore(
             throw new ArgumentException("The principal code cannot exceed 20 characters.", nameof(request));
         }
 
-        var principalCode = NormalizePrincipalCode(request.PrincipalCode);
+        request = request with
+        {
+            OperationKey = request.OperationKey.Trim(),
+            Reason = reason
+        };
+        var principalCode = QdosAlphaCaseActivationPolicy.RequireActivatedPrincipal(
+            request.PrincipalCode);
         var command = CreateAcceptanceCommand(request, principalCode);
 
         for (var attempt = 1; attempt <= 3; attempt++)
@@ -110,8 +142,11 @@ public sealed class EfCaseAcceptanceStore(
             EnsureExactReplay(existingLink, request, principalCode, command);
             return Map(existingLink.Case, existingLink.CustodyWorkId, true);
         }
+        CaseDataPolicy.ValidateCompleteness(request.Completeness);
 
         var receipt = await context.IntakeReceipts
+            .Include(item => item.InstructionDraft)
+            .Include(item => item.MailRouteDecision)
             .SingleOrDefaultAsync(item => item.Id == request.IntakeReceiptId, cancellationToken)
             ?? throw new InvalidOperationException("The intake receipt does not exist.");
         if (receipt.Version != request.ExpectedIntakeVersion)
@@ -123,6 +158,13 @@ public sealed class EfCaseAcceptanceStore(
         {
             throw new InvalidOperationException("Only a ready intake receipt can be accepted as a case.");
         }
+        var standaloneAuditEvidence = await ResolveStandaloneAuditEvidenceAsync(
+            context,
+            request,
+            cancellationToken);
+        var standaloneAuditAssessment = standaloneAuditEvidence is null
+            ? (AuditAssessment?)null
+            : ParseAuditAssessment(standaloneAuditEvidence.Assessment);
 
         var principal = await context.Principals
             .SingleOrDefaultAsync(
@@ -153,12 +195,12 @@ public sealed class EfCaseAcceptanceStore(
 
         var allocatedSequence = ++sequence.LastAllocatedSequence;
         var reference = $"{principal.Code}{year % 100:00}{allocatedSequence:000}";
-        var auditReference = request.CaseType == CaseType.Audit
-            ? $"{AuditPrefix(request.StandaloneAuditAssessment!.Value)}{reference}"
+        var auditReference = standaloneAuditAssessment is { } assessment
+            ? AuditIdentity.Create(reference, assessment)
             : null;
         var caseId = Guid.NewGuid();
         var custodyWorkId = Guid.NewGuid();
-        var initialState = request.Completeness.IsReadyForReview(automaticallyDefinitive: true)
+        var initialState = request.CompletenessEvaluation.SatisfiesPolicy
             ? CaseInitialState.Review
             : CaseInitialState.NotReady;
 
@@ -176,9 +218,11 @@ public sealed class EfCaseAcceptanceStore(
             InitialState = ToCode(initialState),
             CustodyState = ToCode(CaseCustodyState.Pending),
             OriginIntakeReceiptId = receipt.Id,
-            StandaloneAuditAssessment = request.StandaloneAuditAssessment is null
+            StandaloneAuditAssessment = standaloneAuditAssessment is null
                 ? null
-                : ToCode(request.StandaloneAuditAssessment.Value),
+                : ToCode(standaloneAuditAssessment.Value),
+            StandaloneAuditEvidenceId = standaloneAuditEvidence?.Id,
+            AcceptedInspectionDeadline = request.AcceptedInspectionDeadline,
             InstructionComplete = request.Completeness.InstructionComplete,
             ImagesComplete = request.Completeness.ImagesComplete,
             InstructionConfirmedByStaff = request.Completeness.InstructionConfirmedByStaff,
@@ -187,6 +231,8 @@ public sealed class EfCaseAcceptanceStore(
             Version = 0
         };
         context.Cases.Add(caseEntity);
+        context.CaseDataSnapshots.Add(
+            CaseDataSnapshotFactory.Create(caseEntity, receipt, request, acceptedAtUtc));
         var workflowEntity = new CaseWorkflowEntity
         {
             Case = caseEntity,
@@ -202,6 +248,7 @@ public sealed class EfCaseAcceptanceStore(
                 CaseId = caseId,
                 Workflow = workflowEntity,
                 MissingMaterialReason = "Accepted intake is incomplete",
+                DueBy = request.AcceptedInspectionDeadline,
                 State = CaseDueWorkState.Scheduled.ToString(),
                 NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(acceptedAtUtc),
                 Version = 0
@@ -214,20 +261,38 @@ public sealed class EfCaseAcceptanceStore(
             CaseId = caseId,
             CustodyWorkId = custodyWorkId,
             LinkedAtUtc = acceptedAtUtc,
-            Actor = request.Actor,
+            ActorKind = request.Actor.Kind.ToString(),
+            ActorSubjectId = request.Actor.SubjectId,
+            ActorRolesJson = RolesJson(request.Actor),
+            Reason = request.Reason,
             OperationKey = request.OperationKey,
             ExpectedIntakeVersion = request.ExpectedIntakeVersion,
             AcceptanceCommandMaterialJson = command.MaterialJson,
             AcceptanceCommandFingerprint = command.Fingerprint
         });
+        receipt.ManualAssociation = new()
+        {
+            IntakeReceiptId = receipt.Id,
+            IntakeReceipt = receipt,
+            CaseId = caseId,
+            Case = caseEntity,
+            IsActive = true,
+            Version = 0,
+            LinkedAtUtc = acceptedAtUtc,
+            ActorKind = request.Actor.Kind.ToString(),
+            ActorSubjectId = request.Actor.SubjectId,
+            ActorRolesJson = RolesJson(request.Actor),
+            Reason = request.Reason,
+            LastOperationKey = request.OperationKey
+        };
         context.CaseHistory.Add(new()
         {
             Id = Guid.NewGuid(),
             Case = caseEntity,
             CaseId = caseId,
             EventType = "case_accepted",
-            Actor = request.Actor,
-            Reason = "Accepted intake",
+            Actor = request.Actor.SubjectId,
+            Reason = request.Reason,
             OccurredAtUtc = acceptedAtUtc,
             OperationKey = request.OperationKey,
             BeforeVersion = null,
@@ -245,10 +310,80 @@ public sealed class EfCaseAcceptanceStore(
             DueAtUtc = acceptedAtUtc
         });
         receipt.Version++;
+        context.IntakeMutationHistory.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            IntakeReceiptId = receipt.Id,
+            IntakeReceipt = receipt,
+            CaseId = caseId,
+            Case = caseEntity,
+            EventType = "intake_case_association_seeded",
+            ActorKind = request.Actor.Kind.ToString(),
+            ActorSubjectId = request.Actor.SubjectId,
+            ActorRolesJson = RolesJson(request.Actor),
+            Reason = request.Reason,
+            OperationKey = request.OperationKey,
+            RequestFingerprint = command.Fingerprint,
+            OccurredAtUtc = acceptedAtUtc,
+            ExpectedIntakeVersion = request.ExpectedIntakeVersion,
+            BeforeIntakeVersion = request.ExpectedIntakeVersion,
+            AfterIntakeVersion = receipt.Version,
+            ExpectedCaseVersion = null,
+            BeforeCaseVersion = null,
+            AfterCaseVersion = 0
+        });
 
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(caseEntity, custodyWorkId, false);
+    }
+
+    private static async Task<StandaloneAuditEvidenceEntity?> ResolveStandaloneAuditEvidenceAsync(
+        PegasusDbContext context,
+        CaseAcceptanceRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.CaseType != CaseType.Audit)
+        {
+            return null;
+        }
+
+        var evidenceId = request.StandaloneAuditEvidenceId!.Value;
+        var evidence = await context.Set<StandaloneAuditEvidenceEntity>()
+            .AsNoTracking()
+            .Include(item => item.OriginalReportAsset)
+            .SingleOrDefaultAsync(
+                item => item.Id == evidenceId
+                    && item.IntakeReceiptId == request.IntakeReceiptId,
+                cancellationToken)
+            ?? throw new InvalidOperationException(
+                "The standalone Audit evidence is not retained for this intake receipt.");
+        if (!string.Equals(evidence.ConfirmedByKind, "Staff", StringComparison.Ordinal)
+            || !Guid.TryParse(evidence.ConfirmedBySubjectId, out var staffId)
+            || staffId == Guid.Empty
+            || evidence.ResultingReceiptVersion > request.ExpectedIntakeVersion
+            || evidence.RequestHash.Length != 64
+            || evidence.RequestHash.Any(character => !char.IsAsciiHexDigit(character)))
+        {
+            throw new InvalidDataException(
+                "The retained standalone Audit confirmation is incomplete or invalid.");
+        }
+
+        var report = evidence.OriginalReportAsset;
+        if (report.IntakeReceiptId != request.IntakeReceiptId
+            || report.Id != evidence.OriginalReportAssetId
+            || report.Kind is not ("source" or "attachment")
+            || report.ContentLength <= 0
+            || string.IsNullOrWhiteSpace(report.StorageKey)
+            || report.ContentHash.Length != 64
+            || report.ContentHash.Any(character => !char.IsAsciiHexDigit(character)))
+        {
+            throw new InvalidDataException(
+                "The retained standalone Audit confirmation does not identify a valid original Engineer report.");
+        }
+
+        _ = ParseAuditAssessment(evidence.Assessment);
+        return evidence;
     }
 
     private async Task<CaseAcceptanceOutcome?> FindAcceptedAsync(
@@ -280,9 +415,6 @@ public sealed class EfCaseAcceptanceStore(
         string principalCode,
         AcceptanceCommand command)
     {
-        var assessment = request.StandaloneAuditAssessment is null
-            ? null
-            : ToCode(request.StandaloneAuditAssessment.Value);
         if (!string.Equals(link.OperationKey, request.OperationKey, StringComparison.Ordinal)
             || link.ExpectedIntakeVersion != request.ExpectedIntakeVersion
             || !string.Equals(
@@ -293,17 +425,13 @@ public sealed class EfCaseAcceptanceStore(
                 link.AcceptanceCommandFingerprint,
                 command.Fingerprint,
                 StringComparison.Ordinal)
-            || !string.Equals(link.Actor, request.Actor, StringComparison.Ordinal)
+            || link.ActorKind != request.Actor.Kind.ToString()
+            || link.ActorSubjectId != request.Actor.SubjectId
+            || link.ActorRolesJson != RolesJson(request.Actor)
+            || link.Reason != request.Reason
             || !string.Equals(link.Case.Type, ToCode(request.CaseType), StringComparison.Ordinal)
             || !string.Equals(link.Case.Principal.Code, principalCode, StringComparison.Ordinal)
-            || link.Case.InstructionComplete != request.Completeness.InstructionComplete
-            || link.Case.ImagesComplete != request.Completeness.ImagesComplete
-            || link.Case.InstructionConfirmedByStaff != request.Completeness.InstructionConfirmedByStaff
-            || link.Case.ImagesConfirmedByStaff != request.Completeness.ImagesConfirmedByStaff
-            || !string.Equals(
-                link.Case.StandaloneAuditAssessment,
-                assessment,
-                StringComparison.Ordinal))
+            || link.Case.StandaloneAuditEvidenceId != request.StandaloneAuditEvidenceId)
         {
             throw new CaseAcceptanceOperationConflictException(
                 request.IntakeReceiptId,
@@ -324,12 +452,6 @@ public sealed class EfCaseAcceptanceStore(
         custodyWorkId,
         isDuplicate);
 
-    private static string AuditPrefix(AuditAssessment assessment) => assessment switch
-    {
-        AuditAssessment.Repairable => "a.",
-        AuditAssessment.TotalLoss => "ap.",
-        _ => throw new InvalidOperationException($"Unknown AuditAssessment value '{(int)assessment}'.")
-    };
 
     private static string ToCode(CaseType value) => value switch
     {
@@ -344,6 +466,13 @@ public sealed class EfCaseAcceptanceStore(
         AuditAssessment.Repairable => "repairable",
         AuditAssessment.TotalLoss => "total_loss",
         _ => throw new InvalidOperationException($"Unknown AuditAssessment value '{(int)value}'.")
+    };
+
+    private static AuditAssessment ParseAuditAssessment(string value) => value switch
+    {
+        "repairable" => AuditAssessment.Repairable,
+        "total_loss" => AuditAssessment.TotalLoss,
+        _ => throw new InvalidDataException($"Unknown persisted Audit assessment '{value}'.")
     };
 
     private static string ToCode(CaseInitialState value) => value switch
@@ -369,27 +498,29 @@ public sealed class EfCaseAcceptanceStore(
     };
 
 
-    private static string NormalizePrincipalCode(string principalCode) =>
-        principalCode.Trim().ToUpperInvariant();
-
     private static AcceptanceCommand CreateAcceptanceCommand(
         CaseAcceptanceRequest request,
         string principalCode)
     {
         var materialJson = JsonSerializer.Serialize(new AcceptanceCommandMaterial(
-            1,
+            3,
             request.IntakeReceiptId,
             request.ExpectedIntakeVersion,
-            request.Actor,
+            request.Actor.Kind.ToString(),
+            request.Actor.SubjectId,
+            request.Actor.Roles
+                .OrderBy(role => role)
+                .Select(role => role.ToString())
+                .ToArray(),
+            request.Reason,
             ToCode(request.CaseType),
             principalCode,
             request.Completeness.InstructionComplete,
             request.Completeness.ImagesComplete,
             request.Completeness.InstructionConfirmedByStaff,
             request.Completeness.ImagesConfirmedByStaff,
-            request.StandaloneAuditAssessment is null
-                ? null
-                : ToCode(request.StandaloneAuditAssessment.Value)));
+            request.StandaloneAuditEvidenceId,
+            request.AcceptedInspectionDeadline));
         var fingerprint = Convert.ToHexString(
                 SHA256.HashData(Encoding.UTF8.GetBytes(materialJson)))
             .ToLowerInvariant();
@@ -404,19 +535,29 @@ public sealed class EfCaseAcceptanceStore(
         int SchemaVersion,
         Guid IntakeReceiptId,
         long ExpectedIntakeVersion,
-        string Actor,
+        string ActorKind,
+        string ActorSubjectId,
+        IReadOnlyList<string> ActorRoles,
+        string Reason,
         string CaseType,
         string PrincipalCode,
         bool InstructionComplete,
         bool ImagesComplete,
         bool InstructionConfirmedByStaff,
         bool ImagesConfirmedByStaff,
-        string? StandaloneAuditAssessment);
+        Guid? StandaloneAuditEvidenceId,
+        DateOnly? AcceptedInspectionDeadline);
+
+    private static string RolesJson(ActionActor actor) =>
+        JsonSerializer.Serialize(
+            actor.Roles
+                .OrderBy(role => role)
+                .Select(role => role.ToString())
+                .ToArray());
 
     private static bool IsRetryableConcurrencyFailure(Exception exception) => exception switch
     {
         DbUpdateConcurrencyException => true,
-        SqliteException { SqliteErrorCode: 5 or 6 or 19 } => true,
         SqlException { Number: 1205 or 2601 or 2627 } => true,
         DbUpdateException { InnerException: { } innerException } =>
             IsRetryableConcurrencyFailure(innerException),

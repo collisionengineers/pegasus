@@ -1,3 +1,5 @@
+using Pegasus.Core.Identity;
+
 namespace Pegasus.Core.Documents;
 
 public enum DocumentSemanticRole
@@ -67,6 +69,7 @@ public sealed record CaseDocument(
     Guid CaseId,
     IReadOnlyList<DocumentOccurrence> Occurrences,
     IReadOnlyList<DocumentVersion> Versions);
+public sealed record CaseDocumentState(Guid CaseId, long CaseVersion);
 
 public sealed record AddCaseDocumentCommand(
     Guid CaseId,
@@ -76,9 +79,10 @@ public sealed record AddCaseDocumentCommand(
     DocumentSemanticRole SemanticRole,
     DocumentSource Source,
     string SourceOccurrenceIdentity,
-    string Actor,
+    ActionActor Actor,
     string OperationKey,
-    long? ExpectedCaseVersion);
+    long ExpectedCaseVersion,
+    string EditLeaseToken);
 
 public sealed record AddCaseDocumentResult(
     DocumentOccurrence Occurrence,
@@ -89,7 +93,8 @@ public sealed record DownloadCaseDocumentQuery(
     Guid CaseId,
     Guid OccurrenceId,
     Guid VersionId,
-    string Actor);
+    ActionActor Actor,
+    string OperationKey);
 
 public sealed class DocumentDownload(
     Stream content,
@@ -114,8 +119,11 @@ public sealed class DocumentDownload(
 public sealed record ExportCaseDocumentsCommand(
     Guid CaseId,
     IReadOnlyList<DocumentExportSelection> Selections,
-    string Actor,
-    string OperationKey);
+    ActionActor Actor,
+    string OperationKey,
+    long MaximumArchiveBytes,
+    long ExpectedCaseVersion,
+    string EditLeaseToken);
 
 public sealed record DocumentExportSelection(Guid OccurrenceId, Guid VersionId);
 
@@ -144,16 +152,19 @@ public sealed class DocumentExport(
 public sealed record LogicallyRemoveDocumentCommand(
     Guid CaseId,
     Guid OccurrenceId,
-    string Actor,
+    ActionActor Actor,
     string Reason,
     string OperationKey,
-    long ExpectedCaseVersion);
+    long ExpectedCaseVersion,
+    string EditLeaseToken);
 
 public sealed record CreateBoxFileRequestCommand(
     Guid CaseId,
-    string Actor,
+    ActionActor Actor,
     string OperationKey,
-    DateTimeOffset? ExpiresAtUtc);
+    DateTimeOffset? ExpiresAtUtc,
+    long ExpectedCaseVersion,
+    string EditLeaseToken);
 
 public sealed record BoxFileRequest(
     Guid Id,
@@ -185,10 +196,19 @@ public sealed record CreateBoxFileRequestResult(
 public sealed record RevokeBoxFileRequestCommand(
     Guid CaseId,
     Guid FileRequestId,
-    string Actor,
+    ActionActor Actor,
     string Reason,
     string OperationKey,
-    long ExpectedVersion);
+    long ExpectedFileRequestVersion,
+    long ExpectedCaseVersion,
+    string EditLeaseToken);
+
+public interface ICaseDocumentStateQueries
+{
+    Task<CaseDocumentState?> GetAsync(
+        Guid caseId,
+        CancellationToken cancellationToken = default);
+}
 
 public interface IAddCaseDocument
 {

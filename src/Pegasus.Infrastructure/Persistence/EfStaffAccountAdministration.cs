@@ -2,6 +2,7 @@ using System.Data;
 using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using OpenIddict.Abstractions;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -9,64 +10,118 @@ namespace Pegasus.Infrastructure.Persistence;
 public sealed class EfStaffAccountAdministration(
     PegasusDbContext context,
     UserManager<PegasusIdentityUser> userManager,
+    IOpenIddictAuthorizationManager authorizationManager,
+    IOpenIddictTokenManager tokenManager,
     TimeProvider timeProvider)
-    : IStaffAccountAdministration
+    : IStaffAccountQueries,
+      ICreateStaffAccountStore,
+      IDisableStaffAccountStore,
+      IAssignStaffRolesStore,
+      IReviewStaffAccessStore
 {
-    public async Task<IReadOnlyList<StaffAccountSummary>> ListAsync(
-        ActionActor actor,
+    public async Task<StaffAccountQuerySlice> ListAsync(
+        int offset,
+        int limit,
         CancellationToken cancellationToken)
     {
-        StaffAuthorization.Require(actor, StaffAccessRight.ReviewStaffAccess);
-
         var users = await context.Users
             .AsNoTracking()
             .OrderBy(item => item.UserName)
+            .ThenBy(item => item.Id)
+            .Skip(offset)
+            .Take(limit + 1)
             .ToListAsync(cancellationToken);
+        var hasMoreAccounts = users.Count > limit;
+        if (hasMoreAccounts)
+        {
+            users.RemoveAt(users.Count - 1);
+        }
+
+        if (users.Count == 0)
+        {
+            return new([], hasMoreAccounts);
+        }
+
+        var userIds = users.Select(user => user.Id).ToArray();
         var roleRows = await (
             from userRole in context.UserRoles.AsNoTracking()
             join role in context.Roles.AsNoTracking() on userRole.RoleId equals role.Id
+            where userIds.Contains(userRole.UserId)
             select new { userRole.UserId, RoleName = role.Name! })
             .ToListAsync(cancellationToken);
+        var aggregateIds = userIds.Select(id => id.ToString("D")).ToArray();
         var reviews = await context.ActionHistory
             .AsNoTracking()
-            .Where(item => item.AggregateType == "staff_account" && item.EventKind == "access_reviewed")
+            .Where(item => item.AggregateType == "staff_account"
+                && item.EventKind == "access_reviewed"
+                && aggregateIds.Contains(item.AggregateId))
             .GroupBy(item => item.AggregateId)
-            .Select(group => new { AggregateId = group.Key, OccurredAtUtc = group.Max(item => item.OccurredAtUtc) })
-            .ToDictionaryAsync(item => item.AggregateId, item => item.OccurredAtUtc, cancellationToken);
-        var rolesByUser = roleRows.ToLookup(item => item.UserId, item => ParseRole(item.RoleName));
+            .Select(group => new
+            {
+                AggregateId = group.Key,
+                OccurredAtUtc = group.Max(item => item.OccurredAtUtc)
+            })
+            .ToDictionaryAsync(
+                item => item.AggregateId,
+                item => item.OccurredAtUtc,
+                cancellationToken);
+        var rolesByUser = roleRows.ToLookup(
+            item => item.UserId,
+            item => ParseRole(item.RoleName));
 
-        return users.Select(user => new StaffAccountSummary(
-                user.Id,
-                user.UserName ?? throw new InvalidOperationException("A staff account has no username."),
-                user.IsEnabled,
-                user.MustChangePassword,
-                rolesByUser[user.Id].OrderBy(role => role).ToArray(),
-                reviews.GetValueOrDefault(user.Id.ToString("D"))))
-            .ToArray();
+        return new(
+            users.Select(user => Summary(
+                    user,
+                    rolesByUser[user.Id].OrderBy(role => role).ToArray(),
+                    reviews.GetValueOrDefault(user.Id.ToString("D"))))
+                .ToArray(),
+            hasMoreAccounts);
     }
 
-    public async Task<StaffAccountSummary> CreateAsync(
-        ActionActor actor,
-        string userName,
-        string temporaryPassword,
-        string operationKey,
+    public async Task<StaffAccountSummary?> GetAsync(
+        Guid staffId,
         CancellationToken cancellationToken)
     {
-        StaffAuthorization.Require(actor, StaffAccessRight.ManageStaffAccounts);
-        ValidateUserName(userName);
-        ArgumentException.ThrowIfNullOrWhiteSpace(temporaryPassword);
-        ValidateOperationKey(operationKey);
-        var normalizedUserName = userManager.NormalizeName(userName.Trim())
-            ?? throw new StaffAccountAdministrationException(
-                StaffAccountAdministrationError.InvalidAccount);
+        var user = await context.Users
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == staffId, cancellationToken);
+        if (user is null)
+        {
+            return null;
+        }
 
+        var roles = await (
+            from userRole in context.UserRoles.AsNoTracking()
+            join role in context.Roles.AsNoTracking() on userRole.RoleId equals role.Id
+            where userRole.UserId == staffId
+            select role.Name!)
+            .ToListAsync(cancellationToken);
+        var lastReviewAtUtc = await context.ActionHistory
+            .AsNoTracking()
+            .Where(item => item.AggregateType == "staff_account"
+                && item.AggregateId == staffId.ToString("D")
+                && item.EventKind == "access_reviewed")
+            .Select(item => (DateTimeOffset?)item.OccurredAtUtc)
+            .MaxAsync(cancellationToken);
+        return Summary(
+            user,
+            roles.Select(ParseRole).OrderBy(role => role).ToArray(),
+            lastReviewAtUtc);
+    }
+
+    public async Task<CreateStaffAccountResult> CreateAsync(
+        CreateStaffAccountRequest request,
+        CancellationToken cancellationToken)
+    {
+        var normalizedUserName = NormalizeUserName(request.UserName);
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
             cancellationToken);
-        var replay = await FindOperationAsync(operationKey, cancellationToken);
+        var replay = await FindOperationAsync(request.OperationKey, cancellationToken);
         if (replay is not null)
         {
             if (replay.EventKind != "staff_account_created"
+                || !string.Equals(replay.Reason, request.Reason, StringComparison.Ordinal)
                 || !Guid.TryParse(replay.AggregateId, out var replayStaffId))
             {
                 throw OperationConflict();
@@ -80,128 +135,149 @@ public sealed class EfStaffAccountAdministration(
             {
                 throw OperationConflict();
             }
+
             var replayRoles = await GetRolesAsync(replayUser);
+            var replayReviewAtUtc = await GetLastReviewAtUtcAsync(
+                replayUser.Id,
+                cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return new(
-                replayUser.Id,
-                replayUser.UserName!,
-                replayUser.IsEnabled,
-                replayUser.MustChangePassword,
-                replayRoles,
-                null);
+                Summary(replayUser, replayRoles, replayReviewAtUtc),
+                WasReplay: true);
         }
-        if (await context.Users.AnyAsync(item => item.NormalizedUserName == normalizedUserName, cancellationToken))
+
+        if (await context.Users.AnyAsync(
+                item => item.NormalizedUserName == normalizedUserName,
+                cancellationToken))
         {
             throw new StaffAccountAdministrationException(
                 StaffAccountAdministrationError.DuplicateUserName);
         }
 
-        var userRoleName = StaffRoleNames.User.ToUpperInvariant();
-        var userRole = await context.Roles.SingleOrDefaultAsync(
-            item => item.NormalizedName == userRoleName,
-            cancellationToken)
-            ?? throw new InvalidOperationException("The required staff roles have not been initialized.");
-        var user = new PegasusIdentityUser
-        {
-            Id = Guid.NewGuid(),
-            UserName = userName.Trim(),
-            NormalizedUserName = normalizedUserName,
-            IsEnabled = true,
-            MustChangePassword = true,
-            LockoutEnabled = false,
-            SecurityStamp = Guid.NewGuid().ToString("N"),
-            ConcurrencyStamp = Guid.NewGuid().ToString("N")
-        };
-        ThrowIfFailed(await userManager.CreateAsync(user, temporaryPassword));
-        ThrowIfFailed(await userManager.AddToRoleAsync(user, userRole.Name!));
-
-        var now = timeProvider.GetUtcNow();
-        AddHistory(actor, user.Id, "staff_account_created", operationKey, null, Snapshot(user, [StaffRole.User]), now);
+        var account = await CreateUserCoreAsync(
+            request.Actor,
+            request.UserName,
+            request.TemporaryPassword,
+            [StaffRole.User],
+            "staff_account_created",
+            request.OperationKey,
+            request.Reason,
+            cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return new(user.Id, user.UserName, true, true, [StaffRole.User], null);
+        return new(account, WasReplay: false);
     }
 
-    public async Task SetEnabledAsync(
-        ActionActor actor,
-        Guid staffId,
-        bool enabled,
-        string reason,
-        string operationKey,
+    public async Task<DisableStaffAccountResult> DisableAsync(
+        DisableStaffAccountRequest request,
         CancellationToken cancellationToken)
     {
-        StaffAuthorization.Require(actor, StaffAccessRight.ManageStaffAccounts);
-        ValidateMutation(staffId, reason, operationKey);
-
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
             cancellationToken);
-        if (await IsReplayAsync(
-                operationKey,
-                staffId,
-                enabled ? "staff_account_enabled" : "staff_account_disabled",
-                cancellationToken))
+        var replay = await FindOperationAsync(request.OperationKey, cancellationToken);
+        if (replay is not null)
         {
-            await transaction.CommitAsync(cancellationToken);
-            return;
-        }
-        var user = await FindUserAsync(staffId, cancellationToken);
-        var roles = await GetRolesAsync(user);
-        if (user.IsEnabled != enabled)
-        {
-            if (!enabled
-                && roles.Contains(StaffRole.Administrator)
-                && await CountEnabledAdministratorsAsync(cancellationToken) <= 1)
+            if (replay.AggregateId != request.StaffId.ToString("D")
+                || replay.EventKind != "staff_account_disabled"
+                || !string.Equals(replay.Reason, request.Reason, StringComparison.Ordinal))
             {
-                throw new StaffAccountAdministrationException(
-                    StaffAccountAdministrationError.LastAdministrator);
+                throw OperationConflict();
             }
 
-            var before = Snapshot(user, roles);
-            user.IsEnabled = enabled;
-            ThrowIfFailed(await userManager.UpdateSecurityStampAsync(user));
-            AddHistory(actor, staffId, enabled ? "staff_account_enabled" : "staff_account_disabled", operationKey, before, Snapshot(user, roles), timeProvider.GetUtcNow(), reason);
-            await context.SaveChangesAsync(cancellationToken);
+            var replayUser = await FindUserAsync(request.StaffId, cancellationToken);
+            var replayRoles = await GetRolesAsync(replayUser);
+            var replayCounts = ParseRevocationCounts(replay.AfterJson);
+            await transaction.CommitAsync(cancellationToken);
+            return new(
+                Summary(
+                    replayUser,
+                    replayRoles,
+                    await GetLastReviewAtUtcAsync(request.StaffId, cancellationToken)),
+                replayCounts.Authorizations,
+                replayCounts.Tokens,
+                WasReplay: true);
         }
-        else
+
+        var user = await FindUserAsync(request.StaffId, cancellationToken);
+        var roles = await GetRolesAsync(user);
+        if (user.IsEnabled
+            && roles.Contains(StaffRole.Administrator)
+            && await CountEnabledAdministratorsAsync(cancellationToken) <= 1)
         {
-            var snapshot = Snapshot(user, roles);
-            AddHistory(actor, staffId, enabled ? "staff_account_enabled" : "staff_account_disabled", operationKey, snapshot, snapshot, timeProvider.GetUtcNow(), reason);
-            await context.SaveChangesAsync(cancellationToken);
+            throw new StaffAccountAdministrationException(
+                StaffAccountAdministrationError.LastAdministrator);
         }
+
+        var before = Snapshot(user, roles);
+        user.IsEnabled = false;
+        var revoked = await RevokeMcpAccessAsync(user.Id, cancellationToken);
+        if (before != Snapshot(user, roles))
+        {
+            ThrowIfFailed(await userManager.UpdateSecurityStampAsync(user));
+        }
+
+        var now = timeProvider.GetUtcNow();
+        AddHistory(
+            request.Actor,
+            user.Id,
+            "staff_account_disabled",
+            request.OperationKey,
+            before,
+            Snapshot(user, roles, revoked.Authorizations, revoked.Tokens),
+            now,
+            request.Reason);
+        AddSecurityEvent(
+            SecurityEventType.SecurityStampChanged,
+            user.Id.ToString("D"),
+            request.OperationKey,
+            "staff_account_disabled",
+            now);
+        await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        return new(
+            Summary(
+                user,
+                roles,
+                await GetLastReviewAtUtcAsync(user.Id, cancellationToken)),
+            revoked.Authorizations,
+            revoked.Tokens,
+            WasReplay: false);
     }
 
-    public async Task SetRolesAsync(
-        ActionActor actor,
-        Guid staffId,
-        IReadOnlyCollection<StaffRole> roles,
-        string reason,
-        string operationKey,
+    public async Task<AssignStaffRolesResult> AssignAsync(
+        AssignStaffRolesRequest request,
         CancellationToken cancellationToken)
     {
-        StaffAuthorization.Require(actor, StaffAccessRight.AssignStaffRoles);
-        ValidateMutation(staffId, reason, operationKey);
-        ArgumentNullException.ThrowIfNull(roles);
-        if (roles.Count == 0 || roles.Any(role => !Enum.IsDefined(role)))
-        {
-            throw new ArgumentException("An enabled staff account requires recognized current roles.", nameof(roles));
-        }
-
-        var requestedRoles = roles.Distinct().OrderBy(role => role).ToArray();
+        var requestedRoles = request.Roles.OrderBy(role => role).ToArray();
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
             cancellationToken);
-        if (await IsRoleReplayAsync(
-                operationKey,
-                staffId,
-                requestedRoles,
-                cancellationToken))
+        var replay = await FindOperationAsync(request.OperationKey, cancellationToken);
+        if (replay is not null)
         {
+            if (replay.AggregateId != request.StaffId.ToString("D")
+                || replay.EventKind != "staff_roles_changed"
+                || !string.Equals(replay.Reason, request.Reason, StringComparison.Ordinal)
+                || !RecordedRolesEqual(replay.AfterJson, requestedRoles))
+            {
+                throw OperationConflict();
+            }
+
+            var replayUser = await FindUserAsync(request.StaffId, cancellationToken);
+            var replayCounts = ParseRevocationCounts(replay.AfterJson);
             await transaction.CommitAsync(cancellationToken);
-            return;
+            return new(
+                Summary(
+                    replayUser,
+                    await GetRolesAsync(replayUser),
+                    await GetLastReviewAtUtcAsync(request.StaffId, cancellationToken)),
+                replayCounts.Authorizations,
+                replayCounts.Tokens,
+                WasReplay: true);
         }
-        var user = await FindUserAsync(staffId, cancellationToken);
+
+        var user = await FindUserAsync(request.StaffId, cancellationToken);
         var currentRoles = await GetRolesAsync(user);
         if (user.IsEnabled
             && currentRoles.Contains(StaffRole.Administrator)
@@ -211,51 +287,165 @@ public sealed class EfStaffAccountAdministration(
             throw new StaffAccountAdministrationException(
                 StaffAccountAdministrationError.LastAdministrator);
         }
-        if (!currentRoles.OrderBy(role => role).SequenceEqual(requestedRoles))
+
+        var before = Snapshot(user, currentRoles);
+        var rolesChanged = !currentRoles.SequenceEqual(requestedRoles);
+        var revoked = (Authorizations: 0L, Tokens: 0L);
+        if (rolesChanged)
         {
-            var before = Snapshot(user, currentRoles);
-            ThrowIfFailed(await userManager.RemoveFromRolesAsync(user, currentRoles.Select(RoleName)));
-            ThrowIfFailed(await userManager.AddToRolesAsync(user, requestedRoles.Select(RoleName)));
+            revoked = await RevokeMcpAccessAsync(user.Id, cancellationToken);
+            ThrowIfFailed(await userManager.RemoveFromRolesAsync(
+                user,
+                currentRoles.Select(RoleName)));
+            ThrowIfFailed(await userManager.AddToRolesAsync(
+                user,
+                requestedRoles.Select(RoleName)));
             ThrowIfFailed(await userManager.UpdateSecurityStampAsync(user));
-            AddHistory(actor, staffId, "staff_roles_changed", operationKey, before, Snapshot(user, requestedRoles), timeProvider.GetUtcNow(), reason);
-            await context.SaveChangesAsync(cancellationToken);
         }
-        else
+
+        var now = timeProvider.GetUtcNow();
+        AddHistory(
+            request.Actor,
+            user.Id,
+            "staff_roles_changed",
+            request.OperationKey,
+            before,
+            Snapshot(user, requestedRoles, revoked.Authorizations, revoked.Tokens),
+            now,
+            request.Reason);
+        if (rolesChanged)
         {
-            var snapshot = Snapshot(user, currentRoles);
-            AddHistory(actor, staffId, "staff_roles_changed", operationKey, snapshot, snapshot, timeProvider.GetUtcNow(), reason);
-            await context.SaveChangesAsync(cancellationToken);
+            AddSecurityEvent(
+                SecurityEventType.SecurityStampChanged,
+                user.Id.ToString("D"),
+                request.OperationKey,
+                "staff_roles_changed",
+                now);
         }
+
+        await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        return new(
+            Summary(
+                user,
+                requestedRoles,
+                await GetLastReviewAtUtcAsync(user.Id, cancellationToken)),
+            revoked.Authorizations,
+            revoked.Tokens,
+            WasReplay: false);
     }
 
-    public async Task ReviewAccessAsync(
-        ActionActor actor,
-        Guid staffId,
-        string reason,
-        string operationKey,
+    public async Task<ReviewStaffAccessResult> ReviewAsync(
+        ReviewStaffAccessRequest request,
         CancellationToken cancellationToken)
     {
-        StaffAuthorization.Require(actor, StaffAccessRight.ReviewStaffAccess);
-        ValidateMutation(staffId, reason, operationKey);
-
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
             cancellationToken);
-        if (await IsReplayAsync(
-                operationKey,
-                staffId,
-                "access_reviewed",
-                cancellationToken))
+        var replay = await FindOperationAsync(request.OperationKey, cancellationToken);
+        if (replay is not null)
         {
+            if (replay.AggregateId != request.StaffId.ToString("D")
+                || replay.EventKind != "access_reviewed"
+                || !string.Equals(replay.Reason, request.Reason, StringComparison.Ordinal))
+            {
+                throw OperationConflict();
+            }
+
             await transaction.CommitAsync(cancellationToken);
-            return;
+            return new(request.StaffId, replay.OccurredAtUtc, WasReplay: true);
         }
-        var user = await FindUserAsync(staffId, cancellationToken);
+
+        var user = await FindUserAsync(request.StaffId, cancellationToken);
         var roles = await GetRolesAsync(user);
-        AddHistory(actor, staffId, "access_reviewed", operationKey, null, Snapshot(user, roles), timeProvider.GetUtcNow(), reason);
+        var now = timeProvider.GetUtcNow();
+        AddHistory(
+            request.Actor,
+            user.Id,
+            "access_reviewed",
+            request.OperationKey,
+            beforeJson: null,
+            Snapshot(user, roles),
+            now,
+            request.Reason);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        return new(user.Id, now, WasReplay: false);
+    }
+
+    internal async Task<StaffAccountSummary> CreateInitialAdministratorAsync(
+        ActionActor actor,
+        InitialAdministratorCredentials administrator,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        var normalizedUserName = NormalizeUserName(administrator.UserName);
+        if (await context.Users.AnyAsync(
+                item => item.NormalizedUserName == normalizedUserName,
+                cancellationToken))
+        {
+            throw new ApplicationInitializationException(
+                ApplicationInitializationError.InvalidInitialAccount);
+        }
+
+        return await CreateUserCoreAsync(
+            actor,
+            administrator.UserName,
+            administrator.TemporaryPassword,
+            [StaffRole.Administrator],
+            "staff_account_created",
+            operationKey,
+            $"Approved initial Administrator: {administrator.ManifestIdentity}",
+            cancellationToken);
+    }
+
+    private async Task<StaffAccountSummary> CreateUserCoreAsync(
+        ActionActor actor,
+        string userName,
+        string temporaryPassword,
+        IReadOnlyCollection<StaffRole> roles,
+        string eventKind,
+        string operationKey,
+        string? reason,
+        CancellationToken cancellationToken)
+    {
+        var normalizedUserName = NormalizeUserName(userName);
+        foreach (var role in roles)
+        {
+            var normalizedRoleName = RoleName(role).ToUpperInvariant();
+            if (!await context.Roles.AnyAsync(
+                    item => item.NormalizedName == normalizedRoleName,
+                    cancellationToken))
+            {
+                throw new InvalidOperationException(
+                    "The required staff roles have not been initialized.");
+            }
+        }
+
+        var user = new PegasusIdentityUser
+        {
+            Id = Guid.NewGuid(),
+            UserName = userName,
+            NormalizedUserName = normalizedUserName,
+            IsEnabled = true,
+            MustChangePassword = true,
+            LockoutEnabled = false,
+            SecurityStamp = Guid.NewGuid().ToString("N"),
+            ConcurrencyStamp = Guid.NewGuid().ToString("N")
+        };
+        ThrowIfFailed(await userManager.CreateAsync(user, temporaryPassword));
+        ThrowIfFailed(await userManager.AddToRolesAsync(user, roles.Select(RoleName)));
+
+        AddHistory(
+            actor,
+            user.Id,
+            eventKind,
+            operationKey,
+            beforeJson: null,
+            Snapshot(user, roles),
+            timeProvider.GetUtcNow(),
+            reason);
+        return Summary(user, roles.OrderBy(role => role).ToArray(), lastAccessReviewAtUtc: null);
     }
 
     private Task<ActionHistoryEntity?> FindOperationAsync(
@@ -266,76 +456,15 @@ public sealed class EfStaffAccountAdministration(
                 && item.CorrelationId == operationKey,
             cancellationToken);
 
-    private async Task<bool> IsReplayAsync(
-        string operationKey,
+    private async Task<PegasusIdentityUser> FindUserAsync(
         Guid staffId,
-        string eventKind,
-        CancellationToken cancellationToken)
-    {
-        var existing = await FindOperationAsync(operationKey, cancellationToken);
-        if (existing is null)
-        {
-            return false;
-        }
-
-        if (existing.AggregateType == "staff_account"
-            && existing.AggregateId == staffId.ToString("D")
-            && existing.EventKind == eventKind)
-        {
-            return true;
-        }
-
-        throw OperationConflict();
-    }
-
-    private async Task<bool> IsRoleReplayAsync(
-        string operationKey,
-        Guid staffId,
-        IReadOnlyCollection<StaffRole> requestedRoles,
-        CancellationToken cancellationToken)
-    {
-        var existing = await FindOperationAsync(operationKey, cancellationToken);
-        if (existing is null)
-        {
-            return false;
-        }
-
-        if (existing.AggregateId != staffId.ToString("D")
-            || existing.EventKind != "staff_roles_changed"
-            || existing.AfterJson is null)
-        {
-            throw OperationConflict();
-        }
-
-        using var document = JsonDocument.Parse(existing.AfterJson);
-        if (!document.RootElement.TryGetProperty("Roles", out var roleElement)
-            || roleElement.ValueKind != JsonValueKind.Array)
-        {
-            throw OperationConflict();
-        }
-
-        var recordedRoles = roleElement.EnumerateArray()
-            .Select(item => ParseRole(item.GetString() ?? string.Empty))
-            .OrderBy(role => role);
-        if (!recordedRoles.SequenceEqual(requestedRoles.OrderBy(role => role)))
-        {
-            throw OperationConflict();
-        }
-
-        return true;
-    }
-
-    private static StaffAccountAdministrationException OperationConflict() =>
-        new(StaffAccountAdministrationError.OperationConflict);
-
-    private async Task<PegasusIdentityUser> FindUserAsync(Guid staffId, CancellationToken cancellationToken)
-    {
-        return await context.Users.SingleOrDefaultAsync(item => item.Id == staffId, cancellationToken)
+        CancellationToken cancellationToken) =>
+        await context.Users.SingleOrDefaultAsync(item => item.Id == staffId, cancellationToken)
             ?? throw new StaffAccountAdministrationException(
                 StaffAccountAdministrationError.StaffAccountNotFound);
-    }
 
-    private async Task<int> CountEnabledAdministratorsAsync(CancellationToken cancellationToken)
+    private async Task<int> CountEnabledAdministratorsAsync(
+        CancellationToken cancellationToken)
     {
         var administratorRoleName = StaffRoleNames.Administrator.ToUpperInvariant();
         return await (
@@ -352,6 +481,28 @@ public sealed class EfStaffAccountAdministration(
     {
         var roleNames = await userManager.GetRolesAsync(user);
         return roleNames.Select(ParseRole).OrderBy(role => role).ToArray();
+    }
+
+    private Task<DateTimeOffset?> GetLastReviewAtUtcAsync(
+        Guid staffId,
+        CancellationToken cancellationToken) =>
+        context.ActionHistory
+            .Where(item => item.AggregateType == "staff_account"
+                && item.AggregateId == staffId.ToString("D")
+                && item.EventKind == "access_reviewed")
+            .Select(item => (DateTimeOffset?)item.OccurredAtUtc)
+            .MaxAsync(cancellationToken);
+
+    private async Task<(long Authorizations, long Tokens)> RevokeMcpAccessAsync(
+        Guid staffId,
+        CancellationToken cancellationToken)
+    {
+        var subject = staffId.ToString("D");
+        var tokens = await tokenManager.RevokeBySubjectAsync(subject, cancellationToken);
+        var authorizations = await authorizationManager.RevokeBySubjectAsync(
+            subject,
+            cancellationToken);
+        return (authorizations, tokens);
     }
 
     private void AddHistory(
@@ -372,7 +523,8 @@ public sealed class EfStaffAccountAdministration(
             EventKind = eventKind,
             ActorKind = actor.Kind.ToString(),
             ActorSubjectId = actor.SubjectId,
-            ActorRolesJson = JsonSerializer.Serialize(actor.Roles.OrderBy(role => role).Select(RoleName)),
+            ActorRolesJson = JsonSerializer.Serialize(
+                actor.Roles.OrderBy(role => role).Select(RoleName)),
             OccurredAtUtc = occurredAtUtc,
             Outcome = "succeeded",
             CorrelationId = operationKey,
@@ -382,22 +534,115 @@ public sealed class EfStaffAccountAdministration(
         });
     }
 
-    private static string Snapshot(PegasusIdentityUser user, IReadOnlyCollection<StaffRole> roles) =>
+    private void AddSecurityEvent(
+        SecurityEventType type,
+        string subjectId,
+        string correlationId,
+        string reasonCode,
+        DateTimeOffset occurredAtUtc)
+    {
+        context.SecurityEvents.Add(new SecurityEventEntity
+        {
+            Id = Guid.NewGuid(),
+            Type = type.ToString(),
+            Outcome = SecurityEventOutcome.Succeeded.ToString(),
+            SubjectId = subjectId,
+            OccurredAtUtc = occurredAtUtc,
+            CorrelationId = correlationId,
+            ReasonCode = reasonCode
+        });
+    }
+
+    private static StaffAccountSummary Summary(
+        PegasusIdentityUser user,
+        IReadOnlyCollection<StaffRole> roles,
+        DateTimeOffset? lastAccessReviewAtUtc) =>
+        new(
+            user.Id,
+            user.UserName ?? throw new InvalidOperationException(
+                "A staff account has no username."),
+            user.IsEnabled,
+            user.MustChangePassword,
+            roles.OrderBy(role => role).ToArray(),
+            lastAccessReviewAtUtc);
+
+    private static string Snapshot(
+        PegasusIdentityUser user,
+        IReadOnlyCollection<StaffRole> roles,
+        long revokedAuthorizations = 0,
+        long revokedTokens = 0) =>
         JsonSerializer.Serialize(new
         {
             user.Id,
             user.UserName,
             user.IsEnabled,
             user.MustChangePassword,
-            Roles = roles.OrderBy(role => role).Select(RoleName)
+            Roles = roles.OrderBy(role => role).Select(RoleName),
+            RevokedAuthorizations = revokedAuthorizations,
+            RevokedTokens = revokedTokens
         });
+
+    private static bool RecordedRolesEqual(
+        string? afterJson,
+        IReadOnlyCollection<StaffRole> requestedRoles)
+    {
+        if (afterJson is null)
+        {
+            return false;
+        }
+
+        using var document = JsonDocument.Parse(afterJson);
+        if (!document.RootElement.TryGetProperty("Roles", out var roleElement)
+            || roleElement.ValueKind != JsonValueKind.Array)
+        {
+            return false;
+        }
+
+        var recordedRoles = roleElement.EnumerateArray()
+            .Select(item => ParseRole(item.GetString() ?? string.Empty))
+            .OrderBy(role => role);
+        return recordedRoles.SequenceEqual(requestedRoles.OrderBy(role => role));
+    }
+
+    private static (long Authorizations, long Tokens) ParseRevocationCounts(
+        string? afterJson)
+    {
+        if (afterJson is null)
+        {
+            return (0, 0);
+        }
+
+        using var document = JsonDocument.Parse(afterJson);
+        var authorizations = document.RootElement.TryGetProperty(
+                "RevokedAuthorizations",
+                out var authorizationElement)
+            && authorizationElement.TryGetInt64(out var authorizationCount)
+                ? authorizationCount
+                : 0;
+        var tokens = document.RootElement.TryGetProperty(
+                "RevokedTokens",
+                out var tokenElement)
+            && tokenElement.TryGetInt64(out var tokenCount)
+                ? tokenCount
+                : 0;
+        return (authorizations, tokens);
+    }
+
+    private string NormalizeUserName(string userName) =>
+        userManager.NormalizeName(userName)
+            ?? throw new StaffAccountAdministrationException(
+                StaffAccountAdministrationError.InvalidAccount);
+
+    private static StaffAccountAdministrationException OperationConflict() =>
+        new(StaffAccountAdministrationError.OperationConflict);
 
     private static StaffRole ParseRole(string roleName) => roleName switch
     {
         StaffRoleNames.Administrator => StaffRole.Administrator,
         StaffRoleNames.Engineer => StaffRole.Engineer,
         StaffRoleNames.User => StaffRole.User,
-        _ => throw new InvalidOperationException("A staff account has an unrecognized role.")
+        _ => throw new InvalidOperationException(
+            "A staff account has an unrecognized role.")
     };
 
     private static string RoleName(StaffRole role) => role switch
@@ -416,37 +661,4 @@ public sealed class EfStaffAccountAdministration(
                 StaffAccountAdministrationError.InvalidAccount);
         }
     }
-
-    private static void ValidateUserName(string userName)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(userName);
-        if (userName.Trim().Length > 256)
-        {
-            throw new ArgumentException("The username cannot exceed 256 characters.", nameof(userName));
-        }
-    }
-
-    private static void ValidateMutation(Guid staffId, string reason, string operationKey)
-    {
-        if (staffId == Guid.Empty)
-        {
-            throw new ArgumentException("A staff account identifier is required.", nameof(staffId));
-        }
-        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
-        if (reason.Length > 1000)
-        {
-            throw new ArgumentException("The reason cannot exceed 1000 characters.", nameof(reason));
-        }
-        ValidateOperationKey(operationKey);
-    }
-
-    private static void ValidateOperationKey(string operationKey)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
-        if (operationKey.Length > 100)
-        {
-            throw new ArgumentException("The operation key cannot exceed 100 characters.", nameof(operationKey));
-        }
-    }
 }
-

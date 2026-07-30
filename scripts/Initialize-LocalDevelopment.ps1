@@ -7,6 +7,8 @@ $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $localDevelopmentRoot = Join-Path $repositoryRoot 'artifacts/local-development'
 $initializationPath = Join-Path $localDevelopmentRoot '.initialized.json'
 $solutionPath = Join-Path $repositoryRoot 'Pegasus.slnx'
+$webAssemblyRelativePath = 'src/Pegasus.Web/bin/Debug/net10.0/Pegasus.Web.dll'
+$workerAssemblyRelativePath = 'src/Pegasus.Worker/bin/Debug/net10.0/Pegasus.Worker.dll'
 $playwrightPath = Join-Path $repositoryRoot 'tests/Pegasus.IntegrationTests/bin/Debug/net10.0/playwright.ps1'
 
 function Get-RequiredApplication {
@@ -74,6 +76,72 @@ function Write-AtomicJson {
         }
     }
 }
+function Get-Sha256 {
+    param([Parameter(Mandatory)][string]$Path)
+
+    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+
+function Resolve-RepositorySourceRevision {
+    param([Parameter(Mandatory)][string]$Git)
+
+    $headOutput = @(
+        & $Git -C $repositoryRoot rev-parse --verify 'HEAD^{commit}' 2>$null
+    )
+    if ($LASTEXITCODE -ne 0 -or $headOutput.Count -ne 1) {
+        throw 'The exact 40-character source revision could not be read from the local checkout.'
+    }
+
+    $revision = ([string]$headOutput[0]).Trim().ToLowerInvariant()
+    if ($revision -notmatch '^[0-9a-f]{40}$') {
+        throw "The repository HEAD is not a 40-character Git source revision: '$revision'."
+    }
+
+    return $revision
+}
+
+function Assert-CleanRepositoryRevision {
+    param(
+        [Parameter(Mandatory)][string]$Git,
+        [Parameter(Mandatory)][string]$ExpectedRevision
+    )
+
+    $observedRevision = Resolve-RepositorySourceRevision -Git $Git
+    if ($observedRevision -cne $ExpectedRevision) {
+        throw "The checked-out source revision changed during local initialization from '$ExpectedRevision' to '$observedRevision'."
+    }
+
+    $workingTreeState = @(
+        & $Git -C $repositoryRoot status --porcelain=v1 --untracked-files=all -- . 2>$null
+    )
+    if ($LASTEXITCODE -ne 0) {
+        throw "The working-tree state could not be verified at '$repositoryRoot'."
+    }
+    if ($workingTreeState.Count -ne 0) {
+        throw 'Local initialization requires a clean checkout before and after the build. Commit or remove tracked and untracked changes, then retry.'
+    }
+}
+
+function Get-RuntimeArtifactRecord {
+    param([Parameter(Mandatory)][string]$RelativePath)
+
+    $path = Join-Path $repositoryRoot $RelativePath
+    if (-not [System.IO.File]::Exists($path)) {
+        throw "The local runtime build artifact is missing: $RelativePath"
+    }
+
+    $file = [System.IO.FileInfo]::new($path)
+    if ($file.Length -le 0) {
+        throw "The local runtime build artifact is empty: $RelativePath"
+    }
+
+    return [ordered]@{
+        relativePath = $RelativePath
+        byteLength = $file.Length
+        sha256 = Get-Sha256 -Path $file.FullName
+    }
+}
+
 
 if (-not $IsWindows) {
     throw 'Pegasus local development initialization is supported only on Windows 11.'
@@ -96,11 +164,8 @@ Get-RequiredApplication `
     -Name 'func' `
     -Repair 'winget install --exact --id Microsoft.Azure.FunctionsCoreTools --version 4.12.1 --scope user' |
     Out-Null
-$sourceRevision = (& $git -C $repositoryRoot rev-parse --verify HEAD 2>$null | Out-String).Trim()
-if ($LASTEXITCODE -ne 0 -or $sourceRevision -notmatch '^[0-9a-fA-F]{40}$') {
-    throw 'The exact 40-character source revision could not be read from the local checkout.'
-}
-$sourceRevision = $sourceRevision.ToLowerInvariant()
+$sourceRevision = Resolve-RepositorySourceRevision -Git $git
+Assert-CleanRepositoryRevision -Git $git -ExpectedRevision $sourceRevision
 
 
 Push-Location $repositoryRoot
@@ -117,6 +182,7 @@ try {
         -Command $dotnet `
         -Arguments @('restore', $solutionPath, '--locked-mode') `
         -Description 'Locked .NET package restoration'
+    Assert-CleanRepositoryRevision -Git $git -ExpectedRevision $sourceRevision
     Invoke-RequiredCommand `
         -Command $dotnet `
         -Arguments @(
@@ -125,9 +191,11 @@ try {
             '--configuration',
             'Debug',
             '--no-restore',
+            '--no-incremental',
             "/p:SourceRevisionId=$sourceRevision"
         ) `
         -Description 'Deterministic local application build'
+    Assert-CleanRepositoryRevision -Git $git -ExpectedRevision $sourceRevision
 
     if (-not [System.IO.File]::Exists($playwrightPath)) {
         throw "The package-pinned Playwright command was not generated: $playwrightPath"
@@ -159,11 +227,16 @@ try {
 
     & (Join-Path $PSScriptRoot 'Invoke-Doctor.ps1') -Profile Offline
 
+    Assert-CleanRepositoryRevision -Git $git -ExpectedRevision $sourceRevision
+    $runtimeArtifacts = [ordered]@{
+        web = Get-RuntimeArtifactRecord -RelativePath $webAssemblyRelativePath
+        worker = Get-RuntimeArtifactRecord -RelativePath $workerAssemblyRelativePath
+    }
+    Assert-CleanRepositoryRevision -Git $git -ExpectedRevision $sourceRevision
+
     [System.IO.Directory]::CreateDirectory($localDevelopmentRoot) | Out-Null
     $packageLockPath = Join-Path $repositoryRoot 'package-lock.json'
-    $packageLockSha256 = Convert.ToHexString(
-        [System.Security.Cryptography.SHA256]::HashData(
-            [System.IO.File]::ReadAllBytes($packageLockPath)))
+    $packageLockSha256 = Get-Sha256 -Path $packageLockPath
     Write-AtomicJson -Path $initializationPath -Value ([pscustomobject][ordered]@{
         schemaVersion = 1
         kind = 'Pegasus.LocalDevelopment.Initialization'
@@ -173,6 +246,7 @@ try {
         functionsCoreToolsVersion = '4.12.1'
         packageLockSha256 = $packageLockSha256
         sourceSha = $sourceRevision
+        runtimeArtifacts = $runtimeArtifacts
     })
 }
 finally {

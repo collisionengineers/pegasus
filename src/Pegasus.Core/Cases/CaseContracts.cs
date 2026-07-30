@@ -1,3 +1,7 @@
+using Pegasus.Core.Identity;
+using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Workflow;
+
 namespace Pegasus.Core.Cases;
 
 public enum OrganizationRole
@@ -34,6 +38,41 @@ public enum AuditAssessment
     Repairable,
     TotalLoss
 }
+public static class QdosAlphaCaseActivationPolicy
+{
+    public const string PrincipalCode = "QDOS";
+
+    public static string RequireActivatedPrincipal(string principalCode)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(principalCode);
+        var normalized = principalCode.Trim().ToUpperInvariant();
+        if (!string.Equals(normalized, PrincipalCode, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "Only the QDOS principal is activated for case creation and reference allocation.");
+        }
+
+        return normalized;
+    }
+}
+
+public static class AuditIdentity
+{
+    public static string Create(string caseReference, AuditAssessment assessment)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(caseReference);
+        var prefix = assessment switch
+        {
+            AuditAssessment.Repairable => "a.",
+            AuditAssessment.TotalLoss => "ap.",
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(assessment),
+                "The Audit assessment is invalid.")
+        };
+        return prefix + caseReference;
+    }
+}
+
 
 public enum CaseInitialState
 {
@@ -68,15 +107,107 @@ public sealed record CaseIdentity(
     string Reference,
     string? AuditReference = null);
 
+public sealed record StandaloneAuditEvidence(
+    Guid Id,
+    Guid IntakeReceiptId,
+    Guid OriginalReportAssetId,
+    AuditAssessment Assessment,
+    Guid ConfirmedByStaffId,
+    DateTimeOffset ConfirmedAtUtc,
+    string Reason,
+    long ReceiptVersion,
+    bool IsDuplicate);
+
+public sealed record ConfirmStandaloneAuditEvidenceRequest(
+    Guid EvidenceId,
+    Guid IntakeReceiptId,
+    long ExpectedIntakeVersion,
+    Guid OriginalReportAssetId,
+    AuditAssessment Assessment,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason);
+public static class StandaloneAuditEvidencePolicy
+{
+    public static Guid ValidateConfirmation(ConfirmStandaloneAuditEvidenceRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.EvidenceId == Guid.Empty
+            || request.IntakeReceiptId == Guid.Empty
+            || request.OriginalReportAssetId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "Standalone Audit evidence requires stable receipt, report, and evidence identities.",
+                nameof(request));
+        }
+        if (request.ExpectedIntakeVersion < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(request),
+                "The expected intake version cannot be negative.");
+        }
+        if (!Enum.IsDefined(request.Assessment))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(request),
+                "The original-report assessment is invalid.");
+        }
+        ArgumentNullException.ThrowIfNull(request.Actor);
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        if (request.Actor.Kind != ActorKind.Staff
+            || !Guid.TryParse(request.Actor.SubjectId, out var staffId)
+            || staffId == Guid.Empty)
+        {
+            throw new InvalidOperationException(
+                "Standalone Audit evidence must be confirmed by an authenticated staff member.");
+        }
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.OperationKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Reason);
+        if (request.OperationKey.Length > 100 || request.Reason.Length > 500)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(request),
+                "The evidence operation key or reason exceeds its supported length.");
+        }
+
+        return staffId;
+    }
+}
+
+
+public sealed class StandaloneAuditEvidenceConflictException(Guid intakeReceiptId)
+    : InvalidOperationException(
+        $"Standalone Audit evidence for intake receipt '{intakeReceiptId}' was already confirmed with different evidence.")
+{
+    public Guid IntakeReceiptId { get; } = intakeReceiptId;
+}
+
+public interface IConfirmStandaloneAuditEvidence
+{
+    Task<StandaloneAuditEvidence> ExecuteAsync(
+        ConfirmStandaloneAuditEvidenceRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IStandaloneAuditEvidenceQueries
+{
+    Task<StandaloneAuditEvidence?> GetForReceiptAsync(
+        Guid intakeReceiptId,
+        CancellationToken cancellationToken);
+}
+
 public sealed record CaseAcceptanceRequest(
     Guid IntakeReceiptId,
     long ExpectedIntakeVersion,
-    string Actor,
+    ActionActor Actor,
     string OperationKey,
+    string Reason,
     CaseType CaseType,
     string PrincipalCode,
     CaseCompleteness Completeness,
-    AuditAssessment? StandaloneAuditAssessment);
+    CaseCompletenessEvaluation CompletenessEvaluation,
+    Guid? StandaloneAuditEvidenceId = null,
+    DateOnly? AcceptedInspectionDeadline = null);
 
 public sealed record CaseAcceptanceOutcome(
     CaseIdentity Identity,
@@ -118,10 +249,12 @@ public interface ICaseAcceptanceStore
 public sealed record CreateLinkedReplacementRequest(
     Guid CaseId,
     long ExpectedVersion,
-    string Actor,
+    ActionActor Actor,
     string OperationKey,
     string Reason,
-    string ReplacementPrincipalCode);
+    string EditLeaseToken,
+    string ReplacementPrincipalCode)
+    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 
 public interface ICreateLinkedReplacement
 {
@@ -129,25 +262,32 @@ public interface ICreateLinkedReplacement
         CreateLinkedReplacementRequest request,
         CancellationToken cancellationToken);
 }
+public interface ILinkedCaseReplacementStore
+{
+    Task<CaseAcceptanceOutcome> CreateAsync(
+        CreateLinkedReplacementRequest request,
+        CancellationToken cancellationToken);
+}
+
 
 public sealed record CreateOrganizationRequest(
     string Name,
     IReadOnlyList<OrganizationRole> Roles,
-    string Actor,
+    ActionActor Actor,
     string OperationKey);
 
 public sealed record UpdateOrganizationRolesRequest(
     Guid OrganizationId,
     long ExpectedVersion,
     IReadOnlyList<OrganizationRole> Roles,
-    string Actor,
+    ActionActor Actor,
     string OperationKey,
     string Reason);
 
 public sealed record CreatePrincipalRequest(
     Guid OrganizationId,
     string Code,
-    string Actor,
+    ActionActor Actor,
     string OperationKey);
 
 public sealed record ReplacePrincipalRequest(
@@ -155,17 +295,66 @@ public sealed record ReplacePrincipalRequest(
     long ExpectedVersion,
     Guid SuccessorOrganizationId,
     string SuccessorCode,
-    string Actor,
+    ActionActor Actor,
     string OperationKey,
     string Reason);
 
 public sealed record RecordEngineerFindingRequest(
     Guid CaseId,
     long ExpectedVersion,
-    string Actor,
+    ActionActor Actor,
     string OperationKey,
     string Reason,
-    AuditAssessment Assessment);
+    string EditLeaseToken,
+    AuditAssessment Assessment)
+    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
+
+public static class EngineerFindingPolicy
+{
+    public static Guid ValidateRequest(RecordEngineerFindingRequest request)
+    {
+        CaseLifecycleRules.ValidateMutation(request);
+        if (!Enum.IsDefined(request.Assessment))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(request),
+                "The Engineer finding assessment is invalid.");
+        }
+        if (request.Actor.Kind != ActorKind.Staff
+            || !request.Actor.IsInRole(StaffRole.Engineer)
+            || !Guid.TryParse(request.Actor.SubjectId, out var staffId)
+            || staffId == Guid.Empty)
+        {
+            throw new InvalidOperationException(
+                "An Engineer finding must be recorded by an authenticated Engineer.");
+        }
+
+        return staffId;
+    }
+
+    public static void RequireAssignedInspectionAndAudit(
+        CaseType caseType,
+        CaseLifecycleState state,
+        Guid? assignedEngineerId,
+        Guid actingEngineerId)
+    {
+        if (caseType != CaseType.InspectionAndAudit)
+        {
+            throw new InvalidOperationException(
+                "An Engineer finding can allocate a later Audit identity only for an Inspection and Audit case.");
+        }
+        if (state != CaseLifecycleState.ReportPreparation)
+        {
+            throw new InvalidOperationException(
+                "An Engineer finding can be recorded only during Report preparation.");
+        }
+        if (assignedEngineerId != actingEngineerId)
+        {
+            throw new InvalidOperationException(
+                "Only the Engineer assigned to this case can record the finding.");
+        }
+    }
+}
 
 public interface ICreateOrganization
 {

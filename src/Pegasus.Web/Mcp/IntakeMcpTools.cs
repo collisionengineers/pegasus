@@ -1,148 +1,418 @@
 using System.ComponentModel;
-using ModelContextProtocol;
 using ModelContextProtocol.Server;
-using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
 
 namespace Pegasus.Web.Mcp;
 
+internal sealed record IntakeAssetMcpSummary(
+    Guid Id,
+    string SourceLabel,
+    string FileName,
+    string MediaType,
+    IntakeAssetKind Kind,
+    IntakeAssetDisposition Disposition,
+    long ContentLength,
+    string ContentHash,
+    int? PageNumber,
+    IntakeAssetBounds? Bounds,
+    int? WidthPixels,
+    int? HeightPixels);
+
+internal sealed record IntakeEvidenceMcpSummary(
+    IntakeEvidenceSource Source,
+    IntakeEvidenceStrength Strength,
+    IntakeEvidenceFinding Finding,
+    string Signal,
+    string? MatcherKey,
+    int? MatcherVersion);
+
+internal sealed record IntakeMcpDetail(
+    Guid Id,
+    string SourceFileName,
+    string MediaType,
+    long SourceLength,
+    string SourceHash,
+    DateTimeOffset ReceivedAtUtc,
+    DateTimeOffset ProcessedAtUtc,
+    IntakeDecision Decision,
+    string DecisionReason,
+    IReadOnlyList<IntakeEvidenceMcpSummary> Evidence,
+    IReadOnlyList<InstructionReviewField> Fields,
+    InstructionDraft? InstructionDraft,
+    IReadOnlyList<string> MissingFields,
+    string? FailureCode,
+    bool IsDuplicate,
+    string SourceReaderKey,
+    string SourceReaderVersion,
+    string? ExtractionPolicyKey,
+    int? ExtractionPolicyVersion,
+    IReadOnlyList<IntakeAssetMcpSummary> Assets,
+    IReadOnlyList<ScannedPdfOcrCandidate> OcrCandidates,
+    long Version,
+    Guid? CurrentCaseId,
+    bool IsTruncated)
+{
+    private const int MaximumCollectionItems = 100;
+
+    public static IntakeMcpDetail From(IntakeReceipt receipt)
+    {
+        ArgumentNullException.ThrowIfNull(receipt);
+        var assets = receipt.AssetRecords;
+        var ocrCandidates = receipt.ScannedPdfPages;
+        var isTruncated = receipt.Evidence.Count > MaximumCollectionItems
+            || receipt.Fields.Count > MaximumCollectionItems
+            || receipt.MissingFields.Count > MaximumCollectionItems
+            || assets.Count > MaximumCollectionItems
+            || ocrCandidates.Count > MaximumCollectionItems;
+        return new(
+            receipt.Id,
+            DocumentMcpContent.SanitizeFileName(receipt.SourceFileName),
+            receipt.MediaType,
+            receipt.SourceLength,
+            receipt.SourceHash,
+            receipt.ReceivedAtUtc,
+            receipt.ProcessedAtUtc,
+            receipt.Decision,
+            receipt.DecisionReason,
+            receipt.Evidence.Take(MaximumCollectionItems).Select(item => new IntakeEvidenceMcpSummary(
+                item.Source,
+                item.Strength,
+                item.Finding,
+                item.Signal,
+                item.MatcherKey,
+                item.MatcherVersion)).ToArray(),
+            receipt.Fields.Take(MaximumCollectionItems).ToArray(),
+            receipt.InstructionDraft,
+            receipt.MissingFields.Take(MaximumCollectionItems).ToArray(),
+            receipt.FailureCode,
+            receipt.IsDuplicate,
+            receipt.SourceReaderKey,
+            receipt.SourceReaderVersion,
+            receipt.ExtractionPolicyKey,
+            receipt.ExtractionPolicyVersion,
+            assets.Take(MaximumCollectionItems).Select(item => new IntakeAssetMcpSummary(
+                item.Id,
+                item.SourceLabel,
+                DocumentMcpContent.SanitizeFileName(item.FileName),
+                item.MediaType,
+                item.Kind,
+                item.Disposition,
+                item.ContentLength,
+                item.ContentHash,
+                item.PageNumber,
+                item.Bounds,
+                item.WidthPixels,
+                item.HeightPixels)).ToArray(),
+            ocrCandidates.Take(MaximumCollectionItems).ToArray(),
+            receipt.Version,
+            receipt.CurrentCaseId,
+            isTruncated);
+    }
+}
+
+internal sealed record IntakeAcceptanceMcpReceipt(
+    CaseIdentity Identity,
+    CaseInitialState InitialState,
+    CaseCustodyState CustodyState,
+    bool IsDuplicate);
+
 [McpServerToolType]
-internal sealed class IntakeMcpTools(
-    IIntakeReceiptQueries queries,
-    IAcceptIntake acceptIntake,
-    IInspectionAddressResolutionStore addressResolution,
+internal sealed class IntakeListMcpTool(
+    IListIntake listIntake,
     StaffMcpActorResolver actorResolver)
 {
     [McpServerTool(
-        Name = "pegasus_intake_list",
-        Title = "List intake receipts",
+        Name = AlphaMcpToolNames.IntakeList,
+        Title = "List intake",
         ReadOnly = true,
         Destructive = false,
         Idempotent = true,
-        OpenWorld = false)]
-    [Description("Lists the durable Pegasus intake queue, optionally filtered by its exact decision.")]
-    public async Task<IReadOnlyList<IntakeReceiptSummary>> ListAsync(
-        [Description("Optional exact intake decision filter.")] IntakeDecision? decision,
-        CancellationToken cancellationToken)
-    {
-        await actorResolver.RequireAsync(StaffMcpPolicies.ReadScope, cancellationToken);
-        if (decision is not null && !Enum.IsDefined(decision.Value))
+        OpenWorld = false,
+        UseStructuredContent = true)]
+    [Description("Lists one bounded page of intake records authorized for the current staff member.")]
+    public Task<StaffMcpResult<IntakeListPage>> ExecuteAsync(
+        IntakeDecision? decision,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken) =>
+        StaffMcpCall.ExecuteAsync(async () =>
         {
-            throw new McpException("The intake decision is not recognized.");
-        }
+            StaffMcpInput.RequirePage(page, pageSize);
+            var staff = await actorResolver.RequireAsync(
+                StaffMcpPolicies.ReadScope,
+                cancellationToken);
+            return await listIntake.ExecuteAsync(
+                new(staff.Actor, decision, page, pageSize),
+                cancellationToken);
+        });
+}
 
-        return await queries.ListAsync(decision, cancellationToken);
-    }
-
+[McpServerToolType]
+internal sealed class IntakeGetMcpTool(
+    IGetIntake getIntake,
+    StaffMcpActorResolver actorResolver)
+{
     [McpServerTool(
-        Name = "pegasus_intake_get",
-        Title = "Get intake receipt",
+        Name = AlphaMcpToolNames.IntakeGet,
+        Title = "Get intake",
         ReadOnly = true,
         Destructive = false,
         Idempotent = true,
-        OpenWorld = false)]
-    [Description("Gets one durable intake receipt, including extraction evidence and stable asset identities but not source bytes.")]
-    public async Task<IntakeReceipt> GetAsync(
-        [Description("The durable intake receipt identifier.")] Guid receiptId,
+        OpenWorld = false,
+        UseStructuredContent = true)]
+    [Description("Gets bounded intake evidence and review data without source bytes or custody coordinates.")]
+    public async Task<StaffMcpResult<IntakeMcpDetail>> ExecuteAsync(
+        Guid receiptId,
         CancellationToken cancellationToken)
     {
-        await actorResolver.RequireAsync(StaffMcpPolicies.ReadScope, cancellationToken);
-        RequireNonEmpty(receiptId, nameof(receiptId));
-        return await queries.GetAsync(receiptId, cancellationToken)
-            ?? throw new McpException("The intake receipt was not found.");
+        StaffMcpInput.RequireIdentifier(receiptId, nameof(receiptId));
+        var result = await StaffMcpCall.ExecuteAsync(async () =>
+        {
+            var staff = await actorResolver.RequireAsync(
+                StaffMcpPolicies.ReadScope,
+                cancellationToken);
+            return await getIntake.ExecuteAsync(
+                new(receiptId, staff.Actor),
+                cancellationToken);
+        });
+        return result.Outcome == StaffMcpCallOutcome.Succeeded
+            ? result.Value is { } receipt
+                ? StaffMcpResult<IntakeMcpDetail>.Succeeded(IntakeMcpDetail.From(receipt))
+                : StaffMcpResult<IntakeMcpDetail>.NotFound()
+            : new(result.Outcome, null, result.ErrorCode, result.CurrentVersion);
     }
+}
 
+[McpServerToolType]
+internal sealed class IntakeResolveMcpTool(
+    IResolveIntake resolveIntake,
+    StaffMcpActorResolver actorResolver)
+{
     [McpServerTool(
-        Name = "pegasus_intake_accept",
-        Title = "Accept intake and allocate case",
+        Name = AlphaMcpToolNames.IntakeResolve,
+        Title = "Resolve intake",
         ReadOnly = false,
         Destructive = false,
         Idempotent = true,
-        OpenWorld = false)]
-    [Description("Accepts a reviewed intake receipt through the canonical Core transaction. The inspection address must already be staff-resolved; incomplete or stale evidence fails closed before reference allocation.")]
-    public async Task<CaseAcceptanceOutcome> AcceptAsync(
-        [Description("The durable intake receipt identifier.")] Guid receiptId,
-        [Description("The receipt version observed by the caller.")] long expectedVersion,
-        [Description("A caller-generated idempotency identifier for this acceptance.")] Guid operationId,
-        [Description("The exact case type confirmed by staff.")] CaseType caseType,
-        [Description("The confirmed active principal code.")] string principalCode,
-        [Description("Whether the instruction evidence is complete.")] bool instructionComplete,
-        [Description("Whether the image evidence is complete.")] bool imagesComplete,
-        [Description("Whether staff confirmed the instruction evidence.")] bool instructionConfirmedByStaff,
-        [Description("Whether staff confirmed the image evidence.")] bool imagesConfirmedByStaff,
-        [Description("Required only for a standalone Audit case.")] AuditAssessment? standaloneAuditAssessment,
-        CancellationToken cancellationToken)
-    {
-        var staff = await actorResolver.RequireAsync(
-            StaffMcpPolicies.WriteScope,
-            cancellationToken);
-        RequireNonEmpty(receiptId, nameof(receiptId));
-        RequireNonEmpty(operationId, nameof(operationId));
-        if (expectedVersion < 0)
+        OpenWorld = false,
+        UseStructuredContent = true)]
+    [Description("Resolves an intake draft or blocks it using the observed version and an idempotency key.")]
+    public Task<StaffMcpResult<IntakeMcpDetail>> ExecuteAsync(
+        Guid receiptId,
+        long expectedVersion,
+        string operationKey,
+        string reason,
+        IntakeResolutionKind kind,
+        InstructionDraft? correctedDraft,
+        CancellationToken cancellationToken) =>
+        StaffMcpCall.ExecuteAsync(async () =>
         {
-            throw new McpException("The expected receipt version cannot be negative.");
-        }
-        if (!Enum.IsDefined(caseType))
-        {
-            throw new McpException("The case type is not recognized.");
-        }
-        if (standaloneAuditAssessment is not null
-            && !Enum.IsDefined(standaloneAuditAssessment.Value))
-        {
-            throw new McpException("The Audit assessment is not recognized.");
-        }
+            StaffMcpInput.RequireIdentifier(receiptId, nameof(receiptId));
+            StaffMcpInput.RequireVersion(expectedVersion, nameof(expectedVersion));
+            operationKey = StaffMcpInput.RequireOperationKey(operationKey);
+            reason = StaffMcpInput.RequireReason(reason);
+            var staff = await actorResolver.RequireAsync(
+                StaffMcpPolicies.WriteScope,
+                cancellationToken);
+            var receipt = await resolveIntake.ExecuteAsync(
+                new(receiptId, expectedVersion, staff.Actor, operationKey, reason, kind, correctedDraft),
+                cancellationToken);
+            return IntakeMcpDetail.From(receipt);
+        });
+}
 
-        principalCode = RequireText(principalCode, nameof(principalCode), 64)
-            .ToUpperInvariant();
-        var address = await addressResolution.GetAsync(receiptId, cancellationToken);
-        if (address is null
-            || address.State is not InspectionAddressResolutionState.Accepted
-                and not InspectionAddressResolutionState.Corrected)
+[McpServerToolType]
+internal sealed class IntakeReevaluateMcpTool(
+    IReevaluateIntake reevaluateIntake,
+    StaffMcpActorResolver actorResolver)
+{
+    [McpServerTool(
+        Name = AlphaMcpToolNames.IntakeReevaluate,
+        Title = "Reevaluate intake",
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
+    [Description("Schedules intake reevaluation using the observed version and an idempotency key.")]
+    public Task<StaffMcpResult<IntakeMcpDetail>> ExecuteAsync(
+        Guid receiptId,
+        long expectedVersion,
+        string operationKey,
+        string reason,
+        CancellationToken cancellationToken) =>
+        StaffMcpCall.ExecuteAsync(async () =>
         {
-            throw new McpException(
-                "The inspection address must be accepted or corrected before case allocation.");
-        }
-        if (address.ReceiptVersion != expectedVersion)
-        {
-            throw new McpException(
-                "The intake evidence changed; reload the receipt before accepting it.");
-        }
+            StaffMcpInput.RequireIdentifier(receiptId, nameof(receiptId));
+            StaffMcpInput.RequireVersion(expectedVersion, nameof(expectedVersion));
+            operationKey = StaffMcpInput.RequireOperationKey(operationKey);
+            reason = StaffMcpInput.RequireReason(reason);
+            var staff = await actorResolver.RequireAsync(
+                StaffMcpPolicies.WriteScope,
+                cancellationToken);
+            var receipt = await reevaluateIntake.ExecuteAsync(
+                new(receiptId, expectedVersion, staff.Actor, operationKey, reason),
+                cancellationToken);
+            return IntakeMcpDetail.From(receipt);
+        });
+}
 
-        return await acceptIntake.ExecuteAsync(
-            new(
-                receiptId,
-                expectedVersion,
-                staff.HistoryActor,
-                $"mcp:intake-accept:{operationId:N}",
-                caseType,
-                principalCode,
+[McpServerToolType]
+internal sealed class IntakeAcceptMcpTool(
+    IAcceptIntake acceptIntake,
+    StaffMcpActorResolver actorResolver)
+{
+    [McpServerTool(
+        Name = AlphaMcpToolNames.IntakeAccept,
+        Title = "Accept intake",
+        ReadOnly = false,
+        Destructive = true,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
+    [Description("Accepts reviewed intake through the authoritative case-allocation transaction.")]
+    public Task<StaffMcpResult<IntakeAcceptanceMcpReceipt>> ExecuteAsync(
+        Guid receiptId,
+        long expectedVersion,
+        string operationKey,
+        string reason,
+        CaseType caseType,
+        string principalCode,
+        CaseCompleteness completeness,
+        Guid? standaloneAuditEvidenceId,
+        DateOnly? acceptedInspectionDeadline,
+        CancellationToken cancellationToken) =>
+        StaffMcpCall.ExecuteAsync(async () =>
+        {
+            StaffMcpInput.RequireIdentifier(receiptId, nameof(receiptId));
+            StaffMcpInput.RequireVersion(expectedVersion, nameof(expectedVersion));
+            operationKey = StaffMcpInput.RequireOperationKey(operationKey);
+            reason = StaffMcpInput.RequireReason(reason);
+            principalCode = StaffMcpInput.RequireText(principalCode, nameof(principalCode), 20);
+            if (standaloneAuditEvidenceId == Guid.Empty)
+            {
+                throw new ModelContextProtocol.McpException(
+                    "'standaloneAuditEvidenceId' must be a non-empty identifier when supplied.");
+            }
+            var staff = await actorResolver.RequireAsync(
+                StaffMcpPolicies.WriteScope,
+                cancellationToken);
+            var outcome = await acceptIntake.ExecuteAsync(
                 new(
-                    instructionComplete,
-                    imagesComplete,
-                    instructionConfirmedByStaff,
-                    imagesConfirmedByStaff),
-                standaloneAuditAssessment),
-            cancellationToken);
-    }
+                    receiptId,
+                    expectedVersion,
+                    staff.Actor,
+                    operationKey,
+                    reason,
+                    caseType,
+                    principalCode,
+                    completeness,
+                    standaloneAuditEvidenceId,
+                    acceptedInspectionDeadline),
+                cancellationToken);
+            return new IntakeAcceptanceMcpReceipt(
+                outcome.Identity,
+                outcome.InitialState,
+                outcome.CustodyState,
+                outcome.IsDuplicate);
+        });
+}
 
-    private static void RequireNonEmpty(Guid value, string name)
-    {
-        if (value == Guid.Empty)
+[McpServerToolType]
+internal sealed class IntakeLinkCaseMcpTool(
+    ILinkIntake linkIntake,
+    StaffMcpActorResolver actorResolver)
+{
+    [McpServerTool(
+        Name = AlphaMcpToolNames.IntakeLinkCase,
+        Title = "Link intake to case",
+        ReadOnly = false,
+        Destructive = true,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
+    [Description("Links intake to an existing case using both observed versions and the active case edit lease.")]
+    public Task<StaffMcpResult<StaffMcpMutationReceipt>> ExecuteAsync(
+        Guid receiptId,
+        Guid caseId,
+        long expectedIntakeVersion,
+        long expectedCaseVersion,
+        string editLeaseToken,
+        string operationKey,
+        string reason,
+        CancellationToken cancellationToken) =>
+        StaffMcpCall.ExecuteAsync(async () =>
         {
-            throw new McpException($"'{name}' must be a non-empty identifier.");
-        }
-    }
+            StaffMcpInput.RequireIdentifier(receiptId, nameof(receiptId));
+            StaffMcpInput.RequireIdentifier(caseId, nameof(caseId));
+            StaffMcpInput.RequireVersion(expectedIntakeVersion, nameof(expectedIntakeVersion));
+            StaffMcpInput.RequireVersion(expectedCaseVersion, nameof(expectedCaseVersion));
+            editLeaseToken = StaffMcpInput.RequireLease(editLeaseToken);
+            operationKey = StaffMcpInput.RequireOperationKey(operationKey);
+            reason = StaffMcpInput.RequireReason(reason);
+            var staff = await actorResolver.RequireAsync(
+                StaffMcpPolicies.WriteScope,
+                cancellationToken);
+            await linkIntake.ExecuteAsync(
+                new(
+                    receiptId,
+                    caseId,
+                    expectedIntakeVersion,
+                    expectedCaseVersion,
+                    editLeaseToken,
+                    staff.Actor,
+                    operationKey,
+                    reason),
+                cancellationToken);
+        });
+}
 
-    private static string RequireText(string? value, string name, int maximumLength)
-    {
-        var normalized = value?.Trim();
-        if (string.IsNullOrWhiteSpace(normalized) || normalized.Length > maximumLength)
+[McpServerToolType]
+internal sealed class IntakeUnlinkCaseMcpTool(
+    IReverseIntakeLink reverseIntakeLink,
+    StaffMcpActorResolver actorResolver)
+{
+    [McpServerTool(
+        Name = AlphaMcpToolNames.IntakeUnlinkCase,
+        Title = "Unlink intake from case",
+        ReadOnly = false,
+        Destructive = true,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
+    [Description("Reverses a manual intake link using both observed versions and the active case edit lease.")]
+    public Task<StaffMcpResult<StaffMcpMutationReceipt>> ExecuteAsync(
+        Guid receiptId,
+        Guid caseId,
+        long expectedIntakeVersion,
+        long expectedCaseVersion,
+        string editLeaseToken,
+        string operationKey,
+        string reason,
+        CancellationToken cancellationToken) =>
+        StaffMcpCall.ExecuteAsync(async () =>
         {
-            throw new McpException(
-                $"'{name}' is required and must be no longer than {maximumLength} characters.");
-        }
-
-        return normalized;
-    }
+            StaffMcpInput.RequireIdentifier(receiptId, nameof(receiptId));
+            StaffMcpInput.RequireIdentifier(caseId, nameof(caseId));
+            StaffMcpInput.RequireVersion(expectedIntakeVersion, nameof(expectedIntakeVersion));
+            StaffMcpInput.RequireVersion(expectedCaseVersion, nameof(expectedCaseVersion));
+            editLeaseToken = StaffMcpInput.RequireLease(editLeaseToken);
+            operationKey = StaffMcpInput.RequireOperationKey(operationKey);
+            reason = StaffMcpInput.RequireReason(reason);
+            var staff = await actorResolver.RequireAsync(
+                StaffMcpPolicies.WriteScope,
+                cancellationToken);
+            await reverseIntakeLink.ExecuteAsync(
+                new(
+                    receiptId,
+                    caseId,
+                    expectedIntakeVersion,
+                    expectedCaseVersion,
+                    editLeaseToken,
+                    staff.Actor,
+                    operationKey,
+                    reason),
+                cancellationToken);
+        });
 }

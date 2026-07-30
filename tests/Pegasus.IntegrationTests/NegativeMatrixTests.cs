@@ -4,6 +4,7 @@ using System.Text.Json;
 
 namespace Pegasus.IntegrationTests;
 
+[Collection(LocalDbFixtureDefinition.Name)]
 public sealed class NegativeMatrixTests
 {
     [Theory]
@@ -49,7 +50,7 @@ public sealed class NegativeMatrixTests
         content.Headers.ContentType = MediaTypeHeaderValue.Parse(email.MediaType);
         form.Add(content, "Upload", email.FileName);
 
-        using var response = await client.PostAsync("/Intake/EmailEvaluation", form);
+        using var response = await client.PostAsync("/Development/EmailEvaluation", form);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Empty(OfflineAcceptanceTests.ReportFiles(factory));
@@ -95,7 +96,7 @@ public sealed class NegativeMatrixTests
         using var client = IntakeWebDriver.CreateClient(factory);
 
         using var response = await client.GetAsync(
-            $"/Intake/EmailEvaluation?handler=Report&reportKey={Uri.EscapeDataString(reportKey)}");
+            $"/Development/EmailEvaluation?handler=Report&reportKey={Uri.EscapeDataString(reportKey)}");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Empty(OfflineAcceptanceTests.ReportFiles(factory));

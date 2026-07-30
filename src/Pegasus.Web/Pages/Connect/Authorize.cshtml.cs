@@ -238,8 +238,8 @@ public sealed class AuthorizeModel(
 
 public sealed record StaffMcpOAuthOptions(Uri Issuer, Uri Resource)
 {
-    public const string ReadScope = "pegasus.mcp.read";
-    public const string WriteScope = "pegasus.mcp.write";
+    public const string ReadScope = "pegasus.read";
+    public const string WriteScope = "pegasus.write";
 }
 
 internal static class StaffMcpTokenPrincipal

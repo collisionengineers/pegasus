@@ -5,9 +5,29 @@ using Pegasus.Core.Custody;
 namespace Pegasus.Infrastructure.Persistence;
 
 internal sealed class EfExternalWorkStore(
-    IDbContextFactory<PegasusDbContext> contextFactory) : IExternalWorkStore
+    IDbContextFactory<PegasusDbContext> contextFactory)
+    : IExternalWorkStore, IQueuedExternalWorkReader
 {
     private const int CandidateBatchSize = 256;
+
+    public async Task<QueuedExternalWork?> GetAsync(
+        Guid workItemId,
+        CancellationToken cancellationToken)
+    {
+        if (workItemId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "An external work item identifier is required.",
+                nameof(workItemId));
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.ExternalWorkItems
+            .AsNoTracking()
+            .Where(item => item.Id == workItemId)
+            .Select(item => new QueuedExternalWork(item.Id, item.Kind))
+            .SingleOrDefaultAsync(cancellationToken);
+    }
 
     public async Task<ExternalWorkDispatchClaim?> ClaimDispatchAsync(
         DateTimeOffset nowUtc,
@@ -129,60 +149,113 @@ internal sealed class EfExternalWorkStore(
             return;
         }
 
-        if ((work.State is "dispatching" or "processing")
-            && work.LeaseExpiresAtUtc is { } leaseExpiresAtUtc
-            && leaseExpiresAtUtc > failedAtUtc)
+        switch (work.Kind)
         {
-            work.State = "pending";
-            work.DueAtUtc = leaseExpiresAtUtc;
-            work.FailureCode = "queue_poisoned_during_active_lease";
-            work.FailureReason =
-                "The poison delivery overlapped an active lease and was scheduled for safe replay.";
-            work.LeaseToken = null;
-            work.LeaseExpiresAtUtc = null;
-            await context.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            return;
-        }
+            case ExternalWorkKinds.CreateCaseCustody:
+                if (string.Equals(work.Case.CustodyState, "confirmed", StringComparison.Ordinal))
+                {
+                    CompletePoisonReplay(work, failedAtUtc);
+                    break;
+                }
 
-        if (string.Equals(work.Case.CustodyState, "confirmed", StringComparison.Ordinal))
-        {
-            work.State = "completed";
-            work.CompletedAtUtc ??= failedAtUtc;
-            work.LeaseToken = null;
-            work.LeaseExpiresAtUtc = null;
-            await context.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            return;
-        }
+                FailWork(
+                    work,
+                    failedAtUtc,
+                    "queue_poisoned",
+                    "Accepted source custody exhausted the queue retry policy.");
+                if (!string.Equals(work.Case.CustodyState, "failed", StringComparison.Ordinal))
+                {
+                    var beforeVersion = work.Case.Version;
+                    work.Case.CustodyState = "failed";
+                    work.Case.Version = checked(work.Case.Version + 1);
+                    context.CaseHistory.Add(new()
+                    {
+                        Id = Guid.NewGuid(),
+                        CaseId = work.CaseId,
+                        EventType = "custody_failed",
+                        Actor = "system",
+                        Reason = "Accepted source custody exhausted the queue retry policy.",
+                        OccurredAtUtc = failedAtUtc,
+                        OperationKey = $"{work.OperationKey}:poisoned",
+                        BeforeVersion = beforeVersion,
+                        AfterVersion = work.Case.Version
+                    });
+                }
+                break;
 
-        work.State = "failed";
-        work.DueAtUtc = failedAtUtc;
-        work.FailureCode = "queue_poisoned";
-        work.FailureReason = "External custody work exhausted the queue retry policy.";
-        work.LeaseToken = null;
-        work.LeaseExpiresAtUtc = null;
-        if (!string.Equals(work.Case.CustodyState, "failed", StringComparison.Ordinal))
-        {
-            var beforeVersion = work.Case.Version;
-            work.Case.CustodyState = "failed";
-            work.Case.Version = checked(work.Case.Version + 1);
-            context.CaseHistory.Add(new()
-            {
-                Id = Guid.NewGuid(),
-                CaseId = work.CaseId,
-                EventType = "custody_failed",
-                Actor = "system",
-                Reason = "Accepted source custody exhausted the queue retry policy.",
-                OccurredAtUtc = failedAtUtc,
-                OperationKey = $"{work.OperationKey}:poisoned",
-                BeforeVersion = beforeVersion,
-                AfterVersion = work.Case.Version
-            });
+            case ExternalWorkKinds.CreateAuditReferenceCustody:
+                if (!string.IsNullOrWhiteSpace(work.Case.AuditCustodyRemoteId))
+                {
+                    CompletePoisonReplay(work, failedAtUtc);
+                    break;
+                }
+
+                FailWork(
+                    work,
+                    failedAtUtc,
+                    "queue_poisoned",
+                    "Later Audit reference custody exhausted the queue retry policy.");
+                var beforeAuditVersion = work.Case.Version;
+                work.Case.Version = checked(work.Case.Version + 1);
+                context.CaseHistory.Add(new()
+                {
+                    Id = Guid.NewGuid(),
+                    CaseId = work.CaseId,
+                    EventType = "audit_custody_failed",
+                    Actor = "system",
+                    Reason = "Later Audit reference custody exhausted the queue retry policy.",
+                    OccurredAtUtc = failedAtUtc,
+                    OperationKey = $"{work.OperationKey}:poisoned",
+                    BeforeVersion = beforeAuditVersion,
+                    AfterVersion = work.Case.Version
+                });
+                break;
+
+            case ExternalWorkKinds.VehicleLookup:
+                FailWork(
+                    work,
+                    failedAtUtc,
+                    "queue_poisoned",
+                    "Vehicle lookup exhausted the queue retry policy.");
+                break;
+
+            default:
+                FailWork(
+                    work,
+                    failedAtUtc,
+                    "unknown_external_work_kind",
+                    "The persisted external-work kind is not recognized and was denied.");
+                break;
         }
 
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    private static void CompletePoisonReplay(
+        ExternalWorkItemEntity work,
+        DateTimeOffset completedAtUtc)
+    {
+        work.State = "completed";
+        work.CompletedAtUtc ??= completedAtUtc;
+        work.LeaseToken = null;
+        work.LeaseExpiresAtUtc = null;
+        work.FailureCode = null;
+        work.FailureReason = null;
+    }
+
+    private static void FailWork(
+        ExternalWorkItemEntity work,
+        DateTimeOffset failedAtUtc,
+        string failureCode,
+        string failureReason)
+    {
+        work.State = "failed";
+        work.DueAtUtc = failedAtUtc;
+        work.LeaseToken = null;
+        work.LeaseExpiresAtUtc = null;
+        work.FailureCode = failureCode;
+        work.FailureReason = failureReason;
     }
 
     private static async Task<DispatchCandidate?> FindNextCandidateAsync(

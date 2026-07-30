@@ -1,6 +1,6 @@
 name: pegasus
 metadata:
-  template: pegasus@0.0.0-development
+  template: pegasus@0.1.0-alpha.1
 services:
   web:
     project: ./src/Pegasus.Web
@@ -10,7 +10,3 @@ services:
     project: ./src/Pegasus.Worker
     host: function
     language: csharp
-hooks:
-  postprovision:
-    shell: pwsh
-    run: ./infra/scripts/Grant-DatabaseAccess.ps1

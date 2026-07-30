@@ -22,6 +22,7 @@ public static class StaffMcpExtensions
 
         services.AddHttpContextAccessor();
         services.AddScoped<StaffMcpActorResolver>();
+        services.AddSingleton<StaffMcpToolRateLimiter>();
         services.AddScoped<IAuthorizationHandler, CurrentStaffAuthorizationHandler>();
         services.AddAuthentication()
             .AddMcp(
@@ -63,12 +64,9 @@ public static class StaffMcpExtensions
                 });
 
         services.AddMcpServer()
-            .WithTools<IntakeMcpTools>()
-            .WithTools<AddressMcpTools>()
-            .WithTools<TriageMcpTools>()
-            .WithTools<EvaMcpTools>()
-            .WithTools<DocumentMcpTools>()
-            .WithTools<CaseWorkflowMcpTools>()
+            .WithTools(
+                toolTypes: AlphaMcpToolManifest.ToolTypes,
+                serializerOptions: AlphaMcpToolManifest.SerializerOptions)
             .WithHttpTransport(options =>
             {
                 options.Stateless = true;
@@ -78,13 +76,10 @@ public static class StaffMcpExtensions
     }
 
     public static IEndpointConventionBuilder MapPegasusStaffMcp(
-        this IEndpointRouteBuilder endpoints,
-        string rateLimitPolicy)
+        this IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        ArgumentException.ThrowIfNullOrWhiteSpace(rateLimitPolicy);
         return endpoints.MapMcp("/mcp")
-            .RequireAuthorization(StaffMcpPolicies.Endpoint)
-            .RequireRateLimiting(rateLimitPolicy);
+            .RequireAuthorization(StaffMcpPolicies.Endpoint);
     }
 }

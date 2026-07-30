@@ -1,6 +1,4 @@
-using Azure.Identity;
 using Azure.Storage.Queues;
-using Microsoft.Extensions.Configuration;
 using Pegasus.Core.Custody;
 
 namespace Pegasus.Worker;
@@ -8,20 +6,14 @@ namespace Pegasus.Worker;
 internal sealed class AzureQueueExternalWorkQueue : IExternalWorkEnqueuer
 {
     private readonly QueueClient queueClient;
+    private readonly WorkerStorageProvisioning storageProvisioning;
 
-    public AzureQueueExternalWorkQueue(IConfiguration configuration)
+    public AzureQueueExternalWorkQueue(
+        WorkerQueueClients queueClients,
+        WorkerStorageProvisioning storageProvisioning)
     {
-        var serviceUri = configuration["ExternalWorkQueue:ServiceUri"]
-            ?? configuration["IntakeQueue:ServiceUri"];
-        queueClient = !string.IsNullOrWhiteSpace(serviceUri)
-            ? new QueueServiceClient(new Uri(serviceUri, UriKind.Absolute), new DefaultAzureCredential())
-                .GetQueueClient("external-work")
-            : new QueueClient(
-                configuration.GetConnectionString("AzureWebJobsStorage")
-                    ?? configuration["AzureWebJobsStorage"]
-                    ?? throw new InvalidOperationException(
-                        "ExternalWorkQueue:ServiceUri or a Development storage connection is required."),
-                "external-work");
+        queueClient = queueClients.ExternalWorkQueue;
+        this.storageProvisioning = storageProvisioning;
     }
 
     public async Task EnqueueAsync(Guid workItemId, CancellationToken cancellationToken)
@@ -33,7 +25,7 @@ internal sealed class AzureQueueExternalWorkQueue : IExternalWorkEnqueuer
                 nameof(workItemId));
         }
 
-        await queueClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+        await storageProvisioning.EnsureQueueExistsAsync(queueClient, cancellationToken);
         await queueClient.SendMessageAsync(workItemId.ToString("D"), cancellationToken: cancellationToken);
     }
 }

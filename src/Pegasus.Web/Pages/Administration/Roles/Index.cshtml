@@ -36,10 +36,10 @@
                 <tr>
                     <td>@account.UserName</td>
                     <td>@(account.IsEnabled ? "Enabled" : "Disabled")</td>
-                    <td>@string.Join(", ", account.Roles)</td>
+                    <td>@string.Join(", ", account.CurrentRoles)</td>
                     <td>
                         <form method="post" asp-page-handler="Assign">
-                            <input type="hidden" name="StaffId" value="@account.Id" />
+                            <input type="hidden" name="StaffId" value="@account.StaffId" />
                             <input type="hidden" name="OperationKey" value="@operationKey" />
                             <fieldset>
                                 <legend>Roles for @account.UserName</legend>

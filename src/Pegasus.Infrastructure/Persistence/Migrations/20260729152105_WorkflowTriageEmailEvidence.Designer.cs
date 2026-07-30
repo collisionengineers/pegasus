@@ -1907,10 +1907,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("AssigneeId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("ConcurrencyToken")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -1919,21 +1915,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<DateTimeOffset?>("EditLeaseExpiresAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("EditLeaseHolder")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("EditLeaseOperationKey")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("EditLeaseTokenHash")
-                        .HasMaxLength(64)
-                        .HasColumnType("nchar(64)")
-                        .IsFixedLength();
 
                     b.Property<Guid>("EvaluationRevisionId")
                         .HasColumnType("uniqueidentifier");
@@ -2057,17 +2038,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
-
-                    b.Property<Guid?>("AfterAssigneeId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("AfterLinkedCaseId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("AfterState")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
 
                     b.Property<long>("AfterVersion")
                         .HasColumnType("bigint");

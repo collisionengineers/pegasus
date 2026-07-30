@@ -21,7 +21,7 @@ else
 {
     <table>
         <thead>
-            <tr><th>Username</th><th>Status</th><th>Roles</th><th>Last reviewed (UTC)</th><th>Record review</th></tr>
+            <tr><th>Username</th><th>Status</th><th>Roles</th><th>Last reviewed (UTC)</th><th>Review state</th><th>Actions</th></tr>
         </thead>
         <tbody>
         @foreach (var account in Model.Accounts)
@@ -29,17 +29,19 @@ else
             <tr>
                 <td>@account.UserName</td>
                 <td>@(account.IsEnabled ? "Enabled" : "Disabled")</td>
-                <td>@string.Join(", ", account.Roles)</td>
-                <td>@(account.LastAccessReviewAtUtc?.ToString("u") ?? "Not recorded")</td>
+                <td>@string.Join(", ", account.CurrentRoles)</td>
+                <td>@(account.LastReviewedAtUtc?.ToString("u") ?? "Not recorded")</td>
+                <td>@(account.ReviewIsOutstanding ? "Due — no review recorded" : "Recorded")</td>
                 <td>
-                    <form method="post" asp-page-handler="Review">
-                        <input type="hidden" name="StaffId" value="@account.Id" />
+                    <form method="post">
+                        <input type="hidden" name="StaffId" value="@account.StaffId" />
                         <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
                         <label>
                             Reason
                             <input name="Reason" required maxlength="1000" />
                         </label>
-                        <button type="submit">Record reviewed</button>
+                        <button type="submit" asp-page-handler="Review">Record reviewed</button>
+                        <button type="submit" asp-page-handler="RevokeMcp">Revoke MCP access</button>
                     </form>
                 </td>
             </tr>

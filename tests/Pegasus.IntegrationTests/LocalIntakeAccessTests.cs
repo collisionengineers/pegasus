@@ -1,11 +1,14 @@
 using System.Data.Common;
 using System.Net;
+using Microsoft.AspNetCore.Routing;
 using Pegasus.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Pegasus.IntegrationTests;
 
+[Collection(LocalDbFixtureDefinition.Name)]
+[Trait("Category", "SqlServer")]
 public sealed class LocalIntakeAccessTests
 {
     public static TheoryData<string, bool?> DeniedConfigurations => new()
@@ -39,22 +42,29 @@ public sealed class LocalIntakeAccessTests
 
         foreach (var path in new[]
                  {
-                     "/Intake/Upload",
-                     "/Intake/EmailEvaluation",
-                     "/Intake/Queue",
-                     $"/Intake/Review/{Guid.NewGuid()}"
+                     "/Intake",
+                     "/Development/EmailEvaluation",
+                     $"/Intake/{Guid.NewGuid()}",
+                     $"/Intake/{Guid.NewGuid()}/Source"
                  })
         {
             using var response = await client.GetAsync(path);
             Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         }
+        var endpoints = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints;
+        Assert.DoesNotContain(
+            endpoints.OfType<RouteEndpoint>(),
+            endpoint => endpoint.RoutePattern.RawText?.Contains(
+                "Development/EmailEvaluation",
+                StringComparison.OrdinalIgnoreCase) == true);
+
 
         using var multipart = new MultipartFormDataContent();
-        using var post = await client.PostAsync("/Intake/EmailEvaluation", multipart);
+        using var post = await client.PostAsync("/Development/EmailEvaluation", multipart);
         Assert.Equal(HttpStatusCode.NotFound, post.StatusCode);
 
         using var uploadMultipart = new MultipartFormDataContent();
-        using var uploadPost = await client.PostAsync("/Intake/Upload", uploadMultipart);
+        using var uploadPost = await client.PostAsync("/Intake?handler=ReceiveIntake", uploadMultipart);
         Assert.Equal(HttpStatusCode.NotFound, uploadPost.StatusCode);
 
         await using var scope = factory.Services.CreateAsyncScope();
@@ -92,12 +102,9 @@ public sealed class LocalIntakeAccessTests
             new Dictionary<string, string?>
             {
                 ["Runtime:Profile"] = runtimeProfile,
-                ["Database:Provider"] = "Sqlite",
-                ["Database:LocalPath"] = Path.Combine(
-                    Path.GetTempPath(),
-                    "Pegasus.InvalidRuntimeProfile",
-                    Guid.NewGuid().ToString("N"),
-                    "intake.db"),
+                ["ConnectionStrings:Pegasus"] =
+                    $"Server=(localdb)\\MSSQLLocalDB;Database=Pegasus_InvalidRuntimeProfile_{Guid.NewGuid():N};" +
+                    "Integrated Security=true;Encrypt=false",
                 ["Features:LocalIntake"] = localIntakeEnabled.ToString()
             });
 
@@ -110,9 +117,9 @@ public sealed class LocalIntakeAccessTests
     private static async Task<long> CountRowsIfPresentAsync(DbConnection connection, DatabaseTable table)
     {
         await using var existenceCommand = connection.CreateCommand();
-        existenceCommand.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = $name";
+        existenceCommand.CommandText = "SELECT COUNT(*) FROM sys.tables WHERE name = @name";
         var parameter = existenceCommand.CreateParameter();
-        parameter.ParameterName = "$name";
+        parameter.ParameterName = "@name";
         parameter.Value = table switch
         {
             DatabaseTable.IntakeReceipts => "IntakeReceipts",

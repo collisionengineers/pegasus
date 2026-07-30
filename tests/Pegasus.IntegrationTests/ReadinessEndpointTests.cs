@@ -4,7 +4,6 @@ using System.Security.Cryptography.X509Certificates;
 using Deque.AxeCore.Playwright;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,7 +22,6 @@ public sealed class SqlServerReadinessEndpointTests
             "Production",
             new Dictionary<string, string?>
             {
-                ["Database:Provider"] = "SqlServer",
                 ["ConnectionStrings:Pegasus"] =
                     "Server=127.0.0.1,1;Database=Pegasus_Unavailable;Integrated Security=true;" +
                     "Encrypt=false;Connect Timeout=1"
@@ -82,7 +80,6 @@ public sealed class SqlServerReadinessEndpointTests
             "Production",
             new Dictionary<string, string?>
             {
-                ["Database:Provider"] = "SqlServer",
                 ["ConnectionStrings:Pegasus"] =
                     $"Server=127.0.0.1,1;Database={databaseName};Application Name={applicationName};" +
                     "Integrated Security=true;" +
@@ -104,7 +101,6 @@ public sealed class SqlServerReadinessEndpointTests
         "Production",
         new Dictionary<string, string?>
         {
-            ["Database:Provider"] = "SqlServer",
             ["ConnectionStrings:Pegasus"] = connectionString
         });
 
@@ -116,10 +112,12 @@ public sealed class SqlServerReadinessEndpointTests
         });
 }
 
-public sealed class SqliteReadinessEndpointTests
+[Collection(LocalDbFixtureDefinition.Name)]
+[Trait("Category", "SqlServer")]
+public sealed class LocalDbReadinessEndpointTests
 {
     [Fact]
-    public async Task DevelopmentSqliteDatabaseMakesReadinessSuccessful()
+    public async Task DevelopmentLocalDbMakesReadinessSuccessful()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -131,24 +129,23 @@ public sealed class SqliteReadinessEndpointTests
     }
 
     [Fact]
-    public async Task DevelopmentStartupDoesNotApplySqliteMigrations()
+    public async Task DevelopmentStartupDoesNotApplyMigrations()
     {
         var workingDirectory = Path.Combine(
             Path.GetTempPath(),
             "Pegasus.StartupMigrationTests",
             Guid.NewGuid().ToString("N"));
-        var databasePath = Path.Combine(workingDirectory, "startup.db");
         Directory.CreateDirectory(workingDirectory);
 
         try
         {
+            await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
             using var factory = new ConfiguredWebApplicationFactory(
                 "Development",
                 new Dictionary<string, string?>
                 {
                     ["Runtime:Profile"] = "DevelopmentOffline",
-                    ["Database:Provider"] = "Sqlite",
-                    ["Database:LocalPath"] = databasePath,
+                    ["ConnectionStrings:Pegasus"] = database.ConnectionString,
                     ["Intake:LocalArtifactPath"] = Path.Combine(workingDirectory, "intake"),
                     ["Features:LocalIntake"] = "false"
                 });
@@ -165,18 +162,13 @@ public sealed class SqliteReadinessEndpointTests
             Assert.Equal("Healthy", await liveResponse.Content.ReadAsStringAsync());
             Assert.Equal(HttpStatusCode.ServiceUnavailable, readyResponse.StatusCode);
             Assert.Equal("Unhealthy", await readyResponse.Content.ReadAsStringAsync());
-            await using var connection = new SqliteConnection($"Data Source={databasePath}");
-            await connection.OpenAsync();
-            await using var command = connection.CreateCommand();
-            command.CommandText =
-                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = '__EFMigrationsHistory'";
-            Assert.Equal(0L, Convert.ToInt64(
-                await command.ExecuteScalarAsync(),
-                System.Globalization.CultureInfo.InvariantCulture));
+            Assert.Equal(
+                0,
+                await database.ScalarAsync<int>(
+                    "SELECT COUNT(*) FROM sys.tables WHERE name = N'__EFMigrationsHistory'"));
         }
         finally
         {
-            SqliteConnection.ClearAllPools();
             Directory.Delete(workingDirectory, recursive: true);
         }
     }

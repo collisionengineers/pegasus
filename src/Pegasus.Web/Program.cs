@@ -11,6 +11,7 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Triage;
+using Pegasus.Core.Vehicle;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Web.Health;
@@ -21,12 +22,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Http.Features;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
 using Pegasus.Core.Identity;
-using Pegasus.Web.Pages.Requests;
+using Pegasus.Web.Pages.Uploads;
 using Pegasus.Web.Pages.Connect;
 
 const string OriginalIssueClaim = "pegasus:original-issued-at";
@@ -35,7 +35,6 @@ const string DevelopmentOfflineAuthenticationScheme = "DevelopmentOffline";
 const string AuthenticationRoutingScheme = "Pegasus";
 const string StaffSignInRateLimitPolicy = "StaffSignIn";
 const string StaffMcpOAuthRateLimitPolicy = "StaffMcpOAuth";
-const string StaffMcpRequestRateLimitPolicy = "StaffMcpRequest";
 const string RegisterDevelopmentMcpClientArgument = "--register-development-mcp-client";
 const string RevokeDevelopmentMcpClientArgument = "--revoke-development-mcp-client";
 const string InitializeDevelopmentArgument = "--initialize-development";
@@ -114,6 +113,8 @@ if (requestedStaffMcpOAuth && !developmentOfflineOAuth)
 }
 
 var staffMcpOAuthEnabled = developmentOfflineOAuth || requestedStaffMcpOAuth;
+var developmentEvaluatorEnabled = developmentOfflineOAuth
+    && builder.Configuration.GetValue<bool>("Features:LocalIntake");
 StaffMcpOAuthOptions? staffMcpOAuth = null;
 if (staffMcpOAuthEnabled)
 {
@@ -143,18 +144,31 @@ if (staffMcpOAuthEnabled && !localDocumentCustodyConfigured)
         "Staff MCP requires the approved document-custody boundary; it cannot expose an incomplete tool map.");
 }
 Func<IServiceProvider, RequestUploadLimits>? requestUploadLimitsFactory = null;
-if (localDocumentCustodyConfigured)
+var acceptedRequestLimitsVersion =
+    builder.Configuration["DocumentRequests:AcceptedLimitsVersion"];
+if (localDocumentCustodyConfigured
+    && !string.IsNullOrWhiteSpace(acceptedRequestLimitsVersion))
 {
     requestUploadLimitsFactory = serviceProvider =>
     {
         var configuration = serviceProvider.GetRequiredService<IConfiguration>();
         var section = configuration.GetRequiredSection("DocumentRequests");
+        var limitsVersion = section["LimitsVersion"]
+            ?? throw new InvalidOperationException("DocumentRequests:LimitsVersion is required.");
+        if (!string.Equals(
+                limitsVersion,
+                acceptedRequestLimitsVersion,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "DocumentRequests:LimitsVersion must exactly match DocumentRequests:AcceptedLimitsVersion.");
+        }
+
         var allowedMediaTypes = section.GetSection("AllowedMediaTypes").Get<string[]>()
             ?? throw new InvalidOperationException(
-                "DocumentRequests:AllowedMediaTypes is required when local document custody is enabled.");
+                "DocumentRequests:AllowedMediaTypes is required when accepted request limits are enabled.");
         return new(
-            section["LimitsVersion"]
-                ?? throw new InvalidOperationException("DocumentRequests:LimitsVersion is required."),
+            limitsVersion,
             TimeSpan.FromHours(section.GetValue<double>("LifetimeHours")),
             section.GetValue<int>("MaximumFileCount"),
             section.GetValue<long>("MaximumFileBytes"),
@@ -167,7 +181,18 @@ if (localDocumentCustodyConfigured)
 
 
 builder.Services.AddRazorPages(options =>
-    options.Conventions.AuthorizePage("/Intake/EmailEvaluation", "Administrator"));
+{
+    if (developmentEvaluatorEnabled)
+    {
+        options.Conventions.AuthorizePage("/Development/EmailEvaluation", "Administrator");
+    }
+    else
+    {
+        options.Conventions.AddPageRouteModelConvention(
+            "/Development/EmailEvaluation",
+            model => model.Selectors.Clear());
+    }
+});
 builder.Services
     .AddIdentity<PegasusIdentityUser, IdentityRole<Guid>>(options =>
     {
@@ -191,9 +216,7 @@ builder.Services.AddRateLimiter(options =>
             "/Account/SignIn",
             StringComparison.OrdinalIgnoreCase)
             ? "sign_in_rate_limited"
-            : context.HttpContext.Request.Path.StartsWithSegments("/mcp")
-                ? "mcp_rate_limited"
-                : "oauth_rate_limited";
+            : "oauth_rate_limited";
         return new ValueTask(AppendRateLimitedSecurityEventAsync(
             context.HttpContext,
             reasonCode,
@@ -218,17 +241,6 @@ builder.Services.AddRateLimiter(options =>
             {
                 AutoReplenishment = true,
                 PermitLimit = 10,
-                QueueLimit = 0,
-                Window = TimeSpan.FromMinutes(1)
-            }));
-    options.AddPolicy(
-        StaffMcpRequestRateLimitPolicy,
-        context => RateLimitPartition.GetFixedWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            _ => new FixedWindowRateLimiterOptions
-            {
-                AutoReplenishment = true,
-                PermitLimit = 60,
                 QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1)
             }));
@@ -435,6 +447,12 @@ if (staffMcpOAuth is not null)
             options.AllowAuthorizationCodeFlow()
                 .AllowRefreshTokenFlow()
                 .RequireProofKeyForCodeExchange();
+            options.Configure(serverOptions =>
+            {
+                serverOptions.CodeChallengeMethods.Clear();
+                serverOptions.CodeChallengeMethods.Add(
+                    OpenIddictConstants.CodeChallengeMethods.Sha256);
+            });
             options.SetAccessTokenLifetime(TimeSpan.FromMinutes(15));
             options.SetRefreshTokenLifetime(StaffSessionPolicy.AbsoluteLifetime);
             options.DisableSlidingRefreshTokenExpiration();
@@ -453,6 +471,8 @@ if (staffMcpOAuth is not null)
         .AddValidation(options =>
         {
             options.UseLocalServer();
+            options.EnableTokenEntryValidation();
+            options.EnableAuthorizationEntryValidation();
             options.UseAspNetCore();
         });
     builder.Services.AddPegasusStaffMcp(staffMcpOAuth);
@@ -468,35 +488,10 @@ builder.Services.Configure<FormOptions>(options =>
 
 builder.Services.AddPegasusInfrastructure((serviceProvider, options) =>
 {
-    var configuration = serviceProvider.GetRequiredService<IConfiguration>();
-    var environment = serviceProvider.GetRequiredService<IHostEnvironment>();
-    var databaseProvider = configuration["Database:Provider"]
-        ?? throw new InvalidOperationException("Database:Provider is required.");
-
-    if (databaseProvider.Equals("Sqlite", StringComparison.OrdinalIgnoreCase))
-    {
-        var localPath = configuration["Database:LocalPath"]
-            ?? throw new InvalidOperationException("Database:LocalPath is required for SQLite.");
-        var fullPath = Path.GetFullPath(Path.Combine(environment.ContentRootPath, localPath));
-        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
-        options.UsePegasusSqlite(new SqliteConnectionStringBuilder
-        {
-            DataSource = fullPath,
-            ForeignKeys = true
-        }.ToString());
-        return;
-    }
-
-    if (databaseProvider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
-    {
-        var connectionName = configuration["Database:ConnectionStringName"] ?? "Pegasus";
-        var connectionString = configuration.GetConnectionString(connectionName)
-            ?? throw new InvalidOperationException($"Connection string '{connectionName}' is required.");
-        options.UseSqlServer(connectionString);
-        return;
-    }
-
-    throw new InvalidOperationException($"Unsupported database provider '{databaseProvider}'.");
+    var connectionString = serviceProvider.GetRequiredService<IConfiguration>()
+        .GetConnectionString("Pegasus")
+        ?? throw new InvalidOperationException("Connection string 'Pegasus' is required.");
+    options.UseSqlServer(connectionString);
 }, serviceProvider =>
 {
     var configuration = serviceProvider.GetRequiredService<IConfiguration>();
@@ -514,7 +509,23 @@ builder.Services.AddPegasusInfrastructure((serviceProvider, options) =>
         ?? throw new InvalidOperationException(
             "Intake:LocalArtifactPath is required for the DevelopmentOffline runtime profile.");
     return Path.GetFullPath(Path.Combine(environment.ContentRootPath, configuredArtifactRoot));
-}, requestUploadLimitsFactory: requestUploadLimitsFactory);
+}, requestUploadLimitsFactory: requestUploadLimitsFactory,
+evaMappingAcceptanceFactory: serviceProvider =>
+{
+    var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+    return new EvaMappingAcceptance(
+        configuration["Eva:AcceptedMapping:Key"],
+        configuration.GetValue<int?>("Eva:AcceptedMapping:Version"),
+        configuration["Eva:AcceptedMapping:EvidenceReference"]);
+});
+if (developmentOfflineOAuth && initializeDevelopment)
+{
+    builder.Services.AddPegasusApplicationInitialization();
+}
+if (developmentOfflineOAuth)
+{
+    builder.Services.AddSingleton(VehicleLookupAvailability.DevelopmentOfflineReplay);
+}
 builder.Services.AddSingleton<IIntakeEvaluationReportStore>(serviceProvider =>
     serviceProvider.GetRequiredService<IIntakeArtifactStore>() as IIntakeEvaluationReportStore
     ?? throw new InvalidOperationException(
@@ -525,31 +536,26 @@ builder.Services.AddScoped<ISecurityEventWriter>(serviceProvider =>
     serviceProvider.GetRequiredService<EfIdentityAuditStore>());
 builder.Services.AddScoped<IActionHistoryWriter>(serviceProvider =>
     serviceProvider.GetRequiredService<EfIdentityAuditStore>());
-builder.Services.AddScoped<IStaffAccountAdministration, EfStaffAccountAdministration>();
 builder.Services.AddScoped<ICaseAcceptanceStore, EfCaseAcceptanceStore>();
 builder.Services.AddScoped<IAcceptIntake, AcceptIntake>();
 builder.Services.AddScoped<IInspectionAddressResolutionStore, InspectionAddressResolutionStore>();
-builder.Services.AddScoped<IEvaHandoffStore, EvaHandoffStore>();
-builder.Services.AddSingleton<RequestUploadAttemptLimiter>();
+if (requestUploadLimitsFactory is not null)
+{
+    builder.Services.AddSingleton<RequestUploadAttemptLimiter>();
+}
 builder.Services.AddScoped<IMailRoutePolicy>(serviceProvider =>
     serviceProvider.GetRequiredService<IInstructionExtractionPolicy>() as IMailRoutePolicy
     ?? throw new InvalidOperationException(
         "The configured instruction extraction policy must implement the mail-route policy contract."));
-builder.Services.AddScoped<IIntakeWorkStore, EfIntakeWorkStore>();
+builder.Services.AddScoped<EfIntakeWorkStore>();
+builder.Services.AddScoped<IIntakeWorkStore>(serviceProvider =>
+    serviceProvider.GetRequiredService<EfIntakeWorkStore>());
+builder.Services.AddScoped<IStagedArtifactAuthority>(serviceProvider =>
+    serviceProvider.GetRequiredService<EfIntakeWorkStore>());
 builder.Services.AddScoped<ReceiveIntake>();
 builder.Services.AddScoped<ProcessQueuedIntake>();
-builder.Services.AddScoped<ProcessIntakeSubmission>();
 builder.Services.AddScoped<IIntakeSubmission>(serviceProvider =>
-{
-    var profile = serviceProvider.GetRequiredService<IConfiguration>()["Runtime:Profile"]
-        ?? throw new InvalidOperationException("Runtime:Profile is required.");
-    if (profile.Equals(DevelopmentOfflineProfile, StringComparison.Ordinal))
-    {
-        return serviceProvider.GetRequiredService<ProcessIntakeSubmission>();
-    }
-
-    return serviceProvider.GetRequiredService<ReceiveIntake>();
-});
+    serviceProvider.GetRequiredService<ReceiveIntake>());
 
 var app = builder.Build();
 var runtimeProfile = app.Configuration["Runtime:Profile"]
@@ -656,6 +662,19 @@ if (!localIntakeEnabled)
     });
 }
 
+if (!developmentEvaluatorEnabled)
+{
+    app.Use(async (context, next) =>
+    {
+        if (context.Request.Path.StartsWithSegments("/Development/EmailEvaluation"))
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        await next(context);
+    });
+}
 
 app.UseHttpsRedirection();
 
@@ -694,7 +713,7 @@ app.Use(async (context, next) =>
         var user = await userManager.GetUserAsync(context.User);
         var path = context.Request.Path;
         var allowedWhilePasswordChangeRequired =
-            path.StartsWithSegments("/Account/ChangePassword")
+            path.StartsWithSegments("/Account/PasswordChange")
             || path.StartsWithSegments("/Account/SignOut")
             || path.StartsWithSegments("/css")
             || path.StartsWithSegments("/js")
@@ -702,7 +721,14 @@ app.Use(async (context, next) =>
             || path.StartsWithSegments("/favicon.ico");
         if (user?.MustChangePassword == true && !allowedWhilePasswordChangeRequired)
         {
-            context.Response.Redirect("/Account/ChangePassword");
+            if (path.StartsWithSegments("/mcp"))
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                context.Response.Headers.CacheControl = "no-store";
+                return;
+            }
+
+            context.Response.Redirect("/Account/PasswordChange");
             return;
         }
     }
@@ -710,15 +736,33 @@ app.Use(async (context, next) =>
     await next(context);
 });
 app.UseAuthorization();
+if (staffMcpOAuth is not null)
+{
+    app.UseMiddleware<StaffMcpToolRateLimitMiddleware>();
+}
 if (!localDocumentCustodyEnabled)
 {
     app.Use(async (context, next) =>
     {
         var path = context.Request.Path;
-        var isDocumentUi = path.StartsWithSegments("/requests")
+        var isDocumentUi = path.StartsWithSegments("/uploads")
+            || path.StartsWithSegments("/requests")
             || (path.StartsWithSegments("/cases")
                 && path.Value?.EndsWith("/documents", StringComparison.OrdinalIgnoreCase) == true);
         if (isDocumentUi)
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        await next(context);
+    });
+}
+else if (requestUploadLimitsFactory is null)
+{
+    app.Use(async (context, next) =>
+    {
+        if (context.Request.Path.StartsWithSegments("/uploads"))
         {
             context.Response.StatusCode = StatusCodes.Status404NotFound;
             return;
@@ -750,7 +794,7 @@ app.MapGet("/diagnostics/version", () => Results.Ok(new
 })).AllowAnonymous();
 if (staffMcpOAuth is not null)
 {
-    app.MapPegasusStaffMcp(StaffMcpRequestRateLimitPolicy);
+    app.MapPegasusStaffMcp();
     var protectedResourceMetadata = new
     {
         resource = staffMcpOAuth.Resource.AbsoluteUri,

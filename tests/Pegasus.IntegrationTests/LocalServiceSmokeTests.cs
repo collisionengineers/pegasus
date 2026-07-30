@@ -4,6 +4,7 @@ using System.Text.Json;
 
 namespace Pegasus.IntegrationTests;
 
+[Collection(LocalDbFixtureDefinition.Name)]
 public sealed class LocalServiceSmokeTests
 {
     [Fact]
@@ -34,7 +35,7 @@ public sealed class LocalServiceSmokeTests
             Assert.All(sourceSha, character => Assert.True(char.IsAsciiHexDigit(character)));
         }
 
-        using (var evaluator = await client.GetAsync("/Intake/EmailEvaluation"))
+        using (var evaluator = await client.GetAsync("/Development/EmailEvaluation"))
         {
             Assert.Equal(HttpStatusCode.OK, evaluator.StatusCode);
             Assert.Contains("no-store", evaluator.Headers.CacheControl?.ToString(), StringComparison.OrdinalIgnoreCase);

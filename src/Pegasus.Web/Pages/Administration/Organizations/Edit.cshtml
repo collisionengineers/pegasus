@@ -1,0 +1,64 @@
+@page "{id:guid}"
+@model Pegasus.Web.Pages.Administration.Organizations.EditModel
+@{
+    ViewData["Title"] = "Manage organization roles";
+}
+
+@if (Model.Organization is not null)
+{
+    <h1>Manage @Model.Organization.Name</h1>
+    <p><a asp-page="Index">Back to Organizations</a></p>
+
+    @if (TempData["AdministrationStatus"] is string status)
+    {
+        <div role="status">@status</div>
+    }
+
+    <p>Current version: @Model.Organization.Version</p>
+    <p>Roles are independently selectable. Work Provider cannot be removed while an active principal belongs to this organization.</p>
+
+    <form method="post" asp-page-handler="Update">
+        <div asp-validation-summary="ModelOnly"></div>
+        <input asp-for="ExpectedVersion" type="hidden" />
+        <input asp-for="OperationKey" type="hidden" />
+        <fieldset>
+            <legend>Organization roles</legend>
+            <label><input asp-for="WorkProvider" /> Work Provider</label>
+            <label><input asp-for="InstructionIntermediary" /> Instruction Intermediary</label>
+        </fieldset>
+        <div>
+            <label asp-for="Reason">Reason for change</label>
+            <textarea asp-for="Reason" rows="3"></textarea>
+            <span asp-validation-for="Reason"></span>
+        </div>
+        <button type="submit">Update roles</button>
+    </form>
+
+    <section aria-labelledby="organization-principals-heading">
+        <h2 id="organization-principals-heading">Principals</h2>
+        @if (Model.Organization.Principals.Count == 0)
+        {
+            <p>This organization has no principals.</p>
+        }
+        else
+        {
+            <table>
+                <thead><tr><th>Code</th><th>Status</th><th>Allocated cases</th></tr></thead>
+                <tbody>
+                @foreach (var principal in Model.Organization.Principals)
+                {
+                    <tr>
+                        <td>@principal.Code</td>
+                        <td>@(principal.IsActive ? "Active" : "Disabled")</td>
+                        <td>@principal.AllocatedCaseCount</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+            @if (Model.Organization.HasMorePrincipals)
+            {
+                <p>The principal projection is bounded; additional principals exist.</p>
+            }
+        }
+    </section>
+}

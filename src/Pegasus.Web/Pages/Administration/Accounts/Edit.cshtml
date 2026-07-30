@@ -20,22 +20,22 @@
         <dt>Last access review</dt><dd>@(Model.Account.LastAccessReviewAtUtc?.ToString("u") ?? "Not recorded")</dd>
     </dl>
 
-    <form method="post">
-        <div asp-validation-summary="ModelOnly"></div>
-        <input asp-for="OperationKey" type="hidden" />
-        <div>
-            <label asp-for="Reason">Reason</label>
-            <textarea asp-for="Reason" rows="3"></textarea>
-            <span asp-validation-for="Reason"></span>
-        </div>
-        @if (Model.Account.IsEnabled)
-        {
-            <button type="submit" asp-page-handler="Disable">Disable account</button>
-        }
-        else
-        {
-            <button type="submit" asp-page-handler="Enable">Enable account</button>
-        }
-    </form>
-    <p>Account changes invalidate existing browser sessions. The staff member must sign in again.</p>
+    @if (Model.Account.IsEnabled)
+    {
+        <form method="post" asp-page-handler="Disable">
+            <div asp-validation-summary="ModelOnly"></div>
+            <input asp-for="OperationKey" type="hidden" />
+            <div>
+                <label asp-for="Reason">Reason</label>
+                <textarea asp-for="Reason" rows="3"></textarea>
+                <span asp-validation-for="Reason"></span>
+            </div>
+            <button type="submit">Disable account</button>
+        </form>
+        <p>Disabling revokes existing browser and MCP sessions. The account is retained permanently.</p>
+    }
+    else
+    {
+        <p>This account is disabled and retained in permanent administration history. There is no delete or password-display action.</p>
+    }
 }

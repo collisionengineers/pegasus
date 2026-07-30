@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Pegasus.Core.Eva;
 
@@ -12,87 +11,83 @@ internal sealed record EvaHandoffGenerationReceipt(
     bool FirstSentToEngineerRecorded,
     string? FileName,
     string? Sha256,
-    string? JsonSha256);
+    string? JsonSha256,
+    string? ProvenanceSha256,
+    bool IsTruncated);
 
 [McpServerToolType]
-internal sealed class EvaMcpTools(
-    IEvaHandoffStore store,
+internal sealed class ReportsGenerateEvaMcpTool(
+    IGenerateEvaHandoff generateEvaHandoff,
     StaffMcpActorResolver actorResolver)
 {
     [McpServerTool(
-        Name = "pegasus_eva_handoff_get",
-        Title = "Get EVA handoff readiness",
-        ReadOnly = true,
-        Destructive = false,
-        Idempotent = true,
-        OpenWorld = false)]
-    [Description("Gets the focused, offline EVA handoff readiness and selectable custody-confirmed image identities for a case. It makes no EVA network call.")]
-    public async Task<EvaHandoffPreparation> GetAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        CancellationToken cancellationToken)
-    {
-        await actorResolver.RequireAsync(StaffMcpPolicies.ReadScope, cancellationToken);
-        RequireNonEmpty(caseId, nameof(caseId));
-        return await store.GetPreparationAsync(caseId, cancellationToken)
-            ?? throw new McpException("The case or EVA handoff preparation was not found.");
-    }
-
-    [McpServerTool(
-        Name = "pegasus_eva_handoff_generate",
-        Title = "Generate offline EVA handoff",
+        Name = AlphaMcpToolNames.ReportsGenerateEva,
+        Title = "Generate EVA handoff",
         ReadOnly = false,
-        Destructive = false,
+        Destructive = true,
         Idempotent = true,
-        OpenWorld = false)]
-    [Description("Generates the deterministic offline EVA handoff bundle through the canonical Core store. It performs no live EVA write and returns hashes rather than bundle bytes.")]
-    public async Task<EvaHandoffGenerationReceipt> GenerateAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        [Description("The case version observed by the caller.")] long expectedCaseVersion,
-        [Description("The exact custody-confirmed asset identifiers selected for the handoff.")] IReadOnlyList<Guid> selectedImageIds,
-        [Description("A caller-generated idempotency identifier for this generation.")] Guid operationId,
-        CancellationToken cancellationToken)
-    {
-        var staff = await actorResolver.RequireAsync(
-            StaffMcpPolicies.WriteScope,
-            cancellationToken);
-        RequireNonEmpty(caseId, nameof(caseId));
-        RequireNonEmpty(operationId, nameof(operationId));
-        if (expectedCaseVersion < 0)
+        OpenWorld = true,
+        UseStructuredContent = true)]
+    [Description("Generates the deterministic manual EVA bundle from accepted case evidence; it makes no EVA network call.")]
+    public Task<StaffMcpResult<EvaHandoffGenerationReceipt>> ExecuteAsync(
+        Guid caseId,
+        long expectedCaseVersion,
+        Guid overviewImageOccurrenceId,
+        Guid mainDamageImageOccurrenceId,
+        IReadOnlyList<Guid> orderedImageOccurrenceIds,
+        string operationKey,
+        string reason,
+        string editLeaseToken,
+        CancellationToken cancellationToken) =>
+        StaffMcpCall.ExecuteAsync(async () =>
         {
-            throw new McpException("The expected case version cannot be negative.");
-        }
-        if (selectedImageIds is null
-            || selectedImageIds.Count == 0
-            || selectedImageIds.Any(id => id == Guid.Empty)
-            || selectedImageIds.Distinct().Count() != selectedImageIds.Count)
-        {
-            throw new McpException(
-                "Select at least one unique, non-empty custody-confirmed image identifier.");
-        }
+            StaffMcpInput.RequireIdentifier(caseId, nameof(caseId));
+            StaffMcpInput.RequireIdentifier(
+                overviewImageOccurrenceId,
+                nameof(overviewImageOccurrenceId));
+            StaffMcpInput.RequireIdentifier(
+                mainDamageImageOccurrenceId,
+                nameof(mainDamageImageOccurrenceId));
+            StaffMcpInput.RequireVersion(expectedCaseVersion, nameof(expectedCaseVersion));
+            operationKey = StaffMcpInput.RequireOperationKey(operationKey);
+            reason = StaffMcpInput.RequireText(reason, nameof(reason), 300);
+            editLeaseToken = StaffMcpInput.RequireLease(editLeaseToken);
+            ArgumentNullException.ThrowIfNull(orderedImageOccurrenceIds);
+            if (overviewImageOccurrenceId == mainDamageImageOccurrenceId
+                || orderedImageOccurrenceIds.Count is < 2 or > 100
+                || orderedImageOccurrenceIds.Any(id => id == Guid.Empty)
+                || orderedImageOccurrenceIds.Distinct().Count() != orderedImageOccurrenceIds.Count
+                || !orderedImageOccurrenceIds.Contains(overviewImageOccurrenceId)
+                || !orderedImageOccurrenceIds.Contains(mainDamageImageOccurrenceId))
+            {
+                throw new ModelContextProtocol.McpException(
+                    "Select distinct previews within a unique image order of 2 through 100 items.");
+            }
 
-        var result = await store.GenerateAsync(
-            new(
-                caseId,
-                expectedCaseVersion,
-                selectedImageIds,
-                staff.HistoryActor,
-                $"mcp:eva-handoff:{operationId:N}"),
-            cancellationToken);
-        return new(
-            result.Outcome,
-            result.Reasons,
-            result.Revision,
-            result.FirstSentToEngineerRecorded,
-            result.Bundle?.FileName,
-            result.Bundle?.Sha256,
-            result.Bundle?.JsonSha256);
-    }
-
-    private static void RequireNonEmpty(Guid value, string name)
-    {
-        if (value == Guid.Empty)
-        {
-            throw new McpException($"'{name}' must be a non-empty identifier.");
-        }
-    }
+            var staff = await actorResolver.RequireAsync(
+                StaffMcpPolicies.WriteScope,
+                cancellationToken);
+            var result = await generateEvaHandoff.ExecuteAsync(
+                new(
+                    caseId,
+                    expectedCaseVersion,
+                    overviewImageOccurrenceId,
+                    mainDamageImageOccurrenceId,
+                    orderedImageOccurrenceIds,
+                    staff.Actor,
+                    operationKey,
+                    reason,
+                    editLeaseToken),
+                cancellationToken);
+            return new EvaHandoffGenerationReceipt(
+                result.Outcome,
+                result.Reasons.Take(100).ToArray(),
+                result.Revision,
+                result.FirstSentToEngineerRecorded,
+                result.Bundle?.FileName,
+                result.Bundle?.Sha256,
+                result.Bundle?.JsonSha256,
+                result.Bundle?.ProvenanceSha256,
+                result.Reasons.Count > 100);
+        });
 }

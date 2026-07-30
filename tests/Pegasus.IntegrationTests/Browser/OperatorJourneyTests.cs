@@ -2,6 +2,7 @@ using Microsoft.Playwright;
 
 namespace Pegasus.IntegrationTests.Browser;
 
+[Collection(LocalDbFixtureDefinition.Name)]
 [Trait("Category", "Browser")]
 public sealed class OperatorJourneyTests
 {
@@ -42,7 +43,7 @@ public sealed class OperatorJourneyTests
         Assert.Contains("management approval", boundary, StringComparison.OrdinalIgnoreCase);
 
         await support.Page.Locator("a.queue-card", new PageLocatorOptions { HasText = "Review" }).ClickAsync();
-        Assert.Equal("/Intake/Queue?decision=draft_ready", new Uri(support.Page.Url).PathAndQuery);
+        Assert.Equal("/Intake?decision=draft_ready", new Uri(support.Page.Url).PathAndQuery);
         Assert.Contains(
             "Instruction drafts",
             await support.Page.Locator("main").InnerTextAsync(),
@@ -71,7 +72,7 @@ public sealed class OperatorJourneyTests
             unavailableText,
             text => text.Contains('0'));
 
-        var unknownRequest = await support.GoToAsync("/requests/not-an-accepted-token");
+        var unknownRequest = await support.GoToAsync("/Uploads/not-an-accepted-token");
         Assert.Equal(404, unknownRequest.Status);
 
         var unknownEvaHandoff = await support.GoToAsync($"/Intake/EvaHandoff/{Guid.NewGuid():D}");

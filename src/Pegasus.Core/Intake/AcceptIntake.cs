@@ -1,4 +1,5 @@
 using Pegasus.Core.Cases;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Intake;
@@ -7,7 +8,9 @@ namespace Pegasus.Core.Intake;
 /// Validates the caller-independent acceptance boundary before the persistence implementation
 /// executes its single case, intake-link, history and custody-outbox transaction.
 /// </summary>
-public sealed class AcceptIntake(ICaseAcceptanceStore acceptanceStore) : IAcceptIntake
+public sealed class AcceptIntake(
+    ICaseAcceptanceStore acceptanceStore,
+    ICaseWorkflowConfiguration configuration) : IAcceptIntake
 {
     public async Task<CaseAcceptanceOutcome> ExecuteAsync(
         AcceptIntakeRequest request,
@@ -15,10 +18,25 @@ public sealed class AcceptIntake(ICaseAcceptanceStore acceptanceStore) : IAccept
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(acceptanceStore);
+        ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(request.Completeness);
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.Actor);
+        ArgumentNullException.ThrowIfNull(request.Actor);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.OperationKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Reason);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.PrincipalCode);
+        if (request.Actor.Kind is not (ActorKind.Staff or ActorKind.SystemWorker))
+        {
+            throw new ArgumentException(
+                "Intake acceptance requires a staff or system-worker actor.",
+                nameof(request));
+        }
+        var reason = request.Reason.Trim();
+        if (reason.Length > 500)
+        {
+            throw new ArgumentException(
+                "The intake acceptance reason must be 500 characters or fewer.",
+                nameof(request));
+        }
 
         if (request.ReceiptId == Guid.Empty)
         {
@@ -35,34 +53,45 @@ public sealed class AcceptIntake(ICaseAcceptanceStore acceptanceStore) : IAccept
             throw new ArgumentOutOfRangeException(nameof(request), "The case type is invalid.");
         }
 
-        if (request.StandaloneAuditAssessment is { } assessment && !Enum.IsDefined(assessment))
-        {
-            throw new ArgumentOutOfRangeException(nameof(request), "The audit assessment is invalid.");
-        }
-
-        if (request.CaseType == CaseType.Audit && request.StandaloneAuditAssessment is null)
+        var principalCode = QdosAlphaCaseActivationPolicy.RequireActivatedPrincipal(
+            request.PrincipalCode);
+        if (request.CaseType == CaseType.Audit
+            && request.StandaloneAuditEvidenceId is null)
         {
             throw new ArgumentException(
-                "A standalone Audit requires an unambiguous assessment before identity allocation.",
+                "A standalone Audit requires retained, staff-confirmed original-report evidence before identity allocation.",
+                nameof(request));
+        }
+        if (request.CaseType == CaseType.Audit
+            && request.StandaloneAuditEvidenceId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "The standalone Audit evidence identity is invalid.",
+                nameof(request));
+        }
+        if (request.CaseType != CaseType.Audit && request.StandaloneAuditEvidenceId is not null)
+        {
+            throw new ArgumentException(
+                "Standalone Audit evidence can be linked only to a standalone Audit case.",
                 nameof(request));
         }
 
-        if (request.CaseType != CaseType.Audit && request.StandaloneAuditAssessment is not null)
-        {
-            throw new ArgumentException(
-                "Only a standalone Audit may supply an assessment during intake acceptance.",
-                nameof(request));
-        }
+        var completenessEvaluation = CaseCompletenessPolicy.EvaluateAcceptanceCommand(
+            request.Completeness,
+            await configuration.GetCurrentAsync(cancellationToken));
 
         var acceptance = new CaseAcceptanceRequest(
             request.ReceiptId,
             request.ExpectedVersion,
             request.Actor,
-            request.OperationKey,
+            request.OperationKey.Trim(),
+            reason,
             request.CaseType,
-            request.PrincipalCode,
+            principalCode,
             request.Completeness,
-            request.StandaloneAuditAssessment);
+            completenessEvaluation,
+            request.StandaloneAuditEvidenceId,
+            request.AcceptedInspectionDeadline);
 
         var outcome = await acceptanceStore.AcceptAsync(acceptance, cancellationToken);
         _ = CaseInitialWorkflowState.From(outcome.InitialState);

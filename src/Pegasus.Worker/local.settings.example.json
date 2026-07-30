@@ -4,15 +4,19 @@
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
     "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
     "Runtime__Profile": "DevelopmentOffline",
-    "Database__Provider": "Sqlite",
-    "Database__LocalPath": "../../artifacts/pegasus.worker.db",
+    "ConnectionStrings__Pegasus": "Server=(localdb)\\MSSQLLocalDB;Database=PegasusDevelopment;Integrated Security=True;Encrypt=False;MultipleActiveResultSets=True",
     "Intake__LocalArtifactPath": "../../artifacts/local-development/default/intake",
-    "IntakeWorkDispatchSchedule": "0 * * * * *",
-    "ExternalWorkDispatchSchedule": "15 * * * * *",
+    "PendingWorkDispatchSchedule": "0 * * * * *",
     "IntakeStagedArtifactReconciliationSchedule": "30 * * * * *",
     "ApprovedInboxPollSchedule": "45 * * * * *",
+    "SentEvidencePollSchedule": "15 * * * * *",
+    "DueWorkSweepSchedule": "0 */5 * * * *",
     "ApprovedInbox__MailboxId": "instructions",
     "ApprovedInbox__MailboxAddress": "instructions@collisionengineers.co.uk",
-    "ApprovedInbox__LocalRootPath": "../../artifacts/local-development/default/approved-inbox"
+    "ApprovedInbox__LocalRootPath": "../../artifacts/local-development/default/approved-inbox",
+    "ApprovedSent__MailboxId": "instructions",
+    "ApprovedSent__MailboxAddress": "instructions@collisionengineers.co.uk",
+    "ApprovedSent__SentFolderIdentity": "sent-items",
+    "ApprovedSent__LocalRootPath": "../../artifacts/local-development/default/approved-sent"
   }
 }

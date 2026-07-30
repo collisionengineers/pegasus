@@ -2,17 +2,18 @@ using Microsoft.Playwright;
 
 namespace Pegasus.IntegrationTests.Browser;
 
+[Collection(LocalDbFixtureDefinition.Name)]
 [Trait("Category", "Browser")]
 public sealed class AccessibilityTests
 {
     public static TheoryData<string> AuthenticatedRoutes => new()
     {
         "/",
-        "/Intake/Queue",
+        "/Intake",
         "/Triage",
         "/Administration",
-        "/Account/ChangePassword",
-        $"/cases/{Guid.Parse("493f0aed-5948-4eb4-b783-205fb7eb6b12"):D}/documents"
+        "/Account/PasswordChange",
+        "/Cases"
     };
 
     [Theory]

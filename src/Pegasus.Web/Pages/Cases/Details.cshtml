@@ -1,0 +1,50 @@
+@page "/Cases/{id:guid}"
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@{
+    ViewData["Title"] = Model.Case is null ? "Case" : $"Case {Model.Case.Workflow.Identity.Reference}";
+}
+
+@if (Model.QueryFailed)
+{
+    <section class="status-card status-card--error" role="alert">
+        <h1>Case unavailable</h1>
+        <p>The authorised case projection could not be loaded. Reload the page to try again.</p>
+    </section>
+    return;
+}
+
+@if (Model.Case is null)
+{
+    return;
+}
+
+<header class="page-heading">
+    <div>
+        <p class="eyebrow">Case workspace</p>
+        <h1>Case @Model.Case.Workflow.Identity.Reference</h1>
+        <p class="lede">Read-only evidence remains visible without edit mode. Every change uses the current version and an active lease where required.</p>
+    </div>
+    <a asp-page="/Cases/Index" class="secondary-action">Back to cases</a>
+</header>
+
+@if (TempData["CaseStatus"] is string status)
+{
+    <div class="status-card" role="status">@status</div>
+}
+@if (TempData["CaseError"] is string error)
+{
+    <div class="status-card status-card--error" role="alert">@error</div>
+}
+@if (TempData["CaseRequestSecret"] is string requestSecret)
+{
+    <section class="panel form-panel" aria-labelledby="case-request-secret-title">
+        <h2 id="case-request-secret-title" class="section-label">Copy this secret now</h2>
+        <p>It is displayed once and is not available from case history.</p>
+        <input value="@requestSecret" readonly aria-label="One-time request secret" />
+    </section>
+}
+
+<partial name="Shared/_CaseSummary" model="Model" />
+<partial name="Shared/_CaseWorkflow" model="Model" />
+<partial name="Shared/_CaseDocuments" model="Model" />
+<partial name="Shared/_CaseHistory" model="Model" />

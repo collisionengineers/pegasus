@@ -9,6 +9,7 @@ using Pegasus.Core.Intake;
 
 namespace Pegasus.IntegrationTests;
 
+[Collection(LocalDbFixtureDefinition.Name)]
 public sealed partial class OfflineAcceptanceTests
 {
     [Fact]
@@ -66,7 +67,7 @@ public sealed partial class OfflineAcceptanceTests
 
     internal static async Task<string> GetAntiforgeryTokenAsync(HttpClient client)
     {
-        using var response = await client.GetAsync("/Intake/EmailEvaluation");
+        using var response = await client.GetAsync("/Development/EmailEvaluation");
         response.EnsureSuccessStatusCode();
         var html = await response.Content.ReadAsStringAsync();
         var tag = AntiforgeryTagRegex().Match(html);
@@ -90,7 +91,7 @@ public sealed partial class OfflineAcceptanceTests
             form.Add(content, "Upload", email.FileName);
         }
 
-        return await client.PostAsync("/Intake/EmailEvaluation", form);
+        return await client.PostAsync("/Development/EmailEvaluation", form);
     }
 
     internal static OfflineEmail CreateEmail(string fileName, string body)

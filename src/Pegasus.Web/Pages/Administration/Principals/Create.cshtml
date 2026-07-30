@@ -1,0 +1,48 @@
+@page
+@model Pegasus.Web.Pages.Administration.Principals.CreateModel
+@using Pegasus.Core.Cases
+@{
+    ViewData["Title"] = "Create principal";
+    var workProviders = Model.Organizations.Organizations
+        .Where(organization => organization.Roles.Contains(OrganizationRole.WorkProvider))
+        .ToArray();
+}
+
+<h1>Create principal</h1>
+<p><a asp-page="Index">Back to Principals</a></p>
+<p>A principal code becomes an immutable identity. Later correction uses a linked successor rather than editing this code or moving existing cases and references.</p>
+
+@if (workProviders.Length == 0)
+{
+    <p>No Work Provider organization is available. Create or update an organization before creating a principal.</p>
+}
+else
+{
+    <form method="post" asp-page-handler="Create">
+        <div asp-validation-summary="ModelOnly"></div>
+        <input asp-for="OperationKey" type="hidden" />
+        <div>
+            <label asp-for="OrganizationId">Work Provider organization</label>
+            <select asp-for="OrganizationId">
+                <option value="">Select an organization</option>
+                @foreach (var organization in workProviders)
+                {
+                    <option value="@organization.Id">@organization.Name</option>
+                }
+            </select>
+            <span asp-validation-for="OrganizationId"></span>
+        </div>
+        <div>
+            <label asp-for="Code">Principal code</label>
+            <input asp-for="Code" autocomplete="off" />
+            <span asp-validation-for="Code"></span>
+            <p>Use letters and numbers only. The code is normalized to uppercase and cannot be edited.</p>
+        </div>
+        <button type="submit">Create principal</button>
+    </form>
+}
+
+@if (Model.Organizations.HasMoreOrganizations)
+{
+    <p>The organization selector is bounded. Use the Organizations workspace to confirm an organization that is not shown.</p>
+}

@@ -1,12 +1,13 @@
 using System.Reflection;
 using System.Xml.Linq;
 using Pegasus.Core;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Custody;
 using Pegasus.Worker.Functions;
 using Pegasus.Core.Documents;
-using Pegasus.Web.Pages.Documents;
-using Pegasus.Web.Pages.Requests;
+using Pegasus.Web.Pages.Cases;
+using Pegasus.Web.Pages.Uploads;
 using Pegasus.Core.ReferenceData;
 using Pegasus.Infrastructure;
 
@@ -25,7 +26,6 @@ public sealed class DependencyDirectionTests
         "DocumentFormat.OpenXml",
         "UglyToad.PdfPig",
         "Microsoft.Data.SqlClient",
-        "Microsoft.Data.Sqlite",
         "System.Net.Http",
         "Pegasus.Infrastructure",
         "Pegasus.Web",
@@ -51,7 +51,6 @@ public sealed class DependencyDirectionTests
     [InlineData("MimeKit", true)]
     [InlineData("UglyToad.PdfPig", true)]
     [InlineData("Microsoft.Data.SqlClient", true)]
-    [InlineData("Microsoft.Data.Sqlite", true)]
     [InlineData("System.Net.Http", true)]
     [InlineData("Pegasus.Infrastructure", true)]
     [InlineData("Pegasus.Web", true)]
@@ -64,7 +63,6 @@ public sealed class DependencyDirectionTests
     [InlineData("MimeKitten", false)]
     [InlineData("UglyToad.PdfPigment", false)]
     [InlineData("Microsoft.Data.SqlClientFactory", false)]
-    [InlineData("Microsoft.Data.SqlitePCL", false)]
     [InlineData("System.Net.Httpish", false)]
     [InlineData("System.Collections", false)]
     public void CoreDependencyGuardDetectsForbiddenAndAllowedExamples(string assemblyName, bool expected)
@@ -134,6 +132,7 @@ public sealed class DependencyDirectionTests
 
         Assert.Equal(
             [
+                "src/Pegasus.Bootstrap/Pegasus.Bootstrap.csproj",
                 "src/Pegasus.Core/Pegasus.Core.csproj",
                 "src/Pegasus.Infrastructure/Pegasus.Infrastructure.csproj",
                 "src/Pegasus.Web/Pegasus.Web.csproj",
@@ -236,8 +235,10 @@ public sealed class DependencyDirectionTests
         var workId = Guid.NewGuid();
 
         await new ExternalWorkFunction(processor).RunAsync(workId.ToString("D"), CancellationToken.None);
-        await new ExternalPoisonFunction(
-                new ReconcilePoisonedExternalWork(workStore, TimeProvider.System))
+        var poisonReconciler = new ReconcilePoisonedQueueWork(
+            null!,
+            new ReconcilePoisonedExternalWork(workStore, TimeProvider.System));
+        await new ExternalPoisonFunction(poisonReconciler)
             .RunAsync(workId.ToString("N"), CancellationToken.None);
         await Assert.ThrowsAsync<InvalidDataException>(() =>
             new ExternalWorkFunction(processor).RunAsync("not-a-work-id", CancellationToken.None));
@@ -246,7 +247,7 @@ public sealed class DependencyDirectionTests
         Assert.Equal([workId], workStore.PoisonedIds);
     }
 
-    private sealed class RecordingCustodyProcessor : IProcessQueuedCustody
+    private sealed class RecordingCustodyProcessor : IProcessQueuedExternalWork
     {
         public List<Guid> ProcessedIds { get; } = [];
 
@@ -294,16 +295,17 @@ public sealed class DependencyDirectionTests
     [Fact]
     public void WebCustodialPagesHaveNoDormantTransportPath()
     {
-        var casePageDependencies = Assert.Single(typeof(CaseModel).GetConstructors())
+        var casePageDependencies = Assert.Single(typeof(DetailsModel).GetConstructors())
             .GetParameters()
             .Select(parameter => parameter.ParameterType)
             .ToArray();
-        var requestPageDependencies = Assert.Single(typeof(UploadModel).GetConstructors())
+        var requestPageDependencies = Assert.Single(typeof(RequestModel).GetConstructors())
             .GetParameters()
             .Select(parameter => parameter.ParameterType)
             .ToArray();
 
         Assert.Contains(typeof(IAddCaseDocument), casePageDependencies);
+        Assert.Contains(typeof(IGetCase), casePageDependencies);
         Assert.Contains(typeof(ICreateRequestUploadLink), casePageDependencies);
         Assert.Contains(typeof(IRevokeRequestUploadLink), casePageDependencies);
         Assert.Contains(typeof(IGetRequestUpload), requestPageDependencies);

@@ -34,7 +34,8 @@ $startedUtc = [DateTimeOffset]::UtcNow
 function Resolve-RepositorySourceRevision {
     param([Parameter(Mandatory)][string]$RequestedRevision)
 
-    $git = Get-Command -Name git -CommandType Application -ErrorAction SilentlyContinue
+    $git = Get-Command -Name git -CommandType Application -ErrorAction SilentlyContinue |
+        Select-Object -First 1
     if ($null -eq $git) {
         throw 'Git is required to bind acceptance evidence to the executed checkout.'
     }
@@ -74,6 +75,216 @@ function Resolve-RepositorySourceRevision {
 
     return $headRevision
 }
+function Assert-JsonProperties {
+    param(
+        [Parameter(Mandatory)][object]$Value,
+        [Parameter(Mandatory)][string[]]$Names,
+        [Parameter(Mandatory)][string]$Label
+    )
+
+    foreach ($name in $Names) {
+        if ($Value.PSObject.Properties.Name -notcontains $name) {
+            throw "OfflineCandidate is blocked: $Label is missing '$name'."
+        }
+    }
+}
+
+function ConvertTo-EvidenceTimestamp {
+    param(
+        [Parameter(Mandatory)][string]$Value,
+        [Parameter(Mandatory)][string]$Label
+    )
+
+    try {
+        return [DateTimeOffset]::ParseExact(
+            $Value,
+            'O',
+            [System.Globalization.CultureInfo]::InvariantCulture,
+            [System.Globalization.DateTimeStyles]::RoundtripKind)
+    }
+    catch {
+        throw "OfflineCandidate is blocked: $Label must be an exact round-trip timestamp."
+    }
+}
+
+function Assert-LocalRunEvidence {
+    param(
+        [Parameter(Mandatory)][object]$LocalRun,
+        [Parameter(Mandatory)][string]$ManifestPath,
+        [Parameter(Mandatory)][string]$ExpectedSourceRevision
+    )
+
+    $expectedManifestPath = [System.IO.Path]::GetFullPath(
+        (Join-Path $repositoryRoot "artifacts/local-development/$RunId/run-manifest.json"))
+    if (-not $ManifestPath.Equals(
+            $expectedManifestPath,
+            [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "OfflineCandidate is blocked: local run manifest must be the exact run-owned manifest '$expectedManifestPath'."
+    }
+
+    Assert-JsonProperties `
+        -Value $LocalRun `
+        -Names @(
+            'schemaVersion',
+            'kind',
+            'runId',
+            'state',
+            'startAttempt',
+            'createdUtc',
+            'sourceSha',
+            'ownership',
+            'runtime',
+            'identity',
+            'verification') `
+        -Label 'local run manifest'
+    Assert-JsonProperties `
+        -Value $LocalRun.ownership `
+        -Names @('repositoryRoot', 'cloudOperations') `
+        -Label 'local run ownership'
+    Assert-JsonProperties `
+        -Value $LocalRun.runtime `
+        -Names @('profile', 'environment', 'artifacts') `
+        -Label 'local run runtime'
+    Assert-JsonProperties `
+        -Value $LocalRun.identity `
+        -Names @(
+            'initializationCompleted',
+            'subjectId',
+            'userName',
+            'role',
+            'oauthClientId',
+            'oauthCallback') `
+        -Label 'local run identity'
+    Assert-JsonProperties `
+        -Value $LocalRun.verification `
+        -Names @('readiness', 'smoke') `
+        -Label 'local run verification'
+    Assert-JsonProperties `
+        -Value $LocalRun.verification.readiness `
+        -Names @(
+            'result',
+            'startAttempt',
+            'observedUtc',
+            'azuriteReady',
+            'webReady',
+            'functionsRunning') `
+        -Label 'local run readiness evidence'
+    Assert-JsonProperties `
+        -Value $LocalRun.verification.smoke `
+        -Names @(
+            'result',
+            'startAttempt',
+            'observedUtc',
+            'sourceSha',
+            'webReady',
+            'functionsRunning',
+            'identityInitialized',
+            'httpsOriginValidated',
+            'oauthMetadataValidated',
+            'administratorRouteValidated') `
+        -Label 'local run smoke evidence'
+
+    $ownedRepositoryRoot = [System.IO.Path]::GetFullPath(
+        [string]$LocalRun.ownership.repositoryRoot)
+    if ($LocalRun.schemaVersion -ne 1 -or
+        [string]$LocalRun.kind -cne 'Pegasus.LocalDevelopment.Run' -or
+        [string]$LocalRun.runId -cne $RunId -or
+        [string]$LocalRun.state -cne 'Running' -or
+        $LocalRun.startAttempt -lt 1 -or
+        [string]$LocalRun.sourceSha -cne $ExpectedSourceRevision -or
+        -not $ownedRepositoryRoot.Equals(
+            $repositoryRoot,
+            [System.StringComparison]::OrdinalIgnoreCase) -or
+        [string]$LocalRun.ownership.cloudOperations -cne 'disabled' -or
+        [string]$LocalRun.runtime.profile -cne 'DevelopmentOffline' -or
+        [string]$LocalRun.runtime.environment -cne 'Development' -or
+        $LocalRun.identity.initializationCompleted -isnot [bool] -or
+        -not $LocalRun.identity.initializationCompleted -or
+        [string]$LocalRun.identity.subjectId -cne 'd47fbbae-ea22-4ca6-b983-01e2ed1fbd13' -or
+        [string]$LocalRun.identity.userName -cne 'development-offline-administrator' -or
+        [string]$LocalRun.identity.role -cne 'Administrator' -or
+        [string]$LocalRun.identity.oauthClientId -cne 'pegasus-development-mcp' -or
+        [string]$LocalRun.identity.oauthCallback -cne 'http://127.0.0.1:7890/callback') {
+        throw 'OfflineCandidate is blocked: the local run manifest is not the successful exact-source DevelopmentOffline run for this acceptance invocation.'
+    }
+
+    $readiness = $LocalRun.verification.readiness
+    $smoke = $LocalRun.verification.smoke
+    if ([string]$readiness.result -cne 'Passed' -or
+        $readiness.startAttempt -ne $LocalRun.startAttempt -or
+        $readiness.azuriteReady -isnot [bool] -or
+        -not $readiness.azuriteReady -or
+        $readiness.webReady -isnot [bool] -or
+        -not $readiness.webReady -or
+        $readiness.functionsRunning -isnot [bool] -or
+        -not $readiness.functionsRunning -or
+        [string]$smoke.result -cne 'Passed' -or
+        $smoke.startAttempt -ne $LocalRun.startAttempt -or
+        [string]$smoke.sourceSha -cne $ExpectedSourceRevision -or
+        $smoke.webReady -isnot [bool] -or
+        -not $smoke.webReady -or
+        $smoke.functionsRunning -isnot [bool] -or
+        -not $smoke.functionsRunning -or
+        $smoke.identityInitialized -isnot [bool] -or
+        -not $smoke.identityInitialized -or
+        $smoke.httpsOriginValidated -isnot [bool] -or
+        -not $smoke.httpsOriginValidated -or
+        $smoke.oauthMetadataValidated -isnot [bool] -or
+        -not $smoke.oauthMetadataValidated -or
+        $smoke.administratorRouteValidated -isnot [bool] -or
+        -not $smoke.administratorRouteValidated) {
+        throw 'OfflineCandidate is blocked: the local run manifest has no successful current-attempt readiness and smoke evidence.'
+    }
+
+    $createdUtc = ConvertTo-EvidenceTimestamp `
+        -Value ([string]$LocalRun.createdUtc) `
+        -Label 'local run creation'
+    $readinessUtc = ConvertTo-EvidenceTimestamp `
+        -Value ([string]$readiness.observedUtc) `
+        -Label 'local run readiness evidence'
+    $smokeUtc = ConvertTo-EvidenceTimestamp `
+        -Value ([string]$smoke.observedUtc) `
+        -Label 'local run smoke evidence'
+    if ($readinessUtc -lt $createdUtc -or $smokeUtc -lt $readinessUtc) {
+        throw 'OfflineCandidate is blocked: local run readiness and smoke evidence are not in run order.'
+    }
+
+    $expectedArtifacts = [ordered]@{
+        web = 'src/Pegasus.Web/bin/Debug/net10.0/Pegasus.Web.dll'
+        worker = 'src/Pegasus.Worker/bin/Debug/net10.0/Pegasus.Worker.dll'
+    }
+    foreach ($name in $expectedArtifacts.Keys) {
+        $property = $LocalRun.runtime.artifacts.PSObject.Properties[$name]
+        if ($null -eq $property) {
+            throw "OfflineCandidate is blocked: local run runtime is missing the '$name' artifact record."
+        }
+
+        $record = $property.Value
+        Assert-JsonProperties `
+            -Value $record `
+            -Names @('relativePath', 'byteLength', 'sha256') `
+            -Label "local run '$name' artifact"
+        if ([string]$record.relativePath -cne $expectedArtifacts[$name] -or
+            [string]$record.byteLength -notmatch '^\d+$' -or
+            [long]$record.byteLength -le 0 -or
+            [string]$record.sha256 -cnotmatch '^[0-9a-f]{64}$') {
+            throw "OfflineCandidate is blocked: local run '$name' artifact record is invalid."
+        }
+
+        $artifactPath = Join-Path $repositoryRoot ([string]$record.relativePath)
+        if (-not [System.IO.File]::Exists($artifactPath)) {
+            throw "OfflineCandidate is blocked: local run '$name' runtime artifact is missing."
+        }
+
+        $artifact = [System.IO.FileInfo]::new($artifactPath)
+        $observedHash = (Get-FileHash -LiteralPath $artifact.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($artifact.Length -ne [long]$record.byteLength -or
+            $observedHash -cne [string]$record.sha256) {
+            throw "OfflineCandidate is blocked: local run '$name' runtime artifact differs from the initialized bytes."
+        }
+    }
+}
+
 
 function Assert-OfflineCandidatePrerequisites {
     param([Parameter(Mandatory)][string]$ExpectedSourceRevision)
@@ -139,7 +350,7 @@ function Assert-OfflineCandidatePrerequisites {
     }
 
     if ([string]$callerManifest.sourceRevision -cne $ExpectedSourceRevision -or
-        [string]$callerManifest.runId -ne $RunId) {
+        [string]$callerManifest.runId -cne $RunId) {
         throw 'OfflineCandidate is blocked: caller evidence manifest sourceRevision and runId must identify this exact acceptance invocation.'
     }
 
@@ -148,21 +359,16 @@ function Assert-OfflineCandidatePrerequisites {
         throw "OfflineCandidate is blocked: local run manifest '$localRunManifestPath' does not exist."
     }
     try {
-        $localRun = Get-Content -LiteralPath $localRunManifestPath -Raw | ConvertFrom-Json
+        $localRun = Get-Content -LiteralPath $localRunManifestPath -Raw |
+            ConvertFrom-Json -DateKind String
     }
     catch {
         throw "OfflineCandidate is blocked: local run manifest '$localRunManifestPath' is not valid JSON."
     }
-    if ($localRun.schemaVersion -ne 1 -or
-        [string]$localRun.kind -ne 'Pegasus.LocalDevelopment.Run' -or
-        [string]$localRun.runId -ne $RunId -or
-        [string]$localRun.runtime.profile -ne 'DevelopmentOffline' -or
-        [string]$localRun.runtime.environment -ne 'Development' -or
-        [string]$localRun.replay.mode -ne 'deterministic-offline' -or
-        [string]$localRun.replay.cloudOperations -ne 'disabled' -or
-        $localRun.replay.workerStarts -ne $false) {
-        throw 'OfflineCandidate is blocked: the local run manifest violates the run-scoped deterministic-offline contract.'
-    }
+    Assert-LocalRunEvidence `
+        -LocalRun $localRun `
+        -ManifestPath $localRunManifestPath `
+        -ExpectedSourceRevision $ExpectedSourceRevision
 
     return [pscustomobject]@{
         CapacityManifestPath = $manifestPath

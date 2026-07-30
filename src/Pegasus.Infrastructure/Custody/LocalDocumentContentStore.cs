@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 
 namespace Pegasus.Infrastructure.Custody;
 
-internal sealed class LocalDocumentContentStore(string rootPath)
+public sealed class LocalDocumentContentStore(string rootPath)
 {
     private readonly string rootPath = Path.GetFullPath(rootPath);
 
@@ -22,26 +22,61 @@ internal sealed class LocalDocumentContentStore(string rootPath)
         }
 
         var path = Resolve(caseId, versionId);
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        var directory = Path.GetDirectoryName(path)!;
+        Directory.CreateDirectory(directory);
+        if (File.Exists(path))
+        {
+            await VerifyAsync(path, normalizedHash, content.Length, cancellationToken);
+            return;
+        }
+
+        var temporaryPath = Path.Combine(
+            directory,
+            $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
         try
         {
-            await using var stream = new FileStream(
-                path,
+            await using (var stream = new FileStream(
+                temporaryPath,
                 FileMode.CreateNew,
                 FileAccess.Write,
                 FileShare.None,
                 64 * 1024,
-                FileOptions.Asynchronous | FileOptions.WriteThrough);
-            await stream.WriteAsync(content, cancellationToken);
-            await stream.FlushAsync(cancellationToken);
-            return;
-        }
-        catch (IOException) when (File.Exists(path))
-        {
-            // Idempotent and concurrent writes verify the immutable bytes below.
-        }
+                FileOptions.Asynchronous | FileOptions.WriteThrough))
+            {
+                await stream.WriteAsync(content, cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+                RandomAccess.FlushToDisk(stream.SafeFileHandle);
+            }
 
-        await VerifyAsync(path, normalizedHash, content.Length, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                File.Move(temporaryPath, path, overwrite: false);
+            }
+            catch (IOException) when (File.Exists(path))
+            {
+                await VerifyAsync(path, normalizedHash, content.Length, cancellationToken);
+            }
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+            {
+                File.Delete(temporaryPath);
+            }
+        }
+    }
+
+    public Task DeleteAsync(
+        Guid caseId,
+        Guid versionId,
+        CancellationToken cancellationToken)
+    {
+        ValidateIdentifiers(caseId, versionId);
+        cancellationToken.ThrowIfCancellationRequested();
+        var path = Resolve(caseId, versionId);
+        File.Delete(path);
+        return Task.CompletedTask;
     }
 
     public async Task<Stream> OpenReadAsync(

@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using System.Security.Cryptography;
+using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Documents;
 
@@ -248,8 +249,10 @@ public sealed record RequestUploadLink(
 
 public sealed record CreateRequestUploadLinkCommand(
     Guid CaseId,
-    string Actor,
-    string OperationKey);
+    ActionActor Actor,
+    string OperationKey,
+    long ExpectedCaseVersion,
+    string EditLeaseToken);
 
 public sealed record CreateRequestUploadLinkResult(
     RequestUploadLink Link,
@@ -257,11 +260,18 @@ public sealed record CreateRequestUploadLinkResult(
     bool IsReplay);
 
 public sealed record RevokeRequestUploadLinkCommand(
+    Guid CaseId,
     Guid RequestId,
-    string Actor,
+    ActionActor Actor,
     string Reason,
     string OperationKey,
-    long ExpectedVersion);
+    long ExpectedRequestVersion,
+    long ExpectedCaseVersion,
+    string EditLeaseToken);
+
+public sealed class DocumentRequestUnavailableException()
+    : InvalidOperationException(
+        "Document request links are unavailable until an accepted limits version is configured.");
 
 public sealed record RequestUploadFile(
     string FileName,

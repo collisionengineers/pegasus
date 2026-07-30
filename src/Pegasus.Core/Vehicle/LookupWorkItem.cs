@@ -21,6 +21,10 @@ public sealed record VehicleLookupWorkItem(
     string? LeaseToken,
     DateTimeOffset? LeaseExpiresAtUtc);
 
+public sealed record VehicleLookupProcessedOutcome(
+    VehicleLookupResult Result,
+    VehicleMileageCalculation? Mileage);
+
 public interface IVehicleLookupWorkStore
 {
     Task<VehicleLookupWorkItem?> ClaimProcessingAsync(
@@ -32,22 +36,22 @@ public interface IVehicleLookupWorkStore
     Task RecordOutcomeAsync(
         Guid workItemId,
         string leaseToken,
-        VehicleLookupResult result,
+        VehicleLookupProcessedOutcome outcome,
         VehicleLookupWorkState state,
         DateTimeOffset? dueAtUtc,
         DateTimeOffset recordedAtUtc,
         CancellationToken cancellationToken);
+}
 
-    Task MarkPoisonedAsync(
-        Guid workItemId,
-        DateTimeOffset failedAtUtc,
-        CancellationToken cancellationToken);
+public interface IProcessQueuedVehicleLookup
+{
+    Task ExecuteAsync(Guid workItemId, CancellationToken cancellationToken);
 }
 
 public sealed class ProcessQueuedVehicleLookup(
     IVehicleLookupWorkStore workStore,
     IVehicleLookupAdapter lookupAdapter,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider) : IProcessQueuedVehicleLookup
 {
     private const int MaximumApplicationAttempts = 5;
     private static readonly TimeSpan ProcessingLease = TimeSpan.FromMinutes(5);
@@ -125,6 +129,9 @@ public sealed class ProcessQueuedVehicleLookup(
                 retryable: true);
         }
 
+        var processedOutcome = new VehicleLookupProcessedOutcome(
+            result,
+            VehicleMileagePolicy.Calculate(result.MotTests));
         var shouldRetry = result.Outcome == VehicleLookupOutcome.Throttled
             || result.Failure?.Retryable == true;
         if (shouldRetry && workItem.AttemptCount < MaximumApplicationAttempts)
@@ -144,7 +151,7 @@ public sealed class ProcessQueuedVehicleLookup(
             await workStore.RecordOutcomeAsync(
                 workItem.Id,
                 workItem.LeaseToken,
-                result,
+                processedOutcome,
                 VehicleLookupWorkState.RetryScheduled,
                 nowUtc.Add(retryDelay),
                 nowUtc,
@@ -158,7 +165,7 @@ public sealed class ProcessQueuedVehicleLookup(
         await workStore.RecordOutcomeAsync(
             workItem.Id,
             workItem.LeaseToken,
-            result,
+            processedOutcome,
             terminalState,
             dueAtUtc: null,
             recordedAtUtc: nowUtc,
@@ -173,7 +180,9 @@ public sealed class ProcessQueuedVehicleLookup(
         workStore.RecordOutcomeAsync(
             workItem.Id,
             workItem.LeaseToken!,
-            CreateFailure(workItem.Registration, nowUtc, failureCode, retryable: false),
+            new(
+                CreateFailure(workItem.Registration, nowUtc, failureCode, retryable: false),
+                Mileage: null),
             VehicleLookupWorkState.Failed,
             dueAtUtc: null,
             recordedAtUtc: nowUtc,
@@ -196,22 +205,4 @@ public sealed class ProcessQueuedVehicleLookup(
             Vehicle: null,
             MotTests: [],
             Failure: new VehicleLookupFailure(failureCode, retryable));
-}
-
-public sealed class ReconcilePoisonedVehicleLookup(
-    IVehicleLookupWorkStore workStore,
-    TimeProvider timeProvider)
-{
-    public Task ExecuteAsync(Guid workItemId, CancellationToken cancellationToken)
-    {
-        if (workItemId == Guid.Empty)
-        {
-            throw new ArgumentException("A vehicle lookup work item identifier is required.", nameof(workItemId));
-        }
-
-        return workStore.MarkPoisonedAsync(
-            workItemId,
-            timeProvider.GetUtcNow(),
-            cancellationToken);
-    }
 }

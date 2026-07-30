@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using OpenIddict.Abstractions;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Pages.Connect;
@@ -33,6 +33,7 @@ internal static class DevelopmentOfflineInitialization
         RequireLocalOnly(services);
         await MigrateAsync(services, cancellationToken);
         await EnsureIdentityAsync(services);
+        await EnsureQdosPrincipalAsync(services, cancellationToken);
         await RegisterMcpClientAsync(
             services,
             "development-initialization",
@@ -46,47 +47,29 @@ internal static class DevelopmentOfflineInitialization
         RequireLocalOnly(services);
         var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        if (context.Database.IsSqlite())
-        {
-            await DevelopmentSqliteBaselineGuard.ValidateAsync(context, cancellationToken);
-        }
-
         await context.Database.MigrateAsync(cancellationToken);
     }
 
     public static async Task RegisterMcpClientAsync(
         IServiceProvider services,
-        string correlationId = "development-mcp-client-command",
+        string operationKey = "development-mcp-client-register",
         CancellationToken cancellationToken = default)
     {
         RequireLocalOnly(services);
-        var applicationManager = services.GetRequiredService<IOpenIddictApplicationManager>();
-        var resource = services.GetRequiredService<StaffMcpOAuthOptions>().Resource;
-        var descriptor = CreateMcpClientDescriptor(resource);
-        var application = await applicationManager.FindByClientIdAsync(
-            DevelopmentMcpClientId,
+        var command = services.GetRequiredService<IRegisterPublicMcpClient>();
+        var result = await command.ExecuteAsync(
+            new(
+                DevelopmentAdministratorActor(),
+                CreateMcpClientMetadata(
+                    services.GetRequiredService<StaffMcpOAuthOptions>().Resource),
+                "Register the deterministic DevelopmentOffline public MCP client.",
+                operationKey),
             cancellationToken);
-        var changed = false;
-        if (application is null)
-        {
-            await applicationManager.CreateAsync(descriptor, cancellationToken);
-            changed = true;
-        }
-        else if (!await MatchesAsync(
-                     applicationManager,
-                     application,
-                     descriptor,
-                     cancellationToken))
-        {
-            await applicationManager.UpdateAsync(application, descriptor, cancellationToken);
-            changed = true;
-        }
-
-        if (changed)
+        if (!result.WasReplay)
         {
             await AppendClientEventAsync(
                 services,
-                correlationId,
+                operationKey,
                 "development_mcp_client_registered",
                 cancellationToken);
         }
@@ -97,21 +80,22 @@ internal static class DevelopmentOfflineInitialization
         CancellationToken cancellationToken = default)
     {
         RequireLocalOnly(services);
-        var applicationManager = services.GetRequiredService<IOpenIddictApplicationManager>();
-        var application = await applicationManager.FindByClientIdAsync(
-            DevelopmentMcpClientId,
+        var command = services.GetRequiredService<IRevokePublicMcpClient>();
+        var result = await command.ExecuteAsync(
+            new(
+                DevelopmentAdministratorActor(),
+                DevelopmentMcpClientId,
+                "Revoke the deterministic DevelopmentOffline public MCP client.",
+                "development-mcp-client-revoke"),
             cancellationToken);
-        if (application is null)
+        if (!result.WasReplay)
         {
-            return;
+            await AppendClientEventAsync(
+                services,
+                "development-mcp-client-revoke",
+                "development_mcp_client_revoked",
+                cancellationToken);
         }
-
-        await applicationManager.DeleteAsync(application, cancellationToken);
-        await AppendClientEventAsync(
-            services,
-            "development-mcp-client-command",
-            "development_mcp_client_revoked",
-            cancellationToken);
     }
 
     private static async Task EnsureIdentityAsync(IServiceProvider services)
@@ -211,71 +195,58 @@ internal static class DevelopmentOfflineInitialization
         }
     }
 
-    private static OpenIddictApplicationDescriptor CreateMcpClientDescriptor(Uri resource)
-    {
-        var descriptor = new OpenIddictApplicationDescriptor
-        {
-            ClientId = DevelopmentMcpClientId,
-            ClientType = OpenIddictConstants.ClientTypes.Public,
-            ConsentType = OpenIddictConstants.ConsentTypes.Explicit,
-            DisplayName = "Pegasus Development MCP client"
-        };
-        descriptor.RedirectUris.Add(new Uri(DevelopmentMcpRedirectUri));
-        descriptor.Permissions.UnionWith(
-        [
-            OpenIddictConstants.Permissions.Endpoints.Authorization,
-            OpenIddictConstants.Permissions.Endpoints.Revocation,
-            OpenIddictConstants.Permissions.Endpoints.Token,
-            OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
-            OpenIddictConstants.Permissions.GrantTypes.RefreshToken,
-            OpenIddictConstants.Permissions.ResponseTypes.Code,
-            OpenIddictConstants.Permissions.Scopes.Profile,
-            OpenIddictConstants.Permissions.Prefixes.Scope + StaffMcpOAuthOptions.ReadScope,
-            OpenIddictConstants.Permissions.Prefixes.Scope + StaffMcpOAuthOptions.WriteScope
-        ]);
-        descriptor.AddResourcePermissions(resource.AbsoluteUri);
-        descriptor.Requirements.Add(
-            OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange);
-        return descriptor;
-    }
-
-    private static async Task<bool> MatchesAsync(
-        IOpenIddictApplicationManager applicationManager,
-        object application,
-        OpenIddictApplicationDescriptor expected,
+    private static async Task EnsureQdosPrincipalAsync(
+        IServiceProvider services,
         CancellationToken cancellationToken)
     {
-        var current = new OpenIddictApplicationDescriptor();
-        await applicationManager.PopulateAsync(current, application, cancellationToken);
-        return string.Equals(current.ClientId, expected.ClientId, StringComparison.Ordinal)
-            && string.Equals(current.ClientType, expected.ClientType, StringComparison.Ordinal)
-            && string.Equals(current.ConsentType, expected.ConsentType, StringComparison.Ordinal)
-            && string.Equals(current.DisplayName, expected.DisplayName, StringComparison.Ordinal)
-            && string.IsNullOrEmpty(current.ClientSecret)
-            && current.RedirectUris.SetEquals(expected.RedirectUris)
-            && current.PostLogoutRedirectUris.Count == 0
-            && current.Permissions.SetEquals(expected.Permissions)
-            && current.Requirements.SetEquals(expected.Requirements);
+        var actor = DevelopmentAdministratorActor();
+        var organization = await services.GetRequiredService<ICreateOrganization>().ExecuteAsync(
+            new(
+                "QDOS development fixture",
+                [OrganizationRole.WorkProvider],
+                actor,
+                "development-qdos-organization"),
+            cancellationToken);
+        await services.GetRequiredService<ICreatePrincipal>().ExecuteAsync(
+            new(
+                organization.Id,
+                QdosAlphaCaseActivationPolicy.PrincipalCode,
+                actor,
+                "development-qdos-principal"),
+            cancellationToken);
     }
 
-    private static async Task AppendClientEventAsync(
+    private static Task AppendClientEventAsync(
         IServiceProvider services,
-        string correlationId,
+        string operationKey,
         string reasonCode,
         CancellationToken cancellationToken)
     {
-        var securityEvents = services.GetRequiredService<ISecurityEventWriter>();
-        await securityEvents.AppendAsync(
+        var timeProvider = services.GetRequiredService<TimeProvider>();
+        return services.GetRequiredService<ISecurityEventWriter>().AppendAsync(
             new(
                 Guid.NewGuid(),
                 SecurityEventType.Client,
                 SecurityEventOutcome.Succeeded,
                 DevelopmentMcpClientId,
-                services.GetRequiredService<TimeProvider>().GetUtcNow(),
-                correlationId,
+                timeProvider.GetUtcNow(),
+                operationKey,
                 reasonCode),
             cancellationToken);
     }
+
+    private static PublicMcpClientMetadata CreateMcpClientMetadata(Uri resource) =>
+        new(
+            DevelopmentMcpClientId,
+            "Pegasus Development MCP client",
+            [new Uri(DevelopmentMcpRedirectUri)],
+            resource,
+            [StaffMcpClientContract.ReadScope, StaffMcpClientContract.WriteScope]);
+
+    private static ActionActor DevelopmentAdministratorActor() =>
+        ActionActor.Staff(
+            DevelopmentOfflineIdentity.AdministratorId,
+            [StaffRole.Administrator]);
 
     private static void RequireLocalOnly(IServiceProvider services)
     {
@@ -302,9 +273,6 @@ internal static class DevelopmentOfflineInitialization
         }
 
         throw new InvalidOperationException(
-            "DevelopmentOffline identity initialization failed: " +
-            string.Join(
-                "; ",
-                result.Errors.Select(error => $"{error.Code}: {error.Description}")));
+            "DevelopmentOffline identity initialization failed without changing its deterministic contract.");
     }
 }

@@ -1,122 +1,277 @@
 using System.Reflection;
-using Pegasus.Core;
+using ModelContextProtocol.Server;
+using Pegasus.Web.Mcp;
 
 namespace Pegasus.ArchitectureTests;
 
 public sealed class StaffMcpPolicyTests
 {
-    private static readonly string[] ApprovedToolNames =
+    private static readonly ExpectedTool[] Expected =
     [
-        "pegasus_case_workflow_get",
-        "pegasus_document_download",
-        "pegasus_document_export",
-        "pegasus_document_upload",
-        "pegasus_eva_handoff_generate",
-        "pegasus_eva_handoff_get",
-        "pegasus_inspection_address_get",
-        "pegasus_inspection_address_resolve",
-        "pegasus_intake_accept",
-        "pegasus_intake_get",
-        "pegasus_intake_list",
-        "pegasus_triage_get",
-        "pegasus_triage_list"
-    ];
+        Read("operations.get", "GetOperationsSnapshot"),
+        Read("intake.list", "ListIntake"),
+        Read("intake.get", "GetIntake"),
+        Read("cases.search", "SearchCases"),
+        Read("cases.get", "GetCase"),
+        Read("triage.list", "ListTriage"),
+        Read("triage.get", "GetTriage"),
 
-    private static readonly string[] ForbiddenToolNameFragments =
-    [
-        "admin",
-        "account",
-        "role",
-        "credential",
-        "oauth",
-        "cloud",
-        "deploy",
-        "delete",
-        "mailbox"
+        Named("intake.resolve", "ResolveIntake"),
+        Named("intake.reevaluate", "ReevaluateIntake"),
+        Named("cases.save", "SaveCase"),
+        Named("cases.acquire_edit_lease", "AcquireCaseEditLease"),
+        Named("cases.renew_edit_lease", "RenewCaseEditLease"),
+        Named("cases.release_edit_lease", "ReleaseCaseEditLease"),
+        Named("cases.create_task", "CreateCaseTask"),
+        Named("cases.assign_task", "AssignCaseTask"),
+        Named("triage.assign", "AssignTriage"),
+        Named("triage.unassign", "UnassignTriage"),
+        Named("triage.record_finding", "RecordTriageFinding"),
+        Named("triage.supersede_finding", "SupersedeTriageFinding"),
+        Named("triage.link_response", "LinkTriageResponseEvidence"),
+        Named("triage.unlink_response", "UnlinkTriageResponseEvidence"),
+        Named("triage.link_case", "LinkTriageCase"),
+        Named("triage.unlink_case", "UnlinkTriageCase"),
+
+        Consequential("intake.accept", "AcceptIntake"),
+        Consequential("intake.link_case", "LinkIntake"),
+        Consequential("intake.unlink_case", "ReverseIntakeLink"),
+        Consequential("cases.confirm_completeness", "ConfirmCompleteness"),
+        Consequential("cases.hold", "HoldCase"),
+        Consequential("cases.release_hold", "ReleaseCase"),
+        Consequential("cases.transition", "TransitionCase"),
+        Consequential("cases.close", "CloseCase"),
+        Consequential("cases.reopen", "ReopenCase"),
+        Consequential("cases.archive", "ArchiveCase"),
+        Consequential("cases.create_linked_replacement", "CreateLinkedReplacement"),
+        Consequential("cases.complete_task", "CompleteCaseTask"),
+        Consequential("cases.cancel_task", "CancelCaseTask"),
+        Consequential("cases.record_engineer_finding", "RecordEngineerFinding"),
+        Consequential("triage.complete", "CompleteTriage"),
+        Consequential("triage.cancel", "CancelTriage"),
+        Consequential("triage.reopen", "ReopenTriage"),
+        Consequential("documents.logical_remove", "LogicallyRemoveDocument"),
+
+        DocumentDownload("documents.download", "DownloadCaseDocument"),
+        DocumentExport("documents.export", "ExportCaseDocuments"),
+
+        External("requests.create_box", "CreateBoxFileRequest"),
+        External("requests.revoke_box", "RevokeBoxFileRequest"),
+        External("requests.create_upload", "CreateRequestUploadLink"),
+        External("requests.revoke_upload", "RevokeRequestUploadLink"),
+        External("vehicle.request_lookup", "RequestVehicleLookup"),
+        External("vehicle.accept_suggestion", "AcceptVehicleSuggestion"),
+        External("reports.generate_eva", "GenerateEvaHandoff"),
+        External("reports.link_evidence", "LinkReportEvidence"),
+        External("reports.unlink_evidence", "UnlinkReportEvidence")
     ];
 
     [Fact]
-    public void StaffMcpExposesOnlyTheApprovedCoreBackedToolMap()
+    public void AlphaManifestMatchesTheExactOrderedPlanContract()
     {
-        var toolTypes = StaffMcpToolTypes();
-        var tools = toolTypes
-            .SelectMany(type => type.GetMethods(BindingFlags.Instance | BindingFlags.Public))
-            .Select(method => (Method: method, Attribute: ToolAttribute(method)))
-            .Where(tool => tool.Attribute is not null)
-            .Select(tool => (tool.Method, Attribute: tool.Attribute!))
+        var actual = AlphaMcpToolManifest.Tools
+            .Select(tool => new ExpectedTool(
+                tool.Name,
+                tool.CoreContractName,
+                tool.Scope,
+                tool.Policy,
+                tool.Hints.ReadOnly,
+                tool.Hints.Destructive,
+                tool.Hints.Idempotent,
+                tool.Hints.OpenWorld))
             .ToArray();
 
+        Assert.Equal(Expected, actual);
+        Assert.Equal(52, actual.Length);
         Assert.Equal(
-            ApprovedToolNames,
-            tools.Select(tool => NamedString(tool.Attribute, "Name"))
-                .Order(StringComparer.Ordinal)
-                .ToArray());
-        Assert.DoesNotContain(tools, tool =>
-        {
-            var name = NamedString(tool.Attribute, "Name");
-            return ForbiddenToolNameFragments
-                .Any(fragment => name.Contains(fragment, StringComparison.OrdinalIgnoreCase));
-        });
+            actual.Length,
+            AlphaMcpToolManifest.ToolTypes.Distinct().Count());
+        Assert.Equal(
+            actual.Length,
+            AlphaMcpToolManifest.Tools.Select(tool => tool.AdapterMethod).Distinct().Count());
+    }
 
-        var coreAssembly = typeof(CoreAssembly).Assembly;
-        var webAssembly = typeof(Program).Assembly;
-        foreach (var dependency in toolTypes
-                     .SelectMany(type => Assert.Single(type.GetConstructors(
-                         BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)).GetParameters())
-                     .Select(parameter => parameter.ParameterType))
+    [Fact]
+    public void EveryAttributedToolIsManifestedAndEveryAdapterHasOneSoleCoreContract()
+    {
+        var assembly = typeof(AlphaMcpToolManifest).Assembly;
+        var attributedTypes = assembly.GetTypes()
+            .Where(type => type.GetCustomAttribute<McpServerToolTypeAttribute>() is not null)
+            .OrderBy(type => type.FullName, StringComparer.Ordinal)
+            .ToArray();
+        var manifestedTypes = AlphaMcpToolManifest.ToolTypes
+            .OrderBy(type => type.FullName, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(manifestedTypes, attributedTypes);
+        foreach (var descriptor in AlphaMcpToolManifest.Tools)
         {
-            Assert.True(
-                dependency.Assembly == coreAssembly
-                || dependency.Assembly == webAssembly
-                || dependency.FullName == "Microsoft.AspNetCore.Http.IHttpContextAccessor",
-                $"MCP tool dependency '{dependency.FullName}' bypasses the Core/Web security boundary.");
+            var methods = descriptor.AdapterType
+                .GetMethods(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+                .Where(method => method.GetCustomAttribute<McpServerToolAttribute>() is not null)
+                .ToArray();
+            Assert.Equal(descriptor.AdapterMethod, Assert.Single(methods));
+
+            var constructor = Assert.Single(descriptor.AdapterType.GetConstructors(
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic));
+            var coreDependencies = constructor.GetParameters()
+                .Where(parameter => parameter.ParameterType.Assembly == typeof(Pegasus.Core.Identity.ActionActor).Assembly)
+                .ToArray();
+            Assert.Equal(descriptor.CoreContract, Assert.Single(coreDependencies).ParameterType);
         }
     }
 
     [Fact]
-    public void StaffMcpMutationContractsAreIdempotentBoundedAndNeverDestructive()
+    public void ManifestSchemasDeriveAuthorizationAndKeepMutationPreconditionsExplicit()
     {
-        var tools = StaffMcpToolTypes()
-            .SelectMany(type => type.GetMethods(BindingFlags.Instance | BindingFlags.Public))
-            .Select(method => (Method: method, Attribute: ToolAttribute(method)))
-            .Where(tool => tool.Attribute is not null)
-            .Select(tool => (tool.Method, Attribute: tool.Attribute!))
-            .ToArray();
-
-        Assert.All(tools, tool =>
+        foreach (var descriptor in AlphaMcpToolManifest.Tools)
         {
-            Assert.True(NamedBoolean(tool.Attribute, "Idempotent"));
-            Assert.False(NamedBoolean(tool.Attribute, "Destructive"));
-            Assert.False(NamedBoolean(tool.Attribute, "OpenWorld"));
-            Assert.Equal(typeof(CancellationToken), tool.Method.GetParameters()[^1].ParameterType);
+            var schemaParameters = descriptor.Schema.Parameters;
+            Assert.DoesNotContain(schemaParameters, parameter =>
+                parameter.ParameterType == typeof(Pegasus.Core.Identity.ActionActor)
+                || parameter.Name.Contains("actor", StringComparison.OrdinalIgnoreCase)
+                || parameter.Name.Contains("role", StringComparison.OrdinalIgnoreCase)
+                || parameter.Name.Contains("client", StringComparison.OrdinalIgnoreCase)
+                || parameter.Name.Contains("secret", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(schemaParameters, parameter =>
+                parameter.ParameterType == typeof(Stream)
+                || parameter.ParameterType == typeof(byte[])
+                || parameter.ParameterType == typeof(ReadOnlyMemory<byte>));
 
-            if (!NamedBoolean(tool.Attribute, "ReadOnly"))
+            if (!descriptor.Hints.ReadOnly)
             {
-                var operationId = Assert.Single(
-                    tool.Method.GetParameters(),
-                    parameter => parameter.Name == "operationId");
-                Assert.Equal(typeof(Guid), operationId.ParameterType);
+                Assert.Contains(schemaParameters, parameter =>
+                    parameter.Name is "operationId" or "operationKey");
             }
-        });
+
+            Assert.DoesNotContain(
+                EnumerateTypeGraph(descriptor.Schema.OutputType),
+                type => type.Name.Contains("Secret", StringComparison.Ordinal)
+                    || typeof(Stream).IsAssignableFrom(type)
+                    || type == typeof(byte[])
+                    || type == typeof(ReadOnlyMemory<byte>));
+        }
     }
 
-    private static Type[] StaffMcpToolTypes() => typeof(Program).Assembly.GetTypes()
-        .Where(type => type.GetCustomAttributesData().Any(attribute =>
-            attribute.AttributeType.FullName ==
-            "ModelContextProtocol.Server.McpServerToolTypeAttribute"))
-        .OrderBy(type => type.FullName, StringComparer.Ordinal)
-        .ToArray();
+    [Fact]
+    public void ExcludedAndLegacySurfacesAreNotManifested()
+    {
+        var names = AlphaMcpToolManifest.Tools.Select(tool => tool.Name).ToArray();
+        Assert.DoesNotContain(names, name => name.StartsWith("pegasus_", StringComparison.Ordinal));
+        Assert.DoesNotContain(names, name => name.Contains("account", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(names, name => name.Contains("principal", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(names, name => name.Contains("config", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(names, name => name.Contains("cloud", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(names, name => name.Contains("delete", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(names, name => name.Contains("email", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(names, name => name.Contains("ai", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain("documents.upload", names);
+        Assert.DoesNotContain("triage.acquire_edit_lease", names);
+    }
 
-    private static CustomAttributeData? ToolAttribute(MethodInfo method) =>
-        method.GetCustomAttributesData().SingleOrDefault(attribute =>
-            attribute.AttributeType.FullName ==
-            "ModelContextProtocol.Server.McpServerToolAttribute");
+    private static IEnumerable<Type> EnumerateTypeGraph(Type root)
+    {
+        var pending = new Stack<Type>();
+        var seen = new HashSet<Type>();
+        pending.Push(root);
+        while (pending.TryPop(out var type))
+        {
+            if (!seen.Add(type))
+            {
+                continue;
+            }
 
-    private static string NamedString(CustomAttributeData attribute, string name) =>
-        (string)attribute.NamedArguments.Single(argument => argument.MemberName == name)
-            .TypedValue.Value!;
+            yield return type;
+            if (type.IsGenericType)
+            {
+                foreach (var argument in type.GetGenericArguments())
+                {
+                    pending.Push(argument);
+                }
+            }
+            if (type.Assembly == typeof(AlphaMcpToolManifest).Assembly)
+            {
+                foreach (var property in type.GetProperties(BindingFlags.Instance | BindingFlags.Public))
+                {
+                    pending.Push(property.PropertyType);
+                }
+            }
+        }
+    }
 
-    private static bool NamedBoolean(CustomAttributeData attribute, string name) =>
-        (bool)attribute.NamedArguments.Single(argument => argument.MemberName == name)
-            .TypedValue.Value!;
+    private static ExpectedTool Read(string name, string contract) =>
+        new(
+            name,
+            contract,
+            "pegasus.read",
+            "current-user record authorization",
+            ReadOnly: true,
+            Destructive: false,
+            Idempotent: true,
+            OpenWorld: false);
+
+    private static ExpectedTool Named(string name, string contract) =>
+        new(
+            name,
+            contract,
+            "pegasus.write",
+            "named command policy and current role",
+            ReadOnly: false,
+            Destructive: false,
+            Idempotent: true,
+            OpenWorld: false);
+
+    private static ExpectedTool Consequential(string name, string contract) =>
+        new(
+            name,
+            contract,
+            "pegasus.write",
+            "consequential-action policy",
+            ReadOnly: false,
+            Destructive: true,
+            Idempotent: true,
+            OpenWorld: false);
+
+    private static ExpectedTool DocumentDownload(string name, string contract) =>
+        new(
+            name,
+            contract,
+            "pegasus.read",
+            "current-user document/case policy, opaque server-selected custody ID only",
+            ReadOnly: true,
+            Destructive: false,
+            Idempotent: true,
+            OpenWorld: true);
+
+    private static ExpectedTool DocumentExport(string name, string contract) =>
+        new(
+            name,
+            contract,
+            "pegasus.write",
+            "current-user document/case policy, same-case selected IDs and recorded export event",
+            ReadOnly: false,
+            Destructive: false,
+            Idempotent: true,
+            OpenWorld: true);
+
+    private static ExpectedTool External(string name, string contract) =>
+        new(
+            name,
+            contract,
+            "pegasus.write",
+            "current-user case policy plus accepted external-adapter/evidence gate",
+            ReadOnly: false,
+            Destructive: true,
+            Idempotent: true,
+            OpenWorld: true);
+
+    private sealed record ExpectedTool(
+        string Name,
+        string CoreContract,
+        string Scope,
+        string Policy,
+        bool ReadOnly,
+        bool Destructive,
+        bool Idempotent,
+        bool OpenWorld);
 }

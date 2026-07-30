@@ -28,18 +28,17 @@ flowchart LR
     Worker -. target .-> Infra
     Infra --> Core
 
-    Infra --> SQL[(SQL Server / target Azure SQL)]
+    Infra --> SQL[(LocalDB local / Azure SQL deployed)]
     Infra -. target .-> Outlook[Outlook / Graph]
     Infra -. target .-> Blob[Transient Blob and queues]
     Infra -. target .-> Box[Box]
     Infra -. target .-> DVLA[DVLA / DVSA]
     Infra -. target .-> EVA[EVA]
-    Infra -. target .-> OCR[Document Intelligence]
 ```
 
 The current repository exposes an ASP.NET Core Razor Pages host, and dated local HTTP integration evidence exercises one Development-only manual intake mutation. That evidence does not show staff use of a deployed Pegasus application, a supported non-Development intake route, live traffic, or operator acceptance. Future accepted provider API and staff MCP calls would enter through separate Web boundaries. The .NET 10 isolated Azure Functions Worker is the intended mailbox and background composition root, but currently has no trigger, input, or Core caller.
 
-The repository identifies itself as `0.0.0-development`; it is local-only, with no Pegasus Azure deployment.
+The repository identifies its package and release target as `0.1.0-alpha.1`; no Pegasus Azure deployment has occurred.
 
 ## Components and dependency direction
 
@@ -57,13 +56,14 @@ A new project, runtime, store, migration stream, deployment unit, or top-level a
 
 ## Current callers and entry points
 
-### Current local entry point and dated caller proof
+### Offline QDOS-alpha Web callers
 
-- `POST /Intake/Upload` is the only current mutating product entry point. Dated local integration evidence exercised the HTTP route with genuine input; the route is available only under the Development-only local-intake gate.
-- Its PageModel calls Core `ProcessIntake`, which uses the source reader, one contained QDOS instruction-extraction policy, the local content-addressed artifact store, and the EF receipt/draft store.
-- `/`, `/Intake/Queue`, and `/Intake/Review` query persisted receipt and typed-draft state.
-- The review download handler calls `IIntakeArtifactStore`.
-- This is local HTTP caller evidence, not current browser-acceptance, staff-use, non-Development, deployment, or live-service evidence.
+- The prior dated local proof exercised the now-retired Development-only `/Intake/Upload` thin slice. It remains historical evidence only.
+- `GET /Intake` calls Core `ListIntake`; the `ReceiveIntake` POST handler submits one bounded authenticated manual source and preserves the selected filter/page through PRG. `GET /Intake/{id}` calls `GetIntake`, and its mutations call the named Core intake commands with a server-derived actor, expected versions or case lease, operation key, and reason as applicable.
+- `GET /Intake/{id}/Source` calls Core `DownloadIntakeSource`, which authorises the current staff actor, resolves the receipt-owned source, validates retained length and SHA-256, and returns only a no-sniff attachment with a safe filename and content type.
+- `/Triage` and `/Triage/{id}` are the physical list/detail owners for Core triage queries and commands. The non-persistent evaluator exists only at `/Development/EmailEvaluation` while the DevelopmentOffline local-intake profile is active; otherwise its route selector is absent.
+- Anonymous request submission exists only at `/Uploads/{token}`. The PageModel calls `GetRequestUpload` and one `UploadToRequest` command, uses antiforgery and an idempotent operation key, and presents generic non-disclosing outcomes through PRG.
+- These implemented callers are local/offline-alpha source state. This change does not establish deployment, browser accessibility acceptance, or operator acceptance.
 
 ### Technical entry points
 
@@ -248,7 +248,7 @@ No Web or Worker caller currently consumes the catalog. Package presence, migrat
 
 ### Current Development data
 
-`DevelopmentOffline` uses SQL Server Express LocalDB through connection name `Pegasus`, database `PegasusDevelopment`, and the committed SQL Server migration stream.
+`DevelopmentOffline` uses SQL Server Express LocalDB through connection name `Pegasus`, database `PegasusDevelopment`, and the committed SQL Server migration stream. Deployed Pegasus uses Azure SQL through that SQL Server migration stream; there is no supported database-provider choice.
 
 Current source and extracted bytes are retained under the ignored content-addressed root:
 
@@ -288,11 +288,11 @@ Pegasus starts with fresh application data. The predecessor’s pre-release test
 
 EF migrations under `src/Pegasus.Infrastructure/Persistence/Migrations/` own application schema evolution.
 
-Normal Web or Worker startup never applies migrations. Development migration is a separate explicit command. The local guard accepts an empty database or the exact current migration history; unexpected schema or history, or a pending model change, fails before normal application use.
+Normal Web or Worker startup never applies migrations. Development migration is a separate explicit LocalDB command. The LocalDB guard accepts an empty database or the exact current SQL Server migration history; unexpected schema or history, or a pending model change, fails before normal application use.
 
 A release-owned migration bundle or explicit operation must apply deployed migrations before the application package. Schema recovery is not an automatic down-migration.
 
-Disposable SQL Server/LocalDB results prove only local caller and migration behavior. They do not prove Azure SQL locking, upgrade behavior, recovery, or live deployment.
+LocalDB is the canonical local provider for persistence, migration, concurrency, and recovery evidence. Each disposable result proves only the exercised local behavior; it does not prove Azure SQL locking, upgrade behavior, recovery, or live deployment.
 
 ## Authentication and authorization boundary
 
@@ -449,7 +449,7 @@ dotnet run --project ./src/Pegasus.Web --launch-profile https --no-build
 Open:
 
 ```text
-https://localhost:7139/Intake/Upload
+https://localhost:7139/Intake
 ```
 
 Development configuration selects:
@@ -463,26 +463,26 @@ Development configuration selects:
 
 The `--migrate-development` process validates the local-only profile, applies the committed migration stream, prints completion, and exits. The Web host must then be started separately.
 
-The upload route is deny-by-default and returns `404` unless both the Development-only runtime profile and local-intake feature gate are active.
+The Intake routes and Development evaluator are deny-by-default and return `404` unless both the DevelopmentOffline runtime profile and local-intake feature gate are active. The evaluator has no endpoint selector outside that gate.
 
 ## Implementation map
 
 | Responsibility | Current source |
 | --- | --- |
-| Business intake use case | `src/Pegasus.Core/Intake/ProcessIntake.cs` |
-| Core intake contracts and ports | `src/Pegasus.Core/Intake/IntakeContracts.cs` |
+| Core intake receipt/query/command use cases | `src/Pegasus.Core/Intake/` |
+| Core source-download contract and policy | `src/Pegasus.Core/Intake/DownloadIntakeSource.cs`, `src/Pegasus.Core/Intake/IntakeContracts.cs` |
 | QDOS extraction policy | `src/Pegasus.Core/Intake/QdosInstructionExtractionPolicy.cs` |
 | Multi-format source adapter | `src/Pegasus.Infrastructure/Intake/MimeKitPdfPigOpenXmlIntakeSourceReader.cs` |
 | Local artifact adapter | `src/Pegasus.Infrastructure/Intake/FileSystemIntakeArtifactStore.cs` |
-| EF receipt and typed-draft persistence | `src/Pegasus.Infrastructure/Persistence/EfIntakeReceiptStore.cs` |
+| EF receipt, current-association and action-history persistence | `src/Pegasus.Infrastructure/Persistence/EfIntakeReceiptStore.cs`, `src/Pegasus.Infrastructure/Persistence/EfIntakeMutationStore.cs`, `src/Pegasus.Infrastructure/Persistence/EfCaseAcceptanceStore.cs` |
 | Database model and migrations | `src/Pegasus.Infrastructure/Persistence/PegasusDbContext.cs`, `src/Pegasus.Infrastructure/Persistence/Migrations/` |
-| Web composition and route safety | `src/Pegasus.Web/Program.cs` |
-| Manual mutation caller | `src/Pegasus.Web/Pages/Intake/Upload.cshtml.cs` |
-| Review, queue, and dashboard callers | `src/Pegasus.Web/Pages/Intake/`, `src/Pegasus.Web/Pages/Index.cshtml.cs` |
+| Web composition, feature gates and route safety | `src/Pegasus.Web/Program.cs` |
+| Canonical Intake callers | `src/Pegasus.Web/Pages/Intake/Index.cshtml.cs`, `src/Pegasus.Web/Pages/Intake/Details.cshtml.cs`, `src/Pegasus.Web/Pages/Intake/Source.cshtml.cs` |
+| Canonical Triage, evaluator and public-upload callers | `src/Pegasus.Web/Pages/Triage/`, `src/Pegasus.Web/Pages/Development/EmailEvaluation.cshtml.cs`, `src/Pegasus.Web/Pages/Uploads/Request.cshtml.cs` |
 | Genuine-input Web evidence | `tests/Pegasus.IntegrationTests/QdosIntakeWebTests.cs` |
 | Route-denial evidence | `tests/Pegasus.IntegrationTests/LocalIntakeAccessTests.cs` |
 | Stable persistence and unsupported-source evidence | `tests/Pegasus.IntegrationTests/IntakeStablePersistenceTests.cs` |
-| SQLite baseline-refusal evidence | `tests/Pegasus.IntegrationTests/IntakeSqliteBaselineGuardTests.cs` |
+| LocalDB migration, concurrency, rollback, and retry evidence | `tests/Pegasus.IntegrationTests/IntakePersistenceIntegrationTests.cs` |
 | Dependency-direction evidence | `tests/Pegasus.ArchitectureTests/DependencyDirectionTests.cs` |
 
 Relevant architectural decisions include ADR-0003 for PdfPig, ADR-0005 for multi-format assets, ADR-0006 for provider-neutral intake with a contained QDOS policy, and ADR-0009 for direct-terminal Azure deployment. Their status and supersession must be read through the [decision index](decisions/README.md).
@@ -524,7 +524,7 @@ At the 2026-07-24 provider-neutral intake checkpoint:
 - Release build completed without warnings or errors;
 - 28 Core, 82 non-corpus Integration, 30 Architecture, and 11 genuine-corpus tests ran with no failures or skips;
 - repository structure, Bicep compilation, ignored-boundary checks, and project-skill validation passed;
-- a disposable LocalDB cohort passed 11 tests with no skips, applying the single provider-neutral initial migration and covering constraints, concurrency, action-history rollback, and retry;
+- a disposable LocalDB cohort passed 11 tests with no skips, applying the committed SQL Server initial migration and covering constraints, concurrency, action-history rollback, and retry;
 - independent checks reran the actual upload no-default path, unknown persisted-code failures, inconsistent policy-result guards, and case-variant receipt replay.
 
 The local corpus changed between checkpoints:

@@ -10,7 +10,7 @@ public sealed class PutCaseOnHold(ICaseWorkflowStore store) : IPutCaseOnHold
 
     public async Task<CaseWorkflowRecord> ExecuteAsync(PutCaseOnHoldRequest request, CancellationToken cancellationToken)
     {
-        CaseLifecycleRules.ValidateHold(request);
+        CaseLifecycleRules.ValidateMutation(request);
         var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
         if ((current.State == CaseLifecycleState.Held || CaseLifecycleRules.IsTerminal(current.State))
             && !await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
@@ -33,7 +33,7 @@ public sealed class ReleaseCaseHold(ICaseWorkflowStore store) : IReleaseCaseHold
         if (current.State != CaseLifecycleState.Held
             && !await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
         {
-            throw new InvalidOperationException("Only a held case can be released to Not ready.");
+            throw new InvalidOperationException("Only a held case can be released.");
         }
 
         return await _store.ReleaseHoldAsync(request, cancellationToken);
@@ -62,62 +62,100 @@ public sealed class ReturnCaseToReview(ICaseWorkflowStore store) : IReturnCaseTo
 
 public sealed class AssignCaseEngineer(
     ICaseWorkflowStore store,
-    ICaseWorkflowConfiguration configuration) : IAssignCaseEngineer
+    ICaseWorkflowConfiguration configuration,
+    ICaseEngineerEligibility eligibility) : IAssignCaseEngineer
 {
     private readonly ICaseWorkflowStore _store = store ?? throw new ArgumentNullException(nameof(store));
     private readonly ICaseWorkflowConfiguration _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+    private readonly ICaseEngineerEligibility _eligibility = eligibility ?? throw new ArgumentNullException(nameof(eligibility));
 
     public async Task<CaseWorkflowRecord> ExecuteAsync(
         AssignCaseEngineerRequest request,
         CancellationToken cancellationToken)
     {
-        CaseLifecycleRules.ValidateAssignment(request, _configuration.GetCurrent());
+        var workflowConfiguration = await _configuration.GetCurrentAsync(cancellationToken);
+        CaseLifecycleRules.ValidateAssignment(request, workflowConfiguration);
         var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        if (current.State != CaseLifecycleState.Review
-            && !await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
+        var isReplay = await _store.HasOperationAsync(
+            request.CaseId,
+            request.OperationKey,
+            cancellationToken);
+        if (current.State != CaseLifecycleState.Review && !isReplay)
         {
             throw new InvalidOperationException("An Engineer can be assigned only while the case is in Review.");
+        }
+
+        if (!isReplay)
+        {
+            await CaseEngineerEligibilityPolicy.RequireEligibleAsync(
+                _eligibility,
+                request.EngineerId,
+                cancellationToken);
         }
 
         return await _store.AssignEngineerAsync(request, cancellationToken);
     }
 }
 
-public sealed class StartCaseWork(ICaseWorkflowStore store) : IStartCaseWork
+public sealed class StartCaseWork(
+    ICaseWorkflowStore store,
+    ICaseEngineerEligibility eligibility) : IStartCaseWork
 {
     private readonly ICaseWorkflowStore _store = store ?? throw new ArgumentNullException(nameof(store));
+    private readonly ICaseEngineerEligibility _eligibility = eligibility ?? throw new ArgumentNullException(nameof(eligibility));
 
     public async Task<CaseWorkflowRecord> ExecuteAsync(CaseMutationRequest request, CancellationToken cancellationToken)
     {
         CaseLifecycleRules.ValidateMutation(request);
         var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
+        var isReplay = await _store.HasOperationAsync(
+            request.CaseId,
+            request.OperationKey,
+            cancellationToken);
         if ((current.State != CaseLifecycleState.Review || current.AssignedEngineerId is null)
-            && !await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
+            && !isReplay)
         {
             throw new InvalidOperationException("Case work can start only from Review after an Engineer is assigned.");
         }
 
-        return await _store.ChangeStateAsync(request, CaseLifecycleState.Active, cancellationToken);
-    }
-}
-
-public sealed class BeginCaseReportPreparation(ICaseWorkflowStore store) : IBeginCaseReportPreparation
-{
-    private readonly ICaseWorkflowStore _store = store ?? throw new ArgumentNullException(nameof(store));
-
-    public async Task<CaseWorkflowRecord> ExecuteAsync(CaseMutationRequest request, CancellationToken cancellationToken)
-    {
-        CaseLifecycleRules.ValidateMutation(request);
-        var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        if (current.State != CaseLifecycleState.Active
-            && !await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
+        if (!isReplay)
         {
-            throw new InvalidOperationException("Report preparation can begin only during active case work.");
+            await CaseEngineerEligibilityPolicy.RequireEligibleAsync(
+                _eligibility,
+                current.AssignedEngineerId!.Value,
+                cancellationToken);
         }
 
         return await _store.ChangeStateAsync(request, CaseLifecycleState.ReportPreparation, cancellationToken);
     }
 }
+
+internal static class CaseEngineerEligibilityPolicy
+{
+    public static async Task RequireEligibleAsync(
+        ICaseEngineerEligibility source,
+        Guid engineerId,
+        CancellationToken cancellationToken)
+    {
+        var eligibility = await source.GetAsync(engineerId, cancellationToken);
+        if (!eligibility.AccountExists)
+        {
+            throw new InvalidOperationException("The assigned Engineer account does not exist.");
+        }
+
+        if (!eligibility.IsEnabled)
+        {
+            throw new InvalidOperationException("The assigned Engineer account is disabled.");
+        }
+
+        if (!eligibility.HasEngineerRole)
+        {
+            throw new InvalidOperationException(
+                "The assigned staff account does not hold the Engineer role.");
+        }
+    }
+}
+
 
 public sealed class RecordCaseReportApproval(ICaseWorkflowStore store) : IRecordCaseReportApproval
 {
@@ -139,24 +177,162 @@ public sealed class RecordCaseReportApproval(ICaseWorkflowStore store) : IRecord
     }
 }
 
-public sealed class RecordCaseReportSent(ICaseWorkflowStore store) : IRecordCaseReportSent
+public sealed class LinkReportEvidence(ICaseWorkflowStore store) : ILinkReportEvidence
 {
     private readonly ICaseWorkflowStore _store = store ?? throw new ArgumentNullException(nameof(store));
 
     public async Task<CaseWorkflowRecord> ExecuteAsync(
-        RecordCaseReportSentRequest request,
+        LinkReportEvidenceRequest request,
         CancellationToken cancellationToken)
     {
-        CaseLifecycleRules.ValidateReportSent(request);
-        var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        if ((current.State != CaseLifecycleState.ReportPreparation || current.ReportApproval is null)
-            && !await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
+        CaseLifecycleRules.ValidateReportEvidence(request, request.EvidenceId);
+        var current = await CaseLifecycleRules.GetRequiredAsync(
+            _store,
+            request.CaseId,
+            cancellationToken);
+        if (current.State != CaseLifecycleState.ReportPreparation
+            && !await _store.HasOperationAsync(
+                request.CaseId,
+                request.OperationKey,
+                cancellationToken))
         {
             throw new InvalidOperationException(
-                "Exact report-sent evidence can enter post-report work only after report approval.");
+                "Exact report-Sent evidence can enter post-report work only from Report preparation.");
         }
 
-        return await _store.RecordReportSentAsync(request, cancellationToken);
+        return await _store.LinkReportEvidenceAsync(request, cancellationToken);
+    }
+}
+
+public sealed class AutoLinkReportEvidence(IAutoLinkReportEvidenceStore store)
+    : IAutoLinkReportEvidence
+{
+    private readonly IAutoLinkReportEvidenceStore _store =
+        store ?? throw new ArgumentNullException(nameof(store));
+
+    public async Task<AutoLinkReportEvidenceResult> ExecuteAsync(
+        AutoLinkReportEvidenceRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.CaseId == Guid.Empty || request.EvidenceId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "Automatic report-evidence linking requires stable Case and evidence identities.",
+                nameof(request));
+        }
+
+        ArgumentNullException.ThrowIfNull(request.Actor);
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.ExecuteSystemWork);
+        if (request.Actor.Kind != ActorKind.SystemWorker)
+        {
+            throw new UnauthorizedAccessException(
+                "Automatic report-evidence linking requires a system-worker actor.");
+        }
+
+        RequireText(request.OperationKey, 100, nameof(request));
+        RequireText(request.Reason, 500, nameof(request));
+        var result = await _store.TryAutoLinkAsync(request, cancellationToken)
+            ?? throw new InvalidDataException(
+                "The automatic report-evidence store returned no result.");
+        ValidateResult(request, result);
+        return result;
+    }
+
+    private static void ValidateResult(
+        AutoLinkReportEvidenceRequest request,
+        AutoLinkReportEvidenceResult result)
+    {
+        if (!Enum.IsDefined(result.Disposition))
+        {
+            throw new InvalidDataException(
+                "The automatic report-evidence store returned an unknown disposition.");
+        }
+
+        if (result.Disposition == AutoLinkReportEvidenceDisposition.Linked)
+        {
+            if (result.NotLinkedReasonCode is not null
+                || result.Link is not { } link
+                || link.CaseId != request.CaseId
+                || link.EvidenceId != request.EvidenceId
+                || link.State != CaseLifecycleState.PostReport
+                || link.Version < 0)
+            {
+                throw new InvalidDataException(
+                    "The automatic report-evidence store returned an invalid committed link.");
+            }
+
+            return;
+        }
+
+        if (result.Link is not null
+            || string.IsNullOrWhiteSpace(result.NotLinkedReasonCode)
+            || result.NotLinkedReasonCode.Length != result.NotLinkedReasonCode.Trim().Length
+            || result.NotLinkedReasonCode.Length > 100
+            || result.NotLinkedReasonCode.Any(char.IsControl))
+        {
+            throw new InvalidDataException(
+                "The automatic report-evidence store returned an invalid non-link reason.");
+        }
+    }
+
+    private static void RequireText(string value, int maximumLength, string parameterName)
+    {
+        if (string.IsNullOrWhiteSpace(value)
+            || value.Length != value.Trim().Length
+            || value.Length > maximumLength
+            || value.Any(char.IsControl))
+        {
+            throw new ArgumentException(
+                "The automatic report-evidence value is invalid.",
+                parameterName);
+        }
+    }
+}
+
+public sealed class UnlinkReportEvidence(ICaseWorkflowStore store) : IUnlinkReportEvidence
+{
+    private readonly ICaseWorkflowStore _store = store ?? throw new ArgumentNullException(nameof(store));
+
+    public async Task<CaseWorkflowRecord> ExecuteAsync(
+        UnlinkReportEvidenceRequest request,
+        CancellationToken cancellationToken)
+    {
+        CaseLifecycleRules.ValidateReportEvidence(request, request.EvidenceId);
+        var current = await CaseLifecycleRules.GetRequiredAsync(
+            _store,
+            request.CaseId,
+            cancellationToken);
+        var isReplay = await _store.HasOperationAsync(
+            request.CaseId,
+            request.OperationKey,
+            cancellationToken);
+        if (!isReplay && current.Archive is not null)
+        {
+            throw new CaseArchivedException(request.CaseId);
+        }
+        if (!isReplay && CaseLifecycleRules.IsTerminal(current.State))
+        {
+            throw new InvalidOperationException(
+                "A closed case must be reasonedly reopened before report-Sent evidence can be unlinked.");
+        }
+        if (!isReplay && current.State == CaseLifecycleState.Held)
+        {
+            throw new InvalidOperationException(
+                "A held case must be released before report-Sent evidence can be unlinked.");
+        }
+        if (!isReplay && current.State != CaseLifecycleState.ReportPreparation)
+        {
+            throw new InvalidOperationException(
+                "Report-Sent evidence can be unlinked only while report preparation is active.");
+        }
+        if (!isReplay && current.ReportSentEvidence?.EvidenceId != request.EvidenceId)
+        {
+            throw new InvalidOperationException(
+                "The selected report-Sent evidence is not the case's current association.");
+        }
+
+        return await _store.UnlinkReportEvidenceAsync(request, cancellationToken);
     }
 }
 
@@ -178,16 +354,13 @@ public sealed class CloseCase(ICaseWorkflowStore store) : ICloseCase
     }
 }
 
-public sealed class ReopenCase(
-    ICaseWorkflowStore store,
-    ICaseWorkflowConfiguration configuration) : IReopenCase
+public sealed class ReopenCase(ICaseWorkflowStore store) : IReopenCase
 {
     private readonly ICaseWorkflowStore _store = store ?? throw new ArgumentNullException(nameof(store));
-    private readonly ICaseWorkflowConfiguration _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
 
     public async Task<CaseWorkflowRecord> ExecuteAsync(ReopenCaseRequest request, CancellationToken cancellationToken)
     {
-        CaseLifecycleRules.ValidateReopen(request, _configuration.GetCurrent());
+        CaseLifecycleRules.ValidateReopen(request);
         var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
         if ((!CaseLifecycleRules.IsTerminal(current.State) || current.State == CaseLifecycleState.CreatedInError)
             && !await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
@@ -195,11 +368,7 @@ public sealed class ReopenCase(
             throw new InvalidOperationException("Only a closed case other than Created in error can be reopened.");
         }
 
-        if (request.Destination is CaseReopenDestination.Active or CaseReopenDestination.ReportPreparation
-            && current.AssignedEngineerId is null)
-        {
-            throw new InvalidOperationException("The selected reopen destination requires an assigned Engineer.");
-        }
+        CaseLifecycleRules.RequireReopenDestinationIsAllowed(current, request);
 
         return await _store.ReopenAsync(request, cancellationToken);
     }
@@ -236,14 +405,6 @@ public static class CaseLifecycleRules
         RequireText(request.EditLeaseToken, "An active edit lease token is required.", 128, nameof(request));
     }
 
-    public static void ValidateHold(PutCaseOnHoldRequest request)
-    {
-        ValidateMutation(request);
-        if (request.HeldAtUtc == default)
-        {
-            throw new ArgumentException("The hold time is required.", nameof(request));
-        }
-    }
 
     public static void ValidateReturnToReview(ReturnCaseToReviewRequest request)
     {
@@ -273,48 +434,20 @@ public static class CaseLifecycleRules
             throw new ArgumentException("A report approval identity is required.", nameof(request));
         }
 
-        ValidateActor(request.Approval.ApprovedBy);
-        if (!string.Equals(request.Actor.SubjectId, request.Approval.ApprovedBy.SubjectId, StringComparison.Ordinal))
-        {
-            throw new ArgumentException("The report approval must be recorded by its approving actor.", nameof(request));
-        }
-
         RequireText(request.Approval.ArtifactIdentity, "An approved artifact identity is required.", 200, nameof(request));
         ValidateSha256(request.Approval.ArtifactSha256, nameof(request));
-        if (request.Approval.ApprovedAtUtc == default)
-        {
-            throw new ArgumentException("The approval time is required.", nameof(request));
-        }
     }
 
-    public static void ValidateReportSent(RecordCaseReportSentRequest request)
+    public static void ValidateReportEvidence(
+        CaseMutationRequest request,
+        Guid evidenceId)
     {
         ValidateMutation(request);
-        ArgumentNullException.ThrowIfNull(request.Evidence);
-        if (request.Evidence.EvidenceId == Guid.Empty)
+        if (evidenceId == Guid.Empty)
         {
-            throw new ArgumentException("Exact report-sent evidence is required.", nameof(request));
-        }
-
-        ValidateActor(request.Evidence.LinkedBy);
-        if (!string.Equals(request.Actor.SubjectId, request.Evidence.LinkedBy.SubjectId, StringComparison.Ordinal))
-        {
-            throw new ArgumentException("The report-sent evidence must be linked by the acting staff member.", nameof(request));
-        }
-
-        RequireText(request.Evidence.MailboxIdentity, "An approved mailbox identity is required.", 200, nameof(request));
-        RequireText(request.Evidence.SentFolderIdentity, "A Sent-folder identity is required.", 200, nameof(request));
-        RequireText(request.Evidence.ImmutableItemIdentity, "An immutable Sent-item identity is required.", 500, nameof(request));
-        RequireText(request.Evidence.ConversationIdentity, "A conversation identity is required.", 500, nameof(request));
-        RequireText(request.Evidence.ReplyChainIdentity, "A reply-chain identity is required.", 500, nameof(request));
-        if (request.Evidence.SentAtUtc == default || request.Evidence.LinkedAtUtc == default)
-        {
-            throw new ArgumentException("Sent and link times are required.", nameof(request));
-        }
-
-        if (request.Evidence.LinkedAtUtc < request.Evidence.SentAtUtc)
-        {
-            throw new ArgumentException("Report-sent evidence cannot be linked before it was sent.", nameof(request));
+            throw new ArgumentException(
+                "A stable retained approved-mailbox Sent-evidence identifier is required.",
+                nameof(request));
         }
     }
 
@@ -328,19 +461,8 @@ public static class CaseLifecycleRules
 
         if (request.Outcome == CaseClosureOutcome.CreatedInError)
         {
-            if (request.ReplacementCaseId is not { } replacementCaseId || replacementCaseId == Guid.Empty)
-            {
-                throw new ArgumentException("Created in error requires a linked replacement case.", nameof(request));
-            }
-
-            if (replacementCaseId == request.CaseId)
-            {
-                throw new ArgumentException("The linked replacement must be a different case.", nameof(request));
-            }
-        }
-        else if (request.ReplacementCaseId is not null)
-        {
-            throw new ArgumentException("Only Created in error may link a replacement case.", nameof(request));
+            throw new InvalidOperationException(
+                "Created in error requires the atomic corrected-principal replacement action.");
         }
     }
 
@@ -357,7 +479,7 @@ public static class CaseLifecycleRules
         }
     }
 
-    public static void ValidateReopen(ReopenCaseRequest request, CaseWorkflowConfiguration configuration)
+    public static void ValidateReopen(ReopenCaseRequest request)
     {
         ValidateMutation(request);
         if (!Enum.IsDefined(request.Destination))
@@ -374,18 +496,29 @@ public static class CaseLifecycleRules
 
             ValidateReviewReadiness(request.Readiness);
         }
-        else if (request.Destination == CaseReopenDestination.Active)
-        {
-            if (request.Readiness is null)
-            {
-                throw new ArgumentException("The selected reopen destination requires readiness evidence.", nameof(request));
-            }
-
-            ValidateReadiness(request.Readiness, configuration);
-        }
         else if (request.Readiness is not null)
         {
-            throw new ArgumentException("Readiness evidence is accepted only for a Review or Active reopen destination.", nameof(request));
+            throw new ArgumentException("Readiness evidence is accepted only for a Review reopen destination.", nameof(request));
+        }
+    }
+
+    public static void RequireReopenDestinationIsAllowed(
+        CaseWorkflowRecord current,
+        ReopenCaseRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.Destination == CaseReopenDestination.ReportPreparation
+            && current.AssignedEngineerId is null)
+        {
+            throw new InvalidOperationException("Report preparation requires an assigned Engineer.");
+        }
+
+        if (request.Destination == CaseReopenDestination.PostReport
+            && current.ReportSentEvidence is null)
+        {
+            throw new InvalidOperationException(
+                "Post report requires retained exact report-sent evidence from an approved mailbox.");
         }
     }
 

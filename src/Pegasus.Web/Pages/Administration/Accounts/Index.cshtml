@@ -28,6 +28,11 @@
             <span asp-validation-for="TemporaryPassword"></span>
             <p>The password must contain at least eight characters. The staff member must replace it at first sign-in.</p>
         </div>
+        <div>
+            <label asp-for="Reason">Reason</label>
+            <textarea asp-for="Reason" rows="3"></textarea>
+            <span asp-validation-for="Reason"></span>
+        </div>
         <button type="submit">Create account</button>
     </form>
 </section>

@@ -1,0 +1,324 @@
+@page "/Triage/{id:guid}"
+@using Pegasus.Core.Triage
+@model Pegasus.Web.Pages.Triage.DetailsModel
+@{
+    ViewData["Title"] = "Triage detail";
+    var record = Model.Triage.Record;
+}
+
+<header class="page-heading">
+    <div>
+        <p class="eyebrow">Triage</p>
+        <h1>@record.NormalizedVehicleRegistration</h1>
+        <p class="lede">@DetailsModel.StateLabel(record.State)</p>
+    </div>
+    <a class="secondary-action" asp-page="/Triage/Index">Back to queue</a>
+</header>
+
+@if (!string.IsNullOrWhiteSpace(Model.Message))
+{
+    <div class="notice" role="status" aria-live="polite">@Model.Message</div>
+}
+
+<div class="review-grid">
+    <section class="panel" aria-labelledby="triage-title">
+        <h2 id="triage-title" class="section-label">Triage record</h2>
+        <dl class="detail-list">
+            <div><dt>State</dt><dd>@DetailsModel.StateLabel(record.State)</dd></div>
+            <div><dt>Assignee</dt><dd>@(record.AssigneeId?.ToString() ?? "Unassigned")</dd></div>
+            <div><dt>Linked case</dt><dd>@(record.LinkedCaseId?.ToString() ?? "Not linked")</dd></div>
+            <div><dt>Opened</dt><dd>@Model.Triage.CreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd></div>
+            <div><dt>Version</dt><dd>@record.Version</dd></div>
+        </dl>
+    </section>
+
+    <section class="panel" aria-labelledby="origin-title">
+        <h2 id="origin-title" class="section-label">Intake source mapping</h2>
+        <dl class="detail-list">
+            <div><dt>Channel</dt><dd>@DetailsModel.SourceChannelLabel(record.Origin.SourceIdentity.Channel)</dd></div>
+            <div><dt>Source receipt</dt><dd>@record.Origin.SourceIdentity.ExternalReceiptToken</dd></div>
+            <div><dt>Receipt ID</dt><dd>@record.Origin.ReceiptId</dd></div>
+            <div><dt>Evaluation revision</dt><dd>@record.Origin.EvaluationRevisionId</dd></div>
+            <div><dt>Source SHA-256</dt><dd><code>@record.Origin.SourceHash</code></dd></div>
+        </dl>
+    </section>
+</div>
+
+    <div class="review-grid section-gap">
+        @if (record.State is not (TriageState.Completed or TriageState.Cancelled))
+        {
+            <section class="panel form-panel" aria-labelledby="assignment-title">
+                <h2 id="assignment-title" class="section-label">Assignment</h2>
+                <form method="post" asp-page-handler="Action" asp-route-id="@record.Id">
+                    <input type="hidden" name="expectedVersion" value="@record.Version" />
+                    <input type="hidden" name="operationKey" value="@Model.OperationKey" />
+                    <label for="assignment-reason">Reason</label>
+                    <textarea id="assignment-reason" name="reason" required maxlength="500"></textarea>
+                    @if (record.AssigneeId is null)
+                    {
+                        <button type="submit" name="actionName" value="assign" class="primary-action">Assign to me</button>
+                    }
+                    else
+                    {
+                        <button type="submit" name="actionName" value="assign" class="secondary-action">Reassign to me</button>
+                        <button type="submit" name="actionName" value="unassign" class="secondary-action">Unassign</button>
+                    }
+                </form>
+            </section>
+
+            <section class="panel form-panel" aria-labelledby="state-action-title">
+                <h2 id="state-action-title" class="section-label">Workflow action</h2>
+                <form method="post" asp-page-handler="Action" asp-route-id="@record.Id">
+                    <input type="hidden" name="expectedVersion" value="@record.Version" />
+                    <input type="hidden" name="operationKey" value="@Model.OperationKey" />
+                    <label for="state-reason">Reason</label>
+                    <textarea id="state-reason" name="reason" required maxlength="500"></textarea>
+                    @if (record.State is TriageState.Open or TriageState.FindingRecorded)
+                    {
+                        <button type="submit" name="actionName" value="await_information" class="secondary-action">Await information</button>
+                    }
+                    @if (record.State == TriageState.FindingRecorded)
+                    {
+                        <button type="submit" name="actionName" value="complete" class="primary-action">Complete Triage</button>
+                    }
+                    <button type="submit" name="actionName" value="cancel" class="secondary-action">Cancel Triage</button>
+                </form>
+            </section>
+
+            <section class="panel form-panel" aria-labelledby="finding-action-title">
+                <h2 id="finding-action-title" class="section-label">Finding</h2>
+                <form method="post" asp-page-handler="Action" asp-route-id="@record.Id">
+                    <input type="hidden" name="expectedVersion" value="@record.Version" />
+                    <input type="hidden" name="operationKey" value="@Model.OperationKey" />
+                    <label for="roadworthiness">Roadworthiness</label>
+                    <select id="roadworthiness" name="roadworthiness">
+                        <option value="">Not recorded</option>
+                        <option value="Roadworthy">Roadworthy</option>
+                        <option value="Unroadworthy">Unroadworthy</option>
+                    </select>
+                    <label for="assessment">Assessment</label>
+                    <select id="assessment" name="assessment">
+                        <option value="">Not recorded</option>
+                        <option value="Repairable">Repairable</option>
+                        <option value="TotalLoss">Total loss</option>
+                    </select>
+                    <label for="finding-reason">Reason</label>
+                    <textarea id="finding-reason" name="reason" required maxlength="500"></textarea>
+                    @if (Model.ActiveFindings.Count == 0)
+                    {
+                        <button type="submit" name="actionName" value="record_finding" class="primary-action">Record finding</button>
+                    }
+                    else if (Model.ActiveFindings.Count == 1)
+                    {
+                        <label for="supersedes-finding">Finding to supersede</label>
+                        <select id="supersedes-finding" name="supersedesFindingId">
+                            @foreach (var finding in Model.ActiveFindings)
+                            {
+                                <option value="@finding.Id">@finding.RecordedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm") — @finding.Id</option>
+                            }
+                        </select>
+                        <button type="submit" name="actionName" value="supersede_finding" class="secondary-action">Supersede finding</button>
+                    }
+                    else
+                    {
+                        <p class="notice" role="alert">Multiple active findings require reconciliation before another finding can be recorded.</p>
+                    }
+                </form>
+            </section>
+
+            <section class="panel form-panel" aria-labelledby="response-action-title">
+                <h2 id="response-action-title" class="section-label">Exact response evidence</h2>
+                <p>Select only retained approved-mailbox evidence whose exact In-Reply-To identity matches this Triage's Sent evidence. Subject or registration similarity is never accepted.</p>
+                @if (Model.Triage.ResponseEvidenceCandidates.Count == 0)
+                {
+                    <p class="empty-state">No unlinked exact-reply candidates are available.</p>
+                }
+                else
+                {
+                    <form method="post" asp-page-handler="Action" asp-route-id="@record.Id">
+                        <input type="hidden" name="expectedVersion" value="@record.Version" />
+                        <input type="hidden" name="operationKey" value="@Model.OperationKey" />
+                        <label for="response-candidate">Approved-mailbox reply</label>
+                        <select id="response-candidate" name="responseCandidate" required>
+                            <option value="">Select exact response evidence</option>
+                            @foreach (var candidate in Model.Triage.ResponseEvidenceCandidates)
+                            {
+                                <option value="@candidate.PollOutcomeId|@candidate.SentEvidenceId">
+                                    @candidate.SentAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm") —
+                                    @candidate.MailboxAddress —
+                                    message @candidate.InternetMessageIdentity —
+                                    Sent evidence @candidate.SentEvidenceId
+                                </option>
+                            }
+                        </select>
+                        <label for="response-reason">Reason</label>
+                        <textarea id="response-reason" name="reason" required maxlength="500"></textarea>
+                        <button type="submit" name="actionName" value="link_response" class="primary-action">Record and link exact response</button>
+                    </form>
+                }
+                @if (Model.Triage.ResponseEvidence.Count == 1)
+                {
+                    var linkedResponse = Model.Triage.ResponseEvidence[0];
+                    <form method="post" asp-page-handler="Action" asp-route-id="@record.Id">
+                        <input type="hidden" name="expectedVersion" value="@record.Version" />
+                        <input type="hidden" name="operationKey" value="@Model.OperationKey" />
+                        <input type="hidden" name="sentEvidenceId" value="@linkedResponse.SentEvidenceId" />
+                        <label for="unlink-response-reason">Unlink reason</label>
+                        <textarea id="unlink-response-reason" name="reason" required maxlength="500"></textarea>
+                        <button type="submit" name="actionName" value="unlink_response" class="secondary-action">Unlink response</button>
+                    </form>
+                }
+            </section>
+        }
+        else
+        {
+            @if (record.State == TriageState.Completed && Model.ActiveFindings.Count == 1)
+            {
+                var activeFinding = Model.ActiveFindings[0];
+                <section class="panel form-panel" aria-labelledby="completed-correction-title">
+                    <h2 id="completed-correction-title" class="section-label">Post-send correction</h2>
+                    <p>A correction supersedes the current finding, removes its response link, and requires a new exact reply before completion.</p>
+                    <form method="post" asp-page-handler="Action" asp-route-id="@record.Id">
+                        <input type="hidden" name="expectedVersion" value="@record.Version" />
+                        <input type="hidden" name="operationKey" value="@Model.OperationKey" />
+                        <input type="hidden" name="supersedesFindingId" value="@activeFinding.Id" />
+                        <label for="corrected-roadworthiness">Roadworthiness</label>
+                        <select id="corrected-roadworthiness" name="roadworthiness">
+                            <option value="">Not recorded</option>
+                            <option value="Roadworthy">Roadworthy</option>
+                            <option value="Unroadworthy">Unroadworthy</option>
+                        </select>
+                        <label for="corrected-assessment">Assessment</label>
+                        <select id="corrected-assessment" name="assessment">
+                            <option value="">Not recorded</option>
+                            <option value="Repairable">Repairable</option>
+                            <option value="TotalLoss">Total loss</option>
+                        </select>
+                        <label for="completed-correction-reason">Reason</label>
+                        <textarea id="completed-correction-reason" name="reason" required maxlength="500"></textarea>
+                        <button type="submit" name="actionName" value="supersede_finding" class="primary-action">Record correction</button>
+                    </form>
+                </section>
+            }
+
+            <section class="panel form-panel" aria-labelledby="reopen-action-title">
+                <h2 id="reopen-action-title" class="section-label">Reopen</h2>
+                <form method="post" asp-page-handler="Action" asp-route-id="@record.Id">
+                    <input type="hidden" name="expectedVersion" value="@record.Version" />
+                    <input type="hidden" name="operationKey" value="@Model.OperationKey" />
+                    <label for="reopen-reason">Reason</label>
+                    <textarea id="reopen-reason" name="reason" required maxlength="500"></textarea>
+                    <button type="submit" name="actionName" value="reopen" class="primary-action">Reopen to Open</button>
+                </form>
+            </section>
+        }
+
+        <section class="panel form-panel" aria-labelledby="case-link-action-title">
+            <h2 id="case-link-action-title" class="section-label">Case association</h2>
+            <p>Case association is retained evidence and advances both workflow versions. Pegasus claims short-lived case edit authority for this operation; lease tokens are never shown or entered here.</p>
+            @if (Model.CaseAssociationUnavailableCaseId is { } unavailableCaseId
+                && Model.CaseAssociationUnavailableReason is { } unavailableReason)
+            {
+                <p>Case: <strong>@unavailableCaseId</strong></p>
+                <p class="notice" role="status">@unavailableReason</p>
+            }
+            else
+            {
+                <form method="post" asp-page-handler="Action" asp-route-id="@record.Id">
+                    <input type="hidden" name="expectedVersion" value="@record.Version" />
+                    <input type="hidden" name="operationKey" value="@Model.OperationKey" />
+                    @if (record.LinkedCaseId is { } linkedCaseId)
+                    {
+                        <input type="hidden" name="caseId" value="@linkedCaseId" />
+                        <p>Linked case: <strong>@linkedCaseId</strong></p>
+                    }
+                    else
+                    {
+                        <label for="case-id">Case ID</label>
+                        <input id="case-id" name="caseId" type="text" required />
+                    }
+                    <label for="case-link-reason">Reason</label>
+                    <textarea id="case-link-reason" name="reason" required maxlength="500"></textarea>
+                    @if (record.LinkedCaseId is null)
+                    {
+                        <button type="submit" name="actionName" value="link_case" class="primary-action">Link case</button>
+                    }
+                    else
+                    {
+                        <button type="submit" name="actionName" value="unlink_case" class="secondary-action">Unlink case</button>
+                    }
+                </form>
+            }
+        </section>
+    </div>
+
+
+<section class="panel section-gap" aria-labelledby="findings-title">
+    <h2 id="findings-title" class="section-label">Recorded findings</h2>
+    @if (Model.Triage.Findings.Count == 0)
+    {
+        <p class="empty-state">No findings have been recorded.</p>
+    }
+    else
+    {
+        <div class="field-grid">
+            @foreach (var finding in Model.Triage.Findings)
+            {
+                <article class="field-card">
+                    <h3>@finding.RecordedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</h3>
+                    <strong>@(finding.Roadworthiness.HasValue ? DetailsModel.RoadworthinessLabel(finding.Roadworthiness.Value) : "No roadworthiness finding")</strong>
+                    <small>@(finding.Assessment.HasValue ? DetailsModel.AssessmentLabel(finding.Assessment.Value) : "No assessment finding")</small>
+                    <small>@finding.Reason</small>
+                    @if (finding.SupersedesFindingId is { } priorFinding)
+                    {
+                        <small>Supersedes finding @priorFinding</small>
+                    }
+                </article>
+            }
+        </div>
+    }
+</section>
+
+<section class="panel section-gap" aria-labelledby="evidence-title">
+    <h2 id="evidence-title" class="section-label">Response evidence</h2>
+    @if (Model.Triage.ResponseEvidence.Count == 0)
+    {
+        <p class="empty-state">No response evidence has been linked.</p>
+    }
+    else
+    {
+        <ul class="evidence-list">
+            @foreach (var evidence in Model.Triage.ResponseEvidence)
+            {
+                <li>
+                    <strong>@evidence.LinkedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</strong>
+                    <span>Evidence @evidence.SentEvidenceId: @evidence.Reason</span>
+                </li>
+            }
+        </ul>
+    }
+</section>
+
+<section class="panel section-gap" aria-labelledby="history-title">
+    <h2 id="history-title" class="section-label">Permanent history</h2>
+    @if (Model.Triage.History.Count == 0)
+    {
+        <p class="empty-state">No history has been recorded.</p>
+    }
+    else
+    {
+        <ul class="evidence-list">
+            @foreach (var history in Model.Triage.History)
+            {
+                <li>
+                    <strong>@history.OccurredAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</strong>
+                    <span>
+                        @DetailsModel.EventLabel(history.EventType) by @history.Actor:
+                        @history.Reason
+                        (version @history.BeforeVersion to @history.AfterVersion)
+                    </span>
+                </li>
+            }
+        </ul>
+    }
+</section>

@@ -1,10 +1,12 @@
 using System.Data;
 using Pegasus.Core.Intake;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace Pegasus.Infrastructure.Persistence;
 
-public sealed class EfIntakeWorkStore(IDbContextFactory<PegasusDbContext> contextFactory) : IIntakeWorkStore
+public sealed class EfIntakeWorkStore(
+    IDbContextFactory<PegasusDbContext> contextFactory) : IIntakeWorkStore, IStagedArtifactAuthority
 {
     private const int CandidateBatchSize = 256;
 
@@ -31,17 +33,109 @@ public sealed class EfIntakeWorkStore(IDbContextFactory<PegasusDbContext> contex
         return entity is null ? null : Map(entity);
     }
 
+    public async Task<StagedArtifactAuthority?> FindAsync(
+        string storageKey,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(storageKey);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var staged = await context.IntakeStagedReceipts
+            .AsNoTracking()
+            .Include(item => item.WorkItem)
+            .SingleOrDefaultAsync(
+                item => item.StorageKey == storageKey,
+                cancellationToken);
+        if (staged is null)
+        {
+            return null;
+        }
+
+        var state = StagedArtifactAuthorityState.Unmatched;
+        if (staged.WorkItem is { } workItem)
+        {
+            state = workItem.State switch
+            {
+                "failed" => StagedArtifactAuthorityState.Failed,
+                "completed" => await HasDurablyRetainedSourceAsync(
+                    context,
+                    workItem,
+                    staged,
+                    cancellationToken)
+                    ? StagedArtifactAuthorityState.Completed
+                    : StagedArtifactAuthorityState.Unmatched,
+                "pending" or "dispatching" or "dispatched" or "processing" or "retry_scheduled"
+                    => StagedArtifactAuthorityState.Pending,
+                _ => StagedArtifactAuthorityState.Unmatched
+            };
+        }
+
+        return new(
+            staged.StorageKey,
+            staged.SourceHash,
+            staged.SourceLength,
+            state);
+    }
+
+    private static async Task<bool> HasDurablyRetainedSourceAsync(
+        PegasusDbContext context,
+        IntakeWorkItemEntity workItem,
+        IntakeStagedReceiptEntity staged,
+        CancellationToken cancellationToken)
+    {
+        if (workItem.ProcessedReceiptId is not { } receiptId)
+        {
+            return false;
+        }
+
+        return await context.IntakeAssets
+            .AsNoTracking()
+            .AnyAsync(
+                asset => asset.IntakeReceiptId == receiptId
+                    && asset.Kind == "source"
+                    && asset.ContentHash == staged.SourceHash
+                    && asset.ContentLength == staged.SourceLength
+                    && asset.StorageKey != staged.StorageKey,
+                cancellationToken);
+    }
+
     public Task<ReceivedIntake> ReceiveAsync(
         IntakeStagedReceipt receipt,
         string operationKey,
         CancellationToken cancellationToken) =>
-        ReceiveCoreAsync(receipt, operationKey, IntakeWorkState.Pending, cancellationToken);
+        ReceiveWithRetryAsync(receipt, operationKey, IntakeWorkState.Pending, cancellationToken);
 
     public Task<ReceivedIntake> ReceiveForProcessingAsync(
         IntakeStagedReceipt receipt,
         string operationKey,
         CancellationToken cancellationToken) =>
-        ReceiveCoreAsync(receipt, operationKey, IntakeWorkState.Dispatched, cancellationToken);
+        ReceiveWithRetryAsync(receipt, operationKey, IntakeWorkState.Dispatched, cancellationToken);
+
+    private async Task<ReceivedIntake> ReceiveWithRetryAsync(
+        IntakeStagedReceipt receipt,
+        string operationKey,
+        IntakeWorkState initialState,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; attempt <= 3; attempt++)
+        {
+            try
+            {
+                return await ReceiveCoreAsync(
+                    receipt,
+                    operationKey,
+                    initialState,
+                    cancellationToken);
+            }
+            catch (Exception exception)
+                when (attempt < 3 && IsRetryableConcurrencyFailure(exception))
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(25 * attempt), cancellationToken);
+            }
+        }
+
+        throw new InvalidOperationException(
+            "The staged intake receipt could not be stored after the concurrency retry limit.");
+    }
 
     private async Task<ReceivedIntake> ReceiveCoreAsync(
         IntakeStagedReceipt receipt,
@@ -52,7 +146,7 @@ public sealed class EfIntakeWorkStore(IDbContextFactory<PegasusDbContext> contex
         var channel = ToCode(receipt.SourceIdentity.Channel);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
+            IsolationLevel.ReadCommitted,
             cancellationToken);
 
         var existing = await context.IntakeStagedReceipts
@@ -65,7 +159,9 @@ public sealed class EfIntakeWorkStore(IDbContextFactory<PegasusDbContext> contex
         {
             if (!string.Equals(existing.SourceHash, receipt.SourceHash, StringComparison.Ordinal))
             {
-                throw new IntakeSourceIdentityConflictException();
+                throw new IntakeSourceIdentityConflictException(
+                    existing.SourceHash,
+                    receipt.SourceHash);
             }
 
             var existingWork = existing.WorkItem
@@ -142,42 +238,37 @@ public sealed class EfIntakeWorkStore(IDbContextFactory<PegasusDbContext> contex
 
         item.LeaseToken = Guid.NewGuid().ToString("N");
         item.LeaseExpiresAtUtc = nowUtc.Add(leaseDuration);
-        item.State = ToCode(IntakeWorkState.Processing);
+        item.State = ToCode(IntakeWorkState.Dispatching);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(item);
     }
 
-    public async Task MarkDispatchedAsync(
+    public Task MarkDispatchedAsync(
         Guid workItemId,
         string leaseToken,
         DateTimeOffset nowUtc,
-        CancellationToken cancellationToken)
-    {
-        await UpdateClaimedAsync(workItemId, leaseToken, item =>
-        {
-            item.State = ToCode(IntakeWorkState.Dispatched);
-            item.DueAtUtc = nowUtc;
-            item.LeaseToken = null;
-            item.LeaseExpiresAtUtc = null;
-            item.FailureCode = null;
-        }, cancellationToken);
-    }
+        CancellationToken cancellationToken) =>
+        UpdateDispatchClaimIfOwnedAsync(
+            workItemId,
+            leaseToken,
+            IntakeWorkState.Dispatched,
+            nowUtc,
+            clearFailure: true,
+            cancellationToken);
 
-    public async Task ReleaseDispatchAsync(
+    public Task ReleaseDispatchAsync(
         Guid workItemId,
         string leaseToken,
         DateTimeOffset dueAtUtc,
-        CancellationToken cancellationToken)
-    {
-        await UpdateClaimedAsync(workItemId, leaseToken, item =>
-        {
-            item.State = ToCode(IntakeWorkState.Pending);
-            item.DueAtUtc = dueAtUtc;
-            item.LeaseToken = null;
-            item.LeaseExpiresAtUtc = null;
-        }, cancellationToken);
-    }
+        CancellationToken cancellationToken) =>
+        UpdateDispatchClaimIfOwnedAsync(
+            workItemId,
+            leaseToken,
+            IntakeWorkState.Pending,
+            dueAtUtc,
+            clearFailure: false,
+            cancellationToken);
 
     public async Task<(IntakeWorkItem WorkItem, IntakeStagedReceipt Receipt)?> ClaimProcessingAsync(
         Guid stagedReceiptId,
@@ -202,7 +293,7 @@ public sealed class EfIntakeWorkStore(IDbContextFactory<PegasusDbContext> contex
             return null;
         }
 
-        if (item.State is not ("dispatched" or "processing"))
+        if (item.State is not ("dispatching" or "dispatched" or "processing"))
         {
             return null;
         }
@@ -345,35 +436,36 @@ public sealed class EfIntakeWorkStore(IDbContextFactory<PegasusDbContext> contex
             nowUtc,
             maximumItems,
             cancellationToken);
-        var candidateIds = candidates.Select(candidate => candidate.Id).ToArray();
-        var items = new List<IntakeWorkItemEntity>(candidateIds.Length);
-        foreach (var idBatch in candidateIds.Chunk(CandidateBatchSize))
+        var recovered = 0;
+        foreach (var candidate in candidates)
         {
-            items.AddRange(await context.IntakeWorkItems
-                .Where(item => item.State == "processing" && idBatch.Contains(item.Id))
-                .ToListAsync(cancellationToken));
+            var terminal = candidate.State == "processing" && candidate.AttemptCount >= 5;
+            var targetState = candidate.State switch
+            {
+                "dispatching" => ToCode(IntakeWorkState.Pending),
+                "processing" when terminal => ToCode(IntakeWorkState.Failed),
+                "processing" => ToCode(IntakeWorkState.RetryScheduled),
+                _ => throw new InvalidDataException(
+                    $"Unknown leased intake work state '{candidate.State}'.")
+            };
+            var failureCode = terminal ? "processing_lease_expired" : null;
+            recovered += await context.IntakeWorkItems
+                .Where(item => item.Id == candidate.Id
+                    && item.State == candidate.State
+                    && item.AttemptCount == candidate.AttemptCount
+                    && item.LeaseToken == candidate.LeaseToken
+                    && item.LeaseExpiresAtUtc == candidate.LeaseExpiresAtUtc)
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(item => item.State, targetState)
+                        .SetProperty(item => item.DueAtUtc, nowUtc)
+                        .SetProperty(item => item.FailureCode, failureCode)
+                        .SetProperty(item => item.LeaseToken, (string?)null)
+                        .SetProperty(item => item.LeaseExpiresAtUtc, (DateTimeOffset?)null),
+                    cancellationToken);
         }
 
-        var expiredItems = items
-            .Where(item => item.LeaseExpiresAtUtc is { } leaseExpiresAtUtc
-                && leaseExpiresAtUtc <= nowUtc)
-            .OrderBy(item => item.LeaseExpiresAtUtc)
-            .ThenBy(item => item.Id)
-            .Take(maximumItems)
-            .ToArray();
-        foreach (var item in expiredItems)
-        {
-            item.State = ToCode(item.AttemptCount >= 5
-                ? IntakeWorkState.Failed
-                : IntakeWorkState.RetryScheduled);
-            item.DueAtUtc = nowUtc;
-            item.FailureCode = item.AttemptCount >= 5 ? "processing_lease_expired" : null;
-            item.LeaseToken = null;
-            item.LeaseExpiresAtUtc = null;
-        }
-
-        await context.SaveChangesAsync(cancellationToken);
-        return expiredItems.Length;
+        return recovered;
     }
 
     public async Task ScheduleReevaluationAsync(
@@ -445,11 +537,17 @@ public sealed class EfIntakeWorkStore(IDbContextFactory<PegasusDbContext> contex
         {
             var batch = await context.IntakeWorkItems
                 .AsNoTracking()
-                .Where(item => item.State == "processing" && item.LeaseExpiresAtUtc != null)
+                .Where(item => (item.State == "dispatching" || item.State == "processing")
+                    && item.LeaseExpiresAtUtc != null)
                 .OrderBy(item => item.Id)
                 .Skip(offset)
                 .Take(CandidateBatchSize)
-                .Select(item => new LeaseRecoveryCandidate(item.Id, item.LeaseExpiresAtUtc!.Value))
+                .Select(item => new LeaseRecoveryCandidate(
+                    item.Id,
+                    item.State,
+                    item.AttemptCount,
+                    item.LeaseToken,
+                    item.LeaseExpiresAtUtc!.Value))
                 .ToListAsync(cancellationToken);
             foreach (var candidate in batch)
             {
@@ -494,7 +592,57 @@ public sealed class EfIntakeWorkStore(IDbContextFactory<PegasusDbContext> contex
 
     private readonly record struct DispatchCandidate(Guid Id, DateTimeOffset DueAtUtc);
 
-    private readonly record struct LeaseRecoveryCandidate(Guid Id, DateTimeOffset LeaseExpiresAtUtc);
+    private readonly record struct LeaseRecoveryCandidate(
+        Guid Id,
+        string State,
+        int AttemptCount,
+        string? LeaseToken,
+        DateTimeOffset LeaseExpiresAtUtc);
+
+    private async Task UpdateDispatchClaimIfOwnedAsync(
+        Guid workItemId,
+        string leaseToken,
+        IntakeWorkState targetState,
+        DateTimeOffset dueAtUtc,
+        bool clearFailure,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(leaseToken);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var targetStateCode = ToCode(targetState);
+        var updated = await context.IntakeWorkItems
+            .Where(item => item.Id == workItemId
+                && item.LeaseToken == leaseToken
+                && item.State == "dispatching")
+            .ExecuteUpdateAsync(setters =>
+            {
+                setters.SetProperty(item => item.State, targetStateCode);
+                setters.SetProperty(item => item.DueAtUtc, dueAtUtc);
+                setters.SetProperty(item => item.LeaseToken, (string?)null);
+                setters.SetProperty(item => item.LeaseExpiresAtUtc, (DateTimeOffset?)null);
+                if (clearFailure)
+                {
+                    setters.SetProperty(item => item.FailureCode, (string?)null);
+                }
+            }, cancellationToken);
+        if (updated == 1)
+        {
+            return;
+        }
+
+        if (updated != 0)
+        {
+            throw new InvalidDataException(
+                "The intake dispatch claim update affected more than one work item.");
+        }
+
+        if (!await context.IntakeWorkItems.AnyAsync(
+                item => item.Id == workItemId,
+                cancellationToken))
+        {
+            throw new InvalidDataException("The intake dispatch work item does not exist.");
+        }
+    }
 
     private async Task UpdateClaimedAsync(
         Guid workItemId,
@@ -533,7 +681,8 @@ public sealed class EfIntakeWorkStore(IDbContextFactory<PegasusDbContext> contex
         entity.LeaseToken,
         entity.LeaseExpiresAtUtc,
         entity.ProcessedReceiptId,
-        entity.FailureCode);
+        entity.FailureCode,
+        entity.ProcessedReceiptId is not null);
 
     private static IntakeEvaluationRevision Map(IntakeEvaluationEntity entity) => new(
         entity.Id,
@@ -559,6 +708,7 @@ public sealed class EfIntakeWorkStore(IDbContextFactory<PegasusDbContext> contex
     private static string ToCode(IntakeWorkState value) => value switch
     {
         IntakeWorkState.Pending => "pending",
+        IntakeWorkState.Dispatching => "dispatching",
         IntakeWorkState.Dispatched => "dispatched",
         IntakeWorkState.Processing => "processing",
         IntakeWorkState.RetryScheduled => "retry_scheduled",
@@ -570,6 +720,7 @@ public sealed class EfIntakeWorkStore(IDbContextFactory<PegasusDbContext> contex
     private static IntakeWorkState ParseState(string value) => value switch
     {
         "pending" => IntakeWorkState.Pending,
+        "dispatching" => IntakeWorkState.Dispatching,
         "dispatched" => IntakeWorkState.Dispatched,
         "processing" => IntakeWorkState.Processing,
         "retry_scheduled" => IntakeWorkState.RetryScheduled,
@@ -577,4 +728,12 @@ public sealed class EfIntakeWorkStore(IDbContextFactory<PegasusDbContext> contex
         "failed" => IntakeWorkState.Failed,
         _ => throw new InvalidDataException($"Unknown persisted intake work state '{value}'.")
     };
+    private static bool IsRetryableConcurrencyFailure(Exception exception) => exception switch
+    {
+        SqlException { Number: 1205 or 2601 or 2627 } => true,
+        _ when exception.InnerException is not null =>
+            IsRetryableConcurrencyFailure(exception.InnerException),
+        _ => false
+    };
+
 }

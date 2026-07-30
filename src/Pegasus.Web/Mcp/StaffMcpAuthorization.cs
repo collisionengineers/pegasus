@@ -50,6 +50,9 @@ internal sealed class CurrentStaffAuthorizationHandler(
     }
 }
 
+internal sealed class StaffMcpAuthorizationException(string message)
+    : ModelContextProtocol.McpException(message);
+
 internal sealed record StaffMcpActor(ActionActor Actor, string HistoryActor);
 
 internal sealed class StaffMcpActorResolver(
@@ -64,7 +67,7 @@ internal sealed class StaffMcpActorResolver(
         var principal = httpContextAccessor.HttpContext?.User;
         if (principal?.Identity?.IsAuthenticated != true || !principal.HasScope(requiredScope))
         {
-            throw new ModelContextProtocol.McpException(
+            throw new StaffMcpAuthorizationException(
                 $"The '{requiredScope}' OAuth scope is required for this tool.");
         }
 
@@ -75,14 +78,14 @@ internal sealed class StaffMcpActorResolver(
             : await userManager.FindByIdAsync(subjectId);
         if (user is null || !user.IsEnabled)
         {
-            throw new ModelContextProtocol.McpException(
+            throw new StaffMcpAuthorizationException(
                 "The staff authorization is no longer valid.");
         }
 
         var roleNames = await userManager.GetRolesAsync(user);
         if (!StaffActorFactory.TryCreate(subjectId, roleNames, out var actor))
         {
-            throw new ModelContextProtocol.McpException(
+            throw new StaffMcpAuthorizationException(
                 "The staff authorization is no longer valid.");
         }
 
@@ -92,7 +95,7 @@ internal sealed class StaffMcpActorResolver(
         }
         catch (StaffAuthorizationException)
         {
-            throw new ModelContextProtocol.McpException(
+            throw new StaffMcpAuthorizationException(
                 "The current staff role is not authorized for casework.");
         }
 

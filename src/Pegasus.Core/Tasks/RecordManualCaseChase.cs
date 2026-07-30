@@ -5,14 +5,16 @@ namespace Pegasus.Core.Tasks;
 
 public sealed class RecordManualCaseChase(
     ICaseDueWorkStore store,
-    ICaseWorkflowQueries workflowQueries) : IRecordManualCaseChase
+    ICaseWorkflowQueries workflowQueries,
+    TimeProvider timeProvider) : IRecordManualCaseChase
 {
     private readonly ICaseDueWorkStore _store = store ?? throw new ArgumentNullException(nameof(store));
     private readonly ICaseWorkflowQueries _workflowQueries = workflowQueries ?? throw new ArgumentNullException(nameof(workflowQueries));
+    private readonly TimeProvider _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
     public async Task<CaseDueWork> ExecuteAsync(ManualChaseRecord request, CancellationToken cancellationToken)
     {
-        Validate(request);
+        Validate(request, _timeProvider.GetUtcNow());
         var workflow = await _workflowQueries.GetAsync(request.CaseId, cancellationToken)
             ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
         if (workflow.State != CaseLifecycleState.NotReady
@@ -24,7 +26,7 @@ public sealed class RecordManualCaseChase(
         return await _store.RecordManualChaseAsync(request, cancellationToken);
     }
 
-    private static void Validate(ManualChaseRecord request)
+    private static void Validate(ManualChaseRecord request, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(request);
         if (request.CaseId == Guid.Empty)
@@ -50,9 +52,13 @@ public sealed class RecordManualCaseChase(
             throw new ArgumentOutOfRangeException(nameof(request), "The chase note cannot exceed 1000 characters.");
         }
 
-        if (request.AttemptedAtUtc == default)
+        if (request.AttemptedAtUtc == default
+            || request.AttemptedAtUtc.Offset != TimeSpan.Zero
+            || request.AttemptedAtUtc > now)
         {
-            throw new ArgumentException("The chase attempt time is required.", nameof(request));
+            throw new ArgumentException(
+                "The chase attempt time must be a non-future UTC instant.",
+                nameof(request));
         }
     }
 

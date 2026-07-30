@@ -6,10 +6,11 @@ using Pegasus.Core.Identity;
 namespace Pegasus.Web.Pages.Administration.Roles;
 
 [Authorize(Policy = StaffRoleNames.Administrator)]
-public sealed class IndexModel(IStaffAccountAdministration administration)
-    : AdministrationPageModel
+public sealed class IndexModel(
+    IGetRoleAssignments getRoleAssignments,
+    IAssignStaffRoles assignStaffRoles) : AdministrationPageModel
 {
-    public IReadOnlyList<StaffAccountSummary> Accounts { get; private set; } = [];
+    public IReadOnlyList<StaffRoleAssignmentProjection> Accounts { get; private set; } = [];
 
     [BindProperty]
     public Guid StaffId { get; set; }
@@ -24,23 +25,24 @@ public sealed class IndexModel(IStaffAccountAdministration administration)
     [BindProperty]
     public string OperationKey { get; set; } = NewOperationKey();
 
-    public bool IsRoleSelected(StaffAccountSummary account, string roleName)
+    public bool IsRoleSelected(
+        StaffRoleAssignmentProjection account,
+        string roleName)
     {
         ArgumentNullException.ThrowIfNull(account);
-
-        if (account.Id == StaffId)
+        if (account.StaffId == StaffId)
         {
             return SelectedRoles.Contains(roleName, StringComparer.Ordinal);
         }
 
         return Enum.TryParse<StaffRole>(roleName, ignoreCase: false, out var role)
-            && account.Roles.Contains(role);
+            && account.CurrentRoles.Contains(role);
     }
 
-    public string ReasonFor(StaffAccountSummary account)
+    public string ReasonFor(StaffRoleAssignmentProjection account)
     {
         ArgumentNullException.ThrowIfNull(account);
-        return account.Id == StaffId ? Reason : string.Empty;
+        return account.StaffId == StaffId ? Reason : string.Empty;
     }
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
@@ -50,8 +52,7 @@ public sealed class IndexModel(IStaffAccountAdministration administration)
             return Forbid();
         }
 
-        StaffAuthorization.Require(actor, StaffAccessRight.AssignStaffRoles);
-        Accounts = await administration.ListAsync(actor, cancellationToken);
+        await LoadAsync(actor, cancellationToken);
         return Page();
     }
 
@@ -62,14 +63,15 @@ public sealed class IndexModel(IStaffAccountAdministration administration)
             return Forbid();
         }
 
-        StaffAuthorization.Require(actor, StaffAccessRight.AssignStaffRoles);
         var roles = new HashSet<StaffRole>();
         foreach (var roleName in SelectedRoles)
         {
             if (!Enum.TryParse<StaffRole>(roleName, ignoreCase: false, out var role)
                 || !Enum.IsDefined(role))
             {
-                ModelState.AddModelError(nameof(SelectedRoles), "Select only supported staff roles.");
+                ModelState.AddModelError(
+                    nameof(SelectedRoles),
+                    "Select only supported staff roles.");
                 break;
             }
 
@@ -80,7 +82,6 @@ public sealed class IndexModel(IStaffAccountAdministration administration)
         {
             ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
         }
-
         if (roles.Count == 0)
         {
             ModelState.AddModelError(nameof(SelectedRoles), "Select at least one role.");
@@ -90,15 +91,11 @@ public sealed class IndexModel(IStaffAccountAdministration administration)
         {
             try
             {
-                await administration.SetRolesAsync(
-                    actor,
-                    StaffId,
-                    roles,
-                    Reason,
-                    OperationKey,
+                await assignStaffRoles.ExecuteAsync(
+                    new(actor, StaffId, roles, Reason, OperationKey),
                     cancellationToken);
                 TempData["AdministrationStatus"] =
-                    "Roles updated. Existing browser sessions were invalidated.";
+                    "Roles updated. Existing browser and MCP sessions were revoked.";
                 return RedirectToPage();
             }
             catch (StaffAccountAdministrationException exception)
@@ -114,10 +111,25 @@ public sealed class IndexModel(IStaffAccountAdministration administration)
                     _ => "The role assignment was not accepted."
                 });
             }
+            catch (ArgumentException)
+            {
+                ModelState.AddModelError(string.Empty, "The role assignment was not accepted.");
+            }
         }
 
         OperationKey = NewOperationKey();
-        Accounts = await administration.ListAsync(actor, cancellationToken);
+        ModelState.Remove(nameof(OperationKey));
+        await LoadAsync(actor, cancellationToken);
         return Page();
+    }
+
+    private async Task LoadAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        var result = await getRoleAssignments.ExecuteAsync(
+            new(actor),
+            cancellationToken);
+        Accounts = result.Accounts;
     }
 }

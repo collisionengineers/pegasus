@@ -4,6 +4,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Pegasus.IntegrationTests;
 
+[Collection(LocalDbFixtureDefinition.Name)]
+[Trait("Category", "SqlServer")]
 public sealed class QdosIntakeWebTests
 {
     private const string ForwardedEmailHash = "B91F5BBC622041B088D6F55E7A949CAEC945F476BDB18C489D0756D797552FB0";
@@ -14,6 +16,61 @@ public sealed class QdosIntakeWebTests
     private const string LowTextNonScanPdfHash = "A9225D67A3FCD208B8EE00F9F6A1814E9FBEF0C693976BE2E2003612F56560CE";
     private const string NeedsSortingEmailHash = "28F896A1A20ACBE869570B78A2A5722B7AA514A5216150A8B86EEF5AFC47B65B";
 
+    [Fact]
+    public async Task AuthenticatedManualUploadQueuesThroughReceiveIntakeAndPrgsToTheList()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            localIntakeEnabled: true);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        const string receiptToken = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+        var upload = await IntakeWebDriver.UploadAsync(
+            client,
+            "queued-intake.txt",
+            "text/plain",
+            [49],
+            receiptToken);
+
+        Assert.Equal(HttpStatusCode.Redirect, upload.StatusCode);
+        Assert.NotNull(upload.Location);
+        Assert.Equal(
+            "/Intake",
+            upload.Location!.OriginalString.Split('?', 2)[0]);
+        var queuedReceiptId = IntakeWebDriver.QueuedReceiptId(upload);
+        using var queue = await client.GetAsync(upload.Location);
+        queue.EnsureSuccessStatusCode();
+        var html = await queue.Content.ReadAsStringAsync();
+        Assert.Contains(
+            "The instruction has been retained and queued for processing.",
+            html,
+            StringComparison.Ordinal);
+
+        var duplicate = await IntakeWebDriver.UploadAsync(
+            client,
+            "queued-intake.txt",
+            "text/plain",
+            [49],
+            receiptToken);
+        Assert.Equal(HttpStatusCode.Redirect, duplicate.StatusCode);
+        Assert.NotNull(duplicate.Location);
+        Assert.Equal(
+            "/Intake",
+            duplicate.Location!.OriginalString.Split('?', 2)[0]);
+        Assert.Equal(queuedReceiptId, IntakeWebDriver.QueuedReceiptId(duplicate));
+        using var duplicateQueue = await client.GetAsync(duplicate.Location);
+        duplicateQueue.EnsureSuccessStatusCode();
+        var duplicateHtml = await duplicateQueue.Content.ReadAsStringAsync();
+        Assert.Contains(
+            "This instruction was already queued; no duplicate work was created.",
+            duplicateHtml,
+            StringComparison.Ordinal);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        Assert.IsType<ReceiveIntake>(
+            scope.ServiceProvider.GetRequiredService<IIntakeSubmission>());
+    }
+
     [GenuineQdosCorpusFact]
     [Trait("Category", "Corpus")]
     public async Task StaffForwardedEmailStrongContentBeatsSenderAndRendersPersistedDraft()
@@ -21,7 +78,10 @@ public sealed class QdosIntakeWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        var upload = await IntakeWebDriver.UploadAsync(client, GenuineQdosCorpus.Read(ForwardedEmailHash));
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
+            client,
+            GenuineQdosCorpus.Read(ForwardedEmailHash));
         var receiptId = IntakeWebDriver.ReceiptId(upload);
         using var review = await client.GetAsync(upload.Location);
         review.EnsureSuccessStatusCode();
@@ -52,12 +112,15 @@ public sealed class QdosIntakeWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        var upload = await IntakeWebDriver.UploadAsync(client, GenuineQdosCorpus.Read(LowTextNonScanPdfHash));
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
+            client,
+            GenuineQdosCorpus.Read(LowTextNonScanPdfHash));
         var receiptId = IntakeWebDriver.ReceiptId(upload);
         var receipt = await GetReceiptAsync(factory, receiptId);
         using var review = await client.GetAsync(upload.Location);
         var reviewHtml = await review.Content.ReadAsStringAsync();
-        using var queue = await client.GetAsync("/Intake/Queue");
+        using var queue = await client.GetAsync("/Intake");
         var queueHtml = await queue.Content.ReadAsStringAsync();
 
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
@@ -78,9 +141,12 @@ public sealed class QdosIntakeWebTests
         var repeated = GenuineQdosCorpus.Read(ForwardedEmailHash);
         const string replayToken = "44444444444444444444444444444444";
 
-        var first = await IntakeWebDriver.UploadAsync(client, repeated, replayToken);
-        var duplicate = await IntakeWebDriver.UploadAsync(client, repeated, replayToken);
-        var distinct = await IntakeWebDriver.UploadAsync(client, GenuineQdosCorpus.Read(ConfirmedInputTwoHash));
+        var first = await IntakeWebDriver.UploadAndProcessAsync(factory, client, repeated, replayToken);
+        var duplicate = await IntakeWebDriver.UploadAndProcessAsync(factory, client, repeated, replayToken);
+        var distinct = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
+            client,
+            GenuineQdosCorpus.Read(ConfirmedInputTwoHash));
         var firstId = IntakeWebDriver.ReceiptId(first);
         var duplicateId = IntakeWebDriver.ReceiptId(duplicate);
         var distinctId = IntakeWebDriver.ReceiptId(distinct);
@@ -132,7 +198,7 @@ public sealed class QdosIntakeWebTests
 
     [GenuineQdosCorpusFact]
     [Trait("Category", "Corpus")]
-    public async Task ParallelDistinctConfirmedInputsPersistUniquePreCaseReceiptsInFileBackedSqlite()
+    public async Task ParallelDistinctConfirmedInputsPersistUniquePreCaseReceiptsInLocalDb()
     {
         using var factory = new IntakeWebApplicationFactory();
         var samples = new[]
@@ -147,6 +213,10 @@ public sealed class QdosIntakeWebTests
             var uploads = await Task.WhenAll(samples.Select((sample, index) =>
                 IntakeWebDriver.UploadAsync(clients[index], sample)));
             Assert.All(uploads, upload => Assert.Equal(HttpStatusCode.Redirect, upload.StatusCode));
+            foreach (var upload in uploads)
+            {
+                _ = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+            }
         }
         finally
         {
@@ -168,19 +238,30 @@ public sealed class QdosIntakeWebTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        await IntakeWebDriver.UploadAsync(client, GenuineQdosCorpus.Read(ForwardedEmailHash));
-        await IntakeWebDriver.UploadAsync(client, GenuineQdosCorpus.Read(NeedsSortingEmailHash));
+        var forwarded = await IntakeWebDriver.UploadAsync(
+            client,
+            GenuineQdosCorpus.Read(ForwardedEmailHash));
+        _ = await IntakeWebDriver.ProcessQueuedAsync(factory, forwarded);
+        var needsSorting = await IntakeWebDriver.UploadAsync(
+            client,
+            GenuineQdosCorpus.Read(NeedsSortingEmailHash));
+        _ = await IntakeWebDriver.ProcessQueuedAsync(factory, needsSorting);
 
         await using var scope = factory.Services.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
         var counts = await queries.GetCountsAsync(CancellationToken.None);
         var dashboard = await client.GetStringAsync("/");
-        var sortingQueue = await client.GetStringAsync("/Intake/Queue?decision=NeedsSorting");
+        var sortingQueue = await client.GetStringAsync("/Intake?decision=needs_sorting");
 
         Assert.Equal(new IntakeQueueCounts(1, 1), counts);
-        Assert.Contains("<strong>0</strong><span>Review</span>", dashboard, StringComparison.Ordinal);
-        Assert.Contains("<strong>1</strong><small>Instruction drafts</small>", dashboard, StringComparison.Ordinal);
-        Assert.Contains("<strong>1</strong><small>Needs sorting</small>", dashboard, StringComparison.Ordinal);
+        Assert.Contains(
+            "<strong>1</strong><span>Review</span><small>Current intake drafts</small>",
+            dashboard,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "<strong>1</strong><span>Needs sorting</span><small>Current intake receipts</small>",
+            dashboard,
+            StringComparison.Ordinal);
         Assert.Contains("Needs sorting", sortingQueue, StringComparison.Ordinal);
         Assert.Contains(NeedsSortingEmailHash[..12], sortingQueue, StringComparison.Ordinal);
     }
