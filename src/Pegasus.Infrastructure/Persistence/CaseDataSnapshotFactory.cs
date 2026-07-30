@@ -1,0 +1,369 @@
+using System.Globalization;
+using Pegasus.Core.Address;
+using Pegasus.Core.Cases;
+using Pegasus.Core.Intake;
+
+namespace Pegasus.Infrastructure.Persistence;
+
+internal static class CaseDataSnapshotFactory
+{
+    public static CaseDataSnapshotEntity Create(
+        CaseEntity caseEntity,
+        IntakeReceiptEntity receipt,
+        CaseAcceptanceRequest request,
+        DateTimeOffset acceptedAtUtc)
+    {
+        ArgumentNullException.ThrowIfNull(caseEntity);
+        ArgumentNullException.ThrowIfNull(receipt);
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.CompletenessEvaluation);
+
+        if (caseEntity.OriginIntakeReceiptId != receipt.Id
+            || request.IntakeReceiptId != receipt.Id)
+        {
+            throw new InvalidDataException(
+                "The accepted case origin does not match the intake receipt snapshot.");
+        }
+
+        if (request.AcceptedInspectionDeadline != receipt.InstructionDraft?.InspectionDate)
+        {
+            throw new InvalidOperationException(
+                "The accepted inspection deadline must match the reviewed intake evidence.");
+        }
+
+        var snapshot = new CaseDataSnapshotEntity
+        {
+            CaseId = caseEntity.Id,
+            Case = caseEntity,
+            OriginIntakeReceiptId = receipt.Id,
+            OriginSourceChannel = receipt.SourceChannel,
+            OriginExternalReceiptToken = receipt.ExternalReceiptToken,
+            OriginSourceHash = receipt.SourceHash,
+            OriginReceivedAtUtc = receipt.ReceivedAtUtc,
+            SourceReaderKey = receipt.SourceReaderKey,
+            SourceReaderVersion = receipt.SourceReaderVersion,
+            ExtractionPolicyKey = receipt.ExtractionPolicyKey,
+            ExtractionPolicyVersion = receipt.ExtractionPolicyVersion,
+            CompletenessPolicyKey = request.CompletenessEvaluation.PolicyKey,
+            CompletenessPolicyVersion = request.CompletenessEvaluation.PolicyVersion,
+            CompletenessPolicySatisfied = request.CompletenessEvaluation.SatisfiesPolicy,
+            AcceptedAtUtc = acceptedAtUtc
+        };
+
+        AddProviderFact(snapshot, receipt);
+        AddInstructionSuggestions(snapshot, receipt);
+        AddResolvedInspection(snapshot, receipt);
+        AddAcceptedDeadline(snapshot, receipt, request, acceptedAtUtc);
+        return snapshot;
+    }
+
+    private static void AddProviderFact(
+        CaseDataSnapshotEntity snapshot,
+        IntakeReceiptEntity receipt)
+    {
+        var route = receipt.MailRouteDecision;
+        if (route is null
+            || !string.Equals(route.Disposition, "accepted", StringComparison.Ordinal)
+            || string.IsNullOrWhiteSpace(route.WorkProviderCode))
+        {
+            return;
+        }
+
+        RequirePolicy(route.PolicyKey, route.PolicyVersion, "mail-route");
+        snapshot.Fields.Add(new()
+        {
+            CaseId = snapshot.CaseId,
+            Snapshot = snapshot,
+            FieldName = CaseDataFieldNames.WorkProviderCode,
+            ValueKind = CaseDataCodes.Fact,
+            ValueType = CaseDataCodes.Text,
+            Value = route.WorkProviderCode.Trim(),
+            SourceKind = CaseDataCodes.MailRoute,
+            SourceIdentity = receipt.Id.ToString("D"),
+            SourceLabel = string.IsNullOrWhiteSpace(route.RouteOwnerCode)
+                ? "accepted mail route"
+                : route.RouteOwnerCode,
+            PolicyKey = route.PolicyKey,
+            PolicyVersion = route.PolicyVersion
+        });
+    }
+
+    private static void AddInstructionSuggestions(
+        CaseDataSnapshotEntity snapshot,
+        IntakeReceiptEntity receipt)
+    {
+        var draft = receipt.InstructionDraft;
+        if (draft is null)
+        {
+            return;
+        }
+
+        var fields = EfIntakeReceiptStore.DeserializeFields(receipt.FieldsJson);
+        AddSuggestion(snapshot, receipt, fields, CaseDataFieldNames.ClaimantName, "Claimant name", CaseDataCodes.Text, draft.ClaimantName);
+        AddSuggestion(snapshot, receipt, fields, CaseDataFieldNames.ClaimNumber, "Claim number", CaseDataCodes.Text, draft.ClaimNumber);
+        AddSuggestion(snapshot, receipt, fields, CaseDataFieldNames.VehicleRegistration, "Vehicle registration", CaseDataCodes.Text, draft.VehicleRegistration);
+        AddSuggestion(snapshot, receipt, fields, CaseDataFieldNames.VehicleMake, "Vehicle make", CaseDataCodes.Text, draft.VehicleMake);
+        AddSuggestion(snapshot, receipt, fields, CaseDataFieldNames.VehicleModel, "Vehicle model", CaseDataCodes.Text, draft.VehicleModel);
+        AddSuggestion(
+            snapshot,
+            receipt,
+            fields,
+            CaseDataFieldNames.VehicleMileage,
+            "Vehicle mileage",
+            CaseDataCodes.Integer,
+            draft.VehicleMileage?.ToString(CultureInfo.InvariantCulture));
+        AddSuggestion(snapshot, receipt, fields, CaseDataFieldNames.AccidentCircumstances, "Accident circumstances", CaseDataCodes.Text, draft.AccidentCircumstances);
+        AddSuggestion(
+            snapshot,
+            receipt,
+            fields,
+            CaseDataFieldNames.IncidentDate,
+            "Date of incident",
+            CaseDataCodes.Date,
+            Date(draft.DateOfIncident));
+        AddSuggestion(
+            snapshot,
+            receipt,
+            fields,
+            CaseDataFieldNames.InstructionDate,
+            "Instruction date",
+            CaseDataCodes.Date,
+            Date(draft.InstructionDate));
+        AddSuggestion(
+            snapshot,
+            receipt,
+            fields,
+            CaseDataFieldNames.InspectionDate,
+            "Inspection date",
+            CaseDataCodes.Date,
+            Date(draft.InspectionDate));
+        var suggestedInspectionAddress = fields.SingleOrDefault(
+                field => string.Equals(
+                    field.Name,
+                    "Inspection address",
+                    StringComparison.Ordinal))
+            ?.SuggestedValue
+            ?? draft.InspectionAddress;
+        AddSuggestion(
+            snapshot,
+            receipt,
+            fields,
+            CaseDataFieldNames.InspectionAddress,
+            "Inspection address",
+            CaseDataCodes.Text,
+            suggestedInspectionAddress);
+
+        if (!string.IsNullOrWhiteSpace(suggestedInspectionAddress))
+        {
+            AddSuggestion(
+                snapshot,
+                receipt,
+                fields,
+                CaseDataFieldNames.InspectionMode,
+                "Inspection address",
+                CaseDataCodes.InspectionMode,
+                string.Equals(
+                    suggestedInspectionAddress,
+                    Ext18InspectionAddressPolicy.ImageBasedAssessment,
+                    StringComparison.Ordinal)
+                    ? "image_based_assessment"
+                    : "physical_address");
+        }
+
+        var mileageField = fields.SingleOrDefault(
+            field => string.Equals(field.Name, "Vehicle mileage", StringComparison.Ordinal));
+        if (mileageField?.SuggestedValue is { } suggestedMileage
+            && HasExplicitMilesUnit(suggestedMileage))
+        {
+            AddSuggestion(
+                snapshot,
+                receipt,
+                fields,
+                CaseDataFieldNames.VehicleMileageUnit,
+                "Vehicle mileage",
+                CaseDataCodes.Text,
+                "miles");
+        }
+    }
+
+    private static void AddResolvedInspection(
+        CaseDataSnapshotEntity snapshot,
+        IntakeReceiptEntity receipt)
+    {
+        if (receipt.InstructionDraft is null)
+        {
+            return;
+        }
+
+        var resolution = InspectionAddressResolutionStore.CreateSnapshot(receipt);
+        if (resolution.State is not (
+                InspectionAddressResolutionState.Accepted
+                or InspectionAddressResolutionState.Corrected)
+            || string.IsNullOrWhiteSpace(resolution.ResolvedValue)
+            || resolution.ResolvedByStaffId is not { } staffId
+            || resolution.ResolvedAtUtc is not { } resolvedAtUtc)
+        {
+            return;
+        }
+
+        var actor = staffId.ToString("D");
+        UpsertConfirmed(
+            snapshot,
+            CaseDataFieldNames.InspectionAddress,
+            CaseDataCodes.Text,
+            resolution.ResolvedValue,
+            actor,
+            resolvedAtUtc,
+            Ext18InspectionAddressPolicy.PolicyKey,
+            Ext18InspectionAddressPolicy.PolicyVersion,
+            resolution.State == InspectionAddressResolutionState.Corrected
+                ? CaseDataCodes.StaffCorrection
+                : CaseDataCodes.CaseAcceptance,
+            resolution.State == InspectionAddressResolutionState.Corrected
+                ? "staff-corrected inspection address"
+                : "accepted inspection address");
+        UpsertConfirmed(
+            snapshot,
+            CaseDataFieldNames.InspectionMode,
+            CaseDataCodes.InspectionMode,
+            string.Equals(
+                resolution.ResolvedValue,
+                Ext18InspectionAddressPolicy.ImageBasedAssessment,
+                StringComparison.Ordinal)
+                ? "image_based_assessment"
+                : "physical_address",
+            actor,
+            resolvedAtUtc,
+            Ext18InspectionAddressPolicy.PolicyKey,
+            Ext18InspectionAddressPolicy.PolicyVersion,
+            resolution.State == InspectionAddressResolutionState.Corrected
+                ? CaseDataCodes.StaffCorrection
+                : CaseDataCodes.CaseAcceptance,
+            resolution.State == InspectionAddressResolutionState.Corrected
+                ? "staff-corrected inspection mode"
+                : "accepted inspection mode");
+    }
+
+    private static void AddAcceptedDeadline(
+        CaseDataSnapshotEntity snapshot,
+        IntakeReceiptEntity receipt,
+        CaseAcceptanceRequest request,
+        DateTimeOffset acceptedAtUtc)
+    {
+        if (request.AcceptedInspectionDeadline is not { } deadline)
+        {
+            return;
+        }
+
+        UpsertConfirmed(
+            snapshot,
+            CaseDataFieldNames.InspectionDeadline,
+            CaseDataCodes.Date,
+            deadline.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            request.Actor.SubjectId,
+            acceptedAtUtc,
+            receipt.ExtractionPolicyKey ?? request.CompletenessEvaluation.PolicyKey,
+            receipt.ExtractionPolicyVersion ?? request.CompletenessEvaluation.PolicyVersion);
+    }
+
+    private static void AddSuggestion(
+        CaseDataSnapshotEntity snapshot,
+        IntakeReceiptEntity receipt,
+        IReadOnlyList<InstructionReviewField> fields,
+        string fieldName,
+        string intakeFieldName,
+        string valueType,
+        string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        RequirePolicy(receipt.ExtractionPolicyKey, receipt.ExtractionPolicyVersion, "instruction extraction");
+        var field = fields.SingleOrDefault(
+            item => string.Equals(item.Name, intakeFieldName, StringComparison.Ordinal));
+        if (field is null || field.HasConflict || field.Candidates.Count == 0)
+        {
+            throw new InvalidDataException(
+                $"The accepted intake field '{intakeFieldName}' has no unambiguous source provenance.");
+        }
+
+        var candidate = field.Candidates.Count == 1
+            ? field.Candidates[0]
+            : field.Candidates.FirstOrDefault(item =>
+                string.Equals(item.Value, field.SuggestedValue, StringComparison.OrdinalIgnoreCase))
+                ?? throw new InvalidDataException(
+                    $"The accepted intake field '{intakeFieldName}' has ambiguous source provenance.");
+        snapshot.Fields.Add(new()
+        {
+            CaseId = snapshot.CaseId,
+            Snapshot = snapshot,
+            FieldName = fieldName,
+            ValueKind = CaseDataCodes.Suggestion,
+            ValueType = valueType,
+            Value = value,
+            SourceKind = CaseDataCodes.IntakeEvidence,
+            SourceIdentity = receipt.Id.ToString("D"),
+            SourceLabel = $"{candidate.Source}:{candidate.SourceLabel}",
+            PolicyKey = receipt.ExtractionPolicyKey!,
+            PolicyVersion = receipt.ExtractionPolicyVersion!.Value
+        });
+    }
+
+    private static void UpsertConfirmed(
+        CaseDataSnapshotEntity snapshot,
+        string fieldName,
+        string valueType,
+        string value,
+        string actor,
+        DateTimeOffset confirmedAtUtc,
+        string fallbackPolicyKey,
+        int fallbackPolicyVersion,
+        string fallbackSourceKind = CaseDataCodes.CaseAcceptance,
+        string fallbackSourceLabel = "accepted case review")
+    {
+        var underlying = snapshot.Fields.SingleOrDefault(
+            item => item.FieldName == fieldName
+                && item.ValueKind is CaseDataCodes.Fact or CaseDataCodes.Suggestion
+                && string.Equals(item.Value, value, StringComparison.OrdinalIgnoreCase));
+        snapshot.Fields.RemoveAll(
+            item => item.FieldName == fieldName && item.ValueKind == CaseDataCodes.Confirmed);
+        snapshot.Fields.Add(new()
+        {
+            CaseId = snapshot.CaseId,
+            Snapshot = snapshot,
+            FieldName = fieldName,
+            ValueKind = CaseDataCodes.Confirmed,
+            ValueType = valueType,
+            Value = value,
+            SourceKind = underlying?.SourceKind ?? fallbackSourceKind,
+            SourceIdentity = underlying?.SourceIdentity ?? snapshot.OriginIntakeReceiptId.ToString("D"),
+            SourceLabel = underlying?.SourceLabel ?? fallbackSourceLabel,
+            PolicyKey = underlying?.PolicyKey ?? fallbackPolicyKey,
+            PolicyVersion = underlying?.PolicyVersion ?? fallbackPolicyVersion,
+            ConfirmedByActor = actor,
+            ConfirmedAtUtc = confirmedAtUtc
+        });
+    }
+
+    private static string? Date(DateOnly? value) =>
+        value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    private static bool HasExplicitMilesUnit(string value)
+    {
+        var normalized = value.Trim();
+        return normalized.EndsWith(" mi", StringComparison.OrdinalIgnoreCase)
+            || normalized.EndsWith(" mile", StringComparison.OrdinalIgnoreCase)
+            || normalized.EndsWith(" miles", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void RequirePolicy(string? key, int? version, string source)
+    {
+        if (string.IsNullOrWhiteSpace(key) || version is null or < 1)
+        {
+            throw new InvalidDataException(
+                $"The {source} policy identity is incomplete.");
+        }
+    }
+}
