@@ -1,0 +1,25 @@
+@page "/Triage/{id:guid}"
+@model Pegasus.Web.Pages.Triage.DetailModel
+@using Pegasus.Core.Triage
+@{
+    ViewData["Title"] = "Triage detail";
+    var item = Model.Detail!;
+}
+<main class="page-shell">
+    <header class="page-heading"><a href="/Triage">Triage</a><p class="eyebrow">Pre-case record</p><h1>@item.Registration</h1><p><strong>@item.State</strong> · Source @item.SourceId</p></header>
+    @if (Model.Error is not null) { <div class="panel error-panel" role="alert">@Model.Error</div> }
+    <div class="two-column-layout">
+        <section class="panel stack-lg"><h2>Registration and assignment</h2><dl class="detail-list"><dt>Registration</dt><dd>@item.Registration</dd><dt>Assignee</dt><dd>@(item.AssigneeName ?? "Unassigned")</dd><dt>State</dt><dd>@item.State</dd></dl>
+            <form method="post" asp-page-handler="Assign" asp-route-id="@item.Id" class="inline-form"><input type="hidden" asp-for="Version" /><input asp-for="AssigneeId" placeholder="Assignee id" /><input asp-for="AssigneeName" placeholder="Assignee name" required /><button class="button button-secondary" type="submit">Assign</button></form>
+            @if (item.State == TriageState.Open) { <form method="post" asp-page-handler="AwaitInformation" asp-route-id="@item.Id"><input type="hidden" asp-for="Version" /><input asp-for="Reason" placeholder="Reason" required /><button class="button button-secondary" type="submit">Await information</button></form> }
+        </section>
+        <section class="panel stack-lg"><h2>Findings</h2>
+            @if (item.CurrentFinding is null) { <p>No finding recorded.</p> } else { <dl class="detail-list"><dt>Roadworthiness</dt><dd>@(item.CurrentFinding.Roadworthiness?.ToString() ?? "Not recorded")</dd><dt>Assessment</dt><dd>@(item.CurrentFinding.Assessment?.ToString() ?? "Not recorded")</dd></dl> }
+            <form method="post" asp-page-handler="RecordFinding" asp-route-id="@item.Id" class="stack-md"><input type="hidden" asp-for="Version" /><label>Roadworthiness<select asp-for="Roadworthiness"><option value="">Not recorded</option>@foreach(var value in Enum.GetValues<RoadworthinessFinding>()){<option value="@value">@value</option>}</select></label><label>Assessment<select asp-for="Assessment"><option value="">Not recorded</option>@foreach(var value in Enum.GetValues<AssessmentFinding>()){<option value="@value">@value</option>}</select></label><label>Reason<input asp-for="Reason" /></label><button class="button button-primary" type="submit">Record finding</button></form>
+        </section>
+    </div>
+    <section class="panel stack-lg"><h2>Approved response evidence</h2><p>Exact approved reply-chain evidence is unavailable.</p><p>Completion remains fail-closed until the accepted evidence owner provides immutable evidence.</p></section>
+    <section class="panel stack-lg"><h2>Case link</h2><p>@(item.CurrentCaseLink is null ? "No current Case link." : $"Case {item.CurrentCaseLink.CaseId}")</p><form method="post" asp-page-handler="LinkCase" asp-route-id="@item.Id" class="inline-form"><input type="hidden" asp-for="Version" /><input asp-for="CaseId" placeholder="Case id" required /><button class="button button-secondary" type="submit">Link Case</button></form>@if(item.CurrentCaseLink is not null){<form method="post" asp-page-handler="UnlinkCase" asp-route-id="@item.Id"><input type="hidden" asp-for="Version" /><input asp-for="Reason" placeholder="Reason" required /><button class="button button-secondary" type="submit">Unlink Case</button></form>}</section>
+    <section class="panel stack-lg"><h2>History</h2>@if(item.History.Count == 0){<p>No actions recorded.</p>}else{<ol class="history-list">@foreach(var entry in item.History){<li><strong>@entry.Action</strong> · @entry.Outcome · @entry.OccurredAtUtc.ToLocalTime().ToString("g") @if(entry.Reason is not null){<span> · @entry.Reason</span>}</li>}</ol>}</section>
+    <section class="action-row">@if(item.State == TriageState.Completed || item.State == TriageState.Cancelled){<form method="post" asp-page-handler="Reopen" asp-route-id="@item.Id"><input type="hidden" asp-for="Version" /><input asp-for="Reason" placeholder="Reason to reopen" required /><button class="button button-secondary" type="submit">Reopen</button></form>}@if(item.State != TriageState.Cancelled){<form method="post" asp-page-handler="Cancel" asp-route-id="@item.Id"><input type="hidden" asp-for="Version" /><input asp-for="Reason" placeholder="Reason to cancel" required /><button class="button button-danger" type="submit">Cancel</button></form>}</section>
+</main>
