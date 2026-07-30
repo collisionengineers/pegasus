@@ -125,10 +125,7 @@ Source workspaces validate independently and are not part of the application sol
 ```powershell
 Push-Location ./workspaces/document-extraction; dotnet test --solution ./CollisionDocNet.slnx --configuration Release; Pop-Location
 Push-Location ./workspaces/report-renderer; dotnet run --project ./src/CollisionRenderer.Cli -- install-browser; dotnet test ./CollisionRenderer.sln --configuration Release; Pop-Location
-npm ci --prefix ./workspaces/ai-centre/services/collision-brain
-npm run typecheck --prefix ./workspaces/ai-centre/services/collision-brain
-npm run build --prefix ./workspaces/ai-centre/services/collision-brain
-npm test --prefix ./workspaces/ai-centre/services/collision-brain
+Push-Location ./workspaces/ai-centre/services/collision-brain; dotnet restore ./CollisionBrain.slnx --locked-mode; dotnet build ./CollisionBrain.slnx --configuration Release --no-restore; dotnet test ./CollisionBrain.slnx --configuration Release --no-build; Pop-Location
 Push-Location ./workspaces/ai-centre/skills/tools; python -m unittest test_pack_skill; Pop-Location
 ```
 
