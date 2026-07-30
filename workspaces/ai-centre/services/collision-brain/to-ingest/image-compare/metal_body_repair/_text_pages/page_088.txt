@@ -1,0 +1,29 @@
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+(a) Cracks   in   stamped   brass   radiator   tanks   must   be   patched.
+Spreading solder over the crack will not make a permanent watertight repair.
+(b) Wire brush or scrape the area around the crack one inch larger
+than the patch to be installed.   Dig down into the crack itself with a
+pointed tool.  Tin the cleaned areas and the underside of the patch, wiping
+them clean while the solder is in a molten state.
+(c) Fit the patch in place as perfectly as possible, following the
+contours of the tank.  All patches should have rounded corners.
+(d) Hold the patch in place with a screwdriver and apply heat.  The
+proper amount of heat will be indicated when a stick of solder will melt
+when touched to the patch.
+(e) If proper care has been taken during the tinning operation, the
+patch will be strong and watertight.   Hold the patch in place until the
+solder has set.
+(3) Blocking of Tubes ­ Cellular (honeycomb) Radiators.  A damaged tube
+may not need to be repaired; it can be blocked off.  Fifteen percent of the
+tubes in a radiator may be blocked off without adverse effects.
+(a) Heat   face   of   tube   near   header   plate   and   spread   open   with   an
+improvised tool made from an old hacksaw blade sharpened on one end to the
+shape of a chisel.
+(b) Thoroughly   tin   the   inside   of   the   tube   with   tinning   compound,
+using an acid brush to apply the tinning compound.
+(c) Apply flux and fill tube with solder.
+(4) Tubular Core.
+(a) Heat fins at the header plate and raise fins one­half of an inch
+on each side of the tube to be blocked.
+(b) Apply heat to the tube and blow out the solder with an airgun.
+82

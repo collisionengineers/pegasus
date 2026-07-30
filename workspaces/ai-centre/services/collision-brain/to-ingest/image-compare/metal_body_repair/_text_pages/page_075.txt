@@ -1,0 +1,33 @@
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+This   lighter   construction   has   generally   replaced   the   cast   metal   type   in
+passenger cars and light­duty trucks, where it is usually concealed by the
+hood and radiator grill.
+(1) Water Tanks.   Almost all radiator tanks are cast or stamped in one
+piece to reduce the number of potential leaks.  A baffle plate in the upper
+tank,  below the neck, eliminates excessive splashing and distributes the
+water uniformly over the tank.
+(2) Radiator Fittings.   The radiator fittings are the filler neck and
+inlet connection of the upper tank and the outlet connection and drain valve
+of the lower tank.  These are made of malleable iron or pressed metal.  When
+they are manufactured as separate parts, they are brazed, soldered, bolted,
+or riveted to the tanks.
+(3) Tubular Core.   This type is made of many vertical tubes (drawn or
+seam welded) soldered through thin sheets of metal at the top and bottom
+(called header plates).  The header plates form mounting pads for the upper
+and lower tanks and block passage of water from the tanks to the core except
+through the tubes.  The tubes are generally spaced about 3/4 inches apart,
+in   two   to   four   straight   or   staggered   rows   approximately   1/2   inch   apart
+(figure 35 on the following page).  In a staggered row, twice as many tube
+rows   are   exposed   to   the   air   entering   the   radiator,   which   increases   the
+cooling   capacity.     Round   tubes   are   easily   broken   by   the   expansion   of
+freezing water, whereas oval tubes will be distorted to some extent before
+breaking.  The radiating surfaces of these tubes are occasionally increased
+by spiral fins on each tube or, much more commonly, by thin sheets of metal
+(horizontal fins) extending all the way across the radiator, 1/8 inch to
+3/16   inch   apart,   in   contact   with   each   tube.     The   front   edges   of   the
+horizontal fins are usually crimped or bent back to a double thickness which
+strengthens   the   radiator   core.     In   most   radiator   cores,   the   fins   are
+soldered to the tubes to speed the heat transfer.  A tubular core radiator
+is generally larger than a honeycomb core radiator with the same cooling
+capacity.
+69

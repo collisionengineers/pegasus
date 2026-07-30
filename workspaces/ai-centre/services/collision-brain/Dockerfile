@@ -1,19 +1,14 @@
-FROM node:22-slim AS build
-WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci
-COPY tsconfig.json tsconfig.build.json ./
-COPY src ./src
-RUN npm run build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY . .
+RUN dotnet restore ./CollisionBrain.slnx --locked-mode
+RUN dotnet publish ./src/CollisionBrain/CollisionBrain.csproj --configuration Release --no-restore --output /app/publish
 
-FROM node:22-slim AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
-COPY --from=build /app/dist ./dist
-COPY migrations ./migrations
-RUN mkdir -p /app/.data/objects && chown -R node:node /app
-USER node
+COPY --from=build /app/publish ./
+RUN mkdir -p /app/.data/objects && chown -R $APP_UID:$APP_UID /app
+USER $APP_UID
 EXPOSE 3000
-CMD ["node", "dist/main.js"]
+ENTRYPOINT ["dotnet", "CollisionBrain.dll"]

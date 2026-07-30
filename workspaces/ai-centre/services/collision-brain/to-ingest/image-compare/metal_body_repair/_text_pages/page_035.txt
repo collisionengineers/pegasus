@@ -1,0 +1,16 @@
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK I
+rectangles may be laid within them which provide good diagonal tests.
+(14) The measuring device, called a tram (figure 17), is a telescoping
+tube equipped with an extension clamp which fixes it as the measurement of
+one diagonal for comparison with another.
+FIGURE 17.  TRAM.
+(15) Since most severe collisions distort the frame as well as the body
+of  the motor vehicle, the frame must be checked and straightened first.
+Divide it into three rectangles, using as corners the front and rear spring
+shackles as in figure 18 (on the following page).
+Then lay the tram at diagonal AB'; clamping it at the exact length of the
+diagonal.  Remove the tram and check A'B to see whether this length is the
+same.  In the same way check BC' against B'C and CD' against C'D.  If there
+is   any   deviation   of   measurements,   do   not   check   body   alignment   until
+corrective forces have been applied to bring the frame into line.
+29

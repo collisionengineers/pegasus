@@ -1,0 +1,29 @@
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+CAUTION
+Repair area temperature must not exceed 100 degrees F
+anytime thereafter.  Minimum distance between the heat
+lamp and repair area is two feet, regardless of the
+temperature requirement.
+(6) Allow the completed patch to set undisturbed for 16 to 24 hours.
+j.
+Repair Procedures for Cores.
+(1) For lacerations in the core, remove fins approximately 1/2 to 3/4 of
+an inch beyond the damaged cross tubes.
+(2) Remove jagged edges from the cross tubes, clean with a pencil­type
+wire or grinding wheel, and continue preparation.
+(3) Prepare a proper amount of epoxy and hardener.  Also add sufficient
+amount of silica to obtain a workable consistency (soft, putty­like).
+(4) Force the epoxy mixture into the cross tube and close the tube with
+pliers.  Apply a second coat of epoxy mixture over the closed­off tube and
+immediate surrounding area.  Allow the repair to dry.
+CAUTION
+Do not test aluminum radiators in a tank that has been
+or is being used for testing copper/brass radiators.
+Fluxes   used   in   copper/brass   radiator   repair   will
+contaminate the water in a test tank and will attack
+aluminum.
+(5) Test.    To   test   the   radiator   repair,   block   all   inlet   and   outlet
+connections, install pressurizing equipment, and apply 18 psi for a period
+of three minutes while the radiator is immersed in water.   Absence of air
+bubbles denotes a satisfactory repair.
+85

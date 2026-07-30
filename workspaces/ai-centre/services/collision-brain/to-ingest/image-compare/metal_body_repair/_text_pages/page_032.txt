@@ -1,0 +1,25 @@
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+FIGURE 14.  SIMPLE DAMAGE.
+(8) Since ridge X is clearly the last created in the damage, it is the
+first strain to be unlocked.   Place a low­crown dinging spoon on it (1)
+(figure 15 on the following page) and hammer the spoon sharply, directing
+the blows straight at the ridge.  This unlocks the high metal and moves it
+back toward its original position.
+Next, ding the flange corner Z, unlocking it.  The areas of metal between 0
+and Y and between Y and Z are now lying unlocked, ready to spring back to
+normal shape with very little help.   Give this help with a medium­crown
+dolly block (2) (figure 15), unrolling the wave with two or three blows on
+the under side from 0 through Y.   This unlocks the kinked metal at the
+bottom of the V­channel OY.  Repeating this procedure from Z to Y restores
+the metal to the position shown in (3) (figure 15).
+(9) Figure 16 (on page 28) illustrates the error of roughing out the
+same damage without first releasing the locked ridges.  In (1) (figure 16),
+the caved in metal is being roughed out by striking the underside at Y with
+a dolly.   This forces up a large area of the dent to nearly its normal
+shape.  Note, however, that the strain in the ridge X has not been unlocked;
+the ridge does not come down to its normal place, but instead pulls the
+panel   down   abnormally   at   H.     This   happens   because   the   locked   ridge   X
+reinforced and strengthened the metal on either side of it.  Therefore, when
+force is applied upward at Y, the ridge acts as a fulcrum, pulling the metal
+down at H as it is forced up at Y. 
+26

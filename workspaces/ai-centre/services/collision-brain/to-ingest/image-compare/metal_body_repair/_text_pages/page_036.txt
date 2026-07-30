@@ -1,0 +1,23 @@
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+FIGURE 18.  X­CHECKING FRAME ALIGNMENT WITH TRAM.
+(16) Misalignment of a door opening in a body is generally checked by the
+fit of the door.  However, it may also be checked by the tram as shown in
+figure 19 (on the following page).  Measurements are taken by marking off a
+distance X along the center pillar from B to C and a distance Y along the
+body sill from B to A.  Set the tram with its ends on points A and C and
+compare this length with similar points on the undamaged side of the vehicle
+or  on a similar vehicle.   Any misalignment of the door opening will be
+indicated by the necessity of resetting the tram.
+(17) If both sides of the vehicle are damaged, lay out a rectangle such
+as A B C D which is shown in figure 19, in a correctly aligned door opening
+of a similar vehicle.  Then measure the distance X and Y and transpose these
+measurements to the door opening of the damaged vehicle.  If the diagonals A
+C and B D are not equal, the door opening is out of alignment.
+(18) After   the   door   openings   on   both   sides   of   the   vehicle   have   been
+checked, measure the front section in the same manner.  In this measurement,
+the same points, A and D as before, are used together with points F and E in
+corresponding positions on the opposite door openings, to form the corners
+of a rectangle (figure 20 on the next page).   The diagonals A E and D F
+should be equal.  If they are not, the misalignment must be corrected before
+other checks are made on the body. 
+30

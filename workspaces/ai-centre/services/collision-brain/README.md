@@ -1,72 +1,56 @@
-# RAG Pipeline
+# Collision Brain
 
-Independent Collision Brain source service
+Independent Collision Brain source service, rewritten as a modern .NET 10 package.
 
-> **Source-workspace boundary:** This is an independently runnable source
-> service with no Pegasus caller, deployment, selected provider, or application
-> authority. Its code and commands are implementation/evaluation evidence only;
-> `Pegasus.Core`, current operator authority, and an authorised human own every
-> accepted fact, outcome, send, report issue, and approval.
+> **Source-workspace boundary:** This is an independently runnable source service
+> with no Pegasus caller, deployment, selected provider, or application authority.
+> Its code and commands are implementation/evaluation evidence only; `Pegasus.Core`,
+> current operator authority, and an authorised human own every accepted fact,
+> outcome, report issue, and approval.
 
-When run in its own development environment, the service provides
-provider-agnostic document ingestion and hybrid retrieval through its
-package-local MCP interface. That interface is not a Pegasus integration seam.
-
-The source service returns passages and citations; it neither generates nor
-accepts a Pegasus answer.
-
-## V1 capabilities
-
-- `lookup` — hybrid full-text/vector retrieval with stable citations.
-- `write` — queue pasted text or a securely staged file for ingestion.
-- `view_all` — page through document metadata and processing state.
-- `remove` — purge a document and retain a content-free audit tombstone.
-- Authenticated `POST /uploads` endpoint for TXT, Markdown, text PDF, DOCX, and HTML.
-- Streamable HTTP MCP endpoint plus an equivalent local stdio proxy.
-- Provider boundaries for repository, object storage, embeddings, and authentication.
-
-OCR, images, email containers, archives, and generated answers are intentionally outside v1.
+The service provides provider-agnostic document ingestion and hybrid retrieval
+through four package-local MCP tools: `lookup`, `write`, `view_all`, and `remove`.
+It returns passages and citations; it neither generates nor accepts a Pegasus answer.
+OCR, images, email containers, archives, and generated answers remain outside v1.
 
 ## Local prerequisites
 
-- Node.js 22 or newer.
-- Docker with Compose for the supported local PostgreSQL/pgvector environment.
+- Repository-pinned .NET SDK 10.0.302.
+- Docker Compose is optional and provides the convenient PostgreSQL/pgvector profile.
+- Memory drivers run without Docker or external services.
 
-Docker is not needed for unit tests.
-
-## Quick start with Docker
+## Quick start
 
 ```powershell
 Copy-Item .env.example .env
+dotnet restore .\CollisionBrain.slnx --locked-mode
+dotnet build .\CollisionBrain.slnx --configuration Release --no-restore
+dotnet run --project .\src\CollisionBrain\CollisionBrain.csproj --configuration Release -- api
+```
+
+The API listens on `http://localhost:3000`, with MCP at `/mcp`. In a second
+terminal, run the worker from the same published/build output:
+
+```powershell
+dotnet run --project .\src\CollisionBrain\CollisionBrain.csproj --configuration Release -- worker
+```
+
+The stdio proxy forwards JSON-RPC to `RAG_HTTP_URL` and writes protocol responses
+to stdout only:
+
+```powershell
+dotnet run --project .\src\CollisionBrain\CollisionBrain.csproj --configuration Release -- stdio
+```
+
+## Docker profile
+
+```powershell
 docker compose up --build
 ```
 
-The API listens on `http://localhost:3000`, with MCP at `/mcp`. The Compose environment starts the
-API, worker, and PostgreSQL/pgvector database and applies migrations before serving traffic.
-
-## Run from the host
-
-Start PostgreSQL/pgvector separately, then:
-
-```powershell
-npm ci
-npm run db:migrate
-npm run dev:api
-```
-
-In a second terminal:
-
-```powershell
-npm run dev:worker
-```
-
-For a stdio-only MCP client, build first and configure it to execute:
-
-```powershell
-node dist/stdio.js
-```
-
-Set `RAG_HTTP_URL` and `RAG_HTTP_BEARER_TOKEN` for the HTTP service the stdio adapter should proxy.
+Compose starts PostgreSQL/pgvector, the API, and the worker. The API applies the
+ordered migrations before serving traffic. Docker remains orchestration, not a
+.NET requirement; do not delete its named volumes without separate authorization.
 
 ## Upload and ingest
 
@@ -76,34 +60,43 @@ Set `RAG_HTTP_URL` and `RAG_HTTP_BEARER_TOKEN` for the HTTP service the stdio ad
 2. Pass the returned short-lived `upload_ref` to `write`.
 3. Poll `view_all` until the document is `ready` or `failed`.
 
-Only `ready` documents participate in `lookup`.
+Only `ready` documents participate in `lookup`. Supported files are TXT,
+Markdown, HTML, text PDF, and DOCX; PDF handling is text-only and has no OCR.
 
-## Authentication
+## Configuration and authentication
 
-`AUTH_MODE` supports:
+The existing environment contract is retained in `.env.example`. Drivers are
+`postgres`/`memory`, `filesystem`/`memory` (with an S3 adapter available for an
+explicitly configured target), and `local-hash` embeddings. Local feature-hash
+embeddings are deterministic prototype infrastructure, not a selected production
+retrieval model.
 
-- `none` — local development only; refused when `NODE_ENV=production`.
-- `shared-secret` — constant-time bearer-token verification.
-- `oidc` — provider-neutral JWT validation using issuer JWKS and configured audience.
+`AUTH_MODE` supports `none` for local development, `shared-secret` with
+`MCP_SHARED_SECRET`, and provider-neutral OIDC configuration. Roles are `reader`,
+`contributor`, and `admin`; production refuses unauthenticated mode.
 
-Roles are `reader`, `contributor`, and `admin`. OIDC roles are read from the token's `roles` claim.
-
-## Verification
-
-```powershell
-npm run typecheck
-npm test
-npm run build
-```
-
-Run the synthetic retrieval-control benchmark without external services:
+## Administration and benchmark
 
 ```powershell
-$env:REPOSITORY_DRIVER='memory'
-$env:OBJECT_STORE_DRIVER='memory'
-npm run benchmark -- --input benchmarks/synthetic.json
+dotnet run --project .\src\CollisionBrain\CollisionBrain.csproj -- migrate
+dotnet run --project .\src\CollisionBrain\CollisionBrain.csproj -- benchmark --input benchmarks/synthetic.json
 ```
 
-See [architecture](docs/architecture.md), [requirements](./docs/operations.md), the
-[deployment contract](./docs/operations.md), [current status](./docs/operations.md), and
-the [provider research](./docs/provider-evaluation.md).
+The synthetic benchmark uses the memory drivers and must report three documents,
+three queries, 384-dimensional `local`/`feature-hash`/`1` embeddings, recall@k 1,
+and mean reciprocal rank 1. Export/import commands use the versioned JSON bundle
+contract.
+
+## Verification boundaries
+
+```powershell
+dotnet restore .\CollisionBrain.slnx --locked-mode
+dotnet build .\CollisionBrain.slnx --configuration Release --no-restore
+dotnet test .\CollisionBrain.slnx --configuration Release --no-build
+```
+
+PostgreSQL/pgvector, S3, and container proof are reported only when their exact
+local targets are available and exercised. This workspace remains implementation
+and local-evaluation evidence; it is not deployment, caller proof for Pegasus, or
+operator acceptance. See [architecture](docs/architecture.md),
+[operations](docs/operations.md), and [security](docs/security.md).

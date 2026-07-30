@@ -1,0 +1,36 @@
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+this core.  The diamond­shaped cell construction resembles the U­shaped cell
+construction except that the ribbons zigzag in the same pattern as the fins,
+thus creating diamond shaped air passages.  The water passages between the
+ribbons are irregular and therefore more efficient in cooling, but are more
+easily  clogged.   Each fin has many bumps and ridges, called deflectors,
+which increase the cooling area exposed to the air.   Some honeycomb cores
+have square cells.   The water has much farther to travel here than in a
+diamond   cell   core,   since   the   continuous   water   passages   are   alternately
+vertical and horizontal rather than diagonal.  The honeycomb type core has
+several disadvantages.  Although it exposes a large surface to the air, it
+is   rather   frail,   and   its   irregular   passages   clog   easily.     Much   of   the
+external surface of honeycomb radiators dispels heat indirectly and hence
+loses effectiveness.   It is also difficult to manufacture metal ribbon of
+the   thinness   used   in   honeycomb   radiators   without   producing   holes,
+excessively thin pieces, or steel burrs that may rust out and cause leaks.
+The honeycomb core is used mainly on passenger cars and light duty trucks.
+b.
+Radiator Cleaning.
+Radiator   cleaning   has   three   purposes:   to   restore   perfect   radiation,   to
+facilitate   soldering,   and   to   remove   obstructions   to   water   circulation.
+Various chemical salts and dirt found in the water of different localities,
+together with grease and oil that find their way into the cooling system,
+collect inside the water passages of the radiator and insulate the water
+from   the   metal   or   stop   circulation.     This   overheats   the   engine.     Rust,
+disintegrated rubber hose, and accumulated deposits from antifreeze or stop­
+leak preparations will have the same effect.   The water passages may be
+cleaned by pressure flushing, boiling, or rod cleaning.   Dust, lint, and
+bugs often adhere to the fin surfaces in sufficient quantity to restrict the
+air flow through the radiator and decrease its efficiency.  Spray cleaning
+is then necessary.
+(1) Flow Testing.
+(a) Before   a   radiator   is   cleaned,   it   should   be   flow   tested   to
+determine   how   badly   it   is   clogged.     The   flow   tester   is   used   for   this
+purpose.  This tester indicates the exact amount of water that
+71

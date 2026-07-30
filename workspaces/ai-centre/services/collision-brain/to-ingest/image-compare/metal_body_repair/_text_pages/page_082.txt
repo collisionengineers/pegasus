@@ -1,0 +1,16 @@
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+which a tube has been soldered for the air hose.  The tool shown in figure
+36 for testing individual tubes, is simply a core shaped rubber stopper with
+a 1/4 inch diameter hole at the large end, increasing abruptly to 1/2 inch
+at the small end.  A brass tube extends through the 1/4 inch opening to the
+beginning  of the 1/2 inch hole.   A washer soldered onto the brass tube
+prevents it from being pushed in further.  The air hose is slipped over the
+tube.   To use the test tool, submerge the core in a test tank, place the
+tool over one end of the tube to be tested, and allow the water in the tube
+to be blown out by the air pressure.  Then, with the radiator level, close
+the   opposite   end   of   the   tube   with   a   finger.     Bubbles   will   then   appear
+wherever the tube leaks.
+FIGURE 36.  TEST TOOL FOR TUBULAR CORES.
+(6) Water Test.   The water test, so called because leaks are indicated
+by escaping water, replaces the air test when equipment is limited, or
+76

@@ -1,0 +1,16 @@
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+a.
+Radiator Construction.
+Automobile, truck, and tractor radiators consist of two water tanks (upper
+and lower) joined by a core which does the actual cooling.  Water from the
+cylinder   block   usually   enters   the   upper   tank   through   the   inlet,   flows
+through the core, and leaves by the lower tank.   An overflow pipe in the
+upper tank carries away excess steam or water.   In the radiator assembly,
+cast metal tanks are bolted to the side members.  Gaskets between the tanks
+and   core   make   a   watertight   connection.     This   type   of   rigid   radiator
+construction is usually used on heavy­duty trucks and tractors.  Figure 34
+illustrates stamped metal radiators that are formed by soldering drawn or
+stamped metal tanks to the radiator core.   The side members are straps of
+steel soldered to upper and lower tanks.
+FIGURE 34.  STAMPED METAL RADIATOR.
+68

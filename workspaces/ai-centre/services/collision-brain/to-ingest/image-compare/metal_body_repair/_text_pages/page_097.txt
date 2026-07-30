@@ -1,0 +1,17 @@
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 3
+FIGURE 39.  PRESSURE­TYPE FUEL TANK FILLER CAP.
+(b) The reverse of this (paragraph 3b(3)(a)) occurs when the tank and
+fuel cool.  Air must be brought in from the outside to replace the area left
+by  the shrinking fuel.   Atmospheric pressure, which is greater than the
+pressure within the tank, forces the inlet vent open, allowing air to rush
+into the tank.  When the tank pressure equals atmospheric pressure, the air
+vent closes.
+(4) Fuel Pickup Connection Plate.  The connection plate is manufactured
+from low carbon steel, coated with lead, and soldered to the tank body.  The
+plate has holes drilled into it and tapped to receive the fuel line pickup
+assembly which is secured in place with screws.
+(5) Fuel Gage Connection Plate.   Construction and method of attachment
+is the same as the pickup plate.
+(6) Drain Plug.  The drain plug is a steel plug with pipe threads.  The
+drain plug fitting is manufactured from low carbon steel coated with 
+91

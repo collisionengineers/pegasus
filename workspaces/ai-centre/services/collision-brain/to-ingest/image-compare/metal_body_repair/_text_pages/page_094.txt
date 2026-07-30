@@ -1,0 +1,18 @@
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 3
+FIGURE 37.  TYPICAL FUEL TANK CONSTRUCTION.
+fuel   tank   used   in   the   Army   are   wheeled   vehicle   tanks   (terneplate),
+fiberglass fuel tanks, cell or bladder­type tanks, and fuel compartments,
+which are part of tracked vehicles.   Terneplate is thin gage, low­carbon
+steel which is coated on both sides with lead.  During its manufacture, the
+steel is run through an acid bath and then through a hot­lead dip.  The lead
+coating adheres to the metal, giving it a tinned coat.   This tinned coat
+prevents rust from forming on the inside of the tank, and also makes repairs
+easier.
+Regardless   of   their   shape   and   size,   all   fuel   tanks   must   be   designed   to
+prevent static electricity and excessive splashing.  Baffle plates are used
+for this purpose.  Figure 38 (on the following page) shows the inside of a
+fuel tank used on a 2 1/2 ton Army vehicle.  Baffle plates are secured to
+the top, bottom, and sides of the tank by spot welding or soft soldering.
+Newer type vehicles being issued to the Army have fuel tank baffle plates
+spot welded to prevent then from breaking loose.
+88

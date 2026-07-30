@@ -1,0 +1,33 @@
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+(1) Visual Inspection.  Deposits of line or magnesia left on the outside
+surfaces by evaporating water indicate leaks in a radiator.  Before removing
+a bad radiator from a vehicle, inspect it for these deposits to determine
+the amount of repair needed.   Experience will teach how to determine the
+true condition of a radiator from observation.  There are at least as many
+leaks as can be seen.  Do not make an air or water test until all the leaks
+indicated by visual inspection have been repaired, because the effectiveness
+of these tests in discovering hidden leaks is lost when they reveal obvious
+leaks.
+(2) Air rest.   The air test, so called because leaks are indicated by
+escaping air, is the most efficient means of locating hidden leaks.  Connect
+an air pressure tube directly or by a nipple to the bottom of the overflow
+pipe.   Screw the cap tightly on the filler neck and plug the inlet and
+outlet with expanding or cup­shaped rubber stoppers.  Immerse the radiator
+in a testing tank, release the air, and trace the bubbles to their source.
+(a) The   most   practical   pressure   for   testing   is   three   pounds   per
+square inch (psi) above normal operating pressure.  Greater pressures will
+damage the delicate construction of radiator cores.  Frequently, leaks will
+appear at low pressure but not at high pressure, which closes the joints
+with accumulated lime and magnesia deposits or with expanded metal.
+(b) The   air   pressure   system   used   by   garages   for   tire   inflation,
+consisting   of   a   compressor,   motor,   pressure   tank,   gages,   and   reducing
+valves, is very satisfactory for radiator testing when the work is enough to
+keep several men busy.   When no compressor is available, an ordinary tire
+pump will supply enough air pressure.
+(3) Testing   Bench.    Since   testing   is   a   dirty   job,   arrange   the   shop
+equipment systematically to minimize disorder.  The testing bench should be
+placed near an air pressure source and water lines, preferably endwise to a
+wall   under   or   just   back   of   a   window,   to   light   the   radiator   adequately.
+Prevent  damaging the radiator by excessive air pressure by using an air
+pressure gage, and be guided by it.
+74

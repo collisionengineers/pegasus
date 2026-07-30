@@ -1,0 +1,9 @@
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 3
+Before  the actual repair of a tank, the vapors must be removed and the
+filler neck cap replaced.  After connecting the air hose to the fuel outlet
+pipe connection and placing the tank in a water vat, observe the tank for
+any leaks (with air pressure set at five psi).  Remove the tank and shut off
+the air supply.  To repair the damaged area, first heat the area, clean or
+wire brush and tin the area, and then solder the leak.  The final step is to
+retest with air to make sure the damaged area was repaired properly.
+95

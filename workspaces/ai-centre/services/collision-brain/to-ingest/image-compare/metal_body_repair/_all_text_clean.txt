@@ -1,0 +1,3062 @@
+
+==================== PAGE 1 ====================
+SUBCOURSE
+EDITION
+OD1653
+7
+METAL BODY REPAIR
+
+==================== PAGE 2 ====================
+
+==================== PAGE 3 ====================
+US ARMY REPAIR SHOP TECHNICIAN
+WARRANT OFFICER ADVANCED COURSE
+MOS/SKILL LEVEL: 441A
+METAL BODY REPAIR
+SUBCOURSE NO. OD1653
+US Army Correspondence
+Course Program
+7 Credit Hours
+GENERAL
+The purpose of this subcourse is to introduce various operations required to
+repair   damaged   vehicles   and   specifically   describe   the   repair   procedures
+required for proper glass, radiator, and fuel tank repair.
+Seven credit hours are awarded for successful completion of this subcourse
+which consists of two lessons divided into tasks as follows:
+Lesson 1: OPERATIONS REQUIRED TO REPAIR DAMAGED VEHICLES AND COMPONENTS
+TASK 1: Describe the operations required to repair damaged vehicles and
+components.
+Lesson 2: OPERATIONS REQUIRED FOR GLASS, RADIATOR, AND FUEL TANK REPAIR
+TASK 1: Describe the operations required for proper glass repair.
+TASK 2: Describe the operations required for proper radiator repair.
+TASK 3: Describe the operations required for proper fuel tank repair.
+
+==================== PAGE 4 ====================
+METAL BODY REPAIR - 0D1653
+TABLE OF CONTENTS
+Section
+Page
+TITLE.................................................................
+i
+TABLE OF CONTENTS.....................................................
+ii
+Lesson 1:
+OPERATIONS REQUIRED TO REPAIR
+DAMAGED VEHICLES AND COMPONENTS.............................
+1
+Task 1: Describe the operations required
+to repair damaged vehicles and components.........................
+1
+Practical Exercise 1..............................................
+48
+Answers to Practical Exercise 1...................................
+50
+Lesson 2:
+OPERATIONS REQUIRED FOR GLASS,
+RADIATOR, AND FUEL TANK REPAIR..............................
+55
+Task 1: Describe the operations required
+for proper glass repair...........................................
+55
+Task 2: Describe the operations required
+for proper radiator repair........................................
+67
+Task 3: Describe the operations required
+for proper fuel tank repair.......................................
+87
+Practical Exercise 2..............................................
+96
+Answers to Practical Exercise 2...................................
+99
+REFERENCES............................................................
+101
+ii
+
+==================== PAGE 5 ====================
+METAL BODY REPAIR - OD1653
+THIS PAGE INTENTIONALLY LEFT BLANK
+iii
+
+==================== PAGE 6 ====================
+METAL BODY REPAIR - OD1653
+STUDENT NOTES
+iv
+
+==================== PAGE 7 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+LESSON 1
+OPERATIONS REQUIRED TO REPAIR DAMAGED
+VEHICLES AND COMPONENTS
+TASK 1. Describe   the   operations   required   to   repair   damaged   vehicles   and
+components.
+CONDITIONS
+Within   a   self­study   environment   and   given   the   subcourse   text,   without
+assistance.
+STANDARDS
+Within three hours
+REFERENCES
+No supplementary references are needed for this task.
+1.
+Introduction
+In   order   to   replace   or   repair   damaged   sections   of   an   auto   body,   the
+technician must begin with a thorough understanding of how the vehicle is
+constructed.   The major elements of auto body construction are therefore
+discussed first in this lesson.  Although the construction of the auto body
+may   seem   complicated,   with   conscientious   study   and   a   sincere   desire   to
+learn, the major principles may be acquired quickly.
+Without   a   clear   understanding   of   the   basics   of   vehicle   construction   and
+assembly, it would be very difficult to follow correct repair procedures.
+Work   improperly   done,   because   of   a   lack   of   knowledge   about   vehicle
+construction, may result in unsafe conditions which endanger the lives of
+drivers and their passengers.
+Vehicle   body   construction   is   a   broad   topic   and   cannot   be   treated
+exhaustively in this lesson.  The mechanic who plans to do major collision
+repair
+1
+
+==================== PAGE 8 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+work should also study body construction diagrams in manuals published by
+the leading auto manufacturers.   Such study, plus repeated examination of
+actual   vehicles,   is   the   best   course   to   follow   in   gaining   a   thorough
+familiarity with vehicle construction principles.
+The successful auto body technician likes to do mechanical work and has the
+ability to plan, step­by­step, each job through completion.  Seldom are two
+jobs the same; so the technician should be creative in planning the work
+procedure.     Because   the   outer   panels   are   shaped   to   relate   to   the   total
+design   of   the   vehicle,   the   technician   must   also   have   an   artistic
+appreciation for the work.  Pride in work is very important in a field where
+a slight imperfection can ruin a whole job.
+Typically, the technician begins by removing trim components, body hardware,
+and accessories in order to gain access to the damaged metal by a process
+called bumping, using dolly blocks and special hammers.  If damage is more
+extreme, hydraulic jacking equipment may be used to align a damaged area.
+Tiny nicks and dents are usually removed with special pick tools.
+Each damaged vehicle presents a special repair problem because of the many
+kinds   of   damage   which   may   occur.     The   technician   seldom   works   at   one
+particular job for any great length of time.  He or she is expected to be
+skillful in many widely different areas of work, and to have the ability to
+see the entire job through to completion.   In order to be successful, the
+technician should have a good understanding of vehicle construction, seeing
+how and why the parts fit together to form the total vehicle body.  Pride in
+workmanship is very important.   Failure to do quality work at any point
+during the repair may cause great problems later on.
+2.
+Body and Frame Construction
+a.
+Body Construction.
+(1) Bodies.   Passenger cars and truck bodies differ a great deal in
+construction because of the different purposes for which they are intended.
+However, each has an inner and outer construction.   Outer construction is
+considered that portion of a
+2
+
+==================== PAGE 9 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+panel or panels which is visible from the outside of the vehicle.  Included
+in the inner construction are all braces, brackets, panels, etc. that are
+used to strengthen the vehicle body.   A general assumption is that inner
+construction cannot be seen from the outside of the vehicle.
+(2) Body Construction.  The main body components are shown in figure 1.
+Cowl or dash panel assemblies for the front end of the body are usually
+formed by assembling several smaller panels.  These are the cowl upper panel
+and the cowl side panels that are joined by welds into one solid unit.  The
+cowl extends upward around the entire windshield opening with the upper edge
+of the cowl panel forming the front edge of the roof panel.   Windshield
+pillars   are   part   of   the   cowl   panel.     They   are   the   narrow   sloping
+constructions   at   either   side   of   the   windshield   opening.     The   cowl   is
+sometimes referred to as the fire wall.   The instrument panel is usually
+considered part of the cowl panel.
+FIGURE 1.  MAJOR SEDAN BODY COMPONENTS.
+3
+
+==================== PAGE 10 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+(3) Roof Panel Assembly.   The roof panel is one of the largest body
+panels, but it is also one of the simplest in construction.  Usually, the
+roof   is   a   one­piece   steel   construction.     Some   Army   combat­type   wheeled
+vehicles have a canvas top.
+(4) Floor Pan Assembly.   The floor pan is composed of several smaller
+panels that are welded together or secured to one another by bolts to form
+one single unit, as shown in figure 2.   Most floor pans are irregularly
+shaped.   They are indented or formed into bends to give strength to the
+entire floor structure.
+FIGURE 2.  FLOOR PAN ASSEMBLY
+(5) Rear Quarter Panel.   The rear quarter panel is an integral part of
+the fender.  The rear quarter panel has both inner and outer construction.
+The   outer   construction   or   outer   panel   is   smooth,   except   for   the   breaks
+caused  by the design of the vehicle.   The inner construction of a rear
+quarter panel is made up of many strong reinforcement brackets welded or
+bolted together to form a single unit.
+(6) Doors.   Doors are composed of two main panels: outer and inner.
+Both panels are normally
+4
+
+==================== PAGE 11 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+of all steel construction.   Doors derive most of their strength from the
+inner panel.  The inner panel acts as a frame for the door.  It is made with
+offsets and holes for the attachment of inner door hardware.   The outer
+panel flanges over the inner panel edges to form a single unit.   It also
+provides an opening through which the outside handle protrudes.   In some
+instances, a separate opening is provided for the lock.
+(7) Deck Lid.   The deck lid is another door that allows access to the
+luggage compartment.  It consists of an outer and inner panel.  These panels
+are spot welded together along their flanged edges to form a single unit.
+b.
+Frame Construction.
+(1) An   understanding   of   the   construction   of   the   frame   is   extremely
+important, since it is the foundation on which the vehicle is built.  Frames
+of all types to fit all conditions are described and illustrated in this
+section.   Frames can be constructed from channel stock, I­beam, angle, T­
+stock, Z­stock, tubing, flat plates, or a combination of any two or more of
+these stocks.  Frames are usually wider at the rear than the front.  This
+permits a shorter turning radius by allowing more room for the front wheels.
+It also allows more space for supported load carrying at the rear.   The
+heaviest  cross member is usually mounted under the front portion of the
+engine.
+FIGURE 3.  PASSENGER CAR FRAME.
+5
+
+==================== PAGE 12 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+(2)
+A typical passenger car frame is shown in figure 3 (on the previous
+page).  This frame has an X­member in the center.  For this reason, it is
+referred to as an X­type frame.   You can also see from this illustration
+what is meant by the term "drop" used in connection with the frame.   The
+main part or center of the frame is dropped down between the front and rear
+wheels.  Repairs to a used body and frame are basically the same as repairs
+to separate body and frame­type vehicles.
+(3) Metal repair procedures and straightening and squaring operations
+all   apply,   including   the   use   of   the   hydraulic   jack   or   other   equipment.
+Avoid concentrating stresses in one spot by the use of blocks or plates of
+wood or metal in order to distribute the force.  Avoid use of flame welding
+in repair, if possible, and do not apply excessive heat to the main frame
+members,   as   annealing   and   loss   of   strength   may   result.     Most   collision
+damage may be repaired by the use of jacks and bumping blocks or irons to
+reshape the damaged panels back to their original form.   Usually, it is
+uneconomical   to   repair   a   body   which   has   sustained   damage   to   the   main
+structural members severe enough to collapse the box section members.
+(4) Surfaces to be welded must be free of dirt to prevent contamination
+of the weld.  Use a wire brush or grinding wheel to remove rust, paint, and
+undercoating.  All repair welding will be done by the electric arc process
+if   possible.     It   is   suggested   that   a   low­hydrogen   electrode,   3/32   inch
+diameter, be used.
+(5) Depending upon individual conditions, spot welds may be repaired by
+drilling out and plug, puddle, skip weld, continuous weld, or an arc bead or
+fillet may be laid along the panel at that point. 
+(6) If   1/4   inch   crown   dimensions   are   exceeded,   crossmembers   must   be
+straightened.   Removal of the engine is necessary.   Straightening can be
+accomplished   with   the   use   of   C­clamps,   hydraulic   body   jacks,   and
+attachments.  Heat should not be applied to aid the straightening process.
+(7) With the exception of light vehicles, commercial vehicle frames are
+usually   built   flat.     Light   commercial   vehicles   are   usually   built   on
+passenger car frames, or on a slightly stronger adaptation of a passenger
+car frame.  Large truck and
+6
+
+==================== PAGE 13 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+bus frames are made flat without any drop, since a flat floor for the cargo
+or passenger carrying space is highly desirable.  A low center of gravity is
+not   as   important   a   consideration   for   commercial   vehicles   as   it   is   with
+passenger cars.
+(8) Separate parts of automobile and truck frames are riveted together.
+Rivets are used because of their structural strength and their ability to
+give with the road condition.  Before attempting to repair any frame, it is
+important to make an inspection to determine what, if any, damage or frame
+misalignment   exists.     Frame   members   often   lose   part   of   their   original
+strength   during   the   straightening   process   as   a   result   of   heating   or
+excessive working to bring the parts back into alignment.   It is possible
+that some frames have inherent weaknesses.  Truck operations may result in
+shock loads which the manufacturer has not anticipated.
+FIGURE 4.  FRAME (CARGO, SHOP VAN, TANKER).
+7
+
+==================== PAGE 14 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+(9) In   these   cases,   the   frame   will   have   to   be   reinforced.     For
+additional   information   on   repair   of   frames,   consult   TB   9­2300­247­40.
+Figure 4 (on the previous page) shows a military truck chassis which is a
+standard frame for the cargo body, shop van body, tanker, repair van body of
+the 2 1/2 ton, 6 x 6 truck.
+3.
+Metal Body Trim and Hardware
+a.
+General.  In the vehicle body, window openings are unsightly when viewed
+from the inside.   They must have decorative trim to give them a finished
+appearance.   In the vehicle body, finishing touches which are put on the
+outside   as   well   as   the   inside   are   called   either   trim   or   hardware.     On
+sedans, in addition to providing eye appeal, some trim is functional as well
+as   decorative   and   contributes   to   the   comfort   and   convenience   of   the
+passengers.
+b.
+Trim.  Moldings, floormats, armrests, head linings, door trim pads, and
+weatherstripping are known as trim.
+c.
+Hardware.    Door   handles,   window   regulator   handles,   locks   and   window
+regulators,   latches,   hinges,   seats,   and   seat   adjustments   are   known   as
+hardware.
+d.
+Grilles.  Grilles are sometimes referred to as trim.  This would make it
+the largest single unit of trim.   Grilles are usually made from several
+pieces of steel which are fastened together by nuts and bolts or by welding.
+In   some   cases,   grilles   are   made   from   cast   aluminum,   white   metal   alloy,
+stainless steel, and steel stampings.  On combat type vehicles, the grille
+is referred to as a brush guard.   This grille (3/4 ton and over) is made
+from low­carbon steel stock and welded in place to form one single unit.
+The 1/4 ton vehicle grille is a one piece steel stamping bolted in place.
+Grilles are usually fastened in place by bolts which attach it to the front
+fenders.   Brackets and supports are also provided which anchor it to the
+frame.  Grilles are also fabricated from fiberglass and laminated material.
+e.
+Moldings.
+(1) Passenger   car   moldings   are   used   freely   both   inside   and   out.
+Moldings differ in type and style 
+8
+
+==================== PAGE 15 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+depending on their use.  Moldings are secured in place by retainers, screws,
+and special clips, except that moldings used around windshields and rear
+windows are held in place entirely by screws.
+(2) Combat­type   vehicle   windows   have   very   little,   if   any,   outside
+moldings.   Attractive appearance is not the main desire of a combat­type
+vehicle.  Camouflage is often necessary during combat and if the vehicle is
+cluttered up with moldings shining in sunlight, troop positions could be
+revealed.
+(3) Generally, the weatherstrip, which secures the windshield glass to
+the vehicle, is channeled to receive the outside reveal molding (the chrome
+strip   on   the   outside   of   the   vehicle   around   the   windshield   glass).     The
+reveal molding is held in place by its own springback after it is inserted
+into the weatherstrip.
+(4) The inside garnish molding, which fits on the inside of the vehicle
+around the windshield glass and other window openings, is fastened in place
+with sheet metal screws.  Another arrangement of windshield installation is
+shown in figure 5.
+(5) Windshields on combat­type vehicles are normally held together by a
+metal frame and sheet metal and machine screws and are attached to the body
+by hinges and brackets.
+FIGURE 5.  CROSS­SECTION Of WINDSHIELD
+WEATHERSTRIPPING AND MOLDING.
+9
+
+==================== PAGE 16 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+(6) Moldings used around the rear windows are usually installed in the
+same manner as the windshields.
+(7) Before moldings can be removed, it is necessary to break the seal
+between the weatherstrip and the body.  This can be done easily by inserting
+a thin knife blade between the weatherstrip and the body, then running it
+along the length of the molding.
+(8) Combat­type vehicles do not use a garnish molding.  The door usually
+is of a one­piece construction.  The door glass has a sheet metal frame that
+goes around it.  The entire unit is secured to the lower glass channel with
+machine screws.
+f.
+Handles.
+(1) On some makes of sedans, the lock on the front door is constructed
+integrally with the door handle push button.   On other makes, the locking
+mechanism is separate from the handle.  A separate opening in the door panel
+is provided for the lock to be installed.
+(2) Outside door handles extend through the outer panel into the inner
+panel where the linkage is connected to operate the latch mechanism.  Door
+handles are fastened in place by means of a machine screw through the inner
+panel.  Combat­type vehicle's outside door handles are fastened in place by
+two screws which are screwed into the outside door panel.
+(3) Inside door handles are held in place by a push­fit pin that is
+concealed under the escutcheon when it is in place.   An internal spring
+allows the escutcheon to be depressed for access to this retaining pin.
+(4) Another type of door handle which is used on some vehicles has an
+integral   handle   and   escutcheon   held   in   place   by   a   spring   retainer   or
+horseshoe clip.
+(5) It is necessary to use a special pair of thin­nose pliers, or a flat
+tool  made for this type of retaining pin, to remove the pin before the
+handle can be removed.
+10
+
+==================== PAGE 17 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+g.
+Door Trim Pads.
+(1) Sedan door trim pads are used to conceal the lower portions of the
+inside panel of doors.  The pads are usually prefabricated and assembled to
+the door as one unit.   They are held in place by sheet metal screws and
+various types of spring clips.
+(2) Combat­type vehicle doors are made in one piece.  The only opening
+in the door (loading hole) is covered by a piece of sheet metal and is
+secured in place by sheet metal screws.
+4.
+Metal Body Tools
+a.
+Hammers.
+(1)
+Dinging hammer (A) (figure 6).  It is a general purpose hammer for
+use on any body panel.   It has a 1 3/8 inch square face and 1 9/16 inch
+round face, and is made from drop forged alloy steel which has been beat
+treated.
+FIGURE 6.  TYPES OF BODY AND FENDER HAMMERS.
+11
+
+==================== PAGE 18 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+(2) Pick Hammer (B) (figure 6 on the previous page).  The painted shank
+of this hammer is used to raise small, low spots when crossfiling.  It has a
+1 9/16 inch round face and a curved shank tapering to a point.  The bullet­
+type pick hammer (not shown) is designed for use on all industrial metal
+finishing and general dinging work.
+(3) Taper Shank Hammer (C).   Designed for the latest metal bodies and
+fenders,   it   is   used   for   reshaping   all   beads,   moldings,   headlamp   insets,
+reveals, and louvers.  It has a wide chisel face for rapid pick surfacing in
+large areas.
+(4) Roughing Hammer (D).  Its curved shank reaches places not accessible
+to hammers of ordinary design, and its round face is ideal for working an
+extra heavy­gage metal.
+(5) Wooden   Mallet   (E).    It   is   for   use   in   connection   with   hot­metal
+shrinking, and for dinging soft metal such as aluminum, copper, and brass.
+It will not chip under ordinary usage.
+(6) Offset Cross­Peen Hammer (F).  Its offset square face affords ample
+clearance   without   danger   of   striking   adjoining   panels.     Its   high   crown
+cross­peen is designed for deep and narrow panels and return contours.  The
+high crown may also be used in conjunction with the shrinking dolly to cold­
+shrink panels or sink welds.
+b.
+Dollys.
+(1) Heel Dolly (A) (figure 7A on the following page).  It is shaped like
+the heel of a shoe, round face on one side and flat on the other.  It may be
+used as a general purpose dolly.
+(2) High Crown (General Purpose) Dolly (B).  It is precision ground for
+high­crown contours and is used in general body repair work.  This tool is
+made from drop forged alloy steel.
+(3) Low Crown Dolly (C).  It is used on all low crown panels.  The hooks
+on the dolly are used on fender beads, drip moldings, and sharp, concaved
+moldings.
+(4) Shrinking Dolly (D).   It is a specially designed combination high
+and low crown dolly.  It has nine distinct contour combinations for hot and
+12
+
+==================== PAGE 19 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+FIGURE 7A.  DOLLYS.
+cold shrinking.  It has wide and narrow trenching grooves for sinking welds.
+(5) Heavy Duty Roughing Dolly (E) (figure 7A).  It has a convenient grip
+and greater height to furnish extra backing for heavy duty hammering.   It
+may be used in place of a roughing hammer for roughing out small dents.  The
+lip at the end of its face is useful for reshaping turned­under flanges.
+c.
+Drip Molding Pliers (figure 7B).  Their accurately formed working faces
+permit extremely rapid roughing out for finishing with a suitable spoon.
+Made from drop forged steel, they are indispensable for pulling out crushed
+drip moldings.
+FIGURE 7B.  DRIP MOLDING PLIERS.
+13
+
+==================== PAGE 20 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+d.
+Body Spoons.  Body spoons are generally used for driving high spots back
+to their normal position without disturbing the surrounding surface.   The
+working surface of each spoon is designed for a specific purpose.  The more
+common varieties of spoons are the following:
+(1) Cowl Bracket (A) (figure 8).  Designed especially to hook over the
+fender brackets, it is used to work over cowl strainers and cowl brackets
+from post to dash and either high or low crown surfaces.  It may be used as
+a dolly, so the wheel can be kept on when reaching a dent.
+FIGURE 8.  TYPES OF BODY AND FENDER SPOONS.
+(2) Double End and Lower Beck Quarter Panel Spoon (B).  It is used for
+removing   dents   on   quarter   panels   around   rear   pillars,   behind   inner
+construction, and behind back panel strainers.  It may be used for removing
+dents from behind sills.
+14
+
+==================== PAGE 21 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+(3) Surfacing Spoon (C) (figure 8 on the previous page).  It is used for
+spring hammering operations with either the mallet or bumping hammer, and
+surface finishing.   It is useful on all fender repairs and on high crown
+areas. 
+(4) Double End Heavy Duty Driving Spoon (D).  This is a general purpose
+utility spoon with a wide variety of uses.  It is used to set inside seams
+of front fenders, bumping top rail panels, headlamp housings, hood louvers,
+and straightening and finishing drip molding and back panels.   It may be
+used for general beasing work, lighting hinge pins, raising low spots, and
+for work around the ventilator in the cowl assembly.
+(5) Caulking Iron (E).   A caulking iron is sometimes called a fender
+beading tool.   It is a specially designed double end, heavy duty beading
+tool used for straightening all reverse bead on fenders with no wire, and
+turned under flanged edges.  It may be used on return flanges or hoods, and
+for aligning inner construction on body panels.  Its hammer pads provide a
+base for hammering operations.
+(6) Double End Door and Side Panel Spoon (F).  Its precision ground face
+sakes it useful as a dolly block in direct hammering.   It is designed to
+reach the hard­to­get places behind inner construction on doors and cowl
+panels.
+(7) Special Door and Side Panel Spoons (G).  The unusual length of this
+spoon,  together with its shape, enables the workman to reach far behind
+construction and remove bumps from doors and trunk lids without cutting out
+the inner construction.
+e.
+File Bolder and Blade.
+(1) Adjustable File Bolder.   This tool quickly adjusts from an extreme
+concave to an extreme convex profile.  It has maximum utility for filing a
+wide   variety   of   contours:   round   oval   corners,   upper   and   lower   bracket
+panels, cowls, hoods, and top rail panels.  It is used for flat work, high
+and low crowns, and on sweep surfaces.
+(2) Vixen File Blade.   This blade is detachable from the holder and is
+different from any other type file.   These blades are accurately machined
+with unbroken cutting edges about 1/8 of an inch 
+15
+
+==================== PAGE 22 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+apart.   Each cutting edge is curved with the cutting edge on the convex
+side.  This blade has the cutting edges on each side, and the teeth run in
+opposite directions of each other to allow the blade to be turned over when
+one side becomes dull and unusable.
+(3) Maple Solder Paddle.  This paddle is made from maple wood because it
+does not split as easily as other woods.  It is used to shape hot solder to
+the desired shape.  It is used with motor oil, beeswax, or tallow to prevent
+the hot solder from sticking to the face of the paddle. 
+5.
+Metal Body Equipment
+a.
+Hydraulic Body Jack (figure 9 on the following page).
+(1) Types.
+(a) Direct   Acting   Jack.    This   type   jack   has   the   power   unit   or
+hydraulic pump integral with the ram.  The action may be only one direction,
+or it may work in either direction, push­pull.
+(b) Remote Controlled Jack.   In this type jack, the hydraulic power
+supply   is  separated   from  the   ram  unit   of  the   jack.    The  two   units  are
+connected by a reinforced rubber hose.
+(2) Remote Controlled Jack Components.
+(a) Pump (B) (figure 9).  It is hand­operated, with all controls on
+the unit.  The pump also serves as the reservoir for hydraulic oil.  The oil
+level should be periodically checked.
+(b) Ram   (V).    Threads   on   the   ram   are   for   attaching   other   jack
+attachments.   If the jack is used without attachments, a thread protector
+must be used on the top of the ram body.
+(c) Flexible Rubber Heads (K).   Two sizes of rubber heads suit most
+body needs.  Rubber heads are generally used on dry painted surfaces because
+they will not slip or mar the surface.  These heads should not be used in or
+near oiled surfaces as they can slip and cause further damage.   Internal
+threads are provided for other jack attachments.
+16
+
+==================== PAGE 23 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+FIGURE 9.  HYDRAULIC BODY JACK AND ATTACHMENTS.
+(d) Chain Pull Plate (E) (figure 9).  This plate is used in most pulling
+operations.   The plate has internal threads with slots on both sides for
+securing chains.  It attaches to the ram body.
+17
+
+==================== PAGE 24 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+(e) Slip Lock Extension (F) (figure 9 on the previous page).  This tool
+gives six inches of prompt adjustment in pushing out large areas.  A double
+friction   lock   holds   securely   at   desired   lengths,   and   is   adjusted   by   a
+convenient double trigger release.
+(f) Rocker Spoon (G) (figure 9).  Specially designed for body work, it
+is   held  and   locked  in   place  by   a  hexagon   pin.    It  may   be  set   in  many
+different positions.  The selection of the spoon position is governed by the
+curvature of the body, the body bend or dent, and amount of working space. 
+(g) Spreading Wedge (H).   This tool is used for forcing out large or
+small   concave   areas   and   can   be   closed   to   one   inch   and   opened   to   three
+inches. 
+b.
+Electric Disk Sander.   The disk sander may be used to remove paint,
+reveal low spots, shape the contours of areas built up with solder, sand
+down welds, remove excess solder, remove rust, and remove deep scratches by
+using a fine abrasive sanding disk.   It may be equipped with a flexible
+grinding wheel to serve as a grinder on thick sections of metal.
+(1) Backing Plate.  In most grinding, the disk is placed directly on the
+slightly flexible backing plate.   Hard rubber and plastic can be used as
+backing plates.  If a 9 inch sanding disk is used, it should have a 7 inch
+backing plate.  The 7 inch backing plate will allow the 9 inch sanding disk
+outer edge to be cut down when it has become worn, increasing the disk life.
+Sanding disks are secured in place by a flat plate nut that is screwed onto
+the motor drive shaft and permits easy installation and removal of the plate
+nut when changing torn or worn­out disks.
+(2) Sanding Disks.
+(a) The coating abrasive disk does the cutting.   Selection of the
+right grit and coating for each job is important.
+1 Five   different   minerals   are   commonly   used   for   manufacturing
+abrasives.   Three of these, garnet, flint, and emery, are natural mineral
+abrasives.  The other two are aluminum oxide and silicon carbide.
+18
+
+==================== PAGE 25 ====================
+METAL BODY REPAIR - OD1653 - LESSON l/TASK 1
+2 Garnet,   a   semiprecious   jewel,   is   the   most   important   of   the
+natural minerals.
+3 Emery   and   flint   break   down   easily   and   are   better   suited   for
+household use than for industry. 
+4 For dry sanding, high quality hide glues are used for anchoring
+abrasive grains to the disk backing.   For wet sanding, resins are used as
+the bonding agent.
+(b) Coated abrasives fall into two additional classifications, based on
+how widely the minerals are spaced.  If the minerals are close together, it
+is referred to as close coat.   If the minerals are widely spaced, it is
+referred to as an open coat.
+(c) Close coat abrasives are applied in such quantity as to completely
+cover the backing.
+(d) Open coat abrasives are applied so as to cover from 50 to 75 percent
+of the backing.
+(e) The   open   coating   provides   increased   pliability   and   good   cutting
+speed   under   light   pressures.     Open   coated   abrasives   are   used   where   the
+surface being ground is of such nature that closely spaced abrasive minerals
+would   rapidly   fill   up,   such   as   sanding   paint   or   wood.     Following   is   a
+suggested use of three of the most common disks.
+1 The No. 24 disk is coated with a coarse open coat abrasive.  It
+must be used with reasonable caution to prevent making deep scratches in the
+surface.   This disk is most generally used in rough sanding surfaces that
+have been painted.   Sand until a small volume of sparks is noticed coming
+from beneath the disk; when these appear, stop sanding. 
+2 Close coat No. 36 disk is used for several purposes in the body
+shop.  It is most generally used for removing welds and in place of the body
+file in revealing high and low spots in the bumping operations.
+3 Close   coat   No.   50   disk   has   only   one   function:   performing
+finishing operations on metal surfaces such as steel and soldered panels.
+This disk will remove scratches left by No. 24 and No. 36 sanding disks.
+19
+
+==================== PAGE 26 ====================
+METAL BODY REPAIR - ODl653 - LESSON 1/TASK 1
+(f) When  operating   the   sanding   machine,   hold   it   as   flat   as   possible
+without allowing the drive shaft nut to come in contact with the surface
+being ground (figure 10).   Hold the sander so that only 1 1/2 to 2 1/2
+inches of the outer edge of the disk is in contact with the surface being
+ground.  The sander must never be tilted so that only the edge of the disk
+contacts the surface.   Failure to observe this will cause gouges or deep
+scratches in the metal that will be hard to remove.  Move the sander from
+left to right, overlapping the previous stroke with each new stroke.  Make
+the cutting lines as clean and straight as possible.  Move the sander in the
+same   manner   whether   you   are   removing   paint,   rough­grinding,   or   finish
+sanding.
+FIGURE 10.
+CORRECT AND INCORRECT METHODS OF
+USING THE ELECTRIC SANDER.
+6.
+Measurement Principles
+a.
+Damage to the body's inner construction or to the frame of a vehicle can
+be severe but not be apparent.  Failure to check for and correct such damage
+can   result   in   poor   fitting   doors,   hoods,   or   fenders;   faulty   steering
+control; and many other problems.  The possibility of these faults makes a
+20
+
+==================== PAGE 27 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+number   of   measurements   necessary   throughout   the   correction   of   collision
+damage.  The measurements taken generally are not necessarily made in inches
+or feet, but rather are comparative measurements in which one measurement is
+compared, by means of a body tram, to another that should be equal (figure
+11).
+FIGURE 11.  COMPARATIVE MEASUREMENTS.
+Vehicle bodies are regarded as having two sides which are exactly the same.
+Therefore, if only one side is damaged, it can be compared with measurements
+taken on the undamaged side.  There is more to comparative measurement than
+comparing a damaged panel with a similar but undamaged panel.   Occasions
+will   arise   when   both   sides   of   a   vehicle   are   damaged,   and   it   will   be
+impossible to compare one side with the other.
+b.
+Comparative Measurement.
+(1) A   metal   picture   frame   is   represented   by   (A)   (figure   11)   with
+opposite sides of equal length.  Therefore, the diagonals X and Y are equal.
+21
+
+==================== PAGE 28 ====================
+METAL BODY REPAIR - OD1653 - LESSON l/TASK 1
+(2) If   the   square   is   distorted,   as   shown   in   (B)   (figure   11   on   the
+previous page), the diagonals are no longer the same length; Y is no longer
+than X.
+(3) If this figure frame (B) is visualized with movable corners, it can
+be seen where pressure must be applied to make it square; at the corners of
+the Y diagonal.
+(4) The original length of either the sides or diagonals need not be
+known.    By making comparative measurements of the diagonals, it will be
+shown that when they are again equal, the frame is again perfect as it was
+in (A).
+(5) In (C), it is possible for the diagonals to be the same if the
+distortion   is   exactly   at   the   mid   point   of   side   (A).     Therefore,   by   a
+comparison of sides, (A) can be straightened until both side (C) and side
+(A) are the same length.   These illustrations show how it is possible to
+align a body or frame by measuring the body or frame alone.
+FIGURE 12.  DIAGONALS OF CUBES ARE 
+ALWAYS OF EQUAL LENGTH.
+22
+
+==================== PAGE 29 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+(6) When an entire section of a vehicle is knocked out of alignment,
+another   aspect   of   X­checking   measurement   must   be   considered.     The   body
+proper can be considered as a cube.   It is a simple matter to determine
+whether or not a cube is square by checking the diagonals from opposite
+corners as shown in figure 12 on the previous page.
+(7) The   diagonals   checked   should   be   from   one   corner   of   the   box   to
+another so that they cross in the exact center of the cube.
+(8) This   same   principle   can   be   applied   to   measuring   the   cube­like
+sections of an automobile body.
+(9) This method of checking can also be applied to checking one section
+with another section.
+7.
+Body and Fender Repair Techniques
+a.
+General.   Restoring vehicle body panels of sheet metal to their normal
+contour after they have been damaged is referred to as metal bumping or
+dinging.  Every job involved in metal bumping, requires fine handwork.  To
+become   a   good   metal   body   repairman,   mastery   of   each   phase   of   work   is
+required.  In collision work, use of the hammer is one of the most important
+functions.
+b.
+Analyzing Damage.
+(1) The  ultimate   success   of   any   collision   repair   job   depends   on   the
+accuracy of the analysis of what is damaged and how it occurred.  Collision
+work must be approached on this basis, but goes a step further.  Not only
+must you first determine what is wrong, but you must establish how it got
+that way and the order in which it happened.
+(2) Although the straightening of body panels and fenders comprises the
+greatest   volume   of   collision   work,   collision   damage   also   occurs   to   the
+mechanical   parts   of   the   vehicle.     The   repair   of   mechanical   parts   is   an
+important   part   of   the   total   repair   of   collision   damage.     When   you   are
+finished repairing a vehicle damaged in collision or one that has turned
+over,   it   must   run   well,   it   must   steer   well,   the   brakes   must   operate
+properly, and all of the electrical units must be in operating condition.
+Although the correction of mechanical
+23
+
+==================== PAGE 30 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+difficulties caused by the collision involves other skills and techniques
+than are practiced by the collision expert, he cannot ignore them and must
+provide for their correction.
+(3) Each   part   of   the   damage   occurred   in   a   certain   order.     It   is
+necessary   to   correct   it   in   the   reverse   order   of   the   way   in   which   it
+occurred.   Studying the damage permits you to reconstruct the sequence of
+events which caused the damage, thereby providing the proper order in which
+the damage should be corrected.
+c.
+Roughing and Aligning.
+(1) After analyzing the damage, the next step in body and fender repair
+is metal bumping (roughing) which is the important unlocking and unrolling
+operation.   If this is done carelessly or hurriedly, new lines of strain
+will probably be set up, stretching and bending the metal at such sharp
+angles   that   a   further   rearrangement   of   the   displaced   fibers   will   be
+impossible.
+(2) Before repairing fenders, scrape off any tar, gravel, or road dirt
+underneath the damaged part.   Any dirt left on the underside will cake on
+the dolly block, so that hammering smooth will be impossible.
+(3) The outside surface of the damaged fender or panel is then wiped
+with a rag which has a small amount of thin motor oil soaked into it.  This
+removes dust and grit which would otherwise stick to the hammer face and
+hinder the worker from securing a smooth surface.  The light reflected from
+the oiled surface shows the extent and depth of the various bumps.
+(4) Since metal bumping and finishing are simply a matter of hammering,
+it should be learned at the outset how to use the hammer and dolly.   The
+simple secret is to make every blow of the hammer strike the metal directly
+above the dolly or spoon.
+(5) A simple application of the use of a hammer and dolly block is shown
+in figure 13 (on the following page).  The downstroke of the hammer drives
+the high spot down onto the face of the dolly block, smoothing the metal.
+The   dolly   block   absorbs   the   shock   of   the   hammer   blow   and   prevents   the
+damaged metal from being driven down too far.
+24
+
+==================== PAGE 31 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+At the same moment, the dolly block bounces away from the under surface of
+the damaged metal and quickly rebounds against the low spots, raising them
+before  the next stroke of the hammer.   With free whipping blows of the
+hammer on the outside surface of the metal, the two handtools rapidly smooth
+the rough spot.
+FIGURE 13.  USING HAMMER AND DOLLY.
+(6) Never grip the dolly tightly or apply any great amount of pressure
+on it, because the important automatic bounce and rebound of the dolly will
+be lost.  Most repairmen naturally develop a rhythm of 60 to 150 successive
+hammer blows per minute as they become skillful.  Bumping is only a matter
+of hammering the high spots down and bringing the low spots up until the
+damaged metal is again even in contour.  Putting the high metal down first
+is very important.
+(7) Figure 14 (on the following page) illustrates a simple damage which
+may occur to an outer door panel.  The arrow indicates the direction of the
+damaging force.  X marks the outer rim of the damaged area, and Y marks the
+point of impact of the hub.  The line XY represents a cut at the bottom of
+one of the V­channels.  Z marks the flanged edge of the panel which has been
+bent sharply by the panel's collapse.  It is also locked.
+25
+
+==================== PAGE 32 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+FIGURE 14.  SIMPLE DAMAGE.
+(8) Since ridge X is clearly the last created in the damage, it is the
+first strain to be unlocked.   Place a low­crown dinging spoon on it (1)
+(figure 15 on the following page) and hammer the spoon sharply, directing
+the blows straight at the ridge.  This unlocks the high metal and moves it
+back toward its original position.
+Next, ding the flange corner Z, unlocking it.  The areas of metal between 0
+and Y and between Y and Z are now lying unlocked, ready to spring back to
+normal shape with very little help.   Give this help with a medium­crown
+dolly block (2) (figure 15), unrolling the wave with two or three blows on
+the under side from 0 through Y.   This unlocks the kinked metal at the
+bottom of the V­channel OY.  Repeating this procedure from Z to Y restores
+the metal to the position shown in (3) (figure 15).
+(9) Figure 16 (on page 28) illustrates the error of roughing out the
+same damage without first releasing the locked ridges.  In (1) (figure 16),
+the caved in metal is being roughed out by striking the underside at Y with
+a dolly.   This forces up a large area of the dent to nearly its normal
+shape.  Note, however, that the strain in the ridge X has not been unlocked;
+the ridge does not come down to its normal place, but instead pulls the
+panel   down   abnormally   at   H.     This   happens   because   the   locked   ridge   X
+reinforced and strengthened the metal on either side of it.  Therefore, when
+force is applied upward at Y, the ridge acts as a fulcrum, pulling the metal
+down at H as it is forced up at Y. 
+26
+
+==================== PAGE 33 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+FIGURE 15.  REMOVING SIMPLE DAMAGE CORRECTLY.
+(10) Now that roughing out has been started without releasing the locked
+ridge, the metal must be stretched to raise it to its original level as
+indicated by the dotted line.  So much force is now required to bring it up
+to place that it bumps and knots wherever it is struck by the dolly block,
+as shown in (2) (figure 16 on the following page).   Equalizing all these
+bumps and knots means a lot of work.  In (3) (figure 16), the dent has been
+roughed out and the hammer and dolly are in place to start smoothing.
+(11) In (4) (figure 16 on the following page), the dent is restored to a
+normal shape.   Note, however, that it is a new shape.   Not only has time
+been wasted in unplanned bumping, but the metal has been stretched, as shown
+by the dotted lines, so 
+27
+
+==================== PAGE 34 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+FIGURE 16.  REMOVING SIMPLE DAMAGE INCORRECTLY.
+that   the   entire   width   of   the   panel,   instead   of   only   the   damaged   area,
+requires metal finishing.
+(12) Alignment   is   squaring   the   damaged   body   of   a   motor   vehicle   by
+restoring its correct shape and dimensions.  Misalignment may be checked by
+observation, but measurements are more accurate.
+(13) The   best   measuring   method   of   checking,   known   as   X­checking,   is
+simply   an   application   of   the   principle   that   the   diagonals   of   a   true
+rectangle are equal in length.   Some areas that must be checked, such as
+door openings, the front section (area between the cowl hinge pillars), and
+the center section (area between the central pillars), are not in themselves
+square, but
+28
+
+==================== PAGE 35 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK I
+rectangles may be laid within them which provide good diagonal tests.
+(14) The measuring device, called a tram (figure 17), is a telescoping
+tube equipped with an extension clamp which fixes it as the measurement of
+one diagonal for comparison with another.
+FIGURE 17.  TRAM.
+(15) Since most severe collisions distort the frame as well as the body
+of  the motor vehicle, the frame must be checked and straightened first.
+Divide it into three rectangles, using as corners the front and rear spring
+shackles as in figure 18 (on the following page).
+Then lay the tram at diagonal AB'; clamping it at the exact length of the
+diagonal.  Remove the tram and check A'B to see whether this length is the
+same.  In the same way check BC' against B'C and CD' against C'D.  If there
+is   any   deviation   of   measurements,   do   not   check   body   alignment   until
+corrective forces have been applied to bring the frame into line.
+29
+
+==================== PAGE 36 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+FIGURE 18.  X­CHECKING FRAME ALIGNMENT WITH TRAM.
+(16) Misalignment of a door opening in a body is generally checked by the
+fit of the door.  However, it may also be checked by the tram as shown in
+figure 19 (on the following page).  Measurements are taken by marking off a
+distance X along the center pillar from B to C and a distance Y along the
+body sill from B to A.  Set the tram with its ends on points A and C and
+compare this length with similar points on the undamaged side of the vehicle
+or  on a similar vehicle.   Any misalignment of the door opening will be
+indicated by the necessity of resetting the tram.
+(17) If both sides of the vehicle are damaged, lay out a rectangle such
+as A B C D which is shown in figure 19, in a correctly aligned door opening
+of a similar vehicle.  Then measure the distance X and Y and transpose these
+measurements to the door opening of the damaged vehicle.  If the diagonals A
+C and B D are not equal, the door opening is out of alignment.
+(18) After   the   door   openings   on   both   sides   of   the   vehicle   have   been
+checked, measure the front section in the same manner.  In this measurement,
+the same points, A and D as before, are used together with points F and E in
+corresponding positions on the opposite door openings, to form the corners
+of a rectangle (figure 20 on the next page).   The diagonals A E and D F
+should be equal.  If they are not, the misalignment must be corrected before
+other checks are made on the body. 
+30
+
+==================== PAGE 37 ====================
+METAL BODY REPAIR - D1653 - LESSON 1/TASK 1
+FIGURE 19.  X­CHECKING DOOR OPENING ALIGNMENT WITH A TRAM.
+FIGURE 20.  CHECKING FRONT­SECTION ALIGNMENT.
+31
+
+==================== PAGE 38 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+(19) Because the front section is logically divided into two rectangles,
+one above the instrument panel and one below, each of these should next be
+tested   separately   to   determine   whether   the   instrument   panel   is   in   line
+(figure 21).  This time, points G and E are located at corresponding top­
+hinge bolt heads on the opposite cowl hinge pillars.  The test is now made
+just as before with the tram, which this time should show diagonals E G and
+D H to be equal, and G F and A H to be equal.
+FIGURE 21.  CHECKING INSTRUMENT PANEL ALIGNMENT.
+(20) The center section is tested twice.  First points I and J (figure 22
+on the following page) are located on the opposite door corresponding to
+points C and B of the door opening test.  The diagonals B I and C J must be
+equal.   Then points K and L are located at corresponding locations in the
+middle of the center pillar, such as the pressed molding in the body panel.
+If the tram shows B L and J K to be equal, center alignment is satisfactory.
+32
+
+==================== PAGE 39 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+FIGURE 22.  CHECKING CENTER­SECTION
+ALIGNMENT.
+(21) The last test to be made in a coach­style body is a check of the
+front section against the center section (figure 23).  For this test, no new
+points need be located; the tram is merely used to compare measurement A I
+and C F and B E against D J.
+FIGURE 23.
+CHECKING ALIGNMENT OF THE
+FRONT SECTION AGAINST THE
+CENTER SECTION.
+33
+
+==================== PAGE 40 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+(22) To correct collision damage in a motor vehicle, it requires a strong
+force opposite to the direction of the impact.  Powerful portable jacks have
+been developed to replace crowbars, planks and other makeshifts that were
+used for years to force damaged frames and bodies back into shape.   The
+portable hydraulic jack shown in figure 24 is capable of exerting a 10 ton
+force.  It consists simply of a hydraulic cylinder connected to a hand pump
+through   a   hose.     It   is   provided   with   attachments   for   pushing,   pulling,
+bending,   clamping,   or   spreading,   which   can   be   used   singly   or   in
+combinations.
+FIGURE 24.  PORTABLE HYDRAULIC JACK.
+Before using the jack, size up the job to determine the direction of the
+damaging force.  If the frame has been twisted, align this first, removing
+the body if necessary.  Make a setup using the ram and its attachments to
+apply hydraulic force, reversing the force of the damaging impact.
+To   operate   the   jack,   insert   the   handle   into   the   pump   beam   either
+horizontally or vertically.  Close the release valve, turning it by hand as
+far as possible to the right.  The downstroke of the
+34
+
+==================== PAGE 41 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+handle forces oil through the hose to the ram, causing the plunger to travel
+outward under pressure.  To release the pressure, turn the release valve on
+the side of the pump to the left.
+d.
+Hammer Finishing.
+When a fender or body panel is formed, the shape of the die is transferred
+to the sheet metal.  Later, if the panel becomes bent, creases in the panel
+tend to hold it out of shape.   Nevertheless, most stresses transferred to
+the metal when it was formed on the body are still in the panel.  When the
+stress of the crease is relieved, the panel will return to its original
+shape by itself.  Since the metal will try to return to its original contour
+of   its   own   accord,   it   must   be   determined   what   is   preventing   it   from
+returning.    Usually, it will be found that a crease has been formed by
+impact.   This crease may exist in the panel, or it may be found that a
+crease in the inner construction is preventing the panel from returning to
+its original contour.  If the metal is hammered excessively, it will become
+stretched.   For this reason, it is important that each job be approached
+with the idea of relieving the strain that is holding the damaged area out
+of position.   Light hammer blows will not displace the metal as much as
+heavy blows.  Several well placed light blows are more effective than one or
+two hard blows.  Each well directed blow of exactly the right force is an
+effort toward permitting the metal to attain its original contour.   Each
+misplaced blow, or a blow harder than required, may create additional damage
+which must be corrected.
+(1) Direct Hammering.
+(a) Small pimples may be removed by direct hammering.  Figure 25 and
+26   (on   the   following   page)   show   how   the   dolly   block   is   held   for   this
+operation, as well as the relationship of the hammer to the dolly.
+(b) Before using the dolly and hammer together, it will be necessary
+to clean the underside of that portion of the fender on which work will be
+performed.  Body panels and some fenders may be covered with sound­deadening
+material   (undercoat)   that   must   be   removed   prior   to   dinging.     Deadening
+material may be pads or mats of a felt material glued in place, or heavy,
+tar­like, black material
+35
+
+==================== PAGE 42 ====================
+METAL BODY REPAIR - OD1653  - LESSON 1/TASK 1
+that has been applied in a semifluid state.   This material may have been
+brushed or sprayed on the panel and later dried.  In addition, the underside
+of fenders, hoods, or bodies may be undercoated.   This deadening material
+must be cleaned from the metal before working with the hammer and dolly.
+FIGURE 25.
+HOLDING DOLLY CORRECTLY WHEN
+HAMMERING DIRECTLY.
+FIGURE 26.
+POSITIONS OF HAMMER AND DOLLY
+WHEN DIRECT HAMMERING.
+36
+
+==================== PAGE 43 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+(c) In direct hammering, the displaced metal will be pushed back to
+its original contour, by using a dolly that matches the original contour
+under the damage and striking the damage with a hammer.  The dolly provides
+support and prevents the undamaged areas from being pushed out of place.  If
+the metal is not struck squarely over the dolly, the metal will have no
+support, creating damage which later must be corrected.
+(d) Start by using light blows that show if the metal is being struck
+squarely over the dolly block.  Let the dolly lay in the hand and grip the
+hammer loosely.  When the first pimple has been eliminated, move to the next
+one, until all have been removed.  Two things occur with each hammer blow:
+1 The hammer bounds of its own accord, making it ready for the
+next stroke.
+2 The hammer blow on top will drive the dolly block away from
+the fender; the normal resiliency of the arm will bring it back, striking a
+blow on the metal from underneath.  These actions occur normally only if the
+hammer and dolly block are held loosely.  The importance of this springback
+of the dolly becomes apparent as shown in indirect hammering.
+(2) Indirect Hammering.
+(a) Metal   that   has   not   been   excessively   hammered,   displaced,   or
+stretched will have a tendency to return to its original contour of its own
+accord.   This is due to the internal stress imparted to the metal by the
+forming   dies.     If   the   metal   is   prevented   from   springing   back   by   other
+strains imparted to it by additional bends or creases, the metal is restored
+to normal contour by relieving whatever new stress is holding it out of
+position.
+(b) In   bumping   or   dinging,   this   is   accomplished   by   relieving   the
+stress   with   indirect   hammering.     Figure   27   (on   the   following   page)
+illustrates a cross section of a damaged area in which sharp creases have
+been formed all around an area and another sharp crease has been formed in
+the   low   spot   of   the   damaged   area.     The   procedure   employed   in   indirect
+hammering   is   to   hold   a   dolly   having   the   correct   contour   to   match   the
+original contour of
+37
+
+==================== PAGE 44 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+FIGURE 27.  POSITION OF THE DOLLY WHEN
+INDIRECT HAMMERING.
+the metal at the low spot, and to strike a series of light blows around the
+outer creases.
+(c) The corrective action is as follows: 
+1 A light blow will not displace the surrounding undamaged area,
+but   the  force   of  the   blow  will   be  transferred   to  the   dolly  block.     In
+effect, this pushes the bent portion downward and straightens it.
+2 As a result of receiving the hammer blow indirectly, the dolly
+block will be pushed away from the low part of the damage.   However, it
+impacts a light push upward on this area.  Knocked away from the fender, the
+workman's hand will automatically bring it back in place, imparting a second
+light blow to the area.  As work progresses, using light hammer blows around
+the outer edge of the damage, the center of the damaged area slowly rises
+until the original contour is restored.
+(3) Spring Hammering.
+(a) When a crown is formed in metal, it becomes strong and resists
+any   change   to   its   shape.     It   can   be   compared   to   an   arch   used   in   the
+construction of a building or bridge.   The strength of this arch or crown
+can,   in   many   instances,   be   used   to   support   the   surface   being   hammered
+without the use of a dolly.  This is called spring hammering.
+38
+
+==================== PAGE 45 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+(b) Creases in metal, at points where it is impossible to back up the
+hammer with a dolly block, can often be corrected by this method.  To take
+advantage of a greater amount of the natural support provided by the crown
+of the metal, the force of the hammer blow is spread over a large area with
+a spoon.   The spoon is placed lengthwise over the ridge of the crease or
+other high spot and struck a series of light blows with the hammer until the
+unwanted stress is relieved and the raised portion is back to its original
+shape or position.
+FIGURE 28.  SPRING HAMMERING USING A SPOON.
+(c) In this method of hammering, no hammer marks are formed on the
+metal since all of the blows are on the spoon rather than on the metal
+(figure   28).     Once   the   metal   is   back   to   its   original   crown,   additional
+hammering will cause the surface to sink below its original contour line,
+and it may not be brought back readily.  Always start with light blows and,
+as the job nears completion, inspect the contour after each blow.  This will
+reduce the possibility of sinking the hammered surface too low.
+(4) Pick Hammering.  Pick hammering is one of the most difficult jobs to
+master.  You will need a lot of practice before you can make competent use
+of this tool.
+39
+
+==================== PAGE 46 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+(a) A  pick  hammer  is  used to  bring up  low  spots,  particularly in
+areas   which   have   been   badly   creased   or   stretched   and   have   lost   their
+tendency to return to their normal contour.  Figure 29 illustrates examples
+of pick hammering employed to raise low spots.  As a rule, the pick hammer,
+working from the underside of the metal, is used to hit the center of low
+spots three­eighths of an inch or less in diameter.
+FIGURE 29.  EXAMPLES OF PICK HAMMERING.
+(b) The pick, being sharp, stretches the metal and forms a pimple on
+the surface.  At the same time the pimple is formed, the metal immediately
+surrounding it, though not displaced or stretched, is raised.  It is obvious
+that accuracy in the use of the pick hammer is of the utmost importance.
+e.
+Metal Shrinking.
+(1) General.  When body panels and fenders are formed in dies under high
+pressure, the sheet metal is stretched and drawn, then compressed.  This
+40
+
+==================== PAGE 47 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+displaces the molecules of metal.  The high pressure of the press squeezing
+the  metal locks the molecules in a new position.   They will resist any
+subsequent force which tries to change their arrangement.   Metal has some
+elasticity;   that   is,   metal   can   be   bent   or   twisted   without   permanent
+disarrangement of the molecules.   When the force thus applied is removed,
+the elasticity of the metal will cause it to resume the shape that it had
+when the molecules of the metal were locked together in the dies.  The body
+repairman must avoid destroying this natural tendency of the metal to return
+to its original shape.  This is not always possible in collisions where the
+normally smooth surface is badly creased.   Creases represent a portion of
+the metal that has been distorted beyond its elastic limit and in which the
+molecules have been displaced.   They are no longer locked together in the
+same arrangement that was given to them in the forming die.
+(2) Hot Shrinking.
+(a) Hot shrinking is a simple process, but it requires careful timing
+and proper tools.   Tools required are those which are used for many other
+operations in body work; i.e., a welding torch that is equipped with the
+same size tip as used for welding the thickness of sheet metal being worked
+on; a body hammer or mallet; shrinking dolly; a container of water, and a
+sponge or rag.
+(b) Arrange the tools so they are within easy reach.  It is necessary
+to change quickly from one tool to another when performing shrinking work.
+(c) Locate the highest point in the stretched section of the panel
+with which you are working.  Light the torch and heat a spot the size of a
+nickel in the center of the high spot (A) (figure 30 on the following page)
+to a bright red.  Use a circular motion when heating the spot, being careful
+not to burn through the metal.  As soon as the spot is bright red, place the
+shrinking dolly under the spot and strike it several sharp blows with a
+hammer or mallet (B).
+(d) After   driving   the   center   down,   hold   the   dolly   block   loosely
+against the underside of the panel and exactly centered under the hotspot.
+The hammer blow must hit the spot accurately and with sufficient force to
+push the metal down while it
+41
+
+==================== PAGE 48 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+is still hot.  After four or five hammer blows, the heated spot will turn
+black.   Quench it immediately with water and a rag or sponge.   Quenching
+with water will complete the shrinking operation.   Repeat this operation,
+taking the next highest spot in the stretched section of the panel, using
+the sequence shown in figure 31.
+FIGURE 30.  UPSETTING A STRETCHED AREA
+FOR SHRINKING.
+FIGURE 31.  SEQUENCE OF SHRINKING METAL.
+(e) In case of a long narrow stretch caused by a sharp object rubbing
+across the surface, start at one end and heat a spot to a bright red, three
+inches long, in the bottom of the crease.  While the spot is bright red, use
+a body hammer to raise the metal above the surface of the panel.  Repeat
+42
+
+==================== PAGE 49 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+the above operation until the entire crease has been raised, then shrink
+following the procedure as explained above.
+(f) When   performing   a   shrinking   operation,   exercise   care   to   avoid
+overshrinking the panel.  This will cause the metal to warp and buckle both
+in and out of the stretched area.   However, if this condition does arise,
+heat a small spot in the area where the panel is buckling, apply a dolly
+block or spoon with enough pressure to hold the buckling section up, and
+allow the metal to cool.  Do not use the hammer or water in this instance.
+In   extreme   cases,   it   may   become   necessary   to   repeat   this   operation   in
+several different places in the warped area.
+(g) Aluminum shrinking follows the same general procedure as steel.
+Care must be used to avoid burning through the metal at point of contact
+with the flame because this metal absorbs heat much more rapidly than steel
+and does not change color under heat.  Care must be taken when using water
+as a quenching media because there is a chance the metal will crack when
+cooled too quickly.  Just as soon as the metal starts to blister where the
+flame contacts the metal, the flames must be removed, and hammering done
+quickly with a wooden or fiber mallet.
+(h) Certain rules should be observed at all times during shrinking
+operations.  They are:
+1 Never quench a red hotspot.  Wait until the metal has turned
+black.
+2 Never heat an area greater than that where pressure can be
+applied at one time with the hammer and dolly.
+3 Never   use   anything   but   an   acetylene   torch   for   heating   a
+stretched section.
+4 Never attempt to shrink a panel until it bas been roughed out.
+5 Never apply heat to a low spot for shrinking.  Hammer it out,
+then apply the beat.
+6 If the stretched part of the surface is small, heat a smaller
+spot.
+43
+
+==================== PAGE 50 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+7 It   is  possible   to  shrink   metal  without   quenching  each   spot
+with water.  However, the shrinking operation is much faster if each spot is
+quenched with water.  Less heat spots are required if the heat expansion is
+drawn out by quenching, rather than by additional spots.
+(3) Cold Shrinking.
+(a) The shrinking dolly is formed so that two sides of it have a low
+crown radius, with the two ends being concave.
+(b) The hammer used is the offset crosspeen.  The hammer is similar
+to other hammers except that one end of the head is shaped to exactly fit
+the concave contour of the shrinking dolly.
+(c) After a weld has been made, it sometimes becomes necessary to
+sink the weld.   The concave portion of the dolly block is placed directly
+underneath   the  weld.     A   blow  is   then  struck   with  the   peen  side   of  the
+hammer, driving the weld down so that a valley is formed.  This depression
+is made the entire length of the welded joint and later filled with body
+solder or filler.
+(d) To cold shrink a panel, place the shrinking dolly under the high
+spot and form a concave bead or valley as previously outlined in paragraphs
+7e(3)(a) through (c) above.  Move the dolly along slowly in a straight line
+beneath the high spot and strike the outside surface with the hammer.
+Do   not   make   the   bead   any   longer   or   deeper   than   necessary   to   draw   the
+stretched metal back to its normal contour.  It may be necessary to make an
+X­shaped bead.  The X­shaped valley is made the same way as a single valley
+except that a second one is made at right angles to the first one.
+(e) When shrinking aluminum, it may be better to cold shrink instead
+of hot shrink.  The procedure for cold shrinking aluminum and steel are the
+same.
+f.
+Body File.
+(1) A body file is used for many things: to remove paint, smooth metal,
+find low spots, remove excess solder, quickly remove aluminum, and to form
+the correct contour of areas that have been built
+44
+
+==================== PAGE 51 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+up with solder.  The gage of metal on sedan bodies is as light as practical,
+and  every precaution must be taken not to file or grind away any metal
+unnecessarily.  When removing high spots by grinding or filing, care must be
+taken not to cut through or weaken the part.
+(2) Using the file is a two hand job.  One hand is used to hold the
+file handle (figure 32), the other is used to grasp the file around the
+saddle at the opposite end of the handle.
+FIGURE 32.  BODY FILE.
+(a) The file blade is fastened to the holder with the cutting edges
+of the teeth facing away from the handle.  Adjust the contour of the file
+holder so that it almost, but not quite, matches the contour of the surface.
+45
+
+==================== PAGE 52 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+(b) Place the file on the work.   With a straight stroke, push the
+file away from you, holding it at an angle of 30 degrees in relation to its
+line of travel.  If the file digs in, you are putting too much pressure on
+it.   At the end of the first stroke, raise the file and bring it back to
+where you started and make a second stroke.  Remember to raise the file at
+the end of each stroke.  It should not be pulled back over the metal because
+dragging will tend to dull the file blade.
+(c) By filing in the above manner, the file marks are parallel and
+have removed all of the paint, and probably some of the metal, from the work
+in the filed area.  This type of filing is referred to as line filing.  The
+term "line filing" means all the strokes, and consequently, all of the file
+marks, are in the same direction.
+(d) Now change the direction of your file strokes so they are about a
+45 degree angle from the previous direction.   This is referred to as X­
+filing.  When the file is moved so that you are X­filing, you may find that
+the contour of the area differs slightly.  If this is true, adjust the file
+holder again to nearly, but not quite, match the contour.  Then go over the
+entire area once lightly.  You will now find that the new file marks cross
+the original file marks at a 45 degree angle and that these two sets of file
+marks form a series of innumerable X's from which the term "X­filing" is
+derived.  X­filing or cross­filing is necessary to establish or maintain a
+contour that curves in more than one direction; whereas, line filing is used
+on more simple surfaces.  When filing, it is always a good plan to make a
+few cross or X­strokes occasionally to make sure that you are not destroying
+a   secondary   contour   in   the   metal.     This   is   particularly   important   when
+filing areas that have been built up with solder or other material.
+(3) When using body files on epoxy fillers, ensure that the fillers are
+thoroughly cured or the file will clog and gouge the surface.
+8.
+Conclusion
+Knowledge of the metal body repair procedures described in this subcourse
+task should provide a strong basis for being able to perform repair on
+46
+
+==================== PAGE 53 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+the various vehicles and trucks in the U.S. Army inventory.   Most of the
+repair  procedures for collision work involve removal and installation of
+various   body   parts,   panels,   and   accessories.     Some   require   complete
+disassembly before repair can properly be performed.  As previously stated,
+without a clear understanding of the basics of automobile construction and
+assembly it is very difficult to follow correct repair procedures.  In the
+next lesson, you will learn the specific repair procedures for repairing
+glass, radiators, and fuel tanks.
+47
+
+==================== PAGE 54 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/PE 1
+PRACTICAL EXERCISE 1
+1.
+Instructions
+Read the scenario and respond to the requirements that follow the scenario.
+2.
+Scenario
+You have been assigned to an Intermediate Direct Support (IDS) unit just
+outside Frankfurt, Germany.   For one of your functions in this unit, you
+serve as the officer­in­charge of the service section.
+A report of survey has just been completed on a military sedan that was
+involved   in   a   collision.     Due   to   a   shortage   of   vehicles   within   this
+particular user unit, the decision was made to repair the automobile instead
+of applying code­H to the vehicle.
+Though you are in the process of receiving additional body repairmen, you
+find out that these men are from a reserve unit.  Before assigning any of
+the reservists to work on the damaged sedan, you decide to test them on
+various operations required to repair a damaged vehicle.
+3.
+First Requirement
+Using your knowledge of metal body repair and this subcourse, prepare an
+answer   sheet   for   the   questions   listed   below   regarding   the   procedures
+required to repair damaged vehicles.
+a.
+Why do passenger car and truck bodies differ in construction?
+b.
+What body panel assembly is usually the largest vehicle panel, and also
+the simplest in construction?
+c.
+What is a deck lid commonly called?
+d.
+What stocks are automotive frames usually constructed from?
+e.
+What   are  the  two   most  common  tools   used  to  remove   paint,  rust,  and
+undercoating?
+48
+
+==================== PAGE 55 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/PE 1
+f.
+Describe a "drop" frame.
+g.
+Is it economical to repair a body which has sustained damage to the main
+structural members severe enough to collapse the box section member?
+h.
+What item is NOT recommended as an aid in straightening crossmembers: C­
+clamps, heat, hydraulic jack, or attachments.
+i.
+What is the primary reason rivets are used to connect separate parts of
+automobile and truck frames?
+j.
+What vehicle hardware is normally referred to as trim?
+k.
+Weatherstripping is normally used to secure windshield glass within the
+roof panel assembly.  How are the windshields of combat­type vehicles held
+in place?
+l.
+A dinging hammer is a general purpose hammer principally used on what
+automotive panel?
+m.
+Name the hammer that is used to raise small, low spots when crossfiling.
+n.
+Describe the shape of a roughing hammer.
+o.
+What alloy is the high crown dolly made from? 
+p.
+On what parts of the vehicle will the hooks on the low crown dolly
+normally be used?
+q.
+What   tool   is   used   for   removing   dents   on   quarter   panels   around   rear
+pillars, behind inner construction, and behind back panel strainers?
+r.
+What is another name for a caulking iron?
+s.
+Name the two types of hydraulic body jacks.
+t.
+What hydraulic jack component gives 6 inches of prompt adjustment when
+pushing out large areas.
+u.
+Five different minerals are commonly used for manufacturing abrasives
+used with sanding disks.  Name these abrasives.
+v.
+Name the body shop applications for using a close coat No. 36 sanding
+disk.
+49
+
+==================== PAGE 56 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/PR 1
+w.
+What sanding disk is used to remove scratches left by No. 24 and No. 36
+sanding disks?
+x.
+Restoring vehicle body panels of sheet metal to their normal contour
+after they have been damaged is normally referred to as what?
+y.
+When   using   a   dolly,   what   is   lost   if   it   is   gripped   tightly   or   held
+against the body panel with a great amount of pressure?
+z.
+What is the measuring device which is a telescoping tube equipped with
+an extension clamp which fixes it as the measurement of one diagonal is made
+for comparison with another?
+aa. When the stress of a crease in a body panel is relieved, is it normal
+for the panel to return to its original shape by itself?
+bb. When   hammer   finishing,   are   several   well   placed   light   blows   more
+effective than one or two hard blows?
+cc. Before using a dolly and hammer together to correct damage to a fender,
+what must be done first?
+dd. Name the tools normally used when performing hot shrinking of metal. 
+ee. Aluminum   shrinking   follows   the   same   general   procedures   as   steel.
+However, care must be exercised to avoid burning through the aluminum.  Why
+is it easier to burn through aluminum than steel?
+ff. As a general rule, a red hotspot should not be quenched.   When is it
+safe to quench a hot spot?
+gg. As   a   general   rule,   is   it   correct   to   apply   heat   to   a   low   spot   for
+shrinking?
+hh. Name the hammer that is most often used when performing cold shrinking
+operations.
+ii. When shrinking aluminum, which is the better process: cold shrinking or
+hot shrinking? 
+jj. When using body files on epoxy fillers, why is it necessary to ensure
+that they are thoroughly cured?
+50
+
+==================== PAGE 57 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/PE 1
+kk. What is the purpose of tinning a metal surface?
+ll. Before a solder paddle is applied to hot solder, it should be covered
+with what to prevent the hot solder from sticking to it?
+mm. When using 30/70 solder in a paddle soldering operation, what do these
+numbers represent?
+51
+
+==================== PAGE 58 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/PE 1
+LESSON 1.  PRACTICAL EXERCISE ­ ANSWERS
+1.
+First Requirement
+a.
+The purpose that each is intended to be used for is different.
+b.
+The roof panel assembly.
+c.
+Trunk.
+d.
+(1)
+Channel stock
+(2)
+Angle
+(3)
+T­stock
+(4)
+Z­stock
+(5)
+Tubing
+(6)
+I­beam
+(7)
+Flat plates
+(8)
+A combination of any two or more of the above stocks
+e.
+(1)
+Wire brush
+(2)
+Grinding wheel
+f.
+The main part or center of the frame is dropped down between the front
+and rear wheels.
+g.
+No.
+h.
+Beat.
+i.
+Rivets are used because of their structural strength and their ability
+to give with the road condition.
+j.
+(1)
+Moldings
+(2)
+Floor mats
+(3)
+Armrests
+(4)
+Head linings
+(5)
+Door trim pads
+(6)
+Weather stripping
+k.
+Combat type vehicle windshields are held together by a metal frame and
+sheet metal and machine screws, and are attached to the body by hinges
+and brackets.
+l.
+Body panels.
+m.
+Pick hammer.
+52
+
+==================== PAGE 59 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/PE 1
+n.
+A curved shank with a round face.
+o.
+Forged alloy steel.
+p.
+(1)
+Fender beads
+(2)
+Drip moldings
+(3)
+Sharp, concaved moldings
+q.
+Double end and lower back quarter panel spoon.
+r.
+Fender beading tool.
+s.
+(1)
+Direct acting jack
+(2)
+Remote controlled jack
+t.
+Slip lock extension.
+u.
+(1)
+Garnet
+(2)
+Flint
+(3)
+Emery
+(4
+Aluminum oxide
+(5)
+Silicon carbide
+v.
+(1)
+Removing welds
+(2)
+Revealing high and low spots in bumping operations
+w.
+Close coat No. 50.
+x.
+Metal bumping or dinging.
+y.
+Automatic bounce and rebound of the dolly.
+z.
+The tram.
+aa.
+Yes.
+bb.
+Yes.
+cc.
+The   underside   portion   of   the   fender   being   worked   on   must   first   be
+cleaned.
+dd.
+(1)
+Welding torch
+(2)
+A body hammer or mallet
+(3)
+Shrinking dolly
+(4)
+Container of water
+(5)
+Rag or sponge
+ee.
+Aluminum absorbs heat far more rapidly then steel and does not change
+color under heat.
+ff.
+When the metal hotspot has turned black.
+53
+
+==================== PAGE 60 ====================
+METAL BODY REPAIR - OD1653 - LESSON 1/PE 1
+gg.
+No.  It should be hammered out before heat is applied.
+hh.
+Offset crosspeen.
+ii.
+Cold shrinking.
+jj.
+If the epoxy has not thoroughly cured, the body file will clog and
+gouge the surface being worked on.
+kk.
+The process of tinning prepares a surface for receiving and holding
+solder.
+ll.
+A light coat of oil.
+mm.
+Solder composed of 30 percent tin and 70 percent lead.
+54
+
+==================== PAGE 61 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 1
+LESSON 2
+OPERATIONS REQUIRED FOR
+GLASS, RADIATOR, AND FUEL TANK REPAIR
+TASK 1. Describe the operations required for proper glass repair.
+CONDITIONS
+Within   a   self­study   environment   and   given   the   subcourse   text,   without
+assistance.
+STANDARDS
+Within one hour
+REFERENCES
+No supplementary references are needed for this task.
+1.
+Introduction
+The   many   glass   sections   found   in   modern   vehicles   are   meant   to   give   the
+driver and passengers a clear view of the traffic and surroundings.  It is
+hazardous to drive a vehicle which has cracked or fogged glass.  Broken or
+faulty  glass not only obstructs visibility, but sudden fragmentation may
+cause   serious   injury   to   the   car's   occupants.     Cracked   and   broken   glass
+sections   are   very   common,   and   the   auto   body   technician   will   encounter
+replacement jobs often.
+The glass used in automobiles differs greatly from conventional types of
+glass.  Automotive glass must furnish clear, undistorted visibility as well
+as  meet certain safety standards.   The visibility feature of auto glass
+refers   to   freedom   from   distortion.     The   glass   must   furnish   a   clear   and
+unobstructed   view   from   all   angles.     Making   such   glass   requires   special
+technology and very close tolerances.   The early automobiles did not have
+such glass, and poor visibility was often a cause of accidents.
+55
+
+==================== PAGE 62 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 1
+2.
+Glass ­ Composition and Characteristics
+Glass   at   ordinary   temperatures   is   rigid,   not   easily   corroded   except   by
+hydrofluoric acid, and is comparatively resistant to abrasion.  Like wax, it
+becomes softer and more pliable as the temperature rises.  Salt water has a
+chemical or abrasive action on glass that causes a frosted appearance after
+sufficient   exposure.     It   is   only   slightly   porous   and,   therefore,   easily
+cleaned.  Glass is not entirely colorless.  The ability of glass to transmit
+light and offer protection against air, water, and dust makes glass one of
+the most important automotive materials.  Glass is only slightly less strong
+than   some   grades   of   cast   iron.     But,   it   is   far   more   brittle,   and   any
+external force will set up stresses within it that will be retained for some
+time.  Any force added to these retained stresses may cause a break.  This
+property is a great aid in cutting sheet glass.  Glass is made by combining
+a silicate such as common sand, and alkali such as sodium carbonate, and
+either lead or lime.  It is commonly classified as lead glass or lime glass.
+a.
+Lead Class.   This glass has the higher luster but is more brittle and
+more easily scratched.   It is used principally for optical and decorative
+purposes.
+b.
+Lime Glass.   Only lime glass is used for automotive work.  Because the
+available supply of silicate, alkali, and lead or lime is not usually pure
+or  readily usable, carbon, arsenic or other substances must be added to
+purify them and assist them in combining.  Substances such as iron, copper,
+or   chromium   may   also   be   added   to   change   the   color,   hardness,   or   other
+properties.    These solid components, melted together, form liquid glass.
+When its impurities rise to the surface, the molten glass is drawn off and
+allowed to harden.  A sheet of glass is generally a large, flat piece having
+no particular shape.  When the term is applied to laminated glass, it means
+one of the layers.  Laminated glass is sold in cut, rectangular sheets from
+4 by 18 to 24 by 56 inches, called blocks.  About 50 square feet, weighing
+approximately 200 pounds, are ordinarily packed together and are known as a
+box.
+56
+
+==================== PAGE 63 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 1
+c.
+Types of Glass.
+(1) Plate Glass.  Plate glass is poured on a flat heated surface, cooled
+until   it   becomes   plastic,   and   then   rolled   to   about   twice   the   thickness
+intended for the finished plate.   After rolling, it is slowly cooled or
+annealed, and when cold it is ground with sand and polished smooth and flat.
+Modern glassmaking is a continuous process in which glass comes out between
+rollers in a continuous ribbon.  The ribbon is not cut until it is cold and
+ready for grinding.  Grinding and polishing make the surface more porous and
+less resistant to attack by acids, alkalies, and (of special importance)
+salt   water.     It   must   be   handled   carefully   and   kept   clean;   crayon   marks
+imbedded in its pores cannot be completely removed.   Plate glass may be
+tempered to make it harder and more shock resistant.
+(2) Window Glass.   Window glass is blown or poured into sheets of the
+desired thickness, then annealed and cut to the desired size.  Unlike plate
+glass, it is never ground or polished.   The surface therefore is somewhat
+less porous than plate glass and more resistant to scratches and salt water,
+but it is slightly wavy.  Like plate glass, it may be tempered.  Tests show
+that plate glass is markedly superior to window glass in motor vehicles for
+reducing fatigue and eye strain and increasing the ability to judge distance
+and to read road signs.
+(3) Tempered Glass.  Tempered glass is made by reheating plate or window
+glass until it is somewhat soft, and cooling it quickly in a bath of hot oil
+or against a cold metallic surface.   It will then withstand heavy impacts
+and great pressures.   However, a comparatively light blow with a pointed
+object will break it because of the internal stresses caused by the sudden
+cooling,   and   it   may   fly   apart   violently   when   broken.     Because   of   these
+internal stresses, it cannot be cut or ground, but is shaped when soft.
+Rear windows, particularly curved ones, may be tempered glass.
+(4) Bulletproof Glass.  Bulletproof glass has very limited uses.  It is
+very thick, usually 3/4 inch, and resists bullets.  They may, however, chip
+or crack it.  Bulletproof glass and curved glass,
+57
+
+==================== PAGE 64 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 1
+which are seldom used by the Army, are not ordinarily cut except in shops
+especially equipped for that purpose.
+(5) Laminated Safety Class.  Glass that breaks into small, sharp pieces
+is   dangerous   to   use   for   windows   in   motor   vehicles.     Manufacturers   have
+therefore   developed   laminated   safety   glass,   which   is   built   up   like   a
+sandwich with a sheet of tough plastic material bonded between two sheets of
+glass.  If this glass breaks, the plastic stretches when hit, serving as a
+cushion and holding the sharp glass fragments firmly.  Except for its safety
+feature, laminated safety glass has the same properties as the glass from
+which it was made.  It is used for replacement of practically all flat glass
+in Army motor vehicles, such as windows and windshields.
+d.
+Removal of Vehicle Glass.  When removing broken glass, carelessness can
+result in cuts from sharp edges or flying particles of glass.  By careful
+removal, the old glass can be used as a pattern for the cutting of new glass
+for the vehicle.   The method of removing glass will vary according to the
+make   and   model   of   the   vehicle.     All   Army   combat­type   vehicles   have
+windshield and door glass enclosed in protecting metal channels or frames.
+(1) Combat­type   vehicles   (3/4   ton   and   larger)   windshield   hinges   are
+composed of a rolled strip attached to the underside of the top of the outer
+windshield frame and a similar roll on top of the individual metal frame of
+the windshield.  To separate them (when the windshield is open), slide the
+entire metal frame of the windshield glass sideways off the vehicle.  They
+are reinstalled in the reverse order.
+(2) Glass that is installed in channels or frames is removed with a
+channel vise.  The vise has rubber padded jaws to hold the glass securely
+and an adjustable lever to pull the channel from the glass without cracking
+or breaking the glass.  Careful removal of old glass is the best source of
+obtaining accurate patterns.  It is necessary to have patterns where glass
+installation is concerned.   After a pattern is made, it should be plainly
+marked according to make and model and kept for further use.
+58
+
+==================== PAGE 65 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 1
+e.
+Glass Cutting.   Glass cutting is divided into three operations.   They
+are: making the cut, cracking the cut, and cutting or melting the plastic.
+The   first   two   are   the   most   difficult,   since   they   consist   of   setting   up
+stresses in the glass to guide the crack and applying forces that cause it
+to break along the line of these stresses.  Any other stresses may cause the
+crack to travel away from the desired line.   Stresses can be set up by
+supporting the glass on an uneven surface or by applying pressure to an edge
+or corner which is unsupported.
+(1) A cutting bench made of wood or steel can be used as a support.
+Plywood is an ideal top for a cutting bench.  The bench must be covered with
+a cloth cover which is soft enough to prevent scratching, yet hard enough to
+support the glass rigidly.  The top of the bench should be larger than the
+largest piece of glass to be cut.   For a shop that does much cutting, a
+revolving pattern table is ideal.   With a revolving top, the workman can
+stand in one position while cutting a door glass.  As he comes to a curve in
+the pattern, he rotates the table, eliminating the need for moving around
+and varying the cut.  Smoother cuts can be made and it is easier to get the
+top cut directly above the inner cut.  The cutting bench should be located
+where the temperature is the most constant.  Sudden temperature changes will
+almost certainly result in breakage of the glass; therefore, the bench must
+not be located where drafts will occur. 
+(2) Glass should be stored vertically in bins.   Each size should be
+stored in a separate bin and labeled.  A sheet of paper placed between each
+sheet of glass will prevent scratching of the surface.
+(3) A hardwood ruler, wider and thicker than an ordinary yardstick and
+usually 60 inches long, is used as a straightedge and measuring device.  A
+small   flange   at   one   end   may   be   hooked   over   an   edge   to   eliminate   the
+necessity of holding that end.  This ruler is marked in eighths of an inch.
+(4) The common glass cutter has a sharp, hardened steel wheel mounted on
+a pin in a steel or wood handle.  Handles vary in size and length according
+to requirements.  They can be procured in the single or multiple wheel­type.
+Diamond­tip cutters are also used by large organizations where
+59
+
+==================== PAGE 66 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 1
+all types of glass are handled.  The wheel­type is best suited for cutting
+laminated safety glass.   To keep the cutter in good condition when not in
+use, immerse it in a mixture of kerosene and oil.  This mixture keeps the
+cutter clean and allows the wheel to turn freely on its shaft at all times.
+When cutting glass, first make sure it is thoroughly cleaned.   The glass
+surface should first be wiped around the cutting line with kerosene.  This
+serves as a solvent and cleans the cutting area of grease, oil stains, and
+other   contaminants.     The   kerosene   will   also   help   eliminate   much   of   the
+flaking from the cut.
+(5) Hold the cutter between the index and second fingers.   This holds
+the cutter firmly, and there is no tendency for it to rock back and forth as
+pressure is applied.  Let the last three fingers of the cutting hand rest on
+the glass which is being cut or on the surface of the cutting table.  This
+will steady the hand and increase accuracy.  It is also less tiring.
+(6) Make certain that the glass has been warmed before cutting.  Glass
+is much easier to cut and less likely to break when warm.  If glass is taken
+from a cold room, place it near a warm stove or warm radiator for 5 to 10
+minutes before it is cut.   When cutting, do not press hard on the glass.
+For best results, exert just enough pressure to make a fine line cut.  Too
+much pressure causes flaking and may destroy the cut.  Chips are often minor
+runs, but may become cracks in the glass later on.  The glass should be cut
+the exact size of the pattern and finished 1/32 of an inch smaller.  This
+enables the glass to have ample room between the glass runs.  Push or pull
+the cutter.  In following a straight edge or a pattern thick enough to serve
+as a guide for the cutter, it is better to pull the cutter.  However, when
+you must guide the cutter by watching a pattern placed under the glass, you
+will find it easier to push the cutter.   This enables you to follow the
+pattern without having the cutter itself hiding it.  In cutting combination
+safety glass, it is best to cut the heavy glass first, making certain that
+you run it clear through its thickness.  Then cut and run the thinner glass.
+(7) After making the cut, it must be cracked immediately or the cut will
+heal, making the cracking operation difficult if not impossible.
+60
+
+==================== PAGE 67 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 1
+(8) Laminated safety glass must be cut and cracked on each side.  When
+making the cut on the opposite side, the pattern may be removed.  The cut is
+then made on the other side directly over the first cut.
+(9) The following steps should be taken when cutting curved windshields:
+(a) The outboard light (outer layer) should always be cut first.  To
+cut the inboard light (inner layer), turn the curved windshield over with
+the outboard light facing the table.  Before cutting, support both sides of
+the curved windshield to prevent sagging.
+(b) A windshield body opening improperly aligned after an accident
+requires special care in trimming glass for replacement.
+(c) After making the score, or cut, use glass pliers with several
+thicknesses of cloth between the jaws.  This will distribute the pressure to
+the radius of the glass.  With a little practice, it will be found that a
+curved windshield is as easy to cut as flat safety glass.
+f.
+Plastic Cutting.  When cutting the plastic between the sheets of glass,
+the following procedures should be observed:
+(1) After the cut has been made and cracked, it will become necessary to
+heat the plastic so that it can be cut or separated from the two pieces of
+glass.  This can be done by one of the following methods:
+(2) A tank or vat of hot (not boiling) water into which the piece of
+glass can be immersed and left for a short time (2 minutes) will cause the
+plastic to melt (do not place cold glass in hot water).  Allow the glass to
+reach room temperature (70 degrees F) before dipping.
+(3) Any liquid which will dissolve plastic may be used to dissolve the
+plastic between safety glass sheets.  Methanol (alcohol) has been found to
+be best.  After both sides of the glass have been cut and cracked, methanol
+is poured or squirted
+61
+
+==================== PAGE 68 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 1
+into the crack and left to set for approximately two or three minutes.  A
+slight pressure downward is applied, separating the two pieces of glass.
+(4) In the hot wire method, a coil of wire 1/4 inch in diameter and 72
+inches long (the wire is 1/16 inch in diameter) is heated electrically.  It
+is laid along the crack and covered with notched asbestos and lead weights.
+One lead from the 110 volt circuit switch is permanently connected to one
+end of the wire.  The other lead is attached by a clip to a selected point
+on the wire and the switch turned on, heating the wire to a bright red.  The
+heated plastic softens and the waste glass drops from its own weight.  Waste
+pieces less than an inch wide may have to be removed with glass pliers.
+(5) Common  difficulties   in   the   hot   wire   method   are:   bubbling   in   the
+plastic, caused by too hot a wire or too long a heating time; separation of
+glass sheets along the edge of the cut, caused by stretching the plastic
+excessively; and chipping along the cut, caused by bending the waste strip
+up and down, rather than pulling it straight out. 
+g.
+Glass Grinding and Finishing.   The grinding machine is equipped with a
+chute   which   is   set   so   the   silicon   carbide   abrasives   flowing   onto   the
+roughing wheel will hit the wheel at the edge of the recess.  Place a small
+quantity   of   silicon   carbide   grains   in   the   chute   and   saturate   them   with
+water.  Then let a continuous trickle of water run onto the grains to carry
+a sufficient amount of grains onto the face of the wheel.  The corners of
+the glass should not be cut too close to the outline of the pattern.  A more
+accurate fit can be made by using the grinding wheel or belt edger on curved
+surfaces.
+h.
+Grinding.  The silicon carbide abrasive grains do the cutting (grinding)
+and can be reused.   New silicon carbide should be added at the ratio of
+about   two   pounds   to   each   1000   inches   of   glass   beveled.     Before   reusing
+carbide or mixing with new carbide, it is advisable to wash the old carbide
+to remove all foreign matter.  This foreign matter should then be strained
+through ordinary window screen to remove any large chips of glass.
+62
+
+==================== PAGE 69 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 1
+(1) To prevent the abrasive grains from the cast iron wheel being flung
+over  the shop area, it is suggested that a rubber inner tube be tacked
+around   the   inside   of   the   roughing   box   (about   one­half   inch   above   the
+roughing wheel).   This allows free passage of glass beyond edges of the
+roughing box for working edges of bevels without interference.
+(2) If glass is to be rough ground oily, seam or chamfer both sharp
+edges first; then run glass across the wheel from left to right, holding the
+glass perfectly vertical if a flat edge is desired.  Do not seam or chamfer
+the edge first, but simply roll the glass back and forth as it is being
+drawn from left to right, from an angle of about 45 degrees away from you to
+straight up.  Do not roll the glass all the way toward the operator as this
+will chip the glass edge.  When rounded on one side, turn the glass around
+and   repeat   the   operation.     Use   the   full   face   of   the   wheel   to   prevent
+grinding grooves in the face.   When grooves form in the wheel, the wheel
+should be replaced. 
+i.
+Installing Glass.
+(1) Glass,   in   terms   of   its   installation,   is   either   stationary   (the
+windshield, some quarter windows, and the rear window) or it is moveable
+(door window, tailgate window and some quarter windows).  In addition to the
+customary care one must take when handling glass, to protect it from impact,
+there are several general precautions which should be observed whenever a
+replacement is to be made.
+(a) Check Parts.  Be certain that the replacement part is the correct
+part.  The size and contour of the glass must be an exact fit in the opening
+into which it is to be installed.  Thus, it pays to take the time to verify
+the piece before starting the job.
+(b) Use   Protective   Covers.    Over   all   adjacent   body   surfaces,   to
+minimize  clean­up and avoid damage to paint finishes and fabrics, use a
+cover.   These covers may also serve as a protection against chipping the
+glass or otherwise damaging the edges. 
+(c) Inspect Hardware.  Inspect for bends or obstructions in the pinch
+weld flanges, glass run channels, frames, regulators, or whatever components
+may be involved in holding or moving the
+63
+
+==================== PAGE 70 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 1
+glass.  Any indication of damage should be corrected before the replacement
+glass is installed, including dents in the body where the hardware fits.
+(2) Windshield Removal and Installation, Truck 1/4 ton.
+(a) Remove windshield weatherstrip filler (figure 33).
+FIGURE 33.  EXPLODED VIEW OF 1/4 TON WINDSHIELD.
+(b) After the outer weatherstrip filler has been removed, remove the
+glass from the weatherstrip.  Care must be taken to avoid injury from sharp
+edges if the glass has been broken.
+(c) Inspect the windshield frame assembly for dents, distortion, and
+broken conditions.
+64
+
+==================== PAGE 71 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 1
+(d) Replace the weatherstrip assembly, glass weatherstrip, and outer
+weatherstrip   filler   if   they   are   deteriorated,   hardened,   or   excessively
+damaged.
+(e) To  replace  windshield  glass,  soap flange  of frame  with  liquid
+soap and install glass weatherstrip over the flange of the windshield frame.
+Position the windshield glass in the upper left corner of the weatherstrip.
+Continue guiding the glass in place in the weatherstrip, using a screwdriver
+to slip the upper portion of weatherstrip over the glass.   Position the
+windshield glass so the trade name reads right side up.
+(f) To   make   the   installation   of   the   glass   weatherstrip   fillers
+easier, dip the strips into a solution of soapy water.
+(g) Insert the end of the weatherstrip filler through the loop end of
+the tool and, using a screwdriver, insert the end of the filler into the
+weatherstrip at the upper right.  When the end of the filler strip has been
+pressed in, proceed to pull the tool around the windshield until the entire
+strip has been inserted.
+(3) Truck, 3/4, 2 1/2, and 5 Ton.
+(a) Remove  the  four  round  head screws,  four lockwashers,  and  four
+hexagon plain nuts holding inner frame upper left and right crosspieces.
+Remove   crosspieces   with   attached   inner   corner   plugs.     Spread   each   inner
+frame side and bottom frame just enough to loosen safety glass and remove.
+Discard old tape.
+(b) Inspect  the  windshield  frame  assembly for  cracks or  damage  to
+inner   or   outer   frame   or   damaged   or   loose   adjusting   arms.     Replace   any
+irreparable parts.
+(c) To install new glass, place tape on the glass and secure with
+masking tape.   Oil glass channels and slide the glass and tape into the
+channel.  When finished, the oil will cause tape to swell, thereby making a
+watertight seal.  Reinstall the top crosspiece and replace the screws.
+(4) Safety Precautions.   Glass handling Operation can be very arduous
+unless certain safety
+65
+
+==================== PAGE 72 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 1
+procedures   are   strictly   adhered   to.     The   following   precautions   are
+recommended:
+(a) Always wear safety goggles and gloves of the approved type whenever
+you are handling broken glass.
+(b) Discard any removed broken glass in a proper manner.   A separate
+trash can for broken glass is recommended.  Its contents should be clearly
+marked.  Never allow scattered broken glass in the immediate work area.
+(c) Advise other workers or bystanders in the area of safety precautions
+before attempting to remove broken glass.
+(d) Never use compressed air to blow away fragments of broken glass.
+Small   fragments   of   glass   can   become   embedded   in   the   skin.     A   shop
+(industrial   type)   vacuum   cleaner   should   be   used   to   remove   fragments   of
+broken glass.  If a vacuum cleaner is not available, an oil soaked rag aids
+in picking up small fragments of broken glass.
+(e) Removed glass, which is to be reinstalled, should be stored in a
+safe place.  A special storage area, away from the work area, will prevent
+accidental breakage.
+(f) Never use excessive heat near any part of the auto body where there
+is glass. 
+(g) Grinding or drilling glass is a specialized occupation.  It should
+never   be   attempted   by   persons   who   are   not   familiar   with   the   proper
+procedure.
+3.
+Conclusion
+This   task   introduced   the   specific   operations   required   to   repair   glass,
+including safety precautions to follow when working with glass.   The next
+task will focus on procedures to be followed in order to repair radiators.
+66
+
+==================== PAGE 73 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+LESSON 2
+OPERATIONS REQUIRED FOR
+GLASS, RADIATOR, AND FUEL TANK REPAIR
+TASK 2. Describe the operations required for proper radiator repair.
+CONDITIONS
+Within   a   self­study   environment   and   given   the   subcourse   text,   without
+assistance.
+STANDARDS
+Within one hour
+REFERENCES
+No supplementary references are needed for this task.
+1.
+Introduction
+The   radiator   of   a   motor   vehicle   is   an   essential   element   of   the   cooling
+system.     It   must   function   correctly   if   the   engine   is   to   escape   serious
+damage from overheating.   An engine is cooled by circulating water which­
+passes through the cylinder block.  It draws out the heat and then releases
+it   to   the   air   while   flowing   through   the   radiator.     Therefore,   if   this
+circulation   is   hindered   or   the   water   leaks   from   the   radiator,   immediate
+repairs must be made to protect the engine.   Most radiator failures are
+caused  by vibration, freezing, disintegration, strain, or collision.   In
+tubular cores, worn or frozen tubes, broken solder between tubes and header
+plates, and cracked header plates are the most frequent causes of trouble.
+Honeycomb cores usually leak in the seams at either the soldered offsets or
+the header strips.   Tank leaks are few, but they may appear at unsoldered
+joints, cracked or worn spots, or fittings.
+67
+
+==================== PAGE 74 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+a.
+Radiator Construction.
+Automobile, truck, and tractor radiators consist of two water tanks (upper
+and lower) joined by a core which does the actual cooling.  Water from the
+cylinder   block   usually   enters   the   upper   tank   through   the   inlet,   flows
+through the core, and leaves by the lower tank.   An overflow pipe in the
+upper tank carries away excess steam or water.   In the radiator assembly,
+cast metal tanks are bolted to the side members.  Gaskets between the tanks
+and   core   make   a   watertight   connection.     This   type   of   rigid   radiator
+construction is usually used on heavy­duty trucks and tractors.  Figure 34
+illustrates stamped metal radiators that are formed by soldering drawn or
+stamped metal tanks to the radiator core.   The side members are straps of
+steel soldered to upper and lower tanks.
+FIGURE 34.  STAMPED METAL RADIATOR.
+68
+
+==================== PAGE 75 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+This   lighter   construction   has   generally   replaced   the   cast   metal   type   in
+passenger cars and light­duty trucks, where it is usually concealed by the
+hood and radiator grill.
+(1) Water Tanks.   Almost all radiator tanks are cast or stamped in one
+piece to reduce the number of potential leaks.  A baffle plate in the upper
+tank,  below the neck, eliminates excessive splashing and distributes the
+water uniformly over the tank.
+(2) Radiator Fittings.   The radiator fittings are the filler neck and
+inlet connection of the upper tank and the outlet connection and drain valve
+of the lower tank.  These are made of malleable iron or pressed metal.  When
+they are manufactured as separate parts, they are brazed, soldered, bolted,
+or riveted to the tanks.
+(3) Tubular Core.   This type is made of many vertical tubes (drawn or
+seam welded) soldered through thin sheets of metal at the top and bottom
+(called header plates).  The header plates form mounting pads for the upper
+and lower tanks and block passage of water from the tanks to the core except
+through the tubes.  The tubes are generally spaced about 3/4 inches apart,
+in   two   to   four   straight   or   staggered   rows   approximately   1/2   inch   apart
+(figure 35 on the following page).  In a staggered row, twice as many tube
+rows   are   exposed   to   the   air   entering   the   radiator,   which   increases   the
+cooling   capacity.     Round   tubes   are   easily   broken   by   the   expansion   of
+freezing water, whereas oval tubes will be distorted to some extent before
+breaking.  The radiating surfaces of these tubes are occasionally increased
+by spiral fins on each tube or, much more commonly, by thin sheets of metal
+(horizontal fins) extending all the way across the radiator, 1/8 inch to
+3/16   inch   apart,   in   contact   with   each   tube.     The   front   edges   of   the
+horizontal fins are usually crimped or bent back to a double thickness which
+strengthens   the   radiator   core.     In   most   radiator   cores,   the   fins   are
+soldered to the tubes to speed the heat transfer.  A tubular core radiator
+is generally larger than a honeycomb core radiator with the same cooling
+capacity.
+69
+
+==================== PAGE 76 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+FIGURE 35.  RADIATOR CONSTRUCTION
+(4) Honeycomb Core.  One form of the honeycomb core has slot­like water
+passages extending vertically through the core between sections of honey­
+like air coils.  Each section has an offset stamped metal ribbon around the
+outside   and   bent   fins   within.     Adjacent   sections   are   soldered   at   the
+offsets, which are about 1/4 inch wide and extend about 1/4 inch in from
+each face of the core.   The ribbon at the top of a section is called the
+header strip.  These ribbons are overlapped, forming a seam, to construct a
+single tube or section.  Note that this seam, extending from the center of
+the header strip downward to span the side walls of three entire cells,
+provides a broad contact area to seal the ribbons.  So many different shaped
+air cells have been used in honeycomb construction that it is impracticable
+to   discuss   them   all.     After   learning   to   recognize   a   few   representative
+types, the repairman should be able to analyze the construction of any other
+core.   In a U­shaped air­cell core, air cells are formed by U­shaped fins
+which zigzag from the tip of the core to the bottom, deflecting the air.
+The water drops almost directly from the upper tank to the lower tank in
+70
+
+==================== PAGE 77 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+this core.  The diamond­shaped cell construction resembles the U­shaped cell
+construction except that the ribbons zigzag in the same pattern as the fins,
+thus creating diamond shaped air passages.  The water passages between the
+ribbons are irregular and therefore more efficient in cooling, but are more
+easily  clogged.   Each fin has many bumps and ridges, called deflectors,
+which increase the cooling area exposed to the air.   Some honeycomb cores
+have square cells.   The water has much farther to travel here than in a
+diamond   cell   core,   since   the   continuous   water   passages   are   alternately
+vertical and horizontal rather than diagonal.  The honeycomb type core has
+several disadvantages.  Although it exposes a large surface to the air, it
+is   rather   frail,   and   its   irregular   passages   clog   easily.     Much   of   the
+external surface of honeycomb radiators dispels heat indirectly and hence
+loses effectiveness.   It is also difficult to manufacture metal ribbon of
+the   thinness   used   in   honeycomb   radiators   without   producing   holes,
+excessively thin pieces, or steel burrs that may rust out and cause leaks.
+The honeycomb core is used mainly on passenger cars and light duty trucks.
+b.
+Radiator Cleaning.
+Radiator   cleaning   has   three   purposes:   to   restore   perfect   radiation,   to
+facilitate   soldering,   and   to   remove   obstructions   to   water   circulation.
+Various chemical salts and dirt found in the water of different localities,
+together with grease and oil that find their way into the cooling system,
+collect inside the water passages of the radiator and insulate the water
+from   the   metal   or   stop   circulation.     This   overheats   the   engine.     Rust,
+disintegrated rubber hose, and accumulated deposits from antifreeze or stop­
+leak preparations will have the same effect.   The water passages may be
+cleaned by pressure flushing, boiling, or rod cleaning.   Dust, lint, and
+bugs often adhere to the fin surfaces in sufficient quantity to restrict the
+air flow through the radiator and decrease its efficiency.  Spray cleaning
+is then necessary.
+(1) Flow Testing.
+(a) Before   a   radiator   is   cleaned,   it   should   be   flow   tested   to
+determine   how   badly   it   is   clogged.     The   flow   tester   is   used   for   this
+purpose.  This tester indicates the exact amount of water that
+71
+
+==================== PAGE 78 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+will flow, by gravity, through a radiator per minute.  The reading indicated
+on the tester is then compared with the flow rate of a new radiator or with
+the specifications furnished by the manufacturer.   The difference between
+the actual rate and the specified rate indicates the amount the radiator is
+clogged.
+(b) To use a flow tester, the radiator is set on the stand provided,
+then a hose is connected to the radiator inlet.  After the hose is connected
+securely, the pump is turned on, and the water flow is adjusted until a
+constant level is maintained in the tank.
+CAUTION
+Be   careful   when   adjusting   the   flow   rate.     If   you
+accidentally push the lever too far, the water will
+shoot out the top of the radiator onto the repairman.
+The capacity of this tester is 90 gallons of water per
+minute, and has given more than one person an unwanted
+shower.
+(2) Pressure Flushing.   Pressure flushing forces water by air pressure
+(approximately five psi) through the water passages of the core.  It may be
+accomplished in two ways: direct flushing, in which water is forced through
+from top to bottom, as it flows in normal service; and reverse flushing.
+The   same   equipment   is   required   for   both   methods:   water   pressure,   air
+pressure, and a flushing gun.
+(a) To   clean   a   radiator   by   direct   pressure   flushing,   screw   the
+radiator cap on the filler neck and attach a lead away hose to the outlet
+connection of the lower tank.  With the flushing gun in the inlet connection
+of the upper tank, fill the radiator with water.   Because water alone is
+often insufficient to break loose the grease, sludge, rust, and scale within
+the radiator, it may be necessary to add some good radiator cleaner.  When
+the deposits are loosened, turn the water off and admit compressed air to
+the radiator in short blasts, adding water between blasts until the water
+drains out clear and at a normal rate.  The air must be applied gradually,
+since the radiator will stand only a limited amount of pressure.
+72
+
+==================== PAGE 79 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+(b) Reverse flushing is similar, except that the lead away hose is
+attached to the inlet connection and the flushing gun to the outlet.  Both
+methods  of pressure flushing are effective when the radiator is not too
+badly clogged.
+(3) Boiling Out Radiators.   Sediment so firmly packed in the radiator
+that pressure flushing will not remove it must be boiled out with a suitable
+chemical solution.   The vat is made so that the radiator may be lowered
+beneath the surface on a level controlled rack.   After the radiator has
+boiled  for a sufficient amount of time, it is removed from the vat and
+placed in a spray booth.  In the spray booth the outside of the radiator is
+washed with air pressure and water to force out dirt, bugs, lint, and other
+material lodged between the fins, so that free circulation of air around all
+parts of each tube and fin is restored.  Also, the interior of the radiator
+is back flushed with air pressure and water.
+(4) Cleaning Solution.   To make a good cleaning solution, dissolve one
+pound of ordinary baking soda in one gallon of water.   If a commercially
+prepared chemical cleaner for radiators is used, follow the direction on the
+container.
+(5) Rod  Cleaning.    If   flushing   or   boiling   is   inadequate,   scrape   the
+inside of the water passages with a bristle brush or cleaning rod.   For
+tubular radiators, this may be merely a round wire with its end rounded to
+avoid puncturing the tube.  For honey comb or cellular radiators, use a flat
+strip of metal with edges and ends rounded, not quite as wide as the water
+passage, pushing it back and forth through the water passages.
+c.
+Testing   Radiator   for   Leaks.    Before   testing   a   radiator   to   locate
+leakage, inspect it carefully for visible leaks and solder them promptly, so
+that   the   test   will   be   sensitive   enough   to   reveal   less   obvious   defects.
+There are two standard methods of testing: one by introducing air (under
+light pressure) into the radiator, immersing it in water, and locating the
+leaks by the appearance of bubbles; and the other, by filling the radiator
+with water and locating the leaks by the moisture seeping through.  Either
+test is satisfactory, although the air test method is preferred.  Mark the
+leaks as soon as found to facilitate locating them during repairs.
+73
+
+==================== PAGE 80 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+(1) Visual Inspection.  Deposits of line or magnesia left on the outside
+surfaces by evaporating water indicate leaks in a radiator.  Before removing
+a bad radiator from a vehicle, inspect it for these deposits to determine
+the amount of repair needed.   Experience will teach how to determine the
+true condition of a radiator from observation.  There are at least as many
+leaks as can be seen.  Do not make an air or water test until all the leaks
+indicated by visual inspection have been repaired, because the effectiveness
+of these tests in discovering hidden leaks is lost when they reveal obvious
+leaks.
+(2) Air rest.   The air test, so called because leaks are indicated by
+escaping air, is the most efficient means of locating hidden leaks.  Connect
+an air pressure tube directly or by a nipple to the bottom of the overflow
+pipe.   Screw the cap tightly on the filler neck and plug the inlet and
+outlet with expanding or cup­shaped rubber stoppers.  Immerse the radiator
+in a testing tank, release the air, and trace the bubbles to their source.
+(a) The   most   practical   pressure   for   testing   is   three   pounds   per
+square inch (psi) above normal operating pressure.  Greater pressures will
+damage the delicate construction of radiator cores.  Frequently, leaks will
+appear at low pressure but not at high pressure, which closes the joints
+with accumulated lime and magnesia deposits or with expanded metal.
+(b) The   air   pressure   system   used   by   garages   for   tire   inflation,
+consisting   of   a   compressor,   motor,   pressure   tank,   gages,   and   reducing
+valves, is very satisfactory for radiator testing when the work is enough to
+keep several men busy.   When no compressor is available, an ordinary tire
+pump will supply enough air pressure.
+(3) Testing   Bench.    Since   testing   is   a   dirty   job,   arrange   the   shop
+equipment systematically to minimize disorder.  The testing bench should be
+placed near an air pressure source and water lines, preferably endwise to a
+wall   under   or   just   back   of   a   window,   to   light   the   radiator   adequately.
+Prevent  damaging the radiator by excessive air pressure by using an air
+pressure gage, and be guided by it.
+74
+
+==================== PAGE 81 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+(4) Field Test Task.  A field test tank consists of a one piece canvas
+bag with wooden staves in pockets to hold the sides up, and four round poles
+running through canvas loops to support the rim.  A rubber mat protects the
+bottom   of  the   tank  from   being  torn   by  the   radiator.    When  the   tank  is
+collapsed, two poles are removed and placed inside the tank, which is then
+rolled inside the mat and fastened with five flat metal hooks.
+(5) Locating   Leaks.    Locating   the   leaks   when   bubbles   rise   is   often
+difficult.  Raise the radiator in the tank until the source of the bubbles
+is at the surface of the water.   Locate as many large leaks as possible,
+drawing upon the knowledge of radiator construction; quite frequently the
+large ones can be detected more easily at a lower pressure.  Repair these
+and retest for smaller ones.   If water leaks in and remains for a later
+test, it may seal the compressed air and prevent it from escaping, and thus
+cause leaks in the bottom to remain undiscovered.  Then on the last test,
+turn the radiator over in the tank.
+(a) Two leaks occurring exactly opposite one another, one near the
+front of the core and the other at the back, should not be confusing.  If
+testing a honeycomb core, stand it on edge, allowing the bubbles to come up
+the face.   A tubular core should be raised until only the lower rows of
+tubes are immersed in the water.  An accurate idea of the location of leaks
+is based upon a thorough understanding of core construction.  To locate open
+seams at the back of a tube, use a sharp pointed tool.
+(b) To find very small leaks, place the bench light in back of the
+radiator so that the interior of the core can be seen.  Stand the radiator
+on the bench and spread the supposed leak with flux or soapy water from an
+eyedropper, oilcan, acid brush, or swab.  Compressed air seeping through the
+leak will cause the liquid to foam.
+(c) As heavy truck cores occasionally come to the shop with water
+tanks removed, the water passages or tubes may have to be closed before
+tests  can be started.   For a honeycomb core, solder dummy tanks to the
+header strips.  These may be made of discarded tanks or plate metal, to one
+of 
+75
+
+==================== PAGE 82 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+which a tube has been soldered for the air hose.  The tool shown in figure
+36 for testing individual tubes, is simply a core shaped rubber stopper with
+a 1/4 inch diameter hole at the large end, increasing abruptly to 1/2 inch
+at the small end.  A brass tube extends through the 1/4 inch opening to the
+beginning  of the 1/2 inch hole.   A washer soldered onto the brass tube
+prevents it from being pushed in further.  The air hose is slipped over the
+tube.   To use the test tool, submerge the core in a test tank, place the
+tool over one end of the tube to be tested, and allow the water in the tube
+to be blown out by the air pressure.  Then, with the radiator level, close
+the   opposite   end   of   the   tube   with   a   finger.     Bubbles   will   then   appear
+wherever the tube leaks.
+FIGURE 36.  TEST TOOL FOR TUBULAR CORES.
+(6) Water Test.   The water test, so called because leaks are indicated
+by escaping water, replaces the air test when equipment is limited, or
+76
+
+==================== PAGE 83 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+supplements it when the air test is suspected of being inadequate.  Sediment
+and lime deposited about leaky joints may be forced into the joints by air
+pressure when the radiator is air tested, sealing the leak.  A leak at the
+joint   of   tubes   and   header   plates   often   refuses   to   show   up   under   air
+pressure.  For this reason, dry the radiator after repairing the leaks found
+by air pressure, and test by the water method.  With the radiator thoroughly
+dry, remove the plug from the filler neck and fill the radiator with water,
+being careful not to run it over or spill on the outside.  Examine the core
+carefully for leaks.  Place the air hose over the lower end of the overflow
+tube and hold the palm of the hand over the filler neck, while five pounds
+of pressure is applied against the water.
+(7) Marking Leaks.   Adopt a uniform system of marking leaks.  For tank
+leaks, a sharp pointed tool is most adaptable.  For honeycomb cores, bend a
+strip of tin or small wire in the shape of a clothespin and insert it, bent
+end first, at the leak.   Let one end of the "clothespin" project farther
+than the other to indicate which side of the cell is leaking.
+d.
+Radiator Disassembly.  When work is being performed on vehicle radiators
+using   the   oxyacetylene   welding   torch   as   a   source   of   heat,   the   flame   is
+always adjusted to a carburizing flame.
+(1) Side Member Removal.  Light and adjust torch to a carburizing flame.
+Apply heat to the top radiator tank where the side members are joined by
+solder (one side at a time).   When the solder melts, move the top of the
+side member away from the upper tank until the metal cools, then heat the
+bottom part of the side member and remove it from the radiator.
+(2) Overflow Pipe.   Melt any solder tacks which might be holding the
+overflow pipe to the upper tank.  Beat the overflow pipe at the place where
+it enters the filler neck and remove it from the radiator.
+(3) Upper Tank Removal.
+(a) Tapping.  Using the oxyacetylene welding torch, direct the flame
+to a point where the upper tank and header plate join.   When the solder
+starts to melt, tapping is commenced, moving all the way
+77
+
+==================== PAGE 84 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+around the tank until the cycle is completed.  The handle of a wire brush is
+ideal for this operation.  As the torch is moved the brush handle follows,
+keeping approximately three inches to the rear of the flame at all times.
+The  vibration, set up by the constant tapping, prevents the solder from
+resealing.
+(b) Air   Blowgun.    To   protect   the   eyes   against   molten   solder   and
+fluxes,   goggles   or   face   shields   must   be   worn   when   using   this   method.
+Precautions must be taken that persons walking or working nearby are not
+exposed to the fluxes or hot solder that might be flying through the air.
+Apply the torch until the solder starts to flow; quickly blow out the molten
+solder with a full blast of air.   Proceed around the entire tank in this
+manner, heating two or three inches of seam at a time. 
+(4) Lower Tank.   The lower tank is removed in the same way as the top
+tank.
+(5) Filler Neck.   Using a pair of slip joint pliers, hold the filler
+neck and apply heat to the solder until melted, and remove from the upper
+tank.  It must be determined what type metal has been used for the filler
+neck, inlet pipe, and outlet pipe.  Some large stationary­type engines, such
+as light plants, have radiators that may have cast iron parts.  Great care
+must be taken not to destroy the tinned surface of these metals.   If the
+tinned surfaces are destroyed, they must be retinned before assembly.
+(6) Inlet Pipe.  Hold the inlet pipe with a pair of pliers, apply heat,
+and remove.
+(7) Baffle Plate.   The baffle plate is soldered to the inside of the
+upper  tank.   On some radiators, baffle plates are riveted and soldered.
+Rivets   should   be   removed   prior   to   applying   heat.     Once   the   rivets   are
+removed, heat is applied to the baffle plate and it is removed in the same
+manner as one not riveted.
+(8) Outlet Pipe.   The outlet pipe is removed in the same way as the
+inlet pipe.
+78
+
+==================== PAGE 85 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+(9) Drain Cocks.   Drain cocks are found at the bottom of radiators and
+are attached to the lower tank in one of the two following places:
+(a) If   the   drain   cock   is   attached   to   the   outlet   pipe,   it   may   be
+removed by unscrewing it.
+(b) If the drain cock is not attached to the outlet pipe, it (or a
+tapped   fitting)   is   sweated   to   the   bottom   tank   and   is   removed   upon   the
+application of heat.
+e.
+Radiator Assembly.  A good soldering job is dependent upon the complete
+tinning of the metal prior to soldering.   The use of a proper flux, the
+close union of the parts to be soldered, and the application of adequate
+heat to make the solder flow freely are important.
+Tinning compound is composed of powdered tin and other chemical ingredients
+compounded together.  When mixed with water, it makes an oily liquid.  This
+liquid, when applied to a metal surface and heated, will leave a deposit of
+tin or tin coating.  It is not intended for use with aluminum or magnesium.
+The compound is mixed with a half can of water in its own container.  The
+flux aids the compound in cleaning the metal.  It is a white powder and is
+mixed on a ratio of 1 pound of flux to five pints of water.  This flux is
+ideal for use on radiator work after the proper tinning of the metal has
+been accomplished.   It will cause the molten solder to have an excellent
+capillary action.  When using flux, caution must be taken to keep it out of
+any open scratches or cuts in the skin.  Rubber gloves should be worn when
+working with this flux.
+The most commonly used flux is hydrochloric (muriatic) acid which has been
+cut (killed) by adding pure zinc.  In preparing hydrochloric acid for use in
+soldering, place the desired quantity in a crock or other earthen vessel and
+add zinc until it is saturated.  Uncut muriatic acid is a yellowish color.
+It   becomes   clear   after   it   has   been   cut   with   zinc.     Muriatic   acid   is
+objectionable because of its effects on the workman, due to the gases given
+off when heated.  The reaction of hydrochloric (muriatic) acid when zinc is
+added produces as explosive hydrogen gas; therefore, the solution should be
+prepared outdoors. 
+79
+
+==================== PAGE 86 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+The most common material used as a soft solder bond is an alloy composed of
+50   percent   tin   and   50   percent   lead.     There   are   two   types   of   solder
+manufactured for the repair of vehicle radiators.  These types are acid core
+and wire solder.
+All solder is removed from the parts prior to assembly.  Any area that shows
+signs of not being tinned must be retinned.  If the oxyacetylene torch is
+used, the flame is adjusted to a carburizing flame.  If the soldering iron
+is used, the copper point must be properly heated and tinned.  If the copper
+point is too cold, the solder will not flow freely and will not stick to the
+metal.  If the copper point is too hot, the solder will form little globules
+that   will  run   off  the   surface  of   the  metal.     A   small  amount   of  solder
+properly flowing into the joint will give a much better result then a joint
+that   has   solder   piled   up   in   a   rough   seam.     A   good   soldering   job   is
+recognized by the manner in which it flows into the joint.  A rough, lumpy
+seam indicates a poor job.  A seam or joint of this kind should be gone over
+with a properly heated iron to flow down the ridge and to pick up the excess
+solder.  The speed with which soldering can be done with a torch flame is an
+advantage.  It is preferred over the soldering iron for most purposes.  The
+method of applying solder with the torch is similar to the method used with
+the soldering iron.   With the torch, solder is melted and flows directly
+upon the surface of the metal.  The heat of the metal and the torch flame
+are both essential to liquefy the solder.   Satisfactory requirements of a
+torch flame are:
+(1) Will not be extinguished by the fumes of the flux or acid.
+(2) Gives sufficient heat to accomplish quick fusion of the solder, and
+yet not hot enough to damage the metal being soldered.
+(3) Adjusted to suit the job to include a long, slim, needle­like flame
+capable of reaching difficult places, as well as a heavy, bushy type flame
+for dismantling parts.
+Various gases can be used for soldering with satisfactory results.  Hydrogen
+gas,   supported   by   compressed   air,   produces   a   flame   that   is   very
+satisfactory.  This gas may not always be available.  Acetylene gas is also
+used, but is not
+80
+
+==================== PAGE 87 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+the most satisfactory.   Because of the high degree of heat generated by
+using acetylene and oxygen, there is a danger of damaging light metal.  City
+or natural gas is the best; next is liquid petroleum; and last oxyacetylene.
+After the metal has been cleaned and retinned, reassembly of the radiator
+can begin.  There is no prescribed pattern of reassembly except the radiator
+baffle plate must be installed first.   All parts are fluxed with suitable
+flux and soldered together.  The upper tank is set in place on the core and
+tack soldered on each corner.   After tacking in place, solder each end.
+After the ends are soldered, start on one corner of the tank and solder the
+tank all the way around. 
+f.
+Repairing Radiator Leaks.  After leaks have been marked, the radiator is
+removed from the test tank and repaired.
+(1) Seam Leaks.
+(a) Apply heat and remove the old solder, using the air gun or wire
+brush method.
+(b) Old solder is removed for a distance of three inches on each side
+of the leak.
+(c) Using   a   squirt   bulb   or   an   acid   brush,   flush   the   seam   with
+muriatic acid.
+(d) Beat the seam until the acid boils, then quickly blow or wire
+brush out the acid.  This removes all dirt and oxides, which are the cause
+of poor solder bonding.  Care must be taken not to direct the airstream or
+wire brush toward anyone when removing acid or hot solder.
+(e) Flush   seam   liberally   with   flux,   using   a   squirt   bulb   or   acid
+brush.   Keep seam warm with torch while flushing.   Remove all flux with
+moderate airstream.
+(f) Proceed with soldering in the usual manner.
+(2) Patching Cracked Tanks ­ Brass Radiator Tanks.  Almost all radiator
+tanks are cast or stamped in one piece to reduce the number of potential
+leaks.
+81
+
+==================== PAGE 88 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+(a) Cracks   in   stamped   brass   radiator   tanks   must   be   patched.
+Spreading solder over the crack will not make a permanent watertight repair.
+(b) Wire brush or scrape the area around the crack one inch larger
+than the patch to be installed.   Dig down into the crack itself with a
+pointed tool.  Tin the cleaned areas and the underside of the patch, wiping
+them clean while the solder is in a molten state.
+(c) Fit the patch in place as perfectly as possible, following the
+contours of the tank.  All patches should have rounded corners.
+(d) Hold the patch in place with a screwdriver and apply heat.  The
+proper amount of heat will be indicated when a stick of solder will melt
+when touched to the patch.
+(e) If proper care has been taken during the tinning operation, the
+patch will be strong and watertight.   Hold the patch in place until the
+solder has set.
+(3) Blocking of Tubes ­ Cellular (honeycomb) Radiators.  A damaged tube
+may not need to be repaired; it can be blocked off.  Fifteen percent of the
+tubes in a radiator may be blocked off without adverse effects.
+(a) Heat   face   of   tube   near   header   plate   and   spread   open   with   an
+improvised tool made from an old hacksaw blade sharpened on one end to the
+shape of a chisel.
+(b) Thoroughly   tin   the   inside   of   the   tube   with   tinning   compound,
+using an acid brush to apply the tinning compound.
+(c) Apply flux and fill tube with solder.
+(4) Tubular Core.
+(a) Heat fins at the header plate and raise fins one­half of an inch
+on each side of the tube to be blocked.
+(b) Apply heat to the tube and blow out the solder with an airgun.
+82
+
+==================== PAGE 89 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+(c) Reheat the tube at the header plate, and using a pair of needle
+nose pliers, bend the tube down and out to one side and remove from the
+header plate.
+(d) Retin the area where the tube was removed from the header plate.
+(e) Apply flux and solder the hole shut.
+(f) Repeat the same operation at the other header plate.
+g.
+Straightening   a   Bent   Radiator   Core.    A   bent   radiator   core   can   be
+straightened, provided the bend is gradual.  If it is so sharply kinked that
+the water tubes or passages are collapsed, it should not be straightened.
+Straightening is done in a press, with boards above and below the core, to
+spread the pressure and protect the air fins.  Hydraulic presses may be used
+for this operation.
+WARNING
+Epoxy materials may cause skin irritation.   If epoxy
+resins and hardeners come into contact with the skin,
+wash   the   skin   thoroughly   with   mild   soap   and   water.
+Always   use   epoxy   resins   and   hardeners   in   a   well­
+ventilated area.
+h.
+Repair of Aluminum Radiators.  Damaged radiators are repaired with epoxy
+resins, glass cloth, and aluminum screen.  Due to the limited storage life
+of the resin and hardener, repair of aluminum radiators with material which
+has  been in storage for more than one year is not recommended.   Mixing
+ratios of epoxy resins to hardeners normally are given by weight.  The ratio
+by weight is 100 parts epoxy to 14­17 parts hardener.
+When weighing equipment is not available, 5­6 parts epoxy resin by volume to
+1 part hardener by volume is the recommended volume mixing ratio.  The 5 to
+1 ratio will produce a compound with a shorter pot life (working time) than
+the   6   to   1   ratio   (working   life   of   the   resin   hardener   mixture   is
+approximately 15 to 25 minutes at 75 degrees F).   If desired, the entire
+contents  of both the hardener and resin cans may be used by adding the
+contents of the hardener
+83
+
+==================== PAGE 90 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+can to that of the resin, which will result in the correct mixing ratio.
+i.
+Repair Procedures for End Tanks.   For holes or lacerations in the end
+tanks of the radiator, trim away ragged edges and clean with a wire wheel.
+Blow away dust and clean the repaired area with naphtha or paint thinner
+followed by alcohol.
+NOTE
+The presence of oil in the repair area will result in
+poor   adhesion.  
+  Repair   of   holes   larger   than
+approximately 1 inch in diameter is not recommended.
+(1) Cut two pieces of aluminum screening slightly larger than the hole
+and then wire together so that the radiator material is sandwiched between
+the screening.
+(2) Prepare a proper amount of epoxy resin and hardener as directed in
+subparagraph   i   above.     Add   a   sufficient   amount   of   silica   to   obtain   a
+workable consistency (soft, putty­like).
+(3) Thoroughly saturate the screening with the epoxy mixture.
+(4) Cut a piece of glass cloth larger than the hole, saturate with the
+epoxy mixture, and form it over the hole and cleaned surrounding area.  For
+holes larger than 1/2 inch in diameter, a second cloth layer is recommended.
+Place   a   piece   of   release   film   on   the   second   patch   and   with   a   hardwood
+depressor, work out the trapped air pockets by working from the center of
+the patch outward.
+(5) Apply another cast of epoxy mixture over the glass cloth.
+NOTE
+Cure will be slow in temperatures below 70 degrees F.
+Cure may be shortened to about four hours by placing a
+heat lamp over the patch area and gradually increasing
+the heat intensity by moving the lamp closer to the
+repaired area.
+84
+
+==================== PAGE 91 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+CAUTION
+Repair area temperature must not exceed 100 degrees F
+anytime thereafter.  Minimum distance between the heat
+lamp and repair area is two feet, regardless of the
+temperature requirement.
+(6) Allow the completed patch to set undisturbed for 16 to 24 hours.
+j.
+Repair Procedures for Cores.
+(1) For lacerations in the core, remove fins approximately 1/2 to 3/4 of
+an inch beyond the damaged cross tubes.
+(2) Remove jagged edges from the cross tubes, clean with a pencil­type
+wire or grinding wheel, and continue preparation.
+(3) Prepare a proper amount of epoxy and hardener.  Also add sufficient
+amount of silica to obtain a workable consistency (soft, putty­like).
+(4) Force the epoxy mixture into the cross tube and close the tube with
+pliers.  Apply a second coat of epoxy mixture over the closed­off tube and
+immediate surrounding area.  Allow the repair to dry.
+CAUTION
+Do not test aluminum radiators in a tank that has been
+or is being used for testing copper/brass radiators.
+Fluxes   used   in   copper/brass   radiator   repair   will
+contaminate the water in a test tank and will attack
+aluminum.
+(5) Test.    To   test   the   radiator   repair,   block   all   inlet   and   outlet
+connections, install pressurizing equipment, and apply 18 psi for a period
+of three minutes while the radiator is immersed in water.   Absence of air
+bubbles denotes a satisfactory repair.
+85
+
+==================== PAGE 92 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+(6) Cleaning and Painting.
+CAUTION
+Radiators   should   never   be   painted   with   ordinary
+lacquers, enamels or paints as these insulate the heat
+transfer.     This   reduces   the   cooling   efficiency.
+Always use non­insulating radiator core paint.
+After all leaks have been repaired, the radiator should be painted.  A non­
+insulating paint should be used.   Before painting, the radiator should be
+cleaned, dry and free of all flux residue.
+NOTE
+No   more   than   one   coat   of   paint   will   be   applied   to
+radiator cores on tactical wheeled vehicles which are
+subject to painting.
+2.
+Conclusion
+This task introduced the specific operation required to repair radiators.
+The next task will present the procedures to be followed for repairing fuel
+tanks.
+86
+
+==================== PAGE 93 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 3
+LESSON 2
+OPERATIONS REQUIRED FOR
+GLASS, RADIATOR, AND FUEL TANK REPAIR
+TASK 3. Describe the operations required for proper fuel tank repair.
+CONDITIONS
+Within   a   self­study   environment   and   given   the   subcourse   text,   without
+assistance.
+STANDARDS
+Within one hour
+REFERENCES
+No supplementary references are needed for this task.
+1.
+Introduction
+Fuel tanks for motor vehicles are made of terneplate ranging in thickness
+from No. 24 (0.0156 inch) to No 18 (0.050 inch) U.S. standard gage, and
+joined by welded seams.  Fittings such as the filler neck, drain valve, and
+fuel line connections are soldered to the tank.   Baffle plates inside the
+tank offset excessive splashing and foaming of the fuel when the vehicle is
+in   motion.     Figure   37   (on   the   following   page)   illustrates   typical
+construction for a fuel tank.  Leaks may occur in the seam welds or soldered
+joints  because of vibration, strain, or faulty construction.   Occasional
+leaks in the tank itself are caused by sharp objects such as stones or bolts
+picked up by the wheels of the vehicle from the road which can be thrown
+against the fuel tank.
+2.
+Types and Construction
+Fuel   tanks   are   made   in   various   shapes   and   sizes,   from   the   smallest   for
+outboard motors to the largest rail tank cars.  The most common type of 
+87
+
+==================== PAGE 94 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 3
+FIGURE 37.  TYPICAL FUEL TANK CONSTRUCTION.
+fuel   tank   used   in   the   Army   are   wheeled   vehicle   tanks   (terneplate),
+fiberglass fuel tanks, cell or bladder­type tanks, and fuel compartments,
+which are part of tracked vehicles.   Terneplate is thin gage, low­carbon
+steel which is coated on both sides with lead.  During its manufacture, the
+steel is run through an acid bath and then through a hot­lead dip.  The lead
+coating adheres to the metal, giving it a tinned coat.   This tinned coat
+prevents rust from forming on the inside of the tank, and also makes repairs
+easier.
+Regardless   of   their   shape   and   size,   all   fuel   tanks   must   be   designed   to
+prevent static electricity and excessive splashing.  Baffle plates are used
+for this purpose.  Figure 38 (on the following page) shows the inside of a
+fuel tank used on a 2 1/2 ton Army vehicle.  Baffle plates are secured to
+the top, bottom, and sides of the tank by spot welding or soft soldering.
+Newer type vehicles being issued to the Army have fuel tank baffle plates
+spot welded to prevent then from breaking loose.
+88
+
+==================== PAGE 95 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 3
+FIGURE 38.  CUTAWAY VIEW OF FUEL TANK.
+3.
+Repair Operations
+a.
+Fuel Tank Body and Ends.  The tank body and ends are secured together in
+one of three ways: 
+(1) Crimped and soldered.
+(2) Tank ends flanged and seam welded to the tank body.
+(3) Aluminum fuel tanks brazed or fusion welded.
+Commercial   type   vehicles   have   upper   and   lower   tank   halves   seam   welded
+together in the center to make a complete unit.
+Fuel tanks on 3/4 ton and larger combat­type vehicles are flanged and seam
+welded.
+Fuel tanks on 1/4 ton (Jeep) combat­type vehicles are either seam welded or
+soldered.
+After one end has been installed on the tank body, the baffle plates are
+spot welded in place.  The
+39
+
+==================== PAGE 96 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 3
+remaining tank end is secured in position by seam welding.
+b.
+Fuel Tank Fittings.
+(1) Filler Neck.  Filler necks on fuel tanks are manufactured from cast
+iron,   aluminum,   or   low   carbon   steel,   then   coated   with   lead,   stamped   to
+shape, and soldered in place.
+(2) Filler Tube (sleeve) Assembly.  The filler tube is a round cylinder
+manufactured from terneplate.  It is used as an extension of the filler neck
+to prevent fuel from sloshing out of the tank while being filled.  Located
+in the bottom of the sleeve is a screen (brass wire mesh) to prevent dirt or
+other foreign particles from going into the tank.  When fuel is to be added
+to the tank, the sleeve is pulled up and locked in position.
+CAUTION
+When   repairing   a   fuel   tank,   make   certain   that   the
+sleeve  lock  is  in  proper  working  condition.    If  it
+does   not   make   good   contact   with   the   tank,   static
+electricity may result when filling and an explosion
+could result.
+(3) Filler Cap.   All fuel tank filler caps are not alike.   Some are
+plain lock­on types while others are designed not only to prevent the gas
+from sloshing out, but to allow combat­type vehicles to be used in deep­
+water fording operations.  Figure 39 (on the following page) illustrates a
+cross section view of a pressure type fuel tank filler cap.  Operation of
+the pressure cap is describe below.
+(a) As road heat comes in contact with the fuel tank, the fuel will
+start to expand, causing the air within the tank to be compressed.  At this
+time, pressure put on the compression spring opens the vent and lets the
+expanding fuel vapors escape from the tank.
+90
+
+==================== PAGE 97 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 3
+FIGURE 39.  PRESSURE­TYPE FUEL TANK FILLER CAP.
+(b) The reverse of this (paragraph 3b(3)(a)) occurs when the tank and
+fuel cool.  Air must be brought in from the outside to replace the area left
+by  the shrinking fuel.   Atmospheric pressure, which is greater than the
+pressure within the tank, forces the inlet vent open, allowing air to rush
+into the tank.  When the tank pressure equals atmospheric pressure, the air
+vent closes.
+(4) Fuel Pickup Connection Plate.  The connection plate is manufactured
+from low carbon steel, coated with lead, and soldered to the tank body.  The
+plate has holes drilled into it and tapped to receive the fuel line pickup
+assembly which is secured in place with screws.
+(5) Fuel Gage Connection Plate.   Construction and method of attachment
+is the same as the pickup plate.
+(6) Drain Plug.  The drain plug is a steel plug with pipe threads.  The
+drain plug fitting is manufactured from low carbon steel coated with 
+91
+
+==================== PAGE 98 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 3
+lead, with internal pipe threads, and soldered to the tank body.
+c.
+Fiberglass Fuel Tanks.   Fiberglass fuel tanks are constructed entirely
+of fiberglass, except for the fittings or connections.   Because of their
+light   weight,   durability,   and   seamless   construction,   they   are   used
+frequently   on   armored   personnel   carriers   and   self­propelled   artillery
+vehicles.
+(1) Their construction makes it possible to install them in irregular
+spaces.  They are used mainly in vehicles that are subject to vibration and
+travel over rough terrain.  Because of their irregular shapes, they do not
+need baffle plates. 
+(2) Cell   or   bladder­type   tanks   are   constructed   of   three   layers   of
+synthetic material and a protective lacquer coating.  They are similar to a
+large balloon and are square or round in shape.  They are sometimes used as
+temporary or portable fuel cells and most units in the field use them for
+fuel points.  Their thick­wall construction provides an excellent shield for
+foul weather or abuse.  When not in use, they easily fold away for storage.
+(3) The fuel compartment is not an independent section or a tank and
+cannot be removed from the vehicle.  It is constructed as an integral part
+of the vehicle's hull.  The composition and shape of the full compartment is
+determined by the design of the parent vehicle.
+d.
+Testing for Leaks.  Three methods are used to locate fuel tank leaks:
+(1) Visible leaks are found by looking for stains left on the outside of
+the tank.  Seepage marks will be dark brown or dark red (depending on what
+type of gas is used) stains on the tank.  Cracks may be located by careful
+observation of the tank.
+(2) The best test is the underwater air test.  The tank must be cleaned
+prior   to   testing.     It   is   then   made   airtight   by   sealing   the   fluid   gage
+opening,   the   fuel   filler   pipe   opening,   and   the   drain   plug,   and   then
+attaching an air hose connected to the fuel outlet connection.   Place the
+tank in a vat or a canvas tank.  Apply compressed
+92
+
+==================== PAGE 99 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 3
+air of no more than five psi, and look for air bubbles.  Mark these spots
+and repair.
+(3) Another   method   is   to   fill   the   tank   with   clean   water,   soap   the
+outside of the tank, replace the tank cap, and attach an air line to the
+fuel outlet connection.   Apply five psi of air pressure and look for any
+bubbles which may appear on the outside of the tank which indicates a leak.
+(4) Testing for leaks in the fiberglass and cell (bladder) type of fuel
+tank is more or less a matter of visual inspection.  In cell (bladder) type
+fuel tanks, leaks may occur because of punctures, cuts, abrasions, blisters,
+and ruptures.  Scuffs and coating damage may also cause occasional leaks.
+e.
+Cleaning.  Before repairs, fuel tanks must be cleaned thoroughly.  This
+is   absolutely   necessary   as   a   safety   precaution­against   fuel   or   vapors
+remaining in the tank.  Never be misled by the fact that the tank is empty
+of liquid.  There may be vapors in a tank that has been empty several weeks
+or months.  When heat is applied to the tank, the metal expands and any fuel
+that may have been trapped in the seams vaporizes and explodes.  
+(1) The best method of cleaning a fuel tank is the live steam method.
+This consists of using a steam cleaner to remove any fuel or fumes that may
+still be present.  After flushing the tank with water, remove all tank units
+and fittings such as the drain plug, fuel pickup assembly, gas gage, and
+filler cap.  Place the steam cleaner hose in the filler neck and steam the
+inside of the tank for at least 45 minutes with live steam.  Repairs should
+be done immediately after cleaning.
+(2) The exhaust­and­air method does not require anything more than a
+vehicle that runs and a 1 1/2 inch flexible pipe.  Remove the tank from the
+vehicle.  Place the 1 1/2 inch flexible hose into the gas tank filler neck.
+Connect the other end to another vehicle exhaust pipe.  Let the vehicle run
+for at least 25 minutes.  After the exhaust fumes have been running into the
+fuel tank for at least 25 minutes, blow the tank out with compressed air and
+start repairs immediately.  By starting repairs immediately, vapors have not
+had a chance to build up again.
+93
+
+==================== PAGE 100 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 3
+(3) The live steam and the exhaust­and­air methods are used mainly for
+terneplate   tanks,   but   they   can   also   be   used   on   fuel   compartments.     The
+water­filled method is another means of cleaning fuel tanks.  After locating
+a leak, fill the tank completely with clear water and replace the fuel cap.
+Then turn the tank until the leak is in the topmost position and repair with
+a soldering iron only.   For fiberglass and cell­type tanks, a plain water
+flush is the best method of cleaning.
+(4) Patching.  Before patching a damaged tank, first remove it from the
+vehicle and remove all vapors.  The area to be patched must be cleaned and
+tinned at least two inches beyond the crack in all directions.  When cutting
+a patch, use galvanized metal large enough to extend beyond the crack at
+least 1 inch in all directions.  Round all corners and tin the metal on the
+side that is to make contact with the tank.  Place the patch on the tank and
+sweat solder together.  The last step is to test with five psi air pressure.
+(5) Safety Rules.  Safety rules for fuel tank repair should be strictly
+enforced. 
+(a) Do not depend on your eyes or nose to decide if it is safe to put
+an  open flame on a fuel tank; steam it first.   A very small amount of
+residual gasoline or other explosive liquid can cause a serious explosion.
+(b) Never use oxygen to ventilate a fuel tank.
+(c) Never place a lighted torch or flame of any kind in the fuel tank
+opening to test for vapors after it has been cleaned.
+(d) Always use compressed air to clean the exhaust fumes from a fuel
+tank when the exhaust method has been used to remove fuel vapors.
+(e) Never   use   an   oxyacetylene   torch   to   remove   tops   of   55   gallon
+drums.  Always use a hammer and cold chisel.  All types of 55 gallon drums
+should be cleaned before removing the tops.   Vapors of some liquids will
+explode upon the first spark.  Since cold chisels are made of steel, a spark
+could very easily be struck.   With priority on safety, only drums which
+contain known non­toxic substances should be used.
+94
+
+==================== PAGE 101 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 3
+Before  the actual repair of a tank, the vapors must be removed and the
+filler neck cap replaced.  After connecting the air hose to the fuel outlet
+pipe connection and placing the tank in a water vat, observe the tank for
+any leaks (with air pressure set at five psi).  Remove the tank and shut off
+the air supply.  To repair the damaged area, first heat the area, clean or
+wire brush and tin the area, and then solder the leak.  The final step is to
+retest with air to make sure the damaged area was repaired properly.
+95
+
+==================== PAGE 102 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/PE 2
+PRACTICAL EXERCISE 2
+1.
+Instructions
+On   a   plain   sheet   of   paper,   write   down   the   answers   to   the   following
+questions.     When   you   have   answered   them,   turn   the   page   and   check   your
+answers.
+2.
+First Requirement
+a.
+What are the two most common classifications for glass?
+b.
+Tempered glass can withstand heavy impacts and great pressures.  It is
+made by reheating plate or window glass until it is somewhat soft followed
+by cooling it in what manner?
+c.
+What is the inner material that is placed between two sheets of glass
+forming laminated safety glass?
+d.
+What   are   the   three   operations   that   the   process   of   cutting   glass   is
+divided into?
+e.
+Why is it important to keep a constant temperature in a glass cutting
+room?
+f.
+What is the liquid that should first be wiped around the cutting line of
+glass to be cut?
+g.
+What kind of grain is used to grind glass?
+h.
+In   addition   to   the   use   of   protective   covers   and   the   inspection   of
+hardware,   what   is   the   most   important   general   precaution   to   follow   when
+installing glass?
+3.
+Second Requirement
+a.
+Automobile and truck radiators consist of two water tanks joined by what
+component which does the actual cooling?
+b.
+Radiator fittings are found on both the upper and lower water tanks of
+the radiator.   When they are manufactured as separate parts, what are the
+four ways they can be attach to the radiator?
+96
+
+==================== PAGE 103 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/PE 2
+c.
+What are the two most common types of radiator cores?
+d.
+Radiator cleaning has three purposes: to restore perfect radiation, to
+facilitate soldering, and to remove obstructions to water circulation.  What
+are the three methods by which water passages may be cleaned?
+e.
+How much pressure is required when pressure flushing a radiator?
+f.
+One method of testing a radiator for leaks is to introduce air (under
+light pressure) into the radiator and immerse it in water and look for air
+bubbles.  What is another method for testing radiators for leaks?
+g.
+When disassembling a radiator, an oxyacetylene welding torch is used as
+a source of heat.  The torch is adjusted to what type of flame?
+h.
+The use of a proper flux, the close union of the parts to be soldered,
+and the application of adequate heat to make the solder flow freely are
+important to accomplishing a proper radiator soldering job.  What is a good
+soldering job dependent upon?
+i.
+What is the composition of soft solder?
+j.
+The most commonly used flux is hydrochloric acid which has been cut by
+adding what compound to it?
+4.
+Third Requirement
+a.
+What is the purpose of having baffles inside a fuel tank?
+b.
+The process of tinning the inside of a fuel tank prevents what from
+forming inside the tank.
+c.
+Of the three possible methods for locating fuel tank leaks, what is
+considered the best test for this purpose?
+d.
+Before fuel tank repairs can be performed, fuel tanks must be cleaned
+thoroughly.  The best method for doing this is cleaning the tank with live
+97
+
+==================== PAGE 104 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/PE 2
+steam.   With the steam cleaner hose in the filler neck, how long should
+steam be forced into the tank?
+e.
+Can fuel tanks be repaired by patching the tank?
+98
+
+==================== PAGE 105 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/PE 2
+LESSON 2.  PRACTICAL EXERCISE ­ ANSWERS
+1.
+First Requirement
+a.
+(1)
+Lead glass
+(2)
+Line glass
+b.
+Tempered glass is cooled by placing it in a hot oil bath or placing it
+quickly against a cold metallic surface
+c.
+Tough plastic material
+d.
+(1)
+Making the cut
+(2)
+Cracking the cut
+(3)
+Cutting or melting the plastic
+e.
+Sudden temperature changes will almost certainly result in breakage of
+glass
+f.
+Kerosene
+g.
+Silicon carbide abrasive grain
+h.
+Check parts
+2.
+Second Requirement
+a.
+Core
+b.
+(1)
+Brazed
+(2)
+Soldered
+(3)
+Bolted
+(4)
+Riveted
+c.
+(1)
+Tubular
+(2)
+Honeycomb
+d.
+(1)
+Pressure flushing
+(2)
+Boiling
+(3)
+Rod cleaning
+e.
+Five psi
+f.
+Filling  the radiator with water and locating the leaks by moisture
+seeping through
+g.
+Carburizing flame
+99
+
+==================== PAGE 106 ====================
+METAL BODY REPAIR - OD1653 - LESSON 2/PE 2
+h.
+Complete tinning of the metal prior to soldering
+i.
+50 percent tin and 50 percent lead
+j.
+Zinc
+3.
+Third Requirement
+a.
+To offset excessive splashing and foaming of the fuel when the vehicle
+is in motion
+b.
+Rust
+c.
+Underwater air test
+d.
+45 minutes
+e.
+Yes
+100
+
+==================== PAGE 107 ====================
+METAL BODY REPAIR - OD1653 - REFERENCES
+REFERENCES
+101
+
+==================== PAGE 108 ====================
+METAL BODY REPAIR - OD1653 - REFERENCES
+REFERENCES
+The following documents were used as resource materials in developing this
+subcourse:
+DA Pam 310­1
+FM 9­24
+FM 43­2
+TB 9­2300­247­40
+TM 9­237
+102

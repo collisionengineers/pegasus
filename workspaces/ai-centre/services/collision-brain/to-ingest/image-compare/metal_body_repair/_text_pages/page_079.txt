@@ -1,0 +1,36 @@
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+(b) Reverse flushing is similar, except that the lead away hose is
+attached to the inlet connection and the flushing gun to the outlet.  Both
+methods  of pressure flushing are effective when the radiator is not too
+badly clogged.
+(3) Boiling Out Radiators.   Sediment so firmly packed in the radiator
+that pressure flushing will not remove it must be boiled out with a suitable
+chemical solution.   The vat is made so that the radiator may be lowered
+beneath the surface on a level controlled rack.   After the radiator has
+boiled  for a sufficient amount of time, it is removed from the vat and
+placed in a spray booth.  In the spray booth the outside of the radiator is
+washed with air pressure and water to force out dirt, bugs, lint, and other
+material lodged between the fins, so that free circulation of air around all
+parts of each tube and fin is restored.  Also, the interior of the radiator
+is back flushed with air pressure and water.
+(4) Cleaning Solution.   To make a good cleaning solution, dissolve one
+pound of ordinary baking soda in one gallon of water.   If a commercially
+prepared chemical cleaner for radiators is used, follow the direction on the
+container.
+(5) Rod  Cleaning.    If   flushing   or   boiling   is   inadequate,   scrape   the
+inside of the water passages with a bristle brush or cleaning rod.   For
+tubular radiators, this may be merely a round wire with its end rounded to
+avoid puncturing the tube.  For honey comb or cellular radiators, use a flat
+strip of metal with edges and ends rounded, not quite as wide as the water
+passage, pushing it back and forth through the water passages.
+c.
+Testing   Radiator   for   Leaks.    Before   testing   a   radiator   to   locate
+leakage, inspect it carefully for visible leaks and solder them promptly, so
+that   the   test   will   be   sensitive   enough   to   reveal   less   obvious   defects.
+There are two standard methods of testing: one by introducing air (under
+light pressure) into the radiator, immersing it in water, and locating the
+leaks by the appearance of bubbles; and the other, by filling the radiator
+with water and locating the leaks by the moisture seeping through.  Either
+test is satisfactory, although the air test method is preferred.  Mark the
+leaks as soon as found to facilitate locating them during repairs.
+73

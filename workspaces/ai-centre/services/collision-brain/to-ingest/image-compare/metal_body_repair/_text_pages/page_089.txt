@@ -1,0 +1,35 @@
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+(c) Reheat the tube at the header plate, and using a pair of needle
+nose pliers, bend the tube down and out to one side and remove from the
+header plate.
+(d) Retin the area where the tube was removed from the header plate.
+(e) Apply flux and solder the hole shut.
+(f) Repeat the same operation at the other header plate.
+g.
+Straightening   a   Bent   Radiator   Core.    A   bent   radiator   core   can   be
+straightened, provided the bend is gradual.  If it is so sharply kinked that
+the water tubes or passages are collapsed, it should not be straightened.
+Straightening is done in a press, with boards above and below the core, to
+spread the pressure and protect the air fins.  Hydraulic presses may be used
+for this operation.
+WARNING
+Epoxy materials may cause skin irritation.   If epoxy
+resins and hardeners come into contact with the skin,
+wash   the   skin   thoroughly   with   mild   soap   and   water.
+Always   use   epoxy   resins   and   hardeners   in   a   well­
+ventilated area.
+h.
+Repair of Aluminum Radiators.  Damaged radiators are repaired with epoxy
+resins, glass cloth, and aluminum screen.  Due to the limited storage life
+of the resin and hardener, repair of aluminum radiators with material which
+has  been in storage for more than one year is not recommended.   Mixing
+ratios of epoxy resins to hardeners normally are given by weight.  The ratio
+by weight is 100 parts epoxy to 14­17 parts hardener.
+When weighing equipment is not available, 5­6 parts epoxy resin by volume to
+1 part hardener by volume is the recommended volume mixing ratio.  The 5 to
+1 ratio will produce a compound with a shorter pot life (working time) than
+the   6   to   1   ratio   (working   life   of   the   resin   hardener   mixture   is
+approximately 15 to 25 minutes at 75 degrees F).   If desired, the entire
+contents  of both the hardener and resin cans may be used by adding the
+contents of the hardener
+83

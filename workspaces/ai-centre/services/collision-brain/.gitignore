@@ -1,6 +1,8 @@
-node_modules/
+bin/
 dist/
-coverage/
+obj/
+TestResults/
+publish/
 .env
 .env.*
 !.env.example

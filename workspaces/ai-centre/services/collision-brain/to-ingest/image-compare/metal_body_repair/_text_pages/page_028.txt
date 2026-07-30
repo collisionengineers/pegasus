@@ -1,0 +1,19 @@
+METAL BODY REPAIR - OD1653 - LESSON l/TASK 1
+(2) If   the   square   is   distorted,   as   shown   in   (B)   (figure   11   on   the
+previous page), the diagonals are no longer the same length; Y is no longer
+than X.
+(3) If this figure frame (B) is visualized with movable corners, it can
+be seen where pressure must be applied to make it square; at the corners of
+the Y diagonal.
+(4) The original length of either the sides or diagonals need not be
+known.    By making comparative measurements of the diagonals, it will be
+shown that when they are again equal, the frame is again perfect as it was
+in (A).
+(5) In (C), it is possible for the diagonals to be the same if the
+distortion   is   exactly   at   the   mid   point   of   side   (A).     Therefore,   by   a
+comparison of sides, (A) can be straightened until both side (C) and side
+(A) are the same length.   These illustrations show how it is possible to
+align a body or frame by measuring the body or frame alone.
+FIGURE 12.  DIAGONALS OF CUBES ARE 
+ALWAYS OF EQUAL LENGTH.
+22

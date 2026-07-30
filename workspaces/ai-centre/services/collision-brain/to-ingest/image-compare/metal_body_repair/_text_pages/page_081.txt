@@ -1,0 +1,34 @@
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+(4) Field Test Task.  A field test tank consists of a one piece canvas
+bag with wooden staves in pockets to hold the sides up, and four round poles
+running through canvas loops to support the rim.  A rubber mat protects the
+bottom   of  the   tank  from   being  torn   by  the   radiator.    When  the   tank  is
+collapsed, two poles are removed and placed inside the tank, which is then
+rolled inside the mat and fastened with five flat metal hooks.
+(5) Locating   Leaks.    Locating   the   leaks   when   bubbles   rise   is   often
+difficult.  Raise the radiator in the tank until the source of the bubbles
+is at the surface of the water.   Locate as many large leaks as possible,
+drawing upon the knowledge of radiator construction; quite frequently the
+large ones can be detected more easily at a lower pressure.  Repair these
+and retest for smaller ones.   If water leaks in and remains for a later
+test, it may seal the compressed air and prevent it from escaping, and thus
+cause leaks in the bottom to remain undiscovered.  Then on the last test,
+turn the radiator over in the tank.
+(a) Two leaks occurring exactly opposite one another, one near the
+front of the core and the other at the back, should not be confusing.  If
+testing a honeycomb core, stand it on edge, allowing the bubbles to come up
+the face.   A tubular core should be raised until only the lower rows of
+tubes are immersed in the water.  An accurate idea of the location of leaks
+is based upon a thorough understanding of core construction.  To locate open
+seams at the back of a tube, use a sharp pointed tool.
+(b) To find very small leaks, place the bench light in back of the
+radiator so that the interior of the core can be seen.  Stand the radiator
+on the bench and spread the supposed leak with flux or soapy water from an
+eyedropper, oilcan, acid brush, or swab.  Compressed air seeping through the
+leak will cause the liquid to foam.
+(c) As heavy truck cores occasionally come to the shop with water
+tanks removed, the water passages or tubes may have to be closed before
+tests  can be started.   For a honeycomb core, solder dummy tanks to the
+header strips.  These may be made of discarded tanks or plate metal, to one
+of 
+75

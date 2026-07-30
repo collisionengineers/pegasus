@@ -9,9 +9,9 @@ Retained supporting contracts are [security](security.md),
 
 ## Evidence boundary
 
-The latest repository evidence is dated **2026-07-20**.
+The latest repository evidence is dated **2026-07-29**.
 
-Repository-present code, local verification, caller proof, hosted deployment, production selection, and acceptance are distinct states. Current evidence establishes only repository scope and the local checks recorded below.
+Repository-present code, local verification, caller proof, hosted deployment, production selection, and acceptance are distinct states. Current evidence establishes the repository scope and the local checks recorded below; it does not establish a Pegasus caller, hosted deployment, or acceptance.
 
 There is no evidence of:
 
@@ -97,19 +97,19 @@ Inject secrets through environment variables or mounted secret files. Secrets mu
 
 Run from the service directory:
 
-```sh
-npm run typecheck
-npm test
-npm run build
+```powershell
+dotnet restore .\CollisionBrain.slnx --locked-mode
+dotnet build .\CollisionBrain.slnx --configuration Release --no-restore
+dotnet test .\CollisionBrain.slnx --configuration Release --no-build
 ```
 
-As of the evidence date:
+The memory-driver benchmark and API/worker/stdio smoke are local evidence. These
+commands do not verify the PostgreSQL profile, hosted infrastructure,
+representative document extraction, retrieval quality beyond the synthetic
+control, or a real Pegasus caller.
 
-- Type checking passed.
-- Offline/unit and in-memory MCP tests passed.
-- The build passed.
-
-These commands do not verify the PostgreSQL profile, hosted infrastructure, representative document extraction, retrieval quality, or a real caller.
+The exact dated change record records command results, skipped external profiles,
+and the independent review state.
 
 ## Not verified
 
@@ -133,7 +133,7 @@ A host is compatible only when it can satisfy this contract without changes to M
 The host must provide:
 
 - OCI-compatible execution for one HTTP API and one worker that can run continuously or periodically.
-- A Node.js 22-compatible Linux image.
+- A .NET 10 Linux runtime image containing the published CollisionBrain artifact.
 - Writable temporary storage.
 - Outbound HTTPS.
 - Graceful `SIGTERM` handling.
@@ -148,7 +148,7 @@ The host must provide:
 - Source storage shared by the API and worker through either:
   - a persistent filesystem; or
   - an S3-compatible endpoint and bucket.
-- Backup and export access sufficient to run `data:export` and restore through `data:import`.
+- Backup and export access sufficient to run `dotnet ... data-export` and restore through `dotnet ... data-import`.
 
 ### Identity and secret handling
 
@@ -191,11 +191,11 @@ The following behaviours are required acceptance criteria, not currently accepte
 
 ### Export and restore
 
-1. Export active knowledge using `data:export`.
+1. Export active knowledge using the package-local `data-export` command.
 2. Prepare a fresh compatible environment.
 3. Provision PostgreSQL with pgvector and apply `migrations/*.sql`.
 4. Provision source-object storage shared by the API and worker.
-5. Restore using `data:import`.
+5. Restore using the package-local `data-import` command.
 6. Verify active knowledge, stable citations, and source-object availability.
 7. Record the backup and restore result for promotion evidence.
 

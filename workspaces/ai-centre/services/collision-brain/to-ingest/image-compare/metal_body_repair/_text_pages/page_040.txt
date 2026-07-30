@@ -1,0 +1,19 @@
+METAL BODY REPAIR - OD1653 - LESSON 1/TASK 1
+(22) To correct collision damage in a motor vehicle, it requires a strong
+force opposite to the direction of the impact.  Powerful portable jacks have
+been developed to replace crowbars, planks and other makeshifts that were
+used for years to force damaged frames and bodies back into shape.   The
+portable hydraulic jack shown in figure 24 is capable of exerting a 10 ton
+force.  It consists simply of a hydraulic cylinder connected to a hand pump
+through   a   hose.     It   is   provided   with   attachments   for   pushing,   pulling,
+bending,   clamping,   or   spreading,   which   can   be   used   singly   or   in
+combinations.
+FIGURE 24.  PORTABLE HYDRAULIC JACK.
+Before using the jack, size up the job to determine the direction of the
+damaging force.  If the frame has been twisted, align this first, removing
+the body if necessary.  Make a setup using the ram and its attachments to
+apply hydraulic force, reversing the force of the damaging impact.
+To   operate   the   jack,   insert   the   handle   into   the   pump   beam   either
+horizontally or vertically.  Close the release valve, turning it by hand as
+far as possible to the right.  The downstroke of the
+34

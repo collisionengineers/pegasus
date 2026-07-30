@@ -1,0 +1,19 @@
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+FIGURE 35.  RADIATOR CONSTRUCTION
+(4) Honeycomb Core.  One form of the honeycomb core has slot­like water
+passages extending vertically through the core between sections of honey­
+like air coils.  Each section has an offset stamped metal ribbon around the
+outside   and   bent   fins   within.     Adjacent   sections   are   soldered   at   the
+offsets, which are about 1/4 inch wide and extend about 1/4 inch in from
+each face of the core.   The ribbon at the top of a section is called the
+header strip.  These ribbons are overlapped, forming a seam, to construct a
+single tube or section.  Note that this seam, extending from the center of
+the header strip downward to span the side walls of three entire cells,
+provides a broad contact area to seal the ribbons.  So many different shaped
+air cells have been used in honeycomb construction that it is impracticable
+to   discuss   them   all.     After   learning   to   recognize   a   few   representative
+types, the repairman should be able to analyze the construction of any other
+core.   In a U­shaped air­cell core, air cells are formed by U­shaped fins
+which zigzag from the tip of the core to the bottom, deflecting the air.
+The water drops almost directly from the upper tank to the lower tank in
+70

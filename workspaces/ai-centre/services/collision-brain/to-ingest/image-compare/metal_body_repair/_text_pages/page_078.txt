@@ -1,0 +1,34 @@
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+will flow, by gravity, through a radiator per minute.  The reading indicated
+on the tester is then compared with the flow rate of a new radiator or with
+the specifications furnished by the manufacturer.   The difference between
+the actual rate and the specified rate indicates the amount the radiator is
+clogged.
+(b) To use a flow tester, the radiator is set on the stand provided,
+then a hose is connected to the radiator inlet.  After the hose is connected
+securely, the pump is turned on, and the water flow is adjusted until a
+constant level is maintained in the tank.
+CAUTION
+Be   careful   when   adjusting   the   flow   rate.     If   you
+accidentally push the lever too far, the water will
+shoot out the top of the radiator onto the repairman.
+The capacity of this tester is 90 gallons of water per
+minute, and has given more than one person an unwanted
+shower.
+(2) Pressure Flushing.   Pressure flushing forces water by air pressure
+(approximately five psi) through the water passages of the core.  It may be
+accomplished in two ways: direct flushing, in which water is forced through
+from top to bottom, as it flows in normal service; and reverse flushing.
+The   same   equipment   is   required   for   both   methods:   water   pressure,   air
+pressure, and a flushing gun.
+(a) To   clean   a   radiator   by   direct   pressure   flushing,   screw   the
+radiator cap on the filler neck and attach a lead away hose to the outlet
+connection of the lower tank.  With the flushing gun in the inlet connection
+of the upper tank, fill the radiator with water.   Because water alone is
+often insufficient to break loose the grease, sludge, rust, and scale within
+the radiator, it may be necessary to add some good radiator cleaner.  When
+the deposits are loosened, turn the water off and admit compressed air to
+the radiator in short blasts, adding water between blasts until the water
+drains out clear and at a normal rate.  The air must be applied gradually,
+since the radiator will stand only a limited amount of pressure.
+72

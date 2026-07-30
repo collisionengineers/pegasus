@@ -1,0 +1,32 @@
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 3
+(3) The live steam and the exhaust­and­air methods are used mainly for
+terneplate   tanks,   but   they   can   also   be   used   on   fuel   compartments.     The
+water­filled method is another means of cleaning fuel tanks.  After locating
+a leak, fill the tank completely with clear water and replace the fuel cap.
+Then turn the tank until the leak is in the topmost position and repair with
+a soldering iron only.   For fiberglass and cell­type tanks, a plain water
+flush is the best method of cleaning.
+(4) Patching.  Before patching a damaged tank, first remove it from the
+vehicle and remove all vapors.  The area to be patched must be cleaned and
+tinned at least two inches beyond the crack in all directions.  When cutting
+a patch, use galvanized metal large enough to extend beyond the crack at
+least 1 inch in all directions.  Round all corners and tin the metal on the
+side that is to make contact with the tank.  Place the patch on the tank and
+sweat solder together.  The last step is to test with five psi air pressure.
+(5) Safety Rules.  Safety rules for fuel tank repair should be strictly
+enforced. 
+(a) Do not depend on your eyes or nose to decide if it is safe to put
+an  open flame on a fuel tank; steam it first.   A very small amount of
+residual gasoline or other explosive liquid can cause a serious explosion.
+(b) Never use oxygen to ventilate a fuel tank.
+(c) Never place a lighted torch or flame of any kind in the fuel tank
+opening to test for vapors after it has been cleaned.
+(d) Always use compressed air to clean the exhaust fumes from a fuel
+tank when the exhaust method has been used to remove fuel vapors.
+(e) Never   use   an   oxyacetylene   torch   to   remove   tops   of   55   gallon
+drums.  Always use a hammer and cold chisel.  All types of 55 gallon drums
+should be cleaned before removing the tops.   Vapors of some liquids will
+explode upon the first spark.  Since cold chisels are made of steel, a spark
+could very easily be struck.   With priority on safety, only drums which
+contain known non­toxic substances should be used.
+94

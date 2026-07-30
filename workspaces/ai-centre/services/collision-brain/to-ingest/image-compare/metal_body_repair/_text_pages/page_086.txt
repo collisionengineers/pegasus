@@ -1,0 +1,35 @@
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 2
+The most common material used as a soft solder bond is an alloy composed of
+50   percent   tin   and   50   percent   lead.     There   are   two   types   of   solder
+manufactured for the repair of vehicle radiators.  These types are acid core
+and wire solder.
+All solder is removed from the parts prior to assembly.  Any area that shows
+signs of not being tinned must be retinned.  If the oxyacetylene torch is
+used, the flame is adjusted to a carburizing flame.  If the soldering iron
+is used, the copper point must be properly heated and tinned.  If the copper
+point is too cold, the solder will not flow freely and will not stick to the
+metal.  If the copper point is too hot, the solder will form little globules
+that   will  run   off  the   surface  of   the  metal.     A   small  amount   of  solder
+properly flowing into the joint will give a much better result then a joint
+that   has   solder   piled   up   in   a   rough   seam.     A   good   soldering   job   is
+recognized by the manner in which it flows into the joint.  A rough, lumpy
+seam indicates a poor job.  A seam or joint of this kind should be gone over
+with a properly heated iron to flow down the ridge and to pick up the excess
+solder.  The speed with which soldering can be done with a torch flame is an
+advantage.  It is preferred over the soldering iron for most purposes.  The
+method of applying solder with the torch is similar to the method used with
+the soldering iron.   With the torch, solder is melted and flows directly
+upon the surface of the metal.  The heat of the metal and the torch flame
+are both essential to liquefy the solder.   Satisfactory requirements of a
+torch flame are:
+(1) Will not be extinguished by the fumes of the flux or acid.
+(2) Gives sufficient heat to accomplish quick fusion of the solder, and
+yet not hot enough to damage the metal being soldered.
+(3) Adjusted to suit the job to include a long, slim, needle­like flame
+capable of reaching difficult places, as well as a heavy, bushy type flame
+for dismantling parts.
+Various gases can be used for soldering with satisfactory results.  Hydrogen
+gas,   supported   by   compressed   air,   produces   a   flame   that   is   very
+satisfactory.  This gas may not always be available.  Acetylene gas is also
+used, but is not
+80

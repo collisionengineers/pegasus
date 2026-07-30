@@ -1,0 +1,30 @@
+METAL BODY REPAIR - OD1653 - LESSON 2/TASK 3
+remaining tank end is secured in position by seam welding.
+b.
+Fuel Tank Fittings.
+(1) Filler Neck.  Filler necks on fuel tanks are manufactured from cast
+iron,   aluminum,   or   low   carbon   steel,   then   coated   with   lead,   stamped   to
+shape, and soldered in place.
+(2) Filler Tube (sleeve) Assembly.  The filler tube is a round cylinder
+manufactured from terneplate.  It is used as an extension of the filler neck
+to prevent fuel from sloshing out of the tank while being filled.  Located
+in the bottom of the sleeve is a screen (brass wire mesh) to prevent dirt or
+other foreign particles from going into the tank.  When fuel is to be added
+to the tank, the sleeve is pulled up and locked in position.
+CAUTION
+When   repairing   a   fuel   tank,   make   certain   that   the
+sleeve  lock  is  in  proper  working  condition.    If  it
+does   not   make   good   contact   with   the   tank,   static
+electricity may result when filling and an explosion
+could result.
+(3) Filler Cap.   All fuel tank filler caps are not alike.   Some are
+plain lock­on types while others are designed not only to prevent the gas
+from sloshing out, but to allow combat­type vehicles to be used in deep­
+water fording operations.  Figure 39 (on the following page) illustrates a
+cross section view of a pressure type fuel tank filler cap.  Operation of
+the pressure cap is describe below.
+(a) As road heat comes in contact with the fuel tank, the fuel will
+start to expand, causing the air within the tank to be compressed.  At this
+time, pressure put on the compression spring opens the vent and lets the
+expanding fuel vapors escape from the tank.
+90
