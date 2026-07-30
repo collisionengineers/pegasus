@@ -243,7 +243,7 @@ Operations is the landing route.
 CE logo | Operations | Intake | Triage | Cases | Administration | Search | User
 Operations
 Not ready | Review | Held | Needs sorting | Blocked intake | Triage | Due today
-In today | Sent to Engineer: today / week | Reports sent: today / week
+New cases today | Sent to Engineer: today / week | Reports sent: today / week
 Last updated | Refresh
 Exact filtered queue list | selected summary / next safe action
 ```

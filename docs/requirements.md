@@ -86,7 +86,7 @@ Required outcomes:
 
 - Principal and internal reference are immutable after allocation.
 - Reference allocation occurs once safe source processing establishes an unambiguous Principal and Case type and all identity-critical gates pass. Incomplete ordinary business detail, images, or required external checks create or retain the Case as `Not ready`; they do not leave a valid instruction pre-Case.
-- The normal Case/PO is `{principal code}{YY}{three-digit shared sequence}`. Inspection, standalone Audit, and Inspection + Audit consume one principal/year sequence. Exhaustion is visible and blocks allocation; references and sequence values never wrap or return to use.
+- The normal Case/PO is `{principal code}{YY}{shared sequence}` with a three-digit minimum: `001` through `999`, then `1000` through `9999`. Inspection, standalone Audit, and Inspection + Audit consume one principal/year sequence. Exhaustion at `9999` is visible and blocks allocation; references and sequence values never wrap or return to use.
 - A standalone Audit derives lowercase `a.` or `ap.` only from an unambiguous repairable or total-loss assessment in the original Engineer report. Missing or ambiguous evidence blocks case creation and allocation.
 - Inspection + Audit begins with the normal Inspection reference. After Collision Engineers’ Engineer records the assessment, the applicable lowercase Audit reference is created inside that case; it does not consume another sequence value.
 - A used principal code is replaced by one linked successor in an atomic Core transaction: deactivate the predecessor, continue its next unused sequence in the Europe/London cutover year, and begin later years at `001`. Both identities and the reason remain permanent.
@@ -113,7 +113,7 @@ Required outcomes:
 
 Intake may begin through staff-forwarded email, a staff-created request-scoped upload link, provider material, manually supplied files, images, correspondence, or a future approved API route. Receipt is not case creation.
 
-Image-led material remains pre-Case until Principal, type, and every identity-critical gate pass. It does not require a fabricated formal instruction when its accepted Principal and identity evidence already establish a valid route. No case or reference is allocated merely because images arrived.
+Image-only material with a usable normalised VRM creates an Image Case with an Image Intake Reference and starts `Not ready`; it is not `Needs sorting` merely because it lacks a formal instruction or accepted Principal. Image material without a usable normalised VRM remains `Needs sorting`. An Image Case is never allocated a Case/PO merely because images arrived.
 
 Every intake path must:
 
@@ -191,6 +191,8 @@ VRM correlation is a suggestion until confirmed by accepted evidence or an autho
 
 The immutable source occurrence and its evidence remain distinct from the accepted, editable Case projection. Linking creates a versioned source-to-case relationship; it never converts the source into the case, rewrites source facts, or changes the original intake origin.
 
+An Image Case with an Image Intake Reference remains a distinct pre-report Case until Core can consolidate it into exactly one eligible instructed Case. Automatic consolidation requires an unambiguous normalised VRM match and no explicit contradictory identity evidence. A Case after report delivery is not eligible. Otherwise, an authorised staff member must make the reasoned decision. Consolidation retains both source histories and both permanent identities: the instructed Case/PO remains the Case identity and the Image Intake Reference becomes linked history. An authorised reversal is allowed only before report delivery, requires a reason and restores both Cases to `Not ready` without reusing or rewriting either identity or history.
+
 Each direct Case datum retains its current field provenance: staff entry,
 extraction, AI prefill or proposal, provider API, or another external
 vehicle/estimate source with its applicable identity, version, and time.
@@ -225,7 +227,7 @@ visible Case discrepancy. The later odometer-vision capability does not imply
 an activated AI caller before its own accepted evaluation and integration
 contract.
 
-Definitive authorised intake creates exactly one case idempotently. A definitive match to an existing case allocates no duplicate. A new case enters `Not ready` until its ordinary business detail, images, and applicable progression requirements are satisfied; the route may move it to `Review` only when its explicit policy permits that transition. The allocation decision adds no universal manual acceptance gate.
+Definitive authorised intake creates exactly one instructed Case idempotently. A definitive match to an existing instructed Case allocates no duplicate. A new instructed Case enters `Not ready` until its ordinary business detail, required source images, and applicable progression requirements are satisfied; the route may move it to `Review` only when its explicit policy permits that transition. The allocation decision adds no universal manual acceptance gate.
 
 One source occurrence has at most one current Case association. Every automatic or manual association records the exact source and Case identities, evidence, actor, time, policy/version, and reason where required. Any authorised staff member may reasonedly unlink or reassociate a mistaken match or merge; the prior relationship and both source origins remain permanent, and dependent facts and counts recompute without deleting history.
 
@@ -270,16 +272,19 @@ The lifecycle must support:
 
 - pre-case receiving and acceptance;
 - active work, `Not ready`, `Held`, `Review`, due-work visibility, and configuration-controlled instruction/image completeness plus staff-review gates before Engineer-queue eligibility or direct Engineer assignment;
+
 - manual chasing with the exact schedule below;
 - inspection/report preparation appropriate to desktop assessment;
 - report approval and delivery evidence without adding a separate pre-send case-review gate;
 - post-report queries, corrections, addenda, disputes, and reasoned closure where allocated;
-- four distinct terminal outcomes: `Post-report complete`, `Provider cancelled`, `Collision Engineers rejected`, and `Created in error`;
+- four distinct instructed-Case terminal outcomes: `Post-report complete`, `Provider cancelled`, `Collision Engineers rejected`, and `Created in error`; an Image Case that consolidates into an eligible instructed Case has the separate terminal outcome `Merged`;
 - reasoned reopen through normal destination gates, excluding `Created in error` and `Held` as a reopen destination.
+
+Each unmet progression requirement is an individual actionable blocker. The UI identifies its exact field or material, source/provenance, reason, and permitted resolution; an opaque aggregate such as “no unresolved field reviews” is prohibited. An action is enabled exactly when its current explicit prerequisites are satisfied. Saving unchanged or unrelated data must neither unlock it nor reset lifecycle, readiness, or advisory state.
 
 Durable receipt acknowledgement, retained correspondence, prepared or copied text, the `First sent to Engineer` export proxy, and a `Report sent` event are not terminal case outcomes. Report-sent evidence enters post-report work; post-report completion is a separate named closure action.
 
-Every closure selects exactly one named terminal outcome, records the authenticated actor, time, reason and prior/new state in permanent history, and leaves the Case, Case/PO, source relationships, and closure chronology intact. A closed case and its files remain application-level read-only until an authorised, reasoned reopen passes the normal destination gates. `Created in error` never reopens.
+Every closure or Image Case merge selects exactly one named terminal outcome, records the authenticated actor, time, reason and prior/new state in permanent history, and leaves the Case, Case/PO or Image Intake Reference, source relationships, and chronology intact. A closed Case and its files remain application-level read-only until an authorised, reasoned reopen passes the normal destination gates. `Created in error` never reopens.
 
 State changes are explicit Core transitions. UI labels, Worker handlers, APIs, and MCP tools call the same use cases; they do not implement parallel policy.
 
@@ -288,6 +293,8 @@ queue whether or not a named Engineer is assigned. An authorised staff member
 may assign it directly to a named Engineer; assignment and reassignment are
 audited Case mutations, not lifecycle states, and do not create an `Assigned`
 or `Ready for Engineer` status.
+
+An incoming cancellation message associated with a pre-report Case moves that Case to `Held pending staff decision`; it is not an automatic terminal outcome. Staff may either confirm `Provider cancelled` with the message evidence and a reason, or release the Case. Release first requires the message itself to be reasonedly recategorised or unlinked/reassociated; its original and corrected classification/association, actor, time, reason, and evidence remain permanent history.
 
 ### Case edit authority and recovery
 
@@ -400,9 +407,13 @@ Document Intelligence extraction from scanned PDFs, and broader image/damage AI
 or vision assistance are different capabilities.
 Generated or synthetic vehicle imagery is not acceptance evidence, and no recogniser, model, or adapter acts autonomously.
 
+Pegasus retains every source image, but automatically excludes an image from Case-vehicle and report-image selection when a readable VRM or reliable colour evidence identifies a different vehicle. When reliable detail identifies that other vehicle, the retained source is categorised as third-party vehicle evidence; otherwise it is retained as unmatched-vehicle evidence. Neither outcome deletes source evidence or turns an automated assessment into accepted Case fact.
+
 When activated, an AI-assisted image readiness assessment runs automatically whenever current Case images are added, replaced, or removed. It returns a source- and version-labelled advisory on whether the set contains a registration overview, at least one damage close-up, and a reflected image. An accepted always-image-based Principal route policy waives only the reflection advisory.
 
 The assessment may run before market valuation and neither creates nor returns an AI Proposal. Its result does not affect Case/PO allocation, Case state, Review, Engineers-queue eligibility, due work, chasing, or staff discretion. Source images remain retained, and report-image selection continues to exclude images showing a person's reflection.
+
+Image-readiness advice never selects, excludes, orders, or otherwise decides report images. Report-image selection is a human Engineering decision in the report-generation section, not an opposing-toggle control on the Case evidence surface.
 
 This allocation creates no AI caller. Its activation still requires accepted model/transport, data, cost, evaluation, failure/recovery, real-caller, and approval evidence. Broader image or damage analysis and AI-generated repair specifications remain separate capabilities.
 
@@ -503,16 +514,7 @@ present. The Experian adverse-history check remains an EVA-owned downstream
 step; Pegasus preserves its source-labelled result if later received but does
 not claim that manual package generation performed the check.
 
-Selected report images must exclude any image showing a person's reflection.
-The deterministic EVA order begins with two preview images: a vehicle overview
-showing the full registration and a close-up of the main damage. The complete
-eligible sequence follows and includes those first two images again. When a
-video is the only sufficient source, staff may select screenshots; each
-screenshot retains the video occurrence and capture-position provenance. These
-eligibility, duplication, and ordering rules are part of the manual handoff
-parity required of any future EVA API route. The source observations and their
-scope are retained in the [Collision Engineers administration
-overview](reference/reports/collision_engineers_admin_overview.md).
+Report-image selection and order belong to the Engineer report-generation section; the Case evidence surface retains provenance, categories, and advisory findings but has no competing `Use for EVA`/`Exclude` controls. Selected report images must exclude any image showing a person's reflection. The deterministic EVA order begins with a human-confirmed vehicle overview showing the full readable registration and a close-up of the main damage. Staff may override an automated registration-visibility advisory, but not the human-confirmed registration requirement for that first overview. The complete eligible sequence follows and includes those first two images again. When a video is the only sufficient source, staff may select screenshots; each screenshot retains the video occurrence and capture-position provenance. These eligibility, duplication, and ordering rules are part of the manual handoff parity required of any future EVA API route. The source observations and their scope are retained in the [Collision Engineers administration overview](reference/reports/collision_engineers_admin_overview.md).
 
 ### External boundary
 
@@ -543,7 +545,7 @@ establishes a proxy-only case/vehicle/inspection fetch, a
 create-with-children operation or its validation/atomicity, separate picture
 upload, report-with-PDF handoff, response model, or case/reference correlation
 semantics. Those details remain unresolved in [EVA API
-activation](open-decisions.md#eva-api-activation); none may be inferred from
+activation](open-decisions.md#eva-api-activation-070-ext-04); none may be inferred from
 the manual export or used to authorize an EVA call.
 
 Audatex remains a separate estimating-system role unless an accepted capability
@@ -568,7 +570,7 @@ owners.
 | `billing` | payment notifications; remittances; invoice requests; `billing-query`; `general-billing` |
 | `new-instruction-received` | initial work instructions: `audit`, `diminution`, `inspection`, `new-client`, `website-enquiry` |
 | `non-client-related` | internal/company email from tools, services, software packages, and similar sources |
-| `in-progress-cases` | `cancellation`; `case-update`; `client-chasing-for-update`; other ongoing correspondence |
+| `in-progress-cases` | `cancellation`; `case-update`; `client-chasing-for-update`; `provider-chasing-for-update`; other ongoing correspondence |
 | `post-report-emails` | queries; disputes; amendment requests; similar post-report correspondence |
 | `pre-instruction-emails` | Triage requests; pre-formal-instruction handling requests; images received before formal instructions |
 | `internal-cc` | internal copied correspondence |
@@ -610,6 +612,8 @@ the reasoned `Created in error` replacement route and never reuses a reference.
 Message/file bodies, credentials, tokens, and secrets do not belong in
 permanent action history; routine polling, retry, lease, and adapter mechanics
 remain telemetry.
+
+At the allocated `Next / 0.3.0` mailbox-workspace activation, each approved mailbox has an exact mailbox filter and queue scope. The email quick preview is keyboard- and screen-reader-accessible, opens on pointer or keyboard intent without clipping or obscuring adjacent controls, and dismisses when focus moves away. It is evidence navigation only: previewing never changes classification, association, read state, Case state, or source custody.
 
 An Outlook/Graph route must, before activation:
 
@@ -791,6 +795,8 @@ The selected alpha direction is Operations-first. The UI must provide:
   support;
 - responsive use without hiding required evidence or actions.
 
+Every actionable search result is a full-row keyboard-focusable link or button with visible action affordance. At constrained desktop width, a long Case/PO or Image Intake Reference moves to a labelled second line instead of overlapping the received timestamp. Inbox and intake rows always show received date above received time, and show the precise processing outcome—such as `Case created`, `Image Case created`, `Attached to Case`, `Needs sorting`, or `Blocked intake`—rather than a generic `New`. One semantic action or state has one consistent icon across Pegasus; no decorative or generated replacement icon is used.
+
 ### Dashboard freshness and reconciliation
 
 Every count and query exposes its last successful update time and current
@@ -806,11 +812,9 @@ Reconciliation that accepts, rejects, links, or changes an external business
 fact instead enters permanent business history with the responsible actor,
 source/version, before/after values, time, and reason where required.
 
-`Due by` and overdue/chaser work remain a separate operational view from `In
-today`. The case list and persistent case identity area expose due/overdue
-state, while the case workspace keeps the missing-material reason, next chase,
-last recorded outcome, and next permitted action together. Triage has no
-due/chaser presentation.
+`New cases today` counts every instructed Case and Image Case created in the current Europe/London calendar day, including a Case later terminally merged or closed that day; it excludes Triage, `Needs sorting`, and `Blocked intake`. It is separate from `Due today`, `Sent to Engineer`, and `Reports sent`.
+
+`Due by` and overdue/chaser work remain a separate operational view from `New cases today`. The case list and persistent case identity area expose due/overdue state, while the case workspace keeps the missing-material reason, next chase, last recorded outcome, and next permitted action together. Triage has no due/chaser presentation.
 
 The UI never infers state from colour alone, never uses decorative glyphs as
 unlabeled controls, and never presents draft, queued, attempted, allocated, or
