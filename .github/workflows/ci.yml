@@ -23,13 +23,38 @@ jobs:
           dotnet-version: 10.0.x
       - name: Restore
         shell: pwsh
-        run: dotnet restore ./Pegasus.slnx
+        run: dotnet restore ./Pegasus.slnx --locked-mode
       - name: Build
         shell: pwsh
         run: dotnet build ./Pegasus.slnx --configuration Release --no-restore
+      - name: Install pinned Playwright Chromium
+        shell: pwsh
+        run: pwsh ./tests/Pegasus.IntegrationTests/bin/Release/net10.0/playwright.ps1 install chromium
       - name: Test
         shell: pwsh
         run: dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"
+
+  qdos-pressure:
+    runs-on: windows-latest
+    # Local deterministic pressure completes in seconds; allow setup variance
+    # but fail a deadlocked caller path rather than consuming GitHub's six-hour
+    # default job window.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - name: QDOS deterministic caller pressure
+        shell: pwsh
+        run: ./scripts/Invoke-QdosAlphaAcceptance.ps1 -Profile CiPressure -SourceRevision '${{ github.sha }}'
+      - name: Retain content-safe pressure evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: qdos-pressure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/qdos-alpha-acceptance/
+          if-no-files-found: error
 
   source-workspaces:
     runs-on: windows-latest
@@ -38,11 +63,6 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: workspaces/ai-centre/services/collision-brain/package-lock.json
       - uses: actions/setup-python@v6
         with:
           python-version: "3.14"
@@ -65,10 +85,9 @@ jobs:
         working-directory: workspaces/ai-centre/services/collision-brain
         shell: pwsh
         run: |
-          npm ci
-          npm run typecheck
-          npm run build
-          npm test
+          dotnet restore ./CollisionBrain.slnx --locked-mode
+          dotnet build ./CollisionBrain.slnx --configuration Release --no-restore
+          dotnet test ./CollisionBrain.slnx --configuration Release --no-build
       - name: Validate agent-skill packaging
         working-directory: workspaces/ai-centre/skills/tools
         shell: pwsh

@@ -154,8 +154,8 @@ scope and separate approval.
 
 ## Decisions and conflicts
 
-- Accepted [ADR 0010](../decisions/0010-adopt-azure-workflow.md) supersedes
-  ADR-0008 only as the active repository workflow; historical evidence stays.
+- This onboarding replaced the repository-local plugin workflow. This completed
+  change record, rather than a durable ADR, retains that migration provenance.
 - Rejected: restoring the removed plugin suite, keeping a second task database,
   generating one issue per capability, importing the complete design bundle,
   treating a registered Worker as a caller, or claiming dated Azure inventory
@@ -226,7 +226,7 @@ scope and separate approval.
 - Product/capabilities: [product requirements](../requirements.md) and [current capability inventory](../capabilities.md).
 - Design system/assets: [adapted design authority](../../design/README.md) and exact [master logo](../../design/brand/logos/logo_no_margin.png).
 - Roadmap/release: [capability allocation summary](../capabilities.md#allocation-summary); no release allocations changed.
-- Architecture/ADR: [architecture](../architecture.md) and [ADR 0010](../decisions/0010-adopt-azure-workflow.md).
+- Architecture/workflow: [architecture](../architecture.md) and the [installed repository-development skills](../../.agents/skills/ask-matt/SKILL.md).
 - Operations: [operations](../operations.md), proportional CI, and repository-owned checks.
 - GitHub issue/Project/milestone: no issue or milestone created; draft [PR 2](https://github.com/collisionengineers/collisionspike_v2/pull/2) is registered in linked [Project 3](https://github.com/users/collisionengineers/projects/3).
 

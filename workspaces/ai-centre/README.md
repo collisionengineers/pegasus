@@ -8,7 +8,7 @@ The collision engineer remains the decision-maker and author of record. Every ex
 
 The workspace remains at repository-foundation stage. The supplied source records only [Collision Brain](services/collision-brain/README.md) as an implemented and tested standalone component: a provider-neutral ingestion and retrieval service with MCP interfaces, citations, and deletion. That component evidence does not prove Pegasus integration.
 
-No Pegasus caller, dependency, deployment, or business-policy authority is evidenced here. Nothing in this workspace is caller-proved, deployed to Pegasus, or accepted for production merely because source, tests, research, or a proposal exists. No model is approved for production. `Pegasus.Core` and the operator’s explicit decisions prevail.
+No Pegasus caller, dependency, deployment, or business-policy authority is evidenced here. Nothing in this workspace is caller-proved, deployed to Pegasus, or accepted for production merely because source, tests, research, or a proposal exists. The [workspace integration register](../README.md#integration-status-register) records its planned status and activation conditions. No model is approved for production. `Pegasus.Core` and the operator’s explicit decisions prevail.
 
 Keep these evidence states distinct:
 
@@ -18,7 +18,7 @@ Keep these evidence states distinct:
 - **Deployed** requires deployment evidence.
 - **Accepted** requires the applicable product, architecture, security, operational, and business approvals.
 
-Current rules belong in the canonical documentation. Rationale belongs in [decision records](../../docs/decisions/README.md), and historical change evidence belongs in [change records](../../docs/changes/README.md). Neither history nor a decision record by itself proves implementation, a caller, deployment, or acceptance.
+Current rules belong in the canonical documentation. Rationale belongs in [decision records](../../docs/adr/README.md), and historical change evidence belongs in [change records](../../docs/changes/README.md). Neither history nor a decision record by itself proves implementation, a caller, deployment, or acceptance.
 
 The imported delivery plan was last marked **21 July 2026** and remains sequencing and research for this source workspace, not an activated Pegasus caller.
 
@@ -32,9 +32,9 @@ The imported delivery plan was last marked **21 July 2026** and remains sequenci
 | Unresolved allocations and choices | [Open decisions](../../docs/open-decisions.md) |
 | System, runtime, and desktop boundaries | [Architecture](docs/architecture.md) |
 | Data, security, release, and service procedures | [Operations](../../docs/operations.md) |
-| Development and evaluation practice | [Engineering](../../docs/engineering.md) |
+| Development and evaluation practice | [Installed repository-development skills](../../.agents/skills/ask-matt/SKILL.md) |
 | Human operation and approval | [Operator notes](../../docs/operator-notes.md) |
-| Architecture and policy rationale | [Decision records](../../docs/decisions/README.md) |
+| Architecture and policy rationale | [Decision records](../../docs/adr/README.md) |
 | Historical change evidence | [Change records](../../docs/changes/README.md) |
 | Durable visual authority | [Root design](../../design/README.md) |
 | Qualified reference material | [Reference index](../../docs/reference/README.md) |

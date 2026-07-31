@@ -4,7 +4,9 @@ This is the sole register of material unresolved decisions. Most product decisio
 
 Intended, implemented, caller-proved, deployed, and accepted are separate evidence states. A selected design or recommended default is not proof of implementation; implementation without a real caller is not caller proof; caller proof is not deployment; and deployment is not acceptance. No stronger state is inferred below.
 
-Accepted decisions should move to the appropriate [decision](decisions/README.md) or [change](changes/README.md) record. Delivery status does not belong in this register.
+Accepted decisions should move to the appropriate [decision](adr/README.md) or [change](changes/README.md) record. Delivery status does not belong in this register.
+
+[ADR-0013](adr/0013-qdos-alpha-implementation-contract.md) settles checkpoint 1's clause-specific QDOS implementation and Razor/Worker/MCP caller boundary, the separately owned `DOC-CON-052` evaluator boundary, and the post-alpha repository-policy deferral. It does not close the evidence-dependent questions below or prove implementation, a caller, deployment, live verification, or acceptance.
 
 Staff roles and access, principal and historical case-party identity, the Case/PO and case-type rules, Triage’s normal workflow, named terminal outcomes and reasoned reopen, exclusive one-case edit actions, immutable source-occurrence/dispatch identity, and reasoned source/Case or outbound-evidence reassociation are settled. Their canonical clauses are [principal and case-party identity](requirements.md#principal-reference-organisation-and-case-party-identity), [source occurrence and dispatch](requirements.md#source-occurrence-and-dispatch-identity), [matching and reversible association](requirements.md#matching-conflicts-and-reversible-association), [Triage](requirements.md#normal-workflow-and-completion-evidence), [case lifecycle](requirements.md#lifecycle-closure-and-correspondence), [case edit authority](requirements.md#case-edit-authority-and-recovery), [staff role access](requirements.md#staff-role-access-matrix), and [outbound correspondence evidence](requirements.md#outbound-correspondence-evidence). This register may block only the named automatic predicate, transport, credential, or activation detail; it must not reopen those settled behaviors.
 
@@ -46,6 +48,8 @@ The first additional-provider route cohort is allocated to `0.2.0`; the broader
 classified-email workspace and email MCP cohort is allocated to `0.3.0`.
 Neither target closes this evidence gate.
 
+Accepted source-labelled results from the separately delivered evaluator may satisfy a named cohort or holdout prerequisite. Its route, command, reviewer workflow, and UI mechanics are not QDOS callers or checkpoint evidence and do not close route activation, production-intake, Worker, Graph, or operator-acceptance proof.
+
 | Evidence needed | Impact | Recommended default | Decision question |
 |---|---|---|---|
 | For each proposed route: genuine examples; exact sender/intermediary identity; finite category predicates and exclusions; automatic incoming-case, Triage, and exact Sent-item matching predicates; and named no-match/conflict/ambiguity outcomes. | Premature activation could misclassify a message or associate the wrong case, Triage, or delivery evidence. | Keep the route and each automatic matcher inactive until its exact predicates and conservative outcomes are accepted. | Are the route’s category and automatic-matching predicates, exclusions, and ambiguity outcomes accepted? |
@@ -80,10 +84,10 @@ The examples establish the presence and order of `VRM`, but do not by themselves
 ## EVA API activation (`0.7.0` / `EXT-04`)
 
 Direct EVA API use is allocated only as an optional, non-blocking `0.7.0`
-branch and remains blocked because no usable EVA operation has been supplied by
-the EVA development team. The retained vendor schema is non-authoritative
-reference evidence: it does not select an operation or grant permission to call
-EVA.
+branch. Vendor test credentials exist, but the route remains blocked until EVA
+developers deliver a vendor-confirmed usable operation meeting the accepted
+contract. The retained vendor schema is non-authoritative reference evidence:
+it does not select an operation or grant permission to call EVA.
 
 In particular, no allowed accepted source currently establishes a proxy-only
 case/vehicle/inspection fetch, a create-with-children operation, its
@@ -109,10 +113,10 @@ adapters.
 | Provider API tenancy and wire contract | An accepted client/tenant representation, exact routes, headers, schemas, attachment encoding, request limits, throttling/error contract, administration workflow, named clients, and rollout. The settled isolation boundary remains one principal-scoped client with own receipt/status/result only. | Treating an email domain, intermediary, or shared external tenant as the API principal could disclose another principal's work or create a second policy engine. | Keep the API absent. Use stable Pegasus principal identity as the isolation boundary and infer no tenancy model from provider-domain evidence. | What exact provider API contract and client/tenant representation preserves the accepted principal-scoped isolation boundary? |
 | `provider_domain_key` migration or retirement | An authoritative source definition and owner; current and predecessor uses; mapping to stable Pegasus principal/route/evidence identities; collision and unknown handling; cutover, rollback, retention, and exact retirement proof. No allowed accepted source currently defines this name as a Pegasus identity. | Importing, translating, or deleting an undefined key could misattribute a principal, destroy provenance, or leave a hidden compatibility dependency. | Do not create, migrate, map, alias, or retire `provider_domain_key`. Keep provider-domain evidence versioned and separate from principal and route identity. | Is there any approved source and consumer that requires this key, and if so what reviewed migration and retirement contract applies? |
 | Provider report submission and delivery | Exact provider API formats, delivery contracts, and provider identities. | Reports or work could be sent in an unsupported format or to an unproved identity. | Keep provider delivery behind review or existing supported procedures until each provider contract is accepted. | Has the exact format and identity contract been accepted for the provider being activated? |
-| DVLA/DVSA vehicle and MOT lookup | Selected provider/API and licence; exact make/model/year/engine/fuel and MOT/mileage fields; credentials; limits/rates; error and stale-data behavior; target; mileage-estimation rule; and caller proof. | A guessed field or stale/failed result could overwrite confirmed vehicle data or present an estimate as supplied fact. | Keep live lookup disabled. Preserve source-labelled suggestions and return `Unavailable` when approved local replay evidence is absent. | Is the exact lookup and mileage contract accepted for the named provider and caller? |
+| DVLA/DVSA vehicle and MOT lookup | Selected provider/API and licence; exact make/model/year/engine/fuel and MOT/mileage fields; credentials; limits/rates; error and stale-data behavior; target; integration of the accepted mileage-estimation contract; and caller proof. | A guessed field or stale/failed result could overwrite confirmed vehicle data or present an estimate as supplied fact. | Keep live lookup disabled. Preserve source-labelled suggestions and return `Unavailable` when approved local replay evidence is absent. | Is the exact lookup contract accepted for the named provider and caller? |
 | Post-report query and dispute lifecycle | Allowed states/transitions and actors; case/report/reply-chain evidence; correction/reopen and due/chaser interaction; response proof; closure; and dispute resolution. | A mailbox event could silently change case state, close work prematurely, lose a correction, or create a duplicate case/reference. | Preserve the correspondence against the existing case for staff review; let no Outlook adapter decide lifecycle or closure. | What exact CASE-23 lifecycle governs a received query/dispute through Engineer response and reasoned completion? |
 | Audatex PDF ingestion | Representative PDF variants and accepted field-mapping evidence. | Variant layouts could produce incomplete or incorrect extraction. | Do not activate generic Audatex PDF mapping from unrepresentative examples. | Have the supported Audatex PDF variants and their mappings been accepted from representative evidence? |
-| Mandatory provider and vehicle-history checks | An exact contract defining which checks are mandatory, for which provider or route, when they run, and how failures or unavailable results are handled. | Cases could proceed without required checks or be blocked by checks that were never mandated. | Do not infer a universal mandatory-check policy. Keep activation gated on an exact contract. | Has the provider-specific mandatory-check contract, including vehicle-history handling, been accepted? |
+| Mandatory global vehicle checks | Global requirements are settled as vehicle identity/specification, vehicle-history/risk, and market valuation. All three require a result or explicit exception before Engineers-queue eligibility. The authorised staff reviewer records each exception as a named, reasoned Case action. Each provider/route still needs its exact source, required result, and unavailable/failure contract. | A Case could proceed to an Engineer without a globally required result, or a provider-specific behavior could silently override the common baseline. | Preserve the global checks; use source-labelled `Unavailable` or approved local replay while live callers are unaccepted; retain unmet checks as `Not ready` rather than inventing a result. | What unavailable/failure contract applies to each global check for each provider/route? |
 | Report wording | Accepted wording for salvage Categories N, A, B, and N/A; recovery and storage; the final statement of truth; and named qualifications. | Reports could contain incomplete, unauthorized, or inconsistent statements. | Keep the affected wording review-gated and do not invent missing text or qualifications. | Has the complete wording and qualification set been accepted for report generation? |
 
 ## Send-to-AI transport experiment (`1.3.0` / `AI-09`)
@@ -121,17 +125,28 @@ adapters.
 proposal, and review contract. The target does not activate a transport; any
 transport must conform to that contract rather than weakening the queue.
 
-A later experiment may compare:
+The current direction distinguishes these tracks:
 
-1. attended Claude Code, Cowork, or Desktop chat consuming scoped MCP work;
-2. supported scheduled Claude Desktop automation polling the MCP queue; and
-3. a future Collision AI Centre harness polling the queue.
+1. one named, vendor-neutral Automation Actor performing ordinary operational Core actions through approved MCP tools, with Pegasus attribution and history; Claude Desktop may supply the initial client evidence without owning that actor identity;
+2. a user-triggered domain action `Send to AI` that may return only a proposed repair specification, never a report document or direct Case mutation; Claude is the current provider candidate, but provider-specific UI wording does not redefine the action; and
+3. Microsoft Foundry as the intended candidate, pending evaluation, for later AI query-response proposals.
 
-Direct Anthropic or other model API integration is neither an assumed candidate nor a fallback.
+Direct Anthropic or other model API integration is neither an assumed implementation nor a fallback. Any `Send to AI` transport must satisfy the Core work-request, proposal, review, identity, recovery, and cost contract. A later provider change must not change the `Send to AI` domain action or stored identity.
 
 | Evidence needed | Impact | Recommended default | Decision question |
 |---|---|---|---|
-| Actual client and tool support; OAuth and actor identity; attended versus unattended behaviour; leasing, cancellation, and recovery; proposal return; and cost. | An unsupported client could weaken actor accountability, queue recovery, or proposal review and could create an unintended direct-model dependency. | Run the experiment without changing the Core contract. Discard any Claude surface that cannot satisfy it. | Which candidate, if any, proves the complete Core queue contract with acceptable identity, recovery, proposal return, and cost? |
+| Actual supported automation client and Foundry support; authentication and Automation Actor identity; the exact approved operational MCP inventory; user-triggered assessment selection and current provider label; leasing, cancellation, recovery, proposal return, cost, model evaluation, and named Engineer review. | An unsupported client or model could weaken actor accountability, queue recovery, proposal review, or create an unintended direct-model dependency. | Retain one vendor-neutral Core contract; permit only the documented operational MCP and proposal paths; do not activate either AI transport until it proves that contract. | Which specific client and Foundry model/transport choices prove the complete Core contract with acceptable identity, recovery, proposal return, evaluation, and cost? |
+
+## Future custom assessor
+
+A future fine-tuned custom assessor is an explicit unallocated deferral. Its
+model choice and hosting—locally operated or rented infrastructure—remain
+unresolved. No imported workspace, experiment, model, prompt, or evaluation
+selects a Pegasus runtime, caller, deployment, or business-policy owner.
+
+| Evidence needed | Impact | Recommended default | Decision question |
+|---|---|---|---|
+| Accepted model purpose and evaluation suite; source-data and human-approval contract; selected local or rented hosting boundary; cost, licence, capacity, security, recovery, deployment, and real Pegasus-caller evidence. | A premature model or hosting choice could create an unsupported runtime, unreviewed data flow, or duplicate Core policy owner. | Preserve the deferred seam only. Do not scaffold a model integration, hosting target, or deployment unit. | Which evaluated custom-assessor model and hosting boundary should Pegasus adopt, if any? |
 
 ## Later operator UI capabilities
 

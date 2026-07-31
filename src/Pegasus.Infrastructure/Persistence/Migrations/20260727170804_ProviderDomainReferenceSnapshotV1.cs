@@ -20,21 +20,17 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            var isSqlite = ActiveProvider == "Microsoft.EntityFrameworkCore.Sqlite";
-            var integerType = isSqlite ? "INTEGER" : "int";
-            string TextType(string sqlServerType) => isSqlite ? "TEXT" : sqlServerType;
-
             migrationBuilder.CreateTable(
                 name: "ProviderDomainPackages",
                 columns: table => new
                 {
-                    Version = table.Column<string>(type: TextType("nvarchar(64)"), maxLength: 64, nullable: false),
-                    SchemaVersion = table.Column<int>(type: integerType, nullable: false),
-                    PackageSha256 = table.Column<string>(type: TextType("nvarchar(64)"), maxLength: 64, nullable: false),
-                    SourcePath = table.Column<string>(type: TextType("nvarchar(512)"), maxLength: 512, nullable: false),
-                    SourceContentSha256 = table.Column<string>(type: TextType("nvarchar(64)"), maxLength: 64, nullable: false),
-                    SourceSheet = table.Column<string>(type: TextType("nvarchar(31)"), maxLength: 31, nullable: false),
-                    SourceRowCount = table.Column<int>(type: integerType, nullable: false)
+                    Version = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    SchemaVersion = table.Column<int>(type: "int", nullable: false),
+                    PackageSha256 = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    SourcePath = table.Column<string>(type: "nvarchar(512)", maxLength: 512, nullable: false),
+                    SourceContentSha256 = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    SourceSheet = table.Column<string>(type: "nvarchar(31)", maxLength: 31, nullable: false),
+                    SourceRowCount = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -47,9 +43,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "ProviderReferences",
                 columns: table => new
                 {
-                    Version = table.Column<string>(type: TextType("nvarchar(64)"), maxLength: 64, nullable: false),
-                    Code = table.Column<string>(type: TextType("nvarchar(20)"), maxLength: 20, nullable: false),
-                    SourceRow = table.Column<int>(type: integerType, nullable: false)
+                    Version = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    SourceRow = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -67,9 +63,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "ProviderDomainEvidence",
                 columns: table => new
                 {
-                    Version = table.Column<string>(type: TextType("nvarchar(64)"), maxLength: 64, nullable: false),
-                    Code = table.Column<string>(type: TextType("nvarchar(20)"), maxLength: 20, nullable: false),
-                    DomainSuffix = table.Column<string>(type: TextType("nvarchar(254)"), maxLength: 254, nullable: false)
+                    Version = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    DomainSuffix = table.Column<string>(type: "nvarchar(254)", maxLength: 254, nullable: false)
                 },
                 constraints: table =>
                 {

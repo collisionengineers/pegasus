@@ -1,0 +1,87 @@
+@page
+@model Pegasus.Web.Pages.Administration.Organizations.IndexModel
+@using Pegasus.Core.Cases
+@{
+    ViewData["Title"] = "Organizations";
+}
+
+<h1>Organizations</h1>
+<p><a asp-page="/Administration/Index">Back to Administration</a></p>
+<p>Organization roles are independent. A Work Provider can own principals; an Instruction Intermediary can route work without becoming the principal.</p>
+
+@if (TempData["AdministrationStatus"] is string status)
+{
+    <div role="status">@status</div>
+}
+
+<section aria-labelledby="create-organization-heading">
+    <h2 id="create-organization-heading">Create organization</h2>
+    <form method="post" asp-page-handler="Create">
+        <div asp-validation-summary="ModelOnly"></div>
+        <input asp-for="OperationKey" type="hidden" />
+        <div>
+            <label asp-for="OrganizationName">Organization name</label>
+            <input asp-for="OrganizationName" autocomplete="organization" />
+            <span asp-validation-for="OrganizationName"></span>
+        </div>
+        <fieldset>
+            <legend>Organization roles</legend>
+            <label><input asp-for="WorkProvider" /> Work Provider</label>
+            <label><input asp-for="InstructionIntermediary" /> Instruction Intermediary</label>
+        </fieldset>
+        <button type="submit">Create organization</button>
+    </form>
+</section>
+
+<section aria-labelledby="current-organizations-heading">
+    <h2 id="current-organizations-heading">Current organizations</h2>
+    @if (Model.Organizations.Organizations.Count == 0)
+    {
+        <p>No organizations are available on this page.</p>
+    }
+    else
+    {
+        <table>
+            <thead>
+                <tr><th>Name</th><th>Roles</th><th>Active principals</th><th>Version</th><th></th></tr>
+            </thead>
+            <tbody>
+            @foreach (var organization in Model.Organizations.Organizations)
+            {
+                <tr>
+                    <td>@organization.Name</td>
+                    <td>@string.Join(", ", organization.Roles.Select(role => role == OrganizationRole.WorkProvider ? "Work Provider" : "Instruction Intermediary"))</td>
+                    <td>
+                        @organization.Principals.Count(principal => principal.IsActive)
+                        @if (organization.HasMorePrincipals)
+                        {
+                            <span>(bounded view; more exist)</span>
+                        }
+                    </td>
+                    <td>@organization.Version</td>
+                    <td>
+                        <a asp-page="Edit" asp-route-id="@organization.Id">Manage roles</a>
+                        @if (organization.Roles.Contains(OrganizationRole.WorkProvider))
+                        {
+                            <span> · </span>
+                            <a asp-page="/Administration/Principals/Create"
+                               asp-route-organizationId="@organization.Id">Create principal</a>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+
+    <nav aria-label="Organization pages">
+        @if (Model.Organizations.HasPreviousPage)
+        {
+            <a asp-page="Index" asp-route-pageNumber="@(Model.Organizations.PageNumber - 1)">Previous</a>
+        }
+        @if (Model.Organizations.HasMoreOrganizations)
+        {
+            <a asp-page="Index" asp-route-pageNumber="@(Model.Organizations.PageNumber + 1)">Next</a>
+        }
+    </nav>
+</section>

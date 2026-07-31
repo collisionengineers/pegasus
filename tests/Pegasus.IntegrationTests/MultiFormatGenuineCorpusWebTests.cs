@@ -5,6 +5,7 @@ using Xunit.Abstractions;
 
 namespace Pegasus.IntegrationTests;
 
+[Collection(LocalDbFixtureDefinition.Name)]
 public sealed class MultiFormatGenuineCorpusWebTests(ITestOutputHelper output)
 {
     private const string PinnedDocHash = "F4FE03C41F7B1B43998A33196FE5EE0F40E94EB7DD199FE12003F929D2229139";
@@ -78,7 +79,7 @@ public sealed class MultiFormatGenuineCorpusWebTests(ITestOutputHelper output)
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        var upload = await IntakeWebDriver.UploadAsync(client, sample);
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(factory, client, sample);
         var receiptId = IntakeWebDriver.ReceiptId(upload);
         await using var scope = factory.Services.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();

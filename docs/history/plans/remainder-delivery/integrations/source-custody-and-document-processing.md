@@ -18,7 +18,7 @@ reading, image/damage assistance, or a general document/AI service.
 
 ## Authority and current boundary
 
-- **Authority:** [remaining requirements](../../../../product/qdos-alpha-gap.md#2-reviewable-extraction-and-source-custody), [ADR-0005](../../../../decisions/ADR-0005-multiformat-intake-assets.md), and [ADR-0002](../../../../decisions/ADR-0002-dotnet-modular-monolith-on-azure.md#files-box-and-document-processing).
+- **Authority:** [remaining requirements](../../../../product/qdos-alpha-gap.md#2-reviewable-extraction-and-source-custody), [ADR-0005](../../../../adr/0005-multiformat-intake-assets.md), and [ADR-0002](../../../../adr/0002-dotnet-modular-monolith-on-azure.md#files-box-and-document-processing).
 - **Policy owner:** the named Core receive/process/accept intake operations; Core retains format, provenance and failure outcomes, not vendor types.
 - **Current implementation:** `ProcessIntake`, the registered `MimeKitPdfPigOpenXmlIntakeSourceReader`, and `FileSystemIntakeArtifactStore` support only the Development `/Intake/Upload` caller and ignored local retention. The reader processes every PDF page or marks the intake incomplete when its shared text/image expansion budget is breached; it does not silently truncate by page count.
 - **Real callers:** `/Intake/Upload` is called only in Development when `Features:LocalIntake` is enabled. In the planned production path, Web is the first byte receiver for manual/provider HTTP submissions; Worker is the first byte receiver for Graph and consumes queued staged-source identifiers. Blob staging, Box custody and OCR adapters are not implemented.
@@ -36,7 +36,7 @@ An unreadable, incomplete, encrypted, corrupt, unsupported, bounded-out or pre-a
 
 ### Authority and decision gate
 
-- **Requirement/decision:** [source custody](../../../../product/qdos-alpha-gap.md#2-reviewable-extraction-and-source-custody), [format/candidate rules](../../../../decisions/ADR-0005-multiformat-intake-assets.md), and the approved Box custody sequence recorded below.
+- **Requirement/decision:** [source custody](../../../../product/qdos-alpha-gap.md#2-reviewable-extraction-and-source-custody), [format/candidate rules](../../../../adr/0005-multiformat-intake-assets.md), and the approved Box custody sequence recorded below.
 - **Confirmed facts:** local content-addressed artifacts do not prove Blob staging, Box custody, deployment or acceptance.
 - **Decision required before implementation:** none for the stated staged custody path; each Box action still needs the exact approval in [Box case files](box-case-files.md#scoped-box-folder-and-version-custody).
 

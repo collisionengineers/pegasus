@@ -1,0 +1,22 @@
+@page
+@model Pegasus.Web.Pages.Account.SignInModel
+@{
+    ViewData["Title"] = "Sign in";
+}
+
+<h1>Sign in to Pegasus</h1>
+<form method="post">
+    <div asp-validation-summary="ModelOnly"></div>
+    <input asp-for="ReturnUrl" type="hidden" />
+    <div>
+        <label asp-for="UserName">Username</label>
+        <input asp-for="UserName" autocomplete="username" autofocus />
+        <span asp-validation-for="UserName"></span>
+    </div>
+    <div>
+        <label asp-for="Password">Password</label>
+        <input asp-for="Password" autocomplete="current-password" />
+        <span asp-validation-for="Password"></span>
+    </div>
+    <button type="submit">Sign in</button>
+</form>

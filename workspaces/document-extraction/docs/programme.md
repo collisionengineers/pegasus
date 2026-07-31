@@ -11,9 +11,9 @@ Canonical ownership is split as follows:
 - [Open decisions](../../../docs/open-decisions.md) own unresolved choices.
 - [Architecture](architecture.md) owns technical contracts and design rationale.
 - [Operations](../../../docs/operations.md) owns executable operational procedures.
-- [Engineering](../../../docs/engineering.md) owns implementation and test practice.
+- [Installed skills](../../../.agents/skills/ask-matt/SKILL.md) own repository-development and test practice.
 - [Operator notes](../../../docs/operator-notes.md) own approved local-data handling.
-- [Decision index](../../../docs/decisions/README.md) owns ADRs and supersession.
+- [Decision index](../../../docs/adr/README.md) owns ADRs and supersession.
 - [Change index](../../../docs/changes/README.md) owns accepted change records.
 - [Design index](../../../design/README.md), [reference index](../../../docs/reference/README.md), [Azure index](../../../docs/azure/README.md), [workspace index](../../README.md) and [documentation index](../../../docs/index.md) provide canonical navigation.
 
@@ -82,7 +82,7 @@ Exact published PDF or DOCX specification artifacts must be downloaded before im
 
 The provenance record must identify every normative reference reached from `[MS-DOC]`, each generated table’s exact source section, applicable copyright/patent notices, and whether each dependency, copied or derived artifact, fixture and oracle is redistributable. Mapping does not approve copied code, fixture publication or packaging. No upstream parser source is a design authority; source code must not be mechanically translated.
 
-Source-recorded decisions include ADR-0002 and ADR-0003 as accepted on 2026-07-23 for the five-format and headless library/CLI boundaries, ADR-0004 for the text-and-image-only boundary, and ADR-0005 for internal specification-led DOC research. Product licensing, patent treatment, notices and distribution remain separate release gates. ADR-0006 was recorded as proposed: pre-97 parsing was not authorised, product-version attribution was prohibited, and a retained `[MS-OXMSG]` hash remained a fixture-publication provenance gate. Live decision state belongs in the [decision index](../../../docs/decisions/README.md) and [open decisions](../../../docs/open-decisions.md).
+Source-recorded decisions include ADR-0002 and ADR-0003 as accepted on 2026-07-23 for the five-format and headless library/CLI boundaries, ADR-0004 for the text-and-image-only boundary, and ADR-0005 for internal specification-led DOC research. Product licensing, patent treatment, notices and distribution remain separate release gates. ADR-0006 was recorded as proposed: pre-97 parsing was not authorised, product-version attribution was prohibited, and a retained `[MS-OXMSG]` hash remained a fixture-publication provenance gate. Live decision state belongs in the [decision index](../../../docs/adr/README.md) and [open decisions](../../../docs/open-decisions.md).
 
 ## Dependency, gap, activation and exit plan
 

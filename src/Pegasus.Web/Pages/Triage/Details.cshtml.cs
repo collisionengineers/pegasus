@@ -1,0 +1,467 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Pegasus.Core.Actors;
+using Pegasus.Core.Cases;
+using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
+using Pegasus.Core.Triage;
+using Pegasus.Core.Workflow;
+
+namespace Pegasus.Web.Pages.Triage;
+
+[Authorize(
+    Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
+public sealed class DetailsModel(
+    IGetTriage getTriage,
+    IGetCase getCase,
+    ILeaseCaseForEdit caseLeases,
+    IAssignTriage assign,
+    IUnassignTriage unassign,
+    IAwaitTriageInformation awaitInformation,
+    IRecordTriageFinding recordFinding,
+    ISupersedeTriageFinding supersedeFinding,
+    ILinkTriageResponseEvidence linkResponseEvidence,
+    IUnlinkTriageResponseEvidence unlinkResponseEvidence,
+    ICompleteTriage complete,
+    ICancelTriage cancel,
+    IReopenTriage reopen,
+    ILinkTriageCase linkCase,
+    IUnlinkTriageCase unlinkCase) : PageModel
+{
+    private readonly IGetTriage _getTriage =
+        getTriage ?? throw new ArgumentNullException(nameof(getTriage));
+    private readonly IGetCase _getCase =
+        getCase ?? throw new ArgumentNullException(nameof(getCase));
+    private readonly ILeaseCaseForEdit _caseLeases =
+        caseLeases ?? throw new ArgumentNullException(nameof(caseLeases));
+
+
+    public TriageDetail Triage { get; private set; } = null!;
+
+    public IReadOnlyList<TriageFinding> ActiveFindings { get; private set; } = [];
+    public string? CaseAssociationUnavailableReason { get; private set; }
+    public Guid? CaseAssociationUnavailableCaseId { get; private set; }
+
+
+
+
+    public string OperationKey { get; private set; } = NewOperationKey();
+
+    public string? Message { get; private set; }
+
+    public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out _, out var actor))
+        {
+            return Forbid();
+        }
+
+        if (!await LoadAsync(id, actor, cancellationToken))
+        {
+            return NotFound();
+        }
+
+        Message = TempData["TriageStatus"] as string;
+        if (TempData["TriageUnavailableCase"] is string unavailableCase)
+        {
+            var separator = unavailableCase.IndexOf('|');
+            if (separator > 0
+                && Guid.TryParse(unavailableCase.AsSpan(0, separator), out var parsedCaseId)
+                && parsedCaseId != Guid.Empty)
+            {
+                CaseAssociationUnavailableCaseId = parsedCaseId;
+                CaseAssociationUnavailableReason = unavailableCase[(separator + 1)..];
+            }
+        }
+
+        return Page();
+    }
+
+
+    public async Task<IActionResult> OnPostActionAsync(
+        Guid id,
+        string actionName,
+        long expectedVersion,
+        string operationKey,
+        string reason,
+        RoadworthinessFinding? roadworthiness,
+        AssessmentFinding? assessment,
+        Guid? supersedesFindingId,
+        string? responseCandidate,
+        Guid? sentEvidenceId,
+        Guid? caseId,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var staffId, out var actionActor))
+        {
+            return Forbid();
+        }
+        var actor = actionActor.SubjectId;
+
+        OperationKey = operationKey;
+        try
+        {
+            var mutation = new TriageMutationRequest(
+                id,
+                expectedVersion,
+                actor,
+                operationKey,
+                reason);
+            switch (actionName)
+            {
+                case "assign":
+                    await assign.ExecuteAsync(
+                        new(
+                            id,
+                            expectedVersion,
+                            staffId,
+                            actor,
+                            operationKey,
+                            reason),
+                        cancellationToken);
+                    break;
+                case "unassign":
+                    await unassign.ExecuteAsync(mutation, cancellationToken);
+                    break;
+                case "await_information":
+                    await awaitInformation.ExecuteAsync(mutation, cancellationToken);
+                    break;
+                case "record_finding":
+                    await recordFinding.ExecuteAsync(
+                        new(
+                            id,
+                            expectedVersion,
+                            actor,
+                            operationKey,
+                            reason,
+                            roadworthiness,
+                            assessment,
+                            null),
+                        cancellationToken);
+                    break;
+                case "supersede_finding":
+                    await supersedeFinding.ExecuteAsync(
+                        new(
+                            id,
+                            expectedVersion,
+                            actor,
+                            operationKey,
+                            reason,
+                            roadworthiness,
+                            assessment,
+                            supersedesFindingId),
+                        cancellationToken);
+                    break;
+                case "link_response":
+                {
+                    var candidate = ParseResponseCandidate(responseCandidate);
+                    await linkResponseEvidence.ExecuteAsync(
+                        new(
+                            id,
+                            candidate.PollOutcomeId,
+                            candidate.SentEvidenceId,
+                            expectedVersion,
+                            actor,
+                            operationKey,
+                            reason),
+                        cancellationToken);
+                    break;
+                }
+                case "unlink_response":
+                    await unlinkResponseEvidence.ExecuteAsync(
+                        new(
+                            id,
+                            sentEvidenceId ?? Guid.Empty,
+                            expectedVersion,
+                            actor,
+                            operationKey,
+                            reason),
+                        cancellationToken);
+                    break;
+                case "complete":
+                    await complete.ExecuteAsync(mutation, cancellationToken);
+                    break;
+                case "cancel":
+                    await cancel.ExecuteAsync(mutation, cancellationToken);
+                    break;
+                case "reopen":
+                    await reopen.ExecuteAsync(mutation, cancellationToken);
+                    break;
+                case "link_case":
+                    return await ExecuteCaseAssociationAsync(
+                        linking: true,
+                        id,
+                        caseId ?? Guid.Empty,
+                        expectedVersion,
+                        actionActor,
+                        operationKey,
+                        reason,
+                        cancellationToken);
+                case "unlink_case":
+                    return await ExecuteCaseAssociationAsync(
+                        linking: false,
+                        id,
+                        caseId ?? Guid.Empty,
+                        expectedVersion,
+                        actionActor,
+                        operationKey,
+                        reason,
+                        cancellationToken);
+                default:
+                    throw new ArgumentException("The requested Triage action is not supported.");
+            }
+
+            Message = "Triage workflow updated.";
+            OperationKey = NewOperationKey();
+        }
+        catch (Exception exception) when (IsExpected(exception))
+        {
+            Message = exception.Message;
+        }
+
+        return await LoadAsync(id, actionActor, cancellationToken) ? Page() : NotFound();
+    }
+
+    public static string StateLabel(TriageState state) => IndexModel.StateLabel(state);
+
+    public static string SourceChannelLabel(IntakeSourceChannel channel) => channel switch
+    {
+        IntakeSourceChannel.ManualUpload => "Manual upload",
+        IntakeSourceChannel.Mailbox => "Approved inbox",
+        _ => throw new InvalidOperationException(
+            $"Unknown intake source channel value '{(int)channel}'.")
+    };
+
+    public static string RoadworthinessLabel(RoadworthinessFinding finding) => finding switch
+    {
+        RoadworthinessFinding.Roadworthy => "Roadworthy",
+        RoadworthinessFinding.Unroadworthy => "Unroadworthy",
+        _ => throw new InvalidOperationException(
+            $"Unknown roadworthiness finding value '{(int)finding}'.")
+    };
+
+    public static string AssessmentLabel(AssessmentFinding finding) => finding switch
+    {
+        AssessmentFinding.Repairable => "Repairable",
+        AssessmentFinding.TotalLoss => "Total loss",
+        _ => throw new InvalidOperationException(
+            $"Unknown assessment finding value '{(int)finding}'.")
+    };
+
+    public static string EventLabel(string eventType) => eventType switch
+    {
+        "triage_created" => "Triage created",
+        "triage_assigned" => "Assigned",
+        "triage_unassigned" => "Unassigned",
+        "triage_state_awaiting_information" => "Awaiting information",
+        "triage_finding_recorded" => "Finding recorded",
+        "triage_finding_superseded" => "Finding superseded",
+        "sent_email_evidence_recorded" => "Sent evidence recorded",
+        "email_response_evidence_recorded" => "Response evidence recorded",
+        "triage_response_linked" => "Response evidence linked",
+        "triage_response_unlinked" => "Response evidence unlinked",
+        "triage_state_completed" => "Completed",
+        "triage_state_cancelled" => "Cancelled",
+        "triage_state_open" => "Reopened",
+        "triage_case_linked" => "Case linked",
+        "triage_case_unlinked" => "Case unlinked",
+        _ => eventType
+    };
+
+    private async Task<bool> LoadAsync(
+        Guid id,
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        if (id == Guid.Empty)
+        {
+            return false;
+        }
+
+        var triage = await _getTriage.ExecuteAsync(new(id, actor), cancellationToken);
+        if (triage is null)
+        {
+            return false;
+        }
+
+        Triage = triage;
+        ActiveFindings = triage.Findings
+            .Where(candidate => !triage.Findings.Any(
+                finding => finding.SupersedesFindingId == candidate.Id))
+            .ToArray();
+        CaseAssociationUnavailableReason = null;
+        CaseAssociationUnavailableCaseId = null;
+        if (triage.Record.LinkedCaseId is { } linkedCaseId)
+        {
+            var linkedCase = await _getCase.ExecuteAsync(
+                new(linkedCaseId, actor),
+                cancellationToken);
+            if (linkedCase is null)
+            {
+                CaseAssociationUnavailableReason =
+                    "The linked case is unavailable. Case association is read-only.";
+                CaseAssociationUnavailableCaseId = linkedCaseId;
+            }
+            else if (linkedCase.ActiveEditLease is { } activeLease)
+            {
+                CaseAssociationUnavailableReason =
+                    $"Case editing is unavailable while held by {activeLease.Holder} until "
+                    + $"{activeLease.ExpiresAtUtc.ToLocalTime():dd MMM yyyy HH:mm}.";
+                CaseAssociationUnavailableCaseId = linkedCaseId;
+            }
+        }
+
+        return true;
+    }
+
+    private async Task<IActionResult> ExecuteCaseAssociationAsync(
+        bool linking,
+        Guid triageId,
+        Guid caseId,
+        long expectedTriageVersion,
+        ActionActor actor,
+        string operationKey,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        if (caseId == Guid.Empty
+            || !Guid.TryParseExact(operationKey, "N", out var operationId))
+        {
+            TempData["TriageStatus"] =
+                "A valid case and operation identity are required.";
+            return RedirectToPage(new { id = triageId });
+        }
+
+        CaseEditLease? lease = null;
+        var leaseConsumed = false;
+        try
+        {
+            var targetCase = await _getCase.ExecuteAsync(
+                new(caseId, actor),
+                cancellationToken)
+                ?? throw new KeyNotFoundException($"Case '{caseId}' was not found.");
+            if (targetCase.ActiveEditLease is { } activeLease)
+            {
+                var unavailableReason =
+                    $"Case editing is unavailable while held by {activeLease.Holder} until "
+                    + $"{activeLease.ExpiresAtUtc.ToLocalTime():dd MMM yyyy HH:mm}.";
+                TempData["TriageStatus"] = unavailableReason;
+                TempData["TriageUnavailableCase"] =
+                    $"{caseId:D}|{unavailableReason}";
+                return RedirectToPage(new { id = triageId });
+            }
+
+            lease = await _caseLeases.ClaimAsync(
+                new(
+                    caseId,
+                    targetCase.Workflow.Version,
+                    actor,
+                    $"triage-association-claim:{operationId:N}"),
+                cancellationToken);
+            var request = new TriageCaseLinkRequest(
+                triageId,
+                caseId,
+                expectedTriageVersion,
+                lease.Version,
+                actor,
+                operationId.ToString("N"),
+                reason,
+                lease.Token);
+            if (linking)
+            {
+                await linkCase.ExecuteAsync(request, cancellationToken);
+            }
+            else
+            {
+                await unlinkCase.ExecuteAsync(request, cancellationToken);
+            }
+
+            leaseConsumed = true;
+            TempData["TriageStatus"] = linking
+                ? "The Triage record was linked to the case."
+                : "The Triage case association was removed.";
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (IsExpected(exception))
+        {
+            var unavailableReason = exception is CaseEditLeaseConflictException
+                ? "Case editing is currently unavailable because another actor holds the active lease."
+                : exception.Message;
+            TempData["TriageStatus"] = unavailableReason;
+            if (exception is CaseEditLeaseConflictException)
+            {
+                TempData["TriageUnavailableCase"] =
+                    $"{caseId:D}|{unavailableReason}";
+            }
+        }
+        finally
+        {
+            if (lease is not null && !leaseConsumed)
+            {
+                try
+                {
+                    await _caseLeases.ReleaseAsync(
+                        new(
+                            lease.CaseId,
+                            actor,
+                            $"triage-association-release:{operationId:N}",
+                            lease.Token),
+                        CancellationToken.None);
+                }
+                catch (Exception exception) when (IsExpected(exception))
+                {
+                    TempData["TriageStatus"] =
+                        "The case association was not changed and its temporary edit authority could not be released immediately.";
+                }
+            }
+        }
+
+        return RedirectToPage(new { id = triageId });
+    }
+
+    private bool TryGetActor(out Guid staffId, out ActionActor actor)
+    {
+        if (StaffActorFactory.TryCreate(
+                User.FindFirstValue(ClaimTypes.NameIdentifier),
+                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
+                out var resolved)
+            && Guid.TryParse(resolved.SubjectId, out staffId)
+            && staffId != Guid.Empty)
+        {
+            actor = resolved;
+            return true;
+        }
+
+        staffId = Guid.Empty;
+        actor = null!;
+        return false;
+    }
+
+    private static (Guid PollOutcomeId, Guid SentEvidenceId) ParseResponseCandidate(
+        string? value)
+    {
+        var parts = value?.Split('|', 2, StringSplitOptions.TrimEntries);
+        if (parts is not { Length: 2 }
+            || !Guid.TryParse(parts[0], out var pollOutcomeId)
+            || pollOutcomeId == Guid.Empty
+            || !Guid.TryParse(parts[1], out var sentEvidenceId)
+            || sentEvidenceId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "Select an authoritative approved-mailbox response candidate.",
+                nameof(value));
+        }
+
+        return (pollOutcomeId, sentEvidenceId);
+    }
+
+    private static string NewOperationKey() => Guid.NewGuid().ToString("N");
+
+    private static bool IsExpected(Exception exception) => exception is
+        ArgumentException or InvalidOperationException or KeyNotFoundException;
+}

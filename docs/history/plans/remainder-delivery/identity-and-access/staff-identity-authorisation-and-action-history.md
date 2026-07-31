@@ -12,13 +12,54 @@ Establish authenticated CollisionSpike staff identities, role boundaries and per
 
 Primary matrix IDs: `ACC-01`, `ACC-02`, `ACC-03`, `ACC-04`, `ACC-05`, `ACC-07`, `ACC-08`, `ACC-09`, `ACC-10`, and `UI-11`. Their implementation routes are [authentication and role boundaries](#authenticate-staff-and-enforce-role-boundaries), [permanent action history](#attribute-permanent-action-history-and-automation), and [principal and operational administration](#administer-principals-and-live-operational-configuration). Allocation remains owned by the [maturity map](../../feature-maturity-map.md); this list is a route, not implementation evidence.
 
+## Checkpoint 10 readiness probe — 2026-07-29
+
+**Evidence state:** Core/Web authorisation baseline implemented; required staff UI
+routes not implemented or caller-proved.
+
+The read-only route inventory found only the scaffold `/`, `/Privacy`, `/Error`
+and Development-only `/Intake/Queue`, `/Intake/Review/{id}`,
+`/Intake/Upload`, and `/Intake/EmailEvaluation` pages. Those Intake paths are
+local thin-slice evidence with different route and use-case ownership from the
+required `/Intake`, `/Intake/{id}`, `/Intake/{id}/Source`, Operations, Triage,
+Cases, Search, Account, Administration and request-upload surfaces. They do not
+satisfy the checkpoint 10 route matrix.
+
+This slice establishes the reusable boundary needed before those pages can be
+added:
+
+- `Pegasus.Core.Identity.ActionActor` carries a stable subject and current
+  `Administrator`, `Engineer`, or `User` roles; system, request-link and
+  one-shot bootstrap actors remain distinct.
+- `Pegasus.Core.Identity.StaffAuthorization` fails closed through explicit
+  permissions. Every staff role can access the staff application and ordinary
+  casework; only `Administrator` can manage accounts, access review, roles,
+  organisations/principals, workflow configuration, approved mailboxes or
+  authentication clients. Bootstrap, Worker and request-link permissions accept
+  only their matching actor kinds.
+- Web authentication/authorization composition denies anonymous access by
+  default. Only explicitly mapped technical health/version and authentication
+  transport endpoints are public; navigation visibility is never authorization.
+
+Concrete remaining blockers are the absent Account PageModels and ordinary
+sign-in/password/sign-out callers; an authenticated-principal adapter that
+revalidates and constructs the trusted `ActionActor` for Core calls; the absent
+staff and Administration query/command ports and persistence adapters; and the
+absent route-specific PageModels listed by the checkpoint 10 matrix. Adding
+placeholders or granting the old Development pages production access would not
+resolve those blockers.
+
+The probe is source inspection plus this bounded Core/composition slice. It is
+not browser caller proof, persistence proof, deployment evidence, checkpoint 10
+acceptance, or operator acceptance.
+
 ## Authority and current boundary
 
-- **Authority:** [source order](../../../../agent-guidance/source-of-truth.md), [questionnaire §§3–4 and 10–12](../../../product/project-discovery-questionnaire.md), [remaining requirements §1](../../../../product/qdos-alpha-gap.md), and [ADR-0004](../../../../decisions/ADR-0004-provider-api-and-staff-mcp-authentication.md).
-- **Policy owner:** planned Core `StaffAccess` actor/authorisation contracts, with Web authentication composition; business transition authority stays in Casework.
-- **Current implementation:** Web calls `UseAuthorization` but registers no authentication/identity scheme; receipt-owned `IntakeReceiptEvents.Actor` accepts the development intake string. There are no staff accounts, role enforcement or permanent trusted actor derivation.
-- **Real callers:** `/Intake/Upload` is the only current real intake caller and is deliberately unavailable outside Development; all authenticated staff pages, bootstrap, administration and future MCP are **planned**.
-- **Persistence/adapters:** one existing EF migration stream/DbContext; planned ASP.NET Core Identity data, staff status/roles, action-history actor/event and correlated outbox records. No Entra application sign-in.
+- **Authority:** [source order](../../../../agent-guidance/source-of-truth.md), [questionnaire §§3–4 and 10–12](../../../product/project-discovery-questionnaire.md), [remaining requirements §1](../../../../product/qdos-alpha-gap.md), and [ADR-0004](../../../../adr/0004-provider-api-and-staff-mcp-authentication.md).
+- **Policy owner:** Core `ActionActor`/`StaffAuthorization` contracts, with Web authentication composition; business-transition authority stays in Casework.
+- **Current implementation:** the Identity/OpenIddict persistence and Web composition foundation is registered; Core has explicit staff roles, actor kinds, permanent/security-history ports and a fail-closed permission evaluator. Web requires authentication by fallback policy and revalidates security stamp/enabled state on each request. No sign-in, password-change, sign-out, bootstrap, account/role/access-review or other Administration PageModel is implemented, so registration is not an exercised staff caller.
+- **Real callers:** the old Development-only Intake pages remain the only casework-adjacent pages. They are not the required authenticated Intake route owners and cannot supply checkpoint 10 proof. All Account, Administration, Operations, Triage, Cases, Search, request-upload and future MCP callers remain **planned**.
+- **Persistence/adapters:** the existing EF migration stream/DbContext owns the Identity/OpenIddict model. Account administration, append-only action/security history and correlated outbox behavior still require their named use cases and adapters. No Entra application sign-in is added.
 - **Dependencies:** the application spine/explicit migrations, then every casework caller. Provider/API and MCP authentication are separate later boundaries.
 - **Replaces/consolidates:** replace request-supplied/free-text actor values and unauthenticated page access; do not add another account store or parallel role evaluator.
 
@@ -28,7 +69,7 @@ Deny by default except deliberately public technical health endpoints. Passwords
 
 ## Authenticate staff and enforce role boundaries
 
-**Evidence state:** Planned
+**Evidence state:** Partially implemented — foundation and deny-by-default boundary only
 
 ### Authority and decision gate
 
@@ -101,7 +142,7 @@ Deny by default except deliberately public technical health endpoints. Passwords
 
 | State/command/input | Result | Boundary exercised | Proves | Does not prove / skipped |
 |---|---|---|---|---|
-| Planned | Not run | Planning review | Identity boundary, caller and security tests are defined | Implementation, deployment or staff acceptance |
+| 2026-07-29 source inspection of Core, `Program.cs` and Razor Page inventory | Baseline implemented; required UI routes absent | Actor kinds/roles, explicit Core permission matrix, fallback authentication, Administrator policy and anonymous technical endpoints | The bounded authorization behavior and the concrete checkpoint 10 route gap | Build/test/browser proof, account persistence behavior, migrations, deployment, staff sign-in, route caller effects or operator acceptance; commands were deliberately skipped for this read-only probe |
 
 ## Attribute permanent action history and automation
 

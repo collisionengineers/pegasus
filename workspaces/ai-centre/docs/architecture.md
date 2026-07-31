@@ -234,4 +234,4 @@ Logs should contain hashes, counts, classifications, durations and redacted erro
 
 ## Historical provenance
 
-The imported system proposal and desktop direction remain useful only as historical rationale. The canonical [decision-record index](../../../docs/decisions/README.md) retains links to the two unchanged superseded ADRs covering those proposals. Superseded records do not establish current acceptance, implementation, deployment, a Pegasus caller or model activation.
+The imported system proposal and desktop direction remain useful only as historical rationale. The canonical [decision-record index](../../../docs/adr/README.md) retains links to the two unchanged superseded ADRs covering those proposals. Superseded records do not establish current acceptance, implementation, deployment, a Pegasus caller or model activation.

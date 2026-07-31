@@ -23,16 +23,23 @@ evidence required to activate them.
 | Component | Required contract |
 |---|---|
 | Shell/access | Sign-in and disabled/stale-role/denied outcomes; permitted-route visibility plus server authorisation. |
-| Metric/queue | Label, value or unavailable state, last-good time, current refresh state, and exact destination filter. `0`, loading, current, stale, partial, unavailable, and failed remain distinct. Operations includes exact `Blocked intake`, Due today, and day/week Sent to Engineer and Reports sent. |
+| Metric/queue | Label, value or unavailable state, last-good time, current refresh state, and exact destination filter. `0`, loading, current, stale, partial, unavailable, and failed remain distinct. Operations includes exact `Blocked intake`, Due today, New cases today, and day/week Sent to Engineer and Reports sent. |
+| Inbox/intake row | Received date above time; exact processing outcome rather than generic `New`; long Case/PO or Image Intake Reference moves to a labelled second line at constrained desktop width and never overlaps the timestamp. |
 | Intake workbench | Persistent source identity; `All`/`Instructions`/`Images` evidence filter; evidence/candidate; fact versus suggestion versus confirmed value; provenance/missing/conflict; acceptance path and no-case failure consequence. |
+| Search result | One full-row keyboard-focusable link or button with visible action affordance; all result text contributes to its accessible name without obscuring its identity fields. |
+| Field provenance | Every editable or source-derived Case datum shows its current origin marker. Direct values identify staff entry, extraction, AI, provider API, or external vehicle/estimate origin; derived values identify accepted inputs and calculation. Origin and status remain distinct. |
 | Supporting detail navigation | Opening source evidence or other supporting detail preserves list/detail position, the current Intake or Case-detail context, and every unsaved edit; returning never silently discards or replaces proposed values. |
 | Request-scoped in-house upload | Authenticated staff create a temporary token bound to one request/operation and server-enforced expiry. The isolated public edge exposes bound upload fields and an immediate request-local result only; expiry, revocation, cross-request isolation, limits, custody, retry, abuse, and non-disclosing failures are explicit. |
 | State action | Permitted transition, prerequisite, consequence, required reason, recovery and history link; never generic Close. |
+| Readiness blocker | Every unmet requirement names its exact field or material, source/provenance, reason, and permitted resolution. The UI has no opaque aggregate blocker; actions enable only from their explicit current prerequisites and no unrelated save resets state. |
 | Identity header | Read-only Case/PO/principal, registration, type/secondary Audit identity, workflow state, `Due by`/overdue state, and EVA proxy limitation. |
 | Due/chaser panel | Missing-material reason, next chase, last recorded channel/outcome, optional note, and next permitted action together. Copy/preparation is not sent or delivered; Triage has no such panel. |
 | Inspection address | Explicit mode choice between physical vehicle/repairer address and exact `Image Based Assessment`; address fields appear only for the physical mode and never imply attendance. |
 | Engineering findings | Separate Roadworthiness and Assessment controls; accepted and superseded versions; correction reason/history; reopen requirement; no inferred fee/invoice mutation. |
 | Evidence/document panel | Original/source/version/logical removal/closed lock; Box/external state; issued report versions; exact Outlook evidence with separate discovery/link/sent times. |
+| Evidence image preview | Loading and source-preserving enlarged-image states are explicit; opening or closing a preview preserves Case context and does not alter source, category, advisory, or report-image selection. |
+| Email quick preview | At allocated mailbox-workspace activation, keyboard and pointer intent exposes an accessible preview that neither clips/obscures adjacent controls nor changes message or Case state; focus departure dismisses it. |
+| Report-image selection | The Engineer report-generation section, not Case evidence, selects and orders report images. It requires a human-confirmed readable registration for the first overview, excludes reflections, and distinguishes an advisory from a human decision. |
 | Lease/conflict | Holder/expiry/recovery, read-only alternative, current conflict and preserved proposed values. |
 | History | Business mutation/accepted evidence/export/material business failure only; no routine views, polling, retry, lease heartbeat or telemetry. |
 | Reason dialog | Named requirement/consequence, labelled reason, confirmation/cancel, initial focus, focus containment, Escape where safe and focus return to the invoking control. |
@@ -50,16 +57,15 @@ partial, conflict, and unavailable states are explicit.
 ## Focused flows
 
 **Intake:** source -> `All`/`Instructions`/`Images` evidence filter ->
-evidence/candidate -> a definitive authorised instruction creates exactly one
-case through shared fail-closed acceptance: **Review** when instruction and
-image completeness requirements are met, otherwise incomplete **Not ready**.
-Staff-resolved acceptance creates **Review** only through explicit staff
-confirmation of both completeness requirements; otherwise it creates **Not
-ready**. `Blocked intake` with required reason creates no case/reference;
-fail-closed `Needs sorting` remains pre-case. Resolve/retry re-enters the same
-path and may create exactly one case/reference only if its ordinary gates then
-pass. Manual image/instruction link and reasoned reversal retain original
-origins.
+evidence/candidate -> safe processing plus deterministic Principal and Case type
+creates exactly one Case/reference. Incomplete ordinary data, images, or
+applicable progression requirements yield **Not ready**; **Review** follows
+only when the explicit route policy permits it. `Blocked intake` with a
+required reason creates no Case/reference when an identity-critical gate fails;
+fail-closed `Needs sorting` remains pre-Case. Resolve/retry re-enters the same
+path and may create exactly one Case/reference only after it establishes the
+identity-critical facts. Manual image/instruction link and reasoned reversal
+retain original origins.
 
 Opening evidence or supporting detail from Intake preserves the active `All`/`Instructions`/`Images` filter, selected record, scroll/list-detail position, and every unsaved candidate edit. Return restores the originating Intake or Case-detail context without reloading over proposed values.
 
@@ -90,7 +96,7 @@ prior finding/reply. No due/chaser UI.
 Case/PO, principal, registration, type/secondary Audit identity, state,
 `Due by`/overdue, and EVA proxy limitation visible. The work area keeps the
 missing-material reason, next chase, last recorded channel/outcome, optional
-note, and next action together; due/chaser work is separate from `In today`.
+note, and next action together; due/chaser work is separate from `New cases today`.
 Overview, data, provenance, documents/images, vehicle/MOT, tasks/reminders,
 request-scoped in-house upload token, EVA export, report evidence, and history remain
 focused sections.
@@ -100,6 +106,8 @@ with address fields, or exact `Image Based Assessment` without fabricated
 address fields. Ordinary-image VRM and vehicle/MOT results show suggestion,
 confirmed, unknown/no-result, stale, unavailable, and failed distinctions with
 source/version/age; refresh never overwrites confirmed or last-good data.
+
+Image readiness shows the source/versioned advisory for registration overview, damage close-up, and the applicable reflection criterion. It refreshes whenever current Case images change and has no Case-state, eligibility, or chase effect.
 
 Roadworthiness and Assessment are separate professional findings. A correction
 shows the retained earlier version and reasoned superseding version; a closed

@@ -1,0 +1,32 @@
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@{
+    var details = Model.Case!;
+}
+
+<section class="panel" aria-labelledby="case-history-title">
+    <h2 id="case-history-title" class="section-label">Immutable case history</h2>
+    @if (details.History.Count == 0)
+    {
+        <p class="empty-state">No case workflow events are recorded.</p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>When</th><th>Event</th><th>Actor</th><th>Reason</th><th>Version</th></tr></thead>
+                <tbody>
+                @foreach (var entry in details.History)
+                {
+                    <tr>
+                        <td>@entry.OccurredAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</td>
+                        <td>@entry.EventType</td>
+                        <td>@entry.Actor</td>
+                        <td>@entry.Reason</td>
+                        <td>@entry.BeforeVersion → @entry.AfterVersion</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
