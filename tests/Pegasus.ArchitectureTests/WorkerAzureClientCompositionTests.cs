@@ -171,7 +171,7 @@ public sealed class WorkerAzureClientCompositionTests
         Assert.Equal(new Uri($"{StorageServiceUri}intake-work"), queueClients.IntakeWorkQueue.Uri);
         Assert.Equal(new Uri($"{StorageServiceUri}external-work"), queueClients.ExternalWorkQueue.Uri);
         Assert.Equal(
-            new Uri($"{StorageServiceUri}intake-staging"),
+            new Uri($"{StorageServiceUri}transient-intake"),
             provider.GetRequiredService<BlobContainerClient>().Uri);
         Assert.False(
             provider.GetRequiredService<WorkerStorageProvisioning>()
@@ -285,7 +285,24 @@ public sealed class WorkerAzureClientCompositionTests
             [WorkerAzureClientFactory.WorkerClientIdKey] = WorkerClientId,
             [WorkerAzureClientFactory.IntakeStorageServiceUriKey] = StorageServiceUri,
             [WorkerAzureClientFactory.IntakeQueueServiceUriKey] = StorageServiceUri,
-            [WorkerAzureClientFactory.ExternalWorkQueueServiceUriKey] = StorageServiceUri
+            [WorkerAzureClientFactory.ExternalWorkQueueServiceUriKey] = StorageServiceUri,
+            ["Graph:BaseUri"] = "https://graph.microsoft.com/v1.0/",
+            ["Graph:MailboxId"] = "mailbox-id",
+            ["Graph:MailboxAddress"] = "instructions@example.test",
+            ["Graph:InboxFolderId"] = "inbox-id",
+            ["Graph:SentFolderId"] = "sent-id",
+            ["Box:BaseUri"] = "https://api.box.com/2.0/",
+            ["Box:UploadUri"] = "https://upload.box.com/api/2.0/",
+            ["Box:RootFolderId"] = "392761581105",
+            ["Box:AccessToken"] = "test-access-token",
+            ["Dvla:BaseUri"] = "https://driver-vehicle-licensing.api.gov.uk/vehicle-enquiry/v1/vehicles/",
+            ["Dvla:ApiKey"] = "test-dvla-key",
+            ["Dvsa:BaseUri"] = "https://history.mot.api.gov.uk/v1/trade/vehicles/registration/",
+            ["Dvsa:TokenUri"] = "https://login.microsoftonline.com/test/oauth2/v2.0/token",
+            ["Dvsa:ClientId"] = "test-dvsa-client",
+            ["Dvsa:ClientSecret"] = "test-dvsa-secret",
+            ["Dvsa:ApiKey"] = "test-dvsa-key",
+            ["Dvsa:Scope"] = "https://tapi.dvsa.gov.uk/.default"
         };
 
     private static Dictionary<string, string?> CreateDevelopmentOfflineValues() =>

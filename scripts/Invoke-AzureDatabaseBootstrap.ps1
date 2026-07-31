@@ -1,0 +1,254 @@
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory)][string] $Environment,
+    [Parameter(Mandatory)][string] $ManifestPath,
+    [Parameter(Mandatory)][string] $ManifestSha256
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+$manifestFile = Resolve-Path -LiteralPath $ManifestPath
+if ($ManifestSha256 -notmatch '^[0-9a-fA-F]{64}$') {
+    throw 'ManifestSha256 must be the operator-approved 64-character SHA-256.'
+}
+$actualManifestSha256 = (Get-FileHash -LiteralPath $manifestFile -Algorithm SHA256).Hash
+if (-not $actualManifestSha256.Equals($ManifestSha256, [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'release-manifest.json does not match the operator-approved SHA-256.'
+}
+& (Join-Path $PSScriptRoot 'Test-AzureDeploymentPlan.ps1') -Mode PreMigration -Environment $Environment -ManifestPath $manifestFile
+$manifest = Get-Content -Raw -LiteralPath $manifestFile | ConvertFrom-Json -Depth 10
+$repositoryRoot = Split-Path -Parent $PSScriptRoot
+$currentRevision = (& git -C $repositoryRoot rev-parse HEAD).Trim()
+if ($LASTEXITCODE -ne 0) { throw 'Unable to identify the database-bootstrap source revision.' }
+$sourceStatus = @(& git -C $repositoryRoot status --porcelain)
+if ($LASTEXITCODE -ne 0) { throw 'Unable to verify the database-bootstrap source status.' }
+if ($currentRevision -ne $manifest.sourceRevision -or $sourceStatus.Count -ne 0) {
+    throw 'Database bootstrap requires the exact clean source revision recorded by the approved release manifest.'
+}
+
+function Get-AzdValues([string] $Name) {
+    $result = @{}
+    foreach ($line in (& azd env get-values -e $Name --no-prompt)) {
+        if ($line -match '^([A-Z0-9_]+)=(.*)$') {
+            $result[$Matches[1]] = $Matches[2].Trim('"')
+        }
+    }
+    return $result
+}
+
+function Convert-GuidToSqlSid([string] $Value) {
+    $guid = [Guid]::ParseExact($Value, 'D')
+    return '0x' + [Convert]::ToHexString($guid.ToByteArray())
+}
+
+function Get-MigrationPermissionMatrix {
+    $migrationPath = Join-Path $PSScriptRoot '..\src\Pegasus.Infrastructure\Persistence\Migrations\20260729199000_RuntimeRoleReconciliation.cs'
+    $source = Get-Content -Raw -LiteralPath $migrationPath
+    function Read-Block([string] $Name) {
+        $match = [regex]::Match(
+            $source,
+            "private static readonly [^=]+ $Name\s*=\s*\[(?<body>.*?)\];",
+            [Text.RegularExpressions.RegexOptions]::Singleline)
+        if (-not $match.Success) { throw "Unable to read $Name from the runtime-role migration." }
+        return $match.Groups['body'].Value
+    }
+
+    $tables = [regex]::Matches((Read-Block 'RuntimeTables'), '"(?<table>[A-Za-z0-9]+)"') |
+        ForEach-Object { $_.Groups['table'].Value }
+    $expected = [Collections.Generic.List[string]]::new()
+    foreach ($definition in @(
+        @{ Role = 'pegasus_web_runtime_role'; Block = 'WebGrants' },
+        @{ Role = 'pegasus_worker_runtime_role'; Block = 'WorkerGrants' })) {
+        foreach ($grant in [regex]::Matches((Read-Block $definition.Block), '\("(?<table>[A-Za-z0-9]+)", "(?<permissions>[A-Z, ]+)"\)')) {
+            foreach ($permission in $grant.Groups['permissions'].Value.Split(',').Trim()) {
+                $expected.Add("$($definition.Role)|G|$permission|$($grant.Groups['table'].Value)")
+            }
+        }
+    }
+    $webDeleteTables = @('AspNetUserRoles', 'CaseDataFields', 'OrganizationRoles', 'TriageResponseEvidenceLinks')
+    foreach ($table in $tables) {
+        if ($table -notin $webDeleteTables) {
+            $expected.Add("pegasus_web_runtime_role|D|DELETE|$table")
+        }
+        $expected.Add("pegasus_worker_runtime_role|D|DELETE|$table")
+    }
+    return @($expected | Sort-Object -Unique)
+}
+
+$values = Get-AzdValues $Environment
+$expectedSubscriptionId = 'e6076573-23a5-46a8-acef-7e22d264e5db'
+$expectedTenantId = '858cf5b3-aa0a-47a6-9b40-4851fd0afa94'
+$account = & az account show --query '{subscription:id,tenant:tenantId}' --output json | ConvertFrom-Json
+if (
+    $LASTEXITCODE -ne 0 -or
+    $account.subscription -ne $expectedSubscriptionId -or
+    $account.tenant -ne $expectedTenantId
+) {
+    throw 'Azure SQL bootstrap refuses the current Azure CLI account context.'
+}
+$server = $values['AZURE_SQL_SERVER_FQDN']
+$database = $values['AZURE_SQL_DATABASE_NAME']
+$webSid = Convert-GuidToSqlSid $values['WEB_IDENTITY_CLIENT_ID']
+$workerSid = Convert-GuidToSqlSid $values['WORKER_IDENTITY_CLIENT_ID']
+if (-not (Get-Command sqlcmd -ErrorAction SilentlyContinue)) {
+    throw 'sqlcmd is required for Azure SQL runtime-principal bootstrap.'
+}
+
+$sql = @"
+SET NOCOUNT ON;
+IF EXISTS (
+    SELECT 1 FROM sys.database_principals
+    WHERE name = N'pegasus_web_runtime'
+      AND (type <> 'E' OR sid <> $webSid))
+    THROW 51000, 'The existing Web runtime principal does not match the approved managed identity SID and type.', 1;
+IF EXISTS (
+    SELECT 1 FROM sys.database_principals
+    WHERE name = N'pegasus_worker_runtime'
+      AND (type <> 'E' OR sid <> $workerSid))
+    THROW 51001, 'The existing Worker runtime principal does not match the approved managed identity SID and type.', 1;
+IF DATABASE_PRINCIPAL_ID(N'pegasus_web_runtime') IS NULL
+    CREATE USER [pegasus_web_runtime] WITH SID = $webSid, TYPE = E;
+IF DATABASE_PRINCIPAL_ID(N'pegasus_worker_runtime') IS NULL
+    CREATE USER [pegasus_worker_runtime] WITH SID = $workerSid, TYPE = E;
+IF IS_ROLEMEMBER(N'pegasus_web_runtime_role', N'pegasus_web_runtime') <> 1
+    ALTER ROLE [pegasus_web_runtime_role] ADD MEMBER [pegasus_web_runtime];
+IF IS_ROLEMEMBER(N'pegasus_worker_runtime_role', N'pegasus_worker_runtime') <> 1
+    ALTER ROLE [pegasus_worker_runtime_role] ADD MEMBER [pegasus_worker_runtime];
+IF EXISTS (
+    SELECT 1
+    FROM sys.database_role_members AS membership
+    JOIN sys.database_principals AS member ON member.principal_id = membership.member_principal_id
+    JOIN sys.database_principals AS role ON role.principal_id = membership.role_principal_id
+    WHERE (member.name = N'pegasus_web_runtime' AND role.name <> N'pegasus_web_runtime_role')
+       OR (member.name = N'pegasus_worker_runtime' AND role.name <> N'pegasus_worker_runtime_role'))
+    THROW 51002, 'A runtime identity belongs to an unapproved database role.', 1;
+IF EXISTS (
+    SELECT 1
+    FROM sys.database_role_members AS membership
+    JOIN sys.database_principals AS member ON member.principal_id = membership.member_principal_id
+    WHERE member.name IN (N'pegasus_web_runtime_role', N'pegasus_worker_runtime_role'))
+    THROW 51003, 'A Pegasus runtime role is nested inside another database role.', 1;
+IF EXISTS (
+    SELECT 1
+    FROM sys.database_permissions AS permission
+    JOIN sys.database_principals AS principal ON principal.principal_id = permission.grantee_principal_id
+    WHERE principal.name IN (N'pegasus_web_runtime', N'pegasus_worker_runtime'))
+    THROW 51004, 'A runtime identity has a prohibited direct permission entry.', 1;
+IF EXISTS (
+    SELECT 1
+    FROM sys.database_permissions AS permission
+    JOIN sys.database_principals AS principal ON principal.principal_id = permission.grantee_principal_id
+    WHERE principal.name = N'public'
+      AND NOT (permission.class = 0 AND permission.permission_name = N'CONNECT' AND permission.state = 'G'))
+    THROW 51005, 'The public role grants or denies permissions outside the standard database CONNECT grant.', 1;
+IF EXISTS (
+    SELECT 1
+    FROM sys.schemas AS owned
+    JOIN sys.database_principals AS owner ON owner.principal_id = owned.principal_id
+    WHERE owner.name IN (
+        N'pegasus_web_runtime', N'pegasus_worker_runtime',
+        N'pegasus_web_runtime_role', N'pegasus_worker_runtime_role'))
+    THROW 51006, 'A runtime identity or role owns a database schema.', 1;
+IF EXISTS (
+    SELECT 1
+    FROM sys.objects AS owned
+    JOIN sys.database_principals AS owner ON owner.principal_id = owned.principal_id
+    WHERE owner.name IN (
+        N'pegasus_web_runtime', N'pegasus_worker_runtime',
+        N'pegasus_web_runtime_role', N'pegasus_worker_runtime_role'))
+    THROW 51007, 'A runtime identity or role owns a database object.', 1;
+IF EXISTS (
+    SELECT 1
+    FROM sys.database_principals AS owned
+    JOIN sys.database_principals AS owner ON owner.principal_id = owned.owning_principal_id
+    WHERE owner.name IN (
+        N'pegasus_web_runtime', N'pegasus_worker_runtime',
+        N'pegasus_web_runtime_role', N'pegasus_worker_runtime_role'))
+    THROW 51008, 'A runtime identity or role owns another database principal.', 1;
+IF EXISTS (
+    SELECT 1 FROM sys.databases
+    WHERE name = DB_NAME() AND owner_sid IN ($webSid, $workerSid))
+    THROW 51009, 'A runtime identity owns the production database.', 1;
+
+CREATE TABLE #runtime_effective_database_permissions (
+    principal_name sysname NOT NULL,
+    permission_name nvarchar(128) NOT NULL
+);
+EXECUTE AS USER = N'pegasus_web_runtime';
+INSERT INTO #runtime_effective_database_permissions (principal_name, permission_name)
+SELECT N'pegasus_web_runtime', permission_name FROM fn_my_permissions(NULL, N'DATABASE');
+REVERT;
+EXECUTE AS USER = N'pegasus_worker_runtime';
+INSERT INTO #runtime_effective_database_permissions (principal_name, permission_name)
+SELECT N'pegasus_worker_runtime', permission_name FROM fn_my_permissions(NULL, N'DATABASE');
+REVERT;
+IF EXISTS (
+    SELECT 1 FROM #runtime_effective_database_permissions
+    WHERE permission_name <> N'CONNECT')
+    THROW 51010, 'A runtime identity has an unapproved effective database-scoped permission.', 1;
+
+SELECT name, type_desc, CONVERT(varchar(34), sid, 1) AS sid
+FROM sys.database_principals
+WHERE name IN (N'pegasus_web_runtime', N'pegasus_worker_runtime');
+"@
+
+& sqlcmd -S "tcp:$server,1433" -d $database -G -b -Q $sql
+if ($LASTEXITCODE -ne 0) { throw 'Azure SQL runtime-principal bootstrap or denial verification failed.' }
+
+$permissionQuery = @"
+SET NOCOUNT ON;
+SELECT principal.name + N'|' + permission.state + N'|' + permission.permission_name + N'|' +
+       CASE
+           WHEN permission.class = 1 AND permission.minor_id = 0 AND target.object_id IS NOT NULL
+               THEN target.name
+           ELSE CONCAT(N'__UNAPPROVED_SCOPE_', permission.class, N'_', permission.major_id, N'_', permission.minor_id)
+       END
+FROM sys.database_permissions AS permission
+JOIN sys.database_principals AS principal ON principal.principal_id = permission.grantee_principal_id
+LEFT JOIN sys.tables AS target ON target.object_id = permission.major_id
+WHERE principal.name IN (N'pegasus_web_runtime_role', N'pegasus_worker_runtime_role')
+ORDER BY principal.name, permission.state, permission.permission_name, target.name;
+"@
+$actualMatrix = @(& sqlcmd -S "tcp:$server,1433" -d $database -G -b -h -1 -W -Q $permissionQuery |
+    ForEach-Object { $_.Trim() } |
+    Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+    Sort-Object -Unique)
+if ($LASTEXITCODE -ne 0) { throw 'Unable to read the Azure SQL runtime permission matrix.' }
+$expectedMatrix = @(Get-MigrationPermissionMatrix)
+$difference = @(Compare-Object -ReferenceObject $expectedMatrix -DifferenceObject $actualMatrix)
+if ($difference.Count -ne 0) {
+    throw "Azure SQL runtime permissions differ from the exhaustive migration-defined matrix: $($difference | Out-String)"
+}
+
+function Get-EffectiveTablePermissionMatrix([string] $UserName, [string] $RoleName) {
+    $query = @"
+SET NOCOUNT ON;
+EXECUTE AS USER = N'$UserName';
+SELECT N'$RoleName|G|' + candidate.permission_name + N'|' + target.name
+FROM sys.tables AS target
+CROSS JOIN (VALUES (N'SELECT'), (N'INSERT'), (N'UPDATE'), (N'DELETE')) AS candidate(permission_name)
+WHERE target.is_ms_shipped = 0
+  AND HAS_PERMS_BY_NAME(
+      QUOTENAME(SCHEMA_NAME(target.schema_id)) + N'.' + QUOTENAME(target.name),
+      N'OBJECT',
+      candidate.permission_name) = 1
+ORDER BY candidate.permission_name, target.name;
+REVERT;
+"@
+    $rows = @(& sqlcmd -S "tcp:$server,1433" -d $database -G -b -h -1 -W -Q $query |
+        ForEach-Object { $_.Trim() } |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($LASTEXITCODE -ne 0) { throw "Unable to read effective table permissions for $UserName." }
+    return $rows
+}
+
+$expectedEffectiveMatrix = @($expectedMatrix | Where-Object { $_ -match '\|G\|' } | Sort-Object -Unique)
+$actualEffectiveMatrix = @(
+    Get-EffectiveTablePermissionMatrix 'pegasus_web_runtime' 'pegasus_web_runtime_role'
+    Get-EffectiveTablePermissionMatrix 'pegasus_worker_runtime' 'pegasus_worker_runtime_role'
+) | Sort-Object -Unique
+$effectiveDifference = @(Compare-Object -ReferenceObject $expectedEffectiveMatrix -DifferenceObject $actualEffectiveMatrix)
+if ($effectiveDifference.Count -ne 0) {
+    throw "Azure SQL effective runtime DML differs from the exhaustive migration-defined allow matrix: $($effectiveDifference | Out-String)"
+}
+Write-Output "Verified $($actualMatrix.Count) catalogued permission/denial rows and $($actualEffectiveMatrix.Count) effective runtime DML rows."

@@ -1,6 +1,6 @@
 # Azure replacement and retirement plan
 
-This plan replaces the old pre-release application deliberately. Pegasus `0.1.0-alpha.1` starts with fresh application data: predecessor cases, users, action-history records, and queue state are not migrated or preserved as `0.1.0-alpha.1` release requirements. This plan authorizes no deletion or cloud mutation.
+This plan replaces the old pre-release application deliberately. Pegasus `0.1.0-alpha.1` starts with fresh application data: predecessor cases, users, action-history records, and queue state are not migrated or preserved as `0.1.0-alpha.1` release requirements. The exact implementation and execution sequence is the repository-root [production replacement runbook](../../azure-production-replacement-plan.md). This document authorizes no deletion or cloud mutation.
 
 ## Decision classes
 

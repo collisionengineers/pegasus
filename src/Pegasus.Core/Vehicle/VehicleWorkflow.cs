@@ -122,6 +122,9 @@ public sealed record VehicleLookupAvailability(bool RequestsEnabled, string Mode
 
     public static VehicleLookupAvailability DevelopmentOfflineReplay { get; } =
         new(true, "development_offline_replay");
+
+    public static VehicleLookupAvailability ProductionLive { get; } =
+        new(true, "production_live");
 }
 
 public interface IRequestVehicleLookup

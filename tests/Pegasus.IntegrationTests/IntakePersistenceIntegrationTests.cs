@@ -52,7 +52,9 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260729191000_OperationsProjectionIndexes",
                 "20260729192000_TriageReplaySnapshots",
                 "20260729193000_UniqueTriageResponseEvidenceLink",
-                "20260729199000_RuntimeRoleReconciliation"
+                "20260729199000_RuntimeRoleReconciliation",
+                "20260730203141_ThirdPartyVehicleEvidenceAndRemoveBootstrap",
+                "20260730203833_RemoveDormantOpenIddict"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());

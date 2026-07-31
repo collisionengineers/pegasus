@@ -17,7 +17,7 @@ namespace Pegasus.ArchitectureTests;
 public sealed class WorkerCompositionTests
 {
     [Fact]
-    public async Task ProductionCompositionUsesExplicitUnavailableExternalAdapters()
+    public void ProductionCompositionUsesApprovedExternalAdapters()
     {
         var root = CreateTemporaryRoot();
         try
@@ -34,30 +34,46 @@ public sealed class WorkerCompositionTests
             var vehicleLookup = provider.GetRequiredService<IVehicleLookupAdapter>();
 
             Assert.Equal("Pegasus.Worker.AzureBlobIntakeArtifactStore", artifactStore.GetType().FullName);
+            Assert.Equal("Pegasus.Infrastructure.Custody.BoxCaseCustody", custody.GetType().FullName);
             Assert.Equal(
-                "Pegasus.Infrastructure.Custody.UnavailableCaseCustody",
-                custody.GetType().FullName);
-            await Assert.ThrowsAsync<CaseCustodyUnavailableException>(() =>
-                custody.CreateCaseRootAsync(
-                    Guid.NewGuid(),
-                    "QDOS31001",
-                    "production-custody-denial",
-                    CancellationToken.None));
-            Assert.Contains(
-                "UnavailableVehicleLookupAdapter",
-                vehicleLookup.GetType().FullName,
-                StringComparison.Ordinal);
-            await Assert.ThrowsAsync<VehicleLookupUnavailableException>(() =>
-                vehicleLookup.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None));
+                "Pegasus.Infrastructure.Vehicle.DvlaDvsaProductionAdapter",
+                vehicleLookup.GetType().FullName);
             Assert.NotNull(scopedServices.GetRequiredService<IProcessQueuedCustody>());
             Assert.NotNull(scopedServices.GetRequiredService<IProcessQueuedVehicleLookup>());
             Assert.NotNull(scopedServices.GetRequiredService<IProcessQueuedExternalWork>());
             Assert.NotNull(scopedServices.GetRequiredService<DispatchPendingWork>());
-            Assert.Null(provider.GetService<IApprovedInboxSource>());
+            Assert.Equal(
+                "Pegasus.Infrastructure.Email.GraphApprovedInboxSource",
+                provider.GetRequiredService<IApprovedInboxSource>().GetType().FullName);
             Assert.Null(provider.GetService<LocalApprovedInboxOptions>());
-            Assert.Null(provider.GetService<IApprovedSentSource>());
+            Assert.Equal(
+                "Pegasus.Infrastructure.Email.GraphApprovedSentSource",
+                provider.GetRequiredService<IApprovedSentSource>().GetType().FullName);
             Assert.Null(provider.GetService<LocalApprovedSentOptions>());
-            Assert.Null(provider.GetService<PollSentEvidence>());
+            Assert.NotNull(scopedServices.GetRequiredService<PollSentEvidence>());
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ProductionCompositionFailsBeforeRegistrationWhenMailboxIdentityIsMissing()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var values = CreateProductionValues(root);
+            values.Remove("Graph:MailboxId");
+            var configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
+            var services = new ServiceCollection();
+
+            var exception = Assert.Throws<InvalidOperationException>(() =>
+                services.AddPegasusWorker(configuration, new TestHostEnvironment(root)));
+
+            Assert.Contains("Graph:MailboxId", exception.Message, StringComparison.Ordinal);
+            Assert.Empty(services);
         }
         finally
         {
@@ -156,7 +172,9 @@ public sealed class WorkerCompositionTests
 
     private static IConfiguration CreateConfiguration(string profile, string root)
     {
-        var values = new Dictionary<string, string?>
+        var values = profile.Equals("Production", StringComparison.Ordinal)
+            ? CreateProductionValues(root)
+            : new Dictionary<string, string?>
         {
             ["Runtime:Profile"] = profile,
             ["ConnectionStrings:Pegasus"] =
@@ -171,14 +189,7 @@ public sealed class WorkerCompositionTests
             ["ApprovedSent:SentFolderIdentity"] = "sent-items",
             ["ApprovedSent:LocalRootPath"] = Path.Combine(root, "approved-sent")
         };
-        if (profile.Equals("Production", StringComparison.Ordinal))
-        {
-            values["AzureIdentity:WorkerClientId"] = "10213243-5465-7687-98a9-bacbdcedfe0f";
-            values["IntakeStorage:ServiceUri"] = "https://storage.example.test/";
-            values["IntakeQueue:ServiceUri"] = "https://storage.example.test/";
-            values["ExternalWorkQueue:ServiceUri"] = "https://storage.example.test/";
-        }
-        else if (profile.Equals("DevelopmentOffline", StringComparison.Ordinal))
+        if (profile.Equals("DevelopmentOffline", StringComparison.Ordinal))
         {
             values["AzureWebJobsStorage"] = "UseDevelopmentStorage=true";
         }
@@ -187,6 +198,35 @@ public sealed class WorkerCompositionTests
             .AddInMemoryCollection(values)
             .Build();
     }
+
+    private static Dictionary<string, string?> CreateProductionValues(string root) => new()
+    {
+        ["Runtime:Profile"] = "Production",
+        ["ConnectionStrings:Pegasus"] =
+            "Server=(localdb)\\MSSQLLocalDB;Database=Pegasus_WorkerComposition;" +
+            "Integrated Security=true;Encrypt=false",
+        ["AzureIdentity:WorkerClientId"] = "10213243-5465-7687-98a9-bacbdcedfe0f",
+        ["IntakeStorage:ServiceUri"] = "https://custody.example.test/",
+        ["IntakeQueue:ServiceUri"] = "https://transport.example.test/",
+        ["ExternalWorkQueue:ServiceUri"] = "https://transport.example.test/",
+        ["Graph:BaseUri"] = "https://graph.microsoft.com/v1.0/",
+        ["Graph:MailboxId"] = "mailbox-object-id",
+        ["Graph:MailboxAddress"] = "instructions@collisionengineers.co.uk",
+        ["Graph:InboxFolderId"] = "inbox-folder-id",
+        ["Graph:SentFolderId"] = "sent-folder-id",
+        ["Box:BaseUri"] = "https://api.box.com/2.0/",
+        ["Box:UploadUri"] = "https://upload.box.com/api/2.0/",
+        ["Box:RootFolderId"] = "392761581105",
+        ["Box:AccessToken"] = "resolved-key-vault-reference",
+        ["Dvla:BaseUri"] = "https://driver-vehicle-licensing.api.gov.uk/vehicle-enquiry/v1/",
+        ["Dvla:ApiKey"] = "resolved-key-vault-reference",
+        ["Dvsa:BaseUri"] = "https://history.mot.api.gov.uk/v1/trade/vehicles/registration/",
+        ["Dvsa:TokenUri"] = "https://login.microsoftonline.com/tenant/oauth2/v2.0/token",
+        ["Dvsa:ClientId"] = "resolved-key-vault-reference",
+        ["Dvsa:ClientSecret"] = "resolved-key-vault-reference",
+        ["Dvsa:ApiKey"] = "resolved-key-vault-reference",
+        ["Dvsa:Scope"] = "https://tapi.dvsa.gov.uk/.default"
+    };
 
     private static string CreateTemporaryRoot()
     {

@@ -1,5 +1,7 @@
 # Change records
 
+- [2026-07-31: Deploy Pegasus production and retire CollisionSpike test estate](2026-07-31-azure-production-replacement.md) — in progress; issue #311; production route, deployment, acceptance, retirement, and recovery remain separately evidenced.
+
 Each material repository change owns one dated record in this directory. The
 record contains the accepted plan, affected canonical owners, decisions and
 conflicts, deferred-capability impact, evidence, review, and outcome for that

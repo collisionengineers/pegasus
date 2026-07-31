@@ -16,9 +16,11 @@ using Pegasus.Core.Vehicle;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Email;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Infrastructure.Vehicle;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Azure.Core;
 
 namespace Pegasus.Infrastructure;
 
@@ -327,6 +329,8 @@ public static class DependencyInjection
     {
         ArgumentNullException.ThrowIfNull(optionsFactory);
         services.AddSingleton<LocalApprovedInboxOptions>(optionsFactory);
+        services.AddSingleton<IApprovedInboxSourceSettings>(provider =>
+            provider.GetRequiredService<LocalApprovedInboxOptions>());
         services.AddSingleton<IApprovedInboxSource, LocalDurableApprovedInboxSource>();
         services.AddScoped<IApprovedInboxPollStore, EfApprovedInboxPollStore>();
         services.AddScoped<PollApprovedInbox>();
@@ -339,9 +343,53 @@ public static class DependencyInjection
     {
         ArgumentNullException.ThrowIfNull(optionsFactory);
         services.AddSingleton<LocalApprovedSentOptions>(optionsFactory);
+        services.AddSingleton<IApprovedSentSourceSettings>(provider =>
+            provider.GetRequiredService<LocalApprovedSentOptions>());
         services.AddSingleton<IApprovedSentSource, LocalDurableApprovedSentSource>();
         services.AddScoped<ISentEvidencePollStore, EfSentEvidencePollStore>();
         services.AddScoped<PollSentEvidence>();
+        return services;
+    }
+
+    public static IServiceCollection AddProductionExternalAdapters(
+        this IServiceCollection services,
+        GraphApprovedMailboxOptions graphOptions,
+        BoxCustodyOptions boxOptions,
+        DvlaDvsaProductionOptions vehicleOptions)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(graphOptions);
+        ArgumentNullException.ThrowIfNull(boxOptions);
+        ArgumentNullException.ThrowIfNull(vehicleOptions);
+
+        services.AddSingleton(graphOptions);
+        services.AddSingleton<IApprovedInboxSourceSettings>(graphOptions);
+        services.AddSingleton<IApprovedSentSourceSettings>(graphOptions);
+        services.AddSingleton(boxOptions);
+        services.AddSingleton(vehicleOptions);
+        services.AddSingleton(static _ => new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(100)
+        });
+        services.AddSingleton(provider => new GraphMailClient(
+            provider.GetRequiredService<TokenCredential>(),
+            provider.GetRequiredService<GraphApprovedMailboxOptions>(),
+            provider.GetRequiredService<HttpClient>()));
+        services.AddSingleton<IApprovedInboxSource, GraphApprovedInboxSource>();
+        services.AddSingleton<IApprovedSentSource, GraphApprovedSentSource>();
+        services.AddScoped<IApprovedInboxPollStore, EfApprovedInboxPollStore>();
+        services.AddScoped<ISentEvidencePollStore, EfSentEvidencePollStore>();
+        services.AddScoped<PollApprovedInbox>();
+        services.AddScoped<PollSentEvidence>();
+        services.AddSingleton<ICaseCustody>(provider => new BoxCaseCustody(
+            provider.GetRequiredService<BoxCustodyOptions>(),
+            provider.GetRequiredService<IIntakeArtifactStore>(),
+            provider.GetRequiredService<HttpClient>()));
+        services.AddSingleton(VehicleLookupAvailability.ProductionLive);
+        services.AddSingleton<IVehicleLookupAdapter>(provider => new DvlaDvsaProductionAdapter(
+            provider.GetRequiredService<DvlaDvsaProductionOptions>(),
+            provider.GetRequiredService<HttpClient>(),
+            provider.GetRequiredService<TimeProvider>()));
         return services;
     }
 }

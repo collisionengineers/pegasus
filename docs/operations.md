@@ -137,19 +137,35 @@ Install-Module ExchangeOnlineManagement -Scope CurrentUser -RequiredVersion 3.10
 
 `az login`, `azd auth login`, Exchange connection, Box login, credential changes, deployment, and Azure operations each retain a separate exact-target approval boundary.
 
-### Approved Box integration-test target
+<a id="approved-box-integration-test-target"></a>
 
-The disposable Box test subtree is folder `392761581105`; this defines the only eligible integration-test boundary, not standing write authority. Before each invocation, obtain explicit approval naming the exact target folder/object and create or update operation. Local Box integration testing and explicitly approved non-production test deployments may then create or update only the approved controlled non-corpus artifacts in that subtree. They must not delete, move, copy, or share Box content, operate outside that folder, or expose credentials in source, configuration, command lines, prompts, output, telemetry, or business history. Every invocation must verify the resolved target against the approval, use the actual Box adapter's target/action allowlist, and record stable source and target identities plus the outcome; any mismatch stops before mutation. A failed custody attempt remains visible for an authorised staff member to retry idempotently; no background or automatic business retry is permitted. Box CLI authentication and subtree membership do not expand approval.
+### Approved Box custody root
+
+Box folder `392761581105` is the exact root for the production custody adapter
+and the only eligible controlled integration-test boundary; it grants no
+standing write authority. Before any pre-activation invocation, obtain explicit
+approval naming the exact target folder/object and create or controlled-update
+operation. The activated production caller remains confined to case-scoped
+objects under that root. No caller may delete, move, copy, or share Box content,
+operate outside that folder, or expose credentials in source, configuration,
+command lines, prompts, output, telemetry, or business history. Every invocation
+must verify ancestry and the target/action allowlist and retain stable source and
+target identities plus outcome. A failed attempt remains visible for authorised
+staff retry; there is no automatic business retry. Box CLI authentication and
+root membership do not expand approval.
 
 The intended application staff accounts are Pegasus Identity accounts. The DevelopmentOffline profile authenticates its deterministic local Administrator fixture and enforces its Administrator role; Entra users must not be assumed. Third-party credentials must never enter tracked settings, command-line arguments, prompts that may be retained, terminal output, telemetry, or business history.
 Application staff identity initialization remains a separately controlled application operation; Entra users must not be assumed. Third-party credentials must never enter tracked settings, command-line arguments, prompts that may be retained, terminal output, telemetry, or business history.
 
-### Azure SQL runtime-role bootstrap remains deferred
+### Azure SQL runtime-role bootstrap
 
-There is no Azure SQL bootstrap executable or deployment caller in the current
-revision. Any later post-provision, post-migration grant operation is a
-separately approved exact-target cloud write; `azure.yaml` has no automatic
-database-grant hook.
+`scripts/Invoke-AzureDatabaseBootstrap.ps1` implements the explicit
+post-provision, post-migration user/role operation. It creates only the fixed
+external-user aliases from the Web/Worker managed-identity client-ID SIDs,
+rejects broad roles or direct DDL, and compares the live object permission set
+with the exhaustive migration-defined grant and `DELETE`-denial matrix. It is
+not an automatic `azure.yaml` hook and has not run against Azure. Execution is a
+separately approved exact-target cloud write.
 
 Migration `20260729176000_AzureSqlRuntimeLeastPrivilege` creates and owns the
 fixed custom roles `pegasus_web_runtime_role` and
@@ -170,11 +186,11 @@ The bootstrap owns only the fixed external-user aliases
 `pegasus_web_runtime` and `pegasus_worker_runtime`, created from the
 corresponding managed-identity client-ID SID.
 
-Before such an operation can be introduced, an accepted deployment contract
-must identify the exact server, database, principal, approval evidence,
-least-privilege matrix, rollback, and caller-backed verification. The existing
-migration tests are schema evidence only; they neither create an Azure
-principal nor authorise a cloud write.
+Before execution, the production runbook must identify the exact server,
+database, principal, approval evidence, least-privilege matrix, rollback, and
+caller-backed verification. Migration tests and the script implementation are
+local evidence only; they neither create an Azure principal nor authorise a
+cloud write.
 
 ## Locked restore, build, and test
 
@@ -682,36 +698,43 @@ The accepted direct-terminal Azure design is indexed by [architecture](architect
 
 `azd up` is not the release procedure. GitHub Actions/OIDC deployment is `Not planned`.
 
-### Release artifacts and bootstrap remain deferred
+### Release artifacts and bootstrap
 
-The repository has no release-artifact builder, deployment-plan validator, or
-`Pegasus.Bootstrap` project. Those paths would introduce an additional delivery
-unit and credential/identity handling. They remain absent until an accepted ADR
-and an exact-target release contract prove that the existing Web, Worker, and
-migration boundaries cannot carry the operation. No current command packages,
-initialises, provisions, or deploys Pegasus.
+Issue #311 implements release-artifact, deployment-plan, database-bootstrap,
+first-Administrator bootstrap, smoke, archive, and retirement scripts within
+the existing `scripts/` boundary. It adds no project or deployment unit. The
+repository-root [production replacement runbook](../azure-production-replacement-plan.md)
+owns their exact sequence and evidence gates. Restore, Release build, 531
+non-corpus tests, Bicep compilation, and local deployment-plan validation passed
+on 2026-07-31. Revision-bound QDOS pressure, immutable packaging, review, and
+every cloud gate remain pending; no command is yet claimed deployed or live
+verified.
 
 ### Azure activation remains fail-closed
 
-`infra/main.bicep` accepts only `deploymentMode=offline-replay`. Its Azure
-resource declarations require the unreachable `approved-live-deployment` value,
-so this revision cannot provision or deploy to Azure. This is deliberate:
-there is no approval or current evidence for activation.
+`infra/main.bicep` remains fail-closed unless the exact
+`deploymentMode=approved-live-deployment` value is supplied. Issue #311 removes
+the former development/offline topology and implements the production-only
+route; Bicep compilation and local plan validation do not authorize Azure.
 
 The concrete activation gate is a separately recorded approval for the exact
 subscription, resource group, principal, cost scope, data boundary, and
 migration/deployment sequence, followed by a fresh authorised-terminal check of
 availability, quota, pricing, role-assignment authority, target names, SQL Entra
-administrator, and external credential readiness. A separate infrastructure
-change must then remove the fail-closed mode and remove
-`SCM_DO_BUILD_DURING_DEPLOYMENT=true` before immutable package deployment can be
-authorised.
+administrator, and external credential readiness. The issue #311 implementation
+must remove remote build before immutable package deployment can be authorised.
 
 Apply migrations explicitly before application packages. Application startup must never silently migrate a non-Development database. Deployment does not itself prove live behavior or acceptance.
 
 ## Recovery
 
-Current source provides no application backup/restore executable, production custody adapter, receipt/artifact deletion route, or completed Pegasus recovery, failover, retirement, RPO, or RTO exercise. Test cleanup and migration tests are narrower evidence. The procedures below are release gates, not claims that recovery or deletion is implemented, deployed, or accepted.
+Current source provides no application backup/restore executable,
+receipt/artifact deletion route, or completed Pegasus recovery, failover,
+retirement, RPO, or RTO exercise. A production Box custody adapter is
+implemented behind the existing Core port, but it is not deployed, live
+verified, recovery-tested, or accepted. Test cleanup and migration tests are
+narrower evidence. The procedures below are release gates, not claims that
+recovery or deletion is implemented, deployed, or accepted.
 
 ### Local recovery
 

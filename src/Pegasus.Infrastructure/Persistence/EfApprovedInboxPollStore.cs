@@ -2,13 +2,14 @@ using System.Data;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Intake;
+using Pegasus.Infrastructure.Email;
 using Microsoft.EntityFrameworkCore;
 
 namespace Pegasus.Infrastructure.Persistence;
 
 internal sealed class EfApprovedInboxPollStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    LocalApprovedInboxOptions options,
+    IApprovedInboxSourceSettings options,
     IApprovedMailboxPolicy approvedMailboxPolicy) : IApprovedInboxPollStore
 {
     public async Task<ApprovedInboxPollLease?> ClaimAsync(
