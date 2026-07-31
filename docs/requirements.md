@@ -668,10 +668,71 @@ permanent action history; routine polling, retry, lease, and adapter mechanics
 remain telemetry.
 
 At the allocated `Next / 0.3.0` mailbox-workspace activation, each approved mailbox has an exact mailbox filter and queue scope. The email quick preview is keyboard- and screen-reader-accessible, opens on pointer or keyboard intent without clipping or obscuring adjacent controls, and dismisses when focus moves away. It is evidence navigation only: previewing never changes classification, association, read state, Case state, or source custody.
-The same workspace includes a read-only `View in Outlook` action when an
-approved integration can target the exact associated message. Its design review
-must establish whether it adds value beyond the workspace itself; the action
-never changes mailbox, Case, classification, association, or custody state.
+The workspace does not include `View in Outlook`: operator review accepted that
+the in-app full message, attachment and thread view provides the needed value.
+It therefore creates no Outlook-navigation integration, action, or external
+access requirement.
+
+The default workspace view is the incoming Inbox across all approved mailboxes;
+folder-specific, mailbox-specific, queue and search views are explicit
+refinements. Sent mail and read-only Deleted Items search remain separate
+folder scopes. General mailbox search includes retained message bodies,
+attachment filenames and searchable attachment content. An unsupported or
+unsearchable attachment remains visibly so; it is not silently omitted.
+Search remains within the current mailbox/folder scope unless the operator
+explicitly broadens it.
+Search returns individual messages, not collapsed conversation groups, because
+classification, association and folder actions apply to exact message identity.
+Each result identifies whether its match is in the message body, an attachment
+filename or an attachment's searchable content, naming the matching attachment
+where applicable.
+The Inbox and search-result lists use accessible pagination, not infinite
+scrolling.
+The all-Inboxes view defaults to newest received message first.
+Active mailbox, folder, queue and search filters remain visible and are
+preserved when returning from message or Case detail.
+On a fresh visit, the workspace resets to the default all-Inboxes view rather
+than retaining a cross-session user preference.
+The workspace provides an explicit manual refresh, last successful update time,
+and distinct stale and unavailable states rather than silently presenting old
+data. Refresh preserves the active mailbox, folder, queue, search filters,
+page and open-message context when that message remains available.
+Each Inbox row includes a short message-body excerpt beneath sender and subject.
+Inbox rows visibly distinguish retained read and unread state, but this
+workspace does not change that state.
+Opening a message preserves the originating list filter and position, shows the
+full retained message, attachments and a chronological
+thread, and exposes current classification, queue, processing outcome and Case
+association before any action. A quick preview remains evidence navigation
+only: it shows sender, subject, timestamp, excerpt, classification,
+association and attachment names, but no mutation controls. Case linking starts
+with deliberate Case search, then a target summary,
+reason and explicit confirmation; it may occur while classification remains
+unresolved when the link evidence itself is sufficient.
+Thread display includes only retained messages within approved mailbox/folder
+scope; a matching thread identity never fetches or exposes other messages.
+Classification, linking and folder-move actions are available only from opened
+message detail, never from an Inbox row or quick preview.
+UI-10 provides no bulk classification, linking or folder-move action: each
+decision applies to one exact message.
+After a classification change is saved, a recommended Outlook-folder move is a
+separate explicit confirmation; it is not part of classification confirmation.
+Staff may confirm only the designated folder from the applicable classification
+policy. A different destination requires correction of that classification, not
+an arbitrary folder choice.
+If a later reclassification produces a different designated folder, Pegasus
+offers another separate explicit move confirmation and never moves it
+automatically.
+If that move fails, the saved classification remains intact, the failure is
+visible, and only a staff-initiated retry may repeat the move.
+After a successful move, the message leaves the Inbox view and remains
+findable through its destination-folder scope or search; it is not duplicated.
+Selecting a Case association opens that Case workspace in the same tab; Back
+returns to the exact message detail and originating list context.
+Each Case workspace also exposes its associated correspondence as a contextual
+filtered view in one chronological history of linked received and Sent items;
+it defaults to newest first with an explicit oldest-first option. Cross-mailbox
+browsing and reconciliation remain in the email-management workspace.
 
 The allocated workspace includes read-only search of Deleted Items within each
 exact approved mailbox/folder scope. It does not introduce a backlog scan,

@@ -427,13 +427,10 @@ The four-hour restoration and 15-minute recovery-point outcomes remain unproved 
 
 ## Deployment boundary
 
-The intended topology consists of:
-
-1. isolated local development;
-2. one shared Azure development/integration environment;
-3. production.
-
-Target Bicep describes fresh `rg-pegasus-dev` and `rg-pegasus-prod` resource groups containing:
+The intended topology consists of isolated local development and production only.
+There is no Azure development, test, integration, or staging environment; see
+[ADR-0014](adr/0014-local-to-production-deployment.md). Target Bicep must
+describe only the approved production resource group containing:
 
 - a .NET 10 Web App;
 - a .NET 10 isolated Functions Worker;
