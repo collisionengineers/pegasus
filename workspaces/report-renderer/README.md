@@ -2,7 +2,7 @@
 
 Collision Renderer is an independent source workspace for producing Collision Engineers Ltd branded PDFs in a consistent house style. A single Core engine serves the command line, Windows GUI, HTTP API and MCP host.
 
-> **Workspace boundary:** this directory is retained as source-only, non-caller workspace code. Its hosts can be built and exercised independently, but this repository does not establish integration with, invocation by, or deployment into any other product or environment.
+> **Workspace boundary:** this directory is retained as source-only, non-caller workspace code. Its hosts can be built and exercised independently, but this repository does not establish integration with, invocation by, or deployment into any other product or environment. Current integration status and activation conditions are maintained in the [workspace integration register](../README.md#integration-status-register).
 
 ## Current workspace
 

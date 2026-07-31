@@ -1,0 +1,104 @@
+@page
+@model Pegasus.Web.Pages.Search.IndexModel
+@{
+    ViewData["Title"] = "Search";
+}
+
+<header class="page-heading">
+    <div>
+        <p class="eyebrow">Case search</p>
+        <h1>Search</h1>
+        <p class="lede">Search only the cases you are authorised to access. The exact query remains in the URL for paging and safe sharing.</p>
+    </div>
+</header>
+
+<section class="panel form-panel" aria-labelledby="global-search-heading">
+    <h2 id="global-search-heading" class="section-label">Search cases</h2>
+    <form method="get" asp-page="/Search/Index">
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+        <label for="global-case-query">Case/PO, audit reference, registration, claimant, claim number, principal, state, Engineer ID, or origin</label>
+        <input id="global-case-query" name="q" value="@Model.Query" maxlength="300" type="search" autocomplete="off" />
+        <div class="button-row">
+            <button type="submit" class="primary-action">Search</button>
+            <a asp-page="/Search/Index" class="secondary-action">Clear search</a>
+        </div>
+    </form>
+</section>
+
+@if (Model.QueryFailed)
+{
+    <section class="status-card status-card--error" role="alert">
+        <h2>Search is unavailable</h2>
+        <p>The authorised case query could not be completed. Try again.</p>
+    </section>
+}
+else if (Model.Results is { Items.Count: 0 })
+{
+    <section class="empty-state" aria-live="polite">
+        <h2>No matching cases</h2>
+        <p>No authorised cases match <strong>@Model.Query</strong>.</p>
+    </section>
+}
+else if (Model.Results is { } results)
+{
+    <section class="panel" aria-labelledby="global-search-results-heading">
+        <h2 id="global-search-results-heading" class="section-label">Search results</h2>
+        <p role="status">Showing @results.Items.Count authorised @(results.Items.Count == 1 ? "case" : "cases") on page @results.Page.</p>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th scope="col">Case/PO</th>
+                        <th scope="col">Audit reference</th>
+                        <th scope="col">Registration</th>
+                        <th scope="col">Claimant</th>
+                        <th scope="col">Claim number</th>
+                        <th scope="col">Principal</th>
+                        <th scope="col">State</th>
+                        <th scope="col">Received</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var item in results.Items)
+                {
+                    <tr>
+                        <td><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.Reference</a></td>
+                        <td>@(item.AuditReference ?? "Not recorded")</td>
+                        <td>@(item.Registration ?? "Not recorded")</td>
+                        <td>@(item.Claimant ?? "Not recorded")</td>
+                        <td>@(item.ClaimNumber ?? "Not recorded")</td>
+                        <td>@item.Principal</td>
+                        <td>@item.State</td>
+                        <td>@item.ReceivedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+        <nav class="button-row" aria-label="Search result pages">
+            @if (results.HasPreviousPage)
+            {
+                <a href="@Model.PageUrl(results.Page - 1)" class="secondary-action">Previous</a>
+            }
+            <span>Page @results.Page</span>
+            @if (results.HasNextPage)
+            {
+                <a href="@Model.PageUrl(results.Page + 1)" class="secondary-action">Next</a>
+            }
+        </nav>
+    </section>
+}
+else if (Model.HasQuery)
+{
+    <section class="status-card status-card--error" role="alert">
+        <h2>Search query not accepted</h2>
+        <p>Review the search error above and submit a supported query.</p>
+    </section>
+}
+else if (!Model.HasQuery)
+{
+    <section class="empty-state" aria-live="polite">
+        <h2>Enter a search query</h2>
+        <p>No case information is shown until you submit a query.</p>
+    </section>
+}

@@ -1,0 +1,41 @@
+@page "{id:guid}"
+@model Pegasus.Web.Pages.Administration.Accounts.EditModel
+@{
+    ViewData["Title"] = "Manage staff account";
+}
+
+@if (Model.Account is not null)
+{
+    <h1>Manage @Model.Account.UserName</h1>
+    <p><a asp-page="Index">Back to Staff accounts</a></p>
+
+    @if (TempData["AdministrationStatus"] is string status)
+    {
+        <div role="status">@status</div>
+    }
+
+    <dl>
+        <dt>Status</dt><dd>@(Model.Account.IsEnabled ? "Enabled" : "Disabled")</dd>
+        <dt>First password change</dt><dd>@(Model.Account.MustChangePassword ? "Required" : "Complete")</dd>
+        <dt>Last access review</dt><dd>@(Model.Account.LastAccessReviewAtUtc?.ToString("u") ?? "Not recorded")</dd>
+    </dl>
+
+    @if (Model.Account.IsEnabled)
+    {
+        <form method="post" asp-page-handler="Disable">
+            <div asp-validation-summary="ModelOnly"></div>
+            <input asp-for="OperationKey" type="hidden" />
+            <div>
+                <label asp-for="Reason">Reason</label>
+                <textarea asp-for="Reason" rows="3"></textarea>
+                <span asp-validation-for="Reason"></span>
+            </div>
+            <button type="submit">Disable account</button>
+        </form>
+        <p>Disabling revokes existing browser sessions. The account is retained permanently.</p>
+    }
+    else
+    {
+        <p>This account is disabled and retained in permanent administration history. There is no delete or password-display action.</p>
+    }
+}

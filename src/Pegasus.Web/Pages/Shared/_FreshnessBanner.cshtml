@@ -1,0 +1,36 @@
+@model DateTimeOffset?
+@{
+    var status = ViewData["RefreshStatus"] as string ?? "current"; // current, loading, stale, partial, unavailable, failed
+    var asOf = Model.HasValue ? Model.Value.ToString("yyyy-MM-dd HH:mm:ss") + " London" : "Unknown";
+    var bannerClass = status switch
+    {
+        "loading" => "freshness-banner--loading",
+        "stale" => "freshness-banner--stale",
+        "failed" or "unavailable" => "freshness-banner--failed",
+        _ => ""
+    };
+}
+<div class="freshness-banner @bannerClass" role="status" aria-live="polite">
+    <div class="updated">
+        <svg class="icon" aria-hidden="true"><use href="#icon-clock"/></svg>
+        <span>Data as of: <strong>@asOf</strong></span>
+        @if (status == "stale")
+        {
+            <span class="status-chip status-chip--not-ready">Stale</span>
+        }
+        else if (status == "loading")
+        {
+            <span class="status-chip status-chip--not-ready">Refreshing…</span>
+        }
+        else if (status == "failed")
+        {
+            <span class="status-chip status-chip--blocked">Refresh Failed</span>
+        }
+    </div>
+    <form method="get" style="margin: 0;">
+        <button type="submit" class="secondary-action" style="min-height: 36px; padding: 0 12px; font-size: 0.85rem;" title="Rerun current filter and refresh data">
+            <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw"/></svg>
+            <span>Refresh</span>
+        </button>
+    </form>
+</div>

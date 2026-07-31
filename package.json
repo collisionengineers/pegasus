@@ -1,6 +1,6 @@
 {
   "name": "pegasus",
-  "version": "0.0.0-development",
+  "version": "0.1.0-alpha.1",
   "private": true,
   "devDependencies": {
     "azurite": "3.36.0"

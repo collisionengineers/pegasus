@@ -7,7 +7,6 @@ param location string
 param tags object
 param sqlAdministratorObjectId string
 param sqlAdministratorLogin string
-param documentIntelligenceEnabled bool
 
 var suffix = uniqueString(subscription().subscriptionId, resourceGroup().id, environmentName)
 var prefix = 'pegasus-${environmentName}'
@@ -18,7 +17,7 @@ var webPlanSkuTier = environmentName == 'prod' ? 'Basic' : 'Free'
 var sqlSkuName = environmentName == 'prod' ? 'S0' : 'Basic'
 var sqlSkuTier = environmentName == 'prod' ? 'Standard' : 'Basic'
 var sqlCapacity = environmentName == 'prod' ? 10 : 5
-var sqlConnectionString = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Database=${sqlDatabase.name};Authentication=Active Directory Managed Identity;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
+var webSqlConnectionString = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Database=${sqlDatabase.name};Authentication=Active Directory Managed Identity;User Id=${webIdentity.properties.clientId};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
 var workerSqlConnectionString = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Database=${sqlDatabase.name};Authentication=Active Directory Managed Identity;User Id=${workerIdentity.properties.clientId};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
 
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
@@ -101,7 +100,7 @@ resource packageContainer 'Microsoft.Storage/storageAccounts/blobServices/contai
 
 resource intakeContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
   parent: blobService
-  name: 'intake-temporary'
+  name: 'intake-staging'
   properties: {
     publicAccess: 'None'
   }
@@ -176,6 +175,12 @@ resource webPlan 'Microsoft.Web/serverfarms@2024-04-01' = {
   }
 }
 
+resource webIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: '${prefix}-web-id-${suffix}'
+  location: location
+  tags: tags
+}
+
 resource webApp 'Microsoft.Web/sites@2024-04-01' = {
   name: '${prefix}-web-${suffix}'
   location: location
@@ -184,7 +189,10 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = {
     'azd-service-name': 'web'
   })
   identity: {
-    type: 'SystemAssigned'
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${webIdentity.id}': {}
+    }
   }
   properties: {
     serverFarmId: webPlan.id
@@ -214,7 +222,7 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = {
           // ASP.NET Core maps the Linux-safe double underscore to
           // ConnectionStrings:Pegasus for GetConnectionString().
           name: 'ConnectionStrings__Pegasus'
-          value: sqlConnectionString
+          value: webSqlConnectionString
         }
         {
           name: 'KEY_VAULT_URI'
@@ -225,8 +233,8 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = {
           value: storage.name
         }
         {
-          name: 'SCM_DO_BUILD_DURING_DEPLOYMENT'
-          value: 'true'
+          name: 'AZURE_CLIENT_ID'
+          value: webIdentity.properties.clientId
         }
       ]
     }
@@ -325,6 +333,10 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
       minTlsVersion: '1.2'
       appSettings: [
         {
+          name: 'Runtime__Profile'
+          value: 'Production'
+        }
+        {
           name: 'FUNCTIONS_WORKER_RUNTIME'
           value: 'dotnet-isolated'
         }
@@ -341,11 +353,83 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
           value: workerIdentity.properties.clientId
         }
         {
+          name: 'AzureIdentity__WorkerClientId'
+          value: workerIdentity.properties.clientId
+        }
+        {
+          name: 'IntakeStorage__ServiceUri'
+          value: storage.properties.primaryEndpoints.blob
+        }
+        {
+          name: 'IntakeQueue__ServiceUri'
+          value: storage.properties.primaryEndpoints.queue
+        }
+        {
+          name: 'ExternalWorkQueue__ServiceUri'
+          value: storage.properties.primaryEndpoints.queue
+        }
+        {
+          name: 'PendingWorkDispatchSchedule'
+          value: '0 * * * * *'
+        }
+        {
+          name: 'IntakeStagedArtifactReconciliationSchedule'
+          value: '30 * * * * *'
+        }
+        {
+          name: 'ApprovedInboxPollSchedule'
+          value: '45 * * * * *'
+        }
+        {
+          name: 'SentEvidencePollSchedule'
+          value: '15 * * * * *'
+        }
+        {
+          name: 'DueWorkSweepSchedule'
+          value: '0 */5 * * * *'
+        }
+        {
+          name: 'AzureWebJobs.PendingWorkDispatchFunction.Disabled'
+          value: 'true'
+        }
+        {
+          name: 'AzureWebJobs.IntakeWorkFunction.Disabled'
+          value: 'true'
+        }
+        {
+          name: 'AzureWebJobs.IntakePoisonFunction.Disabled'
+          value: 'true'
+        }
+        {
+          name: 'AzureWebJobs.StagedArtifactReconciliationFunction.Disabled'
+          value: 'true'
+        }
+        {
+          name: 'AzureWebJobs.InboxPollFunction.Disabled'
+          value: 'true'
+        }
+        {
+          name: 'AzureWebJobs.SentEvidencePollFunction.Disabled'
+          value: 'true'
+        }
+        {
+          name: 'AzureWebJobs.DueWorkSweepFunction.Disabled'
+          value: 'true'
+        }
+        {
+          name: 'AzureWebJobs.ExternalWorkFunction.Disabled'
+          value: 'true'
+        }
+        {
+          name: 'AzureWebJobs.ExternalPoisonFunction.Disabled'
+          value: 'true'
+        }
+        {
           name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
           value: applicationInsights.properties.ConnectionString
         }
         {
-          name: 'AZURE_SQL_CONNECTION_STRING'
+          name: 'ConnectionStrings__Pegasus'
           value: workerSqlConnectionString
         }
         {
@@ -371,7 +455,7 @@ resource webKeyVaultReader 'Microsoft.Authorization/roleAssignments@2022-04-01' 
   scope: keyVault
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
-    principalId: webApp.identity.principalId
+    principalId: webIdentity.properties.principalId
     principalType: 'ServicePrincipal'
   }
 }
@@ -386,36 +470,13 @@ resource workerKeyVaultReader 'Microsoft.Authorization/roleAssignments@2022-04-0
   }
 }
 
-resource documentIntelligence 'Microsoft.CognitiveServices/accounts@2024-10-01' = if (documentIntelligenceEnabled) {
-  name: '${prefix}-docintel-${suffix}'
-  location: location
-  kind: 'FormRecognizer'
-  tags: tags
-  sku: {
-    name: 'S0'
-  }
-  properties: {
-    customSubDomainName: '${prefix}-docintel-${suffix}'
-    disableLocalAuth: true
-    publicNetworkAccess: 'Enabled'
-  }
-}
-
-resource workerDocumentIntelligenceUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (documentIntelligenceEnabled) {
-  name: guid(documentIntelligence.id, workerIdentity.id, 'Cognitive Services User')
-  scope: documentIntelligence
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908')
-    principalId: workerIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
 
 output webAppName string = webApp.name
-output webAppPrincipalId string = webApp.identity.principalId
+output webIdentityName string = webIdentity.name
+output webIdentityClientId string = webIdentity.properties.clientId
 output workerAppName string = workerApp.name
-output workerPrincipalId string = workerIdentity.properties.principalId
 output workerIdentityName string = workerIdentity.name
+output workerIdentityClientId string = workerIdentity.properties.clientId
 output sqlServerFqdn string = sqlServer.properties.fullyQualifiedDomainName
 output sqlDatabaseName string = sqlDatabase.name
 output storageAccountName string = storage.name

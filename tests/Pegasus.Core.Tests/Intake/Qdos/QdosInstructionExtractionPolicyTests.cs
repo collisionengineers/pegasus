@@ -51,6 +51,111 @@ public sealed class QdosInstructionExtractionPolicyTests
             item.Finding == IntakeEvidenceFinding.ContradictsTransport
             && item.Signal == "forwarded-sender");
     }
+    [Theory]
+    [InlineData("QDOS instruction")]
+    [InlineData("QDOS instruction\nClaimant Name: Review Claimant")]
+    public void QdosMarkerWithoutTwoInstructionLabelsCannotProduceDraft(string content)
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(content),
+            ProcessedAtUtc);
+
+        Assert.Equal(InstructionPolicyApplicability.Indeterminate, result.Applicability);
+        Assert.Null(result.InstructionDraft);
+        Assert.Empty(result.Fields);
+        Assert.Empty(result.MissingFields);
+    }
+
+    [Fact]
+    public void ProofCannotBeAssembledAcrossSeparateContentFragments()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            new(
+                IntakeSourceReadStatus.Readable,
+                [
+                    new(
+                        IntakeEvidenceSource.EmailBody,
+                        "untrusted message body",
+                        "QDOS instruction\nClaimant Name: Review Claimant"),
+                    new(
+                        IntakeEvidenceSource.DocumentContent,
+                        "separate attachment",
+                        "QDOS instruction\nClaim Number: Q-423")
+                ],
+                [],
+                [],
+                false),
+            ProcessedAtUtc);
+
+        Assert.Equal(InstructionPolicyApplicability.Indeterminate, result.Applicability);
+        Assert.Null(result.InstructionDraft);
+        Assert.Empty(result.Fields);
+        Assert.Empty(result.MissingFields);
+    }
+
+
+    [Fact]
+    public void StaffForwardUsesUnambiguousAttachedOriginalAndRetainsTransportIdentity()
+    {
+        var result = new QdosInstructionExtractionPolicy().Evaluate(
+            Readable(
+                transport:
+                [
+                    new(
+                        IntakeEvidenceSource.Sender,
+                        "staff@collisionengineers.co.uk",
+                        IntakeSenderIdentityKind.Transport,
+                        "outer message"),
+                    new(
+                        IntakeEvidenceSource.Sender,
+                        "instructions@qdosassist.co.uk",
+                        IntakeSenderIdentityKind.AttachedOriginal,
+                        "attached original")
+                ]));
+
+        Assert.Equal(MailRouteDisposition.Accepted, result.Disposition);
+        var route = Assert.IsType<MailRouteSelection>(result.SelectedRoute);
+        Assert.Equal(MailRouteKind.DirectProvider, route.Kind);
+        Assert.Equal("QDOS", route.RouteOwnerCode);
+        Assert.Equal("QDOS", route.WorkProviderCode);
+        Assert.Equal("staff@collisionengineers.co.uk", Assert.Single(result.TransportIdentities).Address);
+        Assert.Equal("instructions@qdosassist.co.uk", Assert.Single(result.OriginalIdentities).Address);
+        Assert.Equal("instructions@qdosassist.co.uk", result.EffectiveSender?.Address);
+        Assert.Equal(QdosInstructionExtractionPolicy.MailRouteVersion, result.PolicyVersion);
+    }
+
+    [Fact]
+    public void StaffForwardWithConflictingAttachedOriginalsFailsClosed()
+    {
+        var result = new QdosInstructionExtractionPolicy().Evaluate(
+            Readable(
+                transport:
+                [
+                    new(
+                        IntakeEvidenceSource.Sender,
+                        "staff@collisionengineers.co.uk",
+                        IntakeSenderIdentityKind.Transport,
+                        "outer message"),
+                    new(
+                        IntakeEvidenceSource.Sender,
+                        "first@qdosassist.co.uk",
+                        IntakeSenderIdentityKind.AttachedOriginal,
+                        "attached original one"),
+                    new(
+                        IntakeEvidenceSource.Sender,
+                        "second@qdosassist.co.uk",
+                        IntakeSenderIdentityKind.AttachedOriginal,
+                        "attached original two")
+                ]));
+
+        Assert.Equal(MailRouteDisposition.NeedsSorting, result.Disposition);
+        Assert.Null(result.SelectedRoute);
+        Assert.Null(result.EffectiveSender);
+        Assert.Equal(2, result.OriginalIdentities.Count);
+        Assert.Contains(
+            result.Predicates,
+            predicate => predicate.Key == "forward.original-exactly-one" && !predicate.Matched);
+    }
 
     [Fact]
     public void IncompleteResultCannotCrossPolicyBoundary()

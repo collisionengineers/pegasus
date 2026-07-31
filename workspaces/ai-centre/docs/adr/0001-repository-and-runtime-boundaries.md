@@ -1,6 +1,6 @@
 # ADR 0001: Repository and runtime boundaries
 
-- **Status:** Superseded for Pegasus integration by root ADR-0013
+- **Status:** Superseded for Pegasus integration by root ADR-0009
 - **Date:** 21 July 2026
 
 This imported decision records the source repository's former proposal only. It cannot create a

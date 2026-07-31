@@ -1,0 +1,157 @@
+@page
+@model Pegasus.Web.Pages.Cases.IndexModel
+@using Pegasus.Core.Workflow
+@{
+    ViewData["Title"] = "Cases";
+}
+
+<header class="page-heading">
+    <div>
+        <p class="eyebrow">Case workspace</p>
+        <h1>Cases</h1>
+        <p class="lede">Search the cases you are authorised to access. Filters remain in the URL when you move between result pages.</p>
+    </div>
+</header>
+
+<section class="panel form-panel" aria-labelledby="case-filters-title">
+    <h2 id="case-filters-title" class="section-label">Filter cases</h2>
+    <form method="get">
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+        <div class="form-grid">
+            <div>
+                <label for="case-reference">Case/PO</label>
+                <input id="case-reference" name="case" value="@Model.CaseReference" maxlength="100" />
+            </div>
+            <div>
+                <label asp-for="Registration">Registration</label>
+                <input asp-for="Registration" maxlength="20" />
+            </div>
+            <div>
+                <label asp-for="Claimant">Claimant</label>
+                <input asp-for="Claimant" maxlength="300" />
+            </div>
+            <div>
+                <label asp-for="ClaimNumber">Claim number</label>
+                <input asp-for="ClaimNumber" maxlength="100" />
+            </div>
+            <div>
+                <label asp-for="Principal">Principal</label>
+                <input asp-for="Principal" maxlength="20" />
+            </div>
+            <div>
+                <label asp-for="State">State</label>
+                <select asp-for="State">
+                    <option value="">All states</option>
+                    @foreach (var state in Enum.GetValues<CaseLifecycleState>())
+                    {
+                        <option value="@state">@state</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label asp-for="EngineerId">Engineer ID</label>
+                <input asp-for="EngineerId" type="text" />
+                <span asp-validation-for="EngineerId" class="field-validation"></span>
+            </div>
+            <div>
+                <label asp-for="ReceivedDate">Received date</label>
+                <input asp-for="ReceivedDate" type="date" />
+                <span asp-validation-for="ReceivedDate" class="field-validation"></span>
+            </div>
+            <div>
+                <label asp-for="InstructionDate">Instruction date</label>
+                <input asp-for="InstructionDate" type="date" />
+                <span asp-validation-for="InstructionDate" class="field-validation"></span>
+            </div>
+            <div>
+                <label asp-for="FromDate">Received from</label>
+                <input asp-for="FromDate" type="date" />
+                <span asp-validation-for="FromDate" class="field-validation"></span>
+            </div>
+            <div>
+                <label asp-for="ToDate">Received to</label>
+                <input asp-for="ToDate" type="date" />
+                <span asp-validation-for="ToDate" class="field-validation"></span>
+            </div>
+            <div>
+                <label asp-for="Origin">Origin</label>
+                <input asp-for="Origin" maxlength="100" />
+            </div>
+            <div>
+                <label asp-for="Query">Any case text</label>
+                <input asp-for="Query" maxlength="300" />
+            </div>
+        </div>
+        <div class="button-row">
+            <button type="submit" class="primary-action">Search cases</button>
+            <a asp-page="/Cases/Index" class="secondary-action">Clear filters</a>
+        </div>
+    </form>
+</section>
+
+@if (Model.QueryFailed)
+{
+    <section class="status-card status-card--error" role="alert">
+        <h2>Cases are unavailable</h2>
+        <p>The authorised case query could not be completed. Try again.</p>
+    </section>
+}
+else if (Model.Results is { Items.Count: 0 })
+{
+    <section class="empty-state" aria-live="polite">
+        <h2>No matching cases</h2>
+        <p>No authorised cases match the current filters.</p>
+    </section>
+}
+else if (Model.Results is { } results)
+{
+    <section class="panel" aria-labelledby="case-results-title">
+        <h2 id="case-results-title" class="section-label">Results</h2>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th scope="col">Case/PO</th>
+                        <th scope="col">Registration</th>
+                        <th scope="col">Claimant</th>
+                        <th scope="col">Claim number</th>
+                        <th scope="col">Principal</th>
+                        <th scope="col">State</th>
+                        <th scope="col">Engineer</th>
+                        <th scope="col">Received</th>
+                        <th scope="col">Instruction</th>
+                        <th scope="col">Origin</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in results.Items)
+                    {
+                        <tr>
+                            <td><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.Reference</a></td>
+                            <td>@(item.Registration ?? "Not recorded")</td>
+                            <td>@(item.Claimant ?? "Not recorded")</td>
+                            <td>@(item.ClaimNumber ?? "Not recorded")</td>
+                            <td>@item.Principal</td>
+                            <td>@item.State</td>
+                            <td>@(item.EngineerId?.ToString("D") ?? "Unassigned")</td>
+                            <td>@item.ReceivedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</td>
+                            <td>@(item.InstructionDate?.ToString("dd MMM yyyy") ?? "Not recorded")</td>
+                            <td>@item.Origin</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <nav class="button-row" aria-label="Case result pages">
+            @if (results.HasPreviousPage)
+            {
+                <a href="@Model.PageUrl(results.Page - 1)" class="secondary-action">Previous</a>
+            }
+            <span>Page @results.Page</span>
+            @if (results.HasNextPage)
+            {
+                <a href="@Model.PageUrl(results.Page + 1)" class="secondary-action">Next</a>
+            }
+        </nav>
+    </section>
+}

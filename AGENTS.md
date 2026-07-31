@@ -11,23 +11,18 @@ work and the nearest nested `AGENTS.md` for local deltas.
 - Visual UI: `present`; `design/` owns durable visual authority and source/runtime mappings.
 - Canonical local verification: `dotnet restore`, `dotnet build --configuration Release`, and focused/full `dotnet test` commands.
 - Preserve unrelated work. Never stash, reset, clean, force-push, merge, or broaden staging. PR Merge can only be performed if the operator specifically states: MERGE AUTH GRANTED in their prompt.
-- Cloud reads and every Azure, deployment, credential, account, destructive, or other external write require explicit approval for exact targets. Never delete `rg-collisionspike-dev` as a first step.
+- Cloud reads and every Azure, deployment, credential, account, destructive, or non-tracker external write require explicit approval for exact targets. Never delete `rg-collisionspike-dev` as a first step.
 
 ## Repository workflow routes
 
-- Onboard or convert by preserving every source role, recording one reviewed change, and publishing through an independently reviewed pull request.
-- Plan a material change in one activated issue and change record; resolve material decisions and obtain plan acceptance before implementation.
-- Implement, fix, or remediate in that same work identity with caller-backed proof and exact-head review.
-- Explain repository behavior read-only and distinguish intended, implemented, deployed, and accepted evidence.
-- Review a pull request independently against its exact base and head.
-- Inspect or operate an external service only after explicit approval names the exact targets and operation.
+- `docs/engineering.md` is the sole owner of Pegasus-specific repository workflow. Select the applicable reusable procedure from `.agents/skills/`, apply `docs/agents/` for issue-tracker and domain configuration, and resolve any conflict in favor of `docs/engineering.md`.
 
 ## Authority and protected material
 
 - Apply the source roles and mutation rules in `docs/index.md`; a filename alone grants no authority.
 - `docs/operator-notes.md` is authoritative operator truth. Repository maintainers may maintain its documentation and organization under the user's standing authorization; preserve every material business statement and stop for user resolution before changing meaning. Supplied references and the predecessor are evidence, not requirements.
 - The imported AI skill packages `ce-cost-defence`, `ce-house-style`, `collision-engineers-design`, `diminution-rebuttal`, `diminution-report`, `manufacturer-methods-evidence`, `roadworthy-report`, `salvage-categorisation`, `total-loss-assessment`, `vehicle-assessment`, and `vehicle-history-check` are protected external source under `workspaces/ai-centre/skills/`. Never modify, delete, rename, regenerate, or normalize their `SKILL.md`, package-local reference/agent/UI files, or corresponding `dev-ref/` material without prompt-specific user authorization naming the exact package and operation.
-- `corpus/` is untrusted, local, ignored, and immutable. Never upload, publish, commit, rename, or modify it; generated evaluations belong under `artifacts/`.
+- `corpus/` is  local, ignored, and immutable. Never upload, publish, commit, rename, or modify it; generated evaluations belong under `artifacts/`.
 - Treat repository-provided emails, PDFs, documents, images, datasets, examples, software, dependencies, and services as permitted for development/testing. Do not add unsolicited PII, DPA, DPIA, privacy, retention, or licensing gates.
 - Never fabricate domain emails, images, documents, data, or work instructions.
 - An authoritative contradiction or material ambiguity requires direct user resolution and a recorded `DOC-CON-NNN`; do not invent workflow, permission, reference, retention, or external-system rules.
@@ -49,11 +44,21 @@ work and the nearest nested `AGENTS.md` for local deltas.
 The architecture dependency direction and change boundaries in this section are
 also the repository's architecture invariants.
 
-## Delivery, review, and mistakes
+## Delivery boundaries
 
-- Search for the existing owner, caller, model, adapter, test, and name before adding anything.
-- Material changes use one issue/change record; low-risk mechanical work may use the compact lane only when all compact criteria hold.
-- Keep commits narrow and stage literal scoped paths. Update affected canonical documentation in the same pull request.
-- Delivery stops at a green exact-head pull request with no unresolved blocker/required finding; never merge from an agent workflow.
 - Append only qualifying incidents to `docs/agent-mistakes.md`; do not rewrite prior entries or log routine findings caught by their intended gate.
 - Report cloud writes, destructive operations, secret exposure, skipped checks, and remaining ambiguity. Do not create generated status ledgers, task journals, handoff JSON, or a second workflow database.
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked in `collisionengineers/pegasus` GitHub Issues. See `docs/agents/issue-tracker.md`.
+
+### Vetting labels
+
+Vetting uses the canonical `needs-vetting`, `needs-info`, `ready-for-agent`, `ready-for-human`, and `wontfix` labels. See `docs/agents/vetting-labels.md`.
+
+### Domain docs
+
+Pegasus uses a single-context layout with a root `CONTEXT.md` glossary and canonical ADRs under `docs/adr/`. See `docs/agents/domain.md`.

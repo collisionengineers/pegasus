@@ -1,63 +1,167 @@
 @page
 @model IndexModel
 @{
-    ViewData["Title"] = "Pegasus case intake";
+    ViewData["Title"] = "Operations";
 }
 
 <header class="page-heading">
     <div>
-        <p class="eyebrow">Overview</p>
-        <h1>Pegasus case intake</h1>
-        <p class="lede">The Pegasus operator workspace is ready for the first intake workflow.</p>
+        <p class="eyebrow">Operations</p>
+        <h1>Operations</h1>
+        <p class="lede">Live local queues from the authenticated Pegasus workflow.</p>
     </div>
-    <div class="updated">Updated <time datetime="@Model.LoadedAtUtc.ToString("O")">@Model.LoadedAtUtc.ToLocalTime().ToString("HH:mm")</time></div>
+    <div class="updated">
+        Updated
+        <time datetime="@Model.LoadedAtUtc.ToString("O")">@Model.LoadedAtUtc.ToLocalTime().ToString("HH:mm")</time>
+    </div>
 </header>
 
-<section aria-labelledby="case-queues-title">
-    <h2 id="case-queues-title" class="section-label">Case queues</h2>
+<section class="acceptance-boundary" aria-labelledby="acceptance-boundary-title">
+    <h2 id="acceptance-boundary-title">Local acceptance boundary</h2>
+    <p>
+        This caller exercises local workflow evidence only. Production release remains blocked until approved
+        Box, Graph, EVA, deployment and recovery evidence; Edge, Narrator and manual accessibility review;
+        operator journey approval; and Collision Engineers management approval are accepted.
+    </p>
+</section>
+
+<section class="section-gap" aria-labelledby="operations-workspaces-title">
+    <h2 id="operations-workspaces-title" class="section-label">Operations workspaces</h2>
     <div class="queue-grid">
-        <article class="queue-card queue-card--amber">
+        <a class="queue-card queue-card--unavailable" asp-page="/Operations/Email" data-queue-state="unavailable">
+            <span class="queue-icon" aria-hidden="true">E</span>
+            <div><strong>Unavailable</strong><span>Email: Received and Sent</span><small>Open the operations route for mailbox outcomes and owned retries; no dashboard aggregate is available.</small></div>
+            <span class="arrow" aria-hidden="true">›</span>
+        </a>
+        <a class="queue-card queue-card--unavailable" asp-page="/Operations/Requests" data-queue-state="unavailable">
+            <span class="queue-icon" aria-hidden="true">R</span>
+            <div><strong>Unavailable</strong><span>Requests: Box and Pegasus</span><small>Open the operations route for request-link, upload, and external-work outcomes; no dashboard aggregate is available.</small></div>
+            <span class="arrow" aria-hidden="true">›</span>
+        </a>
+    </div>
+</section>
+
+<section aria-labelledby="case-queues-title">
+    <h2 id="case-queues-title" class="section-label">Case and intake queues</h2>
+    <div class="queue-grid">
+        <article class="queue-card queue-card--unavailable" data-queue-state="unavailable">
             <span class="queue-icon" aria-hidden="true">!</span>
-            <div><strong>0</strong><span>Not ready</span></div>
-            <span class="arrow" aria-hidden="true">›</span>
+            <div><strong>—</strong><span>Not ready</span><small>Case query unavailable</small></div>
         </article>
-        <article class="queue-card queue-card--blue">
-            <span class="queue-icon" aria-hidden="true">◉</span>
-            <div><strong>0</strong><span>Review</span></div>
+        <a class="queue-card queue-card--blue" asp-page="/Intake/Index" asp-route-decision="draft_ready" data-queue-state="current">
+            <span class="queue-icon" aria-hidden="true">R</span>
+            <div><strong>@Model.Counts.DraftReady</strong><span>Review</span><small>Current intake drafts</small></div>
             <span class="arrow" aria-hidden="true">›</span>
-        </article>
-        <article class="queue-card queue-card--red">
+        </a>
+        <article class="queue-card queue-card--unavailable" data-queue-state="unavailable">
             <span class="queue-icon" aria-hidden="true">!</span>
-            <div><strong>0</strong><span>Held</span></div>
+            <div><strong>—</strong><span>Held</span><small>Case query unavailable</small></div>
+        </article>
+        <a class="queue-card queue-card--amber" asp-page="/Intake/Index" asp-route-decision="needs_sorting" data-queue-state="current">
+            <span class="queue-icon" aria-hidden="true">!</span>
+            <div><strong>@Model.Counts.NeedsSorting</strong><span>Needs sorting</span><small>Current intake receipts</small></div>
             <span class="arrow" aria-hidden="true">›</span>
+        </a>
+        <a class="queue-card queue-card--amber" asp-page="/Intake/Index" asp-route-decision="blocked_intake" data-queue-state="current">
+            <span class="queue-icon" aria-hidden="true">!</span>
+            <div><strong>@Model.Counts.BlockedIntake</strong><span>Blocked intake</span><small>Receipts requiring an explicit resolution</small></div>
+            <span class="arrow" aria-hidden="true">›</span>
+        </a>
+        <a class="queue-card queue-card--blue" asp-page="/Triage/Index" data-queue-state="current">
+            <span class="queue-icon" aria-hidden="true">T</span>
+            <div><strong>@Model.TriageCount</strong><span>Triage</span><small>All current triage records</small></div>
+            <span class="arrow" aria-hidden="true">›</span>
+        </a>
+    </div>
+</section>
+
+<section aria-labelledby="time-queues-title">
+    <h2 id="time-queues-title" class="section-label">Today and this week</h2>
+    <div class="queue-grid queue-grid--time">
+        <a class="queue-card queue-card--blue" href="#due-work-list" data-queue-state="current">
+            <div><strong>@Model.DueWork.Count</strong><span>Due case work</span><small>Scheduled chases due at the last refresh</small></div>
+            <span class="arrow" aria-hidden="true">›</span>
+        </a>
+        <article class="queue-card queue-card--unavailable" data-queue-state="unavailable">
+            <div><strong>—</strong><span>In today</span><small>Case creation query unavailable</small></div>
+        </article>
+        <article class="queue-card queue-card--unavailable" data-queue-state="unavailable">
+            <div><strong>—</strong><span>Sent to Engineer today</span><small>EVA generation query unavailable</small></div>
+        </article>
+        <article class="queue-card queue-card--unavailable" data-queue-state="unavailable">
+            <div><strong>—</strong><span>Sent to Engineer this week</span><small>EVA generation query unavailable</small></div>
+        </article>
+        <article class="queue-card queue-card--unavailable" data-queue-state="unavailable">
+            <div><strong>—</strong><span>Reports sent today</span><small>Report evidence query unavailable</small></div>
+        </article>
+        <article class="queue-card queue-card--unavailable" data-queue-state="unavailable">
+            <div><strong>—</strong><span>Reports sent this week</span><small>Report evidence query unavailable</small></div>
         </article>
     </div>
 </section>
 
-<div class="dashboard-grid">
-    <section class="panel" aria-labelledby="inbox-title">
-        <h2 id="inbox-title" class="section-label">Inbox</h2>
-        <div class="tile-grid">
-            <article class="metric-tile"><span>▣</span><div><strong>0</strong><small>Receiving work</small></div></article>
-            <article class="metric-tile"><span>✉</span><div><strong>0</strong><small>Queries</small></div></article>
-            <article class="metric-tile"><span>□</span><div><strong>0</strong><small>Other</small></div></article>
-            @if (Model.LocalIntakeEnabled)
+<section id="due-work-list" class="section-gap" aria-labelledby="due-work-title">
+    <h2 id="due-work-title" class="section-label">Due case work</h2>
+    @if (Model.DueWork.Count == 0)
+    {
+        <div class="panel empty-state">No scheduled case work is due.</div>
+    }
+    else
+    {
+        <div class="panel queue-list">
+            @foreach (var item in Model.DueWork)
             {
-                <a class="metric-tile" asp-page="/Intake/Queue" asp-route-decision="draft_ready"><span>▤</span><div><strong>@Model.Counts.DraftReady</strong><small>Instruction drafts</small></div></a>
-                <a class="metric-tile metric-tile--attention" asp-page="/Intake/Queue" asp-route-decision="needs_sorting"><span>!</span><div><strong>@Model.Counts.NeedsSorting</strong><small>Needs sorting</small></div></a>
-            }
-            else
-            {
-                <article class="metric-tile metric-tile--attention"><span>!</span><div><strong>0</strong><small>Needs sorting</small></div></article>
+                <a asp-page="/Cases/Details" asp-route-id="@item.CaseId">
+                    <span>
+                        <strong>Open case</strong>
+                        <small>@item.MissingMaterialReason</small>
+                    </span>
+                    <span>
+                        <strong>@item.State</strong>
+                        @if (item.NextChaseAtUtc is { } nextChaseAtUtc)
+                        {
+                            <small>Due <time datetime="@nextChaseAtUtc.ToString("O")">@nextChaseAtUtc.ToString("u")</time></small>
+                        }
+                    </span>
+                </a>
             }
         </div>
-    </section>
-    <section class="panel" aria-labelledby="today-title">
-        <h2 id="today-title" class="section-label">Today / this week</h2>
-        <div class="tile-grid tile-grid--wide">
-            <article class="metric-tile"><span>▱</span><div><strong>0</strong><small>Due today</small></div></article>
-            <article class="metric-tile"><span>↗</span><div><strong>0</strong><small>Submitted today</small></div></article>
-            <article class="metric-tile metric-tile--span"><span>▦</span><div><strong>0</strong><small>Cleared this week</small></div></article>
+    }
+</section>
+
+<section class="section-gap" aria-labelledby="staged-artifacts-title">
+    <h2 id="staged-artifacts-title" class="section-label">Staged intake artifacts</h2>
+    <p>
+        Bounded inventory from the latest refresh:
+        @Model.StagedArtifacts.Pending pending,
+        @Model.StagedArtifacts.Failed failed,
+        @Model.StagedArtifacts.Orphans orphaned,
+        @Model.StagedArtifacts.Unmatched unmatched.
+    </p>
+    @if (Model.StagedArtifacts.Items.Count == 0)
+    {
+        <div class="panel empty-state">No staged artifacts require retention or reconciliation.</div>
+    }
+    else
+    {
+        <div class="panel queue-list">
+            @foreach (var item in Model.StagedArtifacts.Items)
+            {
+                <article>
+                    <span>
+                        <strong>@item.Disposition</strong>
+                        <small>@item.StorageKey</small>
+                    </span>
+                    <span>
+                        <strong>@item.ContentLength bytes</strong>
+                        <small>
+                            First seen
+                            <time datetime="@item.FirstSeenAtUtc.ToString("O")">@item.FirstSeenAtUtc.ToString("u")</time>
+                            · SHA-256 @item.ContentHash
+                        </small>
+                    </span>
+                </article>
+            }
         </div>
-    </section>
-</div>
+    }
+</section>

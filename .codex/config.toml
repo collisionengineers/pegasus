@@ -1,0 +1,160 @@
+# Pegasus delivery-team configuration. The curated 37-package set under
+# .codex/skill-packages is exactly the set used by the specialist agents below.
+# The main agent is denied every package; each is re-enabled by one specialist.
+
+[mcp_servers."mcp_microsoftdocs"]
+url = "https://learn.microsoft.com/api/mcp"
+enabled = true
+
+[mcp_servers."azure-mcp"]
+command = "npx"
+args = ["-y", "@azure/mcp@3.0.0-beta.30", "server", "start"]
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/cloud-solution-architect"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/detect-static-dependencies"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/create-datadriven-aspnetcore"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/frontend-design-review"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/optimizing-ef-core-queries"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/azure-functions"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/azure-queue-storage"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/azure-blob-storage"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/azure-rbac"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/azure-security"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/azure-architecture"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/azure-resource-manager"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/azure-app-service"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/azure-sql-database"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/azure-key-vault"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/azure-monitor"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/kql"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/mcp-builder"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/dotnet-webapi"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/analyzing-dotnet-performance"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/code-testing-agent"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/code-testing-extensions"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/find-untested-sources"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/run-tests"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/platform-detection"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/filter-syntax"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/coverage-analysis"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/test-analysis-extensions"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/assertion-quality"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/test-gap-analysis"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/test-anti-patterns"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/test-smell-detection"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/authoring-github-workflows"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/binlog-generation"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/binlog-failure-analysis"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/msbuild-antipatterns"
+enabled = false
+
+[[skills.config]]
+path = "skill-packages/azure-well-architected"
+enabled = false

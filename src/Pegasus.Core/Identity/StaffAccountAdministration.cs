@@ -1,0 +1,561 @@
+namespace Pegasus.Core.Identity;
+
+public sealed record StaffAccountSummary(
+    Guid Id,
+    string UserName,
+    bool IsEnabled,
+    bool MustChangePassword,
+    IReadOnlyList<StaffRole> Roles,
+    DateTimeOffset? LastAccessReviewAtUtc);
+
+public sealed record ListStaffAccountsRequest(
+    ActionActor Actor,
+    int PageNumber = 1,
+    int PageSize = 50);
+
+public sealed record ListStaffAccountsResult(
+    IReadOnlyList<StaffAccountSummary> Accounts,
+    int PageNumber,
+    int PageSize,
+    bool HasPreviousPage,
+    bool HasMoreAccounts);
+
+public sealed record GetStaffAccountRequest(
+    ActionActor Actor,
+    Guid StaffId);
+
+public sealed record GetStaffAccountResult(StaffAccountSummary Account);
+
+public sealed record StaffAccessReviewProjection(
+    Guid StaffId,
+    string UserName,
+    bool IsEnabled,
+    IReadOnlyList<StaffRole> CurrentRoles,
+    DateTimeOffset? LastReviewedAtUtc,
+    bool ReviewIsOutstanding);
+
+public sealed record GetAccessReviewRequest(
+    ActionActor Actor,
+    int MaximumResults = 100);
+
+public sealed record GetAccessReviewResult(
+    IReadOnlyList<StaffAccessReviewProjection> Accounts,
+    bool HasMoreAccounts);
+
+public sealed record StaffRoleAssignmentProjection(
+    Guid StaffId,
+    string UserName,
+    bool IsEnabled,
+    IReadOnlyList<StaffRole> CurrentRoles);
+
+public sealed record GetRoleAssignmentsRequest(
+    ActionActor Actor,
+    int MaximumResults = 100);
+
+public sealed record GetRoleAssignmentsResult(
+    IReadOnlyList<StaffRoleAssignmentProjection> Accounts,
+    bool HasMoreAccounts);
+
+public sealed record CreateStaffAccountRequest(
+    ActionActor Actor,
+    string UserName,
+    string TemporaryPassword,
+    string Reason,
+    string OperationKey);
+
+public sealed record CreateStaffAccountResult(
+    StaffAccountSummary Account,
+    bool WasReplay);
+
+public sealed record DisableStaffAccountRequest(
+    ActionActor Actor,
+    Guid StaffId,
+    string Reason,
+    string OperationKey);
+
+public sealed record DisableStaffAccountResult(
+    StaffAccountSummary Account,
+    long RevokedAuthorizations,
+    long RevokedTokens,
+    bool WasReplay);
+
+public sealed record AssignStaffRolesRequest(
+    ActionActor Actor,
+    Guid StaffId,
+    IReadOnlyCollection<StaffRole> Roles,
+    string Reason,
+    string OperationKey);
+
+public sealed record AssignStaffRolesResult(
+    StaffAccountSummary Account,
+    long RevokedAuthorizations,
+    long RevokedTokens,
+    bool WasReplay);
+
+public sealed record ReviewStaffAccessRequest(
+    ActionActor Actor,
+    Guid StaffId,
+    string Reason,
+    string OperationKey);
+
+public sealed record ReviewStaffAccessResult(
+    Guid StaffId,
+    DateTimeOffset ReviewedAtUtc,
+    bool WasReplay);
+
+public sealed record StaffAccountQuerySlice(
+    IReadOnlyList<StaffAccountSummary> Accounts,
+    bool HasMoreAccounts);
+
+public interface IStaffAccountQueries
+{
+    Task<StaffAccountQuerySlice> ListAsync(
+        int offset,
+        int limit,
+        CancellationToken cancellationToken);
+
+    Task<StaffAccountSummary?> GetAsync(
+        Guid staffId,
+        CancellationToken cancellationToken);
+}
+
+public interface ICreateStaffAccountStore
+{
+    Task<CreateStaffAccountResult> CreateAsync(
+        CreateStaffAccountRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IDisableStaffAccountStore
+{
+    Task<DisableStaffAccountResult> DisableAsync(
+        DisableStaffAccountRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IAssignStaffRolesStore
+{
+    Task<AssignStaffRolesResult> AssignAsync(
+        AssignStaffRolesRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IReviewStaffAccessStore
+{
+    Task<ReviewStaffAccessResult> ReviewAsync(
+        ReviewStaffAccessRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IListStaffAccounts
+{
+    Task<ListStaffAccountsResult> ExecuteAsync(
+        ListStaffAccountsRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IGetStaffAccount
+{
+    Task<GetStaffAccountResult?> ExecuteAsync(
+        GetStaffAccountRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IGetAccessReview
+{
+    Task<GetAccessReviewResult> ExecuteAsync(
+        GetAccessReviewRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IGetRoleAssignments
+{
+    Task<GetRoleAssignmentsResult> ExecuteAsync(
+        GetRoleAssignmentsRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface ICreateStaffAccount
+{
+    Task<CreateStaffAccountResult> ExecuteAsync(
+        CreateStaffAccountRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IDisableStaffAccount
+{
+    Task<DisableStaffAccountResult> ExecuteAsync(
+        DisableStaffAccountRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IAssignStaffRoles
+{
+    Task<AssignStaffRolesResult> ExecuteAsync(
+        AssignStaffRolesRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IReviewStaffAccess
+{
+    Task<ReviewStaffAccessResult> ExecuteAsync(
+        ReviewStaffAccessRequest request,
+        CancellationToken cancellationToken);
+}
+
+public sealed class ListStaffAccounts(IStaffAccountQueries queries)
+    : IListStaffAccounts
+{
+    public const int MaximumPageSize = 100;
+
+    private readonly IStaffAccountQueries _queries =
+        queries ?? throw new ArgumentNullException(nameof(queries));
+
+    public async Task<ListStaffAccountsResult> ExecuteAsync(
+        ListStaffAccountsRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Actor);
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.ManageStaffAccounts);
+        ValidatePage(request.PageNumber, request.PageSize);
+
+        var offset = ((long)request.PageNumber - 1L) * request.PageSize;
+        if (offset > int.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(request),
+                "The requested staff-account page is outside the supported range.");
+        }
+
+        var slice = await _queries.ListAsync(
+            (int)offset,
+            request.PageSize,
+            cancellationToken);
+        return new(
+            slice.Accounts,
+            request.PageNumber,
+            request.PageSize,
+            request.PageNumber > 1,
+            slice.HasMoreAccounts);
+    }
+
+    internal static void ValidateMaximumResults(int maximumResults, string parameterName)
+    {
+        if (maximumResults < 1 || maximumResults > MaximumPageSize)
+        {
+            throw new ArgumentOutOfRangeException(
+                parameterName,
+                $"Staff-account queries must request between 1 and {MaximumPageSize} rows.");
+        }
+    }
+
+    private static void ValidatePage(int pageNumber, int pageSize)
+    {
+        if (pageNumber < 1)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(pageNumber),
+                "The staff-account page number must be positive.");
+        }
+
+        ValidateMaximumResults(pageSize, nameof(pageSize));
+    }
+}
+
+public sealed class GetStaffAccount(IStaffAccountQueries queries)
+    : IGetStaffAccount
+{
+    private readonly IStaffAccountQueries _queries =
+        queries ?? throw new ArgumentNullException(nameof(queries));
+
+    public async Task<GetStaffAccountResult?> ExecuteAsync(
+        GetStaffAccountRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Actor);
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.ManageStaffAccounts);
+        StaffAccountAdministrationPolicy.RequireStaffId(request.StaffId);
+
+        var account = await _queries.GetAsync(request.StaffId, cancellationToken);
+        return account is null ? null : new(account);
+    }
+}
+
+public sealed class GetAccessReview(IStaffAccountQueries queries)
+    : IGetAccessReview
+{
+    private readonly IStaffAccountQueries _queries =
+        queries ?? throw new ArgumentNullException(nameof(queries));
+
+    public async Task<GetAccessReviewResult> ExecuteAsync(
+        GetAccessReviewRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Actor);
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.ReviewStaffAccess);
+        ListStaffAccounts.ValidateMaximumResults(
+            request.MaximumResults,
+            nameof(request.MaximumResults));
+
+        var slice = await _queries.ListAsync(0, request.MaximumResults, cancellationToken);
+        return new(
+            slice.Accounts
+                .Select(account => new StaffAccessReviewProjection(
+                    account.Id,
+                    account.UserName,
+                    account.IsEnabled,
+                    account.Roles,
+                    account.LastAccessReviewAtUtc,
+                    account.IsEnabled && account.LastAccessReviewAtUtc is null))
+                .ToArray(),
+            slice.HasMoreAccounts);
+    }
+}
+
+public sealed class GetRoleAssignments(IStaffAccountQueries queries)
+    : IGetRoleAssignments
+{
+    private readonly IStaffAccountQueries _queries =
+        queries ?? throw new ArgumentNullException(nameof(queries));
+
+    public async Task<GetRoleAssignmentsResult> ExecuteAsync(
+        GetRoleAssignmentsRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Actor);
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.AssignStaffRoles);
+        ListStaffAccounts.ValidateMaximumResults(
+            request.MaximumResults,
+            nameof(request.MaximumResults));
+
+        var slice = await _queries.ListAsync(0, request.MaximumResults, cancellationToken);
+        return new(
+            slice.Accounts
+                .Select(account => new StaffRoleAssignmentProjection(
+                    account.Id,
+                    account.UserName,
+                    account.IsEnabled,
+                    account.Roles))
+                .ToArray(),
+            slice.HasMoreAccounts);
+    }
+}
+
+public sealed class CreateStaffAccount(ICreateStaffAccountStore store)
+    : ICreateStaffAccount
+{
+    private readonly ICreateStaffAccountStore _store =
+        store ?? throw new ArgumentNullException(nameof(store));
+
+    public Task<CreateStaffAccountResult> ExecuteAsync(
+        CreateStaffAccountRequest request,
+        CancellationToken cancellationToken) =>
+        _store.CreateAsync(
+            StaffAccountAdministrationPolicy.Normalize(request),
+            cancellationToken);
+}
+
+public sealed class DisableStaffAccount(IDisableStaffAccountStore store)
+    : IDisableStaffAccount
+{
+    private readonly IDisableStaffAccountStore _store =
+        store ?? throw new ArgumentNullException(nameof(store));
+
+    public Task<DisableStaffAccountResult> ExecuteAsync(
+        DisableStaffAccountRequest request,
+        CancellationToken cancellationToken) =>
+        _store.DisableAsync(
+            StaffAccountAdministrationPolicy.Normalize(request),
+            cancellationToken);
+}
+
+public sealed class AssignStaffRoles(IAssignStaffRolesStore store)
+    : IAssignStaffRoles
+{
+    private readonly IAssignStaffRolesStore _store =
+        store ?? throw new ArgumentNullException(nameof(store));
+
+    public Task<AssignStaffRolesResult> ExecuteAsync(
+        AssignStaffRolesRequest request,
+        CancellationToken cancellationToken) =>
+        _store.AssignAsync(
+            StaffAccountAdministrationPolicy.Normalize(request),
+            cancellationToken);
+}
+
+public sealed class ReviewStaffAccess(IReviewStaffAccessStore store)
+    : IReviewStaffAccess
+{
+    private readonly IReviewStaffAccessStore _store =
+        store ?? throw new ArgumentNullException(nameof(store));
+
+    public Task<ReviewStaffAccessResult> ExecuteAsync(
+        ReviewStaffAccessRequest request,
+        CancellationToken cancellationToken) =>
+        _store.ReviewAsync(
+            StaffAccountAdministrationPolicy.Normalize(request),
+            cancellationToken);
+}
+
+public static class StaffAccountAdministrationPolicy
+{
+    public const int MaximumUserNameLength = 256;
+    public const int MaximumPasswordLength = 256;
+    public const int MinimumPasswordLength = 8;
+    public const int MaximumReasonLength = 1000;
+    public const int MaximumOperationKeyLength = 100;
+
+    public static CreateStaffAccountRequest Normalize(CreateStaffAccountRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        RequireAdministrator(request.Actor, StaffAccessRight.ManageStaffAccounts);
+        ValidateTemporaryPassword(request.TemporaryPassword, nameof(request.TemporaryPassword));
+
+        return request with
+        {
+            UserName = NormalizeRequiredText(
+                request.UserName,
+                MaximumUserNameLength,
+                nameof(request.UserName)),
+            Reason = NormalizeRequiredText(
+                request.Reason,
+                MaximumReasonLength,
+                nameof(request.Reason)),
+            OperationKey = NormalizeRequiredText(
+                request.OperationKey,
+                MaximumOperationKeyLength,
+                nameof(request.OperationKey))
+        };
+    }
+
+    public static DisableStaffAccountRequest Normalize(DisableStaffAccountRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        RequireAdministrator(request.Actor, StaffAccessRight.ManageStaffAccounts);
+        RequireStaffId(request.StaffId);
+        return request with
+        {
+            Reason = NormalizeRequiredText(
+                request.Reason,
+                MaximumReasonLength,
+                nameof(request.Reason)),
+            OperationKey = NormalizeRequiredText(
+                request.OperationKey,
+                MaximumOperationKeyLength,
+                nameof(request.OperationKey))
+        };
+    }
+
+    public static AssignStaffRolesRequest Normalize(AssignStaffRolesRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        RequireAdministrator(request.Actor, StaffAccessRight.AssignStaffRoles);
+        RequireStaffId(request.StaffId);
+        ArgumentNullException.ThrowIfNull(request.Roles);
+        var roles = request.Roles.Distinct().OrderBy(role => role).ToArray();
+        if (roles.Length == 0 || roles.Any(role => !Enum.IsDefined(role)))
+        {
+            throw new ArgumentException(
+                "An enabled staff account requires at least one recognized current role.",
+                nameof(request));
+        }
+
+        return request with
+        {
+            Roles = roles,
+            Reason = NormalizeRequiredText(
+                request.Reason,
+                MaximumReasonLength,
+                nameof(request.Reason)),
+            OperationKey = NormalizeRequiredText(
+                request.OperationKey,
+                MaximumOperationKeyLength,
+                nameof(request.OperationKey))
+        };
+    }
+
+    public static ReviewStaffAccessRequest Normalize(ReviewStaffAccessRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        RequireAdministrator(request.Actor, StaffAccessRight.ReviewStaffAccess);
+        RequireStaffId(request.StaffId);
+        return request with
+        {
+            Reason = NormalizeRequiredText(
+                request.Reason,
+                MaximumReasonLength,
+                nameof(request.Reason)),
+            OperationKey = NormalizeRequiredText(
+                request.OperationKey,
+                MaximumOperationKeyLength,
+                nameof(request.OperationKey))
+        };
+    }
+
+    internal static void ValidateTemporaryPassword(string value, string parameterName)
+    {
+        ArgumentNullException.ThrowIfNull(value, parameterName);
+        if (value.Length < MinimumPasswordLength || value.Length > MaximumPasswordLength)
+        {
+            throw new ArgumentException(
+                $"The temporary password must contain between {MinimumPasswordLength} and " +
+                $"{MaximumPasswordLength} characters.",
+                parameterName);
+        }
+    }
+
+    internal static void RequireStaffId(Guid staffId)
+    {
+        if (staffId == Guid.Empty)
+        {
+            throw new ArgumentException("A staff account identifier is required.", nameof(staffId));
+        }
+    }
+
+    internal static string NormalizeRequiredText(
+        string value,
+        int maximumLength,
+        string parameterName)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new ArgumentException("A non-empty value is required.", parameterName);
+        }
+
+        var normalized = value.Trim();
+        if (normalized.Length > maximumLength)
+        {
+            throw new ArgumentException(
+                $"The value cannot exceed {maximumLength} characters.",
+                parameterName);
+        }
+
+        return normalized;
+    }
+
+    private static void RequireAdministrator(ActionActor actor, StaffAccessRight accessRight)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        StaffAuthorization.Require(actor, accessRight);
+    }
+}
+
+public enum StaffAccountAdministrationError
+{
+    DuplicateUserName,
+    InvalidAccount,
+    StaffAccountNotFound,
+    LastAdministrator,
+    OperationConflict
+}
+
+public sealed class StaffAccountAdministrationException(
+    StaffAccountAdministrationError error)
+    : Exception("The staff account request could not be completed.")
+{
+    public StaffAccountAdministrationError Error { get; } = error;
+}

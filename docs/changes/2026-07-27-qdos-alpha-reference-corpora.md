@@ -4,9 +4,9 @@ type: feature
 status: in_progress
 risk: high
 created: 2026-07-27
-updated: 2026-07-29
+updated: 2026-07-30
 issue: https://github.com/collisionengineers/pegasus/issues/3
-pull_request: pending
+pull_request: https://github.com/collisionengineers/pegasus/pull/23
 baseline: b2f40a2b68b5b1a906ff2e736fa43653006dba61
 target_release: 0.1.0-alpha.1
 roadmap_horizon: Now
@@ -28,7 +28,7 @@ The provider-domain Step 2 implementation and local verification are complete. T
 
 Issue #3 remains open until both mandatory delivery stages complete:
 
-1. **Offline development acceptance:** the complete application runs locally through real Web, Worker, Functions, SQL, storage, authentication, MCP, and operator callers without cloud credentials or external-service calls.
+1. **Offline development acceptance:** the application runs locally through real Web, Worker, Functions, SQL, storage, authentication, and operator callers without cloud credentials or external-service calls. Automation MCP remains deferred until its identity and client contract is accepted.
 2. **Approved live integration and release:** live adapters, Azure changes, deployment, recovery proof, operator acceptance, management approval, and production cutover occur only after the offline gate and their own exact-target approvals.
 
 Offline acceptance is neither a reduced alpha nor a substitute for live evidence.
@@ -45,9 +45,9 @@ Current requirements, capability allocation, architecture, operations, design, d
 - [open decisions](../open-decisions.md)
 - [architecture](../architecture.md)
 - [operations](../operations.md)
-- [engineering](../engineering.md)
+- [installed repository-development skills](../../.agents/skills/ask-matt/SKILL.md)
 - [operator notes](../operator-notes.md)
-- [decision index](../decisions/README.md)
+- [decision index](../adr/README.md)
 - [change-record index](README.md)
 - [design index](../../design/README.md)
 - [reference-data index](../reference/README.md)
@@ -57,6 +57,36 @@ Current requirements, capability allocation, architecture, operations, design, d
 Operator truth outranks historical plans and predecessor behavior. Accepted decisions outrank historical architecture. Genuine corpora, the predecessor, source inspection, and local evaluations are evidence, not requirements or acceptance by themselves. Material unresolved choices remain blockers only for their named slices.
 
 The four-project modular monolith remains: Core owns policy and ports; Infrastructure owns persistence and adapters; Web and Worker are composition roots. This change adds no project, top-level store, runtime, migration stream, deployment unit, generic rules engine, or second classifier.
+
+### Checkpoint 1 activation
+
+[ADR-0013](../adr/0013-qdos-alpha-implementation-contract.md) activates the clause-specific QDOS implementation and Razor/Worker caller boundaries without changing accepted decision bodies or capability allocation. It preserves, but does not activate, the separately gated Automation MCP boundary. Checkpoint 1 starts from merged `main` at `46b0328b149d7da887fa899c8aa39e01fcf159dc`, whose parents are the pull request 18 documentation merge `536f5fc470a541281f86ebc711564d49432ed73f` and capability child/source head `f77e1492b25abdd5a14725f4c15129333482b743`.
+
+Issue #3 and this record remain the sole implementation, evidence, review, and delivery identity. The addendum creates no second status ledger and promotes no implementation, caller, deployment, live-verification, or acceptance claim. The Development/local evaluator remains a separately delivered evidence harness under `DOC-CON-052`; it is not a QDOS caller or checkpoint. Repository-policy verification remains disabled until post-alpha; current direct and repository-language invocations are successful no-ops recorded only as **skipped/deferred**, never **passed**.
+
+### `DOC-CON-053`: SQL Server-only database contract
+
+- **Evidence.** On 2026-07-29 the user explicitly selected SQL Server Express
+  LocalDB for local development and integration acceptance, and Azure SQL for
+  deployed persistence. ADR-0006 decision item 7 had selected Development
+  SQLite and a provider-neutral initial migration alongside an explicit SQL
+  Server release/test path; this record and current operations also carried
+  fresh-SQLite and dual-provider acceptance gates.
+- **Impact.** Keeping both providers would leave competing runtime, migration,
+  and baseline contracts. SQLite results cannot establish the SQL Server
+  constraints, locking, concurrency, or recovery behavior required by the local
+  and deployed paths, so those results would make acceptance ambiguous rather
+  than additive.
+- **Resolution.** Current explicit direction prevails. SQL Server is the only
+  supported database contract: LocalDB is canonical local persistence,
+  migration, concurrency, recovery, and integration-acceptance evidence, while
+  Azure SQL is deployed persistence. SQLite runtime, dependencies, migrations,
+  tests, baselines, and gates are removed. Existing SQL Server migration IDs and
+  schema/data semantics remain stable. This resolution supersedes ADR-0006
+  decision item 7 only where it selected Development SQLite and
+  provider-neutral dual-provider migration behavior; the immutable ADR body and
+  every unaffected clause, including the unaffected parts of item 7, remain
+  unchanged.
 
 ## Scope
 
@@ -77,7 +107,7 @@ The four-project modular monolith remains: Core owns policy and ports; Infrastru
 - Activate only genuinely evidenced routes. The only currently accepted QDOS direct identity is the exact suffix `@qdosassist.co.uk`.
 - Implement the sole live alpha mailbox caller for `instructions@collisionengineers.co.uk`.
 - Complete QDOS Inspection, standalone Audit, and Inspection + Audit through durable intake, fail-closed acceptance, immutable identity, Box custody, work and review, EVA JSON/image handoff, exact report evidence, lifecycle, observability, recovery, deployment, and acceptance.
-- Implement the selected Operations-first `0.1.0-alpha.1` staff UI, authenticated staff MCP, and all workflow, error, stale, denied, retry, and accessibility states required by the active flow.
+- Implement the selected Operations-first `0.1.0-alpha.1` staff UI and all workflow, error, stale, denied, retry, and accessibility states required by the active flow. Automation MCP is deferred: no endpoint or staff-identity substitute may be introduced before its actor and client contract is accepted.
 - Support authenticated manual intake and bounded request-scoped unauthenticated uploads through the same Core use cases.
 
 ### Excluded or deferred
@@ -89,7 +119,7 @@ The four-project modular monolith remains: Core owns policy and ports; Infrastru
 - `Not planned` external/customer accounts, malware scanning, SMS, Teams, portal, predecessor application reuse/import after cutover, separate QA/UAT/staging/demo/training environments, GitHub Actions/OIDC deployment, slots/S1, private networking, zone or multi-region resilience, and quarterly recovery exercises.
 - Live-service client construction, Azure/IaC mutation, cloud reads or writes, deployment, predecessor retirement, or production cutover before complete offline acceptance and separate exact-target authorization.
 - Dormant services, speculative projects, duplicate engines, or deferred features treated as current release gates.
-- The Development/local email evaluator, `/Development/EmailEvaluation`, its `unchecked`/`checked` workspaces, reviewer workflow, evaluator command, report campaign, and UI/checkpoint acceptance mechanics. These are separately owned prerequisites under `DOC-CON-052`, not QDOS delivery.
+- The separately owned desktop email evaluator, its `unchecked`/`checked` workspaces, reviewer workflow, evaluator command, report campaign, and acceptance mechanics. These are separately owned prerequisites under `DOC-CON-052`, not QDOS delivery.
 
 Clean seams for deferred work are permitted; dormant implementations are not.
 
@@ -105,6 +135,7 @@ Clean seams for deferred work are permitted; dormant implementations are not.
 8. **The predecessor is stale evidence, not a target.** The 2026-07-23 Azure inventory is a dated snapshot. Owner direction says the predecessor is not in active use and needs no restart window, but that is not live telemetry proof. Any deletion requires refreshed exact-resource evidence and separate approval.
 9. **No guessed evidence.** Missing genuine evidence blocks the corresponding policy, matcher, adapter, or release slice. It does not justify fabricated fixtures, placeholder rules, silent local fallback, or reduced release scope.
 10. **Separate evaluator ownership (`DOC-CON-052`).** The Development/local email evaluation harness and review/report mechanics are delivered separately. QDOS alpha has no evaluator route, command, workspace UI, report campaign, or checkpoint acceptance owner. Accepted evidence from that delivery may satisfy genuine-evidence prerequisites, but the shared Core mail policy, production intake, Graph replay/live adapters, and their caller and activation proof remain QDOS scope. The inventory allocations for `OPS-22`, `EVAL-01` through `EVAL-05`, and `MAIL-20` remain unchanged pending an authorised replacement target and must not be read as QDOS implementation commitments.
+11. **SQL Server-only persistence (`DOC-CON-053`).** Local development and integration acceptance use SQL Server Express LocalDB; deployed persistence uses Azure SQL. The committed SQL Server migration identity and schema/data semantics remain stable, and no SQLite runtime, migration, baseline, or acceptance gate remains.
 
 ## Provider-domain reference contract
 
@@ -193,11 +224,11 @@ Corrections or removals require new accepted authority and a new explicit contra
 
 ### Separately owned evaluation prerequisite
 
-The Development/local email evaluator is not implemented or accepted by this
-QDOS change. Its owner supplies any required reviewed genuine-input evidence;
-QDOS defines no `/Development/EmailEvaluation` route, `unchecked`/`checked`
-workspace workflow, evaluator command, reviewer report campaign, Administrator
-approval, or evaluator UI acceptance checkpoint.
+The separately owned desktop email evaluator is not implemented or accepted by
+this QDOS change. Its owner supplies any required reviewed genuine-input
+evidence; QDOS defines no evaluator route, `unchecked`/`checked` workspace
+workflow, evaluator command, reviewer report campaign, Administrator approval,
+or evaluator UI acceptance checkpoint.
 
 Route, Triage, and automatic-report policies still require genuine positive,
 negative, ambiguous, forwarded, reply-chain, and untouched holdout evidence
@@ -232,10 +263,10 @@ aggregate counts, hashes, policy versions, and evidence limits may be committed.
 
 ## Identity, authorization, leases, and history
 
-- Use ASP.NET Core Identity and OpenIddict in the existing DbContext and migration stream.
+- Use ASP.NET Core Identity in the existing DbContext and migration stream. No OAuth persistence, client-registration contract, or Automation MCP caller is retained in this delivery revision.
 - Roles are `Administrator`, `Engineer`, and `User`; there is no public registration, MFA, or external/customer account in this release.
 - All active staff roles may perform case, intake, document, transition, and pre-Engineer review work.
-- Administrators alone manage accounts, roles, principals, workflow configuration, approved mailboxes, and OAuth clients.
+- Administrators alone manage accounts, roles, principals, workflow configuration, and approved mailboxes. Automation-client administration is deferred with the Automation Actor contract.
 - Passwords use secure non-reversible hashes, require at least eight characters, and impose no digit, uppercase, lowercase, or non-alphanumeric composition requirement.
 - Persistent account lockout is disabled.
 - Login throttling uses:
@@ -245,10 +276,8 @@ aggregate counts, hashes, policy versions, and evidence limits may be committed.
   - a separate global partition of 100 attempts per minute.
 - Production accepts forwarded client IP only from configured trusted proxies.
 - Browser sessions use a two-hour sliding idle cookie and an immutable original-issue claim enforcing an eight-hour absolute maximum.
-- Security-stamp and account-enabled state are revalidated. Account disable or role change revokes later browser and MCP use.
+- Security-stamp and account-enabled state are revalidated. Account disable or role change revokes later browser use; future Automation Actor revocation must be defined by its own contract.
 - Use secure cookies, antiforgery, forced first-password change, and no password, token, or secret telemetry/history.
-- `bootstrap-admin` is a one-shot command.
-- `register-mcp-client` permits only pre-approved public S256 PKCE clients with exact callback, scopes, and resource. No client secret, wildcard callback, or Dynamic Client Registration is allowed.
 - Claims map to an explicit Core `StaffActor`.
 - Permanent `ActionHistory` records business mutations, downloads/exports, material denied or failed business actions, automated business results, and external information actually accepted, linked, or used. It stores structured before/after values, actor, time, required reason, and outcome without secrets or file/message bodies.
 - Sign-ins remain security events. Routine views, searches, refreshes, polling, retries, leases, and heartbeats remain content-safe telemetry.
@@ -262,10 +291,10 @@ aggregate counts, hashes, policy versions, and evidence limits may be committed.
 
 - One transaction allocates acceptance, case/intake link, immutable history, and custody/external outbox work.
 - Use one atomic principal-lineage and Europe/London year counter shared across all QDOS types.
-- Base reference is `{principalCode}{yy}{nnn}`.
+- Base reference is `{principalCode}{yy}{sequence}` with a three-digit minimum: `001`–`999`, then `1000`–`9999`.
 - Standalone Audit displays `a.` or `ap.` only from retained Repairable or Total-loss evidence in the original Engineer report, never from Triage.
 - Inspection + Audit starts with the inspection reference and adds the later Audit display reference in the same case and folder after Collision Engineers’ assigned Engineer records the applicable finding. It consumes no second sequence number.
-- At sequence 999, allocate nothing.
+- After sequence `9999`, allocate nothing.
 - A principal code becomes immutable after first allocation.
 - A legitimate successor is created in one Administrator transaction: close the predecessor for new work, share sequence lineage, preserve both identities, prohibit overlap, aliasing, in-place rename, or reference rewrite, and continue the predecessor’s next sequence in the cutover year. Later years begin at `001`.
 - A wrong-principal allocation closes the original as `Created in error`, requires a reason, allocates a normal corrected replacement, links both, preserves both folders and references, and never reopens or reuses either identity.
@@ -373,7 +402,7 @@ The unauthenticated caller may see only the bounded upload form and immediate re
 - EVA remains authoritative for Engineer assignment, estimating, valuation, and report generation until an accepted replacement exists.
 - The source-labelled saved-email/image/valuation/instruction readiness set, Experian boundary, and image eligibility/order/duplication/video-screenshot observations remain pinned through the canonical [focused handoff contract](../requirements.md#focused-eva-manual-handoff) and its retained administration-overview evidence; their presence does not prove an EVA caller or acceptance.
 
-## Operations-first Web, MCP, and UI acceptance
+## Operations-first Web and UI acceptance
 
 ### Web
 
@@ -385,8 +414,6 @@ Required routes are:
 - `/Cases` and `/Cases/{id}`;
 - Administrator account, principal, configuration, and mailbox pages;
 - sign-in, forced password change, sign-out, and access denied;
-- OAuth metadata and authorization endpoints;
-- `/mcp`;
 
 The shell uses the approved adapted Collision Engineers logo at `design/brand/logos/logo_no_margin.png`; the scaffold `CE` CSS logo, Privacy page, and scaffold navigation are removed.
 
@@ -403,11 +430,11 @@ Operations presents exact, clickable filtered queues for:
 - `Blocked intake`;
 - Triage;
 - `Due today`;
-- `In today`;
+- `New cases today`;
 - `Sent to Engineer` today and week;
 - `Reports sent` today and week.
 
-Days use Europe/London midnight boundaries; weeks are Monday-to-Monday. `In today` counts created cases. `Sent to Engineer` counts the first successful EVA bundle generation as an explicit proxy that does not prove EVA receipt. `Reports sent` counts every successfully sent report.
+Days use Europe/London midnight boundaries; weeks are Monday-to-Monday. `New cases today` counts every instructed Case created that day, including one later closed that day, and excludes Image intakes, Triage, `Needs sorting`, and `Blocked intake`. `Sent to Engineer` counts the first successful EVA bundle generation as an explicit proxy that does not prove EVA receipt. `Reports sent` counts every successfully sent report.
 
 Each count exposes last-updated time and distinct zero, loading, stale, partial, unavailable, and failure states. `Receiving work`, `Queries`, `Other`, saved views, bulk actions, calendars, mobile design, and `Next`/`unallocated` mailbox management remain excluded.
 
@@ -415,15 +442,14 @@ Search and filtering cover Case/PO, registration, claimant, claim number, princi
 
 Case pages expose typed data and provenance, parties, documents/images, vehicle/MOT suggestions, address/mode, tasks, chasers, request-scoped upload links, EVA export, report evidence, `Report preparation` work, lifecycle/history, immutable identity, lease/conflict/retry, and reasoned actions. There is no permanent case or file deletion.
 
-### MCP
+### Automation MCP
 
-- Use OpenIddict authorization code flow with S256 PKCE, exact audience/resource, short access tokens, rotating refresh tokens, protected-resource metadata, and one Streamable HTTP `/mcp` endpoint.
-- Local development uses explicit local keys; production refuses them.
-- Tools invoke only Core-owned case, intake, Triage, document, EVA, and report actions also available through Web.
-- Exclude accounts, roles, principals, configuration, OAuth client administration, cloud operations, arbitrary custody IDs, generic email, credential management, and deletion.
-- Prove browser/MCP parity, real HTTP caller behavior, staff attribution, stale/lease handling, and immediate account-disable/role-change enforcement.
-- Direct service invocation does not count as MCP caller proof.
-- Claude-hosted callback behavior and production key custody remain live gates.
+Automation MCP is deliberately absent from this delivery revision. The deferred
+capability preserves distinct Automation Actor, client, action, and permanent
+history identities without an endpoint, OAuth client, credential, staff
+impersonation path, or dormant tool implementation. Activation requires the
+accepted actor/client/authentication/scopes/rate-limit/revocation contract,
+real HTTP caller proof, and exact deployment and security approval.
 
 ### Accessibility and interaction
 
@@ -458,15 +484,15 @@ This index accounts for all 128 `Now` capability IDs after explicit deferral of 
 | `MAIL-21`, `MAIL-22` | 4, 10, 11 | shared Core taxonomy/route evidence and production-intake caller proof, then approved Graph replay/live parity |
 | `MAIL-14`, `MAIL-15`, `MAIL-16` | 6–8, 10, 11 | exact local Sent evidence/linking and approved automatic matcher holdout, then Graph parity |
 | `MAIL-18` | 6, 9, 10 | Core chaser policy and authenticated copyable Web output |
-| `ACC-01`, `ACC-02`, `ACC-03`, `ACC-04`, `ACC-05`, `ACC-06`, `ACC-07`, `ACC-08`, `ACC-09`, `ACC-10`, `ACC-11` | 3, 9, 10 | Identity/OpenIddict, authorization, history, authenticated browser/MCP |
+| `ACC-01`, `ACC-02`, `ACC-03`, `ACC-04`, `ACC-05`, `ACC-06`, `ACC-07`, `ACC-08`, `ACC-09`, `ACC-10`, `ACC-11` | 3, 9, 10 | Identity, authorization, history, and authenticated browser proof; Automation MCP is separately deferred |
 | `INT-01`, `INT-02`, `INT-03`, `INT-08`, `INT-09`, `INT-10`, `INT-11`, `INT-12`, `INT-13`, `INT-17`, `INT-18`, `INT-19`, `INT-20`, `INT-21`, `INT-22`, `INT-23`, `INT-24`, `INT-25`, `INT-26`, `INT-27`, `INT-29`, `INT-30` | 4–10 | shared Core classification/extraction, separately supplied accepted evidence where required, durable receipt/outbox/Worker, acceptance and negative recovery smoke |
 | `INT-31` | 7, 9, 10 | request-scoped upload token/limit/custody/retry/revocation/abuse contract, real authenticated staff creator, bounded unauthenticated upload caller, negative isolation proof, and operator acceptance; release remains blocked until implemented |
-| `TRI-01`, `TRI-02`, `TRI-03`, `TRI-04`, `TRI-05`, `TRI-06`, `TRI-07`, `TRI-08`, `TRI-09` | 4, 6, 8–10 | approved matcher evidence, Core transitions, Worker Sent evidence, UI/MCP |
-| `CASE-01`, `CASE-02`, `CASE-03`, `CASE-04`, `CASE-07`, `CASE-08`, `CASE-09`, `CASE-10`, `CASE-11`, `CASE-12`, `CASE-13`, `CASE-14`, `CASE-15`, `CASE-16`, `CASE-17`, `CASE-18`, `CASE-19`, `CASE-20`, `CASE-21`, `CASE-24`, `CASE-25`, `CASE-26`, `CASE-27`, `CASE-28`, `CASE-29`, `CASE-30` | 6–10 | Core/persistence contract, local adapters, Worker, UI/MCP, lifecycle smoke |
+| `TRI-01`, `TRI-02`, `TRI-03`, `TRI-04`, `TRI-05`, `TRI-06`, `TRI-07`, `TRI-08`, `TRI-09` | 4, 6, 8–10 | approved matcher evidence, Core transitions, Worker Sent evidence, and UI |
+| `CASE-01`, `CASE-02`, `CASE-03`, `CASE-04`, `CASE-07`, `CASE-08`, `CASE-09`, `CASE-10`, `CASE-11`, `CASE-12`, `CASE-13`, `CASE-14`, `CASE-15`, `CASE-16`, `CASE-17`, `CASE-18`, `CASE-19`, `CASE-20`, `CASE-21`, `CASE-24`, `CASE-25`, `CASE-26`, `CASE-27`, `CASE-28`, `CASE-29`, `CASE-30` | 6–10 | Core/persistence contract, local adapters, Worker, UI, and lifecycle smoke |
 | `UI-01`, `UI-02`, `UI-03`, `UI-04`, `UI-05`, `UI-06`, `UI-07`, `UI-08`, `UI-09`, `UI-11`, `UI-13` | 9, 10 | authenticated Razor Pages caller and Playwright/accessibility acceptance |
 | `DOC-01`, `DOC-02`, `DOC-03`, `DOC-04`, `DOC-05`, `DOC-06`, `DOC-07`, `DOC-08` | 6, 7, 9–11 | Core custody contract, local adapter/UI smoke, then Box parity/live proof |
 | `EXT-01`, `EXT-02`, `EXT-03`, `EXT-14`, `EXT-18` | 7, 10, 11 | local replay/export contract and operator smoke, then approved live parity |
-| `MCP-01`, `MCP-02`, `MCP-03`, `MCP-04` | 3, 9, 10, 13 | OpenIddict actor enforcement and real Streamable HTTP caller |
+| `MCP-01`, `MCP-02`, `MCP-03`, `MCP-04` | separate delivery | accepted Automation Actor/client contract, real HTTP caller proof, and exact deployment/security approval |
 | `DATA-01` | 2, 10 | deterministic cumulative provider-domain package/migration and exact count/hash/suffix-only proof |
 
 **Count assertion: 128 distinct allocated IDs; no duplicate or omission. `DOC-CON-052` separately owns seven of those IDs and creates no QDOS delivery step.**
@@ -524,7 +550,7 @@ Required behavior:
 - `Initialize-LocalDevelopment` runs `npm ci`, installs pinned Playwright browsers, verifies/trusts Development HTTPS, validates LocalDB/Functions/Azurite, and creates ignored local state only. It does not silently install global/system packages or retrieve secrets.
 - `Invoke-LocalDevelopment` allocates a run ID, loopback ports, GUID-named LocalDB database, Azurite state, local mailbox, local case-file root, logs, and ownership manifest under ignored `artifacts/local-development/<run-id>/`.
 - Dependencies start in order and wait for real readiness. A Development-only explicit command applies migrations; Web and Worker never migrate on normal startup.
-- First start securely prompts for an Administrator password of at least eight characters, passes it only as a child-process environment value to the one-shot bootstrap command, does not echo or persist it, and forces change at first sign-in. Later starts refuse bootstrap if an Administrator exists.
+- The DevelopmentOffline fixture creates a deterministic passwordless local Administrator and roles only. A first-run or production administrator bootstrap requires its own accepted identity and custody contract; no bootstrap executable is introduced by this delivery.
 - `Stop` and `Reset` affect only resources whose run ID and ownership manifest match.
 - `Reset` refuses ambiguous database, process, or path ownership and never touches tracked files, corpus, another run, Azure, or predecessor resources.
 - Failures retain content-safe diagnostics.
@@ -538,7 +564,7 @@ Application runtime reads SQL only. Provider-domain evidence does not activate a
 
 ### 3. Add staff identity, authorization, leases, and history
 
-Implement the Identity/OpenIddict, roles, session limits, login throttles, bootstrap, OAuth-client registration, `StaffActor`, account revocation, business history, edit lease, and optimistic-version contracts above in the existing DbContext and migration stream.
+Implement the Identity, roles, session limits, login throttles, `StaffActor`, account revocation, business history, edit lease, and optimistic-version contracts above in the existing DbContext and migration stream. Bootstrap and Automation MCP client registration remain deferred pending their accepted contracts.
 
 ### 4. Build the shared classification policy and consume genuine evidence
 
@@ -552,7 +578,7 @@ Implement the Identity/OpenIddict, roles, session limits, login throttles, boots
 
 ### 5. Make intake durable and idempotent
 
-Implement staged receipt, immutable revisions, manual resolution, SQL outbox, ID-only queue messages, actual queue-trigger processing, bounded retries, and all negative/recovery paths. Prove LocalDB transaction, contention, duplicate, replay, crash, and poison behavior rather than relying only on SQLite tests.
+Implement staged receipt, immutable revisions, manual resolution, SQL outbox, ID-only queue messages, actual queue-trigger processing, bounded retries, and all negative/recovery paths. Prove transaction, contention, duplicate, replay, crash, and poison behavior against LocalDB as the canonical local persistence provider.
 
 ### 6. Implement case, reference, Triage, work, and lifecycle policy
 
@@ -572,7 +598,7 @@ Implement every allocation, Audit, lifecycle, Held/chaser, report, Triage, repla
 | DVLA/DVSA | Development replay adapter accepting only owner-approved ignored responses and typed failures | live contract, licence, limits, mileage rule, and availability |
 | VRM | selected local engine after a genuine labelled benchmark | no engine is registered until accepted |
 | EVA | deterministic local JSON/image/manifest bundle | EVA import, receipt, or named assignment |
-| OAuth/MCP | local HTTPS OpenIddict, registered public PKCE client, and actual Streamable HTTP calls | Claude-hosted callback and production key custody |
+| Automation MCP | distinct Automation Actor/client/action identities only; no ingress is implemented | accepted actor/client/authentication contract, actual HTTP caller proof, and deployment/security approval |
 | Telemetry | structured console/test exporter and optional local OTLP collector | Azure Monitor ingestion, alerts, retention, and cost |
 
 Run one Core port contract suite against every local implementation. A future live adapter must pass the same suite; a contract change returns the work through the offline gate.
@@ -592,31 +618,30 @@ Each trigger claims persisted work, invokes one Core use case, and acknowledges 
 
 `DevelopmentOffline` Worker startup must prove that no external client was constructed.
 
-### 9. Complete the authenticated Web and local MCP
+### 9. Complete the authenticated Web
 
-Build the Operations-first routes, queues, intake, Triage, case, document, administration, authentication, OAuth, MCP, error, stale, retry, lease, and accessibility behavior above.
+Build the Operations-first routes, queues, intake, Triage, case, document, administration, authentication, error, stale, retry, lease, and accessibility behavior above.
 
-PageModels bind, authorize, and translate only. Business decisions remain in Core. Prove browser/MCP parity through real HTTP endpoints.
+PageModels bind, authorize, and translate only. Business decisions remain in Core. Automation MCP remains a separate delivery after its actor/client contract is accepted.
 
 ### 10. Pass the complete offline acceptance gate
 
 Run from a fresh setup:
 
 1. Offline doctor, initialization, start/status/smoke/stop/reset, a second parallel run, induced startup failure, recovery, and proof that no cloud credential, login, client, hostname, or stale Azure resource was used.
-2. Provider generation from the pinned source: exact hash and A/E contract, 11 providers, 16 associations, suffix-only bytes, repeat-byte equality, exact package/migration equality, fresh SQLite and LocalDB migration idempotency, tuple/suffix fail-closed behavior, and monotonic synthetic later-version growth.
+2. Provider generation from the pinned source: exact hash and A/E contract, 11 providers, 16 associations, suffix-only bytes, repeat-byte equality, exact package/migration equality, fresh LocalDB migration idempotency, tuple/suffix fail-closed behavior, and monotonic synthetic later-version growth.
 3. Automated Core-policy proof against accepted genuine route evidence for every activated route, including QDOS, direct/intermediary collision, malformed forwards, Triage positives/negatives/ambiguities/replies, report predicates, determinism, and source/corpus immutability. The separately owned evaluator supplies reviewed cohorts and holdouts; this gate creates no QDOS evaluator UI, report campaign, or acceptance checkpoint.
 4. Actual Web, Functions host, Azurite, LocalDB, local mailbox, and local custody smoke for QDOS Inspection, standalone Audit repairable/total loss, and Inspection + Audit. Duplicate, retry, and crash must still produce one immutable case/reference/evaluation/custody/outbox result.
-5. Negative and recovery smoke for unsupported, corrupt, oversized, incomplete, unknown/non-QDOS, route overlap, missing Audit assessment, unavailable dependency, identity/hash conflict, sequence 999, poison exhaustion, stale lease/version, unauthorized actor, and terminal external failure.
+5. Negative and recovery smoke for unsupported, corrupt, oversized, incomplete, unknown/non-QDOS, route overlap, missing Audit assessment, unavailable dependency, identity/hash conflict, sequence `9999` exhaustion, poison exhaustion, stale lease/version, unauthorized actor, and terminal external failure.
 6. Full local lifecycle through `Not ready`, chasing, `Held`, `Review`, `Report preparation`, custody, selected VRM/address/vehicle suggestions, one-time EVA event, exact local Sent evidence, `Post report`, terminal outcomes, valid reopen, created-in-error replacement, archive/read-only, and Triage exact-reply completion/correction.
-7. Real HTTP Identity and OAuth/MCP:
+7. Real HTTP Identity:
    - reject a seven-character password;
    - accept an eight-character composition-free password;
    - repeated failures never persist lockout;
    - per-IP and global partitions return generic `429` and `Retry-After`;
    - clock-test two-hour idle and eight-hour absolute expiry;
-   - reject disabled or role-changed users;
-   - complete actual MCP calls with the public PKCE client.
-8. Playwright interaction evidence for Operations, intake, Triage, case, administration, authentication, and MCP-visible effects at 1280+, constrained desktop, 200% zoom, keyboard-only, focus/error handling, forced colours, reduced motion, and multi-session conflicts.
+   - reject disabled or role-changed users.
+8. Playwright interaction evidence for Operations, intake, Triage, case, administration, and authentication at 1280+, constrained desktop, 200% zoom, keyboard-only, focus/error handling, forced colours, reduced motion, and multi-session conflicts.
 9. Active repository checks that perform validation, exact-head CI, independent implementation review, clean-operator runbook execution, and proof that every QDOS-owned locally exercisable `Now` capability has real caller evidence. `scripts/Test-RepositoryPolicy.ps1` and its repository-language caller are excluded as described below. The seven `DOC-CON-052` evaluator allocations are separately owned prerequisites and have no QDOS checkpoint.
 
 Repository-policy enforcement is temporarily disabled and deferred until after
@@ -768,8 +793,8 @@ The existing local thin slice can, under its explicit Development feature bounda
 - treat `Draft ready` as a reviewable extraction draft, not definitive mailbox classification, case acceptance, or reference allocation;
 - identify manual upload by a stable channel occurrence token while retaining SHA-256 as integrity and duplicate evidence;
 - persist provider-neutral receipts, read-only relational drafts, assets, evidence, candidates, and extraction policy key/version without creating a case or reference;
-- initialize and migrate the default `PegasusDevelopment` SQL Server LocalDB database;
-- refuse an old or mismatched SQLite migration/schema baseline before mutation when SQLite is explicitly selected for isolated testing;
+- initialize and migrate the default `PegasusDevelopment` SQL Server LocalDB database through the sole committed SQL Server migration stream;
+- reject an unexpected LocalDB schema or migration history before mutation;
 - render persisted dashboard counts, queues, and review pages;
 - return the existing receipt for replay of the same occurrence while retaining equal bytes under different occurrence identities as separate review evidence;
 - deny every `/Intake` route outside Development or when the feature is disabled;
@@ -868,7 +893,7 @@ This establishes that PdfPig decoded the sampled embedded-text cohort without ex
 - Four synthetic opacity, growth, immutability, and lock-order tests passed.
 - Focused provider-domain Core tests passed 34/34, including strict JSON/schema/version/hash checks and deterministic found/unknown/ambiguous/invalid outcomes.
 - Embedded package, source, migration, and seeded rows matched exactly.
-- Provider persistence and baseline tests passed.
+- At the superseded pre-cutover checkpoint, provider persistence and baseline tests passed; that provider-baseline result is retained as historical provenance and is not current database-acceptance evidence.
 - Direct catalog smoke observed:
   - `Found` with `QDOS`;
   - `Unknown` with no candidates;
@@ -991,7 +1016,7 @@ pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Reset
 - Restore and Release-build the complete solution.
 - Run all Architecture, Core, Integration, Web, provider-package, LocalDB concurrency, Azurite/Functions, browser, accessibility, adapter-contract, negative, retry, and recovery tests. Separately owned evaluator tests and report campaigns are not QDOS gates.
 - Treat `scripts/Test-RepositoryPolicy.ps1` and its `scripts/Test-RepositoryLanguage.ps1` caller as deferred no-ops, not alpha-required repository evidence; do not cite their successful exit as green evidence.
-- Exercise actual Web, Functions, SQL, storage, OAuth, MCP, and Worker callers. Direct service invocation is insufficient.
+- Exercise actual Web, Functions, SQL, storage, and Worker callers. Direct service invocation is insufficient; Automation MCP has no current caller to exercise.
 - Record exact-head CI and obtain independent exact-head review after the final tracked change.
 - Preserve source and corpus immutability and keep generated evidence beneath ignored `artifacts/`.
 

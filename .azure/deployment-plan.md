@@ -1,6 +1,6 @@
 # Azure deployment plan
 
-Status: **Target design only — not runnable, not production-ready, and not approved for validation deployment or provisioning.**
+Status: **Azure and offline/replay release routes are non-runnable and fail-closed; neither is approved for validation deployment or provisioning.**
 
 Last reviewed: 2026-07-23, Europe/London.
 
@@ -38,7 +38,7 @@ Last reviewed: 2026-07-23, Europe/London.
 - Web and Worker use distinct user-assigned identities.
 - The Worker identity exists before the Function App so Flex deployment and host storage can use identity-based access.
 - Storage roles are separated between Functions transport/deployment and application custody/protection accounts. Shared-key access is disabled; roles are container/queue scoped except the Function host roles that Azure Functions requires at account scope.
-- Azure SQL uses a Microsoft Entra administrator and Entra-only authentication. Runtime contained users are created by client ID with `SID` and `TYPE = E`; runtime principals receive data access only. A temporary migrator group owns schema changes and has no standing runtime use.
+- Azure SQL uses a Microsoft Entra administrator and Entra-only authentication. Migration `20260729176000_AzureSqlRuntimeLeastPrivilege` creates distinct fixed Web and Worker roles. Role-reconciliation migration `20260729199000_RuntimeRoleReconciliation` resets their direct DML across the complete application-table census, grants only the exhaustive caller-derived matrix, denies Worker `DELETE` everywhere, and denies Web `DELETE` except on its four required relationship/value workflows. Neither role receives DDL or broad built-in data roles. No bootstrap executable or managed-identity user-creation route exists in this revision; a separately accepted infrastructure change must define and prove any activation sequence. A temporary migrator group owns schema changes and has no standing runtime use.
 - Private networking is a `Not planned` boundary. The scaffold therefore uses public
   service endpoints and the Azure SQL `AllowAllWindowsAzureIps` firewall rule so
   App Service and Flex can reach SQL. Authentication remains Entra-only. This
@@ -58,61 +58,40 @@ Before provisioning, recheck:
 - two storage accounts per environment;
 - role-assignment authority for the provisioning principal.
 
-## Intended authorised-terminal route (not runnable)
+## Offline/replay target is non-runnable
 
-The release owner uses an authorised terminal with committed Bicep and `azd`.
-This is not a GitHub Actions/OIDC route, and `azd up` must not be used for a
-production release because it merges provision, package, and deployment without
-the required migration boundary.
+This document records the intended infrastructure boundary only. The former
+release-artifact builder, local deployment-plan validator, and bootstrap
+executable are absent from this revision. There is therefore no repository
+command that packages Web or Worker artifacts, validates an Azure replay, or
+creates runtime identities.
 
-The intended order is local validation; one-time Web, Worker, and migration
-bundle creation with recorded hashes; approved preview/provision; explicit
-immutable migration; Web package deployment; live/ready probes; Worker package
-deployment; then smoke evidence. Prior application packages are retained for
-redeployment; schema rollback is not a down-migration.
+Every Azure action remains a separately authorised future operation. A later
+infrastructure change must define the source revision, immutable artifact
+provenance, migration sequence, identity creation, trigger state, validation,
+and rollback evidence before a runnable route may be introduced.
 
-The current scaffold cannot perform that order. `azure.yaml` has no migration
-step; `dotnet ef` is not pinned or available; `AZURE_PRINCIPAL_NAME` needs a
-preflight; the least-privilege Entra directory-resolution path for `CREATE USER
-... FROM EXTERNAL PROVIDER` is unresolved; package paths, target runtimes,
-pinned tools/dependencies, hashes/provenance, and build-once/deploy-same-artifact
-proof are absent; and `SCM_DO_BUILD_DURING_DEPLOYMENT=true` conflicts with
-immutable package deployment. A separate infrastructure implementation must
-close these gaps before any command below is treated as executable.
+## Azure activation gate
 
-## Target release order (not executable)
+No runnable Azure activation route exists. The concrete gate is separate,
+recorded approval that names the exact subscription, resource group, principal,
+cost scope, data boundary, and migration/deployment sequence, plus a fresh
+authorised-terminal recheck of service availability, quota, pricing,
+role-assignment authority, target names, SQL Entra administrator, and external
+credential readiness.
 
-This is the ADR-0009 order, not a command runbook. Every cloud action requires
-separate exact approval for its target, scope, cost, and data boundary. The
-placeholders below cannot be resolved until the listed gaps have a separate
-infrastructure implementation.
-
-1. Validate locally and review the dated inventory; an authorised refresh is
-   required before relying on any live fact.
-2. Create Web, Worker, and migration bundles once from the approved revision,
-   recording package paths, target runtimes, tool/dependency versions, hashes,
-   and build-once/deploy-same-artifact provenance. **Not implemented.**
-3. Preflight the authorised terminal identity, `AZURE_PRINCIPAL_NAME`, and the
-   least-privilege Entra resolution needed for `CREATE USER ... FROM EXTERNAL
-   PROVIDER`; then preview and provision only the approved new `0.1.0-alpha.1` target, never
-   `rg-collisionspike-dev`. **Identity path unresolved.**
-4. Apply the explicit immutable migration bundle before application deployment.
-   **No migration bundle or `azure.yaml` migration step exists.**
-5. Deploy the hashed Web package; record live and ready probe evidence. **Package
-   route and remote-build removal are not implemented.**
-6. Deploy the hashed Worker package and record smoke evidence. Do not connect
-   genuine corpus data or live Outlook, Box, or EVA until each integration
-   cutover is separately approved.
-
+Only after that evidence exists may a separate infrastructure change replace the
+fail-closed Bicep mode and address the remaining platform gap:
+`SCM_DO_BUILD_DURING_DEPLOYMENT=true` must be removed before immutable package
+deployment can be authorised. Applying the idempotent migration bundle remains
+an explicit pre-application step; schema rollback is not a down-migration.
 ## Deployment blockers
 
 - User approval to create chargeable Azure resources has not been given.
 - The predecessor is pre-release and its test application data is not migrated into `0.1.0-alpha.1`. Retirement remains a separately approved operation, not a deployment prerequisite.
-- Document Intelligence F0 ownership/reuse has not been decided.
 - SQL Entra administrator name/object ID must be confirmed at deployment time.
 - GitHub Actions/OIDC deployment is a `Not planned` boundary, not a missing scaffold item.
-- The direct-terminal packaging, migration, identity, Entra-resolution and
-  remote-build-removal work described above is not implemented.
+- No offline artifact builder, replay validator, migration bundle, or identity bootstrap route is implemented in this revision.
 - External integration credentials and rotation sequence are not prepared.
 
 This file must not be changed to `Ready for Validation` merely because Bicep compiles.

@@ -13,7 +13,7 @@
 - The original intake source and provenance remain available after matching or merging.
 - Replaying the same source occurrence is idempotent. Equal bytes received as distinct permitted occurrences remain distinct evidence.
 
-These rules are already recorded in the [questionnaire](../../history/product/project-discovery-questionnaire.md#5-case-information), [remaining requirements](../../product/qdos-alpha-gap.md#3-complete-intake-formats-and-paths), and accepted [multi-format intake ADR](../../decisions/ADR-0005-multiformat-intake-assets.md).
+These rules are already recorded in the [questionnaire](../../history/product/project-discovery-questionnaire.md#5-case-information), [remaining requirements](../../product/qdos-alpha-gap.md#3-complete-intake-formats-and-paths), and accepted [multi-format intake ADR](../../adr/0005-multiformat-intake-assets.md).
 
 ### Plan
 

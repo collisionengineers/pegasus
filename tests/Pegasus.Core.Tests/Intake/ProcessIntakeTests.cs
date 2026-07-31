@@ -178,6 +178,83 @@ public sealed class ProcessIntakeTests
     }
 
     [Fact]
+    public async Task IncompleteReaderResultRetainsCustodyWithoutConsultingExtractionPolicy()
+    {
+        var derivedAsset = new IntakeAssetCandidate(
+            "embedded vehicle image",
+            "vehicle.jpg",
+            "image/jpeg",
+            new byte[] { 0x02, 0x03 },
+            IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded,
+            PageNumber: 1);
+        var readResult = Readable(content:
+        [
+            new(
+                IntakeEvidenceSource.DocumentContent,
+                "controlled incomplete content",
+                "QDOS instruction\nClaimant Name: A\nClaim Number: B")
+        ]) with
+        {
+            Assets = [derivedAsset],
+            IsIncomplete = true
+        };
+        var store = new RecordingStore();
+        var artifactStore = new RecordingArtifactStore();
+        var sut = CreateSut(
+            new StubReader(readResult),
+            store,
+            artifactStore,
+            new ThrowingPolicy());
+
+        var result = await sut.ExecuteAsync(CreateSource());
+
+        var draft = Assert.Single(store.Drafts);
+        var assets = Assert.IsAssignableFrom<IReadOnlyList<IntakeAssetRecord>>(draft.Assets);
+        Assert.Equal(IntakeDecision.NeedsSorting, result.Decision);
+        Assert.Equal(IntakeDecision.NeedsSorting, draft.Decision);
+        Assert.Null(draft.InstructionDraft);
+        Assert.Null(draft.ExtractionPolicyKey);
+        Assert.Empty(draft.Evidence);
+        Assert.Collection(
+            assets,
+            source =>
+            {
+                Assert.Equal(IntakeAssetKind.Source, source.Kind);
+                Assert.Equal(IntakeAssetDisposition.Source, source.Disposition);
+            },
+            derived =>
+            {
+                Assert.Equal("embedded vehicle image", derived.SourceLabel);
+                Assert.Equal("vehicle.jpg", derived.FileName);
+                Assert.Equal(IntakeAssetKind.EmbeddedImage, derived.Kind);
+                Assert.Equal(IntakeAssetDisposition.Embedded, derived.Disposition);
+            });
+        Assert.Equal(2, artifactStore.StoredHashes.Count);
+    }
+
+    [Fact]
+    public async Task MatchingReceiptReplayDoesNotReadOrRetainSourceAgain()
+    {
+        var reader = new StubReader(Readable());
+        var store = new RecordingStore();
+        var artifactStore = new RecordingArtifactStore();
+        var sut = CreateSut(reader, store, artifactStore);
+        var source = CreateSource();
+
+        var first = await sut.ExecuteAsync(source);
+        store.ExistingRecord = first;
+
+        var replay = await sut.ExecuteAsync(source);
+
+        Assert.Equal(first.Id, replay.Id);
+        Assert.True(replay.IsDuplicate);
+        Assert.Single(reader.Sources);
+        Assert.Single(store.Drafts);
+        Assert.Single(artifactStore.StoredHashes);
+    }
+
+    [Fact]
     public async Task OcrRequirementWithoutConfirmingContentIsPersistedForReview()
     {
         var readResult = Readable(requiresOcr: true);
@@ -210,6 +287,102 @@ public sealed class ProcessIntakeTests
         Assert.Equal(IntakeDecision.DraftReady, result.Decision);
         Assert.Equal("QDOS", Assert.IsType<InstructionDraft>(result.InstructionDraft).SuggestedPrincipalCode);
         Assert.Contains(result.Evidence, item => item.Signal == "additional-scanned-content");
+    }
+
+    [Fact]
+    public async Task MailboxStaffForwardUsesOriginalSenderAndPersistsCompleteRouteDecision()
+    {
+        var readResult = Readable(
+            transportEvidence:
+            [
+                new(
+                    IntakeEvidenceSource.Sender,
+                    "staff@collisionengineers.co.uk",
+                    IntakeSenderIdentityKind.Transport,
+                    "outer message"),
+                new(
+                    IntakeEvidenceSource.Sender,
+                    "instructions@qdosassist.co.uk",
+                    IntakeSenderIdentityKind.AttachedOriginal,
+                    "attached original")
+            ],
+            content:
+            [
+                new(
+                    IntakeEvidenceSource.EmailBody,
+                    "attached original body",
+                    "QDOS instruction\nClaimant Name: Review Claimant\nClaim Number: Q-ROUTE")
+            ]);
+        var store = new RecordingStore();
+        var sut = CreateSut(new StubReader(readResult), store);
+        var source = CreateSource() with
+        {
+            FileName = "mailbox-message.eml",
+            MediaType = "message/rfc822",
+            SourceIdentity = new(IntakeSourceChannel.Mailbox, "mailbox-route-accepted")
+        };
+
+        var result = await sut.ExecuteAsync(source);
+
+        Assert.Equal(IntakeDecision.DraftReady, result.Decision);
+        var route = Assert.IsType<MailRouteEvaluationResult>(result.MailRouteDecision);
+        Assert.Equal(MailRouteDisposition.Accepted, route.Disposition);
+        Assert.Equal("staff@collisionengineers.co.uk", Assert.Single(route.TransportIdentities).Address);
+        Assert.Equal("instructions@qdosassist.co.uk", Assert.Single(route.OriginalIdentities).Address);
+        Assert.Equal("instructions@qdosassist.co.uk", route.EffectiveSender?.Address);
+        Assert.NotEmpty(route.Predicates);
+        Assert.Same(route, Assert.Single(store.Drafts).MailRouteDecision);
+    }
+
+    [Fact]
+    public async Task MailboxStaffForwardWithAmbiguousOriginalsFailsBeforeInstructionExtraction()
+    {
+        var readResult = Readable(
+            transportEvidence:
+            [
+                new(
+                    IntakeEvidenceSource.Sender,
+                    "staff@collisionengineers.co.uk",
+                    IntakeSenderIdentityKind.Transport,
+                    "outer message"),
+                new(
+                    IntakeEvidenceSource.Sender,
+                    "first@qdosassist.co.uk",
+                    IntakeSenderIdentityKind.AttachedOriginal,
+                    "attached original one"),
+                new(
+                    IntakeEvidenceSource.Sender,
+                    "second@qdosassist.co.uk",
+                    IntakeSenderIdentityKind.AttachedOriginal,
+                    "attached original two")
+            ],
+            content:
+            [
+                new(
+                    IntakeEvidenceSource.EmailBody,
+                    "attached original body",
+                    "QDOS instruction\nClaimant Name: Review Claimant\nClaim Number: Q-AMBIGUOUS")
+            ]);
+        var store = new RecordingStore();
+        var sut = CreateSut(new StubReader(readResult), store);
+        var source = CreateSource() with
+        {
+            FileName = "ambiguous-mailbox-message.eml",
+            MediaType = "message/rfc822",
+            SourceIdentity = new(IntakeSourceChannel.Mailbox, "mailbox-route-ambiguous")
+        };
+
+        var result = await sut.ExecuteAsync(source);
+
+        Assert.Equal(IntakeDecision.NeedsSorting, result.Decision);
+        Assert.Null(result.InstructionDraft);
+        var route = Assert.IsType<MailRouteEvaluationResult>(result.MailRouteDecision);
+        Assert.Equal(MailRouteDisposition.NeedsSorting, route.Disposition);
+        Assert.Null(route.SelectedRoute);
+        Assert.Equal(2, route.OriginalIdentities.Count);
+        var draft = Assert.Single(store.Drafts);
+        Assert.Null(draft.ExtractionPolicyKey);
+        Assert.Same(route, draft.MailRouteDecision);
     }
 
     [Fact]
@@ -562,6 +735,15 @@ public sealed class ProcessIntakeTests
             DateTimeOffset processedAtUtc) => result;
     }
 
+    private sealed class ThrowingPolicy : IInstructionExtractionPolicy
+    {
+        public InstructionExtractionResult Extract(
+            IntakeSourceReadResult readResult,
+            DateTimeOffset processedAtUtc) =>
+            throw new InvalidOperationException(
+                "The extraction policy must not run for an incomplete reader result.");
+    }
+
     private sealed class RecordingStore : IIntakeReceiptStore
     {
         private readonly Func<IntakeReceiptDraft, CancellationToken, Task<IntakeReceipt>> store;
@@ -593,6 +775,13 @@ public sealed class ProcessIntakeTests
             Drafts.Add(draft);
             return store(draft, cancellationToken);
         }
+        public Task<IntakeReceipt> ReplaceEvaluationAsync(
+            IntakeReceiptDraft draft,
+            CancellationToken cancellationToken)
+        {
+            Drafts.Add(draft);
+            return store(draft, cancellationToken);
+        }
 
         public static IntakeReceipt RecordFrom(IntakeReceiptDraft draft) =>
             new(
@@ -616,7 +805,8 @@ public sealed class ProcessIntakeTests
                 draft.SourceReaderKey,
                 draft.SourceReaderVersion,
                 draft.ExtractionPolicyKey,
-                draft.ExtractionPolicyVersion);
+                draft.ExtractionPolicyVersion,
+                MailRouteDecision: draft.MailRouteDecision);
     }
 
     private sealed class RecordingArtifactStore(int failuresBeforeSuccess = 0) : IIntakeArtifactStore
