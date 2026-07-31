@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace Pegasus.IntegrationTests;
 
+[Collection(LocalDbFixtureDefinition.Name)]
 public sealed class HealthEndpointTests : IClassFixture<IntakeWebApplicationFactory>
 {
     private readonly IntakeWebApplicationFactory factory;
@@ -36,7 +37,7 @@ public sealed class HealthEndpointTests : IClassFixture<IntakeWebApplicationFact
 
         var html = await client.GetStringAsync("/");
 
-        Assert.Contains("Case intake", html, StringComparison.Ordinal);
+        Assert.Contains("Case and intake queues", html, StringComparison.Ordinal);
         Assert.Contains("Needs sorting", html, StringComparison.Ordinal);
     }
 }

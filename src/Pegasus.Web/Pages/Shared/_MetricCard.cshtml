@@ -1,0 +1,29 @@
+@{
+    var label = ViewData["MetricLabel"] as string ?? "Metric";
+    var value = ViewData["MetricValue"];
+    var isUnavailable = ViewData["MetricUnavailable"] as bool? ?? false;
+    var url = ViewData["MetricUrl"] as string ?? "#";
+    var theme = ViewData["MetricTheme"] as string ?? "amber"; // amber, blue, red, green
+
+    var cardClass = theme switch
+    {
+        "blue" => "queue-card--blue",
+        "red" => "queue-card--red",
+        "green" => "queue-card--green",
+        _ => ""
+    };
+}
+<a href="@url" class="queue-card @cardClass" title="Filter queue by @label">
+    <div>
+        <span>@label</span>
+        @if (isUnavailable)
+        {
+            <strong style="font-size: 1.4rem; color: var(--muted);">—</strong>
+        }
+        else
+        {
+            <strong>@(value ?? 0)</strong>
+        }
+    </div>
+    <svg class="icon" aria-hidden="true" style="align-self: flex-end;"><use href="#icon-chevron-right"/></svg>
+</a>

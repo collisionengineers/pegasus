@@ -14,8 +14,8 @@
     "sqlAdministratorLogin": {
       "value": "${AZURE_PRINCIPAL_NAME}"
     },
-    "documentIntelligenceEnabled": {
-      "value": false
+    "deploymentMode": {
+      "value": "offline-replay"
     }
   }
 }

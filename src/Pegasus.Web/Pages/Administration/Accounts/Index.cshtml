@@ -1,0 +1,66 @@
+@page
+@model Pegasus.Web.Pages.Administration.Accounts.IndexModel
+@{
+    ViewData["Title"] = "Staff accounts";
+}
+
+<h1>Staff accounts</h1>
+<p><a asp-page="/Administration/Index">Back to Administration</a></p>
+
+@if (TempData["AdministrationStatus"] is string status)
+{
+    <div role="status">@status</div>
+}
+
+<section aria-labelledby="create-account-heading">
+    <h2 id="create-account-heading">Create staff account</h2>
+    <form method="post" asp-page-handler="Create">
+        <div asp-validation-summary="ModelOnly"></div>
+        <input asp-for="OperationKey" type="hidden" />
+        <div>
+            <label asp-for="UserName">Username</label>
+            <input asp-for="UserName" autocomplete="off" />
+            <span asp-validation-for="UserName"></span>
+        </div>
+        <div>
+            <label asp-for="TemporaryPassword">Temporary password</label>
+            <input asp-for="TemporaryPassword" autocomplete="new-password" />
+            <span asp-validation-for="TemporaryPassword"></span>
+            <p>The password must contain at least eight characters. The staff member must replace it at first sign-in.</p>
+        </div>
+        <div>
+            <label asp-for="Reason">Reason</label>
+            <textarea asp-for="Reason" rows="3"></textarea>
+            <span asp-validation-for="Reason"></span>
+        </div>
+        <button type="submit">Create account</button>
+    </form>
+</section>
+
+<section aria-labelledby="current-accounts-heading">
+    <h2 id="current-accounts-heading">Current accounts</h2>
+    @if (Model.Accounts.Count == 0)
+    {
+        <p>No staff accounts are available. Application initialization must complete before ordinary administration can begin.</p>
+    }
+    else
+    {
+        <table>
+            <thead>
+                <tr><th>Username</th><th>Status</th><th>Roles</th><th>First password change</th><th></th></tr>
+            </thead>
+            <tbody>
+            @foreach (var account in Model.Accounts)
+            {
+                <tr>
+                    <td>@account.UserName</td>
+                    <td>@(account.IsEnabled ? "Enabled" : "Disabled")</td>
+                    <td>@string.Join(", ", account.Roles)</td>
+                    <td>@(account.MustChangePassword ? "Required" : "Complete")</td>
+                    <td><a asp-page="Edit" asp-route-id="@account.Id">Manage</a></td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+</section>

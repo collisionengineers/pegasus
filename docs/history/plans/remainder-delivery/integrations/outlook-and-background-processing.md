@@ -19,7 +19,7 @@ primary plan.
 
 ## Authority and current boundary
 
-- **Authority:** [remaining requirements](../../../../product/qdos-alpha-gap.md#3-complete-intake-formats-and-paths), [ADR-0002](../../../../decisions/ADR-0002-dotnet-modular-monolith-on-azure.md#outlook-ingestion), and the settled exact-Sent-item/shared-mailbox-allowlist decisions.
+- **Authority:** [remaining requirements](../../../../product/qdos-alpha-gap.md#3-complete-intake-formats-and-paths), [ADR-0002](../../../../adr/0002-dotnet-modular-monolith-on-azure.md#outlook-ingestion), and the settled exact-Sent-item/shared-mailbox-allowlist decisions.
 - **Policy owner:** `ProcessIntake` remains the single provider-neutral Core intake use case; Worker translates polling/queue delivery only, and the contained QDOS policy owns only QDOS instruction extraction.
 - **Current implementation:** Worker composition contains no intake trigger; Graph adapter, cursor, queue handler and mailbox caller are absent.
 - **Real callers:** Development `/Intake/Upload` only. The intended caller is a thin isolated Functions timer/queue path.

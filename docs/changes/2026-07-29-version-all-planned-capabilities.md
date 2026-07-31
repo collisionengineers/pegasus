@@ -52,7 +52,7 @@ The accepted documentation predecessor is exact commit
 
 1. Re-read only the accepted documentation head and compute the release mapping
    from the centralized 229-row capability owner.
-2. Allocate the 32 `Next` and 40 `Later` capabilities across the exact eleven
+2. Allocate the 31 `Next` and 41 `Later` capabilities across the exact eleven
    post-alpha targets while retaining all 128 `Now` rows at
    `0.1.0-alpha.1` and all 29 permanent boundaries as `unallocated`.
 3. Mirror the ordered release sequence into requirements and operations,
@@ -80,18 +80,28 @@ Repository allocation remains the only product authority. No subsequent alpha
 claim may depend on Project presentation. No further Project mutation or
 readback was performed after the direction changed.
 
+### AI-05 allocation update
+
+Direct user direction on 2026-07-29 redefined `AI-05` from image/vision assistance into automatic advisory image readiness assessment. When activated, it assesses each current Case image set on addition, replacement, or removal for a registration overview, damage close-up, and the applicable reflection criterion. It may run before market valuation, does not return an AI Proposal or call `AI-09`, and has no Case allocation, lifecycle, eligibility, or chase effect.
+
+The internal capability, requirements, and traceability owners carry 31 `Next` and 41 `Later` identities, with planned target counts of 7 for `0.2.0` and 13 for `1.0.0`.
+
+The existing GitHub Project mirror is historical planning state at its prior
+readback and is no longer current for `AI-05`. The user has not authorised a
+subsequent external Project mutation or readback.
+
 ## Exact release sequence
 
 | Order | Target | Purpose | Planned capability count |
 | ---: | --- | --- | ---: |
 | 01 | `0.1.0-alpha.1` | Unchanged QDOS-alpha target scope | 128 |
-| 02 | `0.2.0` | Provider expansion and intake fidelity after QDOS acceptance | 8 |
+| 02 | `0.2.0` | Provider expansion and intake fidelity after QDOS acceptance | 7 |
 | 03 | `0.3.0` | Four-mailbox classification, association, folder actions, email workspace and email MCP | 19 |
 | 04 | `0.4.0` | Principal-scoped provider API and post-report query/dispute casework | 5 |
 | 05 | `0.5.0` | Extended case types and staff/outbound communication channels | 5 |
 | 06 | `0.6.0` | Individually approved operator AI assistance | 5 |
 | 07 | `0.7.0` | Optional direct EVA API coexistence before replacement | 1 |
-| 08 | `1.0.0` | Pegasus-owned engineering record/workbench and transfer of EVA authority | 12 |
+| 08 | `1.0.0` | Pegasus-owned engineering record/workbench and transfer of EVA authority | 13 |
 | 09 | `1.1.0` | Deterministic report and fee-note rendering | 6 |
 | 10 | `1.2.0` | Targeted report distribution, accounts/invoicing and management information | 5 |
 | 11 | `1.3.0` | Vendor-neutral AI work requests, Engineer-reviewed query proposals and staff-selected AI Assessor | 3 |

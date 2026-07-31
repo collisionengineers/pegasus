@@ -27,7 +27,32 @@ public sealed class IntakePersistenceIntegrationTests
         Assert.Equal(
             [
                 "20260724104624_InitialProviderNeutralIntake",
-                "20260727170804_ProviderDomainReferenceSnapshotV1"
+                "20260727170804_ProviderDomainReferenceSnapshotV1",
+                "20260729150000_DocumentCustodyAndRequests",
+                "20260729152105_WorkflowTriageEmailEvidence",
+                "20260729160000_CaseWorkflowRuntime",
+                "20260729170000_MailboxRouteAudit",
+                "20260729171000_CaseAcceptanceReplay",
+                "20260729172000_CaseHoldState",
+                "20260729173000_AuditIdentityEvidence",
+                "20260729174000_MailboxPoisonRecovery",
+                "20260729175000_CaseEvidenceAndReplacement",
+                "20260729176000_AzureSqlRuntimeLeastPrivilege",
+                "20260729180000_AdministrationPolicies",
+                "20260729181000_VehicleWorkflow",
+                "20260729182000_EvaHandoffPersistence",
+                "20260729183000_SentEvidencePolling",
+                "20260729184000_DueChaserSweep",
+                "20260729185000_TypedCaseDataCompleteness",
+                "20260729186000_CaseTasksArchive",
+                "20260729187000_OrganizationPrincipalAdministration",
+                "20260729188000_IntakeResolutionAndAssociations",
+                "20260729189000_IdentityBootstrapAndOAuthAdministration",
+                "20260729190000_CaseEditLeaseReplay",
+                "20260729191000_OperationsProjectionIndexes",
+                "20260729192000_TriageReplaySnapshots",
+                "20260729193000_UniqueTriageResponseEvidenceLink",
+                "20260729199000_RuntimeRoleReconciliation"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -48,8 +73,57 @@ public sealed class IntakePersistenceIntegrationTests
         Assert.Equal(1, await database.ScalarAsync<int>("SELECT COUNT(*) FROM ProviderDomainPackages"));
         Assert.Equal(11, await database.ScalarAsync<int>("SELECT COUNT(*) FROM ProviderReferences"));
         Assert.Equal(16, await database.ScalarAsync<int>("SELECT COUNT(*) FROM ProviderDomainEvidence"));
-        Assert.Equal(0, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.tables WHERE name IN (N'Cases', N'PrincipalYearCounters')"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'Cases'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseSequences'"));
+        Assert.Equal(6, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*)
+            FROM sys.indexes
+            WHERE object_id = OBJECT_ID(N'Cases')
+              AND name IN (
+                  N'IX_Cases_AuditReference',
+                  N'IX_Cases_OriginIntakeReceiptId',
+                  N'IX_Cases_PrincipalId',
+                  N'IX_Cases_Reference',
+                  N'IX_Cases_SequenceLineageId_Year_Sequence',
+                  N'IX_Cases_StandaloneAuditEvidenceId')
+            """));
+        Assert.Equal(6, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*)
+            FROM sys.indexes
+            WHERE object_id = OBJECT_ID(N'Cases')
+              AND name LIKE N'IX_Cases[_]%'
+            """));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*)
+            FROM sys.indexes
+            WHERE object_id = OBJECT_ID(N'Cases')
+              AND name = N'IX_Cases_AuditReference'
+              AND is_unique = 1
+              AND has_filter = 1
+            """));
+        Assert.Equal(3, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*)
+            FROM sys.columns
+            WHERE object_id = OBJECT_ID(N'CaseIntakeLinks')
+              AND name IN (
+                  N'ExpectedIntakeVersion',
+                  N'AcceptanceCommandMaterialJson',
+                  N'AcceptanceCommandFingerprint')
+            """));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseWorkflows'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseWorkflowEvents'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseDueWork'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseManualChases'"));
     }
 
     [Fact]
@@ -122,8 +196,8 @@ public sealed class IntakePersistenceIntegrationTests
         Assert.NotNull(record.InstructionDraft);
         Assert.Equal(1, await database.CountAsync("IntakeReceipts"));
         Assert.Equal(1, await database.CountAsync("IntakeReceiptEvents"));
-        Assert.Equal(0, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.tables WHERE name IN (N'Cases', N'PrincipalYearCounters')"));
+        Assert.Equal(0, await database.CountAsync("Cases"));
+        Assert.Equal(0, await database.CountAsync("CaseSequences"));
     }
 
     [Fact]
@@ -208,7 +282,11 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
     private readonly ServiceProvider services;
     private bool disposed;
 
-    private LocalDbTestDatabase(string databaseName)
+    private LocalDbTestDatabase(
+        string databaseName,
+        Action<DbContextOptionsBuilder>? configureDatabase,
+        Func<IServiceProvider, string>? localArtifactRootFactory,
+        Action<IServiceCollection>? configureServices)
     {
         DatabaseName = databaseName;
         ConnectionString = new SqlConnectionStringBuilder
@@ -222,17 +300,35 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         }.ConnectionString;
 
         var serviceCollection = new ServiceCollection();
-        serviceCollection.AddPegasusInfrastructure((_, options) => options.UseSqlServer(ConnectionString));
+        serviceCollection.AddPegasusInfrastructure(
+            (_, options) =>
+            {
+                options.UseSqlServer(ConnectionString);
+                configureDatabase?.Invoke(options);
+            },
+            localArtifactRootFactory);
+        configureServices?.Invoke(serviceCollection);
         services = serviceCollection.BuildServiceProvider(validateScopes: true);
     }
 
     public string DatabaseName { get; }
 
     public string ConnectionString { get; }
+    public SqlConnection CreateConnection() => new(ConnectionString);
 
-    public static async Task<LocalDbTestDatabase> CreateAsync(bool migrate = true)
+    public AsyncServiceScope CreateAsyncScope() => services.CreateAsyncScope();
+
+    public static async Task<LocalDbTestDatabase> CreateAsync(
+        bool migrate = true,
+        Action<DbContextOptionsBuilder>? configureDatabase = null,
+        Func<IServiceProvider, string>? localArtifactRootFactory = null,
+        Action<IServiceCollection>? configureServices = null)
     {
-        var database = new LocalDbTestDatabase(Prefix + Guid.NewGuid().ToString("N"));
+        var database = new LocalDbTestDatabase(
+            Prefix + Guid.NewGuid().ToString("N"),
+            configureDatabase,
+            localArtifactRootFactory,
+            configureServices);
         try
         {
             await database.CreateEmptyDatabaseAsync();
@@ -287,7 +383,8 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
     {
         var allowed = tableName switch
         {
-            "IntakeReceipts" or "InstructionDrafts" or "IntakeReceiptEvents" => tableName,
+            "IntakeReceipts" or "InstructionDrafts" or "IntakeReceiptEvents"
+                or "Cases" or "CaseSequences" => tableName,
             _ => throw new ArgumentOutOfRangeException(nameof(tableName))
         };
         return ScalarAsync<int>($"SELECT COUNT(*) FROM [{allowed}]");
@@ -295,13 +392,15 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
 
     public async Task<T> ScalarAsync<T>(string commandText)
     {
-        await using var connection = new SqlConnection(ConnectionString);
+        await using var connection = CreateConnection();
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
         command.CommandText = commandText;
         var value = await command.ExecuteScalarAsync();
         Assert.NotNull(value);
-        return (T)Convert.ChangeType(value, typeof(T), CultureInfo.InvariantCulture);
+        return value is T result
+            ? result
+            : (T)Convert.ChangeType(value, typeof(T), CultureInfo.InvariantCulture);
     }
 
     public async Task ExecuteAsync(string commandText)

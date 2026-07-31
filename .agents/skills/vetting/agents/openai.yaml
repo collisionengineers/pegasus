@@ -1,0 +1,5 @@
+interface:
+  display_name: "Vetting"
+  short_description: "Move issues through vetting roles"
+policy:
+  allow_implicit_invocation: false

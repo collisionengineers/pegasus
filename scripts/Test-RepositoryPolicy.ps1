@@ -334,9 +334,9 @@ function ConvertTo-GitHubHeadingSlug([string]$Heading) {
 function Get-ApprovedNavigationRedirect([string]$Origin, [string]$RawTarget) {
     $redirects = @(
         [pscustomobject]@{
-            Origin = 'docs/decisions/ADR-0003-pdfpig-for-first-qdos-slice.md'
+            Origin = 'docs/adr/0003-pdfpig-for-first-qdos-slice.md'
             RawTarget = 'docs/evaluation/qdos-pdf-engine-benchmark.md'
-            Destination = 'docs/decisions/README.md'
+            Destination = 'docs/adr/README.md'
             RequiredText = '[retained benchmark evidence](../changes/2026-07-27-qdos-alpha-reference-corpora.md#embedded-pdf-benchmark-identity)'
             Name = 'ADR-0003 benchmark evidence'
         },
@@ -1317,7 +1317,7 @@ $activeRoots = @(
     'docs/index.md', 'docs/requirements.md', 'docs/capabilities.md',
     'docs/open-decisions.md', 'docs/architecture.md', 'docs/operations.md',
     'docs/engineering.md', 'docs/operator-notes.md', 'docs/agent-mistakes.md',
-    'docs/changes', 'docs/decisions', 'docs/azure',
+    'docs/changes', 'docs/adr', 'docs/azure',
     'docs/reference/README.md',
     'docs/reference/eva_information/eva_information.md'
 )
@@ -1410,8 +1410,6 @@ foreach ($file in $activeFiles | Sort-Object FullName -Unique) {
         }
         if ($line -match 'CollisionSpike') {
             $isAllowedRetainedIdentity =
-                ($relative -eq 'docs/decisions/ADR-0007-repository-local-codex-planning-plugin-boundaries.md' -and
-                    $line -cmatch 'Owners: Alex and the CollisionSpike v2 development team') -or
                 ($relative -eq 'docs/azure/current-inventory.md' -and
                     $line -cmatch 'no CollisionSpike ownership established')
             if ($relative.StartsWith('workspaces/', [System.StringComparison]::Ordinal) -or

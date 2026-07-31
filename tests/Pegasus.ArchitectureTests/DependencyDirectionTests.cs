@@ -1,7 +1,13 @@
 using System.Reflection;
 using System.Xml.Linq;
 using Pegasus.Core;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Custody;
+using Pegasus.Worker.Functions;
+using Pegasus.Core.Documents;
+using Pegasus.Web.Pages.Cases;
+using Pegasus.Web.Pages.Uploads;
 using Pegasus.Core.ReferenceData;
 using Pegasus.Infrastructure;
 
@@ -20,7 +26,6 @@ public sealed class DependencyDirectionTests
         "DocumentFormat.OpenXml",
         "UglyToad.PdfPig",
         "Microsoft.Data.SqlClient",
-        "Microsoft.Data.Sqlite",
         "System.Net.Http",
         "Pegasus.Infrastructure",
         "Pegasus.Web",
@@ -46,7 +51,6 @@ public sealed class DependencyDirectionTests
     [InlineData("MimeKit", true)]
     [InlineData("UglyToad.PdfPig", true)]
     [InlineData("Microsoft.Data.SqlClient", true)]
-    [InlineData("Microsoft.Data.Sqlite", true)]
     [InlineData("System.Net.Http", true)]
     [InlineData("Pegasus.Infrastructure", true)]
     [InlineData("Pegasus.Web", true)]
@@ -59,7 +63,6 @@ public sealed class DependencyDirectionTests
     [InlineData("MimeKitten", false)]
     [InlineData("UglyToad.PdfPigment", false)]
     [InlineData("Microsoft.Data.SqlClientFactory", false)]
-    [InlineData("Microsoft.Data.SqlitePCL", false)]
     [InlineData("System.Net.Httpish", false)]
     [InlineData("System.Collections", false)]
     public void CoreDependencyGuardDetectsForbiddenAndAllowedExamples(string assemblyName, bool expected)
@@ -221,6 +224,100 @@ public sealed class DependencyDirectionTests
         var implementation = Assert.Single(implementations);
         Assert.False(implementation.IsPublic);
         Assert.Equal("EfProviderReferenceCatalog", implementation.Name);
+    }
+
+    [Fact]
+    public async Task ExternalWorkFunctionsRouteOnlyValidIdentifiersToOwningPorts()
+    {
+        var processor = new RecordingCustodyProcessor();
+        var workStore = new RecordingExternalWorkStore();
+        var workId = Guid.NewGuid();
+
+        await new ExternalWorkFunction(processor).RunAsync(workId.ToString("D"), CancellationToken.None);
+        var poisonReconciler = new ReconcilePoisonedQueueWork(
+            null!,
+            new ReconcilePoisonedExternalWork(workStore, TimeProvider.System));
+        await new ExternalPoisonFunction(poisonReconciler)
+            .RunAsync(workId.ToString("N"), CancellationToken.None);
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            new ExternalWorkFunction(processor).RunAsync("not-a-work-id", CancellationToken.None));
+
+        Assert.Equal([workId], processor.ProcessedIds);
+        Assert.Equal([workId], workStore.PoisonedIds);
+    }
+
+    private sealed class RecordingCustodyProcessor : IProcessQueuedExternalWork
+    {
+        public List<Guid> ProcessedIds { get; } = [];
+
+        public Task ExecuteAsync(Guid workId, CancellationToken cancellationToken)
+        {
+            ProcessedIds.Add(workId);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingExternalWorkStore : IExternalWorkStore
+    {
+        public List<Guid> PoisonedIds { get; } = [];
+
+        public Task<ExternalWorkDispatchClaim?> ClaimDispatchAsync(
+            DateTimeOffset nowUtc,
+            TimeSpan leaseDuration,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<ExternalWorkDispatchClaim?>(null);
+
+        public Task MarkDispatchedAsync(
+            Guid workItemId,
+            string leaseToken,
+            DateTimeOffset dispatchedAtUtc,
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task ReleaseDispatchAsync(
+            Guid workItemId,
+            string leaseToken,
+            DateTimeOffset dueAtUtc,
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task MarkPoisonedAsync(
+            Guid workItemId,
+            DateTimeOffset failedAtUtc,
+            CancellationToken cancellationToken)
+        {
+            PoisonedIds.Add(workItemId);
+            return Task.CompletedTask;
+        }
+
+        public Task FailProcessingAsync(
+            Guid workItemId,
+            string leaseToken,
+            DateTimeOffset failedAtUtc,
+            string failureCode,
+            string failureReason,
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+    }
+
+    [Fact]
+    public void WebCustodialPagesHaveNoDormantTransportPath()
+    {
+        var casePageDependencies = Assert.Single(typeof(DetailsModel).GetConstructors())
+            .GetParameters()
+            .Select(parameter => parameter.ParameterType)
+            .ToArray();
+        var requestPageDependencies = Assert.Single(typeof(RequestModel).GetConstructors())
+            .GetParameters()
+            .Select(parameter => parameter.ParameterType)
+            .ToArray();
+
+        Assert.Contains(typeof(IAddCaseDocument), casePageDependencies);
+        Assert.Contains(typeof(IGetCase), casePageDependencies);
+        Assert.Contains(typeof(ICreateRequestUploadLink), casePageDependencies);
+        Assert.Contains(typeof(IRevokeRequestUploadLink), casePageDependencies);
+        Assert.Contains(typeof(IGetRequestUpload), requestPageDependencies);
+        Assert.Contains(typeof(IUploadToRequest), requestPageDependencies);
     }
 
     private static bool IsForbiddenCoreDependency(string assemblyName) =>

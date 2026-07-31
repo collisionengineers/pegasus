@@ -2,6 +2,7 @@ using System.Net;
 using System.IO.Compression;
 using System.Text.RegularExpressions;
 using Pegasus.Core.Intake;
+using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using MimeKit;
@@ -13,7 +14,7 @@ using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
 
 namespace Pegasus.Infrastructure.Intake;
 
-internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider timeProvider) : IIntakeSourceReader
+public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider timeProvider) : IIntakeSourceReader
 {
     private const string ReaderKey = "mimekit_pdfpig_openxml";
     private const string ReaderVersion = "mimekit-4.17.0;pdfpig-0.1.15;openxml-3.5.1";
@@ -73,7 +74,8 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
         string sourceLabel,
         ReadAccumulator result,
         CancellationToken cancellationToken,
-        bool isRoot = false)
+        bool isRoot = false,
+        IntakeSenderIdentityKind? emailSenderIdentityKind = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var format = DetectFormat(fileName, mediaType);
@@ -82,7 +84,14 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
             case SourceFormat.Pdf:
                 return ReadPdf(bytes, sourceLabel, result, isRoot, cancellationToken);
             case SourceFormat.Email:
-                return await ReadEmailAsync(bytes, sourceLabel, result, isRoot, cancellationToken);
+                return await ReadEmailAsync(
+                    bytes,
+                    sourceLabel,
+                    result,
+                    emailSenderIdentityKind
+                        ?? (isRoot ? IntakeSenderIdentityKind.Transport : null),
+                    isRoot,
+                    cancellationToken);
             case SourceFormat.Docx:
                 return ReadDocx(bytes, sourceLabel, result, isRoot);
             case SourceFormat.Image:
@@ -357,23 +366,29 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
                 throw new FileFormatException("The DOCX does not contain a main document part.");
             }
 
-            var textRoots = new List<DocumentFormat.OpenXml.OpenXmlElement> { mainPart.Document };
-            textRoots.AddRange(mainPart.HeaderParts.Where(part => part.Header is not null).Select(part => part.Header!));
-            textRoots.AddRange(mainPart.FooterParts.Where(part => part.Footer is not null).Select(part => part.Footer!));
+            var contentRoots = new List<DocxContentRoot> { new(mainPart, mainPart.Document) };
+            contentRoots.AddRange(
+                mainPart.HeaderParts
+                    .Where(part => part.Header is not null)
+                    .Select(part => new DocxContentRoot(part, part.Header!)));
+            contentRoots.AddRange(
+                mainPart.FooterParts
+                    .Where(part => part.Footer is not null)
+                    .Select(part => new DocxContentRoot(part, part.Footer!)));
             if (mainPart.FootnotesPart?.Footnotes is not null)
             {
-                textRoots.Add(mainPart.FootnotesPart.Footnotes);
+                contentRoots.Add(new(mainPart.FootnotesPart, mainPart.FootnotesPart.Footnotes));
             }
 
             if (mainPart.EndnotesPart?.Endnotes is not null)
             {
-                textRoots.Add(mainPart.EndnotesPart.Endnotes);
+                contentRoots.Add(new(mainPart.EndnotesPart, mainPart.EndnotesPart.Endnotes));
             }
 
             var text = string.Join(
                 Environment.NewLine,
-                textRoots
-                    .SelectMany(root => root
+                contentRoots
+                    .SelectMany(contentRoot => contentRoot.Root
                         .Descendants<Paragraph>()
                         .Select(paragraph => string.Concat(paragraph.Descendants<Text>().Select(item => item.Text))))
                     .Where(value => !string.IsNullOrWhiteSpace(value)));
@@ -382,32 +397,38 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
                 result.Content.Add(new(IntakeEvidenceSource.DocumentContent, sourceLabel, text));
             }
 
-            var imageNumber = 0;
             long totalImageBytes = 0;
-            foreach (var imagePart in EnumerateImageParts(mainPart))
+            var imageContentByPart = new Dictionary<Uri, byte[]>();
+            foreach (var placement in EnumerateImagePlacements(contentRoots))
             {
-                imageNumber++;
-                using var imageStream = imagePart.GetStream(FileMode.Open, FileAccess.Read);
-                if (imageStream.CanSeek
-                    && imageStream.Length > MaximumDocxImageBytes - totalImageBytes)
+                var imagePart = placement.Part;
+                if (!imageContentByPart.TryGetValue(imagePart.Uri, out var content))
                 {
-                    throw new DocxLimitExceededException();
-                }
+                    using var imageStream = imagePart.GetStream(FileMode.Open, FileAccess.Read);
+                    if (imageStream.CanSeek
+                        && imageStream.Length > MaximumDocxImageBytes - totalImageBytes)
+                    {
+                        throw new DocxLimitExceededException();
+                    }
 
-                using var imageBytes = new MemoryStream();
-                imageStream.CopyTo(imageBytes);
-                totalImageBytes += imageBytes.Length;
-                if (totalImageBytes > MaximumDocxImageBytes)
-                {
-                    throw new DocxLimitExceededException();
+                    using var imageBytes = new MemoryStream();
+                    imageStream.CopyTo(imageBytes);
+                    totalImageBytes += imageBytes.Length;
+                    if (totalImageBytes > MaximumDocxImageBytes)
+                    {
+                        throw new DocxLimitExceededException();
+                    }
+
+                    content = imageBytes.ToArray();
+                    imageContentByPart.Add(imagePart.Uri, content);
                 }
 
                 var fileName = Path.GetFileName(imagePart.Uri.OriginalString);
                 result.Assets.Add(new(
-                    $"{sourceLabel}, embedded image {imageNumber}",
-                    string.IsNullOrWhiteSpace(fileName) ? $"embedded-image-{imageNumber}" : fileName,
+                    $"{sourceLabel}, embedded image {placement.Number}",
+                    string.IsNullOrWhiteSpace(fileName) ? $"embedded-image-{placement.Number}" : fileName,
                     imagePart.ContentType,
-                    imageBytes.ToArray(),
+                    content,
                     IntakeAssetKind.EmbeddedImage,
                     IntakeAssetDisposition.Embedded));
             }
@@ -487,37 +508,42 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
         }
     }
 
-    private static List<ImagePart> EnumerateImageParts(OpenXmlPartContainer container)
+    private static IEnumerable<DocxImagePlacement> EnumerateImagePlacements(
+        IEnumerable<DocxContentRoot> contentRoots)
     {
-        var images = new List<ImagePart>();
-        var pending = new Stack<OpenXmlPart>(container.Parts.Select(relationship => relationship.OpenXmlPart));
-        var visited = new HashSet<Uri>();
-
-        while (pending.TryPop(out var part))
+        var placementNumber = 0;
+        foreach (var contentRoot in contentRoots)
         {
-            if (!visited.Add(part.Uri))
+            foreach (var element in contentRoot.Root.Descendants())
             {
-                continue;
-            }
+                var relationshipId = element switch
+                {
+                    DocumentFormat.OpenXml.Drawing.Blip blip => blip.Embed?.Value,
+                    DocumentFormat.OpenXml.Vml.ImageData imageData => imageData.RelationshipId?.Value,
+                    _ => null
+                };
+                if (string.IsNullOrWhiteSpace(relationshipId))
+                {
+                    continue;
+                }
 
-            if (part is ImagePart imagePart)
-            {
-                images.Add(imagePart);
-            }
+                if (!contentRoot.Part.TryGetPartById(relationshipId, out var relatedPart)
+                    || relatedPart is not ImagePart imagePart)
+                {
+                    throw new FileFormatException(
+                        "The DOCX contains an invalid embedded-image relationship.");
+                }
 
-            foreach (var relationship in part.Parts)
-            {
-                pending.Push(relationship.OpenXmlPart);
+                yield return new(imagePart, ++placementNumber);
             }
         }
-
-        return images;
     }
 
     private static async Task<ReadOutcome> ReadEmailAsync(
         ReadOnlyMemory<byte> bytes,
         string sourceLabel,
         ReadAccumulator result,
+        IntakeSenderIdentityKind? senderIdentityKind,
         bool isRoot,
         CancellationToken cancellationToken)
     {
@@ -559,7 +585,14 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
         }
 
         var limits = result.MimeLimits ??= new MimeLimitState();
-        await ReadMessageAsync(message, sourceLabel, result, limits, 0, addTransport: isRoot, cancellationToken);
+        await ReadMessageAsync(
+            message,
+            sourceLabel,
+            result,
+            limits,
+            0,
+            senderIdentityKind,
+            cancellationToken);
         return ReadOutcome.Readable;
     }
 
@@ -569,20 +602,33 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
         ReadAccumulator result,
         MimeLimitState limits,
         int nestedDepth,
-        bool addTransport,
+        IntakeSenderIdentityKind? senderIdentityKind,
         CancellationToken cancellationToken)
     {
-        if (addTransport)
+        if (senderIdentityKind is { } identityKind)
         {
-            var sender = message.From.Mailboxes.FirstOrDefault()?.Address;
-            if (!string.IsNullOrWhiteSpace(sender))
+            foreach (var mailbox in message.From.Mailboxes)
             {
-                result.Transport.Add(new(IntakeEvidenceSource.Sender, sender));
+                AddSenderTransportEvidence(
+                    mailbox.Address,
+                    identityKind,
+                    sourceLabel,
+                    result);
             }
 
-            if (!string.IsNullOrWhiteSpace(message.Subject))
+            AddSenderTransportEvidence(
+                message.Sender?.Address,
+                identityKind,
+                sourceLabel,
+                result);
+
+            if (identityKind == IntakeSenderIdentityKind.Transport
+                && !string.IsNullOrWhiteSpace(message.Subject))
             {
-                result.Transport.Add(new(IntakeEvidenceSource.Subject, message.Subject));
+                result.Transport.Add(new(
+                    IntakeEvidenceSource.Subject,
+                    message.Subject,
+                    SourceLabel: sourceLabel));
             }
         }
 
@@ -605,7 +651,24 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
                 result,
                 limits,
                 nestedDepth,
+                senderIdentityKind == IntakeSenderIdentityKind.Transport,
                 cancellationToken);
+        }
+    }
+
+    private static void AddSenderTransportEvidence(
+        string? address,
+        IntakeSenderIdentityKind senderIdentityKind,
+        string sourceLabel,
+        ReadAccumulator result)
+    {
+        if (!string.IsNullOrWhiteSpace(address))
+        {
+            result.Transport.Add(new(
+                IntakeEvidenceSource.Sender,
+                address,
+                senderIdentityKind,
+                sourceLabel));
         }
     }
 
@@ -615,6 +678,7 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
         ReadAccumulator result,
         MimeLimitState limits,
         int nestedDepth,
+        bool allowAttachedOriginal,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -629,7 +693,14 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
         {
             foreach (var child in multipart)
             {
-                await ReadMimeEntityAsync(child, sourceLabel, result, limits, nestedDepth, cancellationToken);
+                await ReadMimeEntityAsync(
+                    child,
+                    sourceLabel,
+                    result,
+                    limits,
+                    nestedDepth,
+                    allowAttachedOriginal,
+                    cancellationToken);
                 if (limits.EntityCount > MaximumMimeEntities || limits.DecodedBytes > MaximumDecodedMimeBytes)
                 {
                     break;
@@ -684,7 +755,9 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
                     result,
                     limits,
                     nestedDepth + 1,
-                    addTransport: false,
+                    allowAttachedOriginal && nestedDepth == 0
+                        ? IntakeSenderIdentityKind.AttachedOriginal
+                        : null,
                     cancellationToken);
             }
             catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
@@ -758,7 +831,10 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
                 part.ContentType.MimeType,
                 attachmentLabel,
                 result,
-                cancellationToken);
+                cancellationToken,
+                emailSenderIdentityKind: allowAttachedOriginal && nestedDepth == 0
+                    ? IntakeSenderIdentityKind.AttachedOriginal
+                    : null);
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
@@ -1020,6 +1096,9 @@ internal sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvide
             extractedImageBytes += count;
         }
     }
+
+    private readonly record struct DocxContentRoot(OpenXmlPart Part, OpenXmlElement Root);
+    private readonly record struct DocxImagePlacement(ImagePart Part, int Number);
 
     private sealed class DocxLimitExceededException : Exception
     {

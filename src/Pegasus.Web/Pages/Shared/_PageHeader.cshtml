@@ -1,0 +1,29 @@
+@{
+    var title = ViewData["Title"] as string ?? "Operations";
+    var eyebrow = ViewData["Eyebrow"] as string;
+    var lede = ViewData["Lede"] as string;
+    var primaryActionText = ViewData["PrimaryActionText"] as string;
+    var primaryActionUrl = ViewData["PrimaryActionUrl"] as string;
+}
+<div class="page-heading">
+    <div>
+        @if (!string.IsNullOrEmpty(eyebrow))
+        {
+            <p class="eyebrow">@eyebrow</p>
+        }
+        <h1>@title</h1>
+        @if (!string.IsNullOrEmpty(lede))
+        {
+            <p class="lede">@lede</p>
+        }
+    </div>
+    @if (!string.IsNullOrEmpty(primaryActionText) && !string.IsNullOrEmpty(primaryActionUrl))
+    {
+        <div class="page-heading-actions">
+            <a href="@primaryActionUrl" class="primary-action">
+                <svg class="icon" aria-hidden="true"><use href="#icon-upload"/></svg>
+                <span>@primaryActionText</span>
+            </a>
+        </div>
+    }
+</div>

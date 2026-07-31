@@ -36,7 +36,7 @@ flowchart LR
 
 ## Portability boundaries
 
-- Core services import interfaces from `src/ports`, never cloud SDKs.
+- The package-local `Core.cs` owns domain policy and ports; adapters and hosts depend on those interfaces, never the reverse.
 - PostgreSQL is accessed through standard SQL plus the open pgvector extension.
 - Source storage supports filesystem and the S3 protocol; other protocols can implement
   `ObjectStore`.

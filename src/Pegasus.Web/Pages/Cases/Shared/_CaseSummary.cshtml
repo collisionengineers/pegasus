@@ -1,0 +1,82 @@
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@{
+    var details = Model.Case!;
+    var workflow = details.Workflow;
+}
+
+<section class="panel" aria-labelledby="case-summary-title">
+    <h2 id="case-summary-title" class="section-label">Case identity and current state</h2>
+    <dl>
+        <dt>Case/PO</dt><dd>@workflow.Identity.Reference</dd>
+        <dt>Audit identity</dt><dd>@(workflow.Identity.AuditReference ?? "Not allocated")</dd>
+        <dt>Case type</dt><dd>@details.Summary.CaseType</dd>
+        <dt>Principal</dt><dd>@workflow.Identity.PrincipalCode</dd>
+        <dt>Registration</dt><dd>@(details.Summary.Registration ?? "Not recorded")</dd>
+        <dt>Claimant</dt><dd>@(details.Summary.Claimant ?? "Not recorded")</dd>
+        <dt>Claim number</dt><dd>@(details.Summary.ClaimNumber ?? "Not recorded")</dd>
+        <dt>Received</dt><dd>@details.Summary.ReceivedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd>
+        <dt>Instruction date</dt><dd>@(details.Summary.InstructionDate?.ToString("dd MMM yyyy") ?? "Not recorded")</dd>
+        <dt>Origin</dt><dd>@details.Summary.Origin</dd>
+        <dt>State</dt><dd>@workflow.State</dd>
+        <dt>Workflow version</dt><dd>@workflow.Version</dd>
+        <dt>Engineer</dt><dd>@(workflow.AssignedEngineerId?.ToString("D") ?? "Unassigned")</dd>
+    </dl>
+
+    @if (workflow.OriginalCaseId is { } originalCaseId)
+    {
+        <p><strong>Corrects:</strong> <a asp-page="/Cases/Details" asp-route-id="@originalCaseId">original Created-in-error case</a></p>
+    }
+    @if (workflow.ReplacementCaseId is { } replacementCaseId)
+    {
+        <p><strong>Corrected by:</strong> <a asp-page="/Cases/Details" asp-route-id="@replacementCaseId">linked replacement case</a></p>
+    }
+</section>
+
+@if (workflow.DueWork is { } dueWork)
+{
+    <section class="panel" aria-labelledby="case-due-work-title">
+        <h2 id="case-due-work-title" class="section-label">Missing-material due work</h2>
+        <dl>
+            <dt>Reason</dt><dd>@dueWork.MissingMaterialReason</dd>
+            <dt>Due by</dt><dd>@(dueWork.DueBy?.ToString("dd MMM yyyy") ?? "Not recorded")</dd>
+            <dt>State</dt><dd>@dueWork.State</dd>
+            <dt>Next chase</dt><dd>@(dueWork.NextChaseAtUtc?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "Not scheduled")</dd>
+            <dt>Most recent channel</dt><dd>@(dueWork.MostRecentChannel ?? "No chase recorded")</dd>
+            <dt>Most recent outcome</dt><dd>@(dueWork.MostRecentOutcome ?? "No chase recorded")</dd>
+            <dt>Most recent note</dt><dd>@(dueWork.MostRecentNote ?? "None")</dd>
+        </dl>
+        <p>Recording a chase is an attributable manual assertion. It does not send correspondence or prove delivery.</p>
+    </section>
+}
+
+@if (workflow.ReportApproval is { } approval)
+{
+    <section class="panel" aria-labelledby="case-report-approval-title">
+        <h2 id="case-report-approval-title" class="section-label">Approved report artifact</h2>
+        <dl>
+            <dt>Artifact</dt><dd>@approval.ArtifactIdentity</dd>
+            <dt>SHA-256</dt><dd><code>@approval.ArtifactSha256</code></dd>
+            <dt>Approved</dt><dd>@approval.ApprovedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd>
+            <dt>Actor</dt><dd>@approval.ApprovedBy.SubjectId</dd>
+        </dl>
+    </section>
+}
+
+@if (workflow.ReportSentEvidence is { } sentEvidence)
+{
+    <section class="panel" aria-labelledby="case-report-sent-title">
+        <h2 id="case-report-sent-title" class="section-label">Exact retained report-Sent evidence</h2>
+        <dl>
+            <dt>Evidence ID</dt><dd>@sentEvidence.EvidenceId</dd>
+            <dt>Mailbox / Sent folder</dt><dd>@sentEvidence.MailboxIdentity / @sentEvidence.SentFolderIdentity</dd>
+            <dt>Immutable item</dt><dd>@sentEvidence.ImmutableItemIdentity</dd>
+            <dt>Internet message</dt><dd>@sentEvidence.InternetMessageIdentity</dd>
+            <dt>Conversation / reply chain</dt><dd>@sentEvidence.ConversationIdentity / @sentEvidence.ReplyChainIdentity</dd>
+            <dt>Source occurrence</dt><dd>@sentEvidence.SourceOccurrenceIdentity</dd>
+            <dt>Source / MIME SHA-256</dt><dd><code>@sentEvidence.SourceSha256</code> / <code>@sentEvidence.MimeSha256</code></dd>
+            <dt>Authoritative Sent time</dt><dd>@sentEvidence.SentAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd>
+            <dt>Discovered / linked</dt><dd>@sentEvidence.DiscoveredAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm") / @sentEvidence.LinkedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd>
+        </dl>
+        <p>This evidence proves only the retained approved-mailbox Sent item; it does not prove delivery or close the case.</p>
+    </section>
+}

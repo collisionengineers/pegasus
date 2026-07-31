@@ -4,9 +4,9 @@ Status: **Planned `0.1.0-alpha.1` requirements with Operations-first shell selec
 
 ## Evidence state and scope
 
-The actual called UI is the Development-only `/Intake/Upload` pre-case upload/receipt path through `ProcessIntake`, including the retained-asset handler. It is unauthenticated, creates no case/reference, and is not `0.1.0-alpha.1` staff UI. Operations, Intake, Triage, Cases and Administration are all Planned `0.1.0-alpha.1` staff surfaces.
+The prior dated caller proof covered the now-retired Development-only `/Intake/Upload` pre-case slice. The implemented offline QDOS-alpha route allocation is authenticated `/Intake`, `/Intake/{id}`, and `/Intake/{id}/Source`, Development-only `/Development/EmailEvaluation`, and anonymous token-bound `/Uploads/{token}` with generic non-disclosing terminal outcomes. This implementation state does not by itself prove deployment or operator acceptance.
 
-The intended setting is a small office of approximately eight users. Staff accounts use Pegasus-managed usernames and passwords; the authentication and authorisation behaviour remains Planned until an authenticated Web caller exists. Core owns the exact [staff role access matrix](../../docs/requirements.md#staff-role-access-matrix), automated-actor boundary, and [case edit authority and recovery](../../docs/requirements.md#case-edit-authority-and-recovery); this design must not create broader permissions or a second role policy.
+The intended setting is a small office of approximately eight users. Staff accounts use Pegasus-managed usernames and passwords; authenticated Web callers derive the actor and roles server-side, while implementation does not itself prove deployed session behavior. Core owns the exact [staff role access matrix](../../docs/requirements.md#staff-role-access-matrix), automated-actor boundary, and [case edit authority and recovery](../../docs/requirements.md#case-edit-authority-and-recovery); this design must not create broader permissions or a second role policy.
 
 | Actor | Planned UI boundary |
 | --- | --- |
@@ -14,7 +14,7 @@ The intended setting is a small office of approximately eight users. Staff accou
 | Engineer, User | Staff shell without Administration surfaces. The ordinary case/action controls are the same for both roles. |
 | Automated processing | No UI account or interactive control. |
 | Provider API client ([API-01–API-04, `Next / 0.4.0`](../../docs/capabilities.md#capabilities)) | No staff shell or Administration surface. |
-| External/customer | No application account or application surface (`Not planned`). |
+| External/customer | No application account. A capability-bearing `/Uploads/{token}` link exposes only bounded document submission and generic terminal outcomes, with no case or request identity disclosure. |
 
 Every protected route and action visibly handles unauthenticated, disabled-session, stale-role, denied, loading, and successful outcomes. Route or control hiding is never authorisation. The UI offers neither permanent deletion, credential/cloud/release administration, a generic mailbox-rule editor, bulk case editing, nor external direct Case editing.
 
@@ -30,17 +30,21 @@ Every protected route and action visibly handles unauthenticated, disabled-sessi
 
 ## UI-07 search and filters
 
-Case/PO, registration, claimant, claim number, principal, state, Engineer, received/instruction dates and range, and origin.
+Case/PO, Image Intake Reference, registration, claimant, claim number, principal, state, Engineer, received/instruction dates and range, and origin. Each result is one keyboard-focusable full-row link or button with a visible affordance.
 
 ## Operations and state boundaries
 
-Operations shows Not ready, Review, Held, Needs sorting, exact `Blocked intake`, separate Triage, Due today, In today, Sent to Engineer today/week, and Reports sent today/week. It uses Europe/London midnight days and Monday-week boundaries. Counts open their exact filtered queues; zero is distinct from stale/unavailable; last updated and manual refresh are visible. Receiving work, Queries and Other are `Next / 0.3.0` in the [capability inventory](../../docs/capabilities.md#capabilities), with no `0.1.0-alpha.1` surface.
+Operations shows Not ready, Review, Held, Needs sorting, exact `Blocked intake`, separate Triage, Due today, New cases today, Sent to Engineer today/week, and Reports sent today/week. It uses Europe/London midnight days and Monday-week boundaries. `New cases today` has the exact Case-creation definition in the [requirements](../../docs/requirements.md#dashboard-freshness-and-reconciliation). Counts open their exact filtered queues; zero is distinct from stale/unavailable; last updated and manual refresh are visible. Receiving work, Queries and Other are `Next / 0.3.0` in the [capability inventory](../../docs/capabilities.md#capabilities), with no `0.1.0-alpha.1` surface. |
+
+An intake row always presents received date above received time and its precise processing outcome. At constrained desktop width, long Case/PO or Image Intake Reference text moves to a labelled second line; it must not overlap the received timestamp or another row field.
 
 ### `0.1.0-alpha.1` surface inventory
 
-- Intake includes manual upload; definitive/staff-resolved paths; immutable [source occurrence/dispatch](../../docs/requirements.md#source-occurrence-and-dispatch-identity) beside the Case projection; origin/custody; extraction and reviewed VRM suggestion; field provenance, validation, ambiguity/conflict, association history, duplicate/retry, and missing/integrity asset/source failures.
+- Intake includes manual upload; definitive/staff-resolved paths; immutable [source occurrence/dispatch](../../docs/requirements.md#source-occurrence-and-dispatch-identity) beside the Case projection; origin/custody; extraction and reviewed VRM suggestion; pre-Case Image-intake registration with its Image Intake Reference, association/await-instruction outcome, and no Case state; field provenance, validation, ambiguity/conflict, association history, duplicate/retry, and missing/integrity asset/source failures. Each row identifies its exact outcome rather than a generic `New`.
 - Case identity presents the Core-owned [Inspection, standalone Audit, and Inspection + Audit](../../docs/requirements.md#case-types) distinctions, secondary Audit identity, immutable [Case/PO and principal](../../docs/requirements.md#principal-reference-organisation-and-case-party-identity), and linked `Created in error` replacement without offering identity rewrite.
-- Case work covers Not ready, Review and Held; due/overdue; seven-calendar-day chasers with the Held interval preserved; the Core-owned [staff-created temporary, revocable, expiring, request-scoped in-house upload-token](../../docs/requirements.md#request-scoped-upload-links) isolation, non-disclosure, and request-local custody contract; [copyable manual chasers](../../docs/requirements.md#due-work-chasing-and-action-history); tasks/reminders; manual WhatsApp material; DVLA/DVSA and MOT/mileage; inspection address or exact `Image Based Assessment`; and successful EVA JSON/image export only as the Sent-to-Engineer proxy.
+- Case work covers Not ready, Review and Held; separate mandatory instruction-completeness, image-completeness, and staff-review decisions before Engineers-queue eligibility, with no Pegasus named-Engineer assignment in alpha; due/overdue; seven-calendar-day chasers with the Held interval preserved; the Core-owned [staff-created temporary, revocable, expiring, request-scoped in-house upload-token](../../docs/requirements.md#request-scoped-upload-links) isolation, non-disclosure, and request-local custody contract; [copyable manual chasers](../../docs/requirements.md#due-work-chasing-and-action-history); tasks/reminders; manual WhatsApp material; DVLA/DVSA and MOT/mileage; inspection address or exact `Image Based Assessment`; and successful EVA JSON/image export only as the Sent-to-Engineer proxy.
+
+- Case evidence shows retained source images, their provenance, category, staff-confirmed third-party exclusions, and advisory findings. It does not contain EVA or report-image selection/order controls; the focused alpha exports every eligible Case-vehicle image, EVA owns downstream ordering, and the accepted future Engineers screen owns those decisions after EVA replacement.
 - Documents/evidence covers automatic Box folder, upload/version, logical removal, closed-case lock/reopen-before-change, Box unavailable/pending/retry/unknown, exact report-Sent evidence and reasoned manual link/unlink/relink.
 - Terminal/aftercare presents the exact [Core-owned lifecycle and correspondence](../../docs/requirements.md#lifecycle-closure-and-correspondence) outcomes and reasoned recovery paths. It must not turn acknowledgement, report-Sent evidence, or other correspondence into a generic completion action.
 
@@ -60,7 +64,7 @@ The UI presents the [Core-owned permanent action history](../../docs/requirement
 
 Use semantic landmarks/headings/tables, labels and associated errors, keyboard operation, visible focus, screen-reader announcements, practical 44px targets, forced-colours and reduced-motion support; state is never colour-only. At 1280px+ use dense multi-pane desktop. At 1024–1279px and 200% zoom, reorder essential desktop content into labelled tabs/drawers/sections without loss. Mobile staff UI is **Not planned**; a supported-device notice is only for genuinely unsupported devices, never a CSS-width substitute.
 
-The contained visual boundary is warm off-white ground, white panels, warm-charcoal navigation, near-black text, CE-red primary/urgent accents, amber incomplete/pending, restrained navy Review and green only confirmed completion. Use system-sans 14–16px body text, sharp 2–3px corners, rare shadows and Lucide-style line icons; do not expose Azure, OCR, AI, queues or implementation mechanics in operator copy.
+The contained visual boundary is warm off-white ground, white panels, warm-charcoal navigation, near-black text, CE-red primary/urgent accents, amber incomplete/pending, restrained navy Review and green only confirmed completion. Use system-sans 14–16px body text, sharp 2–3px corners, rare shadows and Lucide-style line icons. Each semantic action or state uses one consistent icon everywhere; decorative or generated replacement icons are prohibited. Do not expose Azure, OCR, AI, queues or implementation mechanics in operator copy.
 
 Evaluation and operator review use approved genuine local immutable material only. Do not invent operational inputs. Every deferred `Next` or `Later` capability carries its exact target in the [capability inventory](../../docs/capabilities.md#capabilities) and has no `0.1.0-alpha.1` control, navigation, workflow, or placeholder; [traceability](traceability-matrix.md) mirrors that allocation. Every later UI change must re-enter the complete design route.
 
