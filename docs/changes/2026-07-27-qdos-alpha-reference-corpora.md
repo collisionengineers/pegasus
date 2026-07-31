@@ -4,7 +4,7 @@ type: feature
 status: in_progress
 risk: high
 created: 2026-07-27
-updated: 2026-07-30
+updated: 2026-07-31
 issue: https://github.com/collisionengineers/pegasus/issues/3
 pull_request: https://github.com/collisionengineers/pegasus/pull/23
 baseline: b2f40a2b68b5b1a906ff2e736fa43653006dba61
@@ -475,7 +475,7 @@ This index accounts for all 128 `Now` capability IDs after explicit deferral of 
 
 | Capability IDs | Delivery steps | Required evidence |
 | --- | --- | --- |
-| `OPS-10` | 12, 13 | approved isolated Azure Development deployment and direct-terminal release evidence |
+| `OPS-10` | 12, 13 | approved direct production deployment and authorised-terminal release evidence |
 | `OPS-22` | separate delivery | separately owned genuine-input harness evidence; no QDOS route, caller, report campaign, or acceptance checkpoint |
 | `OPS-01`, `OPS-02`, `OPS-03`, `OPS-04`, `OPS-05`, `OPS-06`, `OPS-07`, `OPS-08`, `OPS-09`, `OPS-11`, `OPS-13`, `OPS-14`, `OPS-20`, `OPS-24` | 1, 5, 8, 10, 12, 13 | offline platform/caller/concurrency proof followed by approved Azure, resilience, capacity, deployment, and recovery proof |
 | `OPS-23`, `OPS-25` | 13 | operator journey and Collision Engineers management release approval |
@@ -680,7 +680,7 @@ Require the exact enterprise, user, root descriptor, identity, and operations. G
 - Require the accepted provider/API, licence, fields, credentials, limits, errors, target, and mileage rule.
 - Activate only the already selected VRM engine. External image egress requires separate security and cost approval and rerunning the same cohort/holdout.
 - Store third-party secrets only in the approved secret boundary. Never expose them in source, local settings, deployment output, prompts, telemetry, or business history.
-- Enable one live dependency at a time in an approved Development deployment. Failure must not route to local adapters or silently become success.
+- Enable one live dependency at a time in an approved production deployment. Failure must not route to local adapters or silently become success.
 
 ### 12. Reconcile Azure, retire the predecessor, and deploy an isolated target
 

@@ -17,21 +17,25 @@ Last reviewed: 2026-07-23, Europe/London.
 | IaC/orchestration | Bicep plus Azure Developer CLI |
 | Current policy assignments | none returned at subscription scope on 2026-07-23 |
 
-## Proposed per-environment resources
+## Proposed production resources
 
-| Resource | Quantity | Development | Production | Reason |
-|---|---:|---|---|---|
-| Resource group | 1 | separate `dev` | separate `prod` | independent lifecycle |
-| Linux App Service plan | 1 | F1 | B1 | selected low-cost tiers |
-| Web App | 1 | .NET 10 | .NET 10 | Razor Pages/API and app-managed user accounts |
-| Functions plan | 1 | Flex Consumption FC1 | Flex Consumption FC1 | .NET 10 isolated background work |
-| Function App | 1 | .NET 10 isolated | .NET 10 isolated | mailbox/queue composition root |
-| User-assigned identities | 2 | Web and Worker | Web and Worker | stable least-privilege identities; Worker identity also owns Flex host/package lifecycle |
-| Azure SQL logical server/database | 1/1 | Basic | S0 | application plus ASP.NET Core Identity data |
-| Functions transport/deployment storage | 1 | Standard LRS | Standard LRS | host internals, deployment package, ID-only work/poison queues |
-| Application custody/protection storage | 1 | Standard LRS | Standard LRS | transient intake, Web authentication ring, Box-link ring; Worker is denied the authentication ring |
-| Key Vault | 1 | Standard | Standard | third-party credentials only where managed identity cannot replace them |
-| Log Analytics/Application Insights | 1/1 | 30 days | 30 days initially | correlated Web/Worker telemetry with local authentication disabled |
+Pegasus has no Azure development, test, integration, or staging environment.
+Local development is isolated; this table describes the one production target
+only, as decided in [ADR-0014](../docs/adr/0014-local-to-production-deployment.md).
+
+| Resource | Quantity | Production | Reason |
+|---|---:|---|---|
+| Resource group | 1 | separate `prod` | production lifecycle |
+| Linux App Service plan | 1 | B1 | selected low-cost tier |
+| Web App | 1 | .NET 10 | Razor Pages/API and app-managed user accounts |
+| Functions plan | 1 | Flex Consumption FC1 | .NET 10 isolated background work |
+| Function App | 1 | .NET 10 isolated | mailbox/queue composition root |
+| User-assigned identities | 2 | Web and Worker | stable least-privilege identities; Worker identity also owns Flex host/package lifecycle |
+| Azure SQL logical server/database | 1/1 | S0 | application plus ASP.NET Core Identity data |
+| Functions transport/deployment storage | 1 | Standard LRS | host internals, deployment package, ID-only work/poison queues |
+| Application custody/protection storage | 1 | Standard LRS | transient intake, Web authentication ring, Box-link ring; Worker is denied the authentication ring |
+| Key Vault | 1 | Standard | third-party credentials only where managed identity cannot replace them |
+| Log Analytics/Application Insights | 1/1 | 30 days initially | correlated Web/Worker telemetry with local authentication disabled |
 
 ## Identity and secret design
 
@@ -55,7 +59,7 @@ Before provisioning, recheck:
 - F1 App Service plan availability in UK South;
 - Flex Consumption and regional app quota;
 - SQL logical-server quota;
-- two storage accounts per environment;
+- two production storage accounts;
 - role-assignment authority for the provisioning principal.
 
 ## Offline/replay target is non-runnable
