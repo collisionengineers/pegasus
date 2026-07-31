@@ -97,8 +97,9 @@ pre-application step; schema rollback is not a down-migration.
 - The release scripts, production adapters, migration operation, and
   first-Administrator bootstrap are implemented. Restore, Release build, 539
   non-corpus tests, Bicep compilation, and local deployment-plan validation
-  passed on 2026-07-31. Revision-bound QDOS pressure and immutable packaging
-  remain unproved until they run from a clean reviewed commit.
+  passed on 2026-07-31. Revision-bound QDOS CI pressure (3/3, no skips) and
+  immutable Web, Worker, and migration packaging also passed from a clean
+  reviewed commit. These are local proof, not deployment or live acceptance.
 - External integration credentials and rotation sequence are not prepared.
 
 This file must not be changed to `Ready for Validation` merely because Bicep compiles.
