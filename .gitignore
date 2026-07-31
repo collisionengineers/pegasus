@@ -1,5 +1,6 @@
 # Genuine local evaluation corpus. Never commit operational emails or case files.
 /corpus/
+**/emailevallocal/
 
 # Local secrets and environment state
 .env
@@ -64,7 +65,9 @@ l
 
 # Generated workspace outputs and imported review bundle
 /p17/
-/workspaces/ai-centre/services/collision-brain/dist/
+/workspaces/ai-centre/services/collision-brain/bin/
+/workspaces/ai-centre/services/collision-brain/obj/
+/workspaces/ai-centre/services/collision-brain/publish/
 /workspaces/ai-centre/skills/tools/__pycache__/
 /.obsidian
 src/CollisionSpike.Web/wwwroot/lib/jquery-validation/LICENSE.md

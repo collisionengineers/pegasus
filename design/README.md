@@ -1,6 +1,6 @@
 # Design authority
 
-This file is the durable authority for Pegasus visual design, Web interaction contracts, approved assets, component and pattern boundaries, and source-to-runtime mappings. Product scope and business capability remain owned by [requirements](../docs/requirements.md) and [capabilities](../docs/capabilities.md); architecture, engineering, deployment and operational procedure remain with [architecture](../docs/architecture.md), [engineering](../docs/engineering.md), [operations](../docs/operations.md) and [operator notes](../docs/operator-notes.md).
+This file is the durable authority for Pegasus visual design, Web interaction contracts, approved assets, component and pattern boundaries, and source-to-runtime mappings. Product scope and business capability remain owned by [requirements](../docs/requirements.md) and [capabilities](../docs/capabilities.md); architecture, repository-development workflow, deployment and operational procedure remain with [architecture](../docs/architecture.md), the [installed skills](../.agents/skills/ask-matt/SKILL.md), [operations](../docs/operations.md) and [operator notes](../docs/operator-notes.md).
 
 ## Evidence discipline
 
@@ -13,7 +13,7 @@ Intended, planned, implemented, caller-proved, deployed and accepted are distinc
 - **Accepted** requires the specified accessibility and operator review evidence.
 - The three retained comparison rasters record the shell-selection comparison. Operations-first is the selected strategy; raster pixels and details are not design approval or runtime evidence.
 
-The only currently called Pegasus UI is the Development-only Razor Pages dashboard and `/Intake/Upload` path through Core `ProcessIntake`, including retained-asset download. It is unauthenticated, creates no case or reference, and is not the planned staff UI. The Operations, Intake, Triage, Cases and Administration surfaces remain planned. The current proof has no accepted complete accessibility evidence.
+The prior dated caller proof covered the now-retired Development-only `/Intake/Upload` thin slice. The implemented offline QDOS-alpha surface now assigns authenticated manual receipt/list/detail/source work to `/Intake`, `/Intake/{id}`, and `/Intake/{id}/Source`, keeps the non-persistent evaluator at `/Development/EmailEvaluation`, and exposes token-bound public request submission only at `/Uploads/{token}`. This cutover is not deployment, accessibility acceptance, or operator acceptance evidence.
 
 Detailed durable product-design owners are the
 [operator-experience requirements](product/requirements.md),
@@ -78,11 +78,10 @@ The upstream token source was `styles/colors_and_type.css` in the provided `coll
 | Border | `#E6E4E1` |
 | Muted text | `#6B6B6B` |
 | Confirmed-success green | `#16833B` |
-| Incomplete/pending amber | Semantic role accepted; target value remains open |
-| Review navy | Semantic role accepted; target value remains open |
+ | Incomplete/pending amber | `#7A3E00` (fg) / `#FFF4D6` (bg) / `#A15C00` (border) |
+ | Review navy | `#143A5E` (fg) / `#EAF1F8` (bg) / `#365F87` (border) |
 
-Amber incomplete/pending and navy **Review** are approved Pegasus semantics, but their final token values are unresolved. The current `site.css` values `#B87A00` and `#173B5F` are runtime-divergence evidence only and must not be promoted to approved targets without a reviewed reconciliation. Green must not represent progress, availability or a generic positive action; it is reserved for confirmed completion.
-
+ Amber incomplete/pending (`#7A3E00`/`#FFF4D6`/`#A15C00`) and navy **Review** (`#143A5E`/`#EAF1F8`/`#365F87`) are approved Pegasus state tokens implemented across `site.css` and status partials. Green must not represent progress, availability or a generic positive action; it is reserved for confirmed completion.
 Excluded marketing tokens include WhatsApp green/pills, large display scales, CTA shadows, document red and brand-font declarations.
 
 ### Typography
@@ -173,6 +172,12 @@ Rules:
 
 The upstream source directory may be absent from a clean checkout. The checksum-pinned repository copy is the durable source.
 
+
+ #### Logo source-to-runtime mapping
+
+ | Asset | Upstream source & SHA-256 | Web runtime destination & SHA-256 | Mapping & usage |
+ | --- | --- | --- | --- |
+ | Primary logo | `design/brand/logos/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | `src/Pegasus.Web/wwwroot/images/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | Byte-for-byte copy embedded in `_Layout.cshtml` header navbar link. Replaces fake `CE` mark and unproven favicon link. |
 ### Icons
 
 Lucide is the only approved Web/UI icon system:
@@ -187,6 +192,30 @@ Do not use emoji, Unicode dingbats, hand-drawn icons or infrastructure symbols.
 
 No Lucide package or copied SVG set is currently exercised. A selected implementation must choose a repository-owned delivery path, map every used glyph and provide accessible labels whenever an icon is not decorative. `src/Pegasus.Web/wwwroot/favicon.ico` has unrecorded provenance and is not icon-system authority.
 
+
+ #### Lucide icons source-to-runtime mapping
+
+ Upstream source: Lucide official SVG vectors release (v0.344.0).
+ Runtime sprite: `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg` (SHA-256 `C81F067708B5EF1C2CEDABF4A38BADC175A11DEFE7919DA69192100EE6922BF1`).
+
+ | Icon glyph | Glyph SHA-256 | Usage & accessibility mapping |
+ | --- | --- | --- |
+ | `search` | `832472670DB14C3420D64D80271A04FE90AE32D47F4834F4E70E9A8E2678EE7E` | Global search action and input field prefix icon (`aria-hidden="true"`) |
+ | `user` | `F12759D8CA6B092DCA70B2E265F4CD8921C6DC61B408C9DA3FFFC8650BE76AA2` | Authenticated user menu / profile identity icon |
+ | `refresh-cw` | `C795E4B7F739E9CF2D5C5996CBDF8A0541734F0DC99EBE169BAE945FD04E2AA2` | Manual refresh action / freshness banner status icon |
+ | `clock` | `EE847E37391A579398EA5CB111A4893642085DEA959EF3812F210ED69EABC5C6` | Freshness timestamp and due date indicator icon |
+ | `calendar` | `9164C7178F10683EF0FB999F773149CD7AF5964875E6E896C6826F5A8988C67F` | Date range and instruction date filter icon |
+ | `check-circle` | `CB9B89AA467B527393B51229F14E0314DB15D75792D2071C5FE599AB595C7678` | Confirmed success status badge icon |
+ | `alert-triangle` | `40DEB35C6E3562DB12C1962989A7D9E24C758489247929C156DEDD8476DBE233` | Incomplete / pending / warning status chip icon |
+ | `alert-circle` | `69DA72930B08F89FA5C1AFDA3D5813BFAFA124D3E86F66B2100300F2B7DEB415` | Error summary / blocked intake status icon |
+ | `info` | `9B266C26D53D1F6661CD45D11E5138FE00AF4289EA4EC8D4C320D41AB272CC3F` | Provenance panel and field detail information icon |
+ | `file-text` | `A6AF7723E87920CF322C8C39F0A1080075BFA19B3E966A8E21D2D81A93772936` | Source document and instruction evidence icon |
+ | `filter` | `C4319C676F5B160213319934EB2DEC6F60DD6F73C344C0D6C84AE1699430D45C` | Table and workbench queue filter control icon |
+ | `shield` | `456B29F0717F73785AE1CA5A492EF0B21693BDA13045B509E845BA38F08717AE` | Administration workspace navigation icon |
+ | `chevron-right` | `07C6F850908E2A9ABA2AD8B7B91AA8E525D463398D479DAD5EF10CB534FE3710` | Interactive table row expansion indicator |
+ | `arrow-right` | `D8B246C7FDBAB41053F2016892C0664BB64C0C6D1ED4594C9D80470C1B219C70` | Action transition and external link indicator |
+ | `upload` | `EE63E95EFECDAF141338475D367A54EF891E337491993DCDC1F3ED7936A42660` | Intake manual upload action icon |
+ | `lock` | `1F0A0861A3752428E1D5CABDAC22608E645A008229EF58415EC0C0E112F5BF2D` | Case edit lease indicator icon |
 ### Imagery and evidence
 
 No brand or decorative imagery is needed for the internal Web application. Upstream marketing photography is excluded.
@@ -243,7 +272,7 @@ Operations is the landing route.
 CE logo | Operations | Intake | Triage | Cases | Administration | Search | User
 Operations
 Not ready | Review | Held | Needs sorting | Blocked intake | Triage | Due today
-In today | Sent to Engineer: today / week | Reports sent: today / week
+New cases today | Sent to Engineer: today / week | Reports sent: today / week
 Last updated | Refresh
 Exact filtered queue list | selected summary / next safe action
 ```
@@ -333,15 +362,15 @@ Only the first table describes exercised components. Planned contracts do not cr
 | --- | --- | --- |
 | Development shell/navigation | Identify the current proof and reach Development routes; normal, hover and focus; local-intake link is conditional | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` |
 | Queue/metric card | Show persisted Development intake counts and open the exact list; empty/value links are exercised; stale/unavailable is planned but unimplemented | `src/Pegasus.Web/Pages/Index.cshtml`, `src/Pegasus.Web/wwwroot/css/site.css` |
-| Upload form | Submit one supported local source through the real caller; validation, refusal and success | `src/Pegasus.Web/Pages/Intake/Upload.cshtml` |
-| Intake queue/review | List persisted receipts and inspect source, evidence, draft and assets; filters, empty state, failure detail and retained-asset download | `src/Pegasus.Web/Pages/Intake/` |
+| Intake receipt and upload | Submit one bounded authenticated source through `ReceiveIntake`; list retained receipts; inspect provenance and decisions; download the retained source only as an authorised safe attachment | `src/Pegasus.Web/Pages/Intake/{Index,Details,Source}.cshtml(.cs)` |
+| Triage queue/detail | List and filter triage records and execute the Core-owned detail commands without adding due/chaser controls | `src/Pegasus.Web/Pages/Triage/{Index,Details}.cshtml(.cs)` |
 
 ### Planned component contracts
 
 | Component | Required contract |
 | --- | --- |
 | Shell/access | Sign-in; disabled, stale-role and denied outcomes; visibility derived from the [Core-owned role matrix](../docs/requirements.md#staff-role-access-matrix) plus server authorisation |
-| Metric/queue | Label, value or unavailable state, last-good time, current refresh state and exact destination filter; `0`, loading, current, stale, partial, unavailable and failed remain distinct |
+| Metric/queue | Label, value or unavailable state, last-good time, current refresh state and exact destination filter; `0`, loading, current, stale, partial, unavailable and failed remain distinct; each Case row has a read-only latest attributable activity/evidence summary with its timestamp, using operator language and never implying an external delivery or rewriting permanent history; bounded pagination has accessible current-page context and keyboard-operable next/previous controls, with page size determined during surface design |
 | Intake workbench | Immutable source occurrence and evidence beside the distinct editable candidate/accepted Case projection; source/dispatch identity; `All`/`Instructions`/`Images` filter; fact versus suggestion versus confirmed value; provenance, ambiguity/conflict, association history, acceptance path and no-case consequence |
 | Request-scoped upload | Bound upload fields and immediate request-local result only; expired, revoked, limit, custody, replay and cross-request failures disclose no case/reference, request history or other material |
 | State action | One current Case and one named Core action; prerequisites, consequence, reason where required, recovery and history link; never a generic Close, bulk edit or external edit |
@@ -618,7 +647,7 @@ A supported desktop reflow does not alter the permanent mobile-product boundary.
 | Open policy and token questions | [Open decisions](../docs/open-decisions.md) | No implementation inference until resolved |
 | Architecture and caller boundaries | [Architecture](../docs/architecture.md) | Core, Web, Worker, MCP and external adapters |
 | Operations and deployment | [Operations](../docs/operations.md), [Azure](../docs/azure/README.md) | No deployment claim from design or source presence |
-| Engineering procedure | [Engineering](../docs/engineering.md) | Reviewed implementation and verification |
+| Engineering procedure | [Installed skills](../.agents/skills/ask-matt/SKILL.md) | Reviewed implementation and verification |
 | Design authority | This file | Approved Web tokens, assets, components and patterns |
 | Current Web shell | This file’s approved direction; current code is evidence only | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` |
 | Current Web tokens/layout | This file | `src/Pegasus.Web/wwwroot/css/site.css`, currently divergent |
@@ -629,7 +658,7 @@ A supported desktop reflow does not alter the permanent mobile-product boundary.
 | Engineer signatures | Repository renderer signature sources | Renderer Core only; excluded from Web decorative imagery |
 | Temporary renderer GUI assets | Repository renderer GUI asset sources | `workspaces/report-renderer/src/CollisionRenderer.Gui`; remove with GUI |
 | Imported renderer/skills/AI source | [Workspaces](../workspaces/README.md) | Non-caller evidence unless separately integrated and accepted |
-| Decision rationale | [Decision records](../docs/decisions/README.md) | Does not itself prove implementation |
+| Decision rationale | [Decision records](../docs/adr/README.md) | Does not itself prove implementation |
 | Change evidence | [Change records](../docs/changes/README.md) | Does not replace caller, deployment or acceptance evidence |
 | External reference qualification | [Reference index](../docs/reference/README.md) | Reference presence never creates authority |
 

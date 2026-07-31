@@ -1,6 +1,6 @@
 # ADR 0002: Windows desktop technology stack
 
-- **Status:** Superseded for Pegasus integration by root ADR-0013
+- **Status:** Superseded for Pegasus integration by root ADR-0009
 - **Date:** 21 July 2026
 
 This imported proposal is historical source evidence. Pegasus Web and `design/` own the active

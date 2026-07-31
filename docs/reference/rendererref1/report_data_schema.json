@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Collision Engineers assessment report job",
+  "type": "object",
+  "required": ["refs", "vehicle", "incident", "assessment", "costs", "narrative", "engineer", "fee", "photos"],
+  "properties": {
+    "refs": {
+      "type": "object",
+      "required": ["our_ref", "your_ref", "date", "claimant_name", "incident_date", "report_for"],
+      "description": "All values sourced from the portal per case. The matter line is composed by the generator as 'Road Traffic Accident: <claimant_name>: <incident_date>' - never supplied.",
+      "properties": {
+        "our_ref": { "type": "string", "minLength": 1 },
+        "your_ref": { "type": "string", "minLength": 1, "description": "Instructing principal's reference" },
+        "date": { "type": "string", "pattern": "^\\d{2}/\\d{2}/\\d{4}$", "description": "Report generation date" },
+        "claimant_name": { "type": "string", "minLength": 1 },
+        "incident_date": { "type": "string", "pattern": "^\\d{2}/\\d{2}/\\d{4}$" },
+        "report_for": { "type": "array", "items": { "type": "string" }, "minItems": 1,
+                        "description": "Address block: court c/o instructing principal, or the principal directly - from the portal" }
+      },
+      "not": { "required": ["matter"] }
+    },
+    "vehicle": {
+      "type": "object",
+      "description": "All vehicle types in scope. VIN, engine, fuel and odometer are optional - bicycles/trailers may have none. No VIN format rule.",
+      "required": ["make", "model", "registration", "year", "vehicle_type", "condition", "mileage_source"],
+      "properties": {
+        "make": { "type": "string" },
+        "model": { "type": "string" },
+        "registration": { "type": "string", "minLength": 1 },
+        "vehicle_type": { "enum": ["car", "van", "motorcycle", "scooter", "bicycle", "trailer", "caravan", "other"] },
+        "vin": { "type": "string" },
+        "year": { "type": "string" },
+        "odometer_miles": { "type": "integer", "minimum": 0,
+                            "description": "Required unless mileage_source is 'tbc'" },
+        "mileage_source": { "enum": ["online_data", "owner", "repairer", "principal", "average", "tbc"],
+                            "description": "Drives the composed mileage sentence in Engineer's Comments" },
+        "engine_cc": { "type": "integer", "minimum": 0 },
+        "fuel": { "type": "string" },
+        "condition": { "enum": ["poor", "below_average", "average", "good", "excellent"] }
+      }
+    },
+    "incident": {
+      "type": "object",
+      "required": ["instructions_received", "assessed"],
+      "properties": {
+        "date": { "type": "string" },
+        "instructions_received": { "type": "string" },
+        "assessed": { "type": "string" }
+      }
+    },
+    "assessment": {
+      "type": "object",
+      "required": ["outcome", "legal_status", "values", "impact_severity", "impact_location", "method"],
+      "properties": {
+        "outcome": { "enum": ["total_loss", "repairable", "cash_in_lieu", "contract_repair"] },
+        "legal_status": { "enum": ["roadworthy", "unroadworthy"] },
+        "category": { "enum": ["A", "B", "S", "N", "N/A", ""] },
+        "impact_severity": { "enum": ["light", "light_to_moderate", "moderate", "moderate_to_heavy", "heavy"] },
+        "impact_location": { "enum": ["front", "left_front", "right_front", "left_side", "right_side",
+                                       "rear", "left_rear", "right_rear", "roof", "underside",
+                                       "wheel", "interior", "mechanical", "multiple"] },
+        "unroadworthy_reason": { "type": "string",
+                                 "description": "Mandatory when legal_status is unroadworthy; composed into Engineer's Comments" },
+        "method": { "enum": ["image_based", "physical"],
+                    "description": "image_based: intro says 'Image Based Assessment' and the Desktop Assessment section is included. physical: location_address shows in the intro and Desktop Assessment is omitted." },
+        "location_address": { "type": "string", "description": "Required when method is physical" },
+        "salvage_value": { "type": "number", "minimum": 0 },
+        "values": {
+          "type": "object",
+          "description": "The three chosen figures only. The dashboard holds the guide values (CAP / Glass's / Cazana, retail + trade each); the engineer selects retail and trade from the guides and sets the engineer's value by opinion (usually = retail, may deviate). Guide values do NOT reach the report.",
+          "required": ["engineer", "retail", "trade"],
+          "properties": {
+            "engineer": { "type": "number", "exclusiveMinimum": 0 },
+            "retail": { "type": "number", "exclusiveMinimum": 0 },
+            "trade": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        }
+      },
+      "if": { "properties": { "outcome": { "const": "total_loss" } } },
+      "then": { "required": ["outcome", "legal_status", "values", "category", "salvage_value"] }
+    },
+    "costs": {
+      "type": "object",
+      "description": "Raw components ONLY. Labour total, subtotal, VAT, repair total and settlement are computed by the generator - never supplied. VAT rule: repairer_vat_registered true = 20% on full subtotal; false = 20% on parts and paint only (no VAT on labour or additional operations).",
+      "required": ["labour_hours", "hourly_rate", "parts", "paint_materials", "specialist_other", "repairer_vat_registered"],
+      "properties": {
+        "labour_hours": { "type": "number", "minimum": 0 },
+        "hourly_rate": { "type": "number", "exclusiveMinimum": 0, "description": "Drags through from the dashboard" },
+        "parts": { "type": "number", "minimum": 0 },
+        "paint_materials": { "type": "number", "minimum": 0 },
+        "specialist_other": { "type": "number", "minimum": 0 },
+        "repairer_vat_registered": { "type": "boolean" },
+        "recovery_charge": { "type": "number", "minimum": 0,
+                             "description": "Optional; if present a Recovery & Storage paragraph is generated" },
+        "storage_charge": { "type": "number", "minimum": 0,
+                            "description": "Optional; if present a Recovery & Storage paragraph is generated" }
+      }
+    },
+    "worklists": {
+      "type": "object",
+      "description": "The repair specification, imported into the dashboard from an estimating system (e.g. Audatex, Glass's) in standardised format and dragged through to the report. Three sections only - paint operations belong in 'operations'.",
+      "properties": {
+        "new_parts": { "type": "array", "items": { "type": "string" } },
+        "repairs": { "type": "array", "items": { "type": "string" } },
+        "operations": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "narrative": {
+      "type": "object",
+      "description": "Only two text inputs remain: history_check (pass-through from the dashboard's data-provider API) and optional engineers_comments. Intro, desktop assessment, nature of incident (default), pre-incident condition, mileage sentence, unroadworthy sentence, settlement and salvage paragraphs are ALL composed by the generator.",
+      "required": ["history_check"],
+      "properties": {
+        "history_check": { "type": "string", "description": "Pass-through from the dashboard's history-check API (e.g. Experian AutoCheck result)" },
+        "engineers_comments": { "type": "string", "description": "Optional additional engineer comments" },
+        "nature_of_incident": { "type": "string", "description": "Optional override of the composed severity+location sentence" }
+      },
+      "not": { "anyOf": [ { "required": ["settlement"] }, { "required": ["introduction"] },
+                          { "required": ["desktop_assessment"] }, { "required": ["salvage"] },
+                          { "required": ["pre_incident_condition"] } ] }
+    },
+    "engineer": {
+      "type": "object",
+      "required": ["name", "qualifications", "signature"],
+      "properties": {
+        "name": { "type": "string" },
+        "qualifications": { "type": "string" },
+        "signature": { "enum": ["andy_patterson", "ed_mawdsley", "neil_oreilly"] }
+      }
+    },
+    "fee": {
+      "type": "object",
+      "required": ["agreed_fee"],
+      "properties": {
+        "agreed_fee": { "type": "number", "exclusiveMinimum": 0 },
+        "description_lines": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "statement_of_truth": {
+      "type": "array", "items": { "type": "string" },
+      "description": "Optional override; the generator carries the standard CPR wording by default."
+    },
+    "photos": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "impact_diagram": { "type": "string" }
+  }
+}

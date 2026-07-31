@@ -1,10 +1,11 @@
 using System.Text.Json;
 using Pegasus.Core.Intake;
-using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Pegasus.IntegrationTests;
 
+[Collection(LocalDbFixtureDefinition.Name)]
+[Trait("Category", "SqlServer")]
 public sealed class IntakeStablePersistenceTests
 {
     [Fact]
@@ -12,11 +13,9 @@ public sealed class IntakeStablePersistenceTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var upload = await IntakeWebDriver.UploadAsync(
-            client,
-            "unknown-format.xyz",
-            "application/x-unknown",
-            [0x01, 0x02, 0x03]);
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(factory, client, "unknown-format.xyz",
+        "application/x-unknown",
+        [0x01, 0x02, 0x03]);
         var receiptId = IntakeWebDriver.ReceiptId(upload);
 
         await using var scope = factory.Services.CreateAsyncScope();
@@ -30,25 +29,23 @@ public sealed class IntakeStablePersistenceTests
         var sourceAsset = Assert.Single(receipt.AssetRecords);
         Assert.Equal(IntakeAssetKind.Source, sourceAsset.Kind);
 
-        await using var connection = new SqliteConnection($"Data Source={factory.DatabasePath}");
-        await connection.OpenAsync();
-        Assert.Equal("unsupported", await ScalarAsync(connection,
+        Assert.Equal("unsupported", await factory.Database.ScalarAsync<string>(
             "SELECT Decision FROM IntakeReceipts"));
-        Assert.Equal("manual_upload", await ScalarAsync(connection,
+        Assert.Equal("manual_upload", await factory.Database.ScalarAsync<string>(
             "SELECT SourceChannel FROM IntakeReceipts"));
-        Assert.Equal("source", await ScalarAsync(connection,
+        Assert.Equal("source", await factory.Database.ScalarAsync<string>(
             "SELECT Kind FROM IntakeAssets"));
-        Assert.Equal("source", await ScalarAsync(connection,
+        Assert.Equal("source", await factory.Database.ScalarAsync<string>(
             "SELECT Disposition FROM IntakeAssets"));
-        Assert.Equal("intake_receipt_recorded", await ScalarAsync(connection,
+        Assert.Equal("intake_receipt_recorded", await factory.Database.ScalarAsync<string>(
             "SELECT EventType FROM IntakeReceiptEvents"));
-        AssertEnvelopeVersionOne(await ScalarAsync(connection,
+        AssertEnvelopeVersionOne(await factory.Database.ScalarAsync<string>(
             "SELECT EvidenceJson FROM IntakeReceipts"));
-        AssertEnvelopeVersionOne(await ScalarAsync(connection,
+        AssertEnvelopeVersionOne(await factory.Database.ScalarAsync<string>(
             "SELECT FieldsJson FROM IntakeReceipts"));
-        AssertEnvelopeVersionOne(await ScalarAsync(connection,
+        AssertEnvelopeVersionOne(await factory.Database.ScalarAsync<string>(
             "SELECT OcrCandidatesJson FROM IntakeReceipts"));
-        AssertEnvelopeVersionOne(await ScalarAsync(connection,
+        AssertEnvelopeVersionOne(await factory.Database.ScalarAsync<string>(
             "SELECT DetailsJson FROM IntakeReceiptEvents"));
     }
 
@@ -108,29 +105,14 @@ public sealed class IntakeStablePersistenceTests
     private static async Task<Guid> UploadUnknownAsync(IntakeWebApplicationFactory factory)
     {
         using var client = IntakeWebDriver.CreateClient(factory);
-        return IntakeWebDriver.ReceiptId(await IntakeWebDriver.UploadAsync(
-            client,
-            "unknown-format.xyz",
-            "application/x-unknown",
-            [0x01]));
+        return IntakeWebDriver.ReceiptId(await IntakeWebDriver.UploadAndProcessAsync(factory, client, "unknown-format.xyz",
+        "application/x-unknown",
+        [0x01]));
     }
 
-    private static async Task ExecuteAsync(IntakeWebApplicationFactory factory, string sql)
-    {
-        await using var connection = new SqliteConnection($"Data Source={factory.DatabasePath}");
-        await connection.OpenAsync();
-        await using var command = connection.CreateCommand();
-        command.CommandText = sql;
-        await command.ExecuteNonQueryAsync();
-    }
+    private static Task ExecuteAsync(IntakeWebApplicationFactory factory, string sql) =>
+        factory.Database.ExecuteAsync(sql);
 
-    private static async Task<string> ScalarAsync(SqliteConnection connection, string sql)
-    {
-        await using var command = connection.CreateCommand();
-        command.CommandText = sql;
-        return (string)(await command.ExecuteScalarAsync()
-            ?? throw new InvalidOperationException("Expected a scalar string."));
-    }
 
     private static void AssertEnvelopeVersionOne(string json)
     {

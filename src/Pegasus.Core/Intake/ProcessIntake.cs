@@ -12,9 +12,26 @@ public sealed class ProcessIntake(
 {
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
 
-    public async Task<IntakeReceipt> ExecuteAsync(
+    public Task<IntakeReceipt> ExecuteAsync(
         IntakeSource source,
+        CancellationToken cancellationToken = default) =>
+        ExecuteCoreAsync(source, retainedSourceStorageKey: null, replaceExisting: false, cancellationToken);
+
+    internal Task<IntakeReceipt> ExecuteRetainedAsync(
+        IntakeSource source,
+        string retainedSourceStorageKey,
+        bool replaceExisting = false,
         CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(retainedSourceStorageKey);
+        return ExecuteCoreAsync(source, retainedSourceStorageKey, replaceExisting, cancellationToken);
+    }
+
+    private async Task<IntakeReceipt> ExecuteCoreAsync(
+        IntakeSource source,
+        string? retainedSourceStorageKey,
+        bool replaceExisting,
+        CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(source.FileName);
         ArgumentException.ThrowIfNullOrWhiteSpace(source.SourceIdentity.ExternalReceiptToken);
@@ -35,30 +52,53 @@ public sealed class ProcessIntake(
                 throw new IntakeSourceIdentityConflictException();
             }
 
-            activity?.SetTag("intake.reader_result", "not_read_replay");
-            activity?.SetTag("intake.reader_key", existing.SourceReaderKey);
-            RecordTelemetry(activity, existing, "replay", started);
-            return existing with { IsDuplicate = true };
+            if (!replaceExisting)
+            {
+                activity?.SetTag("intake.reader_result", "not_read_replay");
+                activity?.SetTag("intake.reader_key", existing.SourceReaderKey);
+                RecordTelemetry(activity, existing, "replay", started);
+                return existing with { IsDuplicate = true };
+            }
         }
 
         IntakeAssetRecord sourceAsset;
-        try
+        if (retainedSourceStorageKey is null)
         {
-            sourceAsset = await RetainAsync(
-                new(
-                    "uploaded source",
-                    safeSource.FileName,
-                    safeSource.MediaType,
-                    safeSource.Content,
-                    IntakeAssetKind.Source,
-                    IntakeAssetDisposition.Source),
-                cancellationToken);
+            try
+            {
+                sourceAsset = await RetainAsync(
+                    new(
+                        "uploaded source",
+                        safeSource.FileName,
+                        safeSource.MediaType,
+                        safeSource.Content,
+                        IntakeAssetKind.Source,
+                        IntakeAssetDisposition.Source),
+                    cancellationToken);
+            }
+            catch (IntakeArtifactRetentionException)
+            {
+                activity?.SetTag("intake.reader_result", "not_run_retention_failure");
+                RecordFailureTelemetry(activity, "artifact_retention_failure", started);
+                throw;
+            }
         }
-        catch (IntakeArtifactRetentionException)
+        else
         {
-            activity?.SetTag("intake.reader_result", "not_run_retention_failure");
-            RecordFailureTelemetry(activity, "artifact_retention_failure", started);
-            throw;
+            sourceAsset = new(
+                Guid.NewGuid(),
+                "uploaded source",
+                safeSource.FileName,
+                safeSource.MediaType,
+                IntakeAssetKind.Source,
+                IntakeAssetDisposition.Source,
+                safeSource.Content.Length,
+                sourceHash,
+                retainedSourceStorageKey,
+                null,
+                null,
+                null,
+                null);
         }
 
         IntakeSourceReadResult readResult;
@@ -98,9 +138,18 @@ public sealed class ProcessIntake(
         }
 
         var processedAtUtc = timeProvider.GetUtcNow();
-        var assessment = Assess(readResult, processedAtUtc);
+        var assessment = Assess(readResult, safeSource.SourceIdentity.Channel, processedAtUtc);
         activity?.SetTag("intake.policy_key", assessment.ExtractionPolicyKey);
         activity?.SetTag("intake.policy_version", assessment.ExtractionPolicyVersion);
+        activity?.SetTag(
+            "intake.mail_route_disposition",
+            assessment.MailRouteDecision?.Disposition.ToString());
+        activity?.SetTag(
+            "intake.mail_route_policy_key",
+            assessment.MailRouteDecision?.PolicyKey);
+        activity?.SetTag(
+            "intake.mail_route_policy_version",
+            assessment.MailRouteDecision?.PolicyVersion);
         var draft = new IntakeReceiptDraft(
             safeSource.FileName,
             safeSource.MediaType,
@@ -123,12 +172,15 @@ public sealed class ProcessIntake(
             assessment.ExtractionPolicyKey,
             assessment.ExtractionPolicyVersion,
             assets,
-            readResult.ScannedPdfPages);
+            readResult.ScannedPdfPages,
+            assessment.MailRouteDecision);
 
         IntakeReceipt receipt;
         try
         {
-            receipt = await receiptStore.StoreAsync(draft, cancellationToken);
+            receipt = replaceExisting
+                ? await receiptStore.ReplaceEvaluationAsync(draft, cancellationToken)
+                : await receiptStore.StoreAsync(draft, cancellationToken);
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
@@ -139,7 +191,10 @@ public sealed class ProcessIntake(
         return receipt;
     }
 
-    private IntakeAssessment Assess(IntakeSourceReadResult readResult, DateTimeOffset processedAtUtc)
+    private IntakeAssessment Assess(
+        IntakeSourceReadResult readResult,
+        IntakeSourceChannel sourceChannel,
+        DateTimeOffset processedAtUtc)
     {
         var readerEvidence = readResult.Issues
             .Select(issue => new IntakeEvidence(
@@ -182,7 +237,26 @@ public sealed class ProcessIntake(
                 null,
                 null,
                 null,
+                null,
                 null);
+        }
+
+        var mailRouteDecision = EvaluateMailRoute(readResult, sourceChannel);
+        if (mailRouteDecision is not null
+            && mailRouteDecision.Disposition != MailRouteDisposition.Accepted)
+        {
+            return new(
+                IntakeDecision.NeedsSorting,
+                mailRouteDecision.Reason,
+                readerEvidence,
+                [],
+                null,
+                [],
+                null,
+                null,
+                null,
+                null,
+                mailRouteDecision);
         }
 
         var policyResult = extractionPolicy.Extract(readResult, processedAtUtc);
@@ -217,7 +291,114 @@ public sealed class ProcessIntake(
             failureCode,
             failureReason,
             policyResult.PolicyKey,
-            policyResult.PolicyVersion);
+            policyResult.PolicyVersion,
+            mailRouteDecision);
+    }
+
+    private MailRouteEvaluationResult? EvaluateMailRoute(
+        IntakeSourceReadResult readResult,
+        IntakeSourceChannel sourceChannel)
+    {
+        if (sourceChannel != IntakeSourceChannel.Mailbox)
+        {
+            return null;
+        }
+
+        if (extractionPolicy is not IMailRoutePolicy mailRoutePolicy)
+        {
+            throw new InvalidOperationException(
+                "Mailbox intake requires the configured extraction policy to implement IMailRoutePolicy.");
+        }
+
+        var result = mailRoutePolicy.Evaluate(readResult);
+        EnsureConsistentMailRouteResult(result);
+        return result;
+    }
+
+    private static void EnsureConsistentMailRouteResult(MailRouteEvaluationResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        ArgumentNullException.ThrowIfNull(result.Predicates);
+        ArgumentNullException.ThrowIfNull(result.TransportIdentities);
+        ArgumentNullException.ThrowIfNull(result.OriginalIdentities);
+        ArgumentException.ThrowIfNullOrWhiteSpace(result.Reason);
+        ArgumentException.ThrowIfNullOrWhiteSpace(result.PolicyKey);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(result.PolicyVersion);
+
+        if (result.Predicates.Any(predicate =>
+                string.IsNullOrWhiteSpace(predicate.Key)
+                || string.IsNullOrWhiteSpace(predicate.Detail))
+            || result.Predicates
+                .Select(predicate => predicate.Key)
+                .Distinct(StringComparer.Ordinal)
+                .Count() != result.Predicates.Count)
+        {
+            throw new InvalidOperationException(
+                "The mail-route policy returned incomplete or duplicate predicate evidence.");
+        }
+
+        if (result.TransportIdentities
+                .Concat(result.OriginalIdentities)
+                .Any(identity =>
+                    string.IsNullOrWhiteSpace(identity.Address)
+                    || string.IsNullOrWhiteSpace(identity.SourceLabel)))
+        {
+            throw new InvalidOperationException(
+                "The mail-route policy returned incomplete sender identity evidence.");
+        }
+        if (result.EffectiveSender is { } effectiveSender
+            && (string.IsNullOrWhiteSpace(effectiveSender.Address)
+                || string.IsNullOrWhiteSpace(effectiveSender.SourceLabel)))
+        {
+            throw new InvalidOperationException(
+                "The mail-route policy returned an incomplete effective sender identity.");
+        }
+
+
+        if (result.Disposition == MailRouteDisposition.Accepted)
+        {
+            if (result.SelectedRoute is null || result.EffectiveSender is null)
+            {
+                throw new InvalidOperationException(
+                    "An accepted mail route requires a selected route and effective sender.");
+            }
+            if (!result.TransportIdentities
+                    .Concat(result.OriginalIdentities)
+                    .Any(identity =>
+                        string.Equals(
+                            identity.Address,
+                            result.EffectiveSender.Address,
+                            StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(
+                            identity.SourceLabel,
+                            result.EffectiveSender.SourceLabel,
+                            StringComparison.Ordinal)))
+            {
+                throw new InvalidOperationException(
+                    "The accepted mail-route effective sender is not present in its identity evidence.");
+            }
+
+
+            ArgumentException.ThrowIfNullOrWhiteSpace(result.SelectedRoute.RouteOwnerCode);
+            ArgumentException.ThrowIfNullOrWhiteSpace(result.SelectedRoute.WorkProviderCode);
+            if (!Enum.IsDefined(result.SelectedRoute.Kind))
+            {
+                throw new InvalidOperationException("The selected mail-route kind is not recognized.");
+            }
+
+            return;
+        }
+
+        if (result.SelectedRoute is not null)
+        {
+            throw new InvalidOperationException(
+                "A mail route that was not accepted cannot contain a selected route.");
+        }
+
+        if (!Enum.IsDefined(result.Disposition))
+        {
+            throw new InvalidOperationException("The mail-route disposition is not recognized.");
+        }
     }
 
     private static void EnsureConsistentPolicyResult(InstructionExtractionResult policyResult)
@@ -296,6 +477,7 @@ public sealed class ProcessIntake(
     private static string ChannelCode(IntakeSourceChannel channel) => channel switch
     {
         IntakeSourceChannel.ManualUpload => "manual_upload",
+        IntakeSourceChannel.Mailbox => "mailbox",
         _ => throw new InvalidOperationException($"Unknown intake source channel value '{(int)channel}'.")
     };
 
@@ -311,6 +493,7 @@ public sealed class ProcessIntake(
     {
         IntakeDecision.DraftReady => "draft_ready",
         IntakeDecision.NeedsSorting => "needs_sorting",
+        IntakeDecision.BlockedIntake => "blocked_intake",
         IntakeDecision.Unsupported => "unsupported",
         IntakeDecision.OcrRequired => "ocr_required",
         IntakeDecision.TechnicalFailure => "technical_failure",
@@ -327,7 +510,8 @@ public sealed class ProcessIntake(
         string? FailureCode,
         string? FailureReason,
         string? ExtractionPolicyKey,
-        int? ExtractionPolicyVersion)
+        int? ExtractionPolicyVersion,
+        MailRouteEvaluationResult? MailRouteDecision)
     {
         public static IntakeAssessment Failure(
             IntakeDecision decision,
@@ -335,6 +519,6 @@ public sealed class ProcessIntake(
             string failureCode,
             string failureReason,
             IReadOnlyList<IntakeEvidence> evidence) =>
-            new(decision, decisionReason, evidence, [], null, [], failureCode, failureReason, null, null);
+            new(decision, decisionReason, evidence, [], null, [], failureCode, failureReason, null, null, null);
     }
 }

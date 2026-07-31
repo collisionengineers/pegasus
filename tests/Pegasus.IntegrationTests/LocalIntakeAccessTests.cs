@@ -1,11 +1,14 @@
 using System.Data.Common;
 using System.Net;
+using Microsoft.AspNetCore.Routing;
 using Pegasus.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Pegasus.IntegrationTests;
 
+[Collection(LocalDbFixtureDefinition.Name)]
+[Trait("Category", "SqlServer")]
 public sealed class LocalIntakeAccessTests
 {
     public static TheoryData<string, bool?> DeniedConfigurations => new()
@@ -39,22 +42,17 @@ public sealed class LocalIntakeAccessTests
 
         foreach (var path in new[]
                  {
-                     "/Intake/Upload",
-                     "/Intake/EmailEvaluation",
-                     "/Intake/Queue",
-                     $"/Intake/Review/{Guid.NewGuid()}"
+                      "/Intake",
+                      $"/Intake/{Guid.NewGuid()}",
+                     $"/Intake/{Guid.NewGuid()}/Source"
                  })
         {
             using var response = await client.GetAsync(path);
             Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         }
-
-        using var multipart = new MultipartFormDataContent();
-        using var post = await client.PostAsync("/Intake/EmailEvaluation", multipart);
-        Assert.Equal(HttpStatusCode.NotFound, post.StatusCode);
-
+        var endpoints = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints;
         using var uploadMultipart = new MultipartFormDataContent();
-        using var uploadPost = await client.PostAsync("/Intake/Upload", uploadMultipart);
+        using var uploadPost = await client.PostAsync("/Intake?handler=ReceiveIntake", uploadMultipart);
         Assert.Equal(HttpStatusCode.NotFound, uploadPost.StatusCode);
 
         await using var scope = factory.Services.CreateAsyncScope();
@@ -74,9 +72,15 @@ public sealed class LocalIntakeAccessTests
     }
 
     [Theory]
-    [InlineData("DevelopmentOffline", false, "permitted only in the Development environment")]
-    [InlineData("Production", true, "requires the DevelopmentOffline runtime profile")]
-    public void ProductionRefusesDevelopmentOnlyConfiguration(
+    [InlineData(
+        "DevelopmentOffline",
+        false,
+        "The DevelopmentOffline runtime profile is permitted only in the Development environment.")]
+    [InlineData(
+        "Production",
+        true,
+        "Features:LocalIntake requires the DevelopmentOffline runtime profile.")]
+    public void ProductionRejectsDevelopmentOnlyConfigurationBeforeAuthenticationStartup(
         string runtimeProfile,
         bool localIntakeEnabled,
         string expectedMessage)
@@ -86,26 +90,24 @@ public sealed class LocalIntakeAccessTests
             new Dictionary<string, string?>
             {
                 ["Runtime:Profile"] = runtimeProfile,
-                ["Database:Provider"] = "Sqlite",
-                ["Database:LocalPath"] = Path.Combine(
-                    Path.GetTempPath(),
-                    "Pegasus.InvalidRuntimeProfile",
-                    Guid.NewGuid().ToString("N"),
-                    "intake.db"),
+                ["ConnectionStrings:Pegasus"] =
+                    $"Server=(localdb)\\MSSQLLocalDB;Database=Pegasus_InvalidRuntimeProfile_{Guid.NewGuid():N};" +
+                    "Integrated Security=true;Encrypt=false",
                 ["Features:LocalIntake"] = localIntakeEnabled.ToString()
             });
 
         var exception = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
+        var configurationException = Assert.IsType<InvalidOperationException>(exception.GetBaseException());
 
-        Assert.Contains(expectedMessage, exception.ToString(), StringComparison.Ordinal);
+        Assert.Equal(expectedMessage, configurationException.Message);
     }
 
     private static async Task<long> CountRowsIfPresentAsync(DbConnection connection, DatabaseTable table)
     {
         await using var existenceCommand = connection.CreateCommand();
-        existenceCommand.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = $name";
+        existenceCommand.CommandText = "SELECT COUNT(*) FROM sys.tables WHERE name = @name";
         var parameter = existenceCommand.CreateParameter();
-        parameter.ParameterName = "$name";
+        parameter.ParameterName = "@name";
         parameter.Value = table switch
         {
             DatabaseTable.IntakeReceipts => "IntakeReceipts",

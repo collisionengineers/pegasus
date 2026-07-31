@@ -1,9 +1,18 @@
+using Pegasus.Core.Cases;
+using Pegasus.Core.Identity;
+
 namespace Pegasus.Core.Intake;
+
+public static class IntakeEnvelopeLimits
+{
+    public const int MaximumContentLength = 10 * 1024 * 1024;
+}
 
 public enum IntakeDecision
 {
     DraftReady,
     NeedsSorting,
+    BlockedIntake,
     Unsupported,
     OcrRequired,
     TechnicalFailure
@@ -19,6 +28,7 @@ public enum IntakeEvidenceSource
     Subject,
     FileName,
     MimeType,
+    StaffCorrection,
     SystemDefault
 }
 
@@ -35,7 +45,8 @@ public enum IntakeEvidenceFinding
     ExtractedField,
     ConflictingField,
     MissingField,
-    Information
+    Information,
+    AcceptedTriageMatch
 }
 
 public enum IntakeSourceReadStatus
@@ -47,7 +58,8 @@ public enum IntakeSourceReadStatus
 
 public enum IntakeSourceChannel
 {
-    ManualUpload
+    ManualUpload,
+    Mailbox
 }
 
 public enum InstructionPolicyApplicability
@@ -55,6 +67,49 @@ public enum InstructionPolicyApplicability
     Applicable,
     NotApplicable,
     Indeterminate
+}
+
+public enum MailRouteDisposition
+{
+    Accepted,
+    NoMatch,
+    NeedsSorting
+}
+
+public enum MailRouteKind
+{
+    DirectProvider,
+    Intermediary
+}
+
+public sealed record MailRoutePredicateResult(
+    string Key,
+    bool Matched,
+    string Detail);
+public sealed record MailRouteIdentity(
+    string Address,
+    string SourceLabel);
+
+
+public sealed record MailRouteSelection(
+    string RouteOwnerCode,
+    MailRouteKind Kind,
+    string WorkProviderCode);
+
+public sealed record MailRouteEvaluationResult(
+    MailRouteDisposition Disposition,
+    MailRouteSelection? SelectedRoute,
+    IReadOnlyList<MailRoutePredicateResult> Predicates,
+    string Reason,
+    string PolicyKey,
+    int PolicyVersion,
+    IReadOnlyList<MailRouteIdentity> TransportIdentities,
+    IReadOnlyList<MailRouteIdentity> OriginalIdentities,
+    MailRouteIdentity? EffectiveSender);
+
+public interface IMailRoutePolicy
+{
+    MailRouteEvaluationResult Evaluate(IntakeSourceReadResult readResult);
 }
 
 public sealed record IntakeSourceIdentity(
@@ -67,6 +122,21 @@ public sealed class IntakeSourceIdentityConflictException : Exception
         : base("The source identity is already associated with different content.")
     {
     }
+
+    public IntakeSourceIdentityConflictException(
+        string existingSourceHash,
+        string presentedSourceHash)
+        : this()
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(existingSourceHash);
+        ArgumentException.ThrowIfNullOrWhiteSpace(presentedSourceHash);
+        ExistingSourceHash = existingSourceHash;
+        PresentedSourceHash = presentedSourceHash;
+    }
+
+    public string? ExistingSourceHash { get; }
+
+    public string? PresentedSourceHash { get; }
 }
 
 public sealed class IntakeArtifactRetentionException : Exception
@@ -90,9 +160,17 @@ public sealed record IntakeContentFragment(
     string SourceLabel,
     string Text);
 
+public enum IntakeSenderIdentityKind
+{
+    Transport,
+    AttachedOriginal
+}
+
 public sealed record IntakeTransportEvidence(
     IntakeEvidenceSource Source,
-    string Value);
+    string Value,
+    IntakeSenderIdentityKind SenderIdentityKind = IntakeSenderIdentityKind.Transport,
+    string? SourceLabel = null);
 
 public sealed record IntakeSourceIssue(
     string Code,
@@ -176,7 +254,9 @@ public sealed record IntakeEvidence(
     IntakeEvidenceStrength Strength,
     IntakeEvidenceFinding Finding,
     string Signal,
-    string Detail);
+    string Detail,
+    string? MatcherKey = null,
+    int? MatcherVersion = null);
 
 public sealed record InstructionFieldCandidate(
     string Value,
@@ -201,7 +281,8 @@ public sealed record InstructionDraft(
     string? AccidentCircumstances,
     DateOnly? DateOfIncident,
     DateOnly? InstructionDate,
-    string? InspectionAddress);
+    string? InspectionAddress,
+    DateOnly? InspectionDate = null);
 
 public sealed record IntakeReceipt(
     Guid Id,
@@ -226,11 +307,19 @@ public sealed record IntakeReceipt(
     string? ExtractionPolicyKey,
     int? ExtractionPolicyVersion,
     IReadOnlyList<IntakeAssetRecord>? Assets = null,
-    IReadOnlyList<ScannedPdfOcrCandidate>? OcrCandidates = null)
+    IReadOnlyList<ScannedPdfOcrCandidate>? OcrCandidates = null,
+    MailRouteEvaluationResult? MailRouteDecision = null,
+    long Version = 0,
+    Guid? AcceptedCaseId = null,
+    Guid? ManualLinkedCaseId = null,
+    long? ManualAssociationVersion = null)
 {
     public IReadOnlyList<IntakeAssetRecord> AssetRecords => Assets ?? [];
 
     public IReadOnlyList<ScannedPdfOcrCandidate> ScannedPdfPages => OcrCandidates ?? [];
+
+    public Guid? CurrentCaseId =>
+        ManualAssociationVersion is null ? AcceptedCaseId : ManualLinkedCaseId;
 }
 
 public sealed record IntakeReceiptDraft(
@@ -255,14 +344,15 @@ public sealed record IntakeReceiptDraft(
     string? ExtractionPolicyKey,
     int? ExtractionPolicyVersion,
     IReadOnlyList<IntakeAssetRecord>? Assets = null,
-    IReadOnlyList<ScannedPdfOcrCandidate>? OcrCandidates = null)
+    IReadOnlyList<ScannedPdfOcrCandidate>? OcrCandidates = null,
+    MailRouteEvaluationResult? MailRouteDecision = null)
 {
     public IReadOnlyList<IntakeAssetRecord> AssetRecords => Assets ?? [];
 
     public IReadOnlyList<ScannedPdfOcrCandidate> ScannedPdfPages => OcrCandidates ?? [];
 }
 
-public sealed record IntakeQueueCounts(int DraftReady, int NeedsSorting);
+public sealed record IntakeQueueCounts(int DraftReady, int NeedsSorting, int BlockedIntake = 0);
 
 public sealed record IntakeReceiptSummary(
     Guid Id,
@@ -286,6 +376,31 @@ public interface IInstructionExtractionPolicy
         IntakeSourceReadResult readResult,
         DateTimeOffset processedAtUtc);
 }
+public sealed record IntakeTriageMatch(
+    IntakeEvidenceSource Source,
+    string Signal,
+    string Detail,
+    string MatcherKey,
+    int MatcherVersion);
+
+public interface IIntakeTriageMatcher
+{
+    IReadOnlyList<IntakeTriageMatch> Match(
+        IntakeSourceReadResult readResult,
+        InstructionDraft draft);
+}
+
+public sealed class NoAcceptedIntakeTriageMatcher : IIntakeTriageMatcher
+{
+    public IReadOnlyList<IntakeTriageMatch> Match(
+        IntakeSourceReadResult readResult,
+        InstructionDraft draft)
+    {
+        ArgumentNullException.ThrowIfNull(readResult);
+        ArgumentNullException.ThrowIfNull(draft);
+        return [];
+    }
+}
 
 public interface IIntakeSourceReader
 {
@@ -300,6 +415,40 @@ public static class IntakeExceptionPolicy
             and not AccessViolationException;
 }
 
+public enum StagedArtifactDisposition
+{
+    Pending = 0,
+    Completed = 1,
+    Failed = 2,
+    Unmatched = 3,
+    Orphan = 4
+}
+
+public sealed record StagedArtifactInventoryItem(
+    string StorageKey,
+    string ContentHash,
+    long ContentLength,
+    DateTimeOffset FirstSeenAtUtc,
+    StagedArtifactDisposition Disposition,
+    string ConcurrencyToken);
+
+public sealed record IntakeQuarantineArtifact(
+    string StorageKey,
+    string ContentHash,
+    long ContentLength);
+
+public interface IIntakeQuarantineArtifactStore
+{
+    Task<IntakeQuarantineArtifact> StoreStreamAsync(
+        Stream content,
+        long contentLength,
+        CancellationToken cancellationToken);
+
+    Task VerifyAsync(
+        IntakeQuarantineArtifact artifact,
+        CancellationToken cancellationToken);
+}
+
 public interface IIntakeArtifactStore
 {
     Task<string> StoreAsync(
@@ -310,6 +459,46 @@ public interface IIntakeArtifactStore
     Task<ReadOnlyMemory<byte>?> ReadAsync(
         string storageKey,
         CancellationToken cancellationToken);
+
+    async Task<StagedArtifactInventoryItem> StageAsync(
+        Guid stagedReceiptId,
+        string contentHash,
+        ReadOnlyMemory<byte> content,
+        DateTimeOffset firstSeenAtUtc,
+        CancellationToken cancellationToken)
+    {
+        var storageKey = await StoreAsync(contentHash, content, cancellationToken);
+        return new(
+            storageKey,
+            contentHash,
+            content.Length,
+            firstSeenAtUtc,
+            StagedArtifactDisposition.Pending,
+            string.Empty);
+    }
+
+    Task<StagedArtifactInventoryItem?> GetStagedAsync(
+        string storageKey,
+        CancellationToken cancellationToken) =>
+        Task.FromResult<StagedArtifactInventoryItem?>(null);
+
+    Task<IReadOnlyList<StagedArtifactInventoryItem>> ListStagedAsync(
+        int maximumItems,
+        CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<StagedArtifactInventoryItem>>([]);
+
+    Task<StagedArtifactInventoryItem?> TrySetStagedDispositionAsync(
+        string storageKey,
+        string expectedConcurrencyToken,
+        StagedArtifactDisposition disposition,
+        CancellationToken cancellationToken) =>
+        Task.FromResult<StagedArtifactInventoryItem?>(null);
+
+    Task<bool> DeleteCompletedStagedAsync(
+        string storageKey,
+        string expectedConcurrencyToken,
+        CancellationToken cancellationToken) =>
+        Task.FromResult(false);
 }
 
 public sealed class IntakeArtifactIntegrityException()
@@ -322,6 +511,10 @@ public interface IIntakeReceiptStore
         CancellationToken cancellationToken);
 
     Task<IntakeReceipt> StoreAsync(IntakeReceiptDraft draft, CancellationToken cancellationToken);
+
+    Task<IntakeReceipt> ReplaceEvaluationAsync(
+        IntakeReceiptDraft draft,
+        CancellationToken cancellationToken);
 }
 
 public interface IIntakeReceiptQueries
@@ -338,4 +531,173 @@ public interface IIntakeReceiptQueries
         Guid receiptId,
         Guid assetId,
         CancellationToken cancellationToken);
+}
+
+public sealed record ListIntakeQuery(
+    ActionActor Actor,
+    IntakeDecision? Decision,
+    int Page,
+    int PageSize);
+
+public sealed record IntakeListPage(
+    IReadOnlyList<IntakeReceiptSummary> Items,
+    int Page,
+    int PageSize,
+    int TotalCount)
+{
+    public int TotalPages => TotalCount == 0
+        ? 1
+        : (int)Math.Ceiling((double)TotalCount / PageSize);
+}
+
+public interface IListIntake
+{
+    Task<IntakeListPage> ExecuteAsync(
+        ListIntakeQuery query,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed record GetIntakeQuery(Guid ReceiptId, ActionActor Actor);
+
+public interface IGetIntake
+{
+    Task<IntakeReceipt?> ExecuteAsync(
+        GetIntakeQuery query,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed record DownloadIntakeSourceQuery(Guid ReceiptId, ActionActor Actor);
+
+public sealed record IntakeSourceDownload(
+    ReadOnlyMemory<byte> Content,
+    string FileName,
+    string ContentType,
+    long ContentLength,
+    string Sha256);
+
+public interface IDownloadIntakeSource
+{
+    Task<IntakeSourceDownload?> ExecuteAsync(
+        DownloadIntakeSourceQuery query,
+        CancellationToken cancellationToken = default);
+}
+
+public enum IntakeResolutionKind
+{
+    CorrectDraft,
+    Block
+}
+
+public sealed record ResolveIntakeRequest(
+    Guid ReceiptId,
+    long ExpectedVersion,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason,
+    IntakeResolutionKind Kind,
+    InstructionDraft? CorrectedDraft);
+
+public sealed record ReevaluateIntakeRequest(
+    Guid ReceiptId,
+    long ExpectedVersion,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason);
+
+public sealed record AcceptIntakeRequest(
+    Guid ReceiptId,
+    long ExpectedVersion,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason,
+    CaseType CaseType,
+    string PrincipalCode,
+    CaseCompleteness Completeness,
+    Guid? StandaloneAuditEvidenceId = null,
+    DateOnly? AcceptedInspectionDeadline = null);
+
+public sealed record LinkIntakeRequest(
+    Guid ReceiptId,
+    Guid CaseId,
+    long ExpectedIntakeVersion,
+    long ExpectedCaseVersion,
+    string EditLeaseToken,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason);
+
+public sealed record ReverseIntakeLinkRequest(
+    Guid ReceiptId,
+    Guid CaseId,
+    long ExpectedIntakeVersion,
+    long ExpectedCaseVersion,
+    string EditLeaseToken,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason);
+
+public interface IIntakeMutationStore
+{
+    Task<IntakeReceipt> ResolveAsync(
+        ResolveIntakeRequest request,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken);
+
+    Task<IntakeReceipt> ScheduleReevaluationAsync(
+        ReevaluateIntakeRequest request,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken);
+
+    Task LinkAsync(
+        LinkIntakeRequest request,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken);
+
+    Task ReverseLinkAsync(
+        ReverseIntakeLinkRequest request,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken);
+}
+
+public sealed class IntakeOperationConflictException()
+    : Exception("The intake operation key was already used for different command details.");
+
+public sealed class IntakeVersionConflictException()
+    : Exception("The intake or case changed after it was loaded.");
+
+public sealed class IntakeAssociationConflictException(string message) : Exception(message);
+
+public interface IResolveIntake
+{
+    Task<IntakeReceipt> ExecuteAsync(
+        ResolveIntakeRequest request,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IReevaluateIntake
+{
+    Task<IntakeReceipt> ExecuteAsync(
+        ReevaluateIntakeRequest request,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IAcceptIntake
+{
+    Task<CaseAcceptanceOutcome> ExecuteAsync(
+        AcceptIntakeRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface ILinkIntake
+{
+    Task ExecuteAsync(
+        LinkIntakeRequest request,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IReverseIntakeLink
+{
+    Task ExecuteAsync(
+        ReverseIntakeLinkRequest request,
+        CancellationToken cancellationToken = default);
 }

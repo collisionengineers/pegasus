@@ -1,6 +1,6 @@
 # Operations
 
-This document is the sole procedure owner for developing, testing, running, deploying, diagnosing, and recovering Pegasus. Product policy remains owned by [requirements](requirements.md), capability allocation by [capabilities](capabilities.md), unresolved rules by [open decisions](open-decisions.md), system boundaries by [architecture](architecture.md), and implementation conventions by [engineering](engineering.md).
+This document is the sole procedure owner for developing, testing, running, deploying, diagnosing, and recovering Pegasus. Product policy remains owned by [requirements](requirements.md), capability allocation by [capabilities](capabilities.md), unresolved rules by [open decisions](open-decisions.md), and system boundaries by [architecture](architecture.md).
 
 ## Evidence and authority
 
@@ -10,7 +10,7 @@ Use these evidence states literally and independently:
 
 Compilation, registration, mocks, local execution, deployment, live-service observation, and operator acceptance are different conclusions. Describe code as **Implemented** only when source exists and is connected as claimed; reserve **Called** for a genuine input traversing a real Web or Worker entry point. Direct dependency-injection resolution, registration, host startup, an emulator, source workspace, or benchmark harness is not caller proof.
 
-`/Intake/Upload` through `ProcessIntake` is the only current mutating entry point. Retained dated integration evidence exercised that Development-only HTTP route, but it does not establish a staff browser session, non-Development intake, deployment, live traffic, or acceptance. The Worker composition root currently has no trigger; starting the Functions host is host evidence only.
+`/Intake/Upload` through `ProcessIntake` is the only retained Development-only HTTP intake entry point. The Worker has implemented timer and queue-triggered callers for intake dispatch, inbox polling, due work, sent evidence, staged-artifact reconciliation, and external work. Those source-level callers are not deployment, live traffic, or acceptance evidence; starting a Functions host alone remains host evidence only.
 
 Every external read, mutation, billed call, data transfer, credential change, deployment, recovery exercise, or resource retirement requires explicit approval after showing the exact target, scope, operation, data class, cost exposure, and rollback path. Installed tools, repository configuration, credentials, and authentication never grant authority by themselves.
 
@@ -46,39 +46,72 @@ For a longer checkout root, the first command must return `1` and the Git settin
 
 ## Offline development profile
 
-Pegasus runs locally without Azure, Graph, Box, DVLA/DVSA, EVA, Infisical, Docker, cloud login, or vendor authentication. Use the owning executables directly; there is no implemented generic workstation-doctor or repository-check wrapper.
+Pegasus supports a reproducible `Offline` profile on Windows with PowerShell
+7.6.3, .NET SDK 10.0.302, Python 3.11+, Node 24/npm 11, the repository-pinned
+Azurite 3.36.0, Functions Core Tools 4.12.1, SQL Server Express LocalDB, a
+trusted Development HTTPS certificate, and the package-pinned Playwright
+Chromium browser. It requires no Azure, Graph, Box, DVLA/DVSA, EVA, Infisical,
+Docker, cloud login, or vendor authentication. Package and browser restoration
+may use package feeds; an initialized run's Start and Smoke paths do not.
 
-| Tool | Supported version or presence | Purpose |
-| --- | --- | --- |
-| PowerShell | 7.6.3 | Development shell |
-| Git | Current supported client | Source control and path checks |
-| .NET SDK | 10.0.302 from `global.json` | Build, migration command, Web, Worker, and tests |
-| Python | 3.11+ | Standard-library provider-reference authoring only |
-| Node/npm | Node 24 / npm 11 | Restore the pinned Azurite package |
-| Azurite | 3.36.0 from `package-lock.json` | Local Blob, Queue, and Table services |
-| Azure Functions Core Tools | 4.12.1 | Actual local isolated Functions host |
-| SQL Server Express LocalDB | Installed LocalDB runtime | Full local relational database |
-| Development HTTPS | Trusted .NET development certificate | Web and local OAuth/MCP |
-| Playwright browsers | Only when the Browser lane is selected | Browser acceptance; not an application runtime |
+Pegasus has one supported database-provider contract: SQL Server. SQL Server
+Express LocalDB is the canonical local development and integration-acceptance
+provider for persistence, migrations, concurrency, and recovery evidence; Azure
+SQL is the deployed provider. Both use the committed SQL Server migration
+stream, and supported configuration exposes no provider choice.
 
-Direct checks:
+Use the owned commands rather than manually composing service terminals:
 
 ```powershell
-pwsh --version
-git --version
-dotnet --version
-python --version
-node --version
-npm --version
-npx --no-install azurite --version
-func --version
-sqllocaldb versions
-dotnet dev-certs https --check --trust
+pwsh ./scripts/Invoke-Doctor.ps1 -Profile Offline
+pwsh ./scripts/Initialize-LocalDevelopment.ps1
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Status
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Smoke
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Stop
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Reset
 ```
 
-Package feeds are needed for `npm ci` and `dotnet restore`; ordinary local start and smoke must not need a cloud or vendor network.
+Doctor checks only its selected profile. It never installs software, trusts a
+certificate, signs in, calls a cloud/vendor endpoint, or creates resources; a
+failed check prints its exact repair command. Initialization restores the
+committed tool/package locks, installs the Playwright Chromium binary selected
+by the pinned package, checks the Offline profile, starts LocalDB, and creates
+only ignored local state.
 
-Python creates no virtual environment and installs no package. Playwright browser binaries are needed only for browser acceptance.
+`Cloud` is a separate static prerequisite profile for an already-approved live
+operation. `pwsh ./scripts/Invoke-Doctor.ps1 -Profile Cloud` checks the pinned
+CLI/module versions only; passing it neither signs in nor authorizes a read,
+write, deployment, or SQL bootstrap.
+
+Python creates no virtual environment and installs no package. Playwright
+binaries are an Offline browser-acceptance prerequisite, not an application
+runtime.
+
+Run the deterministic browser dependency and accessibility gate after
+initialization:
+
+```powershell
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --no-restore --filter 'Category=Browser'
+```
+
+This lane launches the package-pinned headless Chromium with a fixed viewport,
+light colour scheme, and reduced motion. It drives the running local Web host
+through the DevelopmentOffline authenticated staff profile and the rendered
+route responses; it does not treat copied markup or a synthetic browser document
+as route evidence. It runs axe against the returned pages and fails on a missing
+browser, host or route failure, or reported automated axe violation; only axe
+rule identifiers enter assertion output.
+
+The local profile exercises no external adapter, credential, approval, or
+evidence gate. Browser coverage of authenticated and denied states is reproducible
+local caller evidence only; it cannot grant an external approval or activate a
+provider, custody, address, EVA, deployment, or operator-acceptance claim.
+Microsoft Edge Stable, Windows Narrator, manual keyboard/focus/200% zoom review,
+production identity/session behavior, external services, deployment, and
+operator acceptance remain separately required fail-closed evidence gates. Until
+those gates have their exact approval and evidence, their release claims remain
+unavailable.
 
 ## Optional approved live-work profile
 
@@ -104,7 +137,44 @@ Install-Module ExchangeOnlineManagement -Scope CurrentUser -RequiredVersion 3.10
 
 `az login`, `azd auth login`, Exchange connection, Box login, credential changes, deployment, and Azure operations each retain a separate exact-target approval boundary.
 
-The intended application staff accounts are Pegasus Identity accounts; the current Development caller has no authentication or role enforcement, and Entra users must not be assumed. Third-party credentials must never enter tracked settings, command-line arguments, prompts that may be retained, terminal output, telemetry, or business history.
+### Approved Box integration-test target
+
+The disposable Box test subtree is folder `392761581105`; this defines the only eligible integration-test boundary, not standing write authority. Before each invocation, obtain explicit approval naming the exact target folder/object and create or update operation. Local Box integration testing and explicitly approved non-production test deployments may then create or update only the approved controlled non-corpus artifacts in that subtree. They must not delete, move, copy, or share Box content, operate outside that folder, or expose credentials in source, configuration, command lines, prompts, output, telemetry, or business history. Every invocation must verify the resolved target against the approval, use the actual Box adapter's target/action allowlist, and record stable source and target identities plus the outcome; any mismatch stops before mutation. A failed custody attempt remains visible for an authorised staff member to retry idempotently; no background or automatic business retry is permitted. Box CLI authentication and subtree membership do not expand approval.
+
+The intended application staff accounts are Pegasus Identity accounts. The DevelopmentOffline profile authenticates its deterministic local Administrator fixture and enforces its Administrator role; Entra users must not be assumed. Third-party credentials must never enter tracked settings, command-line arguments, prompts that may be retained, terminal output, telemetry, or business history.
+Application staff identity initialization remains a separately controlled application operation; Entra users must not be assumed. Third-party credentials must never enter tracked settings, command-line arguments, prompts that may be retained, terminal output, telemetry, or business history.
+
+### Azure SQL runtime-role bootstrap remains deferred
+
+There is no Azure SQL bootstrap executable or deployment caller in the current
+revision. Any later post-provision, post-migration grant operation is a
+separately approved exact-target cloud write; `azure.yaml` has no automatic
+database-grant hook.
+
+Migration `20260729176000_AzureSqlRuntimeLeastPrivilege` creates and owns the
+fixed custom roles `pegasus_web_runtime_role` and
+`pegasus_worker_runtime_role`. Role-reconciliation migration
+`20260729199000_RuntimeRoleReconciliation` first removes every direct
+object-level DML permission for those roles across the complete application
+table census, then grants the exhaustive caller-derived matrix. It explicitly
+denies `DELETE` on every table except the four Web workflows that require it
+(`AspNetUserRoles`, `CaseDataFields`, `OrganizationRoles`, and
+`TriageResponseEvidenceLinks`); Worker has no `DELETE` grant. Neither role
+receives DDL, schema-wide access, `db_datareader`, `db_datawriter`, or
+`db_owner`. Web owns staff identity and administration, case editing,
+document-custody, request-upload, and operator intake persistence. Worker owns
+mailbox polling, queued intake, due-work and sent-evidence processing, and
+vehicle-observation persistence. Runtime migration tests compare the complete
+schema census, grants, and delete denials rather than sampling named tables.
+The bootstrap owns only the fixed external-user aliases
+`pegasus_web_runtime` and `pegasus_worker_runtime`, created from the
+corresponding managed-identity client-ID SID.
+
+Before such an operation can be introduced, an accepted deployment contract
+must identify the exact server, database, principal, approval evidence,
+least-privilege matrix, rollback, and caller-backed verification. The existing
+migration tests are schema evidence only; they neither create an Azure
+principal nor authorise a cloud write.
 
 ## Locked restore, build, and test
 
@@ -141,10 +211,7 @@ Source workspaces validate independently and are not part of the application sol
 ```powershell
 Push-Location ./workspaces/document-extraction; dotnet test --solution ./CollisionDocNet.slnx --configuration Release; Pop-Location
 Push-Location ./workspaces/report-renderer; dotnet run --project ./src/CollisionRenderer.Cli -- install-browser; dotnet test ./CollisionRenderer.sln --configuration Release; Pop-Location
-npm ci --prefix ./workspaces/ai-centre/services/collision-brain
-npm run typecheck --prefix ./workspaces/ai-centre/services/collision-brain
-npm run build --prefix ./workspaces/ai-centre/services/collision-brain
-npm test --prefix ./workspaces/ai-centre/services/collision-brain
+Push-Location ./workspaces/ai-centre/services/collision-brain; dotnet restore ./CollisionBrain.slnx --locked-mode; dotnet build ./CollisionBrain.slnx --configuration Release --no-restore; dotnet test ./CollisionBrain.slnx --configuration Release --no-build; Pop-Location
 Push-Location ./workspaces/ai-centre/skills/tools; python -m unittest test_pack_skill; Pop-Location
 ```
 
@@ -219,112 +286,108 @@ Successful completion proves deterministic authoring bytes only. It does not act
 
 ## Local setup and run
 
-### First setup
-
-From PowerShell 7 at the repository root:
+Run these commands from PowerShell 7 at the repository root:
 
 ```powershell
-npm ci
-dotnet restore ./Pegasus.slnx
-dotnet dev-certs https --trust
-dotnet dev-certs https --check --trust
-sqllocaldb start MSSQLLocalDB
-dotnet run --project ./src/Pegasus.Web --launch-profile https -- --migrate-development
+pwsh ./scripts/Invoke-Doctor.ps1 -Profile Offline
+pwsh ./scripts/Initialize-LocalDevelopment.ps1
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start
 ```
 
-Windows displays a current-user trust confirmation for the certificate trust command; the operator must accept it. The check command is read-only and must return zero.
+Initialization resolves the exact checkout `HEAD` and requires the tracked and
+untracked working tree to remain clean before restore, immediately before and
+after the Debug build, and before publishing its marker. The build disables
+incremental compilation so the dependency graph is rebuilt from those clean
+inputs. The marker records the relative paths, byte lengths, and SHA-256 hashes
+of the Web and Worker runtime assemblies. `Start` refuses a changed revision,
+package lock, missing artifact, or runtime-byte mismatch before it creates or
+restarts a run.
 
-The migration command applies the committed migration stream and exits. Normal Web or Worker startup never applies migrations.
 
-Checked-in Development configuration uses only:
+`Start` prints a generated 32-character run ID. It creates
+`artifacts/local-development/<run-id>/` with its ownership manifest, logs,
+Azurite store, intake/mailbox/case-file roots, dynamic loopback ports, and a
+`PegasusDevelopment_<run-id>` LocalDB database. It starts Azurite first, runs
+the explicit Development migration path, waits for Web readiness, and then
+starts and checks the actual Functions host. Normal Web and Worker startup
+never applies migrations.
 
-- `Runtime:Profile=DevelopmentOffline`;
-- `(localdb)\MSSQLLocalDB`, database `PegasusDevelopment`;
-- ignored files beneath `artifacts/local-development/default/`; and
-- loopback HTTP/HTTPS endpoints.
+The one-shot `--initialize-development` command is invoked before the Web
+process starts. It is gated to Development plus `DevelopmentOffline`, applies
+the migration stream, and idempotently creates the fixed passwordless local
+Administrator and roles. It neither creates a production bootstrap principal
+nor configures an OAuth or MCP client.
 
-`DevelopmentOffline` or `Features:LocalIntake=true` outside the Development environment fails startup. Production configuration never resolves the local filesystem adapter as a fallback.
+The run-specific Web readiness URL and Functions status URL are printed by
+`Start`. All development settings are process-scoped; no tracked configuration
+file, `corpus/`, Azure resource, or another run is changed.
 
-No non-Development intake path is supported. With the Development gates inactive, `/Intake/Upload`, `/Intake/Queue`, `/Intake/Review`, and every other `/Intake` route return `404`; there is no production artifact-store fallback or mailbox/API caller.
-
-### Start local services
-
-Use separate PowerShell terminals so every process has an obvious owner.
-
-Terminal 1 — Azurite:
+### Status and smoke
 
 ```powershell
-npx --no-install azurite --location ./artifacts/local-development/default/azurite --blobPort 10000 --queuePort 10001 --tablePort 10002
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Status
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Smoke -RunId <run-id>
 ```
 
-Terminal 2 — Functions host:
+When exactly one owned run exists, `Smoke`, `Stop`, and `Reset` can omit
+`-RunId`; with zero or multiple runs they refuse ambiguity. Status enumerates
+all owned manifests and probes a running run's owned process start times, Web
+readiness, and Functions-host `Running` state rather than treating a PID as
+readiness. Smoke additionally checks the non-sensitive version/source-SHA
+diagnostic.
+Smoke also proves that the manifest HTTPS origin is listening and that the
+version diagnostic matches the manifest source SHA. It does not prove an OAuth,
+MCP, deployment, or external-system caller.
+A successful `Start` persists current-attempt readiness evidence only after
+Azurite, Web health, and the Functions host have all passed. `Smoke` takes the
+lifecycle mutex, invalidates any earlier smoke result before probing, and then
+atomically persists either `Passed` evidence or a failed result for that same
+start attempt. The passed record binds the version diagnostic source SHA,
+initialized identity, HTTPS origin, Administrator route, and service
+readiness to the run manifest.
+
+
+These checks prove the local process graph and the exercised health/diagnostic
+paths only. They do not prove a business caller, durable cloud behavior,
+managed identity, RBAC, external delivery, deployment, or acceptance.
+
+### Isolated runs and failure controls
+
+Parallel starts use distinct generated run IDs, ports, LocalDB databases,
+Azurite accounts/stores, and artifact roots. To exercise orchestration failure
+recovery without touching another run, use one run-scoped control:
 
 ```powershell
-Push-Location ./src/Pegasus.Worker
-func start --port 7071 --no-build
-Pop-Location
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start -FailureMode AfterWeb
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start -FailureMode StoragePressure -StoragePressureMegabytes 32
 ```
 
-Terminal 3 — Web:
-
-```powershell
-dotnet run --project ./src/Pegasus.Web --launch-profile https --no-build
-```
-
-Verify:
-
-```text
-https://localhost:7139/health/live
-https://localhost:7139/health/ready
-```
-
-Readiness is healthy only when the configured database exists and every committed migration is applied.
-
-The current Development intake caller is:
-
-```text
-https://localhost:7139/Intake/Upload
-```
-
-It remains temporary until the authenticated Operations shell replaces it.
-
-Dated local Functions-host evidence recorded startup with no job functions. Current source still contains no trigger. Queue or timer caller evidence requires a delivered trigger and an identifier passing through that trigger into the owning Core behavior.
-
-### Isolated and parallel runs
-
-Every run must use unique database names, artifact paths, ports, containers/queues, and Functions settings.
-
-Example environment setup in every terminal for one run:
-
-```powershell
-$runId = [Guid]::NewGuid().ToString('N')
-$env:ConnectionStrings__Pegasus = "Server=(localdb)\MSSQLLocalDB;Database=Pegasus_$runId;Integrated Security=True;Encrypt=False;MultipleActiveResultSets=True"
-$env:Intake__LocalArtifactPath = "../../artifacts/local-development/$runId/intake"
-```
-
-Choose unused Azurite and Functions ports and point the run’s Worker configuration to those endpoints. Never share a database, Azurite location, custody root, queue, or container between parallel runs.
+The first control fails after the named owned dependency has reached readiness.
+The second allocates only the named bounded file beneath that failed run before
+failing; it is safe cleanup/recovery evidence, not a claim to model an
+application volume quota. Failed-run manifests and logs remain for diagnosis,
+and their child processes are stopped.
 
 ### Stop and reset
 
-Stop only foreground processes started in the corresponding terminal, using `Ctrl+C`. Never infer deletion authority from a process name.
+```powershell
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Stop -RunId <run-id>
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Reset -RunId <run-id>
+```
 
-Before deleting local state:
-
-1. verify the exact database name begins with `PegasusDevelopment` or the run-specific `Pegasus_` prefix;
-2. verify the exact artifact path is a descendant of `artifacts/local-development/`;
-3. confirm the target belongs to the current run.
-
-Do not remove another run, `corpus/`, tracked reference files, or any Azure resource.
-
-A clean run can always use a new GUID database and artifact directory. Preserve failed-run logs and state until diagnosis is complete.
-
+Stop retains the manifest and diagnostics. Reset first verifies that the
+manifest run ID, directory, database name, and every owned path agree; it then
+stops only matching child processes, drops only that LocalDB database, and
+removes only that run directory. A malformed or ambiguous manifest refuses
+action. Never manually repurpose these commands to remove another run,
+`corpus/`, tracked reference files, or an Azure resource.
 ## Configuration and secrets
 
 Configuration ownership is:
 
 | Boundary | Owner |
 | --- | --- |
-| Web composition and database selection | `src/Pegasus.Web/Program.cs` and environment configuration |
+| Web composition and named SQL Server connection | `src/Pegasus.Web/Program.cs` and environment configuration |
 | Development profile and launch path | `src/Pegasus.Web/Properties/launchSettings.json` |
 | Ignored local state | `artifacts/` |
 | Target Azure parameters and topology | `infra/`, `azure.yaml`, and `.azure/deployment-plan.md` |
@@ -370,17 +433,19 @@ Controlled synthetic fixtures may prove protocols, security controls, and resour
 
 ## Evidence profiles
 
-The current operational baseline is the offline profile above. The following long-term caller-scoped profile model is planned and must not be represented as implemented merely because tools are installed.
+The current operational baseline is the offline profile above. The following
+caller-scoped profile model distinguishes implemented local gates from planned
+activation; installing a tool never establishes a caller.
 
-| Profile | Planned tool boundary and purpose |
+| Profile | Current gate and planned boundary |
 | --- | --- |
 | `Baseline` | Windows, PowerShell 7, Git/GitHub CLI, pinned .NET 10 SDK, Azure CLI with Bicep, Azure Developer CLI, Node/npm, Python, Infisical CLI, and Box CLI for build, test, Bicep validation, and approved administration. Cloud/vendor tools remain optional in the current offline baseline. |
 | `SqlServer` | SQL Server Express LocalDB and `sqlcmd` for migrations, constraints, transactions, allocation concurrency, outbox atomicity, and local backup/restore. |
 | `StorageWorker` | Repository-pinned npm Azurite and Functions Core Tools v4 for real Blob/Queue SDK, trigger, retry, poison, and restart paths. Activate only with the first real storage adapter and Worker trigger. |
-| `Browser` | Microsoft Playwright for .NET, pinned Chromium/Firefox/WebKit, axe-core, and trusted Development HTTPS for authenticated rendering, multi-session behavior, and automated accessibility rules. |
+| `Browser` | The `Browser` trait pins Microsoft Playwright for .NET, Chromium, and Deque axe-core. It drives the rendered DevelopmentOffline Operations, intake, Triage, administration, password-change, and case-document routes through a loopback Kestrel host, including semantic, responsive, forced-colour, and reduced-motion checks. It remains local caller evidence: Edge Stable, Narrator, manual accessibility review, external approvals, deployment, and operator/management acceptance remain separate fail-closed gates. |
 | `Graph` | Microsoft Dev Proxy and mocked Kiota request adapters for paging, throttling, 401/403, 429, 5xx, timeout, authentication, and retry. |
 | `Observability` | OpenTelemetry in-memory exporter and an optional native Collector for correlation, attributes, health signals, OTLP, and redaction. |
-| `Performance` | Pinned k6 for eight-user concurrency, burst, average-load, stress, and soak evidence. |
+| `Performance` | `Invoke-QdosAlphaAcceptance.ps1 -Profile CiPressure` compiles the two bounded pressure sources through the existing integration-test host, exercises eight concurrent DevelopmentOffline Web callers, and retains content-safe TRX and hashed run evidence. It installs no load-test framework and makes no alpha-capacity claim. |
 | `Security` | .NET dependency vulnerability checks and OWASP ZAP; ZAP uses the conditional container profile. |
 | `Containers` | Docker Desktop in Linux-container mode, conditionally for ZAP, optional telemetry, optional SQL compatibility, or a specifically approved licensed Document Intelligence container. Docker is never required merely for Azurite. |
 | `LiveIntegration` | The existing approved developer identity/secret tooling and exact SDK/CLI owned by the feature. Never part of the default local check. |
@@ -389,7 +454,19 @@ Storage Explorer, SSMS, and Postman are optional conveniences.
 
 Do not add Service Bus, Event Hubs, Cosmos DB, Redis, PostgreSQL, Azure Files, ADLS, local SMTP infrastructure, Testcontainers, or related emulators without a later accepted architectural need.
 
-A future run-scoped orchestrator may validate tools, allocate isolated resources, start selected dependencies, wait for readiness, execute one exact lane, stop only owned processes, and retain diagnostics on failure. It is planned, not an implemented current wrapper. When delivered, it must be invoked through the owning test project and must not duplicate product policy.
+`scripts/Invoke-QdosAlphaAcceptance.ps1` is the current narrow Checkpoint 12 pressure orchestrator. `CiPressure` temporarily stages `tests/Pegasus.PerformanceTests/CapacitySoakTests.cs` and `FailureInjectionTests.cs` into the existing `Pegasus.IntegrationTests` compilation, runs only `Category=QdosPressure`, removes that owned staging directory unconditionally, and writes content-safe evidence beneath `artifacts/qdos-alpha-acceptance/<run-id>/`. Supply the exact 40-character checked-out source revision:
+
+```powershell
+./scripts/Invoke-QdosAlphaAcceptance.ps1 `
+  -Profile CiPressure `
+  -SourceRevision $env:GITHUB_SHA
+```
+
+The runner requires Git metadata and a clean working tree, resolves the supplied revision to the exact checked-out `HEAD`, and rejects a mismatch before creating the run evidence directory or compiling tests. `OfflineCandidate` also requires the caller manifest and any inherited `PEGASUS_QDOS_ACCEPTANCE_SOURCE_REVISION` value to identify that exact revision; its Web-host gate compares the environment revision with the source SHA exposed by the compiled `/diagnostics/version` endpoint.
+
+This lane proves bounded in-process Web-caller concurrency, latency, antiforgery denial, cancellation recovery, and idempotent replay against controlled fixtures. It does **not** prove the approved 30-minute workload, 2,000-case/source distribution, Worker/Azurite queue recovery, LocalDB restore, full case/EVA/report journeys, deployment, or acceptance.
+
+`-Profile OfflineCandidate` is deliberately fail closed. It requires the operator-approved immutable 2,000-case dataset and hash, the complete QDOS-owned caller-evidence manifest, and the exact run-owned `artifacts/local-development/<run-id>/run-manifest.json`. That local manifest must identify the same clean source revision and acceptance run ID, remain `Running`, record completed fixed local identity initialization, and contain `Passed` readiness and smoke observations from the current start attempt in timestamp order. The runner also re-hashes the exact Web and Worker runtime paths recorded at initialization, so missing or altered local binaries fail before any acceptance tests execute. The script never promotes this offline evidence to deployed, live-verified, release-accepted, QDOS operator-accepted, or Collision Engineers management-accepted evidence.
 
 Stable planned traits are:
 
@@ -404,7 +481,7 @@ For each delivered capability, identify the authoritative rule, Core policy owne
 1. **Static/build/architecture** — compile the four approved projects, enforce dependency direction and one policy owner, compile Bicep, inspect dependencies, and prevent tracked corpus or secret material. This proves consistency only.
 2. **Core/domain** — positive, contradictory, ambiguous, and failure cases for intake, references, matching, lifecycle, roles, completeness, and case invariants.
 3. **Parser/adapter contracts** — EML/PDF/DOCX and later approved DOC/MSG handling; corruption, encryption, expansion/resource limits, cancellation, path/integrity safety, stable contract codes, and deterministic external failures.
-4. **SQLite and LocalDB persistence** — fresh and incompatible schemas, committed migrations, rollback, state/action-history/outbox atomicity, reference allocation, constraints, pagination, leases, stale versions, concurrency, and backup/restore.
+4. **LocalDB persistence** — fresh and incompatible schemas, committed SQL Server migrations, rollback, state/action-history/outbox atomicity, reference allocation, constraints, pagination, leases, stale versions, concurrency, and backup/restore.
 5. **Web/API/MCP caller** — actual routes reach Core; authentication, antiforgery, validation, scope, idempotency, exception translation, and action-history actor are observable.
 6. **Functions/Azurite caller** — actual timer/queue trigger, Blob staging, identifier-only messages, duplicate/retry/poison/restart behavior, and delete-after-Box-confirmation.
 7. **Browser/accessibility** — authenticated workflows, dashboard/queue agreement, two-session editing, keyboard, focus and error behavior, semantic labels, text-plus-colour states, 200% zoom, and supported-browser coverage. Automated axe results do not replace manual keyboard or assistive-technology review.
@@ -421,22 +498,35 @@ Run policy tests first, adapter contracts second, persistence/transaction tests 
 | Boundary | Local evidence | Separately approved live evidence |
 | --- | --- | --- |
 | ASP.NET Core / App Service | Kestrel, `WebApplicationFactory`, Playwright, local HTTPS | Linux App Service runtime, F1/B1 limits, health platform, restart, managed identity |
-| SQL / Azure SQL | SQLite and disposable LocalDB for migrations, locking, allocation, rollback, backup, and restore | Entra identity, Azure SQL configuration/throttling, point-in-time restore, 15-minute RPO and four-hour RTO |
+| SQL Server / Azure SQL | Disposable LocalDB for migrations, locking, allocation, rollback, backup, and restore | Entra identity, Azure SQL configuration/throttling, point-in-time restore, 15-minute RPO and four-hour RTO |
 | Blob / Queue / Functions | Azurite and actual Functions host for staging, identifiers, duplicate/poison/restart behavior | Storage RBAC, managed identity, durability, Flex scale/concurrency, platform diagnostics |
 | Key Vault / identity | Mock the owned port; developer credentials only for approved development resources | Deployed managed identity, least-privilege RBAC, firewall behavior |
 | Application Insights / Log Analytics | In-memory OpenTelemetry and optional local Collector | Ingestion, sampling, KQL, retention, alert rules, recipient delivery |
 | Graph / Exchange | Kiota fake and Dev Proxy; allowlist rejects unknown mailbox/folder/action before client call | Approved mailbox allowlist, Exchange Application RBAC, immutable IDs, delta behavior, exact Sent-item existence |
-| Box | Fake SDK/HTTP contract for folder/file commands, custody, versions, idempotency, and failures | Real custody, permissions, versions, and recovery |
+| Box | Fake SDK/HTTP contract for folder/file commands, custody, versions, idempotency, and failures; the approved Box integration-test target may also create/update controlled non-corpus artifacts for local or explicitly approved non-production deployment evidence | Real custody, permissions, versions, recovery, production target, and caller evidence |
 | Document Intelligence | Candidate-routing and response-contract tests with controlled non-corpus fixtures | OCR accuracy, confidence, API drift, cost, throttling, identity; licensed disconnected containers are not the default emulator |
 | DVLA/DVSA | Deterministic contracts, invalid identifiers, retries, unavailable-service outcomes | Entitlement, identity, real response behavior |
 | EVA | Exact local JSON/image-bundle contract and reconciliation metadata | Operator drag/drop acceptance and any later authorised API sandbox |
-| Provider API / staff MCP | Real Kestrel endpoints, authentication, scope, idempotency, action history, negative HTTP tests | Public HTTPS, canonical MCP metadata, hosted OAuth callback, Internet-facing posture |
+| Provider API / Automation MCP | Not implemented: no endpoint, client, credential, or caller | Settled actor/client/authentication contract, real caller evidence, and separately approved activation |
 | Direct authorised-terminal deployment | Bicep compile/lint and local configuration checks | Approved preflight, package/migration identity, deployment, health smoke, rollback |
 | Backup/recovery | LocalDB backup/restore into a new disposable database | Azure SQL PITR and the one-time alpha RPO/RTO exercise |
 
 Managed identity itself is unavailable locally. LocalDB does not prove Azure SQL Entra, throttling, backup, restore, RPO, or RTO. Azurite does not prove Azure Files, ADLS, Entra/RBAC, managed identity, durability, replication, quotas, networking, scale, or production timing.
 
 Graph Sent-item evidence does not prove recipient delivery or automatic case matching.
+
+### Automation MCP remains a deferred ingress
+
+No Automation MCP endpoint, OAuth client, metadata route, staff impersonation
+path, credential, or application caller is implemented. ADR-0013 leaves the
+Automation Actor identity and authentication/client contract open. The current
+application therefore fails closed by exposing no such ingress.
+
+Activation requires an accepted contract naming the durable actor identity,
+authentication and client custody, approved tools and scopes, action-history
+attribution, revocation behaviour, actual HTTP caller evidence, and the exact
+deployment/security approval. A staff browser identity is not a substitute for
+that actor.
 
 ## Live-operation approval matrix
 
@@ -445,10 +535,11 @@ Graph Sent-item evidence does not prove recipient delivery or automatic case mat
 | Use an Azure service | Subscription, resource group, resource, operation | Explicit mutation/cost approval, fresh inventory, least-privilege identity |
 | Read or change an Outlook mailbox | Tenant, application, mailbox, folder, action | Exchange Application RBAC approval and negative scope test before the Graph call |
 | Use Box or another vendor sandbox | Enterprise/account, folder/project, operation | Credential/data approval and controlled non-corpus input |
+| Use the approved Box integration-test target | Folder `392761581105`; local or explicitly approved non-production deployment; create and update controlled non-corpus artifacts only | Approved disposable test subtree; no delete, move, copy, share, broader folder access, credential exposure, or production activation |
 | Send a document to OCR, vision, AI, or another processor | Service, region, model, input class | Data, licence, cost, and security approval; corpus remains prohibited unless separately authorised |
 | Deploy, restore, fail over, or retire | Exact non-production environment and recoverable target | Explicit operation approval, fresh inventory, rollback path, retained source data |
 
-Local profiles contain no live credentials. A live profile must require an allowlisted tenant, subscription, account, mailbox, folder, resource, and action, and reject missing or broader scope before constructing the external client.
+Offline profiles contain no live credentials. A selected live profile must require an allowlisted tenant, subscription, account, mailbox, folder, resource, and action, and reject missing or broader scope before constructing the external client.
 
 ## Corpus safety and evaluation
 
@@ -508,7 +599,7 @@ DOC and MSG automatic extraction remain deferred until safe local parsing fixtur
 
 Release allocation does not waive technical prerequisites. [Delivery dependencies](requirements.md#delivery-dependencies) owns current precedence. The restored [dependency-ordered delivery roadmap](history/plans/delivery-roadmap.md) is subordinate, source-labelled historical planning evidence; it preserves the complete prerequisite, parallel-branch, and rejoin route without becoming a second requirements, allocation, or status owner. Revalidate it against current canonical owners before execution.
 
-Operationally, do not run later caller or release gates before the revalidated spine has supplied relational intake state, trusted staff identity/action history, principal/configuration data, durable custody and the allocator, definitive acceptance, then case files/editing/lifecycle/UI, the real Worker and Triage, vehicle/EVA and MCP callers, and finally Azure migration/recovery and operator acceptance. A local check, generated package, Bicep file, or deployment cannot advance a missing predecessor gate.
+Operationally, do not run later caller or release gates before the revalidated spine has supplied relational intake state, trusted staff identity/action history, principal/configuration data, durable custody and the allocator, definitive acceptance, then case files/editing/lifecycle/UI, the real Worker and Triage, vehicle/EVA, and finally Azure migration/recovery and operator acceptance. An Automation MCP caller remains a separately deferred ingress. A local check, generated package, Bicep file, or deployment cannot advance a missing predecessor gate.
 
 ## Release validation rules
 
@@ -564,7 +655,7 @@ The Web exposes:
 
 Readiness requires the database and all committed migrations.
 
-Core contains local `ActivitySource` instrumentation, but the current Web host registers no telemetry exporter. Application Insights packages are registered for the Worker, but there is no Worker caller to observe. There is no deployed Pegasus telemetry, alert delivery, live incident record, or current recovery/deletion incident evidence; the source-labelled predecessor incidents in [engineering](engineering.md#historical-evidence-behind-these-rules) do not establish current Pegasus behavior.
+Core contains local `ActivitySource` instrumentation, but the current Web host registers no telemetry exporter. The Worker has Application Insights packages and source-level timer/queue callers, but there is no deployed Pegasus telemetry, alert delivery, live incident record, or current recovery/deletion incident evidence; historical predecessor incidents do not establish current Pegasus behavior.
 
 A releasable implementation requires correlated Web/Worker telemetry and alerts for:
 
@@ -587,27 +678,36 @@ The Azure inventory owned through [Azure documentation](azure/README.md) include
 
 ## Deployment and release
 
-The accepted direct-terminal Azure design is indexed by [architecture](architecture.md) and the [decision register](decisions/README.md). The target files are `infra/`, `azure.yaml`, and `.azure/deployment-plan.md`.
+The accepted direct-terminal Azure design is indexed by [architecture](architecture.md) and the [decision register](adr/README.md). The target files are `infra/`, `azure.yaml`, and `.azure/deployment-plan.md`.
 
-The deployment route is not yet executable or production-ready. `azd up` is not the production release procedure. GitHub Actions/OIDC deployment is `Not planned`.
+`azd up` is not the release procedure. GitHub Actions/OIDC deployment is `Not planned`.
 
-Before a production release procedure can be accepted, it must implement and review:
+### Release artifacts and bootstrap remain deferred
 
-1. exact-target preflight and fresh inventory;
-2. immutable package creation;
-3. hashes and provenance;
-4. explicit migration identity and execution;
-5. identity and RBAC resolution;
-6. Bicep preview;
-7. explicit Web/Worker deployment order;
-8. health and caller-backed smoke evidence;
-9. correlated telemetry checks;
-10. retention of the prior immutable application artifact;
-11. rollback by redeploying the prior artifact without deleting source evidence or shared cloud resources.
+The repository has no release-artifact builder, deployment-plan validator, or
+`Pegasus.Bootstrap` project. Those paths would introduce an additional delivery
+unit and credential/identity handling. They remain absent until an accepted ADR
+and an exact-target release contract prove that the existing Web, Worker, and
+migration boundaries cannot carry the operation. No current command packages,
+initialises, provisions, or deploys Pegasus.
 
-Apply migrations explicitly before application packages. Application startup must never silently migrate a non-Development database.
+### Azure activation remains fail-closed
 
-Deployment does not itself prove live behavior or acceptance.
+`infra/main.bicep` accepts only `deploymentMode=offline-replay`. Its Azure
+resource declarations require the unreachable `approved-live-deployment` value,
+so this revision cannot provision or deploy to Azure. This is deliberate:
+there is no approval or current evidence for activation.
+
+The concrete activation gate is a separately recorded approval for the exact
+subscription, resource group, principal, cost scope, data boundary, and
+migration/deployment sequence, followed by a fresh authorised-terminal check of
+availability, quota, pricing, role-assignment authority, target names, SQL Entra
+administrator, and external credential readiness. A separate infrastructure
+change must then remove the fail-closed mode and remove
+`SCM_DO_BUILD_DURING_DEPLOYMENT=true` before immutable package deployment can be
+authorised.
+
+Apply migrations explicitly before application packages. Application startup must never silently migrate a non-Development database. Deployment does not itself prove live behavior or acceptance.
 
 ## Recovery
 

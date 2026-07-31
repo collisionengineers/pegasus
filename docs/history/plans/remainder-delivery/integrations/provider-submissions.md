@@ -17,7 +17,7 @@ signature, or provider client.
 
 ## Authority and current boundary
 
-- **Authority:** [remaining requirements](../../../../product/qdos-alpha-gap.md#3-complete-intake-formats-and-paths) and [ADR-0004](../../../../decisions/ADR-0004-provider-api-and-staff-mcp-authentication.md#provider-http-api).
+- **Authority:** [remaining requirements](../../../../product/qdos-alpha-gap.md#3-complete-intake-formats-and-paths) and [ADR-0004](../../../../adr/0004-provider-api-and-staff-mcp-authentication.md#provider-http-api).
 - **Policy owner:** shared Core intake and principal-authorisation policy; Web will translate the accepted HTTP contract.
 - **Current implementation/callers:** no provider endpoint, credential store, caller or live client exists. The Development `/Intake/Upload` caller is not a provider API.
 - **Accepted invariant:** separately issued principal-scoped client IDs and opaque secrets; store only secret hashes; support rotation/revocation; accept idempotent instruction/attachment submission; expose only that principal's submission receipt, status and resulting Case/PO.

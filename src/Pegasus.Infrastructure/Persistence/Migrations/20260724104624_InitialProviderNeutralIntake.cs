@@ -14,37 +14,30 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            var isSqlite = ActiveProvider == "Microsoft.EntityFrameworkCore.Sqlite";
-            var guidType = isSqlite ? "TEXT" : "uniqueidentifier";
-            var integerType = isSqlite ? "INTEGER" : "int";
-            var longType = isSqlite ? "INTEGER" : "bigint";
-            var timestampType = isSqlite ? "TEXT" : "datetimeoffset";
-            string TextType(string sqlServerType) => isSqlite ? "TEXT" : sqlServerType;
-
             migrationBuilder.CreateTable(
                 name: "IntakeReceipts",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: guidType, nullable: false),
-                    SourceFileName = table.Column<string>(type: TextType("nvarchar(260)"), maxLength: 260, nullable: false),
-                    MediaType = table.Column<string>(type: TextType("nvarchar(200)"), maxLength: 200, nullable: false),
-                    SourceLength = table.Column<long>(type: longType, nullable: false),
-                    SourceHash = table.Column<string>(type: TextType("nvarchar(64)"), maxLength: 64, nullable: false),
-                    SourceChannel = table.Column<string>(type: TextType("nvarchar(40)"), maxLength: 40, nullable: false),
-                    ExternalReceiptToken = table.Column<string>(type: TextType("nvarchar(200)"), maxLength: 200, nullable: false),
-                    ReceivedAtUtc = table.Column<DateTimeOffset>(type: timestampType, nullable: false),
-                    ProcessedAtUtc = table.Column<DateTimeOffset>(type: timestampType, nullable: false),
-                    SourceReaderKey = table.Column<string>(type: TextType("nvarchar(100)"), maxLength: 100, nullable: false),
-                    SourceReaderVersion = table.Column<string>(type: TextType("nvarchar(200)"), maxLength: 200, nullable: false),
-                    ExtractionPolicyKey = table.Column<string>(type: TextType("nvarchar(100)"), maxLength: 100, nullable: true),
-                    ExtractionPolicyVersion = table.Column<int>(type: integerType, nullable: true),
-                    Decision = table.Column<string>(type: TextType("nvarchar(40)"), maxLength: 40, nullable: false),
-                    DecisionReason = table.Column<string>(type: TextType("nvarchar(500)"), maxLength: 500, nullable: false),
-                    EvidenceJson = table.Column<string>(type: TextType("nvarchar(max)"), nullable: false),
-                    FieldsJson = table.Column<string>(type: TextType("nvarchar(max)"), nullable: false),
-                    FailureCode = table.Column<string>(type: TextType("nvarchar(100)"), maxLength: 100, nullable: true),
-                    FailureReason = table.Column<string>(type: TextType("nvarchar(500)"), maxLength: 500, nullable: true),
-                    OcrCandidatesJson = table.Column<string>(type: TextType("nvarchar(max)"), nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    SourceFileName = table.Column<string>(type: "nvarchar(260)", maxLength: 260, nullable: false),
+                    MediaType = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    SourceLength = table.Column<long>(type: "bigint", nullable: false),
+                    SourceHash = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    SourceChannel = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
+                    ExternalReceiptToken = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    ReceivedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    ProcessedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    SourceReaderKey = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    SourceReaderVersion = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    ExtractionPolicyKey = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    ExtractionPolicyVersion = table.Column<int>(type: "int", nullable: true),
+                    Decision = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
+                    DecisionReason = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    EvidenceJson = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    FieldsJson = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    FailureCode = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    FailureReason = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    OcrCandidatesJson = table.Column<string>(type: "nvarchar(max)", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -55,18 +48,18 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "InstructionDrafts",
                 columns: table => new
                 {
-                    IntakeReceiptId = table.Column<Guid>(type: guidType, nullable: false),
-                    SuggestedPrincipalCode = table.Column<string>(type: TextType("nvarchar(20)"), maxLength: 20, nullable: true),
-                    ClaimantName = table.Column<string>(type: TextType("nvarchar(300)"), maxLength: 300, nullable: true),
-                    ClaimNumber = table.Column<string>(type: TextType("nvarchar(100)"), maxLength: 100, nullable: true),
-                    VehicleRegistration = table.Column<string>(type: TextType("nvarchar(20)"), maxLength: 20, nullable: true),
-                    VehicleMake = table.Column<string>(type: TextType("nvarchar(100)"), maxLength: 100, nullable: true),
-                    VehicleModel = table.Column<string>(type: TextType("nvarchar(100)"), maxLength: 100, nullable: true),
-                    VehicleMileage = table.Column<long>(type: longType, nullable: true),
-                    AccidentCircumstances = table.Column<string>(type: TextType("nvarchar(2000)"), maxLength: 2000, nullable: true),
+                    IntakeReceiptId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    SuggestedPrincipalCode = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
+                    ClaimantName = table.Column<string>(type: "nvarchar(300)", maxLength: 300, nullable: true),
+                    ClaimNumber = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    VehicleRegistration = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
+                    VehicleMake = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    VehicleModel = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    VehicleMileage = table.Column<long>(type: "bigint", nullable: true),
+                    AccidentCircumstances = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
                     DateOfIncident = table.Column<DateOnly>(type: "date", nullable: true),
                     InstructionDate = table.Column<DateOnly>(type: "date", nullable: true),
-                    InspectionAddress = table.Column<string>(type: TextType("nvarchar(1000)"), maxLength: 1000, nullable: true)
+                    InspectionAddress = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -83,20 +76,20 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "IntakeAssets",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: guidType, nullable: false),
-                    IntakeReceiptId = table.Column<Guid>(type: guidType, nullable: false),
-                    SourceLabel = table.Column<string>(type: TextType("nvarchar(500)"), maxLength: 500, nullable: false),
-                    FileName = table.Column<string>(type: TextType("nvarchar(260)"), maxLength: 260, nullable: false),
-                    MediaType = table.Column<string>(type: TextType("nvarchar(200)"), maxLength: 200, nullable: false),
-                    Kind = table.Column<string>(type: TextType("nvarchar(40)"), maxLength: 40, nullable: false),
-                    Disposition = table.Column<string>(type: TextType("nvarchar(40)"), maxLength: 40, nullable: false),
-                    ContentLength = table.Column<long>(type: longType, nullable: false),
-                    ContentHash = table.Column<string>(type: TextType("nvarchar(64)"), maxLength: 64, nullable: false),
-                    StorageKey = table.Column<string>(type: TextType("nvarchar(200)"), maxLength: 200, nullable: false),
-                    PageNumber = table.Column<int>(type: integerType, nullable: true),
-                    BoundsJson = table.Column<string>(type: TextType("nvarchar(max)"), nullable: true),
-                    WidthPixels = table.Column<int>(type: integerType, nullable: true),
-                    HeightPixels = table.Column<int>(type: integerType, nullable: true)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    IntakeReceiptId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    SourceLabel = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    FileName = table.Column<string>(type: "nvarchar(260)", maxLength: 260, nullable: false),
+                    MediaType = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    Kind = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
+                    Disposition = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
+                    ContentLength = table.Column<long>(type: "bigint", nullable: false),
+                    ContentHash = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    StorageKey = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    PageNumber = table.Column<int>(type: "int", nullable: true),
+                    BoundsJson = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    WidthPixels = table.Column<int>(type: "int", nullable: true),
+                    HeightPixels = table.Column<int>(type: "int", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -113,12 +106,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "IntakeReceiptEvents",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: guidType, nullable: false),
-                    IntakeReceiptId = table.Column<Guid>(type: guidType, nullable: false),
-                    EventType = table.Column<string>(type: TextType("nvarchar(100)"), maxLength: 100, nullable: false),
-                    Actor = table.Column<string>(type: TextType("nvarchar(200)"), maxLength: 200, nullable: false),
-                    OccurredAtUtc = table.Column<DateTimeOffset>(type: timestampType, nullable: false),
-                    DetailsJson = table.Column<string>(type: TextType("nvarchar(max)"), nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    IntakeReceiptId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    EventType = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    Actor = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    OccurredAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    DetailsJson = table.Column<string>(type: "nvarchar(max)", nullable: false)
                 },
                 constraints: table =>
                 {

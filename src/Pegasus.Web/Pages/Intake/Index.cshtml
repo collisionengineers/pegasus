@@ -1,0 +1,86 @@
+@page "/Intake"
+@model Pegasus.Web.Pages.Intake.IndexModel
+@{
+    ViewData["Title"] = "Intake";
+}
+
+<header class="page-heading">
+    <div>
+        <p class="eyebrow">Intake</p>
+        <h1>@(Model.Decision is null ? "Intake queue" : IndexModel.DecisionLabel(Model.Decision.Value))</h1>
+        <p class="lede">Receive instructions and review retained manual or approved-inbox receipts.</p>
+    </div>
+</header>
+
+@if (TempData["IntakeQueueStatus"] is string queueStatus)
+{
+    var acceptedCaseReference = TempData["AcceptedCaseReference"] as string;
+    var statusMessage = queueStatus switch
+    {
+        "accepted" => $"Case {acceptedCaseReference} was accepted and its custody work was queued.",
+        "acceptance_duplicate" => $"This intake receipt was already accepted as case {acceptedCaseReference}; no second reference was allocated.",
+        "duplicate" => "This instruction was already queued; no duplicate work was created.",
+        "resolved" => "The intake resolution was recorded.",
+        "reevaluation" => "The retained source was queued for policy re-evaluation.",
+        "linked" => "The intake receipt was linked to the selected case.",
+        "reversed" => "The intake-to-case association was reversed.",
+        _ => "The instruction has been retained and queued for processing."
+    };
+    <div class="notice" role="status">@statusMessage</div>
+}
+
+<section class="panel form-panel" aria-labelledby="receive-intake-title">
+    <h2 id="receive-intake-title" class="section-label">Receive intake</h2>
+    <p>Choose an email, document, PDF or image, up to 10 MB. Original bytes are retained before durable processing.</p>
+    <form method="post" enctype="multipart/form-data" asp-page-handler="ReceiveIntake" asp-route-page="@Model.CurrentPage">
+        <input asp-for="ExternalReceiptToken" type="hidden" />
+        <input asp-for="DecisionFilter" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+        <label asp-for="Upload">Email, document, PDF or image</label>
+        <input asp-for="Upload" type="file" accept=".eml,.pdf,.docx,.doc,.msg,.jpg,.jpeg,.png,message/rfc822,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.ms-outlook,image/jpeg,image/png" />
+        <span asp-validation-for="Upload" class="field-validation"></span>
+        <button type="submit" class="primary-action">Queue instruction</button>
+    </form>
+</section>
+
+<nav class="queue-filters section-gap" aria-label="Intake filters">
+    <a asp-page="/Intake/Index">All</a>
+    <a asp-page="/Intake/Index" asp-route-decision="draft_ready">Instruction drafts</a>
+    <a asp-page="/Intake/Index" asp-route-decision="needs_sorting">Needs sorting</a>
+    <a asp-page="/Intake/Index" asp-route-decision="blocked_intake">Blocked intake</a>
+    <a asp-page="/Intake/Index" asp-route-decision="ocr_required">Document text required</a>
+</nav>
+
+<section class="panel">
+    @if (Model.Results.Items.Count == 0)
+    {
+        <p class="empty-state">No intake receipts match this view.</p>
+    }
+    else
+    {
+        <div class="queue-list">
+            @foreach (var item in Model.Results.Items)
+            {
+                <a asp-page="/Intake/Details" asp-route-id="@item.Id">
+                    <span><strong>@item.SourceFileName</strong><small>@item.ReceivedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</small></span>
+                    <span><strong>@IndexModel.DecisionLabel(item.Decision)</strong><small>@item.FailureReason</small></span>
+                </a>
+            }
+        </div>
+    }
+</section>
+
+@if (Model.Results.TotalPages > 1)
+{
+    <nav class="queue-filters" aria-label="Intake pages">
+        @if (Model.Results.Page > 1)
+        {
+            <a asp-page="/Intake/Index" asp-route-decision="@Model.DecisionFilter" asp-route-page="@(Model.Results.Page - 1)">Previous</a>
+        }
+        <span>Page @Model.Results.Page of @Model.Results.TotalPages</span>
+        @if (Model.Results.Page < Model.Results.TotalPages)
+        {
+            <a asp-page="/Intake/Index" asp-route-decision="@Model.DecisionFilter" asp-route-page="@(Model.Results.Page + 1)">Next</a>
+        }
+    </nav>
+}

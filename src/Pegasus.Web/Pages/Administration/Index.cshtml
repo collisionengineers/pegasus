@@ -1,0 +1,39 @@
+@page
+@model Pegasus.Web.Pages.Administration.IndexModel
+@{
+    ViewData["Title"] = "Administration";
+}
+
+<h1>Administration</h1>
+<p>Manage staff access, organizations, principals, workflow configuration, and approved mailbox routes through authenticated, permanently recorded administration callers.</p>
+
+<div class="admin-workspaces">
+    <section>
+        <h2><a asp-page="/Administration/Accounts/Index">Staff accounts</a></h2>
+        <p>Create staff accounts, permanently disable access, and require a password change at first sign-in.</p>
+    </section>
+    <section>
+        <h2><a asp-page="/Administration/Roles/Index">Staff roles</a></h2>
+        <p>Assign the Administrator, Engineer, and User roles without allowing the final enabled Administrator to be removed.</p>
+    </section>
+    <section>
+        <h2><a asp-page="/Administration/Access/Index">Access review</a></h2>
+        <p>Review current staff access and record an attributable review decision.</p>
+    </section>
+    <section>
+        <h2><a asp-page="/Administration/Organizations/Index">Organizations</a></h2>
+        <p>Manage independently selectable Work Provider and Instruction Intermediary roles.</p>
+    </section>
+    <section>
+        <h2><a asp-page="/Administration/Principals/Index">Principals</a></h2>
+        <p>Create immutable principal identities and replace them through a linked, sequence-preserving successor.</p>
+    </section>
+    <section>
+        <h2><a asp-page="/Administration/Configuration">Workflow configuration</a></h2>
+        <p>Manage the versioned completeness and staff-review gates required before Engineer assignment.</p>
+    </section>
+    <section>
+        <h2><a asp-page="/Administration/Mailboxes">Approved mailboxes</a></h2>
+        <p>Approve mailbox addresses for the fixed inbound Intake and exact Sent-evidence routes.</p>
+    </section>
+</div>

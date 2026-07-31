@@ -9,6 +9,7 @@ using MimeKit;
 
 namespace Pegasus.IntegrationTests;
 
+[Collection(LocalDbFixtureDefinition.Name)]
 public sealed class InstructionDraftWebTests
 {
     private const string MediaType = "message/rfc822";
@@ -22,10 +23,10 @@ public sealed class InstructionDraftWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
         var bytes = CreateEmail(CompleteBody());
 
-        var first = await IntakeWebDriver.UploadAsync(
-            client, CompleteUploadName, MediaType, bytes, externalReceiptToken);
-        var replay = await IntakeWebDriver.UploadAsync(
-            client, CompleteUploadName, MediaType, bytes, externalReceiptToken);
+        var first = await IntakeWebDriver.UploadAndProcessAsync(
+            factory, client, CompleteUploadName, MediaType, bytes, externalReceiptToken);
+        var replay = await IntakeWebDriver.UploadAndProcessAsync(
+            factory, client, CompleteUploadName, MediaType, bytes, externalReceiptToken);
 
         var firstId = IntakeWebDriver.ReceiptId(first);
         Assert.Equal(firstId, IntakeWebDriver.ReceiptId(replay));
@@ -58,8 +59,8 @@ public sealed class InstructionDraftWebTests
         var firstHash = Convert.ToHexString(SHA256.HashData(firstBytes));
         var changedHash = Convert.ToHexString(SHA256.HashData(changedBytes));
 
-        var first = await IntakeWebDriver.UploadAsync(
-            client, CompleteUploadName, MediaType, firstBytes, externalReceiptToken);
+        var first = await IntakeWebDriver.UploadAndProcessAsync(
+            factory, client, CompleteUploadName, MediaType, firstBytes, externalReceiptToken);
         var firstReceipt = await GetReceiptAsync(factory, IntakeWebDriver.ReceiptId(first));
         var conflict = await IntakeWebDriver.UploadAsync(
             client, CompleteUploadName, MediaType, changedBytes, externalReceiptToken);
@@ -92,8 +93,10 @@ public sealed class InstructionDraftWebTests
         var bytes = CreateEmail(CompleteBody());
         var expectedHash = Convert.ToHexString(SHA256.HashData(bytes));
 
-        var first = await IntakeWebDriver.UploadAsync(client, CompleteUploadName, MediaType, bytes, firstToken);
-        var second = await IntakeWebDriver.UploadAsync(client, CompleteUploadName, MediaType, bytes, secondToken);
+        var first = await IntakeWebDriver.UploadAndProcessAsync(
+            factory, client, CompleteUploadName, MediaType, bytes, firstToken);
+        var second = await IntakeWebDriver.UploadAndProcessAsync(
+            factory, client, CompleteUploadName, MediaType, bytes, secondToken);
         var firstId = IntakeWebDriver.ReceiptId(first);
         var secondId = IntakeWebDriver.ReceiptId(second);
         var firstReceipt = await GetReceiptAsync(factory, firstId);
@@ -113,11 +116,12 @@ public sealed class InstructionDraftWebTests
     }
 
     [Fact]
-    public async Task UploadAndReviewPersistAllTypedFieldsWithoutCaseOrCounterSchema()
+    public async Task UploadAndReviewPersistAllTypedFieldsWithoutCaseOrReferenceRows()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var upload = await IntakeWebDriver.UploadAsync(
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
             client,
             CompleteUploadName,
             MediaType,
@@ -138,7 +142,7 @@ public sealed class InstructionDraftWebTests
         Assert.Equal(new DateOnly(2031, 3, 4), typed.DateOfIncident);
         Assert.Equal(new DateOnly(2031, 3, 5), typed.InstructionDate);
         Assert.Equal("Image Based Assessment", typed.InspectionAddress);
-        Assert.Equal(10, receipt.Fields.Count);
+        Assert.Equal(11, receipt.Fields.Count);
 
         using var review = await client.GetAsync(upload.Location);
         var html = await review.Content.ReadAsStringAsync();
@@ -153,8 +157,8 @@ public sealed class InstructionDraftWebTests
             Assert.Contains(value, html, StringComparison.Ordinal);
         }
 
-        Assert.False(await TableExistsAsync(factory, "Cases"));
-        Assert.False(await TableExistsAsync(factory, "PrincipalYearCounters"));
+        Assert.Equal(0, await CountRowsAsync(factory, "Cases"));
+        Assert.Equal(0, await CountRowsAsync(factory, "CaseSequences"));
     }
 
     [Fact]
@@ -162,7 +166,8 @@ public sealed class InstructionDraftWebTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var upload = await IntakeWebDriver.UploadAsync(
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
             client,
             "controlled-invalid-values.eml",
             MediaType,
@@ -247,22 +252,17 @@ public sealed class InstructionDraftWebTests
     {
         var allowed = tableName switch
         {
-            "IntakeReceipts" or "InstructionDrafts" or "IntakeAssets" or "IntakeReceiptEvents" => tableName,
+            "IntakeReceipts" or "InstructionDrafts" or "IntakeAssets" or "IntakeReceiptEvents"
+                or "Cases" or "CaseSequences" => tableName,
             _ => throw new ArgumentOutOfRangeException(nameof(tableName))
         };
         return await ScalarAsync<int>(factory, $"SELECT COUNT(*) FROM [{allowed}]");
     }
 
-    private static async Task<bool> TableExistsAsync(IntakeWebApplicationFactory factory, string tableName) =>
-        1 == await ScalarAsync<long>(
-            factory,
-            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = @tableName",
-            tableName);
 
     private static async Task<T> ScalarAsync<T>(
         IntakeWebApplicationFactory factory,
-        string commandText,
-        string? tableName = null)
+        string commandText)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
@@ -272,13 +272,6 @@ public sealed class InstructionDraftWebTests
         {
             await using var command = context.Database.GetDbConnection().CreateCommand();
             command.CommandText = commandText;
-            if (tableName is not null)
-            {
-                var parameter = command.CreateParameter();
-                parameter.ParameterName = "@tableName";
-                parameter.Value = tableName;
-                command.Parameters.Add(parameter);
-            }
 
             var result = await command.ExecuteScalarAsync();
             Assert.NotNull(result);

@@ -10,8 +10,8 @@ ADR-0022 (`../dealt-with/rejected/0022-retroactive-case-reconstruction.md`) was 
 
 ### Accepted architecture
 
-- The [.NET modular-monolith ADR](../../decisions/ADR-0002-dotnet-modular-monolith-on-azure.md#repository-and-dependency-boundaries) assigns provider extraction and business validation to Core, document-format decoding to Infrastructure, and Function triggers plus composition to Worker. A Worker trigger calls a Core use case and contains no provider parsing.
-- [ADR-0006](../../decisions/ADR-0006-provider-neutral-intake-with-contained-qdos-policy.md) establishes `ProcessIntake` as the single Core owner used by the Development-only Web upload and the planned Worker. The multi-format intake decision remains the source for bounds and asset provenance; Core contracts remain engine-neutral.
+- The [.NET modular-monolith ADR](../../adr/0002-dotnet-modular-monolith-on-azure.md#repository-and-dependency-boundaries) assigns provider extraction and business validation to Core, document-format decoding to Infrastructure, and Function triggers plus composition to Worker. A Worker trigger calls a Core use case and contains no provider parsing.
+- [ADR-0006](../../adr/0006-provider-neutral-intake-with-contained-qdos-policy.md) establishes `ProcessIntake` as the single Core owner used by the Development-only Web upload and the planned Worker. The multi-format intake decision remains the source for bounds and asset provenance; Core contracts remain engine-neutral.
 - Raw documents remain authoritative, extracted values remain reviewable suggestions, bounded or uncertain outcomes remain visible, and no case/reference is allocated from an unsafe or unsupported result.
 - A later extraction runtime boundary is not forbidden forever, but the accepted architecture requires measured scale or ownership evidence before adding another service or deployment unit.
 
@@ -39,7 +39,7 @@ MimeKit, PdfPig, and Open XML remain Infrastructure dependencies. Provider-speci
 
 ## Existing Pegasus provenance gap
 
-Current [ADR-0001](../../decisions/ADR-0001-hybrid-pdf-extraction.md) requires retaining the extractor version and independently versioning provider-specific rules. Current [ADR-0003](../../decisions/ADR-0003-pdfpig-for-first-qdos-slice.md) also requires the adapter to record its engine and version.
+Current [ADR-0001](../../adr/0001-hybrid-pdf-extraction.md) requires retaining the extractor version and independently versioning provider-specific rules. Current [ADR-0003](../../adr/0003-pdfpig-for-first-qdos-slice.md) also requires the adapter to record its engine and version.
 
 The current PDF reader adds a `pdf-engine` evidence entry whose human-readable detail names `PdfPig 0.1.15`. The persisted Core intake record has no explicit extractor-engine version or provider-rule version field. This is a gap against current Pegasus provenance requirements, not an accepted reason to introduce the predecessor's service, Python engine, vendoring, materialised copies, or cross-language drift machinery.
 

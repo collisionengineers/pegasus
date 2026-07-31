@@ -1,0 +1,431 @@
+@page "/Intake/{id:guid}"
+@model Pegasus.Web.Pages.Intake.DetailsModel
+@using Pegasus.Core.Intake
+@{
+    ViewData["Title"] = "Intake review";
+}
+
+<header class="page-heading">
+    <div>
+        <p class="eyebrow">Intake review</p>
+        <h1>@DetailsModel.DecisionLabel(Model.Receipt.Decision)</h1>
+        <p class="lede">@Model.Receipt.DecisionReason</p>
+    </div>
+    <a class="secondary-action" asp-page="/Intake/Index">Receive another</a>
+</header>
+
+@if (Model.IsDuplicate)
+{
+    <div class="notice" role="status">This source receipt was already processed. The existing intake record is shown.</div>
+}
+@if (TempData["InspectionAddressStatus"] is string inspectionAddressStatus)
+{
+    <div class="notice" role="status">@inspectionAddressStatus</div>
+}
+@if (TempData["IntakeDetailsStatus"] is string intakeDetailsStatus)
+{
+    <div class="notice" role="status">@intakeDetailsStatus</div>
+}
+@if (TempData["IntakeDetailsError"] is string intakeDetailsError)
+{
+    <div class="validation-summary" role="alert">@intakeDetailsError</div>
+}
+
+
+<div class="review-grid">
+    <section class="panel" aria-labelledby="result-title">
+        <h2 id="result-title" class="section-label">Result</h2>
+        <dl class="detail-list">
+            <div><dt>Decision</dt><dd>@DetailsModel.DecisionLabel(Model.Receipt.Decision)</dd></div>
+            <div><dt>Source</dt><dd>@Model.Receipt.SourceFileName</dd></div>
+            <div><dt>Channel</dt><dd>@DetailsModel.SourceChannelLabel(Model.Receipt.SourceIdentity.Channel)</dd></div>
+            <div><dt>Source receipt</dt><dd>@Model.Receipt.SourceIdentity.ExternalReceiptToken</dd></div>
+            <div><dt>Received</dt><dd>@Model.Receipt.ReceivedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd></div>
+        </dl>
+        @if (Model.Receipt.FailureReason is not null)
+        {
+            <div class="failure-detail"><strong>@Model.Receipt.FailureCode</strong><span>@Model.Receipt.FailureReason</span></div>
+        }
+    </section>
+
+    <section class="panel" aria-labelledby="missing-title">
+        <h2 id="missing-title" class="section-label">Missing fields</h2>
+        @if (Model.Receipt.MissingFields.Count == 0)
+        {
+            <p class="empty-state">No missing field suggestions were identified.</p>
+        }
+        else
+        {
+            <ul class="plain-list">
+                @foreach (var field in Model.Receipt.MissingFields)
+                {
+                    <li>@field</li>
+                }
+            </ul>
+        }
+    </section>
+</div>
+@if (Model.Receipt.AcceptedCaseId is null)
+{
+    <section class="panel form-panel section-gap" aria-labelledby="intake-resolution-title">
+        <h2 id="intake-resolution-title" class="section-label">Intake resolution</h2>
+        <p>Every correction, block and re-evaluation is versioned and retained in permanent history.</p>
+
+        @if (Model.Receipt.InstructionDraft is { } correctionDraft)
+        {
+            <form method="post" asp-page-handler="CorrectDraft" asp-route-id="@Model.Receipt.Id">
+                <input type="hidden" name="expectedVersion" value="@Model.Receipt.Version" />
+                <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+                <label for="correction-reason">Reason for correction</label>
+                <textarea id="correction-reason" name="reason" maxlength="500" rows="2" required></textarea>
+                <label for="suggested-principal-code">Suggested principal code</label>
+                <input id="suggested-principal-code" name="suggestedPrincipalCode" value="@correctionDraft.SuggestedPrincipalCode" maxlength="20" />
+                <label for="claimant-name">Claimant name</label>
+                <input id="claimant-name" name="claimantName" value="@correctionDraft.ClaimantName" maxlength="200" />
+                <label for="claim-number">Claim number</label>
+                <input id="claim-number" name="claimNumber" value="@correctionDraft.ClaimNumber" maxlength="100" />
+                <label for="vehicle-registration">Vehicle registration</label>
+                <input id="vehicle-registration" name="vehicleRegistration" value="@correctionDraft.VehicleRegistration" maxlength="20" />
+                <label for="vehicle-make">Vehicle make</label>
+                <input id="vehicle-make" name="vehicleMake" value="@correctionDraft.VehicleMake" maxlength="100" />
+                <label for="vehicle-model">Vehicle model</label>
+                <input id="vehicle-model" name="vehicleModel" value="@correctionDraft.VehicleModel" maxlength="100" />
+                <label for="vehicle-mileage">Vehicle mileage</label>
+                <input id="vehicle-mileage" name="vehicleMileage" type="number" min="0" value="@correctionDraft.VehicleMileage" />
+                <label for="accident-circumstances">Accident circumstances</label>
+                <textarea id="accident-circumstances" name="accidentCircumstances" maxlength="4000" rows="3">@correctionDraft.AccidentCircumstances</textarea>
+                <label for="date-of-incident">Date of incident</label>
+                <input id="date-of-incident" name="dateOfIncident" type="date" value="@correctionDraft.DateOfIncident?.ToString("yyyy-MM-dd")" />
+                <label for="instruction-date">Instruction date</label>
+                <input id="instruction-date" name="instructionDate" type="date" value="@correctionDraft.InstructionDate?.ToString("yyyy-MM-dd")" />
+                <label for="inspection-address">Inspection address</label>
+                <textarea id="inspection-address" name="inspectionAddress" maxlength="1000" rows="3">@correctionDraft.InspectionAddress</textarea>
+                <label for="inspection-date">Inspection date</label>
+                <input id="inspection-date" name="inspectionDate" type="date" value="@correctionDraft.InspectionDate?.ToString("yyyy-MM-dd")" />
+                <button type="submit" class="primary-action">Record corrected draft</button>
+            </form>
+        }
+
+        <form method="post" asp-page-handler="Reevaluate" asp-route-id="@Model.Receipt.Id">
+            <input type="hidden" name="expectedVersion" value="@Model.Receipt.Version" />
+            <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+            <label for="reevaluation-reason">Reason for policy re-evaluation</label>
+            <textarea id="reevaluation-reason" name="reason" maxlength="500" rows="2" required></textarea>
+            <button type="submit" class="secondary-action">Re-evaluate with current policy</button>
+        </form>
+
+        <form method="post" asp-page-handler="Block" asp-route-id="@Model.Receipt.Id">
+            <input type="hidden" name="expectedVersion" value="@Model.Receipt.Version" />
+            <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+            <label for="block-reason">Reason for blocking intake</label>
+            <textarea id="block-reason" name="reason" maxlength="500" rows="2" required></textarea>
+            <button type="submit" class="secondary-action">Block intake</button>
+        </form>
+    </section>
+}
+
+<section class="panel form-panel section-gap" aria-labelledby="case-association-title">
+    <h2 id="case-association-title" class="section-label">Current case association</h2>
+    @if (Model.Receipt.CurrentCaseId is { } currentCaseId)
+    {
+        <p>Currently linked to case <a asp-page="/Cases/Details" asp-route-id="@currentCaseId">@currentCaseId</a>.</p>
+    }
+    else
+    {
+        <p>This intake receipt is not currently linked to a case.</p>
+    }
+
+    @if (Model.LeasedCaseId is null)
+    {
+        <form method="post" asp-page-handler="ClaimCaseLease" asp-route-id="@Model.Receipt.Id">
+            @if (Model.Receipt.CurrentCaseId is { } associatedCaseId)
+            {
+                <input type="hidden" name="caseId" value="@associatedCaseId" />
+                <p>Enter the current version of case @associatedCaseId to enter case edit mode.</p>
+            }
+            else
+            {
+                <label for="association-case-id">Case identifier</label>
+                <input id="association-case-id" name="caseId" type="text" required />
+            }
+            <label for="association-case-version">Expected case version</label>
+            <input id="association-case-version" name="expectedCaseVersion" type="number" min="0" required />
+            <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+            <button type="submit" class="secondary-action">Enter case edit mode</button>
+        </form>
+    }
+    else if (Model.LeasedCaseVersion is { } leasedCaseVersion
+        && Model.CaseEditLeaseToken is { } editLeaseToken)
+    {
+        if (Model.Receipt.CurrentCaseId == Model.LeasedCaseId)
+        {
+            <form method="post" asp-page-handler="ReverseCaseLink" asp-route-id="@Model.Receipt.Id">
+                <input type="hidden" name="caseId" value="@Model.LeasedCaseId" />
+                <input type="hidden" name="expectedIntakeVersion" value="@Model.Receipt.Version" />
+                <input type="hidden" name="expectedCaseVersion" value="@leasedCaseVersion" />
+                <input type="hidden" name="editLeaseToken" value="@editLeaseToken" />
+                <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+                <label for="reverse-link-reason">Reason for reversing this association</label>
+                <textarea id="reverse-link-reason" name="reason" maxlength="500" rows="2" required></textarea>
+                <button type="submit" class="secondary-action">Reverse current association</button>
+            </form>
+        }
+        else if (Model.Receipt.CurrentCaseId is null)
+        {
+            <form method="post" asp-page-handler="LinkCase" asp-route-id="@Model.Receipt.Id">
+                <input type="hidden" name="caseId" value="@Model.LeasedCaseId" />
+                <input type="hidden" name="expectedIntakeVersion" value="@Model.Receipt.Version" />
+                <input type="hidden" name="expectedCaseVersion" value="@leasedCaseVersion" />
+                <input type="hidden" name="editLeaseToken" value="@editLeaseToken" />
+                <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+                <label for="link-case-reason">Reason for linking this case</label>
+                <textarea id="link-case-reason" name="reason" maxlength="500" rows="2" required></textarea>
+                <button type="submit" class="primary-action">Link selected case</button>
+            </form>
+        }
+        else
+        {
+            <p class="failure-detail">The claimed case does not match the current association. Reload and enter edit mode for the current case.</p>
+        }
+    }
+</section>
+
+@if (Model.Receipt.InstructionDraft is not null)
+{
+    var draft = Model.Receipt.InstructionDraft;
+    <section class="panel section-gap" aria-labelledby="typed-draft-title">
+        <h2 id="typed-draft-title" class="section-label">Typed review draft</h2>
+        <dl class="detail-list">
+            <div><dt>Suggested principal</dt><dd>@(draft.SuggestedPrincipalCode ?? "Not suggested")</dd></div>
+            <div><dt>Claimant name</dt><dd>@(draft.ClaimantName ?? "Not resolved")</dd></div>
+            <div><dt>Claim number</dt><dd>@(draft.ClaimNumber ?? "Not resolved")</dd></div>
+            <div><dt>Vehicle registration</dt><dd>@(draft.VehicleRegistration ?? "Not resolved")</dd></div>
+            <div><dt>Vehicle make</dt><dd>@(draft.VehicleMake ?? "Not resolved")</dd></div>
+            <div><dt>Vehicle model</dt><dd>@(draft.VehicleModel ?? "Not resolved")</dd></div>
+            <div><dt>Vehicle mileage</dt><dd>@(draft.VehicleMileage?.ToString("N0") ?? "Not resolved")</dd></div>
+            <div><dt>Accident circumstances</dt><dd>@(draft.AccidentCircumstances ?? "Not resolved")</dd></div>
+            <div><dt>Date of incident</dt><dd>@(draft.DateOfIncident?.ToString("dd MMM yyyy") ?? "Not resolved")</dd></div>
+            <div><dt>Instruction date</dt><dd>@(draft.InstructionDate?.ToString("dd MMM yyyy") ?? "Not resolved")</dd></div>
+            <div><dt>Inspection address</dt><dd>@(draft.InspectionAddress ?? "Not resolved")</dd></div>
+        </dl>
+    </section>
+}
+<section class="panel form-panel section-gap" aria-labelledby="inspection-address-title">
+    <h2 id="inspection-address-title" class="section-label">Inspection-address confirmation</h2>
+    @if (Model.AddressResolution.Evaluation.Suggestion is { } addressSuggestion)
+    {
+        <dl class="detail-list">
+            <div><dt>Suggestion</dt><dd>@addressSuggestion.Value</dd></div>
+            <div><dt>Evidence type</dt><dd>@(addressSuggestion.Kind == Pegasus.Core.Address.InspectionAddressEvidenceKind.ImageBasedAssessment ? "Image Based Assessment instruction" : "Extracted physical address")</dd></div>
+            <div><dt>Status</dt><dd>@Model.AddressResolution.State</dd></div>
+            @if (Model.AddressResolution.ResolvedValue is not null)
+            {
+                <div><dt>Confirmed value</dt><dd>@Model.AddressResolution.ResolvedValue</dd></div>
+                <div><dt>Confirmed</dt><dd>@Model.AddressResolution.ResolvedAtUtc?.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd></div>
+                <div><dt>Confirmed by</dt><dd>Staff @Model.AddressResolution.ResolvedByStaffId</dd></div>
+            }
+        </dl>
+        <h3 class="section-label">Source provenance</h3>
+        <ul class="plain-list">
+            @foreach (var provenance in addressSuggestion.Provenance)
+            {
+                <li>@provenance.SourceLabel · @provenance.Source · @provenance.PolicyKey v@provenance.PolicyVersion</li>
+            }
+        </ul>
+
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+        <form method="post" asp-page-handler="AcceptAddress" asp-route-id="@Model.Receipt.Id">
+            <input asp-for="ExpectedAddressReceiptVersion" type="hidden" />
+            <input asp-for="AddressSuggestionFingerprint" type="hidden" />
+            <input asp-for="AddressOperationId" type="hidden" />
+            <button type="submit" class="primary-action">Accept suggestion</button>
+        </form>
+
+        <form method="post" asp-page-handler="CorrectAddress" asp-route-id="@Model.Receipt.Id">
+            <input asp-for="ExpectedAddressReceiptVersion" type="hidden" />
+            <input asp-for="AddressSuggestionFingerprint" type="hidden" />
+            <input asp-for="AddressOperationId" type="hidden" />
+            <label asp-for="CorrectedInspectionAddress">Corrected inspection address</label>
+            <textarea asp-for="CorrectedInspectionAddress" maxlength="1000" rows="3"></textarea>
+            <span asp-validation-for="CorrectedInspectionAddress" class="field-validation"></span>
+            <button type="submit" class="secondary-action">Record correction</button>
+        </form>
+    }
+    else
+    {
+        <p class="failure-detail">
+            Missing or conflicting physical-address evidence remains unresolved. Pegasus will not infer an address from a provider, spreadsheet, geocoder or model.
+        </p>
+        @if (Model.AddressResolution.Evaluation.ConflictingEvidence.Count > 0)
+        {
+            <ul class="evidence-list">
+                @foreach (var evidence in Model.AddressResolution.Evaluation.ConflictingEvidence)
+                {
+                    <li>
+                        <strong>@evidence.Value</strong>
+                        <span>@evidence.Provenance.SourceLabel · @evidence.Provenance.Source · @evidence.Provenance.PolicyKey v@evidence.Provenance.PolicyVersion</span>
+                    </li>
+                }
+            </ul>
+        }
+    }
+</section>
+
+
+@if (Model.Receipt.Decision == Pegasus.Core.Intake.IntakeDecision.DraftReady)
+{
+    <section class="panel form-panel section-gap" aria-labelledby="accept-title">
+        <h2 id="accept-title" class="section-label">Accept as case</h2>
+        <p>Confirm the principal, case type and evidence completeness before allocating an immutable case reference.</p>
+        <form method="post" asp-page-handler="Accept" asp-route-id="@Model.Receipt.Id">
+            <input asp-for="AcceptanceOperationKey" type="hidden" />
+            <input asp-for="ReviewedReceiptVersion" type="hidden" />
+            <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+            <label asp-for="AcceptanceReason">Reason for accepting this intake</label>
+            <textarea asp-for="AcceptanceReason" maxlength="500" rows="3" required></textarea>
+            <span asp-validation-for="AcceptanceReason" class="field-validation"></span>
+
+
+            <label asp-for="PrincipalCode">Confirmed principal code</label>
+            <input asp-for="PrincipalCode" maxlength="20" autocomplete="off" />
+            <span asp-validation-for="PrincipalCode" class="field-validation"></span>
+
+            <label asp-for="CaseType">Case type</label>
+            <select asp-for="CaseType">
+                <option value="@Pegasus.Core.Cases.CaseType.Inspection">Inspection</option>
+                <option value="@Pegasus.Core.Cases.CaseType.Audit">Standalone Audit</option>
+                <option value="@Pegasus.Core.Cases.CaseType.InspectionAndAudit">Inspection and Audit</option>
+            </select>
+            <span asp-validation-for="CaseType" class="field-validation"></span>
+
+            <label asp-for="StandaloneAuditAssessment">Standalone Audit assessment</label>
+            <select asp-for="StandaloneAuditAssessment">
+                <option value="">Not applicable</option>
+                <option value="@Pegasus.Core.Cases.AuditAssessment.Repairable">Repairable</option>
+                <option value="@Pegasus.Core.Cases.AuditAssessment.TotalLoss">Total loss</option>
+            </select>
+            <span asp-validation-for="StandaloneAuditAssessment" class="field-validation"></span>
+            <small>For a standalone Audit, this assessment is retained with the selected original Engineer report and confirming staff identity.</small>
+
+            <label asp-for="StandaloneAuditOriginalReportAssetId">Retained original Engineer report</label>
+            <select asp-for="StandaloneAuditOriginalReportAssetId">
+                <option value="">Not applicable</option>
+                @foreach (var asset in Model.Receipt.AssetRecords.Where(
+                    asset => asset.Kind is IntakeAssetKind.Source or IntakeAssetKind.Attachment))
+                {
+                    <option value="@asset.Id">@asset.FileName · @asset.SourceLabel</option>
+                }
+            </select>
+            <span asp-validation-for="StandaloneAuditOriginalReportAssetId" class="field-validation"></span>
+
+            <label asp-for="StandaloneAuditEvidenceReason">Original-report confirmation reason</label>
+            <textarea asp-for="StandaloneAuditEvidenceReason" maxlength="500" rows="3"></textarea>
+            <span asp-validation-for="StandaloneAuditEvidenceReason" class="field-validation"></span>
+            @if (Model.ConfirmedStandaloneAuditEvidence is not null)
+            {
+                <small>This original-report evidence is already confirmed and immutable. Accepting reuses its retained identity.</small>
+            }
+
+            <label>
+                <input asp-for="InstructionComplete" />
+                Instruction evidence is complete
+            </label>
+            <label>
+                <input asp-for="InstructionConfirmedByStaff" />
+                I have confirmed the instruction evidence
+            </label>
+            <label>
+                <input asp-for="ImagesComplete" />
+                Image evidence is complete
+            </label>
+            <label>
+                <input asp-for="ImagesConfirmedByStaff" />
+                I have confirmed the image evidence
+            </label>
+
+            <button type="submit" class="primary-action">Accept and allocate case reference</button>
+        </form>
+    </section>
+}
+
+@if (Model.Receipt.AssetRecords.Count > 0)
+{
+    <section class="panel section-gap" aria-labelledby="assets-title">
+        <h2 id="assets-title" class="section-label">Source and extracted assets</h2>
+        <p>Each attachment, inline image and discrete embedded image remains a separate review occurrence. Matching hashes are grouped, not removed.</p>
+        <div class="field-grid">
+            @foreach (var asset in Model.Receipt.AssetRecords)
+            {
+                var duplicateCount = Model.DuplicateOccurrenceCount(asset);
+                <article class="field-card">
+                    <h3>@asset.FileName</h3>
+                    @if (asset.Kind == IntakeAssetKind.Source)
+                    {
+                        <a asp-page="/Intake/Source" asp-route-id="@Model.Receipt.Id">Download retained source</a>
+                    }
+                    else
+                    {
+                        <span>Retained evidence occurrence</span>
+                    }
+                    <small>@asset.SourceLabel · @asset.Kind · @asset.MediaType</small>
+                    @if (asset.PageNumber is not null)
+                    {
+                        <small>PDF page @asset.PageNumber</small>
+                    }
+                    @if (duplicateCount > 1)
+                    {
+                        <small>Exact content match: @duplicateCount retained occurrences</small>
+                    }
+                </article>
+            }
+        </div>
+    </section>
+}
+
+@if (Model.Receipt.ScannedPdfPages.Count > 0)
+{
+    <section class="panel section-gap" aria-labelledby="ocr-title">
+        <h2 id="ocr-title" class="section-label">Scanned PDF pages</h2>
+        <p>Text review is required only for these scan-like PDF pages:</p>
+        <ul class="plain-list">
+            @foreach (var candidate in Model.Receipt.ScannedPdfPages)
+            {
+                <li>@candidate.SourceLabel, page @candidate.PageNumber</li>
+            }
+        </ul>
+    </section>
+}
+
+@if (Model.Receipt.Fields.Count > 0)
+{
+    <section class="panel section-gap" aria-labelledby="fields-title">
+        <h2 id="fields-title" class="section-label">Suggested fields</h2>
+        <div class="field-grid">
+            @foreach (var field in Model.Receipt.Fields)
+            {
+                <article class="field-card @(field.HasConflict ? "field-card--conflict" : string.Empty)">
+                    <h3>@field.Name</h3>
+                    <strong>@(field.SuggestedValue ?? (field.HasConflict ? "Conflicting suggestions" : "Not found"))</strong>
+                    @if (field.IsDefaulted)
+                    {
+                        <small>Defaulted from processing date</small>
+                    }
+                    @foreach (var candidate in field.Candidates)
+                    {
+                        <small>@candidate.SourceLabel: @candidate.Value</small>
+                    }
+                </article>
+            }
+        </div>
+    </section>
+}
+
+<section class="panel section-gap" aria-labelledby="evidence-title">
+    <h2 id="evidence-title" class="section-label">Decision evidence</h2>
+    <ul class="evidence-list">
+        @foreach (var item in Model.Receipt.Evidence)
+        {
+            <li><strong>@item.Source</strong><span>@item.Detail</span></li>
+        }
+    </ul>
+</section>
