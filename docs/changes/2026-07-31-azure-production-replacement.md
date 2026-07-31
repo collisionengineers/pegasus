@@ -79,11 +79,14 @@ accepted, and retired remain separate evidence states.
   `feat/azure-production-replacement`, issue #311.
 - Production route, adapters, startup validation, and release scripts:
   **implemented**, not deployed or live verified.
-- Local verification: **partially verified** on 2026-07-31. Restore, Release
-  build, 539 non-corpus tests, Bicep compilation, and local deployment-plan
-  validation passed. The revision-bound QDOS pressure gate and immutable
-  artifact build remain pending until the reviewed implementation is committed.
-- Immutable artifacts: **not yet built** from a clean reviewed revision.
+- Local verification: **verified** on 2026-07-31. Restore, zero-warning Release
+  build, 539 non-corpus tests, Bicep compilation, local deployment-plan
+  validation, and the revision-bound QDOS CI-pressure profile (3/3, no skips)
+  passed. This is not live or operator acceptance.
+- Immutable artifacts: **locally verified**. `web.zip`, `worker.zip`,
+  `efbundle.exe`, and their SHA-256 manifest were built and revalidated from a
+  clean exact revision; production packaging must still be repeated after any
+  later source change or review amendment.
 - Azure preview/provisioning: **not run**.
 - Deployment, live verification, operator acceptance, predecessor retirement,
   and recovery exercise: **not performed**.
