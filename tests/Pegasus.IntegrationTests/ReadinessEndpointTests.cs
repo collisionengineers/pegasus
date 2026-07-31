@@ -1,6 +1,7 @@
 using System.Net;
 using Deque.AxeCore.Playwright;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -244,8 +245,32 @@ internal sealed class ConfiguredWebApplicationFactory(
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        var effectiveSettings = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["Runtime:Profile"] = environment.Equals("Production", StringComparison.Ordinal)
+                ? "Production"
+                : "DevelopmentOffline",
+            ["ConnectionStrings:Pegasus"] =
+                "Server=(localdb)\\MSSQLLocalDB;Database=Pegasus_ConfiguredFactory;" +
+                "Integrated Security=true;Encrypt=false",
+            ["AzureIdentity:WebClientId"] = "10213243-5465-7687-98a9-bacbdcedfe0f",
+            ["TransportStorage:AccountName"] = "pegasustransporttest",
+            ["CustodyStorage:AccountName"] = "pegasuscustodytest",
+            ["CustodyStorage:ServiceUri"] = "https://pegasuscustodytest.blob.core.windows.net/"
+        };
+        foreach (var setting in settings)
+        {
+            effectiveSettings[setting.Key] = setting.Value;
+        }
+
         builder.UseEnvironment(environment);
+        foreach (var setting in effectiveSettings.Where(setting => setting.Value is not null))
+        {
+            builder.UseSetting(setting.Key, setting.Value);
+        }
         builder.ConfigureAppConfiguration((_, configuration) =>
-            configuration.AddInMemoryCollection(settings));
+            configuration.AddInMemoryCollection(effectiveSettings));
+        builder.ConfigureServices(services =>
+            services.AddDataProtection().UseEphemeralDataProtectionProvider());
     }
 }

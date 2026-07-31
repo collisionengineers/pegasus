@@ -169,13 +169,21 @@ Hash the archive and stop unless every unique digest is present. Do not download
 
 ### 5. Production preview and provisioning
 
-Obtain separate approval for the exact preview. Configure `azd`:
+Obtain separate approval for the exact preview and, because the current Bicep
+schema cannot represent a fractional Log Analytics cap, the two immediate
+post-provision writes that set the exact new Log Analytics workspace and
+Application Insights component to 0.1 GB/day. Approval must name both target
+resource names, both `az monitor ... update` operations, and accept the brief
+interval between resource creation and verified cap application. No package,
+credential, database, or trigger operation may occur during that interval.
+Configure `azd`:
 
 ```powershell
 $PegasusUser = az ad signed-in-user show --query '{id:id,upn:userPrincipalName}' --output json | ConvertFrom-Json
 
 azd env new $PegasusAzdEnv --subscription $PegasusSubscription --location $PegasusLocation
 azd env set -e $PegasusAzdEnv AZURE_SUBSCRIPTION_ID $PegasusSubscription
+azd env set -e $PegasusAzdEnv AZURE_TENANT_ID $PegasusTenant
 azd env set -e $PegasusAzdEnv AZURE_LOCATION $PegasusLocation
 azd env set -e $PegasusAzdEnv AZURE_ENV_NAME prod
 azd env set -e $PegasusAzdEnv AZURE_PRINCIPAL_ID $PegasusUser.id
@@ -193,23 +201,68 @@ azd provision -e $PegasusAzdEnv --preview --no-prompt |
 
 Fail on any resource outside `rg-pegasus-prod`, any dev/staging resource, any delete/replace operation, incorrect region/SKU, one-storage topology, shared-key access, local authentication, broad role, remote build, enabled Worker trigger, OCR/Foundry/Maps/Vision/capture resource, or secret-bearing output.
 
-After exact approval of that preview:
+After exact approval of that preview and the two named telemetry-cap writes:
 
 ```powershell
 azd provision -e $PegasusAzdEnv --no-prompt
 azd env refresh $PegasusAzdEnv
 azd env get-values -e $PegasusAzdEnv
+```
+
+Apply the fractional telemetry cap after provisioning because the current Bicep
+schema exposes the Log Analytics cap as an integer. Set and verify both limits;
+the effective workspace-based Application Insights limit is the lower of the
+two:
+
+```powershell
+$ApplicationInsightsName = azd env get-value -e $PegasusAzdEnv APPLICATION_INSIGHTS_NAME
+$LogAnalyticsWorkspaceName = azd env get-value -e $PegasusAzdEnv LOG_ANALYTICS_WORKSPACE_NAME
+
+az monitor log-analytics workspace update `
+  --resource-group $PegasusProdRg `
+  --workspace-name $LogAnalyticsWorkspaceName `
+  --set workspaceCapping.dailyQuotaGb=0.1 `
+  --output none
+
+az monitor app-insights component billing update `
+  --resource-group $PegasusProdRg `
+  --app $ApplicationInsightsName `
+  --cap 0.1 `
+  --stop false `
+  --output none
+
+$WorkspaceCap = az monitor log-analytics workspace show `
+  --resource-group $PegasusProdRg `
+  --workspace-name $LogAnalyticsWorkspaceName `
+  --query workspaceCapping.dailyQuotaGb `
+  --output tsv
+$ApplicationInsightsCap = az monitor app-insights component billing show `
+  --resource-group $PegasusProdRg `
+  --app $ApplicationInsightsName `
+  --query dataVolumeCap.cap `
+  --output tsv
+
+if ([decimal]$WorkspaceCap -ne 0.1 -or [decimal]$ApplicationInsightsCap -ne 0.1) {
+    throw "Telemetry cap verification failed. Workspace=$WorkspaceCap; ApplicationInsights=$ApplicationInsightsCap"
+}
+
 az resource list --resource-group $PegasusProdRg --output table
 ```
 
-Verify B1, FC1, S0, two storage accounts, two identities, new Key Vault, telemetry resources, action group, alert rules, and budget before continuing.
+Verify B1, FC1, S0, two storage accounts, two identities, new Key Vault,
+31-day retention, adaptive sampling, both 0.1 GB/day telemetry caps, action
+group, alert rules, and budget before continuing. A failed cap write or readback
+is a stop gate: do not bind credentials, migrate, deploy packages, or activate
+triggers.
 
 ### 6. Bind external identities and retained vaults
 
 1. Construct secret resource IDs from the approved secret-name census without retrieving values.
 2. Grant:
-   - Web and Worker secret-level `Key Vault Secrets User` access only to the Box secrets they call;
-   - Worker secret-level access only to the DVLA/DVSA secrets.
+   - Worker secret-level `Key Vault Secrets User` access only to the Box secrets it calls;
+   - Worker secret-level access only to the DVLA/DVSA secrets;
+   - Web receives no third-party secret access because it has no Graph, Box,
+     DVLA, or DVSA caller.
 3. Use commands of this exact form for every approved secret:
 
 ```powershell
@@ -268,20 +321,30 @@ The first test must be in scope and the negative control out of scope. Exchange 
 Apply the exact hashed migration bundle using the deploying user as the temporary SQL Entra administrator:
 
 ```powershell
+$ReleaseManifestPath = './artifacts/releases/0.1.0-alpha.1/release-manifest.json'
+$ApprovedReleaseManifestSha256 = '<operator-approved SHA-256 from the final reviewed artifact>'
+
 pwsh ./scripts/Test-AzureDeploymentPlan.ps1 `
   -Mode PreMigration `
   -Environment $PegasusAzdEnv `
-  -ManifestPath ./artifacts/releases/0.1.0-alpha.1/release-manifest.json
+  -ManifestPath $ReleaseManifestPath
 
 & ./artifacts/releases/0.1.0-alpha.1/efbundle.exe `
   --connection $PegasusMigratorConnectionString
 
 pwsh ./scripts/Invoke-AzureDatabaseBootstrap.ps1 `
   -Environment $PegasusAzdEnv `
-  -ManifestPath ./artifacts/releases/0.1.0-alpha.1/release-manifest.json
+  -ManifestPath $ReleaseManifestPath `
+  -ManifestSha256 $ApprovedReleaseManifestSha256
 ```
 
-The bootstrap script creates `pegasus_web_runtime` and `pegasus_worker_runtime` from the provisioned managed-identity client-ID SIDs, assigns only the migration-defined custom roles, verifies the exhaustive allow matrix and `DELETE` denials, and proves neither runtime identity has DDL.
+The bootstrap script first proves that its clean checkout is the exact source
+revision named by the operator-approved manifest. It then creates
+`pegasus_web_runtime` and `pegasus_worker_runtime` from the provisioned
+managed-identity client-ID SIDs, assigns only the migration-defined custom
+roles, rejects direct, inherited, nested-role, and ownership authority, compares
+effective per-table DML with the exhaustive allow matrix and `DELETE` denials,
+and proves neither runtime identity has DDL.
 
 Create the first application Administrator interactively:
 
@@ -289,7 +352,8 @@ Create the first application Administrator interactively:
 pwsh ./scripts/Invoke-ProductionAdministratorBootstrap.ps1 `
   -Environment $PegasusAzdEnv `
   -UserName alex `
-  -PackagePath ./artifacts/releases/0.1.0-alpha.1/web.zip
+  -ManifestPath $ReleaseManifestPath `
+  -ManifestSha256 $ApprovedReleaseManifestSha256
 ```
 
 Deploy the already hashed packages. Never use `azd up`, plain `azd deploy`, or release-time `azd package`:

@@ -103,17 +103,19 @@ than attempts.
 
 A Worker `local.settings.json` is unnecessary at this baseline. Copy `src/Pegasus.Worker/local.settings.example.json` to the ignored `local.settings.json` only when an actual trigger requires local Functions storage.
 
-### Absent or target callers
+### Implemented production targets and absent callers
 
-The following are planned or absent, not merely unverified:
+Worker production composition now registers bounded Graph Inbox/Sent, Box
+custody, and DVLA/DVSA adapters plus Azure Blob/queue transport. That is
+**Implemented** composition evidence only: no production trigger has run, no
+live provider has been called, and no operator acceptance exists.
 
-- Graph mailbox intake and mailbox categorisation;
-- private Blob staging and queue processing;
-- Box source custody and writes;
+The following remain planned or absent, not merely unverified:
+
+- broad Graph mailbox categorisation or any Graph mutation;
 - Document Intelligence OCR;
 - automated legacy DOC and MSG extraction;
 - vehicle-registration OCR or VLM recognition;
-- DVLA/DVSA lookup;
 - EVA export;
 - provider API, which is deferred to the exact target owned by the [capability inventory](capabilities.md);
 - a vendor-neutral Automation MCP, identified as a `0.1.0-alpha.1` target and separately gated pending its actor contract;
@@ -124,7 +126,10 @@ No production route should be enabled from the current slice.
 
 ## Current intake and extraction boundary
 
-The implemented slice is provider-neutral intake with one concrete QDOS extraction policy. It proves one thin local path; it does not prove the full MVP, a second provider, mailbox automation, production custody, or operator acceptance.
+The locally verified slice includes provider-neutral intake, one concrete QDOS
+extraction policy, and bounded production adapter implementations. It does not
+prove deployed mailbox automation, live production custody/enrichment, the
+full MVP, a second provider, or operator acceptance.
 
 This is implementation evidence toward [INT-01, INT-08–13, INT-18–20, and INT-23](capabilities.md); the inventory owns allocation only, and each broader capability contract remains unproved.
 
@@ -181,7 +186,7 @@ Legacy DOC and MSG are retained but routed to `Needs sorting` without a referenc
 
 For PDFs, only low-text pages with a dominant raster are marked as scan-like OCR candidates. No OCR service is currently called. Document- and attachment-level OCR-required state is visible during review.
 
-The reader constructs no network client, launches no process, and does not retrieve external links, images, relationships, keys, or other remote content. Graph, Box, Blob, OCR, DVLA/DVSA, EVA, workspace extractors, and any other external service remain outside the current caller.
+The reader constructs no network client, launches no process, and does not retrieve external links, images, relationships, keys, or other remote content. Graph, Box, Blob, OCR, DVLA/DVSA, EVA, workspace extractors, and any other external service remain outside the reader; bounded production adapters attach only at the Worker composition root.
 
 ### QDOS applicability and drafts
 
@@ -346,13 +351,16 @@ Deferred capabilities retain only the stable identities and ports necessary for 
 
 ### Mailbox intake
 
-A future Graph trigger must call the existing provider-neutral `ProcessIntake` use case. It must not copy receipt, extraction, categorisation, or workflow rules into Worker.
+The implemented Graph source feeds the existing provider-neutral intake and
+sent-evidence use cases through Worker. It must not copy receipt, extraction,
+categorisation, or workflow rules into Worker. Its triggers remain disabled
+until exact Exchange RBAC, live sandbox, and activation evidence pass.
 
-Its adapter boundary must add:
+Its adapter boundary provides:
 
 - managed-identity access;
-- private Blob staging;
-- Box custody;
+- Azure Blob staging;
+- Box custody behind the existing Core port;
 - delivery identity and duplicate-delivery handling;
 - bounded retries and terminal failure visibility;
 - exact Outlook sent-message evidence where required.
@@ -361,7 +369,7 @@ The current QDOS extraction policy must not be reinterpreted as mailbox categori
 
 ### OCR and recognition
 
-A first Document Intelligence caller may submit only persisted scan-like PDF page candidates. Ordinary images and vehicle photographs are outside that slice. Vehicle-registration OCR/VLM recognition and DVLA/DVSA lookup require separate accepted callers and evidence.
+A first Document Intelligence caller may submit only persisted scan-like PDF page candidates. Ordinary images and vehicle photographs are outside that slice. Vehicle-registration OCR/VLM recognition remains absent. DVLA/DVSA adapters are implemented, but live entitlement, enabled Worker caller evidence, and acceptance remain separate gates.
 
 ### Provider API and Automation MCP
 
@@ -435,14 +443,17 @@ describe only the approved production resource group containing:
 - a .NET 10 Web App;
 - a .NET 10 isolated Functions Worker;
 - Azure SQL database `pegasus`;
-- Azure Storage;
+- separate transport/deployment and custody/protection Azure Storage accounts;
 - Key Vault;
 - Application Insights and Log Analytics;
 - managed identities.
 
 The intended release owner uses an authorized Windows terminal, committed Bicep, and `azd`. GitHub Actions deployment is not planned. An explicit database migration must precede application deployment.
 
-This route is documented but not runnable or production-ready. Remaining gaps include:
+Issue #311 is implementing this route under the repository-root
+[production replacement runbook](../azure-production-replacement-plan.md). It is
+not deployed or production-ready. Until its local gates pass, remaining gaps
+include:
 
 - immutable application packages;
 - a migration bundle and operation;

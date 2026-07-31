@@ -1,7 +1,9 @@
-# CollisionSpike test teardown and Pegasus Azure development deployment
+# Historical CollisionSpike teardown and Azure development deployment plan
 
-Status: **Prepared plan only. No archive, credential, Azure, vendor, deployment,
-or deletion operation is authorised by this document.**
+Status: **Superseded by ADR-0014 and the repository-root
+[production replacement runbook](../../azure-production-replacement-plan.md).
+Retained as historical evidence only. No operation is authorised by this
+document.**
 
 Prepared: 2026-07-31, Europe/London.
 

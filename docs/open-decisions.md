@@ -158,7 +158,12 @@ Operations-first is selected for the QDOS-alpha shell. Worklist-first and Case-f
 
 ## Azure ownership and retirement targets
 
-Azure ownership changes and retirement are separate exact-target decisions. The available evidence does not provide accepted target names. Each requires fresh inventory and explicit approval before any cloud mutation; see the canonical [Azure guidance](azure/README.md) and [operations guidance](operations.md).
+Azure ownership changes and retirement are separate exact-target decisions. The
+production replacement runbook fixes the intended production group and the
+candidate predecessor groups, but dated names are not current identity proof.
+Each mutation requires fresh inventory and explicit approval for the resolved
+resource IDs; see the canonical [Azure guidance](azure/README.md),
+[operations guidance](operations.md), and [execution runbook](../azure-production-replacement-plan.md).
 
 | Decision | Evidence needed | Impact | Recommended default | Decision question |
 |---|---|---|---|---|

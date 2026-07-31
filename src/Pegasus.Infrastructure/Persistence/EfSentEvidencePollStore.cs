@@ -8,7 +8,7 @@ namespace Pegasus.Infrastructure.Persistence;
 
 internal sealed class EfSentEvidencePollStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    LocalApprovedSentOptions options) : ISentEvidencePollStore
+    IApprovedSentSourceSettings options) : ISentEvidencePollStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 

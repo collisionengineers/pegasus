@@ -15,7 +15,40 @@
       "value": "${AZURE_PRINCIPAL_NAME}"
     },
     "deploymentMode": {
-      "value": "offline-replay"
+      "value": "${PEGASUS_DEPLOYMENT_MODE}"
+    },
+    "alertEmailAddress": {
+      "value": "${PEGASUS_ALERT_EMAIL}"
+    },
+    "graphMailboxId": {
+      "value": "${GRAPH_MAILBOX_ID}"
+    },
+    "graphInboxFolderId": {
+      "value": "${GRAPH_INBOX_FOLDER_ID}"
+    },
+    "graphSentFolderId": {
+      "value": "${GRAPH_SENT_FOLDER_ID}"
+    },
+    "boxAccessTokenSecretUri": {
+      "value": "${BOX_ACCESS_TOKEN_SECRET_URI}"
+    },
+    "dvlaApiKeySecretUri": {
+      "value": "${DVLA_API_KEY_SECRET_URI}"
+    },
+    "dvsaClientIdSecretUri": {
+      "value": "${DVSA_CLIENT_ID_SECRET_URI}"
+    },
+    "dvsaClientSecretSecretUri": {
+      "value": "${DVSA_CLIENT_SECRET_SECRET_URI}"
+    },
+    "dvsaApiKeySecretUri": {
+      "value": "${DVSA_API_KEY_SECRET_URI}"
+    },
+    "dvsaTokenUri": {
+      "value": "${DVSA_TOKEN_URI}"
+    },
+    "dvsaScope": {
+      "value": "${DVSA_SCOPE}"
     }
   }
 }

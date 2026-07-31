@@ -8,6 +8,7 @@ using Pegasus.Core.Vehicle;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Email;
+using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Vehicle;
 
@@ -36,6 +37,9 @@ public static class WorkerDependencyInjection
         {
             throw new InvalidOperationException($"Unsupported Runtime:Profile '{runtimeProfile}'.");
         }
+        ProductionExternalOptions? productionOptions = developmentOffline
+            ? null
+            : GetProductionExternalOptions(configuration);
         var azureClientRegistration = developmentOffline
             ? WorkerAzureClientFactory.CreateDevelopmentOffline(configuration)
             : WorkerAzureClientFactory.CreateProduction(configuration);
@@ -65,8 +69,10 @@ public static class WorkerDependencyInjection
         else
         {
             services.AddSingleton<IIntakeArtifactStore, AzureBlobIntakeArtifactStore>();
-            services.AddSingleton(VehicleLookupAvailability.Unavailable);
-            services.AddSingleton<IVehicleLookupAdapter, UnavailableVehicleLookupAdapter>();
+            services.AddProductionExternalAdapters(
+                productionOptions!.Value.Graph,
+                productionOptions.Value.Box,
+                productionOptions.Value.Vehicle);
             services.AddScoped<IProcessQueuedVehicleLookup, ProcessQueuedVehicleLookup>();
             services.AddScoped<IProcessQueuedExternalWork, ProcessQueuedExternalWork>();
         }
@@ -90,6 +96,34 @@ public static class WorkerDependencyInjection
         services.AddScoped<ReconcilePoisonedQueueWork>();
         services.AddScoped<DispatchPendingWork>();
         return services;
+    }
+
+    private static ProductionExternalOptions GetProductionExternalOptions(
+        IConfiguration configuration)
+    {
+        var graph = GraphApprovedMailboxOptions.Create(
+            configuration["Graph:BaseUri"],
+            configuration["Graph:MailboxId"],
+            configuration["Graph:MailboxAddress"],
+            configuration["Graph:InboxFolderId"],
+            configuration["Graph:SentFolderId"]);
+        var box = BoxCustodyOptions.Create(
+            configuration["Box:BaseUri"],
+            configuration["Box:UploadUri"],
+            configuration["Box:RootFolderId"],
+            configuration["Box:AccessToken"]);
+        var vehicleValues = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["Dvla:BaseUri"] = configuration["Dvla:BaseUri"],
+            ["Dvla:ApiKey"] = configuration["Dvla:ApiKey"],
+            ["Dvsa:BaseUri"] = configuration["Dvsa:BaseUri"],
+            ["Dvsa:TokenUri"] = configuration["Dvsa:TokenUri"],
+            ["Dvsa:ClientId"] = configuration["Dvsa:ClientId"],
+            ["Dvsa:ClientSecret"] = configuration["Dvsa:ClientSecret"],
+            ["Dvsa:ApiKey"] = configuration["Dvsa:ApiKey"],
+            ["Dvsa:Scope"] = configuration["Dvsa:Scope"]
+        };
+        return new(graph, box, DvlaDvsaProductionOptions.Create(vehicleValues));
     }
 
     private static void ConfigureDatabase(
@@ -151,13 +185,9 @@ public static class WorkerDependencyInjection
             sentFolderIdentity,
             Path.GetFullPath(Path.Combine(environment.ContentRootPath, localPath)));
     }
-    private sealed class UnavailableVehicleLookupAdapter : IVehicleLookupAdapter
-    {
-        public Task<VehicleLookupResult> LookupAsync(
-            VehicleLookupRequest request,
-            CancellationToken cancellationToken) =>
-            Task.FromException<VehicleLookupResult>(
-                new VehicleLookupUnavailableException("production_adapter_unapproved"));
-    }
+    private readonly record struct ProductionExternalOptions(
+        GraphApprovedMailboxOptions Graph,
+        BoxCustodyOptions Box,
+        DvlaDvsaProductionOptions Vehicle);
 
 }

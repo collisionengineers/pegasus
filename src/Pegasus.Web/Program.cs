@@ -24,6 +24,8 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
 using Pegasus.Web.Pages.Uploads;
+using Azure.Identity;
+using Microsoft.AspNetCore.DataProtection;
 
 const string OriginalIssueClaim = "pegasus:original-issued-at";
 const string DevelopmentOfflineProfile = "DevelopmentOffline";
@@ -31,6 +33,7 @@ const string DevelopmentOfflineAuthenticationScheme = "DevelopmentOffline";
 const string AuthenticationRoutingScheme = "Pegasus";
 const string StaffSignInRateLimitPolicy = "StaffSignIn";
 const string InitializeDevelopmentArgument = "--initialize-development";
+const string BootstrapProductionAdministratorArgument = "--bootstrap-production-administrator";
 const string BuildDiagnosticsArgument = "--diagnostics-version";
 var informationalVersion = typeof(Program).Assembly
     .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
@@ -70,16 +73,20 @@ if (args.Contains(BuildDiagnosticsArgument, StringComparer.Ordinal))
 var initializeDevelopment =
     args.Contains(InitializeDevelopmentArgument, StringComparer.Ordinal);
 var migrateDevelopment = args.Contains("--migrate-development", StringComparer.Ordinal);
+var bootstrapProductionAdministrator =
+    args.Contains(BootstrapProductionAdministratorArgument, StringComparer.Ordinal);
 if ((initializeDevelopment ? 1 : 0)
-    + (migrateDevelopment ? 1 : 0) > 1)
+    + (migrateDevelopment ? 1 : 0)
+    + (bootstrapProductionAdministrator ? 1 : 0) > 1)
 {
     throw new InvalidOperationException(
-        "Development initialization and migration commands must be run separately.");
+        "Development initialization, migration, and production bootstrap commands must be run separately.");
 }
 
 var applicationArgs = args
     .Where(argument =>
         !argument.Equals(InitializeDevelopmentArgument, StringComparison.Ordinal)
+        && !argument.Equals(BootstrapProductionAdministratorArgument, StringComparison.Ordinal)
         && !argument.Equals("--migrate-development", StringComparison.Ordinal))
     .ToArray();
 var builder = WebApplication.CreateBuilder(applicationArgs);
@@ -87,6 +94,73 @@ var configuredRuntimeProfile = builder.Configuration["Runtime:Profile"]
     ?? throw new InvalidOperationException("Runtime:Profile is required.");
 var developmentOfflineProfile = builder.Environment.IsDevelopment()
     && configuredRuntimeProfile.Equals(DevelopmentOfflineProfile, StringComparison.Ordinal);
+var productionProfile = configuredRuntimeProfile.Equals("Production", StringComparison.Ordinal);
+if (configuredRuntimeProfile.Equals(DevelopmentOfflineProfile, StringComparison.Ordinal)
+    && !builder.Environment.IsDevelopment())
+{
+    throw new InvalidOperationException(
+        "The DevelopmentOffline runtime profile is permitted only in the Development environment.");
+}
+if (builder.Configuration.GetValue<bool>("Features:LocalIntake")
+    && !developmentOfflineProfile)
+{
+    throw new InvalidOperationException(
+        "Features:LocalIntake requires the DevelopmentOffline runtime profile.");
+}
+if (!developmentOfflineProfile && !productionProfile)
+{
+    throw new InvalidOperationException(
+        $"Unsupported Runtime:Profile '{configuredRuntimeProfile}' for environment '{builder.Environment.EnvironmentName}'.");
+}
+if (productionProfile)
+{
+    if (!builder.Environment.IsProduction())
+    {
+        throw new InvalidOperationException(
+            "Runtime:Profile Production requires ASPNETCORE_ENVIRONMENT=Production.");
+    }
+    foreach (var key in new[]
+    {
+        "ConnectionStrings:Pegasus",
+        "AzureIdentity:WebClientId",
+        "TransportStorage:AccountName",
+        "CustodyStorage:AccountName",
+        "CustodyStorage:ServiceUri"
+    })
+    {
+        if (string.IsNullOrWhiteSpace(builder.Configuration[key]))
+        {
+            throw new InvalidOperationException($"{key} is required for the Production runtime profile.");
+        }
+    }
+    var webClientId = Guid.Parse(builder.Configuration["AzureIdentity:WebClientId"]!);
+    var custodyServiceUri = new Uri(builder.Configuration["CustodyStorage:ServiceUri"]!, UriKind.Absolute);
+    if (custodyServiceUri.Scheme != Uri.UriSchemeHttps
+        || !custodyServiceUri.Host.EndsWith(".blob.core.windows.net", StringComparison.OrdinalIgnoreCase))
+    {
+        throw new InvalidOperationException(
+            "CustodyStorage:ServiceUri must be an Azure Blob HTTPS service URI in Production.");
+    }
+    var credential = new DefaultAzureCredential(new DefaultAzureCredentialOptions
+    {
+        ManagedIdentityClientId = webClientId.ToString("D"),
+        ExcludeEnvironmentCredential = true,
+        ExcludeWorkloadIdentityCredential = true,
+        ExcludeManagedIdentityCredential = false,
+        ExcludeVisualStudioCredential = true,
+        ExcludeVisualStudioCodeCredential = true,
+        ExcludeAzureCliCredential = true,
+        ExcludeAzurePowerShellCredential = true,
+        ExcludeAzureDeveloperCliCredential = true,
+        ExcludeInteractiveBrowserCredential = true,
+        ExcludeBrokerCredential = true
+    });
+    builder.Services.AddDataProtection()
+        .SetApplicationName("Pegasus")
+        .PersistKeysToAzureBlobStorage(
+            new Uri(custodyServiceUri, "authentication-ring/keys.xml"),
+            credential);
+}
 var localDocumentCustodyConfigured =
     builder.Configuration.GetValue<bool>("Features:LocalDocumentCustody");
 Func<IServiceProvider, RequestUploadLimits>? requestUploadLimitsFactory = null;
@@ -358,6 +432,17 @@ builder.Services.Configure<FormOptions>(options =>
     options.MultipartBodyLengthLimit = (10 * 1024 * 1024) + (64 * 1024);
 });
 
+Func<IServiceProvider, string>? localArtifactRootFactory = developmentOfflineProfile
+    ? serviceProvider =>
+    {
+        var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+        var environment = serviceProvider.GetRequiredService<IHostEnvironment>();
+        var configuredArtifactRoot = configuration["Intake:LocalArtifactPath"]
+            ?? throw new InvalidOperationException(
+                "Intake:LocalArtifactPath is required for the DevelopmentOffline runtime profile.");
+        return Path.GetFullPath(Path.Combine(environment.ContentRootPath, configuredArtifactRoot));
+    }
+    : null;
 
 builder.Services.AddPegasusInfrastructure((serviceProvider, options) =>
 {
@@ -365,24 +450,7 @@ builder.Services.AddPegasusInfrastructure((serviceProvider, options) =>
         .GetConnectionString("Pegasus")
         ?? throw new InvalidOperationException("Connection string 'Pegasus' is required.");
     options.UseSqlServer(connectionString);
-}, serviceProvider =>
-{
-    var configuration = serviceProvider.GetRequiredService<IConfiguration>();
-    var environment = serviceProvider.GetRequiredService<IHostEnvironment>();
-    var profile = configuration["Runtime:Profile"]
-        ?? throw new InvalidOperationException("Runtime:Profile is required.");
-    if (!profile.Equals(DevelopmentOfflineProfile, StringComparison.Ordinal)
-        || !environment.IsDevelopment())
-    {
-        throw new InvalidOperationException(
-            "The local intake artifact store is available only in the DevelopmentOffline runtime profile.");
-    }
-
-    var configuredArtifactRoot = configuration["Intake:LocalArtifactPath"]
-        ?? throw new InvalidOperationException(
-            "Intake:LocalArtifactPath is required for the DevelopmentOffline runtime profile.");
-    return Path.GetFullPath(Path.Combine(environment.ContentRootPath, configuredArtifactRoot));
-}, requestUploadLimitsFactory: requestUploadLimitsFactory,
+}, localArtifactRootFactory, requestUploadLimitsFactory: requestUploadLimitsFactory,
 evaMappingAcceptanceFactory: serviceProvider =>
 {
     var configuration = serviceProvider.GetRequiredService<IConfiguration>();
@@ -447,6 +515,19 @@ if (localDocumentCustodyConfigured && !developmentOffline)
 {
     throw new InvalidOperationException(
         "Features:LocalDocumentCustody requires the DevelopmentOffline runtime profile.");
+}
+
+if (bootstrapProductionAdministrator)
+{
+    if (!app.Environment.IsProduction()
+        || !runtimeProfile.Equals("Production", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "The first-Administrator bootstrap is available only in the Production runtime profile and environment.");
+    }
+    await BootstrapProductionAdministratorAsync(app.Services);
+    Console.WriteLine("Production Administrator bootstrap completed; first password change is required.");
+    return;
 }
 
 var localIntakeEnabled = developmentOffline && localIntakeConfigured;
@@ -605,6 +686,95 @@ app.MapRazorPages()
 
 app.Run();
 
+
+static async Task BootstrapProductionAdministratorAsync(IServiceProvider services)
+{
+    if (Console.IsInputRedirected)
+    {
+        throw new InvalidOperationException(
+            "Production Administrator bootstrap requires an interactive terminal.");
+    }
+
+    Console.Write("Username (must be alex): ");
+    var username = Console.ReadLine();
+    if (!string.Equals(username, "alex", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException("The first production Administrator must be exactly alex.");
+    }
+    Console.Write("Temporary password: ");
+    var password = ReadSecret();
+    Console.Write("Confirm temporary password: ");
+    var confirmation = ReadSecret();
+    if (!string.Equals(password, confirmation, StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException("The temporary passwords did not match.");
+    }
+
+    await using var scope = services.CreateAsyncScope();
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<PegasusIdentityUser>>();
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+    if (await userManager.Users.AnyAsync())
+    {
+        throw new InvalidOperationException(
+            "Production Administrator bootstrap refuses to run after any application user exists.");
+    }
+    if (!await roleManager.RoleExistsAsync(StaffRoleNames.Administrator))
+    {
+        var roleResult = await roleManager.CreateAsync(new IdentityRole<Guid>(StaffRoleNames.Administrator));
+        if (!roleResult.Succeeded)
+        {
+            throw new InvalidOperationException(
+                $"Administrator role creation failed: {string.Join(',', roleResult.Errors.Select(error => error.Code))}");
+        }
+    }
+
+    var user = new PegasusIdentityUser
+    {
+        Id = Guid.NewGuid(),
+        UserName = "alex",
+        IsEnabled = true,
+        MustChangePassword = true,
+        SecurityStamp = Guid.NewGuid().ToString("N")
+    };
+    var createResult = await userManager.CreateAsync(user, password);
+    if (!createResult.Succeeded)
+    {
+        throw new InvalidOperationException(
+            $"Administrator creation failed: {string.Join(',', createResult.Errors.Select(error => error.Code))}");
+    }
+    var addRoleResult = await userManager.AddToRoleAsync(user, StaffRoleNames.Administrator);
+    if (!addRoleResult.Succeeded)
+    {
+        throw new InvalidOperationException(
+            $"Administrator role assignment failed: {string.Join(',', addRoleResult.Errors.Select(error => error.Code))}");
+    }
+}
+
+static string ReadSecret()
+{
+    var characters = new List<char>();
+    while (true)
+    {
+        var key = Console.ReadKey(intercept: true);
+        if (key.Key == ConsoleKey.Enter)
+        {
+            Console.WriteLine();
+            return new string(characters.ToArray());
+        }
+        if (key.Key == ConsoleKey.Backspace)
+        {
+            if (characters.Count > 0)
+            {
+                characters.RemoveAt(characters.Count - 1);
+            }
+            continue;
+        }
+        if (!char.IsControl(key.KeyChar))
+        {
+            characters.Add(key.KeyChar);
+        }
+    }
+}
 
 public partial class Program
 {
