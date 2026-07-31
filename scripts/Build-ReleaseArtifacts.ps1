@@ -36,6 +36,10 @@ try {
         "-p:InformationalVersion=$Version+$SourceRevision",
         '-p:ContinuousIntegrationBuild=true'
     )
+    & dotnet restore ./src/Pegasus.Web/Pegasus.Web.csproj --runtime linux-x64 --locked-mode
+    if ($LASTEXITCODE -ne 0) { throw 'Locked Web linux-x64 restore failed.' }
+    & dotnet restore ./src/Pegasus.Worker/Pegasus.Worker.csproj --runtime linux-x64 --locked-mode
+    if ($LASTEXITCODE -ne 0) { throw 'Locked Worker linux-x64 restore failed.' }
     & dotnet publish ./src/Pegasus.Web/Pegasus.Web.csproj -c Release -r linux-x64 --self-contained false --no-restore -o $webPublish @buildProperties
     if ($LASTEXITCODE -ne 0) { throw 'Web publish failed.' }
     & dotnet publish ./src/Pegasus.Worker/Pegasus.Worker.csproj -c Release -r linux-x64 --self-contained false --no-restore -o $workerPublish @buildProperties
