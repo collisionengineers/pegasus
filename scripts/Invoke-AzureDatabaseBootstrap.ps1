@@ -223,12 +223,15 @@ Invoke-AzureSqlQuery $sql | Out-Null
 
 $permissionQuery = @"
 SET NOCOUNT ON;
-SELECT principal.name + N'|' + permission.state + N'|' + permission.permission_name + N'|' +
+SELECT CONCAT(
+       principal.name COLLATE DATABASE_DEFAULT, N'|',
+       permission.state COLLATE DATABASE_DEFAULT, N'|',
+       permission.permission_name COLLATE DATABASE_DEFAULT, N'|',
        CASE
            WHEN permission.class = 1 AND permission.minor_id = 0 AND target.object_id IS NOT NULL
-               THEN target.name
+               THEN target.name COLLATE DATABASE_DEFAULT
            ELSE CONCAT(N'__UNAPPROVED_SCOPE_', permission.class, N'_', permission.major_id, N'_', permission.minor_id)
-       END AS permission_row
+       END) AS permission_row
 FROM sys.database_permissions AS permission
 JOIN sys.database_principals AS principal ON principal.principal_id = permission.grantee_principal_id
 LEFT JOIN sys.tables AS target ON target.object_id = permission.major_id
@@ -249,7 +252,7 @@ function Get-EffectiveTablePermissionMatrix([string] $UserName, [string] $RoleNa
     $query = @"
 SET NOCOUNT ON;
 EXECUTE AS USER = N'$UserName';
-SELECT N'$RoleName|G|' + candidate.permission_name + N'|' + target.name AS permission_row
+SELECT CONCAT(N'$RoleName|G|', candidate.permission_name COLLATE DATABASE_DEFAULT, N'|', target.name COLLATE DATABASE_DEFAULT) AS permission_row
 FROM sys.tables AS target
 CROSS JOIN (VALUES (N'SELECT'), (N'INSERT'), (N'UPDATE'), (N'DELETE')) AS candidate(permission_name)
 WHERE target.is_ms_shipped = 0
