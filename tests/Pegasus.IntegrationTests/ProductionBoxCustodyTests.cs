@@ -8,6 +8,10 @@ namespace Pegasus.IntegrationTests;
 
 public sealed class ProductionBoxCustodyTests
 {
+    private const string BoxConfigJson = """
+        {"boxAppSettings":{"clientID":"client-id","appAuth":{"publicKeyID":"key-id","privateKey":"private-key","passphrase":"passphrase"}},"enterpriseID":"enterprise-id"}
+        """;
+
     [Fact]
     public void ConfigurationRejectsAnyRootOtherThanTheApprovedFolder()
     {
@@ -15,9 +19,37 @@ public sealed class ProductionBoxCustodyTests
             "https://api.box.com/2.0/",
             "https://upload.box.com/api/2.0/",
             "0",
-            "token"));
+            BoxConfigJson,
+            "client-secret"));
 
         Assert.Contains("392761581105", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ConfigurationRejectsMissingOrMalformedJwtMaterial()
+    {
+        var missingConfiguration = Assert.Throws<InvalidOperationException>(() => BoxCustodyOptions.Create(
+            "https://api.box.com/2.0/",
+            "https://upload.box.com/api/2.0/",
+            "392761581105",
+            null,
+            "client-secret"));
+        var missingSecret = Assert.Throws<InvalidOperationException>(() => BoxCustodyOptions.Create(
+            "https://api.box.com/2.0/",
+            "https://upload.box.com/api/2.0/",
+            "392761581105",
+            BoxConfigJson,
+            null));
+        var malformedConfiguration = Assert.Throws<InvalidOperationException>(() => BoxCustodyOptions.Create(
+            "https://api.box.com/2.0/",
+            "https://upload.box.com/api/2.0/",
+            "392761581105",
+            "{}",
+            "client-secret"));
+
+        Assert.Contains("ConfigJson", missingConfiguration.Message, StringComparison.Ordinal);
+        Assert.Contains("ClientSecret", missingSecret.Message, StringComparison.Ordinal);
+        Assert.Contains("valid Box JWT", malformedConfiguration.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -37,6 +69,7 @@ public sealed class ProductionBoxCustodyTests
 
         Assert.Equal("case-folder", root.RemoteId);
         Assert.All(handler.Methods, method => Assert.Equal(HttpMethod.Get, method));
+        Assert.Equal(["Bearer test-token-1", "Bearer test-token-2"], handler.AuthorizationHeaders);
     }
 
     [Fact]
@@ -150,9 +183,11 @@ public sealed class ProductionBoxCustodyTests
             "https://api.box.com/2.0/",
             "https://upload.box.com/api/2.0/",
             "392761581105",
-            "token"),
+            BoxConfigJson,
+            "client-secret"),
         artifactStore ?? new EmptyArtifactStore(),
-        new HttpClient(handler));
+        new HttpClient(handler),
+        new RecordingAuthorizationHeaderProvider());
 
     private static HttpResponseMessage Json(string body) =>
         new(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
@@ -180,15 +215,25 @@ public sealed class ProductionBoxCustodyTests
         public List<HttpMethod> Methods { get; } = [];
         public List<Uri> Uris { get; } = [];
         public List<string> RequestBodies { get; } = [];
+        public List<string> AuthorizationHeaders { get; } = [];
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Methods.Add(request.Method);
             Uris.Add(request.RequestUri!);
+            AuthorizationHeaders.Add(request.Headers.Authorization?.ToString() ?? string.Empty);
             if (request.Content is not null)
             {
                 RequestBodies.Add(request.Content.ReadAsStringAsync(cancellationToken).GetAwaiter().GetResult());
             }
             return Task.FromResult(handler(request));
         }
+    }
+
+    private sealed class RecordingAuthorizationHeaderProvider : IBoxAuthorizationHeaderProvider
+    {
+        private int calls;
+
+        public Task<string> GetAuthorizationHeaderAsync(CancellationToken cancellationToken) =>
+            Task.FromResult($"Bearer test-token-{Interlocked.Increment(ref calls)}");
     }
 }

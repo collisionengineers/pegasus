@@ -213,6 +213,11 @@ Hash the archive and stop unless every unique digest is present. Do not download
   generic quota reads could not complete. Provider registration is a cloud
   write and was not included in this phase's approval.
 
+On 2026-08-01, separate exact approval was granted and `Microsoft.Sql` was
+registered successfully. The subscription-specific read then returned SQL
+Standard S0 as available in UK South at 10 DTUs. `Microsoft.Quota` remains
+unregistered and was not changed.
+
 ### 5. Production preview and provisioning
 
 Obtain separate approval for the exact provider registration and preview. The
@@ -256,6 +261,21 @@ azd env set -e $PegasusAzdEnv PEGASUS_DEPLOYMENT_MODE approved-live-deployment
 azd env set -e $PegasusAzdEnv BOX_ROOT_FOLDER_ID 392761581105
 ```
 
+Set only exact versioned secret references established by an approved
+metadata-only read. Box server authentication requires both retained secrets;
+a static access token is prohibited because it expires and is not present in
+the retained vault:
+
+```powershell
+azd env set -e $PegasusAzdEnv BOX_CONFIG_JSON_SECRET_URI $ApprovedBoxConfigJsonSecretUri
+azd env set -e $PegasusAzdEnv BOX_CLIENT_SECRET_SECRET_URI $ApprovedBoxClientSecretSecretUri
+azd env set -e $PegasusAzdEnv DVLA_API_KEY_SECRET_URI $ApprovedDvlaApiKeySecretUri
+azd env set -e $PegasusAzdEnv DVSA_API_KEY_SECRET_URI $ApprovedDvsaApiKeySecretUri
+azd env set -e $PegasusAzdEnv DVSA_CLIENT_ID_SECRET_URI $ApprovedDvsaClientIdSecretUri
+azd env set -e $PegasusAzdEnv DVSA_CLIENT_SECRET_SECRET_URI $ApprovedDvsaClientSecretSecretUri
+azd env set -e $PegasusAzdEnv DVSA_SCOPE 'https://tapi.dvsa.gov.uk/.default'
+```
+
 Run and retain the preview:
 
 ```powershell
@@ -264,6 +284,15 @@ azd provision -e $PegasusAzdEnv --preview --no-prompt |
 ```
 
 Fail on any resource outside `rg-pegasus-prod`, any dev/staging resource, any delete/replace operation, incorrect region/SKU, one-storage topology, shared-key access, local authentication, broad role, remote build, enabled Worker trigger, OCR/Foundry/Maps/Vision/capture resource, or secret-bearing output.
+
+The approved 2026-08-01 preview attempts stopped before ARM evaluation. The
+remaining required inputs are the exact Graph mailbox, Inbox, and Sent Items
+IDs plus the entitlement-specific DVSA token URL. The signed-in principal's
+approved Graph mailbox-object query returned `ErrorAccessDenied`; no folder,
+message, or attachment request ran. Do not bypass that denial, invent an ID,
+substitute a well-known folder alias, or retrieve predecessor credentials
+without new exact approval. Preview remains incomplete until an authorised
+source supplies all four values.
 
 After exact approval of that preview and the two named telemetry-cap writes:
 

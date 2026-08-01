@@ -95,11 +95,24 @@ accepted, and retired remain separate evidence states.
   `F88BC99D2CA742433E6A36860D3EDA65629A95AA70FC9FA2143DBB8768F9B47C`.
   No excluded data or secret values were retrieved and no Azure resource was
   mutated.
-- Production readiness reads: **partial**. UK South advertises Linux B1 and
-  FC1/.NET 10, public retail rates were captured, and the operator has
-  subscription Owner. `Microsoft.Sql` and `Microsoft.Quota` are not registered,
-  so S0 and generic quota verification remain blocked on a separately approved
-  provider-registration/preview checkpoint.
-- Azure preview/provisioning: **not run**.
+- Production readiness reads: **performed** for the service-specific gates. UK
+  South advertises Linux B1, FC1/.NET 10, and SQL Standard S0. Under exact
+  approval, `Microsoft.Sql` was registered on 2026-08-01; this provider
+  registration is the only Azure mutation so far. `Microsoft.Quota` remains
+  unregistered and was not changed.
+- Retained credential metadata: **read and locally configured** under exact
+  approval. One enabled versioned URI was found for each of `box-config-json`,
+  `box-client-secret`, `dvla-api-key`, `dvsa-api-key`, `dvsa-client-id`, and
+  `dvsa-client-secret`; no secret value was read. The Box route now uses the
+  retained JWT configuration and client secret to obtain short-lived SDK
+  authorization headers instead of requiring a static access token.
+- Azure preview: **attempted and stopped before ARM evaluation**. The first
+  attempt identified eleven missing integration inputs. After binding the
+  approved non-secret/versioned metadata and correcting Box authentication, the
+  second attempt stopped on exactly four inputs: the Graph mailbox, Inbox, and
+  Sent Items IDs plus the entitlement-specific DVSA token URL. Microsoft Graph
+  denied the approved mailbox-object metadata request before any folder request
+  ran. No resource was previewed, created, changed, or deleted.
+- Azure provisioning: **not run**.
 - Deployment, live verification, operator acceptance, predecessor retirement,
   and recovery exercise: **not performed**.

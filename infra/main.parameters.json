@@ -29,8 +29,11 @@
     "graphSentFolderId": {
       "value": "${GRAPH_SENT_FOLDER_ID}"
     },
-    "boxAccessTokenSecretUri": {
-      "value": "${BOX_ACCESS_TOKEN_SECRET_URI}"
+    "boxConfigJsonSecretUri": {
+      "value": "${BOX_CONFIG_JSON_SECRET_URI}"
+    },
+    "boxClientSecretSecretUri": {
+      "value": "${BOX_CLIENT_SECRET_SECRET_URI}"
     },
     "dvlaApiKeySecretUri": {
       "value": "${DVLA_API_KEY_SECRET_URI}"

@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Box.Sdk.Gen;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Intake;
 
@@ -13,13 +14,19 @@ public sealed record BoxCustodyOptions(
     Uri BaseUri,
     Uri UploadUri,
     string RootFolderId,
-    string AccessToken)
+    string ClientId,
+    string ClientSecret,
+    string JwtKeyId,
+    string PrivateKey,
+    string PrivateKeyPassphrase,
+    string EnterpriseId)
 {
     public static BoxCustodyOptions Create(
         string? baseUri,
         string? uploadUri,
         string? rootFolderId,
-        string? accessToken)
+        string? configJson,
+        string? clientSecret)
     {
         var api = RequireBoxUri(baseUri, "api.box.com", "Box:BaseUri");
         var upload = RequireBoxUri(uploadUri, "upload.box.com", "Box:UploadUri");
@@ -27,11 +34,47 @@ public sealed record BoxCustodyOptions(
         {
             throw new InvalidOperationException("Box:RootFolderId must be the approved root 392761581105.");
         }
-        if (string.IsNullOrWhiteSpace(accessToken))
+        if (string.IsNullOrWhiteSpace(configJson))
         {
-            throw new InvalidOperationException("Box:AccessToken is required through a Key Vault reference.");
+            throw new InvalidOperationException("Box:ConfigJson is required through a Key Vault reference.");
         }
-        return new(api, upload, rootFolderId!, accessToken);
+        if (string.IsNullOrWhiteSpace(clientSecret))
+        {
+            throw new InvalidOperationException("Box:ClientSecret is required through a Key Vault reference.");
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(configJson);
+            var root = document.RootElement;
+            var settings = root.GetProperty("boxAppSettings");
+            var appAuth = settings.GetProperty("appAuth");
+            return new(
+                api,
+                upload,
+                rootFolderId!,
+                RequireJsonString(settings, "clientID"),
+                clientSecret,
+                RequireJsonString(appAuth, "publicKeyID"),
+                RequireJsonString(appAuth, "privateKey"),
+                RequireJsonString(appAuth, "passphrase"),
+                RequireJsonString(root, "enterpriseID"));
+        }
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException or KeyNotFoundException)
+        {
+            throw new InvalidOperationException("Box:ConfigJson is not a valid Box JWT configuration.", exception);
+        }
+    }
+
+    private static string RequireJsonString(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var property)
+            || property.ValueKind != JsonValueKind.String
+            || string.IsNullOrWhiteSpace(property.GetString()))
+        {
+            throw new InvalidOperationException($"Box JWT configuration omitted {propertyName}.");
+        }
+        return property.GetString()!;
     }
 
     private static Uri RequireBoxUri(string? value, string host, string key)
@@ -48,10 +91,45 @@ public sealed record BoxCustodyOptions(
     }
 }
 
+internal interface IBoxAuthorizationHeaderProvider
+{
+    Task<string> GetAuthorizationHeaderAsync(CancellationToken cancellationToken);
+}
+
+internal sealed class BoxJwtAuthorizationHeaderProvider(BoxCustodyOptions options)
+    : IBoxAuthorizationHeaderProvider
+{
+    private readonly Lazy<(BoxJwtAuth Auth, NetworkSession Session)> authentication = new(() =>
+    {
+        var configuration = new JwtConfig(
+            options.ClientId,
+            options.ClientSecret,
+            options.JwtKeyId,
+            options.PrivateKey,
+            options.PrivateKeyPassphrase)
+        {
+            EnterpriseId = options.EnterpriseId
+        };
+        return (new BoxJwtAuth(configuration), new NetworkSession());
+    }, LazyThreadSafetyMode.ExecutionAndPublication);
+
+    public async Task<string> GetAuthorizationHeaderAsync(CancellationToken cancellationToken)
+    {
+        var (auth, session) = authentication.Value;
+        var header = await auth.RetrieveAuthorizationHeaderAsync(session).WaitAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(header))
+        {
+            throw new InvalidOperationException("Box JWT authentication returned no authorization header.");
+        }
+        return header;
+    }
+}
+
 internal sealed class BoxCaseCustody(
     BoxCustodyOptions options,
     IIntakeArtifactStore artifactStore,
-    HttpClient httpClient) : ICaseCustody
+    HttpClient httpClient,
+    IBoxAuthorizationHeaderProvider authorizationHeaderProvider) : ICaseCustody
 {
     public async Task<CaseCustodyRoot> CreateCaseRootAsync(
         Guid caseId,
@@ -294,7 +372,8 @@ internal sealed class BoxCaseCustody(
         CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(method, uri) { Content = content };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.AccessToken);
+        request.Headers.Authorization = AuthenticationHeaderValue.Parse(
+            await authorizationHeaderProvider.GetAuthorizationHeaderAsync(cancellationToken));
         return await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
     }
 

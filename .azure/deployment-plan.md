@@ -1,10 +1,12 @@
 # Azure deployment plan
 
-Status: **Production-route implementation is active under issue #311. Azure
-preview, provisioning, deployment, and retirement have not run and retain the
-exact-target gates in the [production replacement runbook](../azure-production-replacement-plan.md).**
+Status: **Production-route implementation is active under issue #311. An
+approved preview attempt stopped before ARM evaluation on four missing external
+identity inputs. Provisioning, deployment, and retirement have not run and
+retain the exact-target gates in the
+[production replacement runbook](../azure-production-replacement-plan.md).**
 
-Last reviewed: 2026-07-23, Europe/London.
+Last reviewed: 2026-08-01, Europe/London.
 
 ## Confirmed context
 
@@ -50,7 +52,7 @@ only, as decided in [ADR-0014](../docs/adr/0014-local-to-production-deployment.m
   App Service and Flex can reach SQL. Authentication remains Entra-only. This
   broad network reach is an accepted `0.1.0-alpha.1` trade-off, not a planned future
   private-networking migration.
-- App settings contain resource names, endpoints, client IDs, and Application Insights connection metadata. Third-party credentials are referenced from Key Vault and are never generated into Bicep output.
+- App settings contain resource names, endpoints, client IDs, and Application Insights connection metadata. Third-party credentials are referenced from Key Vault and are never generated into Bicep output. Box uses the retained JWT configuration plus separately retained client secret to obtain short-lived SDK tokens at runtime; no static Box access token is a deployment input.
 
 ## Quota and availability evidence
 
@@ -60,7 +62,7 @@ Before provisioning, recheck:
 
 - B1 App Service plan availability in UK South;
 - Flex Consumption and regional app quota;
-- SQL logical-server quota;
+- SQL S0 availability;
 - two production storage accounts;
 - role-assignment authority for the provisioning principal.
 
@@ -100,6 +102,9 @@ pre-application step; schema rollback is not a down-migration.
   passed on 2026-07-31. Revision-bound QDOS CI pressure (3/3, no skips) and
   immutable Web, Worker, and migration packaging also passed from a clean
   reviewed commit. These are local proof, not deployment or live acceptance.
-- External integration credentials and rotation sequence are not prepared.
+- Versioned metadata for the six retained Box/DVLA/DVSA secret references is
+  prepared without reading values. Graph denied the approved metadata query,
+  and the entitlement-specific DVSA token URL is not yet supplied. These four
+  missing inputs stop preview before ARM evaluation.
 
 This file must not be changed to `Ready for Validation` merely because Bicep compiles.

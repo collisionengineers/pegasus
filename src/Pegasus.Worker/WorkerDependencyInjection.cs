@@ -111,7 +111,8 @@ public static class WorkerDependencyInjection
             configuration["Box:BaseUri"],
             configuration["Box:UploadUri"],
             configuration["Box:RootFolderId"],
-            configuration["Box:AccessToken"]);
+            configuration["Box:ConfigJson"],
+            configuration["Box:ClientSecret"]);
         var vehicleValues = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
             ["Dvla:BaseUri"] = configuration["Dvla:BaseUri"],
