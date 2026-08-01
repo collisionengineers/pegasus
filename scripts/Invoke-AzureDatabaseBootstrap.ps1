@@ -53,13 +53,23 @@ function Get-MigrationPermissionMatrix {
         return $match.Groups['body'].Value
     }
 
+    $removedTables = @(
+        '20260730203141_ThirdPartyVehicleEvidenceAndRemoveBootstrap.cs',
+        '20260730203833_RemoveDormantOpenIddict.cs'
+    ) | ForEach-Object {
+        $terminalSource = Get-Content -Raw -LiteralPath (Join-Path (Split-Path -Parent $migrationPath) $_)
+        [regex]::Matches($terminalSource, 'DropTable\(\s*name:\s*"(?<table>[A-Za-z0-9]+)"') |
+            ForEach-Object { $_.Groups['table'].Value }
+    }
     $tables = [regex]::Matches((Read-Block 'RuntimeTables'), '"(?<table>[A-Za-z0-9]+)"') |
-        ForEach-Object { $_.Groups['table'].Value }
+        ForEach-Object { $_.Groups['table'].Value } |
+        Where-Object { $_ -notin $removedTables }
     $expected = [Collections.Generic.List[string]]::new()
     foreach ($definition in @(
         @{ Role = 'pegasus_web_runtime_role'; Block = 'WebGrants' },
         @{ Role = 'pegasus_worker_runtime_role'; Block = 'WorkerGrants' })) {
         foreach ($grant in [regex]::Matches((Read-Block $definition.Block), '\("(?<table>[A-Za-z0-9]+)", "(?<permissions>[A-Z, ]+)"\)')) {
+            if ($grant.Groups['table'].Value -in $removedTables) { continue }
             foreach ($permission in $grant.Groups['permissions'].Value.Split(',').Trim()) {
                 $expected.Add("$($definition.Role)|G|$permission|$($grant.Groups['table'].Value)")
             }
