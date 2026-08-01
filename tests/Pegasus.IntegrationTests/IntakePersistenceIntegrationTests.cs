@@ -281,8 +281,58 @@ public sealed class LocalDbFixtureDefinition
 internal sealed class LocalDbTestDatabase : IAsyncDisposable
 {
     private const string Prefix = "Pegasus_Test_";
+
+    /// <summary>
+    /// Overrides the data source for the SQL Server instance these tests use.
+    /// </summary>
+    /// <remarks>
+    /// SQL Server Express LocalDB exists only on Windows. Leaving this unset
+    /// keeps the Windows default exactly as it was; setting it lets a Linux
+    /// workstation point the same tests at a SQL Server container. The engine,
+    /// migration stream and assertions are identical either way.
+    /// </remarks>
+    private const string DataSourceVariable = "PEGASUS_TEST_SQL_DATASOURCE";
+    private const string UserVariable = "PEGASUS_TEST_SQL_USER";
+    private const string PasswordVariable = "PEGASUS_TEST_SQL_PASSWORD";
+
     private readonly ServiceProvider services;
     private bool disposed;
+
+    private static string BuildConnectionString(string databaseName)
+    {
+        var dataSource = Environment.GetEnvironmentVariable(DataSourceVariable);
+        var builder = new SqlConnectionStringBuilder
+        {
+            InitialCatalog = databaseName,
+            ConnectTimeout = 15,
+            MultipleActiveResultSets = true
+        };
+
+        if (string.IsNullOrWhiteSpace(dataSource))
+        {
+            builder.DataSource = @"(localdb)\MSSQLLocalDB";
+            builder.IntegratedSecurity = true;
+            builder.Encrypt = false;
+            return builder.ConnectionString;
+        }
+
+        builder.DataSource = dataSource;
+        var user = Environment.GetEnvironmentVariable(UserVariable);
+        var password = Environment.GetEnvironmentVariable(PasswordVariable);
+        if (string.IsNullOrWhiteSpace(user) || string.IsNullOrWhiteSpace(password))
+        {
+            throw new InvalidOperationException(
+                $"{DataSourceVariable} is set, so {UserVariable} and {PasswordVariable} are also required.");
+        }
+
+        builder.UserID = user;
+        builder.Password = password;
+        builder.IntegratedSecurity = false;
+        // The container presents a self-signed certificate.
+        builder.Encrypt = true;
+        builder.TrustServerCertificate = true;
+        return builder.ConnectionString;
+    }
 
     private LocalDbTestDatabase(
         string databaseName,
@@ -291,15 +341,7 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         Action<IServiceCollection>? configureServices)
     {
         DatabaseName = databaseName;
-        ConnectionString = new SqlConnectionStringBuilder
-        {
-            DataSource = @"(localdb)\MSSQLLocalDB",
-            InitialCatalog = databaseName,
-            IntegratedSecurity = true,
-            Encrypt = false,
-            ConnectTimeout = 15,
-            MultipleActiveResultSets = true
-        }.ConnectionString;
+        ConnectionString = BuildConnectionString(databaseName);
 
         var serviceCollection = new ServiceCollection();
         serviceCollection.AddPegasusInfrastructure(
@@ -472,14 +514,7 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         await command.ExecuteNonQueryAsync();
     }
 
-    private static string MasterConnectionString() => new SqlConnectionStringBuilder
-    {
-        DataSource = @"(localdb)\MSSQLLocalDB",
-        InitialCatalog = "master",
-        IntegratedSecurity = true,
-        Encrypt = false,
-        ConnectTimeout = 15
-    }.ConnectionString;
+    private static string MasterConnectionString() => BuildConnectionString("master");
 
     private static void ValidateExactDisposableName(string databaseName)
     {

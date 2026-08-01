@@ -15,6 +15,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+
+. (Join-Path $PSScriptRoot 'PegasusPlatform.ps1')
 $localDevelopmentRoot = Join-Path $repositoryRoot 'artifacts/local-development'
 $initializationPath = Join-Path $localDevelopmentRoot '.initialized.json'
 $webDirectory = Join-Path $repositoryRoot 'src/Pegasus.Web'
@@ -76,6 +78,27 @@ function Get-RequiredApplication {
     return [System.IO.Path]::GetFullPath([string]$command.Source)
 }
 
+function ConvertTo-OwnedTimestamp {
+    <#
+        .SYNOPSIS
+        Returns an ownership timestamp in its canonical round-trip form.
+
+        .DESCRIPTION
+        ConvertFrom-Json converts an ISO-8601 string to [datetime], so a
+        timestamp read back from a manifest is no longer the string that was
+        written. Casting that value to [string] yields a culture-dependent form
+        that neither the manifest contract nor the ownership comparison can
+        match. Normalise instead of comparing whatever the parser produced.
+    #>
+    param([object]$Value)
+
+    if ($Value -is [datetime]) {
+        return ([datetime]$Value).ToUniversalTime().ToString('O')
+    }
+
+    return [string]$Value
+}
+
 function Get-Sha256 {
     param([Parameter(Mandatory)][string]$Path)
 
@@ -96,9 +119,7 @@ function Assert-ExactPath {
 
     $actualFullPath = [System.IO.Path]::GetFullPath($Actual)
     $expectedFullPath = [System.IO.Path]::GetFullPath($Expected)
-    if (-not $actualFullPath.Equals(
-            $expectedFullPath,
-            [System.StringComparison]::OrdinalIgnoreCase)) {
+    if (-not $actualFullPath.Equals($expectedFullPath, (Get-PegasusPathComparison))) {
         throw "$Label does not match its run-owned path."
     }
 }
@@ -116,7 +137,7 @@ function Get-Initialization {
         throw "The local initialization marker is invalid: $initializationPath"
     }
 
-    if ($initialization.schemaVersion -ne 1 -or
+    if ($initialization.schemaVersion -ne 2 -or
         $initialization.kind -ne 'Pegasus.LocalDevelopment.Initialization' -or
         $initialization.profile -ne 'Offline' -or
         $initialization.sdkVersion -ne '10.0.302' -or
@@ -183,12 +204,12 @@ function Get-ToolPaths {
         DotNet = Get-RequiredApplication -Name 'dotnet'
         Node = Get-RequiredApplication -Name 'node'
         Functions = Get-RequiredApplication -Name 'func'
-        LocalDb = Get-RequiredApplication -Name 'sqllocaldb'
+        Database = Get-RequiredApplication -Name (Get-PegasusDatabaseCommandName)
     }
 }
 function Get-ControlToolPaths {
     return [pscustomobject][ordered]@{
-        LocalDb = Get-RequiredApplication -Name 'sqllocaldb'
+        Database = Get-RequiredApplication -Name (Get-PegasusDatabaseCommandName)
     }
 }
 
@@ -212,7 +233,13 @@ function Get-RunPaths {
 }
 
 function Get-FreeTcpPort {
-    param([Parameter(Mandatory)][System.Collections.Generic.HashSet[int]]$Reserved)
+    # The first allocation of a run necessarily passes an empty set, and a
+    # mandatory parameter rejects an empty collection unless this is declared.
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.HashSet[int]]$Reserved
+    )
 
     do {
         $listener = [System.Net.Sockets.TcpListener]::new(
@@ -279,11 +306,14 @@ function New-RunManifest {
     $blobPort = Get-FreeTcpPort -Reserved $reservedPorts
     $queuePort = Get-FreeTcpPort -Reserved $reservedPorts
     $tablePort = Get-FreeTcpPort -Reserved $reservedPorts
+    # Allocated on both platforms so the manifest contract has no platform
+    # branch. Only the container engine binds it.
+    $databasePort = Get-FreeTcpPort -Reserved $reservedPorts
     $databaseName = "PegasusDevelopment_$Id"
     $now = [DateTimeOffset]::UtcNow.ToString('O')
 
     $manifest = [pscustomobject][ordered]@{
-        schemaVersion = 1
+        schemaVersion = 2
         kind = 'Pegasus.LocalDevelopment.Run'
         runId = $Id
         state = 'Starting'
@@ -314,8 +344,15 @@ function New-RunManifest {
         resources = [ordered]@{
             database = [ordered]@{
                 provider = 'SqlServer'
+                engine = Get-PegasusDatabaseEngineKind
                 instanceName = $databaseName
                 databaseName = $databaseName
+                secretPath = $(if ((Get-PegasusDatabaseEngineKind) -eq 'LocalDb') {
+                    $null
+                }
+                else {
+                    Join-Path $paths.State 'mssql.env'
+                })
                 created = $false
             }
             ports = [ordered]@{
@@ -324,6 +361,7 @@ function New-RunManifest {
                 azuriteBlob = $blobPort
                 azuriteQueue = $queuePort
                 azuriteTable = $tablePort
+                database = $databasePort
             }
             paths = [ordered]@{
                 state = $paths.State
@@ -368,7 +406,7 @@ function Assert-OwnedManifest {
 
     $id = [string]$Manifest.runId
     if ($id -notmatch '^[0-9a-f]{32}$' -or
-        $Manifest.schemaVersion -ne 1 -or
+        $Manifest.schemaVersion -ne 2 -or
         $Manifest.kind -ne 'Pegasus.LocalDevelopment.Run' -or
         [string]$Manifest.state -notin @('Starting', 'Running', 'Stopped', 'Failed') -or
         $Manifest.startAttempt -lt 1 -or
@@ -401,6 +439,11 @@ function Assert-OwnedManifest {
     }
 
     $databaseName = "PegasusDevelopment_$id"
+    # A manifest created on one platform names resources the other cannot act
+    # on, so refuse it rather than silently no-op.
+    if ($Manifest.resources.database.engine -ne (Get-PegasusDatabaseEngineKind)) {
+        throw "Run $id was created with the $($Manifest.resources.database.engine) database engine and cannot be operated on this platform."
+    }
     if ($Manifest.resources.database.provider -ne 'SqlServer' -or
         $Manifest.resources.database.instanceName -ne $databaseName -or
         $Manifest.resources.database.databaseName -ne $databaseName -or
@@ -413,7 +456,8 @@ function Assert-OwnedManifest {
         $Manifest.resources.ports.functions,
         $Manifest.resources.ports.azuriteBlob,
         $Manifest.resources.ports.azuriteQueue,
-        $Manifest.resources.ports.azuriteTable
+        $Manifest.resources.ports.azuriteTable,
+        $Manifest.resources.ports.database
     )
     if (@($ports | Where-Object {
             ($_ -isnot [int] -and $_ -isnot [long]) -or $_ -lt 1024 -or $_ -gt 65535
@@ -451,7 +495,7 @@ function Assert-OwnedManifest {
         if ($record.role -ne $role -or
             ($record.pid -isnot [int] -and $record.pid -isnot [long]) -or
             $record.pid -le 0 -or
-            [string]$record.startedUtc -notmatch '^\d{4}-\d{2}-\d{2}T' -or
+            (ConvertTo-OwnedTimestamp -Value $record.startedUtc) -notmatch '^\d{4}-\d{2}-\d{2}T' -or
             [string]::IsNullOrWhiteSpace([string]$record.executable)) {
             throw "Process ownership record '$role' is invalid for run '$id'."
         }
@@ -512,7 +556,10 @@ function Resolve-OwnedManifest {
             (Get-RunPaths -Id $RequestedRunId).Manifest)
     }
 
-    $manifestPaths = Get-OwnedManifestPaths
+    # Wrap in an array subexpression: PowerShell unwraps a single-element array
+    # returned from a function, which would make this a string and index the
+    # first character of the path rather than the first element.
+    $manifestPaths = @(Get-OwnedManifestPaths)
     if ($manifestPaths.Count -eq 0) {
         throw 'No owned local development run exists. Supply -RunId after starting a run.'
     }
@@ -523,12 +570,34 @@ function Resolve-OwnedManifest {
     return Read-OwnedManifest -ManifestPath $manifestPaths[0]
 }
 
-function Get-LocalDbConnectionString {
+function Get-RunDatabaseContext {
     param([Parameter(Mandatory)][object]$Manifest)
 
-    $instance = [string]$Manifest.resources.database.instanceName
-    $database = [string]$Manifest.resources.database.databaseName
-    return "Server=(localdb)\$instance;Database=$database;Integrated Security=True;Encrypt=False;MultipleActiveResultSets=True"
+    $instanceName = [string]$Manifest.resources.database.instanceName
+    return [pscustomobject]@{
+        InstanceName = $instanceName
+        DatabaseName = [string]$Manifest.resources.database.databaseName
+        RunId = [string]$Manifest.runId
+        ContainerName = Get-PegasusDatabaseContainerName -RunId ([string]$Manifest.runId)
+        Port = [int]$Manifest.resources.ports.database
+        SecretPath = [string]$Manifest.resources.database.secretPath
+    }
+}
+
+function Get-RunConnectionString {
+    param([Parameter(Mandatory)][object]$Manifest)
+
+    $context = Get-RunDatabaseContext -Manifest $Manifest
+    $password = $null
+    if ((Get-PegasusDatabaseEngineKind) -ne 'LocalDb') {
+        $password = Read-PegasusDatabaseSecretFile -Path $context.SecretPath
+    }
+
+    return Get-PegasusDatabaseConnectionString `
+        -InstanceName $context.InstanceName `
+        -DatabaseName $context.DatabaseName `
+        -Port $context.Port `
+        -Password $password
 }
 
 function Get-AzuriteConnectionString {
@@ -554,9 +623,7 @@ function Get-WebEnvironment {
         ASPNETCORE_URLS = $webBase
         DOTNET_CLI_TELEMETRY_OPTOUT = '1'
         Runtime__Profile = 'DevelopmentOffline'
-        Database__Provider = 'SqlServer'
-        Database__ConnectionStringName = 'Pegasus'
-        ConnectionStrings__Pegasus = Get-LocalDbConnectionString -Manifest $Manifest
+        ConnectionStrings__Pegasus = Get-RunConnectionString -Manifest $Manifest
         Intake__LocalArtifactPath = [string]$Manifest.resources.paths.intake
         Custody__OfflineRootPath = [string]$Manifest.resources.paths.caseFiles
         Mailbox__LocalRootPath = [string]$Manifest.resources.paths.mailbox
@@ -575,9 +642,7 @@ function Get-WorkerEnvironment {
         FUNCTIONS_CORE_TOOLS_TELEMETRY_OPTOUT = '1'
         DOTNET_CLI_TELEMETRY_OPTOUT = '1'
         Runtime__Profile = 'DevelopmentOffline'
-        Database__Provider = 'SqlServer'
-        Database__ConnectionStringName = 'Pegasus'
-        ConnectionStrings__Pegasus = Get-LocalDbConnectionString -Manifest $Manifest
+        ConnectionStrings__Pegasus = Get-RunConnectionString -Manifest $Manifest
         AzureWebJobsStorage = $storageConnection
         IntakeStorage__ConnectionString = $storageConnection
         Custody__OfflineRootPath = [string]$Manifest.resources.paths.caseFiles
@@ -595,6 +660,19 @@ function ConvertTo-SingleQuotedLiteral {
     return "'" + $Value.Replace("'", "''") + "'"
 }
 
+# Start-Process rejects -WindowStyle on non-Windows editions of PowerShell, so
+# supply it only where it exists. On Linux the launched process also runs in its
+# own process group, so it is no longer in the terminal's foreground group: any
+# read from the inherited terminal would raise SIGTTIN, stop the process, and an
+# orphaned stopped group is then sent SIGHUP. Detaching standard input avoids
+# that entirely.
+$hiddenWindowParameter = if ((Get-PegasusPlatform).IsWindows) {
+    @{ WindowStyle = 'Hidden' }
+}
+else {
+    @{ RedirectStandardInput = '/dev/null' }
+}
+
 function Write-Launcher {
     param(
         [Parameter(Mandatory)]
@@ -607,6 +685,15 @@ function Write-Launcher {
     $lines = [System.Collections.Generic.List[string]]::new()
     $lines.Add('$ErrorActionPreference = ''Stop''')
     $lines.Add('$PSNativeCommandUseErrorActionPreference = $false')
+    # On Linux this places the launcher, and therefore every process it starts,
+    # in its own process group so the whole tree can be reaped even after an
+    # intermediate process exits and its children are reparented.
+    $groupPreamble = Get-PegasusProcessGroupPreamble
+    if (-not [string]::IsNullOrWhiteSpace($groupPreamble)) {
+        foreach ($preambleLine in ($groupPreamble -split "`n")) {
+            $lines.Add($preambleLine)
+        }
+    }
     $lines.Add('$commandArguments = @(')
     foreach ($argument in $Arguments) {
         $lines.Add("    $(ConvertTo-SingleQuotedLiteral -Value $argument)")
@@ -656,7 +743,7 @@ function Start-OwnedLauncher {
         -Environment $Environment `
         -RedirectStandardOutput $stdout `
         -RedirectStandardError $stderr `
-        -WindowStyle Hidden `
+        @hiddenWindowParameter `
         -PassThru
     try {
         $process.Refresh()
@@ -714,7 +801,7 @@ function Invoke-OwnedOneShot {
         -Environment $Environment `
         -RedirectStandardOutput $stdout `
         -RedirectStandardError $stderr `
-        -WindowStyle Hidden `
+        @hiddenWindowParameter `
         -Wait `
         -PassThru
     if ($process.ExitCode -ne 0) {
@@ -746,19 +833,17 @@ function Test-OwnedProcessIdentity {
         $process.Refresh()
         $actualStart = $process.StartTime.ToUniversalTime().ToString('O')
         $actualExecutable = [System.IO.Path]::GetFullPath($process.Path)
-        $nativeProcess = Get-CimInstance `
-            -ClassName Win32_Process `
-            -Filter "ProcessId = $($Record.pid)" `
-            -ErrorAction Stop
+        $commandLine = Get-PegasusProcessCommandLine -ProcessId ([int]$Record.pid)
+        $pathComparison = Get-PegasusPathComparison
         $expectedMarker = [System.IO.Path]::GetFullPath([string]$Record.commandMarker)
-        $commandLineContainsMarker = -not [string]::IsNullOrWhiteSpace($nativeProcess.CommandLine) -and
-            $nativeProcess.CommandLine.Contains(
-                $expectedMarker,
-                [System.StringComparison]::OrdinalIgnoreCase)
-        $owned = $actualStart -eq [string]$Record.startedUtc -and
+        $commandLineContainsMarker = -not [string]::IsNullOrWhiteSpace($commandLine) -and
+            $commandLine.Contains($expectedMarker, $pathComparison)
+        $owned = (Test-PegasusProcessStartTimeMatch `
+                -Recorded (ConvertTo-OwnedTimestamp -Value $Record.startedUtc) `
+                -Actual $actualStart) -and
             $actualExecutable.Equals(
                 [System.IO.Path]::GetFullPath([string]$Record.executable),
-                [System.StringComparison]::OrdinalIgnoreCase) -and
+                $pathComparison) -and
             $commandLineContainsMarker
         return [pscustomobject]@{
             Exists = $true
@@ -767,6 +852,17 @@ function Test-OwnedProcessIdentity {
         }
     }
     catch {
+        # Proving identity now reads several process sources, so a process that
+        # exits mid-check raises here. That is not an ownership failure: treat a
+        # vanished process as gone, and keep failing closed for anything else.
+        if ($null -eq (Get-Process -Id ([int]$Record.pid) -ErrorAction SilentlyContinue)) {
+            return [pscustomobject]@{
+                Exists = $false
+                Owned = $true
+                Detail = 'not running'
+            }
+        }
+
         return [pscustomobject]@{
             Exists = $true
             Owned = $false
@@ -799,103 +895,67 @@ function Stop-OwnedProcessTree {
     }
 
     $rootPid = [int]$record.pid
-    $nativeProcesses = @(Get-CimInstance -ClassName Win32_Process -ErrorAction Stop)
-    $ownedPids = [System.Collections.Generic.HashSet[int]]::new()
-    $ownedPids.Add($rootPid) | Out-Null
-    $added = $true
-    while ($added) {
-        $added = $false
-        foreach ($nativeProcess in $nativeProcesses) {
-            $candidateProcessId = [int]$nativeProcess.ProcessId
-            if (-not $ownedPids.Contains($candidateProcessId) -and
-                $ownedPids.Contains([int]$nativeProcess.ParentProcessId)) {
-                $ownedPids.Add($candidateProcessId) | Out-Null
-                $added = $true
-            }
+    $result = Stop-PegasusProcessTree -RootProcessId $rootPid
+    foreach ($warning in $result.Warnings) {
+        Write-Warning $warning
+    }
+    if (-not $result.Stopped) {
+        $residual = if ($result.ResidualProcessIds.Count -gt 0) {
+            " Residual process identifiers: $($result.ResidualProcessIds -join ', ')."
         }
-    }
-
-    $remaining = [System.Collections.Generic.HashSet[int]]::new()
-    foreach ($childProcessId in @($ownedPids | Where-Object { $_ -ne $rootPid })) {
-        $remaining.Add($childProcessId) | Out-Null
-    }
-    while ($remaining.Count -gt 0) {
-        $leaves = @(
-            $remaining | Where-Object {
-                $candidateParentId = $_
-                @($nativeProcesses | Where-Object {
-                    $remaining.Contains([int]$_.ProcessId) -and
-                    [int]$_.ParentProcessId -eq $candidateParentId
-                }).Count -eq 0
-            }
-        )
-        if ($leaves.Count -eq 0) {
-            $leaves = @($remaining)
+        else {
+            ''
         }
-        foreach ($childProcessId in $leaves) {
-            Stop-Process -Id $childProcessId -Force -ErrorAction SilentlyContinue
-            $remaining.Remove($childProcessId) | Out-Null
-        }
-    }
-    Stop-Process -Id $rootPid -Force -ErrorAction SilentlyContinue
-
-    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
-    while ([DateTimeOffset]::UtcNow -lt $deadline -and
-        $null -ne (Get-Process -Id $rootPid -ErrorAction SilentlyContinue)) {
-        Start-Sleep -Milliseconds 100
-    }
-    if ($null -ne (Get-Process -Id $rootPid -ErrorAction SilentlyContinue)) {
-        throw "Owned $Role process $rootPid did not stop."
+        throw "Owned $Role process $rootPid did not stop.$residual"
     }
 
     $Manifest.processes.$Role = $null
 }
 
-function Get-LocalDbInstanceState {
+function Get-RunDatabaseState {
     param(
-        [Parameter(Mandatory)]
-        [string]$InstanceName,
-        [Parameter(Mandatory)]
-        [string]$LocalDbCommand
+        [Parameter(Mandatory)][object]$Manifest,
+        [Parameter(Mandatory)][object]$Tools
     )
 
-    $output = (& $LocalDbCommand info $InstanceName 2>&1 | Out-String)
-    if ($LASTEXITCODE -ne 0) {
-        return 'Missing'
-    }
-    if ($output -match '(?im)^\s*State:\s*(?<state>Running|Stopped)\s*$') {
-        return $Matches.state
-    }
-    return 'Unknown'
+    $context = Get-RunDatabaseContext -Manifest $Manifest
+    return Get-PegasusDatabaseState `
+        -InstanceName $context.InstanceName `
+        -Command $Tools.Database `
+        -ContainerName $context.ContainerName
 }
 
-function Test-LocalDbInstance {
+function Test-RunDatabaseExists {
     param(
-        [Parameter(Mandatory)]
-        [string]$InstanceName,
-        [Parameter(Mandatory)]
-        [string]$LocalDbCommand
+        [Parameter(Mandatory)][object]$Manifest,
+        [Parameter(Mandatory)][object]$Tools
     )
 
-    return (Get-LocalDbInstanceState `
-        -InstanceName $InstanceName `
-        -LocalDbCommand $LocalDbCommand) -ne 'Missing'
+    return (Get-RunDatabaseState -Manifest $Manifest -Tools $Tools) -ne 'Missing'
 }
 
-function Invoke-LocalDb {
+function Wait-RunDatabaseReady {
     param(
-        [Parameter(Mandatory)]
-        [string]$Command,
-        [Parameter(Mandatory)]
-        [string[]]$Arguments,
-        [Parameter(Mandatory)]
-        [string]$Description
+        [Parameter(Mandatory)][object]$Manifest,
+        [Parameter(Mandatory)][object]$Tools,
+        [int]$TimeoutSeconds = 120
     )
 
-    & $Command @Arguments *> $null
-    if ($LASTEXITCODE -ne 0) {
-        throw "$Description failed with exit code $LASTEXITCODE."
+    $context = Get-RunDatabaseContext -Manifest $Manifest
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
+    while ([DateTimeOffset]::UtcNow -lt $deadline) {
+        if (Test-PegasusDatabaseReady `
+                -Command $Tools.Database `
+                -ContainerName $context.ContainerName `
+                -Port $context.Port) {
+            return
+        }
+        Start-Sleep -Milliseconds 500
     }
+
+    $diagnostics = Get-PegasusDatabaseDiagnostics `
+        -Command $Tools.Database -ContainerName $context.ContainerName
+    throw "Run-owned database '$($context.InstanceName)' did not become ready within $TimeoutSeconds seconds. $diagnostics"
 }
 
 function Stop-RunResources {
@@ -910,24 +970,24 @@ function Stop-RunResources {
         Stop-OwnedProcessTree -Manifest $Manifest -Role $role
     }
 
-    $instance = [string]$Manifest.resources.database.instanceName
-    $instanceState = Get-LocalDbInstanceState `
-        -InstanceName $instance `
-        -LocalDbCommand $Tools.LocalDb
+    $context = Get-RunDatabaseContext -Manifest $Manifest
+    $instance = $context.InstanceName
+    $instanceState = Get-RunDatabaseState -Manifest $Manifest -Tools $Tools
     if (-not $Manifest.resources.database.created) {
         if ($instanceState -ne 'Missing') {
-            throw "LocalDB instance '$instance' exists without completed run ownership."
+            throw "Database instance '$instance' exists without completed run ownership."
         }
         return
     }
     if ($instanceState -eq 'Running') {
-        Invoke-LocalDb `
-            -Command $Tools.LocalDb `
-            -Arguments @('stop', $instance, '-k') `
-            -Description "Stopping run-owned LocalDB instance '$instance'"
+        Stop-PegasusDatabaseInstance `
+            -InstanceName $instance `
+            -Command $Tools.Database `
+            -ContainerName $context.ContainerName `
+            -RunId $context.RunId
     }
     elseif ($instanceState -eq 'Unknown') {
-        throw "The state of run-owned LocalDB instance '$instance' could not be proved."
+        throw "The state of run-owned database instance '$instance' could not be proved."
     }
 }
 
@@ -1193,10 +1253,9 @@ function Start-LocalRun {
     }
 
     $paths = Get-RunPaths -Id ([string]$manifest.runId)
-    $instance = [string]$manifest.resources.database.instanceName
-    $databaseExists = Test-LocalDbInstance `
-        -InstanceName $instance `
-        -LocalDbCommand $tools.LocalDb
+    $databaseContext = Get-RunDatabaseContext -Manifest $manifest
+    $instance = $databaseContext.InstanceName
+    $databaseExists = Test-RunDatabaseExists -Manifest $manifest -Tools $tools
 
     try {
         foreach ($port in @(
@@ -1204,7 +1263,8 @@ function Start-LocalRun {
                 $manifest.resources.ports.functions,
                 $manifest.resources.ports.azuriteBlob,
                 $manifest.resources.ports.azuriteQueue,
-                $manifest.resources.ports.azuriteTable)) {
+                $manifest.resources.ports.azuriteTable,
+                $manifest.resources.ports.database)) {
             if (-not (Test-TcpPortAvailable -Port ([int]$port))) {
                 throw "Run '$($manifest.runId)' cannot bind owned loopback port $port."
             }
@@ -1249,22 +1309,41 @@ function Start-LocalRun {
 
         if (-not $manifest.resources.database.created) {
             if ($databaseExists) {
-                throw "LocalDB instance '$instance' exists without completed run ownership."
+                throw "Database instance '$instance' exists without completed run ownership."
             }
-            Invoke-LocalDb `
-                -Command $tools.LocalDb `
-                -Arguments @('create', $instance) `
-                -Description "Creating run-owned LocalDB instance '$instance'"
+            if ((Get-PegasusDatabaseEngineKind) -ne 'LocalDb') {
+                # The credential reaches the engine through an owner-only file
+                # and the started process environment, never through a command
+                # line, which is world-readable on Linux.
+                Assert-ExactPath `
+                    -Actual $databaseContext.SecretPath `
+                    -Expected (Join-Path $paths.State 'mssql.env') `
+                    -Label 'Run-owned database secret'
+                Write-PegasusDatabaseSecretFile `
+                    -Path $databaseContext.SecretPath `
+                    -Password (New-PegasusDatabasePassword)
+            }
+            New-PegasusDatabaseInstance `
+                -InstanceName $instance `
+                -Command $tools.Database `
+                -ContainerName $databaseContext.ContainerName `
+                -RunId $databaseContext.RunId `
+                -RepositoryRoot $repositoryRoot `
+                -SecretPath $databaseContext.SecretPath `
+                -Port $databaseContext.Port
             $manifest.resources.database.created = $true
             Write-OwnedManifest -Manifest $manifest
         }
         elseif (-not $databaseExists) {
-            throw "Run '$($manifest.runId)' lost its owned LocalDB instance; restart ownership is ambiguous."
+            throw "Run '$($manifest.runId)' lost its owned database instance; restart ownership is ambiguous."
         }
-        Invoke-LocalDb `
-            -Command $tools.LocalDb `
-            -Arguments @('start', $instance) `
-            -Description "Starting run-owned LocalDB instance '$instance'"
+        Start-PegasusDatabaseInstance `
+            -InstanceName $instance `
+            -Command $tools.Database `
+            -ContainerName $databaseContext.ContainerName `
+            -RunId $databaseContext.RunId
+        # LocalDB start is synchronous; a container start is not.
+        Wait-RunDatabaseReady -Manifest $manifest -Tools $tools -TimeoutSeconds $StartupTimeoutSeconds
 
         $webEnvironment = Get-WebEnvironment -Manifest $manifest
         Invoke-OwnedOneShot `
@@ -1369,14 +1448,14 @@ function Start-LocalRun {
             }
         }
         try {
-            $instanceState = Get-LocalDbInstanceState `
-                -InstanceName $instance `
-                -LocalDbCommand $tools.LocalDb
+            $failedContext = Get-RunDatabaseContext -Manifest $manifest
+            $instanceState = Get-RunDatabaseState -Manifest $manifest -Tools $tools
             if ($instanceState -eq 'Running') {
-                Invoke-LocalDb `
-                    -Command $tools.LocalDb `
-                    -Arguments @('stop', $instance, '-k') `
-                    -Description "Stopping failed run LocalDB instance '$instance'"
+                Stop-PegasusDatabaseInstance `
+                    -InstanceName $instance `
+                    -Command $tools.Database `
+                    -ContainerName $failedContext.ContainerName `
+                    -RunId $failedContext.RunId
             }
         }
         catch {
@@ -1404,9 +1483,7 @@ function Start-LocalRun {
     }
 }
 
-if (-not $IsWindows) {
-    throw 'Pegasus local development lifecycle commands are supported only on Windows 11.'
-}
+Get-PegasusPlatform | Out-Null
 if ($Action -ne 'Start' -and $FailureMode -ne 'None') {
     throw '-FailureMode is valid only with -Action Start.'
 }
@@ -1422,7 +1499,7 @@ try {
             Start-LocalRun
         }
         'Status' {
-            $manifestPaths = Get-OwnedManifestPaths
+            $manifestPaths = @(Get-OwnedManifestPaths)
             if ($manifestPaths.Count -eq 0) {
                 Write-Host 'No owned local development runs exist.'
                 break
@@ -1472,13 +1549,18 @@ try {
             Assert-NoReparsePoints -RunRoot $paths.RunRoot
             $tools = Get-ControlToolPaths
             Stop-RunResources -Manifest $manifest -Tools $tools
-            $instance = [string]$manifest.resources.database.instanceName
+            $resetContext = Get-RunDatabaseContext -Manifest $manifest
+            $instance = $resetContext.InstanceName
             if ($manifest.resources.database.created -and
-                (Test-LocalDbInstance -InstanceName $instance -LocalDbCommand $tools.LocalDb)) {
-                Invoke-LocalDb `
-                    -Command $tools.LocalDb `
-                    -Arguments @('delete', $instance) `
-                    -Description "Deleting run-owned LocalDB instance '$instance'"
+                (Test-RunDatabaseExists -Manifest $manifest -Tools $tools)) {
+                # Removing the instance discards its databases. For the
+                # container engine that is the writable layer, which is why
+                # Reset needs no DROP DATABASE and no SQL client.
+                Remove-PegasusDatabaseInstance `
+                    -InstanceName $instance `
+                    -Command $tools.Database `
+                    -ContainerName $resetContext.ContainerName `
+                    -RunId $resetContext.RunId
             }
             Remove-Item -LiteralPath $paths.RunRoot -Recurse -Force
             [pscustomobject][ordered]@{

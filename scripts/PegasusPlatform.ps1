@@ -11,7 +11,9 @@
 # the repository language census and documentation link validation performed by
 # scripts/Test-RepositoryPolicy.ps1.
 
-Set-StrictMode -Version Latest
+# Deliberately no Set-StrictMode here. This file is dot-sourced, so any strict
+# mode it set would apply to the whole calling script and change the behaviour
+# of code it does not own.
 
 $script:PegasusDatabaseImage =
     'mcr.microsoft.com/mssql/server@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89'
@@ -126,10 +128,21 @@ function Get-PegasusProcessGroupPreamble {
 
     return @'
 Add-Type -Namespace 'PegasusLauncher' -Name 'Posix' -MemberDefinition @"
+[DllImport("libc", SetLastError = true)] public static extern int setsid();
 [DllImport("libc", SetLastError = true)] public static extern int setpgid(int pid, int pgid);
 "@
-if ([PegasusLauncher.Posix]::setpgid(0, 0) -ne 0) {
-    throw 'Failed to create a process group for the owned Pegasus process.'
+# Start a new session. This detaches from the controlling terminal, so the
+# hangup raised when the starting command exits cannot reach these processes,
+# and it makes this process its own process group leader with a group
+# identifier equal to its process identifier. Ownership and termination both
+# rely on that group. Signal dispositions are not a usable alternative here
+# because the runtime resets them when it starts a child.
+if ([PegasusLauncher.Posix]::setsid() -lt 0) {
+    # Already a process group leader, so a session cannot be created. The
+    # process group is what ownership needs, and it already holds.
+    if ([PegasusLauncher.Posix]::setpgid(0, 0) -ne 0) {
+        throw 'Failed to create a process group for the owned Pegasus process.'
+    }
 }
 '@
 }
@@ -231,6 +244,49 @@ function Get-PegasusProcessCommandLine {
     $arguments = [System.Text.Encoding]::UTF8.GetString($bytes) -split "`0" |
         Where-Object { -not [string]::IsNullOrEmpty($_) }
     return ($arguments -join ' ')
+}
+
+function Test-PegasusProcessStartTimeMatch {
+    <#
+        .SYNOPSIS
+        Compares a recorded process start time with an observed one.
+
+        .DESCRIPTION
+        The comparison exists to defeat process-identifier reuse: a recycled
+        identifier belongs to a process that started at a different time.
+
+        On Windows the value is exact and is compared exactly. On Linux
+        Process.StartTime is derived from the kernel boot time, which .NET
+        re-estimates on each read, so two readers can observe the same process
+        with times differing by microseconds. Requiring exact equality there
+        would reject genuinely owned processes. A one-second tolerance keeps the
+        reuse check meaningful while tolerating that estimate.
+    #>
+    param(
+        [Parameter(Mandatory)][AllowEmptyString()][string]$Recorded,
+        [Parameter(Mandatory)][AllowEmptyString()][string]$Actual
+    )
+
+    if ($Recorded -eq $Actual) {
+        return $true
+    }
+
+    if ((Get-PegasusPlatform).IsWindows) {
+        return $false
+    }
+
+    $recordedTime = [datetime]::MinValue
+    $actualTime = [datetime]::MinValue
+    $styles = [System.Globalization.DateTimeStyles]::RoundtripKind
+    if (-not [datetime]::TryParse(
+            $Recorded, [cultureinfo]::InvariantCulture, $styles, [ref]$recordedTime) -or
+        -not [datetime]::TryParse(
+            $Actual, [cultureinfo]::InvariantCulture, $styles, [ref]$actualTime)) {
+        return $false
+    }
+
+    return [Math]::Abs(
+        ($recordedTime.ToUniversalTime() - $actualTime.ToUniversalTime()).TotalSeconds) -le 1
 }
 
 function Test-PegasusProcessTreeAlive {
