@@ -40,6 +40,29 @@ public sealed class ProductionGraphSourceTests
     }
 
     [Fact]
+    public async Task InboxAcceptsTheGraphCanonicalODataCursorForTheExactFolder()
+    {
+        var handler = new DelegateHandler(_ => Response(
+            HttpStatusCode.OK,
+            """{"value":[],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailfolders('inbox-folder')/messages/delta?$deltatoken=final"}"""));
+        var options = Options();
+        var source = new GraphApprovedInboxSource(
+            options,
+            new GraphMailClient(new FixedCredential(), options, new HttpClient(handler)));
+
+        var page = await source.ReadAsync(
+            new(options.MailboxId, options.MailboxAddress, null, "lease"),
+            10,
+            CancellationToken.None);
+
+        Assert.Empty(page.Messages);
+        var cursor = GraphCursor.Parse(page.NextCursor, new Uri("https://example.test"));
+        Assert.Equal(
+            "/v1.0/users/mailbox-id/mailfolders('inbox-folder')/messages/delta",
+            cursor.PageUri.AbsolutePath);
+    }
+
+    [Fact]
     public async Task InboxRejectsAnOutOfScopeMailboxBeforeCallingGraph()
     {
         var calls = 0;
