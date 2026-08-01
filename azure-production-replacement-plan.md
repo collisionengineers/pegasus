@@ -19,7 +19,7 @@ This plan authorizes no cloud action, merge, credential access, deployment, or d
 
 - Environments: isolated local development and production only; no Azure dev/test/staging resources.
 - Production: subscription `e6076573-23a5-46a8-acef-7e22d264e5db`, tenant `858cf5b3-aa0a-47a6-9b40-4851fd0afa94`, resource group `rg-pegasus-prod`, region `uksouth`.
-- Compute/data: Linux B1 Web, FC1 .NET 10 isolated Worker, S0 Azure SQL, two Standard LRS storage accounts, distinct Web/Worker identities, new Pegasus Key Vault, Log Analytics and Application Insights.
+- Compute/data: Linux P0v4 Web, FC1 .NET 10 isolated Worker, S0 Azure SQL, two Standard LRS storage accounts, distinct Web/Worker identities, new Pegasus Key Vault, Log Analytics and Application Insights.
 - Integrations required before acceptance:
   - Graph through the Worker managed identity, scoped by Exchange Application RBAC to `instructions@collisionengineers.co.uk`.
   - Box production custody rooted at folder `392761581105`.
@@ -215,8 +215,9 @@ Hash the archive and stop unless every unique digest is present. Do not download
 
 On 2026-08-01, separate exact approval was granted and `Microsoft.Sql` was
 registered successfully. The subscription-specific read then returned SQL
-Standard S0 as available in UK South at 10 DTUs. `Microsoft.Quota` remains
-unregistered and was not changed.
+Standard S0 as available in UK South at 10 DTUs. The later autonomous
+deployment direction authorised the exact plan execution; `Microsoft.Quota`
+was registered and used for the App Service capacity check described below.
 
 ### 5. Production preview and provisioning
 
@@ -232,10 +233,9 @@ az sql db list-editions --location $PegasusLocation --available `
   --edition Standard --service-objective S0 --show-details max-size --output json
 ```
 
-Stop unless registration reads `Registered` and S0 is returned. Do not register
-`Microsoft.Quota` merely to satisfy a generic query; the actual template preview
-and provision response remain the capacity gates for services not exposed by a
-service-specific quota API.
+Stop unless registration reads `Registered` and S0 is returned. Use the
+Microsoft.Quota API and the actual template preview as the App Service capacity
+gates.
 
 Because the current Bicep schema cannot represent a fractional Log Analytics
 cap, later provisioning approval must also name the two immediate
@@ -298,10 +298,29 @@ The first ARM preview exposed an `azd` reserved-variable collision:
 `AZURE_ENV_NAME` was always expanded to `pegasus-prod` even though Bicep permits
 only `prod`. The parameter now uses `PEGASUS_ENVIRONMENT_NAME=prod`; local plan
 validation and Bicep compilation pass. The next ARM preflight stopped on
-`Microsoft.Web/serverFarms`: UK South has App Service `Total VMs` limit `0`,
-usage `0`, and this deployment requires `1`. No resource was created or
-changed. Do not register `Microsoft.Quota`, change region/SKU, or provision
-until the exact App Service quota is approved and a clean preview is reviewed.
+`Microsoft.Web/serverFarms`: UK South had B1 limit `0`, usage `0`, and the
+deployment required `1`. No resource was created or changed.
+`Microsoft.Quota` was then registered and exact B1 increase request
+`b9df19cc-54b2-4876-9c4c-1eb9ba99076a` failed with
+`QuotaNotAvailableForResource`. UK South simultaneously exposed 30 P0v4
+instances. The plan therefore substitutes the smallest available Linux tier,
+P0v4, without changing region, capacity, architecture, or security controls.
+The public Retail Prices API returned GBP 0.0692/hour for Linux P0v4 versus GBP
+0.0136/hour for B1: approximately GBP 50.52/month versus GBP 9.93/month at 730
+hours, a GBP 40.59/month fixed-compute increase. A clean preview remains the
+gate before provisioning.
+
+The P0v4 preview then confirmed a separate subscription aggregate constraint:
+the P0v4-specific UK South limit is 30, but `Total Regional VMs` (`*`) is 0 and
+is reported by Microsoft.Quota as non-applicable for self-service increase.
+ARM tracking IDs `a46607cf-f87a-42f8-becd-ff10c8208506` and
+`fa1a277a-098f-4601-bca0-9c79c6a9cb23` both require the aggregate minimum to
+be 1. The encoded CLI request was throttled for one hour before validation, and
+the Azure Support CLI route failed with `InvalidSupportPlan` because the
+subscription has the Free support plan. The request ledger contains only the
+failed B1 request; no aggregate request or workload resource exists. Provision
+only after the UK South aggregate quota reads at least 1 and the unchanged
+P0v4 preview completes cleanly.
 
 After exact approval of that preview and the two named telemetry-cap writes:
 
@@ -351,7 +370,7 @@ if ([decimal]$WorkspaceCap -ne 0.1 -or [decimal]$ApplicationInsightsCap -ne 0.1)
 az resource list --resource-group $PegasusProdRg --output table
 ```
 
-Verify B1, FC1, S0, two storage accounts, two identities, new Key Vault,
+Verify P0v4, FC1, S0, two storage accounts, two identities, new Key Vault,
 31-day retention, adaptive sampling, both 0.1 GB/day telemetry caps, action
 group, alert rules, and budget before continuing. A failed cap write or readback
 is a stop gate: do not bind credentials, migrate, deploy packages, or activate
@@ -603,7 +622,7 @@ Before any second production deployment:
   - Graph paging, delta reset, immutable IDs, throttling, malformed MIME/attachments, exact mailbox/folder allowlist, and zero mutation endpoints.
   - Box ancestry, idempotent folder/file versioning, cross-root denial, retry-visible failure, and delete/move/copy/share prohibition.
   - DVLA/DVSA success, partial, not-found, invalid, stale, denied, token expiry, throttling, unavailable, malformed, and confirmed-value preservation.
-  - Two-storage topology, secret-level vault access, Worker authentication-ring denial, Entra-only SQL, exhaustive runtime SQL grants/denials, disabled triggers, B1/FC1/S0, telemetry cap, budget/alerts, and absence of dev/OCR/Foundry/Maps/Vision/capture resources.
+  - Two-storage topology, secret-level vault access, Worker authentication-ring denial, Entra-only SQL, exhaustive runtime SQL grants/denials, disabled triggers, P0v4/FC1/S0, telemetry cap, budget/alerts, and absence of dev/OCR/Foundry/Maps/Vision/capture resources.
   - Bootstrap once-only behavior, forced password change, health/readiness, package-hash enforcement, and refusal of `azd up`, plain deploy, remote build, changed artifacts, or mismatched targets.
 
 ## Explicit Stop Conditions

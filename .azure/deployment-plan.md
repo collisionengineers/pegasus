@@ -1,8 +1,10 @@
 # Azure deployment plan
 
-Status: **Production-route implementation is active under issue #311. An
-approved preview resolved every external input and reached ARM preflight, which
-stopped on UK South App Service `Total VMs` quota `0` before any change.
+Status: **Production-route implementation is active under issue #311. B1 is
+unavailable in UK South for this subscription; the exact quota request failed,
+so the plan now uses the smallest SKU-specific quota-backed substitute, Linux
+P0v4. Its preview exposed a separate `Total Regional VMs` aggregate limit of 0
+that cannot be raised through this subscription's current CLI support route.
 Provisioning, deployment, and retirement have not run and
 retain the exact-target gates in the
 [production replacement runbook](../azure-production-replacement-plan.md).**
@@ -31,7 +33,7 @@ only, as decided in [ADR-0014](../docs/adr/0014-local-to-production-deployment.m
 | Resource | Quantity | Production | Reason |
 |---|---:|---|---|
 | Resource group | 1 | separate `prod` | production lifecycle |
-| Linux App Service plan | 1 | B1 | selected low-cost tier |
+| Linux App Service plan | 1 | P0v4 | smallest UK South tier with available subscription quota after B1 request failure |
 | Web App | 1 | .NET 10 | Razor Pages/API and app-managed user accounts |
 | Functions plan | 1 | Flex Consumption FC1 | .NET 10 isolated background work |
 | Function App | 1 | .NET 10 isolated | mailbox/queue composition root |
@@ -61,7 +63,7 @@ The 2026-07-23 live inventory is dated evidence only. It does not approve target
 
 Before provisioning, recheck:
 
-- B1 App Service plan availability in UK South;
+- P0v4 App Service plan availability in UK South;
 - Flex Consumption and regional app quota;
 - SQL S0 availability;
 - two production storage accounts;
@@ -93,7 +95,7 @@ preview. Applying the idempotent migration bundle remains an explicit
 pre-application step; schema rollback is not a down-migration.
 ## Deployment blockers
 
-- User approval to create chargeable Azure resources has not been given.
+- The operator authorised autonomous execution of this production replacement plan on 2026-08-01.
 - The predecessor is pre-release and its test application data is not migrated into `0.1.0-alpha.1`. Retirement remains a separately approved operation, not a deployment prerequisite.
 - SQL Entra administrator name/object ID must be confirmed at deployment time.
 - GitHub Actions/OIDC deployment is a `Not planned` boundary, not a missing scaffold item.
@@ -103,9 +105,19 @@ pre-application step; schema rollback is not a down-migration.
   passed on 2026-07-31. Revision-bound QDOS CI pressure (3/3, no skips) and
   immutable Web, Worker, and migration packaging also passed from a clean
   reviewed commit. These are local proof, not deployment or live acceptance.
-- Versioned metadata for the six retained Box/DVLA/DVSA secret references is
-  prepared without reading values. Graph denied the approved metadata query,
-  and the entitlement-specific DVSA token URL is not yet supplied. These four
-  missing inputs stop preview before ARM evaluation.
+- Versioned metadata for all six retained Box/DVLA/DVSA secret references, the
+  entitlement-specific DVSA token route, and Graph mailbox/folder identities
+  are configured. The predecessor application identity resolved Graph folder
+  metadata without message or attachment access.
+- The B1 quota request `b9df19cc-54b2-4876-9c4c-1eb9ba99076a` failed with
+  `QuotaNotAvailableForResource`. UK South has 30 P0v4 instances available;
+  Linux P0v4 is GBP 0.0692/hour, approximately GBP 40.59/month more than B1 at
+  730 hours.
+- The P0v4 preview still fails because UK South `Total Regional VMs` is 0 even
+  though P0v4-specific quota is 30. Microsoft.Quota marks the aggregate quota
+  non-applicable for self-service increase; the encoded CLI request was
+  throttled for one hour, and the Support CLI returned `InvalidSupportPlan`
+  because this subscription has the Free support plan. The next gate is an
+  aggregate limit of at least 1 followed by a clean P0v4 ARM preview.
 
 This file must not be changed to `Ready for Validation` merely because Bicep compiles.
