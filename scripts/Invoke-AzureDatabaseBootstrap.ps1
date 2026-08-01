@@ -129,8 +129,8 @@ IF IS_ROLEMEMBER(N'pegasus_web_runtime_role', N'pegasus_web_runtime') <> 1
     ALTER ROLE [pegasus_web_runtime_role] ADD MEMBER [pegasus_web_runtime];
 IF IS_ROLEMEMBER(N'pegasus_worker_runtime_role', N'pegasus_worker_runtime') <> 1
     ALTER ROLE [pegasus_worker_runtime_role] ADD MEMBER [pegasus_worker_runtime];
-REVOKE CONNECT FROM [pegasus_web_runtime];
-REVOKE CONNECT FROM [pegasus_worker_runtime];
+GRANT CONNECT TO [pegasus_web_runtime];
+GRANT CONNECT TO [pegasus_worker_runtime];
 IF EXISTS (
     SELECT 1
     FROM sys.database_role_members AS membership
@@ -149,7 +149,11 @@ IF EXISTS (
     SELECT 1
     FROM sys.database_permissions AS permission
     JOIN sys.database_principals AS principal ON principal.principal_id = permission.grantee_principal_id
-    WHERE principal.name IN (N'pegasus_web_runtime', N'pegasus_worker_runtime'))
+    WHERE principal.name IN (N'pegasus_web_runtime', N'pegasus_worker_runtime')
+      AND NOT (
+          permission.class = 0
+          AND permission.permission_name = N'CONNECT'
+          AND permission.state = 'G'))
     THROW 51004, 'A runtime identity has a prohibited direct permission entry.', 1;
 IF EXISTS (
     SELECT 1
