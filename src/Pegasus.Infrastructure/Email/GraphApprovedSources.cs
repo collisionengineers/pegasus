@@ -175,7 +175,13 @@ internal sealed class GraphMailClient(
                 $"users/{mailboxId}/mailfolders('{folderId}')/messages/delta"),
             new Uri(
                 options.BaseUri,
-                $"users('{mailboxId}')/mailfolders('{folderId}')/messages/delta")
+                $"users/{mailboxId}/mailFolders('{folderId}')/messages/delta"),
+            new Uri(
+                options.BaseUri,
+                $"users('{mailboxId}')/mailfolders('{folderId}')/messages/delta"),
+            new Uri(
+                options.BaseUri,
+                $"users('{mailboxId}')/mailFolders('{folderId}')/messages/delta")
         }.Select(value => value.GetComponents(UriComponents.Path, UriFormat.Unescaped));
         var actualPath = uri.GetComponents(UriComponents.Path, UriFormat.Unescaped);
         if (uri.Scheme != Uri.UriSchemeHttps
