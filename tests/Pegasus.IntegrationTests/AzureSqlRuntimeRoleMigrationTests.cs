@@ -243,6 +243,35 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     }
 
     [Fact]
+    public async Task LatestMigrationGrantsOnlyWebReadAccessToMigrationHistory()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(
+            [$"{WebRole}:G:SELECT"],
+            await ReadValuesAsync(
+                database,
+                $"""
+                SELECT CONCAT(
+                    principal.name COLLATE DATABASE_DEFAULT,
+                    N':',
+                    permission.[state] COLLATE DATABASE_DEFAULT,
+                    N':',
+                    permission.permission_name COLLATE DATABASE_DEFAULT)
+                FROM sys.database_permissions AS permission
+                INNER JOIN sys.database_principals AS principal
+                    ON principal.principal_id = permission.grantee_principal_id
+                WHERE permission.major_id = OBJECT_ID(N'[dbo].[__EFMigrationsHistory]')
+                  AND permission.class = 1
+                  AND permission.minor_id = 0
+                  AND principal.name IN (N'{WebRole}', N'{WorkerRole}')
+                """));
+    }
+
+    [Fact]
     public async Task TerminalUpgradeReconcilesEveryRuntimeTableToTheExactCallerMatrix()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
