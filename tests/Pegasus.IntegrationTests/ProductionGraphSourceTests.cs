@@ -44,8 +44,13 @@ public sealed class ProductionGraphSourceTests
     {
         var handler = new DelegateHandler(_ => Response(
             HttpStatusCode.OK,
-            """{"value":[],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailfolders('inbox-folder')/messages/delta?$deltatoken=final"}"""));
-        var options = Options();
+            """{"value":[],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailfolders('inbox-folder==')/messages/delta?$deltatoken=final"}"""));
+        var options = GraphApprovedMailboxOptions.Create(
+            "https://graph.microsoft.com/v1.0/",
+            "mailbox-id",
+            "instructions@collisionengineers.co.uk",
+            "inbox-folder==",
+            "sent-folder==");
         var source = new GraphApprovedInboxSource(
             options,
             new GraphMailClient(new FixedCredential(), options, new HttpClient(handler)));
@@ -58,8 +63,8 @@ public sealed class ProductionGraphSourceTests
         Assert.Empty(page.Messages);
         var cursor = GraphCursor.Parse(page.NextCursor, new Uri("https://example.test"));
         Assert.Equal(
-            "/v1.0/users/mailbox-id/mailfolders('inbox-folder')/messages/delta",
-            cursor.PageUri.AbsolutePath);
+            "v1.0/users/mailbox-id/mailfolders('inbox-folder==')/messages/delta",
+            cursor.PageUri.GetComponents(UriComponents.Path, UriFormat.Unescaped));
     }
 
     [Fact]

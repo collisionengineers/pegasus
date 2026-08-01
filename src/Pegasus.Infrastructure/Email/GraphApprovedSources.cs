@@ -169,19 +169,18 @@ internal sealed class GraphMailClient(
         var folderId = Uri.EscapeDataString(approvedFolderId);
         var approvedPaths = new[]
         {
-            InitialDeltaUri(approvedFolderId, 1).AbsolutePath,
+            InitialDeltaUri(approvedFolderId, 1),
             new Uri(
                 options.BaseUri,
-                $"users/{mailboxId}/mailfolders('{folderId}')/messages/delta")
-                .AbsolutePath,
+                $"users/{mailboxId}/mailfolders('{folderId}')/messages/delta"),
             new Uri(
                 options.BaseUri,
                 $"users('{mailboxId}')/mailfolders('{folderId}')/messages/delta")
-                .AbsolutePath
-        };
+        }.Select(value => value.GetComponents(UriComponents.Path, UriFormat.Unescaped));
+        var actualPath = uri.GetComponents(UriComponents.Path, UriFormat.Unescaped);
         if (uri.Scheme != Uri.UriSchemeHttps
             || !uri.Host.Equals(options.BaseUri.Host, StringComparison.OrdinalIgnoreCase)
-            || !approvedPaths.Contains(uri.AbsolutePath, StringComparer.Ordinal))
+            || !approvedPaths.Contains(actualPath, StringComparer.Ordinal))
         {
             throw new UnauthorizedAccessException(
                 "The Microsoft Graph cursor escaped the exact approved mailbox folder.");
