@@ -96,10 +96,12 @@ accepted, and retired remain separate evidence states.
   No excluded data or secret values were retrieved and no Azure resource was
   mutated.
 - Production readiness reads: **performed** for the service-specific gates. UK
-  South advertises Linux B1, FC1/.NET 10, and SQL Standard S0. Under exact
-  approval, `Microsoft.Sql` was registered on 2026-08-01; this provider
-  registration is the only Azure mutation so far. `Microsoft.Quota` remains
-  unregistered and was not changed.
+  South advertises FC1/.NET 10 and SQL Standard S0. Under exact approval,
+  `Microsoft.Sql` and `Microsoft.Quota` were registered on 2026-08-01. The B1
+  increase request `b9df19cc-54b2-4876-9c4c-1eb9ba99076a` failed with
+  `QuotaNotAvailableForResource`; UK South has 30 P0v4 instances available, so
+  the template now uses the smallest quota-backed Linux substitute. No Azure
+  workload resource has yet been created.
 - Retained credential metadata: **read and locally configured** under exact
   approval. One enabled versioned URI was found for each of `box-config-json`,
   `box-client-secret`, `dvla-api-key`, `dvsa-api-key`, `dvsa-client-id`, and
@@ -117,8 +119,13 @@ accepted, and retired remain separate evidence states.
   predecessor application identity then resolved both folder IDs without a
   message or attachment request. ARM preview exposed and prompted correction of
   the reserved `AZURE_ENV_NAME` parameter collision. Local validation passes;
-  ARM preflight now stops on UK South App Service `Total VMs` quota `0` with
-  one VM required. No resource was created, changed, or deleted.
+  ARM preflight then stopped on UK South B1 quota `0` with one VM required. The
+  exact quota request failed and the plan substituted P0v4; the replacement
+  preview then exposed a separate `Total Regional VMs` aggregate limit of 0
+  despite P0v4-specific quota 30. Microsoft.Quota marks the aggregate quota
+  non-applicable for self-service increase, and Azure Support CLI ticket
+  creation returned `InvalidSupportPlan` for the subscription's Free support
+  plan. No workload resource was created, changed, or deleted.
 - Azure provisioning: **not run**.
 - Deployment, live verification, operator acceptance, predecessor retirement,
   and recovery exercise: **not performed**.

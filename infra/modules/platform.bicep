@@ -216,7 +216,7 @@ resource webPlan 'Microsoft.Web/serverfarms@2024-04-01' = {
   location: location
   kind: 'linux'
   tags: tags
-  sku: { name: 'B1', tier: 'Basic', capacity: 1 }
+  sku: { name: 'P0v4', tier: 'PremiumV4', capacity: 1 }
   properties: { reserved: true }
 }
 
