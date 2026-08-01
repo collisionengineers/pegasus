@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$SourceRoot = 'C:\Users\Alex',
+    [Parameter(Mandatory)]
+    [string]$SourceRoot,
     [string]$PegasusRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path,
     [string]$ReportDirectory
 )
@@ -40,10 +41,21 @@ function Resolve-DirectoryRoot {
     if (-not ($item -is [System.IO.DirectoryInfo])) {
         throw "$Name must be an existing directory: $Path"
     }
-    return $item.FullName.TrimEnd('\')
+    return $item.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar)
 }
 
 function Test-PathWithinDirectory {
+    <#
+        .SYNOPSIS
+        Returns $true when Path is Directory itself or lies beneath it.
+
+        .DESCRIPTION
+        This is a containment guard used to exclude the Pegasus tree from the
+        source scan, so it must fail closed. Comparing separator-terminated
+        string prefixes cannot do that portably: the separator differs by
+        platform, and case sensitivity differs by filesystem. Relative-path
+        resolution answers the question directly on both platforms.
+    #>
     param(
         [Parameter(Mandatory)]
         [string]$Path,
@@ -51,10 +63,27 @@ function Test-PathWithinDirectory {
         [string]$Directory
     )
 
-    $normalizedPath = $Path.TrimEnd('\')
-    $normalizedDirectory = $Directory.TrimEnd('\')
-    return [string]::Equals($normalizedPath, $normalizedDirectory, [System.StringComparison]::OrdinalIgnoreCase) -or
-        $normalizedPath.StartsWith("$normalizedDirectory\", [System.StringComparison]::OrdinalIgnoreCase)
+    $comparison = if ($IsWindows) {
+        [System.StringComparison]::OrdinalIgnoreCase
+    }
+    else {
+        [System.StringComparison]::Ordinal
+    }
+
+    $normalizedPath = [System.IO.Path]::GetFullPath($Path)
+    $normalizedDirectory = [System.IO.Path]::GetFullPath($Directory)
+    if ([string]::Equals($normalizedPath, $normalizedDirectory, $comparison)) {
+        return $true
+    }
+
+    $relative = [System.IO.Path]::GetRelativePath($normalizedDirectory, $normalizedPath)
+    if ([System.IO.Path]::IsPathRooted($relative)) {
+        return $false
+    }
+
+    return -not ($relative -eq '..' -or
+        $relative.StartsWith('..' + [System.IO.Path]::DirectorySeparatorChar, $comparison) -or
+        $relative.StartsWith('../', $comparison))
 }
 
 function Get-EmlFilePaths {
@@ -320,11 +349,11 @@ function Copy-VerifiedEml {
 
 $sourceRootResolved = Resolve-DirectoryRoot -Path $SourceRoot -Name 'SourceRoot'
 $pegasusRootResolved = Resolve-DirectoryRoot -Path $PegasusRoot -Name 'PegasusRoot'
-$importRoot = Join-Path $pegasusRootResolved 'corpus\import'
+$importRoot = Join-Path $pegasusRootResolved 'corpus/import'
 
 if ([string]::IsNullOrWhiteSpace($ReportDirectory)) {
     $stamp = [System.DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffZ', [System.Globalization.CultureInfo]::InvariantCulture)
-    $ReportDirectory = Join-Path $pegasusRootResolved "artifacts\intake\eml-corpus-import\$stamp"
+    $ReportDirectory = Join-Path $pegasusRootResolved "artifacts/intake/eml-corpus-import/$stamp"
 }
 $reportDirectoryResolved = [System.IO.Path]::GetFullPath($ReportDirectory)
 New-Item -ItemType Directory -Force -Path $reportDirectoryResolved | Out-Null
