@@ -5,9 +5,9 @@ using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Pegasus.Core.Intake;
 
-namespace Pegasus.Worker;
+namespace Pegasus.Infrastructure.Intake;
 
-internal sealed class AzureBlobIntakeArtifactStore : IIntakeArtifactStore
+public sealed class AzureBlobIntakeArtifactStore : IIntakeArtifactStore
 {
     private const string StagingPrefix = "staging/";
     private const string HashMetadataName = "sha256";
@@ -17,14 +17,14 @@ internal sealed class AzureBlobIntakeArtifactStore : IIntakeArtifactStore
     private const string DispositionTagName = "PegasusDisposition";
 
     private readonly BlobContainerClient container;
-    private readonly WorkerStorageProvisioning storageProvisioning;
+    private readonly bool allowCreateIfNotExists;
 
     public AzureBlobIntakeArtifactStore(
         BlobContainerClient container,
-        WorkerStorageProvisioning storageProvisioning)
+        bool allowCreateIfNotExists = false)
     {
         this.container = container;
-        this.storageProvisioning = storageProvisioning;
+        this.allowCreateIfNotExists = allowCreateIfNotExists;
     }
 
     public async Task<string> StoreAsync(
@@ -136,15 +136,13 @@ internal sealed class AzureBlobIntakeArtifactStore : IIntakeArtifactStore
         CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
-        await storageProvisioning.EnsureContainerExistsAsync(container, cancellationToken);
+        await EnsureContainerExistsAsync(cancellationToken);
 
         var items = new List<StagedArtifactInventoryItem>(maximumItems);
         await foreach (var blob in container.GetBlobsAsync(
-                           new GetBlobsOptions
-                           {
-                               Traits = BlobTraits.Metadata | BlobTraits.Tags,
-                               Prefix = StagingPrefix
-                           },
+                           BlobTraits.Metadata | BlobTraits.Tags,
+                           BlobStates.None,
+                           StagingPrefix,
                            cancellationToken))
         {
             if (!TryGetStagedStorageKeyHash(blob.Name, out var hash))
@@ -309,7 +307,7 @@ internal sealed class AzureBlobIntakeArtifactStore : IIntakeArtifactStore
         IDictionary<string, string>? tags,
         CancellationToken cancellationToken)
     {
-        await storageProvisioning.EnsureContainerExistsAsync(container, cancellationToken);
+        await EnsureContainerExistsAsync(cancellationToken);
         var blob = container.GetBlobClient(storageKey);
         using var stream = new MemoryStream(content.ToArray(), writable: false);
         try
@@ -525,5 +523,13 @@ internal sealed class AzureBlobIntakeArtifactStore : IIntakeArtifactStore
         }
 
         return contentHash.ToUpperInvariant();
+    }
+
+    private async ValueTask EnsureContainerExistsAsync(CancellationToken cancellationToken)
+    {
+        if (allowCreateIfNotExists)
+        {
+            await container.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+        }
     }
 }

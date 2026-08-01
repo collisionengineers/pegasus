@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Pegasus.Core.Intake;
+using Pegasus.Infrastructure.Intake;
 using Pegasus.Worker;
 
 namespace Pegasus.ArchitectureTests;
@@ -240,7 +241,7 @@ public sealed class WorkerAzureClientCompositionTests
     }
 
     [Fact]
-    public void AzureStorageAdaptersRequirePrecomposedClientsAndTheSharedProvisioningPolicy()
+    public void AzureStorageAdaptersRequirePrecomposedClientsAndExplicitProvisioningPolicy()
     {
         Assert.Equal(
             [typeof(WorkerQueueClients), typeof(WorkerStorageProvisioning)],
@@ -249,7 +250,7 @@ public sealed class WorkerAzureClientCompositionTests
             [typeof(WorkerQueueClients), typeof(WorkerStorageProvisioning)],
             GetOnlyConstructorParameterTypes(typeof(AzureQueueExternalWorkQueue)));
         Assert.Equal(
-            [typeof(BlobContainerClient), typeof(WorkerStorageProvisioning)],
+            [typeof(BlobContainerClient), typeof(bool)],
             GetOnlyConstructorParameterTypes(typeof(AzureBlobIntakeArtifactStore)));
     }
 

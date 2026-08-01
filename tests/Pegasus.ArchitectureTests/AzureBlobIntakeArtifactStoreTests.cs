@@ -4,6 +4,7 @@ using Azure.Core;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Pegasus.Core.Intake;
+using Pegasus.Infrastructure.Intake;
 using Pegasus.Worker;
 
 namespace Pegasus.ArchitectureTests;
@@ -48,8 +49,8 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         Assert.Equal(StagedArtifactDisposition.Unmatched, item.Disposition);
         Assert.NotNull(fetched);
         Assert.Equal(StagedArtifactDisposition.Unmatched, fetched.Disposition);
-        Assert.Equal(BlobTraits.Metadata | BlobTraits.Tags, container.LastListOptions?.Traits);
-        Assert.Equal("staging/", container.LastListOptions?.Prefix);
+        Assert.Equal(BlobTraits.Metadata | BlobTraits.Tags, container.LastListTraits);
+        Assert.Equal("staging/", container.LastListPrefix);
         Assert.Equal(0, malformed.DownloadCount);
         Assert.Equal(0, second.DownloadCount);
     }
@@ -137,7 +138,7 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         BlobContainerClient container) =>
         new(
             container,
-            new WorkerStorageProvisioning(allowLocalCreateIfNotExists: false));
+            allowCreateIfNotExists: false);
 
     private sealed class StubBlobContainerClient : BlobContainerClient
     {
@@ -148,15 +149,19 @@ public sealed class AzureBlobIntakeArtifactStoreTests
             this.blobs = blobs.ToDictionary(blob => blob.Name, StringComparer.Ordinal);
         }
 
-        internal GetBlobsOptions? LastListOptions { get; private set; }
+        internal BlobTraits? LastListTraits { get; private set; }
+        internal string? LastListPrefix { get; private set; }
 
         public override BlobClient GetBlobClient(string blobName) => blobs[blobName];
 
         public override AsyncPageable<BlobItem> GetBlobsAsync(
-            GetBlobsOptions? options = null,
+            BlobTraits traits = BlobTraits.None,
+            BlobStates states = BlobStates.None,
+            string? prefix = null,
             CancellationToken cancellationToken = default)
         {
-            LastListOptions = options;
+            LastListTraits = traits;
+            LastListPrefix = prefix;
             var values = blobs.Values.Select(blob => blob.ToBlobItem()).ToArray();
             return AsyncPageable<BlobItem>.FromPages(
                 [Page<BlobItem>.FromValues(values, null, new StubResponse())]);

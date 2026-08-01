@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Pegasus.Core;
 using Pegasus.Core.Cases;
@@ -318,6 +319,28 @@ public sealed class DependencyDirectionTests
         Assert.Contains(typeof(IRevokeRequestUploadLink), casePageDependencies);
         Assert.Contains(typeof(IGetRequestUpload), requestPageDependencies);
         Assert.Contains(typeof(IUploadToRequest), requestPageDependencies);
+    }
+
+    [Fact]
+    public void WorkerFunctionAppUsesItsAssignedIdentityForKeyVaultReferences()
+    {
+        var platformBicep = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "infra",
+            "modules",
+            "platform.bicep"));
+        var workerApp = Regex.Match(
+            platformBicep,
+            @"resource\s+workerApp\b[\s\S]*?(?=\r?\nresource\s+webHttp5xxAlert\b)",
+            RegexOptions.CultureInvariant);
+
+        Assert.True(workerApp.Success, "The Worker Function App resource was not found.");
+        Assert.Matches(
+            @"identity:\s*\{[\s\S]*?userAssignedIdentities:\s*\{\s*'\$\{workerIdentity\.id\}':\s*\{\s*\}\s*\}",
+            workerApp.Value);
+        Assert.Matches(
+            @"keyVaultReferenceIdentity:\s*workerIdentity\.id",
+            workerApp.Value);
     }
 
     private static bool IsForbiddenCoreDependency(string assemblyName) =>

@@ -7,8 +7,40 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
+using Pegasus.Core.Intake;
+using Pegasus.Core.Operations;
+using Pegasus.Infrastructure.Intake;
 
 namespace Pegasus.IntegrationTests;
+
+public sealed class WebCompositionTests
+{
+    [Theory]
+    [InlineData("Production", typeof(AzureBlobIntakeArtifactStore))]
+    [InlineData("Development", typeof(FileSystemIntakeArtifactStore))]
+    public void RuntimeProfilesResolveOperationsSnapshotWithTheirIntendedArtifactStore(
+        string environment,
+        Type expectedArtifactStoreType)
+    {
+        var settings = environment.Equals("Development", StringComparison.Ordinal)
+            ? new Dictionary<string, string?>
+            {
+                ["Intake:LocalArtifactPath"] = Path.Combine(
+                    Path.GetTempPath(),
+                    "Pegasus.WebCompositionTests",
+                    Guid.NewGuid().ToString("N"))
+            }
+            : new Dictionary<string, string?>();
+        using var factory = new ConfiguredWebApplicationFactory(environment, settings);
+        using var scope = factory.Services.CreateScope();
+
+        Assert.IsType(
+            expectedArtifactStoreType,
+            scope.ServiceProvider.GetRequiredService<IIntakeArtifactStore>());
+        Assert.IsType<GetOperationsSnapshot>(
+            scope.ServiceProvider.GetRequiredService<IGetOperationsSnapshot>());
+    }
+}
 
 [Collection(LocalDbFixtureDefinition.Name)]
 [Trait("Category", "SqlServer")]
