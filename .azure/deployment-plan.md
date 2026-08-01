@@ -1,8 +1,9 @@
 # Azure deployment plan
 
 Status: **Production-route implementation is active under issue #311. An
-approved preview attempt stopped before ARM evaluation on four missing external
-identity inputs. Provisioning, deployment, and retirement have not run and
+approved preview resolved every external input and reached ARM preflight, which
+stopped on UK South App Service `Total VMs` quota `0` before any change.
+Provisioning, deployment, and retirement have not run and
 retain the exact-target gates in the
 [production replacement runbook](../azure-production-replacement-plan.md).**
 

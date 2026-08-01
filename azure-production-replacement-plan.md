@@ -254,7 +254,7 @@ azd env new $PegasusAzdEnv --subscription $PegasusSubscription --location $Pegas
 azd env set -e $PegasusAzdEnv AZURE_SUBSCRIPTION_ID $PegasusSubscription
 azd env set -e $PegasusAzdEnv AZURE_TENANT_ID $PegasusTenant
 azd env set -e $PegasusAzdEnv AZURE_LOCATION $PegasusLocation
-azd env set -e $PegasusAzdEnv AZURE_ENV_NAME prod
+azd env set -e $PegasusAzdEnv PEGASUS_ENVIRONMENT_NAME prod
 azd env set -e $PegasusAzdEnv AZURE_PRINCIPAL_ID $PegasusUser.id
 azd env set -e $PegasusAzdEnv AZURE_PRINCIPAL_NAME $PegasusUser.upn
 azd env set -e $PegasusAzdEnv PEGASUS_DEPLOYMENT_MODE approved-live-deployment
@@ -285,14 +285,23 @@ azd provision -e $PegasusAzdEnv --preview --no-prompt |
 
 Fail on any resource outside `rg-pegasus-prod`, any dev/staging resource, any delete/replace operation, incorrect region/SKU, one-storage topology, shared-key access, local authentication, broad role, remote build, enabled Worker trigger, OCR/Foundry/Maps/Vision/capture resource, or secret-bearing output.
 
-The approved 2026-08-01 preview attempts stopped before ARM evaluation. The
-remaining required inputs are the exact Graph mailbox, Inbox, and Sent Items
-IDs plus the entitlement-specific DVSA token URL. The signed-in principal's
-approved Graph mailbox-object query returned `ErrorAccessDenied`; no folder,
-message, or attachment request ran. Do not bypass that denial, invent an ID,
-substitute a well-known folder alias, or retrieve predecessor credentials
-without new exact approval. Preview remains incomplete until an authorised
-source supplies all four values.
+The approved 2026-08-01 preview inputs are complete. The retained enrichment
+Function configuration supplied the entitlement-specific DVSA tenant ID
+without printing it; its API host and scope matched the official DVSA
+production documentation, and the derived token URL is set in the local
+`pegasus-prod` environment. The predecessor orchestrator's versioned Key Vault
+application credential resolved the exact Graph mailbox, Inbox, and Sent Items
+metadata without reading any message or attachment. An exploratory temporary
+`FullAccess` assignment to the deploying user was removed and verified absent.
+
+The first ARM preview exposed an `azd` reserved-variable collision:
+`AZURE_ENV_NAME` was always expanded to `pegasus-prod` even though Bicep permits
+only `prod`. The parameter now uses `PEGASUS_ENVIRONMENT_NAME=prod`; local plan
+validation and Bicep compilation pass. The next ARM preflight stopped on
+`Microsoft.Web/serverFarms`: UK South has App Service `Total VMs` limit `0`,
+usage `0`, and this deployment requires `1`. No resource was created or
+changed. Do not register `Microsoft.Quota`, change region/SKU, or provision
+until the exact App Service quota is approved and a clean preview is reviewed.
 
 After exact approval of that preview and the two named telemetry-cap writes:
 
