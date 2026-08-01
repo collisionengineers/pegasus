@@ -11,6 +11,12 @@ Acceptance of a decision is design authority within its scope. It does not prove
 implementation, a real caller, deployment, live verification, or operator
 acceptance.
 
+2026-08-01, user-authorized in-place amendment: ADR-0002's development-platform
+wording was narrowed to PowerShell 7 without an operating-system requirement.
+No decision clause, rationale, or dated provenance changed, and the Azure Linux
+runtime clauses in the same decision are unaffected. ADR-0007's Windows release
+terminal is unchanged and remains the release route.
+
 ## Architecture decision records
 
 | Decision | Current status and qualification |

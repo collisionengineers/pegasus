@@ -11,7 +11,7 @@ concurrent users and 2,000 new cases per month. It must continuously ingest a
 shared Outlook mailbox, process documents and images, manage the full QDOS case
 workflow, use Box as the long-term file store, and expose provider API and MCP
 capabilities. The application must be hosted in Azure and developed and operated
-from Windows with PowerShell 7.
+from PowerShell 7.
 
 The previous application accumulated duplicated functions, behavioural drift,
 and an unwieldy structure. The replacement therefore needs one authoritative

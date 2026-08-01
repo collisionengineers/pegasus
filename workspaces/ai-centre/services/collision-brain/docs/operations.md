@@ -105,9 +105,9 @@ Inject secrets through environment variables or mounted secret files. Secrets mu
 Run from the service directory:
 
 ```powershell
-dotnet restore .\CollisionBrain.slnx --locked-mode
-dotnet build .\CollisionBrain.slnx --configuration Release --no-restore
-dotnet test .\CollisionBrain.slnx --configuration Release --no-build
+dotnet restore ./CollisionBrain.slnx --locked-mode
+dotnet build ./CollisionBrain.slnx --configuration Release --no-restore
+dotnet test ./CollisionBrain.slnx --configuration Release --no-build
 ```
 
 The memory-driver benchmark and API/worker/stdio smoke are local evidence. These
@@ -124,7 +124,7 @@ No current check recorded here proves backup/restore, hosted purge, provider-res
 
 The following remain unverified:
 
-- PostgreSQL integration tests and the Docker Compose runtime, because Docker is not installed on the current workstation.
+- PostgreSQL integration tests and the Docker Compose runtime, because Docker was not installed on the Windows workstation that produced this record. The profile has not been exercised on any platform; a Linux workstation, where a container runtime is already a development prerequisite, is the cheapest route to first evidence.
 - PDF and DOCX extraction against a representative approved corpus.
 - A labelled retrieval benchmark.
 - Hosted embedding selection.

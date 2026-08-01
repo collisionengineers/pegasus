@@ -16,30 +16,30 @@ OCR, images, email containers, archives, and generated answers remain outside v1
 ## Local prerequisites
 
 - Repository-pinned .NET SDK 10.0.302.
-- Docker Compose is optional and provides the convenient PostgreSQL/pgvector profile.
+- Docker Compose is optional and provides the convenient PostgreSQL/pgvector profile. It is available natively on Linux and requires Docker Desktop on Windows.
 - Memory drivers run without Docker or external services.
 
 ## Quick start
 
 ```powershell
 Copy-Item .env.example .env
-dotnet restore .\CollisionBrain.slnx --locked-mode
-dotnet build .\CollisionBrain.slnx --configuration Release --no-restore
-dotnet run --project .\src\CollisionBrain\CollisionBrain.csproj --configuration Release -- api
+dotnet restore ./CollisionBrain.slnx --locked-mode
+dotnet build ./CollisionBrain.slnx --configuration Release --no-restore
+dotnet run --project ./src/CollisionBrain/CollisionBrain.csproj --configuration Release -- api
 ```
 
 The API listens on `http://localhost:3000`, with MCP at `/mcp`. In a second
 terminal, run the worker from the same published/build output:
 
 ```powershell
-dotnet run --project .\src\CollisionBrain\CollisionBrain.csproj --configuration Release -- worker
+dotnet run --project ./src/CollisionBrain/CollisionBrain.csproj --configuration Release -- worker
 ```
 
 The stdio proxy forwards JSON-RPC to `RAG_HTTP_URL` and writes protocol responses
 to stdout only:
 
 ```powershell
-dotnet run --project .\src\CollisionBrain\CollisionBrain.csproj --configuration Release -- stdio
+dotnet run --project ./src/CollisionBrain/CollisionBrain.csproj --configuration Release -- stdio
 ```
 
 ## Docker profile
@@ -78,8 +78,8 @@ retrieval model.
 ## Administration and benchmark
 
 ```powershell
-dotnet run --project .\src\CollisionBrain\CollisionBrain.csproj -- migrate
-dotnet run --project .\src\CollisionBrain\CollisionBrain.csproj -- benchmark --input benchmarks/synthetic.json
+dotnet run --project ./src/CollisionBrain/CollisionBrain.csproj -- migrate
+dotnet run --project ./src/CollisionBrain/CollisionBrain.csproj -- benchmark --input benchmarks/synthetic.json
 ```
 
 The synthetic benchmark uses the memory drivers and must report three documents,
@@ -90,9 +90,9 @@ contract.
 ## Verification boundaries
 
 ```powershell
-dotnet restore .\CollisionBrain.slnx --locked-mode
-dotnet build .\CollisionBrain.slnx --configuration Release --no-restore
-dotnet test .\CollisionBrain.slnx --configuration Release --no-build
+dotnet restore ./CollisionBrain.slnx --locked-mode
+dotnet build ./CollisionBrain.slnx --configuration Release --no-restore
+dotnet test ./CollisionBrain.slnx --configuration Release --no-build
 ```
 
 PostgreSQL/pgvector, S3, and container proof are reported only when their exact
