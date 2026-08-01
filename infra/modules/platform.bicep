@@ -457,6 +457,7 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
     serverFarmId: functionPlan.id
     httpsOnly: true
     publicNetworkAccess: 'Enabled'
+    keyVaultReferenceIdentity: workerIdentity.id
     functionAppConfig: {
       deployment: {
         storage: {

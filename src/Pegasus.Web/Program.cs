@@ -25,6 +25,7 @@ using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
 using Pegasus.Web.Pages.Uploads;
 using Azure.Identity;
+using Azure.Storage.Blobs;
 using Microsoft.AspNetCore.DataProtection;
 
 const string OriginalIssueClaim = "pegasus:original-issued-at";
@@ -160,6 +161,10 @@ if (productionProfile)
         .PersistKeysToAzureBlobStorage(
             new Uri(custodyServiceUri, "authentication-ring/keys.xml"),
             credential);
+    builder.Services.AddSingleton(
+        new BlobServiceClient(custodyServiceUri, credential)
+            .GetBlobContainerClient("transient-intake"));
+    builder.Services.AddSingleton<IIntakeArtifactStore, AzureBlobIntakeArtifactStore>();
 }
 var localDocumentCustodyConfigured =
     builder.Configuration.GetValue<bool>("Features:LocalDocumentCustody");
