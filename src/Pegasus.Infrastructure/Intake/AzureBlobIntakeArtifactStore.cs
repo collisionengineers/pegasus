@@ -7,7 +7,8 @@ using Pegasus.Core.Intake;
 
 namespace Pegasus.Infrastructure.Intake;
 
-public sealed class AzureBlobIntakeArtifactStore : IIntakeArtifactStore
+public sealed class AzureBlobIntakeArtifactStore
+    : IIntakeArtifactStore, IIntakeQuarantineArtifactStore
 {
     private const string StagingPrefix = "staging/";
     private const string HashMetadataName = "sha256";
@@ -45,6 +46,92 @@ public sealed class AzureBlobIntakeArtifactStore : IIntakeArtifactStore
             tags: null,
             cancellationToken);
         return storageKey;
+    }
+
+    public async Task<IntakeQuarantineArtifact> StoreStreamAsync(
+        Stream content,
+        long contentLength,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentOutOfRangeException.ThrowIfNegative(contentLength);
+        if (!content.CanRead)
+        {
+            throw new ArgumentException(
+                "The quarantine source stream must be readable.",
+                nameof(content));
+        }
+
+        if (contentLength > int.MaxValue)
+        {
+            throw new IntakeArtifactIntegrityException();
+        }
+
+        using var retained = new MemoryStream((int)contentLength);
+        var buffer = new byte[81920];
+        long retainedLength = 0;
+        while (true)
+        {
+            var read = await content.ReadAsync(buffer, cancellationToken);
+            if (read == 0)
+            {
+                break;
+            }
+
+            retainedLength = checked(retainedLength + read);
+            if (retainedLength > contentLength)
+            {
+                throw new IntakeArtifactIntegrityException();
+            }
+
+            await retained.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+        }
+
+        if (retainedLength != contentLength)
+        {
+            throw new IntakeArtifactIntegrityException();
+        }
+
+        var bytes = retained.ToArray();
+        var contentHash = Convert.ToHexString(SHA256.HashData(bytes));
+        var storageKey = await StoreAsync(contentHash, bytes, cancellationToken);
+        return new IntakeQuarantineArtifact(storageKey, contentHash, retainedLength);
+    }
+
+    public async Task VerifyAsync(
+        IntakeQuarantineArtifact artifact,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(artifact);
+        if (artifact.ContentLength < 0
+            || artifact.ContentHash.Length != 64
+            || artifact.ContentHash.Any(character => !char.IsAsciiHexDigit(character)))
+        {
+            throw new IntakeArtifactIntegrityException();
+        }
+
+        var contentHash = artifact.ContentHash.ToUpperInvariant();
+        var expectedStorageKey = $"sha256/{contentHash[..2]}/{contentHash}";
+        if (!string.Equals(
+                artifact.StorageKey,
+                expectedStorageKey,
+                StringComparison.Ordinal))
+        {
+            throw new IntakeArtifactIntegrityException();
+        }
+
+        try
+        {
+            await VerifyBlobAsync(
+                container.GetBlobClient(artifact.StorageKey),
+                contentHash,
+                artifact.ContentLength,
+                cancellationToken);
+        }
+        catch (RequestFailedException exception) when (exception.Status == 404)
+        {
+            throw new IntakeArtifactIntegrityException();
+        }
     }
 
     public async Task<ReadOnlyMemory<byte>?> ReadAsync(
