@@ -90,8 +90,23 @@ $server = $values['AZURE_SQL_SERVER_FQDN']
 $database = $values['AZURE_SQL_DATABASE_NAME']
 $webSid = Convert-GuidToSqlSid $values['WEB_IDENTITY_CLIENT_ID']
 $workerSid = Convert-GuidToSqlSid $values['WORKER_IDENTITY_CLIENT_ID']
-if (-not (Get-Command sqlcmd -ErrorAction SilentlyContinue)) {
-    throw 'sqlcmd is required for Azure SQL runtime-principal bootstrap.'
+if (-not (Get-Command Invoke-Sqlcmd -ErrorAction SilentlyContinue)) {
+    throw 'The SqlServer PowerShell module is required for Azure SQL runtime-principal bootstrap.'
+}
+$accessToken = (& az account get-access-token --resource https://database.windows.net/ --query accessToken --output tsv).Trim()
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($accessToken)) {
+    throw 'Unable to obtain an Azure SQL access token from the approved Azure CLI identity.'
+}
+
+function Invoke-AzureSqlQuery([string] $Query) {
+    @(Invoke-Sqlcmd `
+        -ServerInstance "tcp:$server,1433" `
+        -Database $database `
+        -AccessToken $accessToken `
+        -Query $Query `
+        -AbortOnError `
+        -OutputAs DataRows `
+        -ErrorAction Stop)
 }
 
 $sql = @"
@@ -192,8 +207,7 @@ FROM sys.database_principals
 WHERE name IN (N'pegasus_web_runtime', N'pegasus_worker_runtime');
 "@
 
-& sqlcmd -S "tcp:$server,1433" -d $database -G -b -Q $sql
-if ($LASTEXITCODE -ne 0) { throw 'Azure SQL runtime-principal bootstrap or denial verification failed.' }
+Invoke-AzureSqlQuery $sql | Out-Null
 
 $permissionQuery = @"
 SET NOCOUNT ON;
@@ -202,18 +216,17 @@ SELECT principal.name + N'|' + permission.state + N'|' + permission.permission_n
            WHEN permission.class = 1 AND permission.minor_id = 0 AND target.object_id IS NOT NULL
                THEN target.name
            ELSE CONCAT(N'__UNAPPROVED_SCOPE_', permission.class, N'_', permission.major_id, N'_', permission.minor_id)
-       END
+       END AS permission_row
 FROM sys.database_permissions AS permission
 JOIN sys.database_principals AS principal ON principal.principal_id = permission.grantee_principal_id
 LEFT JOIN sys.tables AS target ON target.object_id = permission.major_id
 WHERE principal.name IN (N'pegasus_web_runtime_role', N'pegasus_worker_runtime_role')
 ORDER BY principal.name, permission.state, permission.permission_name, target.name;
 "@
-$actualMatrix = @(& sqlcmd -S "tcp:$server,1433" -d $database -G -b -h -1 -W -Q $permissionQuery |
-    ForEach-Object { $_.Trim() } |
+$actualMatrix = @(Invoke-AzureSqlQuery $permissionQuery |
+    ForEach-Object { ([string]$_.permission_row).Trim() } |
     Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
     Sort-Object -Unique)
-if ($LASTEXITCODE -ne 0) { throw 'Unable to read the Azure SQL runtime permission matrix.' }
 $expectedMatrix = @(Get-MigrationPermissionMatrix)
 $difference = @(Compare-Object -ReferenceObject $expectedMatrix -DifferenceObject $actualMatrix)
 if ($difference.Count -ne 0) {
@@ -224,7 +237,7 @@ function Get-EffectiveTablePermissionMatrix([string] $UserName, [string] $RoleNa
     $query = @"
 SET NOCOUNT ON;
 EXECUTE AS USER = N'$UserName';
-SELECT N'$RoleName|G|' + candidate.permission_name + N'|' + target.name
+SELECT N'$RoleName|G|' + candidate.permission_name + N'|' + target.name AS permission_row
 FROM sys.tables AS target
 CROSS JOIN (VALUES (N'SELECT'), (N'INSERT'), (N'UPDATE'), (N'DELETE')) AS candidate(permission_name)
 WHERE target.is_ms_shipped = 0
@@ -235,10 +248,9 @@ WHERE target.is_ms_shipped = 0
 ORDER BY candidate.permission_name, target.name;
 REVERT;
 "@
-    $rows = @(& sqlcmd -S "tcp:$server,1433" -d $database -G -b -h -1 -W -Q $query |
-        ForEach-Object { $_.Trim() } |
+    $rows = @(Invoke-AzureSqlQuery $query |
+        ForEach-Object { ([string]$_.permission_row).Trim() } |
         Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-    if ($LASTEXITCODE -ne 0) { throw "Unable to read effective table permissions for $UserName." }
     return $rows
 }
 
@@ -252,3 +264,4 @@ if ($effectiveDifference.Count -ne 0) {
     throw "Azure SQL effective runtime DML differs from the exhaustive migration-defined allow matrix: $($effectiveDifference | Out-String)"
 }
 Write-Output "Verified $($actualMatrix.Count) catalogued permission/denial rows and $($actualEffectiveMatrix.Count) effective runtime DML rows."
+$accessToken = $null
