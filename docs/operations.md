@@ -154,6 +154,12 @@ target identities plus outcome. A failed attempt remains visible for authorised
 staff retry; there is no automatic business retry. Box CLI authentication and
 root membership do not expand approval.
 
+Production server authentication uses the retained `box-config-json` JWT
+configuration and `box-client-secret` Key Vault secrets. The Box SDK obtains and
+refreshes short-lived authorization headers at runtime; a static access token is
+not an accepted setting or deployment input. Secret values remain resolved only
+inside the Worker through Key Vault references.
+
 The intended application staff accounts are Pegasus Identity accounts. The DevelopmentOffline profile authenticates its deterministic local Administrator fixture and enforces its Administrator role; Entra users must not be assumed. Third-party credentials must never enter tracked settings, command-line arguments, prompts that may be retained, terminal output, telemetry, or business history.
 Application staff identity initialization remains a separately controlled application operation; Entra users must not be assumed. Third-party credentials must never enter tracked settings, command-line arguments, prompts that may be retained, terminal output, telemetry, or business history.
 

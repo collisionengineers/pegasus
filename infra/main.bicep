@@ -30,8 +30,10 @@ param graphMailboxId string
 param graphInboxFolderId string
 @description('Exact immutable Microsoft Graph Sent Items folder ID.')
 param graphSentFolderId string
-@description('Versioned Key Vault secret URI containing the Box access credential.')
-param boxAccessTokenSecretUri string
+@description('Versioned Key Vault secret URI containing the Box JWT configuration JSON.')
+param boxConfigJsonSecretUri string
+@description('Versioned Key Vault secret URI containing the Box client secret.')
+param boxClientSecretSecretUri string
 @description('Versioned Key Vault secret URI containing the DVLA VES API key.')
 param dvlaApiKeySecretUri string
 @description('Versioned Key Vault secret URI containing the DVSA OAuth client ID.')
@@ -72,7 +74,8 @@ module platform 'modules/platform.bicep' = if (activationAllowed) {
     graphMailboxId: graphMailboxId
     graphInboxFolderId: graphInboxFolderId
     graphSentFolderId: graphSentFolderId
-    boxAccessTokenSecretUri: boxAccessTokenSecretUri
+    boxConfigJsonSecretUri: boxConfigJsonSecretUri
+    boxClientSecretSecretUri: boxClientSecretSecretUri
     dvlaApiKeySecretUri: dvlaApiKeySecretUri
     dvsaClientIdSecretUri: dvsaClientIdSecretUri
     dvsaClientSecretSecretUri: dvsaClientSecretSecretUri

@@ -381,10 +381,12 @@ public static class DependencyInjection
         services.AddScoped<ISentEvidencePollStore, EfSentEvidencePollStore>();
         services.AddScoped<PollApprovedInbox>();
         services.AddScoped<PollSentEvidence>();
+        services.AddSingleton<IBoxAuthorizationHeaderProvider, BoxJwtAuthorizationHeaderProvider>();
         services.AddSingleton<ICaseCustody>(provider => new BoxCaseCustody(
             provider.GetRequiredService<BoxCustodyOptions>(),
             provider.GetRequiredService<IIntakeArtifactStore>(),
-            provider.GetRequiredService<HttpClient>()));
+            provider.GetRequiredService<HttpClient>(),
+            provider.GetRequiredService<IBoxAuthorizationHeaderProvider>()));
         services.AddSingleton(VehicleLookupAvailability.ProductionLive);
         services.AddSingleton<IVehicleLookupAdapter>(provider => new DvlaDvsaProductionAdapter(
             provider.GetRequiredService<DvlaDvsaProductionOptions>(),

@@ -6,7 +6,8 @@ param alertEmailAddress string
 param graphMailboxId string
 param graphInboxFolderId string
 param graphSentFolderId string
-param boxAccessTokenSecretUri string
+param boxConfigJsonSecretUri string
+param boxClientSecretSecretUri string
 param dvlaApiKeySecretUri string
 param dvsaClientIdSecretUri string
 param dvsaClientSecretSecretUri string
@@ -393,7 +394,8 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'Box__BaseUri', value: 'https://api.box.com/2.0/' }
         { name: 'Box__UploadUri', value: 'https://upload.box.com/api/2.0/' }
         { name: 'Box__RootFolderId', value: '392761581105' }
-        { name: 'Box__AccessToken', value: '@Microsoft.KeyVault(SecretUri=${boxAccessTokenSecretUri})' }
+        { name: 'Box__ConfigJson', value: '@Microsoft.KeyVault(SecretUri=${boxConfigJsonSecretUri})' }
+        { name: 'Box__ClientSecret', value: '@Microsoft.KeyVault(SecretUri=${boxClientSecretSecretUri})' }
         { name: 'Dvla__BaseUri', value: 'https://driver-vehicle-licensing.api.gov.uk/vehicle-enquiry/v1/' }
         { name: 'Dvla__ApiKey', value: '@Microsoft.KeyVault(SecretUri=${dvlaApiKeySecretUri})' }
         { name: 'Dvsa__BaseUri', value: 'https://history.mot.api.gov.uk/v1/trade/vehicles/registration/' }
