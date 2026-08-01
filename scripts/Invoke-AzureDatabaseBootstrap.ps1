@@ -75,6 +75,7 @@ function Get-MigrationPermissionMatrix {
             }
         }
     }
+    $expected.Add('pegasus_web_runtime_role|G|SELECT|__EFMigrationsHistory')
     $webDeleteTables = @('AspNetUserRoles', 'CaseDataFields', 'OrganizationRoles', 'TriageResponseEvidenceLinks')
     foreach ($table in $tables) {
         if ($table -notin $webDeleteTables) {
