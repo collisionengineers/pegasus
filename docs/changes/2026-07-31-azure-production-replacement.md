@@ -4,9 +4,9 @@ type: infrastructure
 status: in_progress
 risk: critical
 created: 2026-07-31
-updated: 2026-07-31
+updated: 2026-08-01
 issue: https://github.com/collisionengineers/pegasus/issues/311
-pull_request: pending
+pull_request: https://github.com/collisionengineers/pegasus/pull/312
 baseline: 20d36666c694365e34e351b41262f6a85dafd6e7
 target_release: 0.1.0-alpha.1
 roadmap_horizon: Now
@@ -87,6 +87,19 @@ accepted, and retired remain separate evidence states.
   `efbundle.exe`, and their SHA-256 manifest were built and revalidated from a
   clean exact revision; production packaging must still be repeated after any
   later source change or review amendment.
+- Exact-target predecessor read/archive preflight: **performed and locally
+  verified** on 2026-08-01 under explicit approval. Fresh inventories and
+  non-secret metadata were captured outside the repository. All 16 unique ACR
+  digests resolve from local OCI layouts; the 264-entry, 9,731,767,698-byte
+  archive manifest has SHA-256
+  `F88BC99D2CA742433E6A36860D3EDA65629A95AA70FC9FA2143DBB8768F9B47C`.
+  No excluded data or secret values were retrieved and no Azure resource was
+  mutated.
+- Production readiness reads: **partial**. UK South advertises Linux B1 and
+  FC1/.NET 10, public retail rates were captured, and the operator has
+  subscription Owner. `Microsoft.Sql` and `Microsoft.Quota` are not registered,
+  so S0 and generic quota verification remain blocked on a separately approved
+  provider-registration/preview checkpoint.
 - Azure preview/provisioning: **not run**.
 - Deployment, live verification, operator acceptance, predecessor retirement,
   and recovery exercise: **not performed**.
