@@ -106,13 +106,19 @@ accepted, and retired remain separate evidence states.
   `dvsa-client-secret`; no secret value was read. The Box route now uses the
   retained JWT configuration and client secret to obtain short-lived SDK
   authorization headers instead of requiring a static access token.
-- Azure preview: **attempted and stopped before ARM evaluation**. The first
+- Azure preview: **reached ARM preflight and stopped before any change**. The first
   attempt identified eleven missing integration inputs. After binding the
   approved non-secret/versioned metadata and correcting Box authentication, the
-  second attempt stopped on exactly four inputs: the Graph mailbox, Inbox, and
-  Sent Items IDs plus the entitlement-specific DVSA token URL. Microsoft Graph
-  denied the approved mailbox-object metadata request before any folder request
-  ran. No resource was previewed, created, changed, or deleted.
+  second attempt stopped on four inputs. The retained enrichment configuration
+  then supplied and validated the entitlement-specific DVSA token route, and
+  Graph resolved the mailbox object ID. Two metadata-only Inbox reads returned
+  `ErrorItemNotFound`, including after an approved temporary `FullAccess`
+  assignment that was subsequently removed and verified absent. The latest
+  predecessor application identity then resolved both folder IDs without a
+  message or attachment request. ARM preview exposed and prompted correction of
+  the reserved `AZURE_ENV_NAME` parameter collision. Local validation passes;
+  ARM preflight now stops on UK South App Service `Total VMs` quota `0` with
+  one VM required. No resource was created, changed, or deleted.
 - Azure provisioning: **not run**.
 - Deployment, live verification, operator acceptance, predecessor retirement,
   and recovery exercise: **not performed**.
