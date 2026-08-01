@@ -17,6 +17,15 @@
     "deploymentMode": {
       "value": "${PEGASUS_DEPLOYMENT_MODE}"
     },
+    "webActivation": {
+      "value": "${PEGASUS_WEB_ACTIVATION=disabled}"
+    },
+    "webImageDigest": {
+      "value": "${PEGASUS_WEB_IMAGE_DIGEST=}"
+    },
+    "webRevisionSuffix": {
+      "value": "${PEGASUS_WEB_REVISION_SUFFIX=}"
+    },
     "alertEmailAddress": {
       "value": "${PEGASUS_ALERT_EMAIL}"
     },

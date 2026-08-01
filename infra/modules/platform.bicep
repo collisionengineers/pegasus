@@ -3,6 +3,13 @@ param tags object
 param sqlAdministratorObjectId string
 param sqlAdministratorLogin string
 param alertEmailAddress string
+@allowed([
+  'disabled'
+  'approved'
+])
+param webActivation string
+param webImageDigest string
+param webRevisionSuffix string
 param graphMailboxId string
 param graphInboxFolderId string
 param graphSentFolderId string
@@ -20,11 +27,16 @@ var prefix = 'pegasus-prod'
 var transportStorageName = 'pegtrans${suffix}'
 var custodyStorageName = 'pegcustody${suffix}'
 var keyVaultName = 'pegasusprodkv${take(suffix, 8)}'
+var containerRegistryName = 'pegasusprodacr${suffix}'
+var webImageReference = '${containerRegistryName}.azurecr.io/pegasus/web@${webImageDigest}'
+var webActivationApproved = webActivation == 'approved' && startsWith(webImageDigest, 'sha256:') && length(webImageDigest) == 71 && length(webRevisionSuffix) == 12
 var blobDataOwnerRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b')
 var blobDataContributorRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
 var queueDataContributorRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '974c5e8b-45b9-4653-ba55-5f855dd0fb88')
 var queueMessageSenderRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '69a216fc-b8fb-44d8-bc22-1f3c2cd27a39')
 var tableDataContributorRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')
+var acrPullRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
+var monitoringMetricsPublisherRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '3913510d-42f4-4e42-8a64-420c390055eb')
 var webSqlConnectionString = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Database=${sqlDatabase.name};Authentication=Active Directory Managed Identity;User Id=${webIdentity.properties.clientId};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
 var workerSqlConnectionString = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Database=${sqlDatabase.name};Authentication=Active Directory Managed Identity;User Id=${workerIdentity.properties.clientId};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
 
@@ -211,13 +223,39 @@ resource sqlAzureServicesFirewall 'Microsoft.Sql/servers/firewallRules@2023-08-0
   properties: { startIpAddress: '0.0.0.0', endIpAddress: '0.0.0.0' }
 }
 
-resource webPlan 'Microsoft.Web/serverfarms@2024-04-01' = {
-  name: '${prefix}-web-plan-${suffix}'
+resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
+  name: containerRegistryName
   location: location
-  kind: 'linux'
+  tags: union(tags, { purpose: 'web-image-custody' })
+  sku: { name: 'Basic' }
+  properties: {
+    adminUserEnabled: false
+    dataEndpointEnabled: false
+    publicNetworkAccess: 'Enabled'
+  }
+}
+
+resource containerEnvironment 'Microsoft.App/managedEnvironments@2025-01-01' = {
+  name: '${prefix}-aca-env-${suffix}'
+  location: location
   tags: tags
-  sku: { name: 'P0v4', tier: 'PremiumV4', capacity: 1 }
-  properties: { reserved: true }
+  properties: {
+    appLogsConfiguration: {
+      destination: 'azure-monitor'
+    }
+  }
+}
+
+resource containerEnvironmentDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: '${prefix}-aca-diagnostics'
+  scope: containerEnvironment
+  properties: {
+    workspaceId: logAnalytics.id
+    logs: [
+      { category: 'ContainerAppConsoleLogs', enabled: true }
+      { category: 'ContainerAppSystemLogs', enabled: true }
+    ]
+  }
 }
 
 resource webIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
@@ -230,6 +268,36 @@ resource workerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-0
   name: '${prefix}-worker-id-${suffix}'
   location: location
   tags: tags
+}
+
+resource webRegistryPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(containerRegistry.id, webIdentity.id, acrPullRole)
+  scope: containerRegistry
+  properties: {
+    roleDefinitionId: acrPullRole
+    principalId: webIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource webTelemetryPublisher 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(applicationInsights.id, webIdentity.id, monitoringMetricsPublisherRole)
+  scope: applicationInsights
+  properties: {
+    roleDefinitionId: monitoringMetricsPublisherRole
+    principalId: webIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource workerTelemetryPublisher 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(applicationInsights.id, workerIdentity.id, monitoringMetricsPublisherRole)
+  scope: applicationInsights
+  properties: {
+    roleDefinitionId: monitoringMetricsPublisherRole
+    principalId: workerIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
 }
 
 resource workerTransportBlobOwner 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -286,40 +354,88 @@ resource webIntakeQueueSender 'Microsoft.Authorization/roleAssignments@2022-04-0
   properties: { roleDefinitionId: queueMessageSenderRole, principalId: webIdentity.properties.principalId, principalType: 'ServicePrincipal' }
 }
 
-resource webApp 'Microsoft.Web/sites@2024-04-01' = {
+resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActivationApproved) {
   name: '${prefix}-web-${suffix}'
   location: location
-  kind: 'app,linux'
   tags: union(tags, { 'azd-service-name': 'web' })
   identity: { type: 'UserAssigned', userAssignedIdentities: { '${webIdentity.id}': {} } }
   properties: {
-    serverFarmId: webPlan.id
-    httpsOnly: true
-    publicNetworkAccess: 'Enabled'
-    siteConfig: {
-      alwaysOn: true
-      ftpsState: 'Disabled'
-      healthCheckPath: '/health/ready'
-      http20Enabled: true
-      linuxFxVersion: 'DOTNETCORE|10.0'
-      minTlsVersion: '1.2'
-      appSettings: [
-        { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: applicationInsights.properties.ConnectionString }
-        { name: 'APPLICATIONINSIGHTS_AUTHENTICATION_STRING', value: 'Authorization=AAD;ClientId=${webIdentity.properties.clientId}' }
-        { name: 'ApplicationInsightsAgent_EXTENSION_VERSION', value: '~3' }
-        { name: 'APPLICATIONINSIGHTS_ENABLEADAPTIVESAMPLING', value: 'true' }
-        { name: 'ASPNETCORE_ENVIRONMENT', value: 'Production' }
-        { name: 'Runtime__Profile', value: 'Production' }
-        { name: 'ConnectionStrings__Pegasus', value: webSqlConnectionString }
-        { name: 'KEY_VAULT_URI', value: keyVault.properties.vaultUri }
-        { name: 'TransportStorage__AccountName', value: transportStorage.name }
-        { name: 'CustodyStorage__AccountName', value: custodyStorage.name }
-        { name: 'CustodyStorage__ServiceUri', value: custodyStorage.properties.primaryEndpoints.blob }
-        { name: 'AZURE_CLIENT_ID', value: webIdentity.properties.clientId }
-        { name: 'AzureIdentity__WebClientId', value: webIdentity.properties.clientId }
+    managedEnvironmentId: containerEnvironment.id
+    configuration: {
+      activeRevisionsMode: 'Single'
+      ingress: {
+        external: true
+        allowInsecure: false
+        targetPort: 8080
+        transport: 'auto'
+        traffic: [
+          { latestRevision: true, weight: 100 }
+        ]
+      }
+      registries: [
+        {
+          server: containerRegistry.properties.loginServer
+          identity: webIdentity.id
+        }
       ]
     }
+    template: {
+      revisionSuffix: webRevisionSuffix
+      containers: [
+        {
+          name: 'web'
+          image: webImageReference
+          env: [
+            { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: applicationInsights.properties.ConnectionString }
+            { name: 'APPLICATIONINSIGHTS_AUTHENTICATION_STRING', value: 'Authorization=AAD;ClientId=${webIdentity.properties.clientId}' }
+            { name: 'APPLICATIONINSIGHTS_ENABLEADAPTIVESAMPLING', value: 'true' }
+            { name: 'ASPNETCORE_ENVIRONMENT', value: 'Production' }
+            { name: 'ASPNETCORE_HTTP_PORTS', value: '8080' }
+            { name: 'Runtime__Profile', value: 'Production' }
+            { name: 'ConnectionStrings__Pegasus', value: webSqlConnectionString }
+            { name: 'KEY_VAULT_URI', value: keyVault.properties.vaultUri }
+            { name: 'TransportStorage__AccountName', value: transportStorage.name }
+            { name: 'CustodyStorage__AccountName', value: custodyStorage.name }
+            { name: 'CustodyStorage__ServiceUri', value: custodyStorage.properties.primaryEndpoints.blob }
+            { name: 'AZURE_CLIENT_ID', value: webIdentity.properties.clientId }
+            { name: 'AzureIdentity__WebClientId', value: webIdentity.properties.clientId }
+          ]
+          resources: {
+            cpu: json('0.5')
+            memory: '1Gi'
+          }
+          probes: [
+            {
+              type: 'Startup'
+              httpGet: { path: '/health/live', port: 8080, scheme: 'HTTP' }
+              periodSeconds: 5
+              timeoutSeconds: 5
+              failureThreshold: 24
+            }
+            {
+              type: 'Liveness'
+              httpGet: { path: '/health/live', port: 8080, scheme: 'HTTP' }
+              periodSeconds: 10
+              timeoutSeconds: 5
+              failureThreshold: 3
+            }
+            {
+              type: 'Readiness'
+              httpGet: { path: '/health/ready', port: 8080, scheme: 'HTTP' }
+              periodSeconds: 5
+              timeoutSeconds: 5
+              failureThreshold: 6
+            }
+          ]
+        }
+      ]
+      scale: {
+        minReplicas: 0
+        maxReplicas: 1
+      }
+    }
   }
+  dependsOn: [webRegistryPull, webTelemetryPublisher]
 }
 
 resource functionPlan 'Microsoft.Web/serverfarms@2024-04-01' = {
@@ -411,10 +527,11 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
     workerTransportBlobOwner
     workerTransportQueueContributor
     workerTransportTableContributor
+    workerTelemetryPublisher
   ]
 }
 
-resource webHttp5xxAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
+resource webHttp5xxAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = if (webActivationApproved) {
   name: '${prefix}-web-http5xx'
   location: 'global'
   tags: tags
@@ -422,23 +539,30 @@ resource webHttp5xxAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
     description: 'Pegasus production Web returned an HTTP 5xx response.'
     severity: 1
     enabled: true
-    scopes: [webApp.id]
+    scopes: [webContainerApp.id]
     evaluationFrequency: 'PT5M'
     windowSize: 'PT5M'
     autoMitigate: true
-    targetResourceType: 'Microsoft.Web/sites'
+    targetResourceType: 'Microsoft.App/containerApps'
     targetResourceRegion: location
     criteria: {
       'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
       allOf: [
         {
           name: 'WebHttp5xx'
-          metricNamespace: 'Microsoft.Web/sites'
-          metricName: 'Http5xx'
+          metricNamespace: 'Microsoft.App/containerapps'
+          metricName: 'Requests'
           operator: 'GreaterThan'
           timeAggregation: 'Total'
           threshold: 0
           criterionType: 'StaticThresholdCriterion'
+          dimensions: [
+            {
+              name: 'StatusCodeCategory'
+              operator: 'Include'
+              values: ['5xx']
+            }
+          ]
         }
       ]
     }
@@ -483,7 +607,12 @@ resource applicationExceptionAlert 'Microsoft.Insights/scheduledQueryRules@2023-
   }
 }
 
-output webAppName string = webApp.name
+output webContainerAppName string = webActivationApproved ? webContainerApp!.name : ''
+output webContainerAppFqdn string = webActivationApproved ? webContainerApp!.properties.configuration.ingress.fqdn : ''
+output webContainerAppRevision string = webActivationApproved ? '${webContainerApp!.name}--${webRevisionSuffix}' : ''
+output containerRegistryName string = containerRegistry.name
+output containerRegistryLoginServer string = containerRegistry.properties.loginServer
+output webImageReference string = webActivationApproved ? webImageReference : ''
 output webIdentityName string = webIdentity.name
 output webIdentityClientId string = webIdentity.properties.clientId
 output workerAppName string = workerApp.name

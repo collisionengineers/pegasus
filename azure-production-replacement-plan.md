@@ -6,9 +6,9 @@ Replace the unused CollisionSpike Azure estate with Pegasus `0.1.0-alpha.1` usin
 
 1. Complete and review the missing production adapters and release tooling locally.
 2. Build Web, Worker, and migration artifacts once and record SHA-256 provenance.
-3. Provision only `rg-pegasus-prod` in UK South using Bicep and `azd`.
-4. Migrate Azure SQL, create least-privilege runtime users, and bootstrap application Administrator `alex`.
-5. Deploy and live-verify Web, Worker, Graph, Box, DVLA, DVSA, telemetry, alerts, and the real alpha workflow.
+3. Provision the production foundation, Container Apps environment, and Basic ACR in `rg-pegasus-prod` using Bicep and `azd`, with the public Web resource still absent.
+4. Upload and verify the locally built OCI image, migrate Azure SQL, create least-privilege runtime users, and bootstrap application Administrator `alex`.
+5. Provision the Web Container App by immutable image digest, then deploy and live-verify Worker, Graph, Box, DVLA, DVSA, telemetry, alerts, and the real alpha workflow.
 6. Record Alex’s final acceptance.
 7. Immediately archive predecessor configuration and ACR images, then delete every predecessor resource except the adopted Box and enrichment Key Vaults.
 8. Complete the full isolated recovery exercise before any second production release.
@@ -19,7 +19,8 @@ This plan authorizes no cloud action, merge, credential access, deployment, or d
 
 - Environments: isolated local development and production only; no Azure dev/test/staging resources.
 - Production: subscription `e6076573-23a5-46a8-acef-7e22d264e5db`, tenant `858cf5b3-aa0a-47a6-9b40-4851fd0afa94`, resource group `rg-pegasus-prod`, region `uksouth`.
-- Compute/data: Linux P0v4 Web, FC1 .NET 10 isolated Worker, S0 Azure SQL, two Standard LRS storage accounts, distinct Web/Worker identities, new Pegasus Key Vault, Log Analytics and Application Insights.
+- Compute/data: Linux/AMD64 Razor Pages Web on Azure Container Apps Consumption, FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard LRS storage accounts, distinct Web/Worker identities, new Pegasus Key Vault, Log Analytics and Application Insights.
+- Web scale: UK South, external HTTPS ingress on port 8080, single active revision, 0.5 vCPU, 1 GiB, minimum zero and maximum one replica. Cold start is accepted and tested.
 - Integrations required before acceptance:
   - Graph through the Worker managed identity, scoped by Exchange Application RBAC to `instructions@collisionengineers.co.uk`.
   - Box production custody rooted at folder `392761581105`.
@@ -84,12 +85,14 @@ git diff --check
    - `Invoke-ProductionAdministratorBootstrap.ps1`;
    - `Invoke-ProductionSmoke.ps1`;
    - `Invoke-PredecessorArchive.ps1`;
+   - `New-PredecessorRetirementManifest.ps1`;
    - `Invoke-PredecessorRetirement.ps1`.
 9. `Build-ReleaseArtifacts.ps1` must produce ignored artifacts:
-   - `web.zip` for `linux-x64`;
+   - `web.zip` for `linux-x64`, retained only for interactive Administrator bootstrap;
+   - `web-image.tar.gz`, a Linux/AMD64 OCI image whose repository, source-revision tag, and manifest digest are recorded;
    - `worker.zip` for `linux-x64`;
    - self-contained `efbundle.exe` for `win-x64`;
-   - a manifest recording source commit, clean/scoped status, SDK/tool versions, migration identity, file sizes, and SHA-256 hashes.
+   - a schema-2 manifest recording source commit, clean/scoped status, SDK/tool versions, migration identity, all file sizes and SHA-256 hashes, and the OCI descriptor identity.
 10. The bootstrap command must prompt interactively for username and password, create only `alex` with the `Administrator` role, force first password change, fail if any application user already exists, and never accept a password through arguments, environment files, logs, or tracked configuration.
 
 ### 3. Local proof and immutable packaging
@@ -217,25 +220,47 @@ On 2026-08-01, separate exact approval was granted and `Microsoft.Sql` was
 registered successfully. The subscription-specific read then returned SQL
 Standard S0 as available in UK South at 10 DTUs. The later autonomous
 deployment direction authorised the exact plan execution; `Microsoft.Quota`
-was registered and used for the App Service capacity check described below.
+was registered and used for the now-superseded App Service capacity check
+retained as historical evidence below.
 
-### 5. Production preview and provisioning
+### 5. Two-stage production preview and provisioning
 
-Obtain separate approval for the exact provider registration and preview. The
-approval must name subscription `e6076573-23a5-46a8-acef-7e22d264e5db`,
-`Microsoft.Sql`, `rg-pegasus-prod`, and `azd provision --preview`. Register and
-verify the required provider before asking Azure SQL for S0 availability:
+The earlier B1 and P0v4 App Service quota attempts are retained as dated
+historical evidence only. ADR-0015 removes App Service and the aggregate
+`Microsoft.Web` quota from the active route. No quota update or support request
+is required for the Web replacement.
+
+Read provider state first. If any provider is not registered, stop and obtain
+exact approval for that namespace and subscription before running its
+registration command. Then confirm UK South support:
+
+```powershell
+az provider show --namespace Microsoft.Sql --query registrationState --output tsv
+az provider show --namespace Microsoft.App --query registrationState --output tsv
+az provider show --namespace Microsoft.ContainerRegistry --query registrationState --output tsv
+```
+
+If a read is not `Registered`, stop and obtain approval naming that exact
+namespace before running only its applicable command:
 
 ```powershell
 az provider register --namespace Microsoft.Sql --subscription $PegasusSubscription --wait
+az provider register --namespace Microsoft.App --subscription $PegasusSubscription --wait
+az provider register --namespace Microsoft.ContainerRegistry --subscription $PegasusSubscription --wait
+
 az provider show --namespace Microsoft.Sql --query registrationState --output tsv
+az provider show --namespace Microsoft.App --query registrationState --output tsv
+az provider show --namespace Microsoft.ContainerRegistry --query registrationState --output tsv
+
 az sql db list-editions --location $PegasusLocation --available `
   --edition Standard --service-objective S0 --show-details max-size --output json
+az provider show --namespace Microsoft.App `
+  --query "resourceTypes[?resourceType=='managedEnvironments'].locations" --output json
+az extension add --name containerapp --upgrade
 ```
 
-Stop unless registration reads `Registered` and S0 is returned. Use the
-Microsoft.Quota API and the actual template preview as the App Service capacity
-gates.
+Stop unless all three providers read `Registered`, S0 is returned, and UK South
+is listed for Container Apps managed environments.
 
 Because the current Bicep schema cannot represent a fractional Log Analytics
 cap, later provisioning approval must also name the two immediate
@@ -258,6 +283,7 @@ azd env set -e $PegasusAzdEnv PEGASUS_ENVIRONMENT_NAME prod
 azd env set -e $PegasusAzdEnv AZURE_PRINCIPAL_ID $PegasusUser.id
 azd env set -e $PegasusAzdEnv AZURE_PRINCIPAL_NAME $PegasusUser.upn
 azd env set -e $PegasusAzdEnv PEGASUS_DEPLOYMENT_MODE approved-live-deployment
+azd env set -e $PegasusAzdEnv PEGASUS_WEB_ACTIVATION disabled
 azd env set -e $PegasusAzdEnv BOX_ROOT_FOLDER_ID 392761581105
 ```
 
@@ -276,14 +302,25 @@ azd env set -e $PegasusAzdEnv DVSA_CLIENT_SECRET_SECRET_URI $ApprovedDvsaClientS
 azd env set -e $PegasusAzdEnv DVSA_SCOPE 'https://tapi.dvsa.gov.uk/.default'
 ```
 
-Run and retain the preview:
+Run and retain the base preview:
 
 ```powershell
 azd provision -e $PegasusAzdEnv --preview --no-prompt |
-    Tee-Object ./artifacts/releases/0.1.0-alpha.1/azd-provision-preview.txt
+    Tee-Object ./artifacts/releases/0.1.0-alpha.1/azd-base-preview.txt
 ```
 
-Fail on any resource outside `rg-pegasus-prod`, any dev/staging resource, any delete/replace operation, incorrect region/SKU, one-storage topology, shared-key access, local authentication, broad role, remote build, enabled Worker trigger, OCR/Foundry/Maps/Vision/capture resource, or secret-bearing output.
+The base preview must create the production foundation, Basic ACR, Container
+Apps environment, identities and `AcrPull`, SQL, storage, Worker, Key Vault,
+telemetry, alerts unrelated to the Web resource, and budget. It must not create
+the Web Container App or its HTTP 5xx alert. Fail on any resource outside
+`rg-pegasus-prod`, any dev/staging resource, delete/replace operation, App
+Service Web resource, tag-only image, one-storage topology, shared-key access,
+local authentication, broad role, remote build, enabled Worker trigger,
+OCR/Foundry/Maps/Vision/capture resource, or secret-bearing output.
+
+Stop after the preview. Record its exact resource IDs, operations, regional
+SKUs, fixed and consumption cost exposure, and absence of delete/replace
+changes. Provision only after the user explicitly approves that exact preview.
 
 The approved 2026-08-01 preview inputs are complete. The retained enrichment
 Function configuration supplied the entitlement-specific DVSA tenant ID
@@ -297,56 +334,16 @@ metadata without reading any message or attachment. An exploratory temporary
 The first ARM preview exposed an `azd` reserved-variable collision:
 `AZURE_ENV_NAME` was always expanded to `pegasus-prod` even though Bicep permits
 only `prod`. The parameter now uses `PEGASUS_ENVIRONMENT_NAME=prod`; local plan
-validation and Bicep compilation pass. The next ARM preflight stopped on
-`Microsoft.Web/serverFarms`: UK South had B1 limit `0`, usage `0`, and the
-deployment required `1`. No resource was created or changed.
-`Microsoft.Quota` was then registered and exact B1 increase request
-`b9df19cc-54b2-4876-9c4c-1eb9ba99076a` failed with
-`QuotaNotAvailableForResource`. UK South simultaneously exposed 30 P0v4
-instances. The plan therefore substitutes the smallest available Linux tier,
-P0v4, without changing region, capacity, architecture, or security controls.
-The public Retail Prices API returned GBP 0.0692/hour for Linux P0v4 versus GBP
-0.0136/hour for B1: approximately GBP 50.52/month versus GBP 9.93/month at 730
-hours, a GBP 40.59/month fixed-compute increase. A clean preview remains the
-gate before provisioning.
+validation and Bicep compilation pass. Later B1 and P0v4 previews stopped on
+App Service quota without creating a workload resource. ADR-0015 supersedes
+that hosting route; the failed quota requests and tracking IDs remain evidence,
+not commands to resume.
 
-The P0v4 preview then confirmed a separate subscription aggregate constraint:
-the P0v4-specific UK South limit is 30, but `Total Regional VMs` (`*`) is 0.
-ARM tracking IDs `a46607cf-f87a-42f8-becd-ff10c8208506` and
-`fa1a277a-098f-4601-bca0-9c79c6a9cb23` both require the aggregate minimum to
-be 1. `az quota create` cannot encode the literal wildcard resource name, so
-the exact CLI route is an `az rest --method put` to the `%2A` quota resource.
-That request is currently subject to the Microsoft.Quota one-hour write throttle
-created by the earlier B1 request; no support ticket is required. The request
-ledger contains only the failed B1 request, and no workload resource exists.
-Retry the encoded CLI request after the throttle window, then provision only
-after the UK South aggregate quota reads at least 1 and the unchanged P0v4
-preview completes cleanly.
-
-Use Azure CLI only. The throttle window from request
-`b9df19cc-54b2-4876-9c4c-1eb9ba99076a` ends after
-`2026-08-01T17:34:30Z`:
-
-```powershell
-$AppServiceQuotaScope = "/subscriptions/$PegasusSubscription/providers/Microsoft.Web/locations/$PegasusLocation"
-$AggregateQuotaUri = "https://management.azure.com$AppServiceQuotaScope/providers/Microsoft.Quota/quotas/%2A?api-version=2025-09-01"
-$AggregateQuotaBody = '{\"properties\":{\"limit\":{\"limitObjectType\":\"LimitValue\",\"value\":1},\"name\":{\"value\":\"*\"},\"resourceType\":\"*\"}}'
-
-az rest --method put --url $AggregateQuotaUri `
-  --body $AggregateQuotaBody --headers Content-Type=application/json --output json
-
-do {
-  Start-Sleep -Seconds 15
-  $AggregateQuota = az rest --method get --url $AggregateQuotaUri `
-    --query properties.limit.value --output tsv
-} while ([int]$AggregateQuota -lt 1)
-```
-
-After exact approval of that preview and the two named telemetry-cap writes:
+Provision the base only after its preview is clean and explicitly approved:
 
 ```powershell
 azd provision -e $PegasusAzdEnv --no-prompt
-azd env refresh $PegasusAzdEnv
+azd env refresh -e $PegasusAzdEnv
 azd env get-values -e $PegasusAzdEnv
 ```
 
@@ -390,10 +387,12 @@ if ([decimal]$WorkspaceCap -ne 0.1 -or [decimal]$ApplicationInsightsCap -ne 0.1)
 az resource list --resource-group $PegasusProdRg --output table
 ```
 
-Verify P0v4, FC1, S0, two storage accounts, two identities, new Key Vault,
-31-day retention, adaptive sampling, both 0.1 GB/day telemetry caps, action
-group, alert rules, and budget before continuing. A failed cap write or readback
-is a stop gate: do not bind credentials, migrate, deploy packages, or activate
+Verify Basic ACR with admin disabled, the Container Apps environment, Web
+identity `AcrPull`, FC1, S0, two storage accounts, two identities, new Key
+Vault, 31-day retention, adaptive sampling, both 0.1 GB/day telemetry caps,
+action group, base alert rules, and budget before continuing. Prove the Web
+Container App is still absent. A failed cap write or readback is a stop gate:
+do not bind credentials, upload the image, migrate, deploy packages, or activate
 triggers.
 
 ### 6. Bind external identities and retained vaults
@@ -459,16 +458,87 @@ The first test must be in scope and the negative control out of scope. Exchange 
 
 ### 7. Database, application bootstrap, and immutable deployment
 
-Apply the exact hashed migration bundle using the deploying user as the temporary SQL Entra administrator:
+Bind every artifact to the operator-approved schema-2 manifest before the first
+registry or database write:
 
 ```powershell
 $ReleaseManifestPath = './artifacts/releases/0.1.0-alpha.1/release-manifest.json'
 $ApprovedReleaseManifestSha256 = '<operator-approved SHA-256 from the final reviewed artifact>'
 
 pwsh ./scripts/Test-AzureDeploymentPlan.ps1 `
+  -Mode PreUpload `
+  -ManifestPath $ReleaseManifestPath `
+  -ManifestSha256 $ApprovedReleaseManifestSha256
+```
+
+Upload the exact locally built OCI archive to the new production ACR. The tag
+is navigation only; the locally inspected and registry-reported digests must
+match before any Web activation:
+
+```powershell
+$ReleaseManifest = Get-Content $ReleaseManifestPath -Raw | ConvertFrom-Json
+$AcrName = azd env get-value -e $PegasusAzdEnv CONTAINER_REGISTRY_NAME
+$AcrServer = azd env get-value -e $PegasusAzdEnv CONTAINER_REGISTRY_LOGIN_SERVER
+$AcrId = az acr show --resource-group $PegasusProdRg --name $AcrName --query id --output tsv
+$WebImageArchive = './artifacts/releases/0.1.0-alpha.1/web-image.tar.gz'
+$WebTag = $ReleaseManifest.webImage.tag
+$LocalDigest = $ReleaseManifest.webImage.digest
+
+$ArmAudienceStatus = az acr config authentication-as-arm show `
+  --registry $AcrName --query status --output tsv
+```
+
+Stop and obtain approval naming `$AcrId`, repository `pegasus/web`, tag
+`$WebTag`, digest `$LocalDigest`, the ORAS upload, and—only when the readback is
+not `enabled`—the exact ACR authentication-as-ARM configuration write. Then run:
+
+```powershell
+if ($ArmAudienceStatus -ne 'enabled') {
+  az acr config authentication-as-arm update --registry $AcrName --status enabled --output none
+}
+
+$AcrToken = az acr login --name $AcrName --expose-token --query accessToken --output tsv
+try {
+  $AcrToken | oras login $AcrServer `
+    --username 00000000-0000-0000-0000-000000000000 `
+    --password-stdin
+  oras cp --from-oci-layout "${WebImageArchive}:$WebTag" `
+    "${AcrServer}/pegasus/web:$WebTag"
+} finally {
+  oras logout $AcrServer
+  $AcrToken = $null
+}
+
+$RegistryDigest = az acr manifest show-metadata --registry $AcrName `
+  --name "pegasus/web:$WebTag" --query digest --output tsv
+if ($RegistryDigest -ne $LocalDigest) {
+  throw 'Registry digest differs from the reviewed OCI artifact.'
+}
+```
+
+Resolve the exact SQL targets and migration identity, then stop and obtain
+approval naming the server ID, database ID, manifest hash, migration identity,
+`efbundle.exe` schema write, and the runtime principal/role bootstrap:
+
+```powershell
+$SqlServerFqdn = azd env get-value -e $PegasusAzdEnv AZURE_SQL_SERVER_FQDN
+$SqlServerName = $SqlServerFqdn.Split('.')[0]
+$SqlServerId = az sql server show --resource-group $PegasusProdRg --name $SqlServerName --query id --output tsv
+$SqlDatabaseId = az sql db show --resource-group $PegasusProdRg --server $SqlServerName `
+  --name (azd env get-value -e $PegasusAzdEnv AZURE_SQL_DATABASE_NAME) --query id --output tsv
+$ReleaseManifest.migrationIdentity
+```
+
+After that exact approval, apply the hashed migration bundle using the deploying
+user as the temporary SQL Entra administrator while the public Web resource is
+still absent:
+
+```powershell
+pwsh ./scripts/Test-AzureDeploymentPlan.ps1 `
   -Mode PreMigration `
   -Environment $PegasusAzdEnv `
-  -ManifestPath $ReleaseManifestPath
+  -ManifestPath $ReleaseManifestPath `
+  -ManifestSha256 $ApprovedReleaseManifestSha256
 
 & ./artifacts/releases/0.1.0-alpha.1/efbundle.exe `
   --connection $PegasusMigratorConnectionString
@@ -497,33 +567,76 @@ pwsh ./scripts/Invoke-ProductionAdministratorBootstrap.ps1 `
   -ManifestSha256 $ApprovedReleaseManifestSha256
 ```
 
-Deploy the already hashed packages. Never use `azd up`, plain `azd deploy`, or release-time `azd package`:
+Activate the Web only after migration and Administrator bootstrap. The second
+preview may add only the digest-pinned Container App and its HTTP 5xx alert; it
+must contain no delete, replacement, telemetry-cap reset, tag-only image, or
+other infrastructure change:
 
 ```powershell
-azd deploy web -e $PegasusAzdEnv `
-  --from-package ./artifacts/releases/0.1.0-alpha.1/web.zip `
-  --no-prompt
+azd env set -e $PegasusAzdEnv PEGASUS_WEB_IMAGE_DIGEST $RegistryDigest
+azd env set -e $PegasusAzdEnv PEGASUS_WEB_REVISION_SUFFIX ($ReleaseManifest.sourceRevision.Substring(0,12))
+azd env set -e $PegasusAzdEnv PEGASUS_WEB_ACTIVATION approved
 
-Invoke-WebRequest "https://$WebAppName.azurewebsites.net/health/live"
-Invoke-WebRequest "https://$WebAppName.azurewebsites.net/health/ready"
+azd provision -e $PegasusAzdEnv --preview --no-prompt |
+  Tee-Object ./artifacts/releases/0.1.0-alpha.1/azd-web-preview.txt
+```
+
+Stop after the Web preview. It may add only the exact digest-pinned Container
+App and its HTTP alert. Record the resolved IDs, digest, region, scale limits,
+and cost exposure, and obtain explicit approval of that exact preview before
+provisioning:
+
+```powershell
+azd provision -e $PegasusAzdEnv --no-prompt
+azd env refresh -e $PegasusAzdEnv
+
+$WebContainerAppName = azd env get-value -e $PegasusAzdEnv WEB_CONTAINER_APP_NAME
+$WebFqdn = azd env get-value -e $PegasusAzdEnv WEB_CONTAINER_APP_FQDN
+
+az containerapp show --resource-group $PegasusProdRg --name $WebContainerAppName --output json
+az containerapp revision list --resource-group $PegasusProdRg --name $WebContainerAppName --output json
+
+$AcrAdminEnabled = az acr show --resource-group $PegasusProdRg --name $AcrName `
+  --query adminUserEnabled --output tsv
+$AnonymousPullEnabled = az resource show --resource-group $PegasusProdRg `
+  --resource-type Microsoft.ContainerRegistry/registries --name $AcrName `
+  --api-version 2023-07-01 --query properties.anonymousPullEnabled --output tsv
+$DeployedImage = az containerapp show --resource-group $PegasusProdRg `
+  --name $WebContainerAppName --query 'properties.template.containers[0].image' --output tsv
+$MinimumReplicas = az containerapp show --resource-group $PegasusProdRg `
+  --name $WebContainerAppName --query properties.template.scale.minReplicas --output tsv
+$MaximumReplicas = az containerapp show --resource-group $PegasusProdRg `
+  --name $WebContainerAppName --query properties.template.scale.maxReplicas --output tsv
+if ($AcrAdminEnabled -ne 'false' -or $AnonymousPullEnabled -eq 'true' -or
+    $DeployedImage -ne "${AcrServer}/pegasus/web@$RegistryDigest" -or
+    $MinimumReplicas -ne '0' -or $MaximumReplicas -ne '1') {
+  throw 'Container App or ACR readback differs from the approved release.'
+}
+
+Invoke-WebRequest "https://$WebFqdn/health/live"
+Invoke-WebRequest "https://$WebFqdn/health/ready"
 
 azd deploy worker -e $PegasusAzdEnv `
   --from-package ./artifacts/releases/0.1.0-alpha.1/worker.zip `
   --no-prompt
 ```
 
-Current `azd` supports separate `--preview` provisioning and `deploy --from-package`; these are the required build-once/deploy-same-artifact boundaries. [Azure Developer CLI command reference](https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/reference)
+Never run `azd deploy web`, `azd up`, plain `azd deploy`, `az acr build`,
+release-time `azd package`, or any other command that rebuilds the Web image.
+The Web deployment identity is its exact ACR digest; Worker remains the exact
+hashed ZIP. [Azure Developer CLI command reference](https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/reference)
 
 ### 8. Live integration activation and acceptance
 
 With all Worker triggers still disabled, obtain separate approvals and run controlled probes:
 
-1. Sign in as `alex`, change the temporary password, and prove Administrator-only routes plus Engineer/User denials.
-2. Graph: prove managed-identity reads from the `instructions@` Inbox and Sent Items, immutable IDs, delta continuation, and denial of an out-of-scope mailbox. No mailbox mutation.
-3. Box: create and version one controlled non-corpus technical artifact beneath `392761581105`; prove cross-root denial. Retain the smoke artifact because delete is prohibited.
-4. DVLA: use the official production VES endpoint and the retained API key. VES v1.2 uses `POST /vehicle-enquiry/v1/vehicles` and `x-api-key`. [DVLA VES v1.2 specification](https://developer-portal.driver-vehicle-licensing.api.gov.uk/apis/vehicle-enquiry-service/v1.2.0-vehicle-enquiry-service.html)
-5. DVSA: use registration lookup with cached OAuth client-credentials tokens and `X-API-Key`; prove current, not-found, invalid, denied, throttled, and unavailable mappings without inducing provider throttling. [DVSA authentication](https://documentation.history.mot.api.gov.uk/mot-history-api/authentication/), [DVSA API specification](https://documentation.history.mot.api.gov.uk/mot-history-api/api-specification/)
-6. Enable functions one boundary at a time:
+1. Allow the Web Container App to reach zero replicas, verify that state through `az containerapp replica list`, then measure the first cold request and a second warm request. Both health endpoints must become successful within the 120-second startup allowance.
+2. Sign in as `alex`, change the temporary password, and prove Administrator-only routes plus Engineer/User denials. Preserve the authenticated session across a revision restart and a later scale-to-zero cycle to prove the Blob-backed Data Protection ring.
+3. Graph: prove managed-identity reads from the `instructions@` Inbox and Sent Items, immutable IDs, delta continuation, and denial of an out-of-scope mailbox. No mailbox mutation.
+4. Box: create and version one controlled non-corpus technical artifact beneath `392761581105`; prove cross-root denial. Retain the smoke artifact because delete is prohibited.
+5. DVLA: use the official production VES endpoint and the retained API key. VES v1.2 uses `POST /vehicle-enquiry/v1/vehicles` and `x-api-key`. [DVLA VES v1.2 specification](https://developer-portal.driver-vehicle-licensing.api.gov.uk/apis/vehicle-enquiry-service/v1.2.0-vehicle-enquiry-service.html)
+6. DVSA: use registration lookup with cached OAuth client-credentials tokens and `X-API-Key`; prove current, not-found, invalid, denied, throttled, and unavailable mappings without inducing provider throttling. [DVSA authentication](https://documentation.history.mot.api.gov.uk/mot-history-api/authentication/), [DVSA API specification](https://documentation.history.mot.api.gov.uk/mot-history-api/api-specification/)
+7. Enable functions one boundary at a time:
 
 ```powershell
 az functionapp config appsettings set --resource-group $PegasusProdRg --name $WorkerAppName `
@@ -548,10 +661,10 @@ az functionapp config appsettings set --resource-group $PegasusProdRg --name $Wo
 az functionapp restart --resource-group $PegasusProdRg --name $WorkerAppName
 ```
 
-7. After each batch, verify queue age, poison handling, idempotency, database writes, dependency results, and telemetry correlation before enabling the next.
-8. Run the 30-minute/eight-session capacity profile and the real QDOS alpha journey through Graph/manual intake, extraction, case allocation, Box custody, DVLA/DVSA, completeness/review, EVA export, and exact Sent evidence.
-9. Safely fire and acknowledge every alert route. Read back the £75 budget and its 50/80/100 actual and 100 forecast notifications.
-10. Alex records explicit acceptance. State separately:
+8. After each batch, verify queue age, poison handling, idempotency, database writes, dependency results, and telemetry correlation before enabling the next.
+9. Run the 30-minute/eight-session capacity profile and the real QDOS alpha journey through Graph/manual intake, extraction, case allocation, Box custody, DVLA/DVSA, completeness/review, EVA export, and exact Sent evidence.
+10. Safely fire and acknowledge every alert route. Read back the £75 budget and its 50/80/100 actual and 100 forecast notifications.
+11. Alex records explicit acceptance. State separately:
     - deployed;
     - live-verified integrations and callers;
     - accepted;
@@ -559,21 +672,116 @@ az functionapp restart --resource-group $PegasusProdRg --name $WorkerAppName
 
 ### 9. Immediate predecessor retirement
 
-After acceptance, obtain fresh approval naming the exact reviewed deletion-manifest hash and every resource ID. Do not use `azd down` or delete `rg-collisionspike-dev`.
+After acceptance, do not use `azd down` or delete `rg-collisionspike-dev`.
 
-1. Stop predecessor compute and triggers:
+1. Create a new stop-inventory archive root; never reuse the preflight archive.
+   Generate its exact manifest deterministically, inspect its stop IDs, and
+   obtain approval of its SHA-256 and every stop target:
+
+   Before the archive command, stop and obtain exact read approval naming
+   subscription `e6076573-23a5-46a8-acef-7e22d264e5db`, resource groups
+   `rg-collisionspike-dev` and
+   `cespkocr-env-dev_FunctionApps_247f14f1-8d57-491f-a325-a97e99634117`,
+   metadata-only reads of vaults `cespkboxkvv76a47`, `cespkenrichkvgi62sd`,
+   `cespk-pg-kv-dev`, `cespkevakvufa3ci`, and `cespklockva7tzj2`, ACR
+   `cespkocracraeee76` and its repositories, the subscription-wide
+   role-assignment census, deployment, lock and activity metadata, and 30-day
+   cost metadata. This grants no token retrieval, image download, stop, or
+   deletion.
+
+```powershell
+$PegasusStopArchive = "$PegasusArchive-stop-$(Get-Date -AsUTC -Format 'yyyyMMddTHHmmssZ')"
+pwsh ./scripts/Invoke-PredecessorArchive.ps1 `
+  -ArchiveRoot $PegasusStopArchive `
+  -ExcludeData
+$StopRetirementManifestPath = pwsh ./scripts/New-PredecessorRetirementManifest.ps1 `
+  -ArchiveRoot $PegasusStopArchive
+$StopRetirementManifestSha256 = (Get-FileHash $StopRetirementManifestPath -Algorithm SHA256).Hash
+pwsh ./scripts/Invoke-PredecessorRetirement.ps1 `
+  -Stage Inspect `
+  -ManifestPath $StopRetirementManifestPath |
+  Tee-Object "$PegasusStopArchive-inspection.json"
+```
+
+Stop here. Review the displayed archive hash, retained IDs, stop IDs, and all
+future deletion batches, then obtain approval naming
+`$StopRetirementManifestSha256` and every exact stop resource ID. Only after
+that approval run:
 
 ```powershell
 pwsh ./scripts/Invoke-PredecessorRetirement.ps1 `
   -Stage Stop `
-  -ManifestPath "$PegasusArchive\retirement-manifest.json"
+  -ManifestPath $StopRetirementManifestPath
 ```
 
-2. Re-run dependency, role, lock, activity, and traffic checks. Confirm zero callers.
-3. Confirm the retained set contains only:
+2. After the stop, create a second new timestamped final archive root. Producers
+   remained live until step 1, so neither the preflight nor stop archive is
+   deletion evidence. Authenticate ORAS, rerun the complete non-secret archive
+   and OCI census. Before `az acr login`, stop and obtain exact approval naming
+   the same reads plus ACR token retrieval and download of every recorded
+   `ce-ocr` and `valuationbot-mcp` digest into the named local archive root:
+
+```powershell
+$PegasusRetirementArchive = "$PegasusArchive-retirement-$(Get-Date -AsUTC -Format 'yyyyMMddTHHmmssZ')"
+$PegasusRegistryToken = az acr login --name $PegasusRegistry --expose-token --query accessToken --output tsv
+try {
+  $PegasusRegistryToken | oras login $PegasusRegistryServer `
+    --username 00000000-0000-0000-0000-000000000000 --password-stdin
+  pwsh ./scripts/Invoke-PredecessorArchive.ps1 `
+    -ArchiveRoot $PegasusRetirementArchive `
+    -IncludeOciImages `
+    -ExcludeData
+} finally {
+  oras logout $PegasusRegistryServer
+  $PegasusRegistryToken = $null
+}
+$ArchivedRoles = Get-Content "$PegasusRetirementArchive\subscription-role-assignments.json" -Raw |
+  ConvertFrom-Json |
+  Where-Object { $_.scope -match '/resourceGroups/(rg-collisionspike-dev|cespkocr-env-dev_FunctionApps_247f14f1-8d57-491f-a325-a97e99634117)(/|$)' } |
+  Select-Object id, scope, principalId, principalName, roleDefinitionName
+$ArchivedRoles | Format-Table
+```
+
+Stop and classify every displayed assignment as `retain` or `delete`, with a
+non-empty rationale. Approve every exact ID and both sets. Persist that decision
+outside the bound archive; no archived candidate may be omitted or added. A
+role scoped to a resource, managed child, or child group being retired cannot
+be marked `retain`: migrate it to a surviving scope or classify it `delete`
+before generating the executable manifest:
+
+```powershell
+$RoleDispositionPath = "$PegasusRetirementArchive-role-dispositions.json"
+$ApprovedRoleDispositions = @(
+  # One approved object for every displayed candidate:
+  # [ordered]@{ id='<exact ID>'; disposition='retain'; rationale='<reason>' }
+  # [ordered]@{ id='<exact ID>'; disposition='delete'; rationale='<reason>' }
+)
+$ApprovedRoleDispositions | ConvertTo-Json -Depth 4 |
+  Set-Content -LiteralPath $RoleDispositionPath -Encoding utf8NoBOM
+
+$FinalRetirementManifestPath = pwsh ./scripts/New-PredecessorRetirementManifest.ps1 `
+  -ArchiveRoot $PegasusRetirementArchive `
+  -RoleDispositionPath $RoleDispositionPath `
+  -RequireRoleDisposition
+$FinalRetirementManifestSha256 = (Get-FileHash $FinalRetirementManifestPath -Algorithm SHA256).Hash
+pwsh ./scripts/Invoke-PredecessorRetirement.ps1 `
+  -Stage Inspect `
+  -ManifestPath $FinalRetirementManifestPath |
+  Tee-Object "$PegasusRetirementArchive-inspection.json"
+```
+
+3. Re-run dependency, role, lock, activity, and traffic checks. Confirm zero
+   callers. Review the generator's complete retained set, platform-owned child
+   IDs, locally scoped role-assignment candidates, and dependency-ordered
+   batches. Classify every role-assignment candidate as retained or
+   predecessor-only. Then obtain approval naming
+   `$FinalRetirementManifestSha256`, its bound `archiveManifestSha256`, every
+   exact stop/delete resource ID, the bound managed child-group ID and
+   `managedBy` parent, and every exact predecessor-only role assignment ID.
+4. Confirm the retained set contains only:
    - `cespkboxkvv76a47`;
    - `cespkenrichkvgi62sd`.
-4. Delete one exact ID per command, in these batches:
+5. Delete one exact ID per command, in these batches:
    - Function/Web/Static Web Apps and the OCR parent wrapper;
    - Foundry deployments/project, remaining AI/Maps/Vision/Document Intelligence;
    - dedicated App Service/Flex plans and predecessor identities;
@@ -581,35 +789,62 @@ pwsh ./scripts/Invoke-PredecessorRetirement.ps1 `
    - ACR after OCI digest verification;
    - dedicated Application Insights, Log Analytics, and old action group;
    - `cespk-pg-kv-dev`, `cespkevakvufa3ci`, and `cespklockva7tzj2`, without purge;
-   - remaining leaf resources and orphaned role assignments.
+   - remaining leaf resources.
 
 ```powershell
 pwsh ./scripts/Invoke-PredecessorRetirement.ps1 `
   -Stage DeleteBatch `
-  -ManifestPath "$PegasusArchive\retirement-manifest.json" `
+  -ManifestPath $FinalRetirementManifestPath `
   -Batch <reviewed-batch-name>
 ```
 
-The script must resolve and print each ID, verify it belongs to one of the two exact predecessor groups, reject both retained vault IDs, require the approved manifest hash, and call:
+The executor rejects any live resource absent from the approved manifest and
+refuses skipped batches. When the bound parent managed environment is deleted,
+the executor stops at the child-group gate. Wait for Azure-managed cleanup to
+leave that group empty, then stop and obtain separate approval naming the
+manifest hash, exact child resource-group ID, archived/current `managedBy`
+parent, and group deletion. Execute only through the bound runner:
+
+```powershell
+pwsh ./scripts/Invoke-PredecessorRetirement.ps1 `
+  -Stage DeleteManagedChildGroup `
+  -ManifestPath $FinalRetirementManifestPath
+```
+
+Resume the same reviewed batch if another ID remains, then continue in manifest
+order.
+
+The script enforces manifest batch order, verifies all surviving stop targets
+remain stopped, resolves and prints each ID, verifies it belongs to one of the
+two exact predecessor groups, rejects both retained vaults and every descendant,
+requires the approved manifest hash, deletes the parent managed environment
+without directly deleting its platform-owned child resources, and calls:
 
 ```powershell
 az resource delete --ids $ExactReviewedResourceId
 ```
 
-5. Delete the OCR managed child group only after its parent wrapper has been removed and the child inventory is empty:
+After the resource batches, remove only the exact role assignments classified
+and approved as predecessor-only. Never derive these IDs from a live query at
+deletion time, and do not remove any assignment needed by either retained
+vault:
 
 ```powershell
-$RemainingChild = az resource list --resource-group $PegasusOldChildRg --query 'length(@)' --output tsv
-if ($RemainingChild -ne '0') { throw "Managed OCR child group is not empty." }
-
-az group delete --name $PegasusOldChildRg --subscription $PegasusSubscription --yes
+pwsh ./scripts/Invoke-PredecessorRetirement.ps1 `
+  -Stage DeleteRoleAssignment `
+  -ManifestPath $FinalRetirementManifestPath `
+  -RoleAssignmentId $ExactApprovedRoleAssignmentId
 ```
 
-6. Leave `rg-collisionspike-dev` present with only the two adopted vaults. Verify:
+6. Confirm the manifest-bound managed child group is absent. The runner above is
+   the only authorised group-deletion route; never issue an unbound direct
+   `az group delete`.
+
+7. Leave `rg-collisionspike-dev` present with only the two adopted vaults. Verify:
 
 ```powershell
 az resource list --resource-group $PegasusOldRg --output table
-az resource list --resource-group $PegasusOldChildRg --output table
+az group exists --name $PegasusOldChildRg --subscription $PegasusSubscription
 az graph query -q @"
 Resources
 | where resourceGroup =~ 'rg-collisionspike-dev'
@@ -618,15 +853,15 @@ Resources
 "@ --first 1000
 ```
 
-7. Remove any predecessor-only Graph application credentials and Exchange assignments only after exact ownership proof. Do not revoke the Box or DVLA/DVSA credentials now consumed by Pegasus.
-8. Record deleted IDs, deletion times, soft-deleted vault state, surviving vault IDs, archive hashes, and verification output. Do not claim the resource group itself was deleted.
+8. Remove any predecessor-only Graph application credentials and Exchange assignments only after exact ownership proof. Do not revoke the Box or DVLA/DVSA credentials now consumed by Pegasus.
+9. Record deleted IDs, deletion times, soft-deleted vault state, surviving vault IDs, refreshed archive hashes, and verification output. Do not claim the resource group itself was deleted.
 
 ### 10. Mandatory post-launch recovery gate
 
 Before any second production deployment:
 
 1. Restore Azure SQL to a new isolated recovery database in `rg-pegasus-prod`.
-2. Deploy the same retained Web/Worker hashes to temporary recovery resources.
+2. Deploy the same retained Web image digest and Worker ZIP hash to temporary recovery resources; do not rebuild or retag the Web image.
 3. Recreate exact runtime identities/roles, run migrations, and verify health plus the real smoke journey without calling production external effects.
 4. Record achieved recovery point and elapsed restoration time.
 5. Require RPO ≤15 minutes and RTO ≤4 hours.
@@ -637,13 +872,13 @@ Before any second production deployment:
 
 - No new business API or Core policy owner.
 - Existing ports remain authoritative: `IApprovedInboxSource`, `IApprovedSentSource`, `ICaseCustody`, and `IVehicleLookupAdapter`.
-- Add typed production options for Graph mailbox/folders, Box root and secret references, DVLA VES, DVSA MOT History, managed identities, transport/custody storage, telemetry, and release metadata.
+- Add typed production options for Graph mailbox/folders, Box root and secret references, DVLA VES, DVSA MOT History, managed identities, transport/custody storage, telemetry, and schema-2 release/OCI metadata.
 - Test:
   - Graph paging, delta reset, immutable IDs, throttling, malformed MIME/attachments, exact mailbox/folder allowlist, and zero mutation endpoints.
   - Box ancestry, idempotent folder/file versioning, cross-root denial, retry-visible failure, and delete/move/copy/share prohibition.
   - DVLA/DVSA success, partial, not-found, invalid, stale, denied, token expiry, throttling, unavailable, malformed, and confirmed-value preservation.
-  - Two-storage topology, secret-level vault access, Worker authentication-ring denial, Entra-only SQL, exhaustive runtime SQL grants/denials, disabled triggers, P0v4/FC1/S0, telemetry cap, budget/alerts, and absence of dev/OCR/Foundry/Maps/Vision/capture resources.
-  - Bootstrap once-only behavior, forced password change, health/readiness, package-hash enforcement, and refusal of `azd up`, plain deploy, remote build, changed artifacts, or mismatched targets.
+  - Two-storage topology, secret-level vault access, Worker authentication-ring denial, Entra-only SQL, exhaustive runtime SQL grants/denials, disabled triggers, Container Apps scale 0–1 at 0.5 vCPU/1 GiB, Basic ACR with managed-identity pull, FC1/S0, telemetry cap, budget/alerts, and absence of dev/App-Service-Web/OCR/Foundry/Maps/Vision/capture resources.
+  - Bootstrap once-only behavior, forced password change, cold and warm health/readiness, OCI and package-hash enforcement, authentication continuity across a scale-to-zero cycle, and refusal of `azd up`, `azd deploy web`, plain deploy, ACR/remote build, tag-only or changed artifacts, or mismatched targets.
 
 ## Explicit Stop Conditions
 

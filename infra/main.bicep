@@ -12,6 +12,19 @@ param environmentName string = 'prod'
 @description('Explicit fail-closed release mode required for a production preview or provision.')
 param deploymentMode string
 
+@allowed([
+  'disabled'
+  'approved'
+])
+@description('Fail-closed Web activation. Base provisioning leaves the public Container App absent.')
+param webActivation string = 'disabled'
+
+@description('Exact sha256 OCI manifest digest. Required only when Web activation is approved; the registry and repository are template-owned.')
+param webImageDigest string = ''
+
+@description('Twelve-character source revision suffix for the immutable Container App revision.')
+param webRevisionSuffix string = ''
+
 @description('Primary Azure region.')
 param location string = 'uksouth'
 
@@ -71,6 +84,9 @@ module platform 'modules/platform.bicep' = if (activationAllowed) {
     sqlAdministratorObjectId: sqlAdministratorObjectId
     sqlAdministratorLogin: sqlAdministratorLogin
     alertEmailAddress: alertEmailAddress
+    webActivation: webActivation
+    webImageDigest: webImageDigest
+    webRevisionSuffix: webRevisionSuffix
     graphMailboxId: graphMailboxId
     graphInboxFolderId: graphInboxFolderId
     graphSentFolderId: graphSentFolderId
@@ -148,7 +164,12 @@ resource productionBudget 'Microsoft.Consumption/budgets@2023-11-01' = if (activ
 output DEPLOYMENT_MODE string = deploymentMode
 output AZURE_RESOURCE_GROUP string = activationAllowed ? resourceGroup!.name : ''
 output AZURE_LOCATION string = location
-output WEB_APP_NAME string = activationAllowed ? platform!.outputs.webAppName : ''
+output WEB_CONTAINER_APP_NAME string = activationAllowed ? platform!.outputs.webContainerAppName : ''
+output WEB_CONTAINER_APP_FQDN string = activationAllowed ? platform!.outputs.webContainerAppFqdn : ''
+output WEB_CONTAINER_APP_REVISION string = activationAllowed ? platform!.outputs.webContainerAppRevision : ''
+output CONTAINER_REGISTRY_NAME string = activationAllowed ? platform!.outputs.containerRegistryName : ''
+output CONTAINER_REGISTRY_LOGIN_SERVER string = activationAllowed ? platform!.outputs.containerRegistryLoginServer : ''
+output WEB_IMAGE_REFERENCE string = activationAllowed ? platform!.outputs.webImageReference : ''
 output WEB_IDENTITY_NAME string = activationAllowed ? platform!.outputs.webIdentityName : ''
 output WEB_IDENTITY_CLIENT_ID string = activationAllowed ? platform!.outputs.webIdentityClientId : ''
 output WORKER_APP_NAME string = activationAllowed ? platform!.outputs.workerAppName : ''
