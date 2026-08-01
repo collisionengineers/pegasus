@@ -35,6 +35,7 @@ try {
     $buildProperties = @(
         "-p:Version=$Version",
         "-p:InformationalVersion=$Version+$SourceRevision",
+        '-p:IncludeSourceRevisionInInformationalVersion=false',
         '-p:ContinuousIntegrationBuild=true'
     )
     & dotnet restore ./src/Pegasus.Web/Pegasus.Web.csproj --locked-mode
@@ -43,6 +44,15 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Locked Worker runtime restore failed.' }
     & dotnet publish ./src/Pegasus.Web/Pegasus.Web.csproj -c Release -r linux-x64 --self-contained false --no-restore -o $webPublish @buildProperties
     if ($LASTEXITCODE -ne 0) { throw 'Web publish failed.' }
+    $webBuildIdentity = & dotnet (Join-Path $webPublish 'Pegasus.Web.dll') --build-diagnostics | ConvertFrom-Json
+    if (
+        $LASTEXITCODE -ne 0 -or
+        $webBuildIdentity.schemaVersion -ne 1 -or
+        $webBuildIdentity.version -ne $Version -or
+        $webBuildIdentity.sourceSha -ne $SourceRevision
+    ) {
+        throw 'Web publish informational version does not match the exact release version and source revision.'
+    }
     & dotnet publish ./src/Pegasus.Web/Pegasus.Web.csproj -c Release -r linux-x64 --self-contained false --no-restore /t:PublishContainer `
         -p:ContainerImageFormat=OCI `
         -p:ContainerArchiveOutputPath=$webImageArchive `
