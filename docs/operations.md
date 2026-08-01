@@ -519,7 +519,7 @@ Run policy tests first, adapter contracts second, persistence/transaction tests 
 
 | Boundary | Local evidence | Separately approved live evidence |
 | --- | --- | --- |
-| ASP.NET Core / App Service | Kestrel, `WebApplicationFactory`, Playwright, local HTTPS | Linux App Service runtime, F1/B1 limits, health platform, restart, managed identity |
+| ASP.NET Core / Container Apps | Kestrel, `WebApplicationFactory`, Playwright, local HTTPS, local OCI-layout inspection | Linux/AMD64 Container Apps Consumption runtime, digest-pinned ACR pull, scale-to-zero cold/warm behavior, probes, revision restart, managed identity |
 | SQL Server / Azure SQL | Disposable LocalDB for migrations, locking, allocation, rollback, backup, and restore | Entra identity, Azure SQL configuration/throttling, point-in-time restore, 15-minute RPO and four-hour RTO |
 | Blob / Queue / Functions | Azurite and actual Functions host for staging, identifiers, duplicate/poison/restart behavior | Storage RBAC, managed identity, durability, Flex scale/concurrency, platform diagnostics |
 | Key Vault / identity | Mock the owned port; developer credentials only for approved development resources | Deployed managed identity, least-privilege RBAC, firewall behavior |
@@ -710,11 +710,14 @@ Issue #311 implements release-artifact, deployment-plan, database-bootstrap,
 first-Administrator bootstrap, smoke, archive, and retirement scripts within
 the existing `scripts/` boundary. It adds no project or deployment unit. The
 repository-root [production replacement runbook](../azure-production-replacement-plan.md)
-owns their exact sequence and evidence gates. Restore, Release build, 531
-non-corpus tests, Bicep compilation, and local deployment-plan validation passed
-on 2026-07-31. Revision-bound QDOS pressure, immutable packaging, review, and
-every cloud gate remain pending; no command is yet claimed deployed or live
-verified.
+owns their exact sequence and evidence gates. The prior reviewed route passed
+539 non-corpus tests, revision-bound QDOS pressure, and ZIP/migration packaging
+on 2026-07-31. For the ADR-0015 Container Apps change, restore, zero-warning
+Release build, Bicep compilation, local deployment-plan validation, Core tests,
+Architecture tests, and disposable OCI/ORAS inspection pass locally. The
+Integration project timed out while remaining responsive, and schema-2 release
+packaging has not run from a clean reviewed revision. Every cloud gate remains
+pending; no command is claimed deployed or live verified.
 
 ### Azure activation remains fail-closed
 

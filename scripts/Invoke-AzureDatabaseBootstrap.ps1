@@ -15,7 +15,7 @@ $actualManifestSha256 = (Get-FileHash -LiteralPath $manifestFile -Algorithm SHA2
 if (-not $actualManifestSha256.Equals($ManifestSha256, [StringComparison]::OrdinalIgnoreCase)) {
     throw 'release-manifest.json does not match the operator-approved SHA-256.'
 }
-& (Join-Path $PSScriptRoot 'Test-AzureDeploymentPlan.ps1') -Mode PreMigration -Environment $Environment -ManifestPath $manifestFile
+& (Join-Path $PSScriptRoot 'Test-AzureDeploymentPlan.ps1') -Mode PreMigration -Environment $Environment -ManifestPath $manifestFile -ManifestSha256 $ManifestSha256
 $manifest = Get-Content -Raw -LiteralPath $manifestFile | ConvertFrom-Json -Depth 10
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $currentRevision = (& git -C $repositoryRoot rev-parse HEAD).Trim()

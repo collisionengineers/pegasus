@@ -1,12 +1,14 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
-    [ValidateSet('Local', 'Artifact', 'PreMigration')]
+    [ValidateSet('Local', 'Artifact', 'PreUpload', 'PreMigration')]
     [string] $Mode,
 
     [string] $ManifestPath,
 
-    [string] $Environment
+    [string] $Environment,
+
+    [string] $ManifestSha256
 )
 
 Set-StrictMode -Version Latest
@@ -48,8 +50,8 @@ function Test-ArtifactManifest {
 
     $resolvedManifest = Resolve-Path -LiteralPath $Path
     $manifest = Get-Content -LiteralPath $resolvedManifest -Raw | ConvertFrom-Json
-    if ($manifest.schemaVersion -ne 1) {
-        throw 'The release manifest schemaVersion must be 1.'
+    if ($manifest.schemaVersion -ne 2) {
+        throw 'The release manifest schemaVersion must be 2.'
     }
     if ($manifest.sourceRevision -notmatch '^[0-9a-f]{40}$') {
         throw 'The release manifest sourceRevision must be an exact Git SHA.'
@@ -57,12 +59,12 @@ function Test-ArtifactManifest {
     if ($manifest.sourceStatus -ne 'clean') {
         throw 'The release manifest must record a clean source status.'
     }
-    if (-not $manifest.artifacts -or $manifest.artifacts.Count -ne 3) {
-        throw 'The release manifest must contain exactly Web, Worker, and migration artifacts.'
+    if (-not $manifest.artifacts -or $manifest.artifacts.Count -ne 4) {
+        throw 'The release manifest must contain exactly the bootstrap Web ZIP, Web OCI archive, Worker ZIP, and migration bundle.'
     }
 
     $manifestDirectory = Split-Path -Parent $resolvedManifest
-    $requiredNames = @('web.zip', 'worker.zip', 'efbundle.exe')
+    $requiredNames = @('web.zip', 'web-image.tar.gz', 'worker.zip', 'efbundle.exe')
     foreach ($name in $requiredNames) {
         $entry = @($manifest.artifacts | Where-Object name -eq $name)
         if ($entry.Count -ne 1) {
@@ -78,6 +80,29 @@ function Test-ArtifactManifest {
             throw "Release artifact identity mismatch: $name"
         }
     }
+
+    if (
+        $manifest.webImage.repository -ne 'pegasus/web' -or
+        $manifest.webImage.tag -ne $manifest.sourceRevision -or
+        $manifest.webImage.digest -notmatch '^sha256:[0-9a-f]{64}$' -or
+        $manifest.webImage.platform -ne 'linux/amd64' -or
+        $manifest.webImage.archive -ne 'web-image.tar.gz'
+    ) {
+        throw 'The release manifest Web OCI identity is incomplete or invalid.'
+    }
+    $imageArchive = Join-Path $manifestDirectory 'web-image.tar.gz'
+    $descriptor = & oras manifest fetch --oci-layout "${imageArchive}:$($manifest.webImage.tag)" --descriptor | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or $descriptor.digest -ne $manifest.webImage.digest) {
+        throw 'The Web OCI archive descriptor differs from the release manifest.'
+    }
+    $imageManifest = & oras manifest fetch --oci-layout "${imageArchive}:$($manifest.webImage.tag)" | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or $imageManifest.config.digest -notmatch '^sha256:[0-9a-f]{64}$') {
+        throw 'The Web OCI config descriptor is invalid.'
+    }
+    $imageConfig = & oras blob fetch --oci-layout --output - "${imageArchive}@$($imageManifest.config.digest)" | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or "$($imageConfig.os)/$($imageConfig.architecture)" -ne $manifest.webImage.platform) {
+        throw 'The inspected Web OCI platform differs from the release manifest.'
+    }
 }
 
 $mainBicep = Get-Content -LiteralPath $mainBicepPath -Raw
@@ -89,6 +114,24 @@ $combined = "$mainBicep`n$platformBicep`n$parameters`n$azureYaml"
 
 Assert-Text $mainBicep "@allowed\(\[\s*'prod'\s*\]\)" 'infra/main.bicep must accept production only.'
 Assert-Text $mainBicep "deploymentMode\s*==\s*'approved-live-deployment'" 'Bicep must fail closed unless approved-live-deployment is supplied.'
+Assert-Text $mainBicep "param\s+webActivation\s+string\s*=\s*'disabled'" 'Base provisioning must leave Web activation disabled by default.'
+Assert-Text $platformBicep "webImageReference\s*=\s*'\$\{containerRegistryName\}\.azurecr\.io/pegasus/web@\$\{webImageDigest\}'" 'The template must own the exact ACR and repository image prefix.'
+Assert-Text $platformBicep "webActivation\s*==\s*'approved'[\s\S]*?startsWith\(webImageDigest,\s*'sha256:'\)[\s\S]*?length\(webImageDigest\)\s*==\s*71[\s\S]*?length\(webRevisionSuffix\)\s*==\s*12" 'Approved Web activation must require a sha256 digest and exact revision suffix.'
+Assert-Text $platformBicep "resource\s+webContainerApp[\s\S]*?if\s*\(webActivationApproved\)" 'The Web Container App must be conditional on approved activation.'
+Assert-Text $platformBicep "image:\s*webImageReference" 'The Container App must use the exact supplied digest reference.'
+Assert-Text $platformBicep "activeRevisionsMode:\s*'Single'" 'The Container App must use one active revision.'
+Assert-Text $platformBicep "targetPort:\s*8080" 'The Container App ingress must target port 8080.'
+Assert-Text $platformBicep "minReplicas:\s*0[\s\S]*?maxReplicas:\s*1" 'The Web Container App must scale only from zero to one replica.'
+Assert-Text $platformBicep "cpu:\s*json\('0\.5'\)[\s\S]*?memory:\s*'1Gi'" 'The Web Container App must use 0.5 vCPU and 1 GiB.'
+Assert-Text $platformBicep "sku:\s*\{\s*name:\s*'Basic'\s*\}[\s\S]*?adminUserEnabled:\s*false" 'The production ACR must be Basic with admin credentials disabled.'
+Assert-Text $platformBicep "roleDefinitionId:\s*acrPullRole" 'The Web identity must receive AcrPull at the production ACR.'
+if ([regex]::Matches($platformBicep, 'roleDefinitionId:\s*monitoringMetricsPublisherRole').Count -ne 2) {
+    throw 'Both Web and Worker identities must receive Monitoring Metrics Publisher at Application Insights.'
+}
+Assert-Text $platformBicep "server:\s*containerRegistry\.properties\.loginServer[\s\S]*?identity:\s*webIdentity\.id" 'The Container App must pull from ACR through the Web user-assigned identity.'
+Assert-Text $mainBicep 'WEB_CONTAINER_APP_FQDN' 'The Container App FQDN must be exported.'
+Assert-Text $mainBicep 'CONTAINER_REGISTRY_LOGIN_SERVER' 'The ACR login server must be exported.'
+Assert-Text $azureYaml "host:\s*containerapp" 'azure.yaml must select Container Apps for Web.'
 Assert-TextAbsent $combined "(?im)^\s*SCM_DO_BUILD_DURING_DEPLOYMENT\s*[:=]" 'Remote build is prohibited.'
 Assert-TextAbsent $combined "(?i)offline-replay|rg-pegasus-dev|pegasusdev" 'Azure deployment files must not contain a development/offline target.'
 Assert-Text $platformBicep 'transportStorageName' 'The transport/deployment storage account is missing.'
@@ -103,9 +146,11 @@ Assert-Text $productionPlan 'az monitor log-analytics workspace update[\s\S]*?wo
 Assert-Text $productionPlan 'az monitor app-insights component billing update[\s\S]*?--cap 0\.1' 'The runbook must set the Application Insights cap to exactly 0.1 GB after provisioning.'
 Assert-Text $productionPlan '\[decimal\]\$WorkspaceCap -ne 0\.1 -or \[decimal\]\$ApplicationInsightsCap -ne 0\.1' 'The runbook must fail closed unless both telemetry caps verify as exactly 0.1 GB.'
 Assert-Text $platformBicep "APPLICATIONINSIGHTS_ENABLEADAPTIVESAMPLING'[\s\S]*?value:\s*'true'" 'Adaptive sampling must be enabled for production telemetry.'
+Assert-TextAbsent $platformBicep "resource\s+webPlan\b|name:\s*'P0v4'|kind:\s*'app,linux'" 'The superseded App Service Web route is prohibited.'
 Assert-TextAbsent $platformBicep '4633458b-17de-408a-b874-0445c86b69e6' 'Vault-wide Key Vault Secrets User grants are prohibited; exact secret grants occur only after the secret census.'
 Assert-Text $platformBicep 'Microsoft\.Insights/actionGroups' 'The production action group is missing.'
 Assert-Text $platformBicep 'Microsoft\.Insights/metricAlerts' 'The production platform metric alert is missing.'
+Assert-Text $platformBicep "metricNamespace:\s*'Microsoft\.App/containerapps'[\s\S]*?metricName:\s*'Requests'[\s\S]*?name:\s*'StatusCodeCategory'[\s\S]*?values:\s*\['5xx'\]" 'The Web 5xx alert must use the Container Apps Requests metric and status category.'
 Assert-Text $platformBicep 'Microsoft\.Insights/scheduledQueryRules' 'The production application exception alert is missing.'
 Assert-Text $mainBicep "amount:\s*75" 'The monthly production budget must be GBP 75.'
 foreach ($threshold in @(50, 80, 100)) {
@@ -116,9 +161,18 @@ if ([regex]::Matches($platformBicep, "resource\s+\w+\s+'Microsoft\.Storage/stora
 }
 Assert-TextAbsent $platformBicep 'workerAuthenticationRing' 'Worker access to the Web authentication ring is prohibited.'
 Assert-TextAbsent $combined '(?i)\bdocumentintelligence\b|\bcognitiveservices\b|\bfoundry\b|\bmaps\b|\bvision\b|\bstaticwebapp\b' 'Deferred Azure services are prohibited from the alpha deployment.'
+Assert-Text $productionPlan 'oras cp --from-oci-layout' 'The runbook must upload the exact local OCI layout without a remote build.'
+Assert-Text $productionPlan 'Mode PreUpload[\s\S]*?ManifestSha256 \$ApprovedReleaseManifestSha256[\s\S]*?oras cp --from-oci-layout' 'The runbook must authenticate the complete approved manifest before the ACR upload.'
+Assert-Text $productionPlan 'Mode PreMigration[\s\S]*?ManifestSha256 \$ApprovedReleaseManifestSha256[\s\S]*?efbundle\.exe' 'The runbook must re-authenticate the approved manifest before migration.'
+Assert-Text $productionPlan 'az acr manifest show-metadata[\s\S]*?RegistryDigest -ne \$LocalDigest' 'The runbook must compare the ACR and local OCI digests.'
+Assert-Text $productionPlan 'PEGASUS_WEB_ACTIVATION disabled[\s\S]*?azd provision[\s\S]*?PEGASUS_WEB_ACTIVATION approved' 'The runbook must provision the base before approving Web activation.'
+Assert-TextAbsent $productionPlan '(?m)^\s*azd deploy web\b' 'Deploying Web from a ZIP or azd service deploy is prohibited.'
 
 $bootstrapScript = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts/Invoke-ProductionAdministratorBootstrap.ps1') -Raw
 $databaseBootstrapScript = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts/Invoke-AzureDatabaseBootstrap.ps1') -Raw
+$predecessorArchiveScript = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts/Invoke-PredecessorArchive.ps1') -Raw
+$retirementManifestScript = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts/New-PredecessorRetirementManifest.ps1') -Raw
+$predecessorRetirementScript = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts/Invoke-PredecessorRetirement.ps1') -Raw
 Assert-Text $bootstrapScript 'Get-FileHash[\s\S]*SHA256' 'Administrator bootstrap must verify the immutable Web package SHA-256.'
 Assert-Text $bootstrapScript 'ManifestSha256' 'Administrator bootstrap must require the operator-approved manifest SHA-256.'
 Assert-Text $bootstrapScript "Test-AzureDeploymentPlan\.ps1'\) -Mode Artifact" 'Administrator bootstrap must run full release-manifest and artifact validation.'
@@ -134,17 +188,46 @@ Assert-Text $databaseBootstrapScript 'manifest\.sourceRevision' 'Database bootst
 Assert-Text $databaseBootstrapScript 'status --porcelain' 'Database bootstrap must require a clean source checkout before reading the migration-defined matrix.'
 Assert-Text $databaseBootstrapScript 'sys\.schemas[\s\S]*sys\.objects[\s\S]*owning_principal_id[\s\S]*owner_sid' 'Database bootstrap must reject schema, object, principal, and database ownership authority.'
 Assert-Text $databaseBootstrapScript 'HAS_PERMS_BY_NAME' 'Database bootstrap must compare effective per-table runtime DML with the migration-defined matrix.'
+Assert-Text $predecessorArchiveScript 'new empty timestamped ArchiveRoot' 'A predecessor archive refresh must refuse reuse of an existing manifested archive.'
+foreach ($vaultName in @('cespkboxkvv76a47', 'cespkenrichkvgi62sd', 'cespk-pg-kv-dev', 'cespkevakvufa3ci', 'cespklockva7tzj2')) {
+    Assert-Text $predecessorArchiveScript ([regex]::Escape($vaultName)) "The predecessor archive must census secret metadata for $vaultName."
+}
+Assert-Text $retirementManifestScript 'archiveManifestSha256' 'The retirement manifest generator must bind the exact archive manifest hash.'
+Assert-Text $retirementManifestScript 'retirement batches do not cover every non-retained resource exactly once' 'The retirement manifest generator must prove complete exact-ID allocation.'
+Assert-Text $retirementManifestScript 'managedChildResourceIds' 'The retirement manifest must separate platform-owned child resources from direct deletion batches.'
+Assert-Text $predecessorArchiveScript "role', 'assignment', 'list', '--all'" 'The archive must census subscription role assignments including resource-scoped assignments.'
+Assert-Text $retirementManifestScript 'managedChildResourceGroup' 'The retirement manifest must bind the managed child group and parent ownership.'
+Assert-Text $retirementManifestScript 'roleDispositionSha256' 'The retirement manifest must bind exact role-assignment dispositions.'
+Assert-Text $predecessorRetirementScript 'not bound to the adjacent verified archive manifest' 'Retirement execution must verify the bound archive hash.'
+Assert-Text $predecessorRetirementScript 'Bound archive entry identity mismatch' 'Retirement execution must re-hash every bound archive entry before mutation.'
+Assert-Text $predecessorRetirementScript "Stage -eq 'Inspect'" 'Retirement execution must provide a non-mutating exact-ID inspection stage.'
+Assert-Text $predecessorRetirementScript 'Retirement batches must run in manifest order' 'Retirement execution must prohibit batch skipping.'
+Assert-Text $predecessorRetirementScript 'Retained vault or descendant is prohibited from retirement' 'Retirement execution must protect retained vault descendants.'
+Assert-Text $predecessorRetirementScript 'Resource has not verified as Stopped' 'Retirement deletion must fail closed if a stop target is running.'
+Assert-Text $predecessorRetirementScript 'Unexpected live predecessor resources are absent from the approved manifest' 'Retirement execution must reject live resource inventory drift.'
+Assert-Text $predecessorRetirementScript "Stage -eq 'DeleteManagedChildGroup'" 'Managed child-group deletion must run through the manifest-bound executor.'
+Assert-Text $predecessorRetirementScript "Stage -eq 'DeleteRoleAssignment'" 'Role-assignment deletion must run through the manifest-bound executor.'
 
 & az bicep build --file $mainBicepPath --stdout | Out-Null
 if ($LASTEXITCODE -ne 0) {
     throw 'Bicep compilation failed.'
 }
 
-if ($Mode -in @('Artifact', 'PreMigration')) {
+if ($Mode -in @('Artifact', 'PreUpload', 'PreMigration')) {
     if ([string]::IsNullOrWhiteSpace($ManifestPath)) {
         throw '-ManifestPath is required in Artifact mode.'
     }
     Test-ArtifactManifest -Path $ManifestPath
+}
+
+if ($Mode -in @('PreUpload', 'PreMigration')) {
+    if ($ManifestSha256 -notmatch '^[0-9a-fA-F]{64}$') {
+        throw '-ManifestSha256 must be the operator-approved 64-character SHA-256 in PreUpload and PreMigration modes.'
+    }
+    $actualManifestSha256 = (Get-FileHash -LiteralPath (Resolve-Path -LiteralPath $ManifestPath) -Algorithm SHA256).Hash
+    if (-not $actualManifestSha256.Equals($ManifestSha256, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'release-manifest.json does not match the operator-approved SHA-256.'
+    }
 }
 
 if ($Mode -eq 'PreMigration') {
@@ -155,7 +238,8 @@ if ($Mode -eq 'PreMigration') {
     if ($LASTEXITCODE -ne 0) { throw "Unable to read azd environment $Environment." }
     $required = @(
         'AZURE_SUBSCRIPTION_ID', 'AZURE_TENANT_ID', 'AZURE_RESOURCE_GROUP', 'AZURE_SQL_SERVER_FQDN',
-        'AZURE_SQL_DATABASE_NAME', 'WEB_IDENTITY_CLIENT_ID', 'WORKER_IDENTITY_CLIENT_ID')
+        'AZURE_SQL_DATABASE_NAME', 'WEB_IDENTITY_CLIENT_ID', 'WORKER_IDENTITY_CLIENT_ID',
+        'CONTAINER_REGISTRY_NAME', 'CONTAINER_REGISTRY_LOGIN_SERVER')
     foreach ($key in $required) {
         if ($values -notmatch "(?m)^$key=") { throw "azd environment $Environment is missing $key." }
     }

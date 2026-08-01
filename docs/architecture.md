@@ -440,26 +440,25 @@ There is no Azure development, test, integration, or staging environment; see
 [ADR-0014](adr/0014-local-to-production-deployment.md). Target Bicep must
 describe only the approved production resource group containing:
 
-- a .NET 10 Web App;
+- a .NET 10 Linux/AMD64 Razor Pages Web Container App on Azure Container Apps Consumption, scaled from zero to one replica and pulled by digest from a separate production Basic ACR;
 - a .NET 10 isolated Functions Worker;
 - Azure SQL database `pegasus`;
 - separate transport/deployment and custody/protection Azure Storage accounts;
 - Key Vault;
 - Application Insights and Log Analytics;
-- managed identities.
+- a Container Apps environment and Basic ACR with admin credentials disabled;
+- managed identities, including Web identity `AcrPull` at the production ACR.
 
-The intended release owner uses an authorized Windows terminal, committed Bicep, and `azd`. GitHub Actions deployment is not planned. An explicit database migration must precede application deployment.
+The intended release owner uses an authorized Windows terminal, committed Bicep, `azd`, the .NET SDK OCI publisher, and ORAS. GitHub Actions deployment is not planned. Base infrastructure is provisioned without the public Web resource; the reviewed OCI digest is uploaded and verified, then an explicit database migration and Administrator bootstrap precede Container App activation.
 
-Issue #311 is implementing this route under the repository-root
+Issue #311 implements this route under the repository-root
 [production replacement runbook](../azure-production-replacement-plan.md). It is
-not deployed or production-ready. Until its local gates pass, remaining gaps
-include:
-
-- immutable application packages;
-- a migration bundle and operation;
-- identity and Entra resolution;
-- provenance and hashes;
-- removal of remote-build dependence.
+not deployed or production-ready. The repository contains the schema-2
+Web-OCI/Worker/migration packaging route, migration operation, identity and
+Entra inputs, provenance checks, and remote-build prohibition. The current
+Container Apps change compiles and publishes a disposable local OCI layout,
+but clean reviewed schema-2 packaging and the Integration gate remain
+incomplete; no Azure preview or provision has run for this topology.
 
 Bicep compilation proves syntax and type consistency only. Neither Bicep nor `azure.yaml` proves a runnable release path. No resource has been provisioned or changed by the Pegasus target definition, and the legacy `rg-collisionspike-dev` estate remains untouched.
 

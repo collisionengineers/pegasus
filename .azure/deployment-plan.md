@@ -1,11 +1,9 @@
 # Azure deployment plan
 
-Status: **Production-route implementation is active under issue #311. B1 is
-unavailable in UK South for this subscription; the exact quota request failed,
-so the plan now uses the smallest SKU-specific quota-backed substitute, Linux
-P0v4. Its preview exposed a separate `Total Regional VMs` aggregate limit of 0
-that requires an encoded `az rest` quota update after the current write-throttle
-window.
+Status: **Production-route implementation is active under issue #311. ADR-0015
+replaces the blocked App Service design with Azure Container Apps Consumption,
+scale-to-zero, and a separate production Basic ACR. The earlier B1/P0v4 quota
+attempts are dated evidence only and are not an active deployment gate.
 Provisioning, deployment, and retirement have not run and
 retain the exact-target gates in the
 [production replacement runbook](../azure-production-replacement-plan.md).**
@@ -34,8 +32,9 @@ only, as decided in [ADR-0014](../docs/adr/0014-local-to-production-deployment.m
 | Resource | Quantity | Production | Reason |
 |---|---:|---|---|
 | Resource group | 1 | separate `prod` | production lifecycle |
-| Linux App Service plan | 1 | P0v4 | smallest UK South tier with available subscription quota after B1 request failure |
-| Web App | 1 | .NET 10 | Razor Pages/API and app-managed user accounts |
+| Container Apps environment | 1 | Consumption, UK South | serverless Web hosting with scale-to-zero |
+| Web Container App | 1 | .NET 10, Linux/AMD64, 0.5 vCPU, 1 GiB, replicas 0–1 | Razor Pages/API and app-managed user accounts |
+| Azure Container Registry | 1 | Basic, admin disabled | private custody of the digest-pinned Web OCI image |
 | Functions plan | 1 | Flex Consumption FC1 | .NET 10 isolated background work |
 | Function App | 1 | .NET 10 isolated | mailbox/queue composition root |
 | User-assigned identities | 2 | Web and Worker | stable least-privilege identities; Worker identity also owns Flex host/package lifecycle |
@@ -53,7 +52,7 @@ only, as decided in [ADR-0014](../docs/adr/0014-local-to-production-deployment.m
 - Azure SQL uses a Microsoft Entra administrator and Entra-only authentication. Migration `20260729176000_AzureSqlRuntimeLeastPrivilege` creates distinct fixed Web and Worker roles. Role-reconciliation migration `20260729199000_RuntimeRoleReconciliation` resets their direct DML across the complete application-table census, grants only the exhaustive caller-derived matrix, denies Worker `DELETE` everywhere, and denies Web `DELETE` except on its four required relationship/value workflows. Neither role receives DDL or broad built-in data roles. `scripts/Invoke-AzureDatabaseBootstrap.ps1` implements the separately gated managed-identity user/role operation and verifies the exhaustive migration-defined matrix; it has not run against Azure. A temporary migrator group owns schema changes and has no standing runtime use.
 - Private networking is a `Not planned` boundary. The scaffold therefore uses public
   service endpoints and the Azure SQL `AllowAllWindowsAzureIps` firewall rule so
-  App Service and Flex can reach SQL. Authentication remains Entra-only. This
+  Container Apps and Flex can reach SQL. Authentication remains Entra-only. This
   broad network reach is an accepted `0.1.0-alpha.1` trade-off, not a planned future
   private-networking migration.
 - App settings contain resource names, endpoints, client IDs, and Application Insights connection metadata. Third-party credentials are referenced from Key Vault and are never generated into Bicep output. Box uses the retained JWT configuration plus separately retained client secret to obtain short-lived SDK tokens at runtime; no static Box access token is a deployment input.
@@ -64,7 +63,8 @@ The 2026-07-23 live inventory is dated evidence only. It does not approve target
 
 Before provisioning, recheck:
 
-- P0v4 App Service plan availability in UK South;
+- Container Apps Consumption environment availability in UK South;
+- Basic ACR name availability and managed-identity `AcrPull` support;
 - Flex Consumption and regional app quota;
 - SQL S0 availability;
 - two production storage accounts;
@@ -94,9 +94,15 @@ target names, SQL Entra administrator, and external credential readiness.
 Issue #311 implements that explicit mode and removes remote build before any
 preview. Applying the idempotent migration bundle remains an explicit
 pre-application step; schema rollback is not a down-migration.
+
+ADR-0015 implementation compiles locally and the deployment-plan validator
+passes. Local OCI publication and ORAS digest inspection also pass. Core and
+Architecture tests pass; the Integration project remained responsive but did
+not complete inside a ten-minute isolated run, so clean release packaging and
+the first Container Apps preview remain blocked rather than inferred.
 ## Deployment blockers
 
-- The operator authorised autonomous execution of this production replacement plan on 2026-08-01.
+- The operator directed autonomous CLI execution on 2026-08-01. That direction does not waive the repository's exact-target gates: provider registration, each observed preview, provisioning, credential/role changes, live provider operations, and retirement proceed only under their separately recorded target-specific approval.
 - The predecessor is pre-release and its test application data is not migrated into `0.1.0-alpha.1`. Retirement remains a separately approved operation, not a deployment prerequisite.
 - SQL Entra administrator name/object ID must be confirmed at deployment time.
 - GitHub Actions/OIDC deployment is a `Not planned` boundary, not a missing scaffold item.
@@ -110,15 +116,12 @@ pre-application step; schema rollback is not a down-migration.
   entitlement-specific DVSA token route, and Graph mailbox/folder identities
   are configured. The predecessor application identity resolved Graph folder
   metadata without message or attachment access.
-- The B1 quota request `b9df19cc-54b2-4876-9c4c-1eb9ba99076a` failed with
-  `QuotaNotAvailableForResource`. UK South has 30 P0v4 instances available;
-  Linux P0v4 is GBP 0.0692/hour, approximately GBP 40.59/month more than B1 at
-  730 hours.
-- The P0v4 preview still fails because UK South `Total Regional VMs` is 0 even
-  though P0v4-specific quota is 30. The literal wildcard cannot be submitted by
-  `az quota create`; use `az rest` against the `%2A` Microsoft.Quota resource.
-  The earlier B1 request created a one-hour quota-write throttle. No support
-  ticket is required. The next gate is an aggregate limit of at least 1
-  followed by a clean P0v4 ARM preview.
+- The B1 quota request `b9df19cc-54b2-4876-9c4c-1eb9ba99076a` and later P0v4
+  aggregate-quota preview failed without creating a workload resource. ADR-0015
+  supersedes that fixed App Service route. Do not retry either quota operation.
+- The next gate is a clean base preview with `PEGASUS_WEB_ACTIVATION=disabled`,
+  followed by base provisioning, local OCI upload/digest verification, database
+  migration/bootstrap, and a second preview that adds only the Web Container
+  App and its HTTP alert.
 
 This file must not be changed to `Ready for Validation` merely because Bicep compiles.

@@ -34,6 +34,9 @@ accepted, and retired remain separate evidence states.
 - [ADR-0014](../adr/0014-local-to-production-deployment.md) fixes the topology as
   isolated local development followed directly by production. No Azure
   development, test, integration, or staging environment may be introduced.
+- [ADR-0015](../adr/0015-host-web-on-container-apps-consumption.md) replaces
+  the blocked App Service Web route with Container Apps Consumption, a separate
+  Basic ACR, scale-to-zero, and locally built digest-pinned OCI deployment.
 - `Pegasus.Core` retains business policy and the ports
   `IApprovedInboxSource`, `IApprovedSentSource`, `ICaseCustody`, and
   `IVehicleLookupAdapter`. Infrastructure implements production adapters; Web
@@ -79,14 +82,38 @@ accepted, and retired remain separate evidence states.
   `feat/azure-production-replacement`, issue #311.
 - Production route, adapters, startup validation, and release scripts:
   **implemented**, not deployed or live verified.
+- Container Apps replacement: **implemented, locally infrastructure-verified
+  on 2026-08-01, not deployed**. ADR-0015, the replacement/runbook authority,
+  Basic ACR and conditional Container Apps Bicep, schema-2 OCI packaging,
+  digest verification, managed-identity pull, and scale-to-zero validation are
+  present. Bicep compilation, the local Azure deployment-plan validator, local
+  OCI publication/ORAS descriptor readback, restore, zero-warning Release
+  build, Core tests (179/179), and Architecture tests (71/71) passed.
+- The non-corpus Integration project: **locally verified** on 2026-08-01. Its
+  canonical single-process run completed in 24 minutes 45 seconds: 290 passed,
+  zero failed, and the optional inactive
+  `RunnerManifestInvokesCoreGateThroughActualWebHost` QDOS acceptance-manifest
+  profile skipped as designed because no run-owned acceptance manifest was
+  activated. The earlier ten-minute cutoff was shorter than the suite's normal
+  duration and is superseded by this completed result.
 - Local verification: **verified** on 2026-07-31. Restore, zero-warning Release
   build, 539 non-corpus tests, Bicep compilation, local deployment-plan
   validation, and the revision-bound QDOS CI-pressure profile (3/3, no skips)
   passed. This is not live or operator acceptance.
-- Immutable artifacts: **locally verified**. `web.zip`, `worker.zip`,
+- Previous immutable ZIP artifacts: **locally verified**. `web.zip`, `worker.zip`,
   `efbundle.exe`, and their SHA-256 manifest were built and revalidated from a
   clean exact revision; production packaging must still be repeated after any
-  later source change or review amendment.
+  later source change or review amendment. The ADR-0015 schema-2 manifest and
+  `web-image.tar.gz` route are implemented but not yet packaged from a clean
+  reviewed revision.
+- Predecessor retirement tooling: **implemented and locally fail-closed
+  verified, not executed**. Fresh evidence reads now check command/JSON success,
+  census five vaults and subscription-wide resource-scoped roles, bind archive
+  contents, exact resources, managed child-group ownership and role
+  dispositions into a schema-2 retirement manifest, reject live inventory
+  drift and skipped batches, and require separate stop, child-group, resource,
+  and role deletion gates. A disposable manifest passed inspection and rejected
+  a tampered archive; two independent reviews completed cleanly.
 - Exact-target predecessor read/archive preflight: **performed and locally
   verified** on 2026-08-01 under explicit approval. Fresh inventories and
   non-secret metadata were captured outside the repository. All 16 unique ACR
@@ -99,9 +126,10 @@ accepted, and retired remain separate evidence states.
   South advertises FC1/.NET 10 and SQL Standard S0. Under exact approval,
   `Microsoft.Sql` and `Microsoft.Quota` were registered on 2026-08-01. The B1
   increase request `b9df19cc-54b2-4876-9c4c-1eb9ba99076a` failed with
-  `QuotaNotAvailableForResource`; UK South has 30 P0v4 instances available, so
-  the template now uses the smallest quota-backed Linux substitute. No Azure
-  workload resource has yet been created.
+  `QuotaNotAvailableForResource`, and the later P0v4 preview exposed aggregate
+  quota zero. ADR-0015 now selects Container Apps Consumption and a separate
+  Basic ACR; current provider availability and a clean two-stage preview remain
+  unverified. No Azure workload resource has yet been created.
 - Retained credential metadata: **read and locally configured** under exact
   approval. One enabled versioned URI was found for each of `box-config-json`,
   `box-client-secret`, `dvla-api-key`, `dvsa-api-key`, `dvsa-client-id`, and
@@ -120,12 +148,11 @@ accepted, and retired remain separate evidence states.
   message or attachment request. ARM preview exposed and prompted correction of
   the reserved `AZURE_ENV_NAME` parameter collision. Local validation passes;
   ARM preflight then stopped on UK South B1 quota `0` with one VM required. The
-  exact quota request failed and the plan substituted P0v4; the replacement
-  preview then exposed a separate `Total Regional VMs` aggregate limit of 0
-  despite P0v4-specific quota 30. The exact CLI route is an encoded `az rest`
-  update to the `%2A` Microsoft.Quota resource after the one-hour write throttle
-  created by the earlier B1 request. No support ticket is required. No workload
-  resource was created, changed, or deleted.
+  exact quota request failed and the P0v4 replacement preview then exposed a
+  separate `Total Regional VMs` aggregate limit of 0. ADR-0015 supersedes that
+  route with Container Apps Consumption and a Basic production ACR. The quota
+  operations are retained only as historical evidence and must not be resumed.
+  No workload resource was created, changed, or deleted.
 - Azure provisioning: **not run**.
 - Deployment, live verification, operator acceptance, predecessor retirement,
   and recovery exercise: **not performed**.
