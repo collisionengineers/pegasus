@@ -156,7 +156,13 @@ IF EXISTS (
     FROM sys.database_permissions AS permission
     JOIN sys.database_principals AS principal ON principal.principal_id = permission.grantee_principal_id
     WHERE principal.name = N'public'
-      AND NOT (permission.class = 0 AND permission.permission_name = N'CONNECT' AND permission.state = 'G'))
+      AND NOT (
+          (permission.class = 0 AND permission.permission_name = N'CONNECT' AND permission.state = 'G')
+          OR (
+              permission.class = 1
+              AND permission.permission_name = N'SELECT'
+              AND permission.state = 'G'
+              AND (permission.major_id < 0 OR OBJECT_SCHEMA_NAME(permission.major_id) = N'sys'))))
     THROW 51005, 'The public role grants or denies permissions outside the standard database CONNECT grant.', 1;
 IF EXISTS (
     SELECT 1
