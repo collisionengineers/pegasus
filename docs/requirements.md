@@ -972,7 +972,7 @@ Required qualities:
 - structured diagnostics without source-content leakage;
 - a 15-minute database recovery-point objective and four-hour restoration objective, proved through the operator-run [production recovery procedure](operations.md#production-recovery);
 - reasoned recovery, restore, and replay proof without duplicate case/reference allocation;
-- Windows-native local development and supported browser accessibility proof;
+- local development on a supported platform, and supported-browser accessibility proof on Windows with Microsoft Edge Stable and Narrator;
 - independently buildable source workspaces with no application reference, dynamic load, dependency hoist, or deployment inclusion;
 - explicit test/evidence scope and limits rather than evergreen counts.
 ## Permanent boundaries

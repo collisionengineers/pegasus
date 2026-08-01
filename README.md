@@ -5,7 +5,12 @@ application. The repository uses .NET 10 and remains in development;
 `0.1.0-alpha.1` is an allocated release target, not an implementation,
 deployment, or acceptance claim.
 
-## Get started on Windows
+## Get started
+
+Develop on Windows with PowerShell 7 or on Linux with PowerShell 7 — one
+platform per workstation, not a mixture.
+
+### On Windows
 
 The repository retains long supplied-reference paths. Enable Windows long-path
 support and configure Git for Windows before cloning:
@@ -20,6 +25,26 @@ dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category
 dotnet run --project ./src/Pegasus.Web --configuration Release --launch-profile https --no-build -- --migrate-development
 dotnet run --project ./src/Pegasus.Web --configuration Release --launch-profile https --no-build
 ```
+
+### On Linux
+
+Long paths need no configuration. The local database is a SQL Server container
+rather than LocalDB, so start one and point the application at it:
+
+```powershell
+npm ci
+dotnet restore ./Pegasus.slnx
+dotnet build ./Pegasus.slnx --configuration Release --no-restore
+dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus&Category!=SqlServer"
+$env:ConnectionStrings__Pegasus = 'Server=127.0.0.1,<port>;Database=PegasusDevelopment;User ID=sa;Password=<password>;Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True'
+dotnet run --project ./src/Pegasus.Web --configuration Release --launch-profile https --no-build -- --migrate-development
+dotnet run --project ./src/Pegasus.Web --configuration Release --launch-profile https --no-build
+```
+
+The `SqlServer` test lane runs on Linux too once the tests are pointed at that
+container; [operations](docs/operations.md#locked-restore-build-and-test) owns
+the exact variables. Prefer `pwsh ./scripts/Invoke-LocalDevelopment.ps1`, which
+manages the container, Azurite, and the Functions host for you.
 
 The first `dotnet run` applies every committed Development migration and exits;
 the second starts Web against the migrated database. Normal Web startup never

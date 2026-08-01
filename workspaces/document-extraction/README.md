@@ -18,7 +18,7 @@ Public payloads are ordered text and discrete independently recognized images. M
 ## Build and verify
 
 ```powershell
-.\scripts\Invoke-RepoCheck.ps1
+pwsh ./scripts/Invoke-RepoCheck.ps1
 ```
 
 The script owns locked restore, build, tests, links, and package-schema checks. Local release candidates under ignored `artifacts/` are inspection evidence, not authorized releases. `sample-doc-files/` is sensitive copied-profile material, not an approved fixture corpus, and must not be recursively processed.

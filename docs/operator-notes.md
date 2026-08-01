@@ -352,7 +352,7 @@ This table records binding product needs, not implementation, caller, deployment
 
 ## Environment and tools
 
-All work is carried out in a Windows environment using PowerShell.
+All work is carried out using PowerShell 7, on Windows or on Linux.
 
 Approved tools include:
 

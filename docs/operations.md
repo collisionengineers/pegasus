@@ -16,7 +16,52 @@ Every external read, mutation, billed call, data transfer, credential change, de
 
 ## Supported platform
 
-Repository development and release operations support Windows with PowerShell 7 only. The application targets .NET 10 for ASP.NET Core and Azure Functions isolated worker.
+Repository development supports Windows with PowerShell 7 and Linux with
+PowerShell 7. The application targets .NET 10 for ASP.NET Core and Azure
+Functions isolated worker.
+
+Pegasus is developed on **one** platform per workstation. Where this
+documentation shows a Windows form and a Linux form, run the one matching your
+workstation. Nothing here requires or supports mixing the two in a single run,
+checkout, or evidence record.
+
+Release operations remain Windows-only. The migration bundle is built for
+`win-x64` and applied from the authorised release terminal, which is a fixed
+release-route decision recorded in ADR-0007, not a development-platform
+requirement. Web and Worker packages are `linux-x64` and build identically on
+either platform.
+
+Hosted continuous integration runs `windows-latest` only. Linux development is
+supported by these procedures and is not proved by any automated gate: a Linux
+result is developer evidence, not repository-check evidence, until a Linux job
+exists and passes.
+
+### Platform capability differences
+
+These are technical facts about what each platform can do for this repository,
+not a preference. Choose the platform that suits the work in front of you.
+
+What Linux gives this project that Windows does not:
+
+| Capability | Why it matters here |
+| --- | --- |
+| Runtime parity with production | Web and Worker deploy to Linux, so a Linux workstation runs the same runtime as the deployed application. |
+| A container runtime without Docker Desktop | The local database, and the AI Centre pgvector profile that has never been exercised, both need containers. |
+| `poppler-utils` (`pdftoppm`) | Already required by `workspaces/report-renderer/scripts/visual-regression.ps1`, and packaged on Linux. |
+| `fonts-liberation` and `fonts-dejavu-core` | The exact fonts the renderer's container image installs, so local PDF glyph metrics match the deployed container. |
+| `perf` and `lldb` beside `dotnet-trace`, `dotnet-counters`, `dotnet-dump` and `dotnet-gcdump` | Deeper diagnosis for the `Performance` evidence profile. |
+| No long-path constraint | The tracked 235-character relative path needs no configuration. |
+
+What Windows gives this project that Linux does not:
+
+| Capability | Why it matters here |
+| --- | --- |
+| SQL Server Express LocalDB | Zero-configuration local database with integrated security and no container. |
+| Microsoft Edge Stable with Windows Narrator | The named accessibility evidence tooling. This is a release gate, and it is Windows-bound. |
+| `dotnet dev-certs https --trust` | Trust works directly. On Linux it populates per-user NSS and OpenSSL stores and needs `libnss3-tools` plus `SSL_CERT_DIR`. |
+| The `win-x64` migration bundle and authorised release terminal | Fixed by ADR-0007; see above. |
+| The Entra interactive authentication broker, and the `SqlServer` and `ExchangeOnlineManagement` modules | Used by the approved live-work profile. |
+| `scripts/email-eval-desktop` and `CollisionRenderer.Gui` | These target `net10.0-windows` with Windows Forms and WinUI 3 respectively. Neither framework has a Linux implementation, so both are Windows-only by construction. |
 
 A 2026-07-27 currency check found:
 
@@ -28,12 +73,16 @@ These vendor facts can drift. Refresh them before changing the SDK, target frame
 
 ### Checkout path
 
+The repository contains a tracked 235-character relative path.
+
+#### On Windows
+
 Before cloning, either:
 
 1. enable Windows long-path support and configure Git for long paths; or
 2. choose a checkout root with an absolute path no longer than 23 characters, such as `C:\src\pegasus`.
 
-The repository contains a tracked 235-character relative path. A longer root can exceed the traditional 260-character Windows limit before a repository command can run.
+A longer root can exceed the traditional 260-character Windows limit before a repository command can run.
 
 Read-only checks:
 
@@ -44,21 +93,62 @@ git config --show-origin --get core.longpaths
 
 For a longer checkout root, the first command must return `1` and the Git setting must return `true`. If not, use the approved workstation-administration process before cloning.
 
+#### On Linux
+
+No configuration is required. The path limit is 4096 characters, so the tracked path imposes no constraint on the checkout root.
+
 ## Offline development profile
 
-Pegasus supports a reproducible `Offline` profile on Windows with PowerShell
-7.6.3, .NET SDK 10.0.302, Python 3.11+, Node 24/npm 11, the repository-pinned
-Azurite 3.36.0, Functions Core Tools 4.12.1, SQL Server Express LocalDB, a
-trusted Development HTTPS certificate, and the package-pinned Playwright
-Chromium browser. It requires no Azure, Graph, Box, DVLA/DVSA, EVA, Infisical,
-Docker, cloud login, or vendor authentication. Package and browser restoration
-may use package feeds; an initialized run's Start and Smoke paths do not.
+Pegasus supports a reproducible `Offline` profile on Windows or Linux with
+PowerShell 7.6.3 or later, .NET SDK 10.0.302, Python 3.11+, Node 24/npm 11, the
+repository-pinned Azurite 3.36.0, Functions Core Tools 4.12.1, the platform's
+supported SQL Server, a Development HTTPS certificate, and the package-pinned
+Playwright Chromium browser. It requires no Azure, Graph, Box, DVLA/DVSA, EVA,
+Infisical, cloud login, or vendor authentication. Package and browser
+restoration may use package feeds; an initialized run's Start and Smoke paths do
+not.
 
-Pegasus has one supported database-provider contract: SQL Server. SQL Server
-Express LocalDB is the canonical local development and integration-acceptance
-provider for persistence, migrations, concurrency, and recovery evidence; Azure
-SQL is the deployed provider. Both use the committed SQL Server migration
-stream, and supported configuration exposes no provider choice.
+**Platform delta.** *Windows:* the database is SQL Server Express LocalDB, and
+the profile needs no container runtime. *Linux:* the database is a per-run SQL
+Server container, so a reachable Docker daemon and the pinned image are
+prerequisites; `Invoke-Doctor.ps1` checks both and never pulls. See
+[local database](#local-database).
+
+Pegasus has one supported database-provider contract: SQL Server. The local
+development and integration-acceptance provider for persistence, migrations,
+concurrency, and recovery evidence is SQL Server Express LocalDB on Windows and
+a SQL Server container on Linux; Azure SQL is the deployed provider. All of them
+use the committed SQL Server migration stream, and supported configuration
+exposes no provider choice on either platform.
+
+### Local database
+
+The lifecycle owns one database instance per run and creates, starts, stops and
+removes it for you. `Reset` discards the databases by removing the instance, so
+neither platform needs a SQL client for that.
+
+#### On Windows
+
+The instance is a LocalDB instance named after the run. Nothing further is
+required once LocalDB is installed.
+
+#### On Linux
+
+The instance is one container per run, published on loopback only, created from
+an image pinned by digest. The credential is generated per run, written to
+`<run-root>/state/mssql.env` readable only by its owner, and reaches the
+application through the started process environment. It is never written to the
+run manifest and never appears on a command line.
+
+`Invoke-Doctor.ps1` requires the pinned image to be present locally and never
+pulls it; `Initialize-LocalDevelopment.ps1` acquires it once. Each running
+instance costs roughly 2 GiB of memory and 10 to 25 seconds of first start, so
+expect to keep at most two runs started at once on a typical workstation.
+
+The credential is visible to anyone who can query the container runtime, and
+membership of the `docker` group is equivalent to root on the workstation. Both
+are acceptable for a disposable development database and are stated here so the
+exposure is not a surprise.
 
 Use the owned commands rather than manually composing service terminals:
 
@@ -207,6 +297,23 @@ dotnet restore ./Pegasus.slnx
 dotnet build ./Pegasus.slnx --configuration Release --no-restore
 dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"
 ```
+
+These commands are identical on both platforms; `pwsh` runs them either way.
+
+**Platform delta.** The `SqlServer` test lane needs a reachable SQL Server. On
+Windows that is LocalDB and needs no configuration. On Linux, point the tests at
+a SQL Server container before running them:
+
+```powershell
+$env:PEGASUS_TEST_SQL_DATASOURCE = '127.0.0.1,<port>'
+$env:PEGASUS_TEST_SQL_USER = 'sa'
+$env:PEGASUS_TEST_SQL_PASSWORD = '<password>'
+```
+
+Leaving `PEGASUS_TEST_SQL_DATASOURCE` unset keeps the LocalDB default, so the
+Windows command is unchanged. Without it on Linux, exclude the lane with
+`--filter "Category!=Corpus&Category!=SqlServer"` and record that the lane did
+not run.
 
 These commands prove repository compilation and the selected non-corpus tests only. Genuine corpus, browser, LocalDB/Azurite/Functions, cloud, recovery, and operator evidence are separate caller-specific gates.
 
@@ -461,15 +568,15 @@ activation; installing a tool never establishes a caller.
 
 | Profile | Current gate and planned boundary |
 | --- | --- |
-| `Baseline` | Windows, PowerShell 7, Git/GitHub CLI, pinned .NET 10 SDK, Azure CLI with Bicep, Azure Developer CLI, Node/npm, Python, Infisical CLI, and Box CLI for build, test, Bicep validation, and approved administration. Cloud/vendor tools remain optional in the current offline baseline. |
-| `SqlServer` | SQL Server Express LocalDB and `sqlcmd` for migrations, constraints, transactions, allocation concurrency, outbox atomicity, and local backup/restore. |
+| `Baseline` | Windows or Linux, PowerShell 7, Git/GitHub CLI, pinned .NET 10 SDK, Azure CLI with Bicep, Azure Developer CLI, Node/npm, Python, Infisical CLI, and Box CLI for build, test, Bicep validation, and approved administration. Cloud/vendor tools remain optional in the current offline baseline. |
+| `SqlServer` | The platform's supported SQL Server (LocalDB on Windows, a container on Linux) and `sqlcmd` for migrations, constraints, transactions, allocation concurrency, outbox atomicity, and local backup/restore. |
 | `StorageWorker` | Repository-pinned npm Azurite and Functions Core Tools v4 for real Blob/Queue SDK, trigger, retry, poison, and restart paths. Activate only with the first real storage adapter and Worker trigger. |
 | `Browser` | The `Browser` trait pins Microsoft Playwright for .NET, Chromium, and Deque axe-core. It drives the rendered DevelopmentOffline Operations, intake, Triage, administration, password-change, and case-document routes through a loopback Kestrel host, including semantic, responsive, forced-colour, and reduced-motion checks. It remains local caller evidence: Edge Stable, Narrator, manual accessibility review, external approvals, deployment, and operator/management acceptance remain separate fail-closed gates. |
 | `Graph` | Microsoft Dev Proxy and mocked Kiota request adapters for paging, throttling, 401/403, 429, 5xx, timeout, authentication, and retry. |
 | `Observability` | OpenTelemetry in-memory exporter and an optional native Collector for correlation, attributes, health signals, OTLP, and redaction. |
 | `Performance` | `Invoke-QdosAlphaAcceptance.ps1 -Profile CiPressure` compiles the two bounded pressure sources through the existing integration-test host, exercises eight concurrent DevelopmentOffline Web callers, and retains content-safe TRX and hashed run evidence. It installs no load-test framework and makes no alpha-capacity claim. |
 | `Security` | .NET dependency vulnerability checks and OWASP ZAP; ZAP uses the conditional container profile. |
-| `Containers` | Docker Desktop in Linux-container mode, conditionally for ZAP, optional telemetry, optional SQL compatibility, or a specifically approved licensed Document Intelligence container. Docker is never required merely for Azurite. |
+| `Containers` | A container runtime (Docker Desktop in Linux-container mode on Windows, the native engine on Linux), conditionally for ZAP, optional telemetry, optional SQL compatibility, or a specifically approved licensed Document Intelligence container. Docker is never required merely for Azurite. On Linux the local database is a container, so a container runtime is a base prerequisite there rather than a conditional one. |
 | `LiveIntegration` | The existing approved developer identity/secret tooling and exact SDK/CLI owned by the feature. Never part of the default local check. |
 
 Storage Explorer, SSMS, and Postman are optional conveniences.

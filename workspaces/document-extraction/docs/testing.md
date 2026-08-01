@@ -51,8 +51,12 @@ dotnet test --solution CollisionDocNet.slnx
 The broader deterministic repository gate is:
 
 ```powershell
-.\scripts\Invoke-RepoCheck.ps1
+pwsh ./scripts/Invoke-RepoCheck.ps1
 ```
+
+These commands run on Windows or Linux with PowerShell 7. Every dated record
+below was produced on Windows; a Linux run of the same gate is developer
+evidence and does not extend the scope of those records.
 
 The gate uses the pinned SDK and repository-owned files. It performs locked restore, formatting verification, Release build and tests, declared JSON parsing and local Markdown-link validation. It does not require Microsoft Office, another office suite, a desktop session, browser, service host, private corpus or retained external parser.
 

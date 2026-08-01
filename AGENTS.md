@@ -6,7 +6,7 @@ work and the nearest nested `AGENTS.md` for local deltas.
 
 ## Environment and workflow
 
-- Work on Windows with PowerShell 7; tracked commands and paths are repository-relative.
+- Work with PowerShell 7 on Windows or Linux, one platform per workstation and never a mixture; tracked commands and paths are repository-relative and use forward slashes. Platform differences and their evidence limits are owned by [operations](docs/operations.md#supported-platform).
 - Repository mode: `development`.
 - Visual UI: `present`; `design/` owns durable visual authority and source/runtime mappings.
 - Canonical local verification: `dotnet restore`, `dotnet build --configuration Release`, and focused/full `dotnet test` commands.

@@ -449,7 +449,7 @@ describe only the approved production resource group containing:
 - a Container Apps environment and Basic ACR with admin credentials disabled;
 - managed identities, including Web identity `AcrPull` at the production ACR.
 
-The intended release owner uses an authorized Windows terminal, committed Bicep, `azd`, the .NET SDK OCI publisher, and ORAS. GitHub Actions deployment is not planned. Base infrastructure is provisioned without the public Web resource; the reviewed OCI digest is uploaded and verified, then an explicit database migration and Administrator bootstrap precede Container App activation.
+The intended release owner uses an authorized Windows terminal, required by the `win-x64` migration bundle fixed in ADR-0007 rather than by the development platform, committed Bicep, `azd`, the .NET SDK OCI publisher, and ORAS. GitHub Actions deployment is not planned. Base infrastructure is provisioned without the public Web resource; the reviewed OCI digest is uploaded and verified, then an explicit database migration and Administrator bootstrap precede Container App activation.
 
 Issue #311 implements this route under the repository-root
 [production replacement runbook](../azure-production-replacement-plan.md). It is
@@ -468,27 +468,16 @@ The release design, live-inventory qualifications, and deployment procedures are
 
 ## Local development procedure
 
-From PowerShell 7 at the repository root:
-
-```powershell
-dotnet restore ./Pegasus.slnx
-dotnet build ./Pegasus.slnx --configuration Release --no-restore
-dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"
-sqllocaldb start MSSQLLocalDB
-dotnet run --project ./src/Pegasus.Web --launch-profile https -- --migrate-development
-dotnet run --project ./src/Pegasus.Web --launch-profile https --no-build
-```
-
-Open:
-
-```text
-https://localhost:7139/Intake
-```
+The local development procedure, its platform differences, and its evidence
+limits are owned by [operations](operations.md#supported-platform); the
+platform-specific database is owned by
+[local database](operations.md#local-database). This section describes only what
+the resulting configuration selects.
 
 Development configuration selects:
 
 - runtime profile `DevelopmentOffline`;
-- SQL Server Express LocalDB;
+- the platform's supported SQL Server, which is SQL Server Express LocalDB on Windows and a per-run container on Linux;
 - connection name `Pegasus`;
 - database `PegasusDevelopment`;
 - artifact root `artifacts/local-development/default/intake`;
