@@ -4,7 +4,8 @@ Status: **Production-route implementation is active under issue #311. B1 is
 unavailable in UK South for this subscription; the exact quota request failed,
 so the plan now uses the smallest SKU-specific quota-backed substitute, Linux
 P0v4. Its preview exposed a separate `Total Regional VMs` aggregate limit of 0
-that cannot be raised through this subscription's current CLI support route.
+that requires an encoded `az rest` quota update after the current write-throttle
+window.
 Provisioning, deployment, and retirement have not run and
 retain the exact-target gates in the
 [production replacement runbook](../azure-production-replacement-plan.md).**
@@ -114,10 +115,10 @@ pre-application step; schema rollback is not a down-migration.
   Linux P0v4 is GBP 0.0692/hour, approximately GBP 40.59/month more than B1 at
   730 hours.
 - The P0v4 preview still fails because UK South `Total Regional VMs` is 0 even
-  though P0v4-specific quota is 30. Microsoft.Quota marks the aggregate quota
-  non-applicable for self-service increase; the encoded CLI request was
-  throttled for one hour, and the Support CLI returned `InvalidSupportPlan`
-  because this subscription has the Free support plan. The next gate is an
-  aggregate limit of at least 1 followed by a clean P0v4 ARM preview.
+  though P0v4-specific quota is 30. The literal wildcard cannot be submitted by
+  `az quota create`; use `az rest` against the `%2A` Microsoft.Quota resource.
+  The earlier B1 request created a one-hour quota-write throttle. No support
+  ticket is required. The next gate is an aggregate limit of at least 1
+  followed by a clean P0v4 ARM preview.
 
 This file must not be changed to `Ready for Validation` merely because Bicep compiles.

@@ -311,16 +311,36 @@ hours, a GBP 40.59/month fixed-compute increase. A clean preview remains the
 gate before provisioning.
 
 The P0v4 preview then confirmed a separate subscription aggregate constraint:
-the P0v4-specific UK South limit is 30, but `Total Regional VMs` (`*`) is 0 and
-is reported by Microsoft.Quota as non-applicable for self-service increase.
+the P0v4-specific UK South limit is 30, but `Total Regional VMs` (`*`) is 0.
 ARM tracking IDs `a46607cf-f87a-42f8-becd-ff10c8208506` and
 `fa1a277a-098f-4601-bca0-9c79c6a9cb23` both require the aggregate minimum to
-be 1. The encoded CLI request was throttled for one hour before validation, and
-the Azure Support CLI route failed with `InvalidSupportPlan` because the
-subscription has the Free support plan. The request ledger contains only the
-failed B1 request; no aggregate request or workload resource exists. Provision
-only after the UK South aggregate quota reads at least 1 and the unchanged
-P0v4 preview completes cleanly.
+be 1. `az quota create` cannot encode the literal wildcard resource name, so
+the exact CLI route is an `az rest --method put` to the `%2A` quota resource.
+That request is currently subject to the Microsoft.Quota one-hour write throttle
+created by the earlier B1 request; no support ticket is required. The request
+ledger contains only the failed B1 request, and no workload resource exists.
+Retry the encoded CLI request after the throttle window, then provision only
+after the UK South aggregate quota reads at least 1 and the unchanged P0v4
+preview completes cleanly.
+
+Use Azure CLI only. The throttle window from request
+`b9df19cc-54b2-4876-9c4c-1eb9ba99076a` ends after
+`2026-08-01T17:34:30Z`:
+
+```powershell
+$AppServiceQuotaScope = "/subscriptions/$PegasusSubscription/providers/Microsoft.Web/locations/$PegasusLocation"
+$AggregateQuotaUri = "https://management.azure.com$AppServiceQuotaScope/providers/Microsoft.Quota/quotas/%2A?api-version=2025-09-01"
+$AggregateQuotaBody = '{\"properties\":{\"limit\":{\"limitObjectType\":\"LimitValue\",\"value\":1},\"name\":{\"value\":\"*\"},\"resourceType\":\"*\"}}'
+
+az rest --method put --url $AggregateQuotaUri `
+  --body $AggregateQuotaBody --headers Content-Type=application/json --output json
+
+do {
+  Start-Sleep -Seconds 15
+  $AggregateQuota = az rest --method get --url $AggregateQuotaUri `
+    --query properties.limit.value --output tsv
+} while ([int]$AggregateQuota -lt 1)
+```
 
 After exact approval of that preview and the two named telemetry-cap writes:
 

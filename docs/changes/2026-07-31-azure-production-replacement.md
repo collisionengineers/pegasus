@@ -122,10 +122,10 @@ accepted, and retired remain separate evidence states.
   ARM preflight then stopped on UK South B1 quota `0` with one VM required. The
   exact quota request failed and the plan substituted P0v4; the replacement
   preview then exposed a separate `Total Regional VMs` aggregate limit of 0
-  despite P0v4-specific quota 30. Microsoft.Quota marks the aggregate quota
-  non-applicable for self-service increase, and Azure Support CLI ticket
-  creation returned `InvalidSupportPlan` for the subscription's Free support
-  plan. No workload resource was created, changed, or deleted.
+  despite P0v4-specific quota 30. The exact CLI route is an encoded `az rest`
+  update to the `%2A` Microsoft.Quota resource after the one-hour write throttle
+  created by the earlier B1 request. No support ticket is required. No workload
+  resource was created, changed, or deleted.
 - Azure provisioning: **not run**.
 - Deployment, live verification, operator acceptance, predecessor retirement,
   and recovery exercise: **not performed**.
