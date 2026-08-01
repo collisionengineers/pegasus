@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string] $MatrixPath = (Join-Path $PSScriptRoot '..\docs\architecture\doc-format-classification.v1.json')
+    [string] $MatrixPath = (Join-Path $PSScriptRoot '../docs/architecture/doc-format-classification.v1.json')
 )
 
 Set-StrictMode -Version Latest

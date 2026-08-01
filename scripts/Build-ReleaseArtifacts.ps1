@@ -1,7 +1,11 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][ValidatePattern('^\d+\.\d+\.\d+-alpha\.\d+$')][string] $Version,
-    [Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{40}$')][string] $SourceRevision
+    [Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{40}$')][string] $SourceRevision,
+    # The migration bundle is applied from the authorised release terminal,
+    # which ADR-0007 fixes as Windows. Web and Worker packages are linux-x64 on
+    # every platform; only this bundle follows the terminal.
+    [ValidatePattern('^(win|linux|osx)-(x64|arm64)$')][string] $MigrationRuntimeIdentifier = 'win-x64'
 )
 
 Set-StrictMode -Version Latest
@@ -62,7 +66,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Web OCI image publish failed.' }
     & dotnet publish ./src/Pegasus.Worker/Pegasus.Worker.csproj -c Release -r linux-x64 --self-contained false --no-restore -o $workerPublish @buildProperties
     if ($LASTEXITCODE -ne 0) { throw 'Worker publish failed.' }
-    & dotnet ef migrations bundle --self-contained -r win-x64 --project ./src/Pegasus.Infrastructure/Pegasus.Infrastructure.csproj --startup-project ./src/Pegasus.Web/Pegasus.Web.csproj --configuration Release -o (Join-Path $releaseRoot 'efbundle.exe') --force
+    $migrationBundleName = if ($MigrationRuntimeIdentifier.StartsWith('win-')) { 'efbundle.exe' } else { 'efbundle' }
+    & dotnet ef migrations bundle --self-contained -r $MigrationRuntimeIdentifier --project ./src/Pegasus.Infrastructure/Pegasus.Infrastructure.csproj --startup-project ./src/Pegasus.Web/Pegasus.Web.csproj --configuration Release -o (Join-Path $releaseRoot $migrationBundleName) --force
     if ($LASTEXITCODE -ne 0) { throw 'EF migration bundle creation failed.' }
 
     Compress-Archive -Path (Join-Path $webPublish '*') -DestinationPath (Join-Path $releaseRoot 'web.zip') -CompressionLevel Optimal
@@ -84,7 +89,7 @@ try {
     if ($LASTEXITCODE -ne 0 -or $imageConfig.os -ne 'linux' -or $imageConfig.architecture -ne 'amd64') {
         throw "The Web OCI image platform must be linux/amd64; found $($imageConfig.os)/$($imageConfig.architecture)."
     }
-    $artifacts = @('web.zip', 'web-image.tar.gz', 'worker.zip', 'efbundle.exe') | ForEach-Object {
+    $artifacts = @('web.zip', 'web-image.tar.gz', 'worker.zip', $migrationBundleName) | ForEach-Object {
         $path = Join-Path $releaseRoot $_
         $file = Get-Item -LiteralPath $path
         [ordered]@{
@@ -112,6 +117,8 @@ try {
             platform = "$($imageConfig.os)/$($imageConfig.architecture)"
             archive = 'web-image.tar.gz'
         }
+        migrationRuntimeIdentifier = $MigrationRuntimeIdentifier
+        migrationBundleName = $migrationBundleName
         artifacts = $artifacts
     }
     $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $releaseRoot 'release-manifest.json') -Encoding utf8NoBOM

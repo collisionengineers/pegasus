@@ -29,11 +29,15 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+if (-not $IsWindows -and $Runtime -eq "win-x64") {
+    throw "build-mcpb.ps1 produces a win-x64 bundle with a win32_x64 Playwright driver and must run on Windows. To build for this platform, supply a matching -Runtime and install the Playwright shell for it."
+}
+
 $projectDir = $PSScriptRoot
 $project = Join-Path $projectDir "CollisionRenderer.Mcp.csproj"
 $manifestPath = Join-Path $projectDir "manifest.json"
 $manifestJson = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json
-$repoRoot = (Resolve-Path (Join-Path $projectDir "..\..")).Path
+$repoRoot = (Resolve-Path (Join-Path $projectDir "../..")).Path
 $dist = Join-Path $repoRoot "dist"
 $staging = Join-Path $dist "mcpb-staging"
 $mcpbPath = Join-Path $dist "collisionrenderer-mcp-$($manifestJson.version).mcpb"
@@ -44,7 +48,7 @@ dotnet publish $project -c $Configuration -r $Runtime --self-contained true `
     -v quiet
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed (exit $LASTEXITCODE)" }
 
-$publishDir = Join-Path $projectDir "bin\$Configuration\net8.0\$Runtime\publish"
+$publishDir = Join-Path $projectDir "bin/$Configuration/net8.0/$Runtime/publish"
 if (-not (Test-Path (Join-Path $publishDir "collisionrenderer-mcp.exe"))) {
     throw "expected published exe not found under $publishDir"
 }
@@ -61,7 +65,7 @@ Copy-Item -Path (Join-Path $publishDir "*") -Destination (Join-Path $staging "bi
 # limitation. Without it EVERY install fails "Driver not found" at first render, and
 # install_browser cannot run either (the installer needs the same driver). Replace the
 # staged (incomplete) driver with the complete one from the non-single-file output.
-$stagedDriver = Join-Path $staging "bin\.playwright"
+$stagedDriver = Join-Path $staging "bin/.playwright"
 if (Test-Path $stagedDriver) { Remove-Item $stagedDriver -Recurse -Force }
 Copy-Item -Path (Join-Path $installerDir ".playwright") -Destination $stagedDriver -Recurse -Force
 # Debug symbols are not needed at runtime; keep the bundle lean.

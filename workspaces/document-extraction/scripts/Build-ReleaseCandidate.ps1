@@ -9,7 +9,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
-    $OutputRoot = Join-Path $repositoryRoot "artifacts\packages\$Version"
+    $OutputRoot = Join-Path $repositoryRoot "artifacts/packages/$Version"
 }
 $output = [System.IO.Path]::GetFullPath($OutputRoot)
 $artifactsRoot = [System.IO.Path]::GetFullPath((Join-Path $repositoryRoot 'artifacts'))
@@ -23,7 +23,7 @@ if (Test-Path -LiteralPath $output) {
 $solution = Join-Path $repositoryRoot 'CollisionDocNet.slnx'
 $packages = Join-Path $output 'nuget'
 $cli = Join-Path $output 'cli-framework-dependent'
-$schemas = Join-Path $repositoryRoot 'docs\schemas'
+$schemas = Join-Path $repositoryRoot 'docs/schemas'
 $packProjects = @(
     'CollisionDocNet.Core',
     'CollisionDocNet.Storage',
@@ -199,7 +199,8 @@ try {
     Copy-Item -LiteralPath (Join-Path $schemas 'extraction-result.v1.schema.json') -Destination $cli
     Copy-Item -LiteralPath (Join-Path $schemas 'evidence-bundle-manifest.v1.schema.json') -Destination $cli
     Invoke-NativeStep 'CLI Windows framework-dependent smoke' {
-        $versionDocument = & (Join-Path $cli 'collisiondocnet.exe') version | ConvertFrom-Json
+        $cliExecutable = if ($IsWindows) { 'collisiondocnet.exe' } else { 'collisiondocnet' }
+        $versionDocument = & (Join-Path $cli $cliExecutable) version | ConvertFrom-Json
         if ($versionDocument.product -ne 'collisiondocnet' -or
             $versionDocument.schemaVersion -ne 'collisiondocnet-result/1') {
             throw 'The published CLI version contract did not match the packaged product and schema.'

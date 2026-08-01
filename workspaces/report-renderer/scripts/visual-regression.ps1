@@ -7,11 +7,11 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$artifactRoot = Join-Path $repoRoot "artifacts\visual-regression"
+$artifactRoot = Join-Path $repoRoot "artifacts/visual-regression"
 $candidateRoot = Join-Path $artifactRoot "candidates"
 $approvedRoot = Join-Path $artifactRoot "approved"
 $renderRoot = Join-Path $artifactRoot "renders"
-$cliProject = Join-Path $repoRoot "src\CollisionRenderer.Cli"
+$cliProject = Join-Path $repoRoot "src/CollisionRenderer.Cli"
 
 function Require-Command {
     param([string]$Name)
@@ -162,8 +162,8 @@ if ($ReferenceMap) {
     foreach ($item in $map.items) {
         $name = $item.templateId
         $actualPdf = Render-MapItem $item
-        $actualDir = Join-Path $candidateRoot "$name\actual"
-        $expectedDir = Join-Path $candidateRoot "$name\reference"
+        $actualDir = Join-Path $candidateRoot "$name/actual"
+        $expectedDir = Join-Path $candidateRoot "$name/reference"
         Rasterize-Pdf -Pdf $actualPdf -OutputDir $actualDir -Prefix "actual"
         Rasterize-Pdf -Pdf $item.referencePdf -OutputDir $expectedDir -Prefix "reference"
         if (-not (Compare-Folders -Name $name -ActualDir $actualDir -ExpectedDir $expectedDir)) {
