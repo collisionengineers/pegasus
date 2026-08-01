@@ -11,6 +11,8 @@ $webAssemblyRelativePath = 'src/Pegasus.Web/bin/Debug/net10.0/Pegasus.Web.dll'
 $workerAssemblyRelativePath = 'src/Pegasus.Worker/bin/Debug/net10.0/Pegasus.Worker.dll'
 $playwrightPath = Join-Path $repositoryRoot 'tests/Pegasus.IntegrationTests/bin/Debug/net10.0/playwright.ps1'
 
+. (Join-Path $PSScriptRoot 'PegasusPlatform.ps1')
+
 function Get-RequiredApplication {
     param(
         [Parameter(Mandatory)]
@@ -143,26 +145,24 @@ function Get-RuntimeArtifactRecord {
 }
 
 
-if (-not $IsWindows) {
-    throw 'Pegasus local development initialization is supported only on Windows 11.'
-}
+$platform = Get-PegasusPlatform
 
 $git = Get-RequiredApplication `
     -Name 'git' `
-    -Repair 'winget install --exact --id Git.Git --scope user'
+    -Repair (Get-PegasusRepairHint -Id 'git')
 
 $dotnet = Get-RequiredApplication `
     -Name 'dotnet' `
-    -Repair 'winget install --exact --id Microsoft.DotNet.SDK.10 --version 10.0.302 --scope user'
+    -Repair (Get-PegasusRepairHint -Id 'dotnet-sdk')
 $npm = Get-RequiredApplication `
     -Name 'npm' `
-    -Repair 'winget install --exact --id OpenJS.NodeJS --version 24.0.0 --scope user'
-$localDb = Get-RequiredApplication `
-    -Name 'sqllocaldb' `
-    -Repair 'winget install --exact --id Microsoft.SQLServer.2022.Express --override "/ACTION=Install /QUIET /IACCEPTSQLSERVERLICENSETERMS /FEATURES=LocalDB"'
+    -Repair (Get-PegasusRepairHint -Id 'node')
+$databaseCommand = Get-RequiredApplication `
+    -Name (Get-PegasusDatabaseCommandName) `
+    -Repair (Get-PegasusRepairHint -Id 'database-engine')
 Get-RequiredApplication `
     -Name 'func' `
-    -Repair 'winget install --exact --id Microsoft.Azure.FunctionsCoreTools --version 4.12.1 --scope user' |
+    -Repair (Get-PegasusRepairHint -Id 'func') |
     Out-Null
 $sourceRevision = Resolve-RepositorySourceRevision -Git $git
 Assert-CleanRepositoryRevision -Git $git -ExpectedRevision $sourceRevision
@@ -205,25 +205,54 @@ try {
         -Arguments @('install', 'chromium') `
         -Description 'Pinned Playwright Chromium installation'
 
-    & $dotnet dev-certs https --check --trust | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        Invoke-RequiredCommand `
-            -Command $dotnet `
-            -Arguments @('dev-certs', 'https', '--trust') `
-            -Description 'Development HTTPS certificate trust'
+    if ($platform.IsWindows) {
+        & $dotnet dev-certs https --check --trust | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Invoke-RequiredCommand `
+                -Command $dotnet `
+                -Arguments @('dev-certs', 'https', '--trust') `
+                -Description 'Development HTTPS certificate trust'
+        }
+    }
+    else {
+        # Ensure the certificate exists, which is all Kestrel requires. Trusting
+        # it on Linux writes to per-user NSS and OpenSSL stores and can prompt,
+        # and initialization is a non-interactive contract, so trust is left to
+        # the operator and reported by the doctor as an advisory check.
+        & $dotnet dev-certs https --check *> $null
+        if ($LASTEXITCODE -ne 0) {
+            Invoke-RequiredCommand `
+                -Command $dotnet `
+                -Arguments @('dev-certs', 'https') `
+                -Description 'Development HTTPS certificate creation'
+        }
     }
 
-    & $localDb info 'MSSQLLocalDB' *> $null
-    if ($LASTEXITCODE -ne 0) {
+    if ($platform.IsWindows) {
+        & $databaseCommand info 'MSSQLLocalDB' *> $null
+        if ($LASTEXITCODE -ne 0) {
+            Invoke-RequiredCommand `
+                -Command $databaseCommand `
+                -Arguments @('create', 'MSSQLLocalDB') `
+                -Description 'Default LocalDB instance creation'
+        }
         Invoke-RequiredCommand `
-            -Command $localDb `
-            -Arguments @('create', 'MSSQLLocalDB') `
-            -Description 'Default LocalDB instance creation'
+            -Command $databaseCommand `
+            -Arguments @('start', 'MSSQLLocalDB') `
+            -Description 'Default LocalDB instance start'
     }
-    Invoke-RequiredCommand `
-        -Command $localDb `
-        -Arguments @('start', 'MSSQLLocalDB') `
-        -Description 'Default LocalDB instance start'
+    else {
+        # Materialise the pinned image now so that an initialized run's Start
+        # path never contacts a registry.
+        $databaseImage = Get-PegasusDatabaseImageReference
+        & $databaseCommand image inspect $databaseImage *> $null
+        if ($LASTEXITCODE -ne 0) {
+            Invoke-RequiredCommand `
+                -Command $databaseCommand `
+                -Arguments @('pull', $databaseImage) `
+                -Description 'Pinned SQL Server image acquisition'
+        }
+    }
 
     & (Join-Path $PSScriptRoot 'Invoke-Doctor.ps1') -Profile Offline
 
@@ -238,12 +267,15 @@ try {
     $packageLockPath = Join-Path $repositoryRoot 'package-lock.json'
     $packageLockSha256 = Get-Sha256 -Path $packageLockPath
     Write-AtomicJson -Path $initializationPath -Value ([pscustomobject][ordered]@{
-        schemaVersion = 1
+        schemaVersion = 2
         kind = 'Pegasus.LocalDevelopment.Initialization'
         profile = 'Offline'
+        platform = $platform.Kind
         sdkVersion = '10.0.302'
         azuriteVersion = '3.36.0'
         functionsCoreToolsVersion = '4.12.1'
+        databaseEngine = Get-PegasusDatabaseEngineKind
+        databaseImage = $(if ($platform.IsWindows) { $null } else { Get-PegasusDatabaseImageReference })
         packageLockSha256 = $packageLockSha256
         sourceSha = $sourceRevision
         runtimeArtifacts = $runtimeArtifacts
