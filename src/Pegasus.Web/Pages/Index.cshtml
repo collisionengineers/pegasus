@@ -1,5 +1,6 @@
 @page
 @model IndexModel
+@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment Environment
 @{
     ViewData["Title"] = "Operations";
 }
@@ -8,7 +9,7 @@
     <div>
         <p class="eyebrow">Operations</p>
         <h1>Operations</h1>
-        <p class="lede">Live local queues from the authenticated Pegasus workflow.</p>
+        <p class="lede">Live queues from the authenticated Pegasus workflow.</p>
     </div>
     <div class="updated">
         Updated
@@ -16,14 +17,13 @@
     </div>
 </header>
 
-<section class="acceptance-boundary" aria-labelledby="acceptance-boundary-title">
-    <h2 id="acceptance-boundary-title">Local acceptance boundary</h2>
-    <p>
-        This caller exercises local workflow evidence only. Production release remains blocked until approved
-        Box, Graph, EVA, deployment and recovery evidence; Edge, Narrator and manual accessibility review;
-        operator journey approval; and Collision Engineers management approval are accepted.
-    </p>
-</section>
+@if (Environment.IsDevelopment())
+{
+    <section class="acceptance-boundary" aria-labelledby="acceptance-boundary-title">
+        <h2 id="acceptance-boundary-title">Local acceptance boundary</h2>
+        <p>This caller exercises local workflow evidence only and does not prove production behavior.</p>
+    </section>
+}
 
 <section class="section-gap" aria-labelledby="operations-workspaces-title">
     <h2 id="operations-workspaces-title" class="section-label">Operations workspaces</h2>

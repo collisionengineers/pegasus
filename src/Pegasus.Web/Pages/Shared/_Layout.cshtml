@@ -2,8 +2,9 @@
 @inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 @inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment Environment
 @{
-    var localIntakeEnabled = Environment.IsDevelopment()
-        && Configuration.GetValue<bool>("Features:LocalIntake");
+    var intakeEnabled = Environment.IsProduction()
+        || (Environment.IsDevelopment()
+            && Configuration.GetValue<bool>("Features:LocalIntake"));
 }
 <html lang="en">
 <head>
@@ -22,7 +23,7 @@
             </a>
             <nav class="nav-links" aria-label="Primary">
                 <a class="nav-link" asp-page="/Index">Operations</a>
-                @if (localIntakeEnabled)
+                @if (intakeEnabled)
                 {
                     <a class="nav-link" asp-page="/Intake/Index">Intake</a>
                 }
