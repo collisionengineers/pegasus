@@ -145,7 +145,7 @@ az resource list --resource-group $PegasusOldRg --output json
 az resource list --resource-group $PegasusOldChildRg --output json
 az lock list --resource-group $PegasusOldRg --output json
 az lock list --resource-group $PegasusOldChildRg --output json
-az role assignment list --resource-group $PegasusOldRg --all --output json
+az role assignment list --resource-group $PegasusOldRg --include-inherited --output json
 az monitor activity-log list --resource-group $PegasusOldRg --offset 30d --output json
 az keyvault secret list --vault-name cespkboxkvv76a47 --query '[].{name:name,enabled:attributes.enabled,updated:attributes.updated}' --output json
 az keyvault secret list --vault-name cespkenrichkvgi62sd --query '[].{name:name,enabled:attributes.enabled,updated:attributes.updated}' --output json
@@ -161,21 +161,85 @@ winget install --exact --id ORASProject.ORAS --version 1.3.0
 az acr repository list --name cespkocracraeee76 --output json
 az acr manifest list-metadata --registry cespkocracraeee76 --name ce-ocr --output json
 az acr manifest list-metadata --registry cespkocracraeee76 --name valuationbot-mcp --output json
-az acr login --name cespkocracraeee76
-pwsh ./scripts/Invoke-PredecessorArchive.ps1 -ArchiveRoot $PegasusArchive -IncludeOciImages -ExcludeData
+$PegasusRegistry = 'cespkocracraeee76'
+$PegasusRegistryServer = "$PegasusRegistry.azurecr.io"
+$PegasusRegistryToken = az acr login --name $PegasusRegistry --expose-token --query accessToken --output tsv
+try {
+    $PegasusRegistryToken | oras login $PegasusRegistryServer `
+      --username 00000000-0000-0000-0000-000000000000 `
+      --password-stdin
+    pwsh ./scripts/Invoke-PredecessorArchive.ps1 `
+      -ArchiveRoot $PegasusArchive `
+      -IncludeOciImages `
+      -ExcludeData
+} finally {
+    oras logout $PegasusRegistryServer
+    $PegasusRegistryToken = $null
+}
 ```
 
 Hash the archive and stop unless every unique digest is present. Do not download the four evidence blobs or export PostgreSQL, queues, Durable state, or telemetry.
 
+#### Executed preflight evidence — 2026-08-01
+
+- Azure CLI and `azd` authenticated to the exact tenant and enabled subscription
+  as `digital@collisionengineers.co.uk`; the signed-in principal object ID is
+  `06b65d89-b4dd-4e64-927e-0f154b4f9427`.
+- Fresh read-only inventory found 52 resources in `rg-collisionspike-dev` and
+  one Container App in the managed OCR child group. The groups have no locks.
+  Role assignments, deployments, 30-day activity, non-secret vault metadata,
+  secret names, ACR metadata, and 30-day predecessor usage were archived.
+- ORAS 1.3.0 was installed. Docker was unavailable, so ACR authentication used
+  an ephemeral `--expose-token` value piped to `oras login --password-stdin`;
+  the session was logged out in `finally` and the token was not written to the
+  archive or repository.
+- `C:\Users\Alex\Documents\Pegasus-Predecessor-Archive\collisionspike-dev`
+  contains 16 verified OCI layouts: four `ce-ocr` digests and twelve
+  `valuationbot-mcp` digests. `archive-manifest.json` contains 264 entries,
+  verifies 9,731,767,698 bytes, and has SHA-256
+  `F88BC99D2CA742433E6A36860D3EDA65629A95AA70FC9FA2143DBB8768F9B47C`.
+- No secret value, evidence blob, PostgreSQL row, queue message, Durable state,
+  or telemetry payload was retrieved. No Azure resource was written, changed,
+  stopped, or deleted.
+- UK South advertises Linux B1 and FC1 with .NET 10 isolated. The public Azure
+  Retail Prices API returned GBP 0.0136/hour for Linux B1 and GBP 0.4584/day
+  for SQL S0; FC1 and storage remain workload-sensitive. At 730 hours and 30
+  days, the two fixed compute/database meters are approximately GBP 23.68 per
+  month before storage, transactions, telemetry, networking, Key Vault, and
+  external-provider charges.
+- The principal has subscription-scope Owner authority. `Microsoft.Sql` and
+  `Microsoft.Quota` are currently `NotRegistered`; every other provider used by
+  the template is registered. Consequently the subscription-specific S0 and
+  generic quota reads could not complete. Provider registration is a cloud
+  write and was not included in this phase's approval.
+
 ### 5. Production preview and provisioning
 
-Obtain separate approval for the exact preview and, because the current Bicep
-schema cannot represent a fractional Log Analytics cap, the two immediate
+Obtain separate approval for the exact provider registration and preview. The
+approval must name subscription `e6076573-23a5-46a8-acef-7e22d264e5db`,
+`Microsoft.Sql`, `rg-pegasus-prod`, and `azd provision --preview`. Register and
+verify the required provider before asking Azure SQL for S0 availability:
+
+```powershell
+az provider register --namespace Microsoft.Sql --subscription $PegasusSubscription --wait
+az provider show --namespace Microsoft.Sql --query registrationState --output tsv
+az sql db list-editions --location $PegasusLocation --available `
+  --edition Standard --service-objective S0 --show-details max-size --output json
+```
+
+Stop unless registration reads `Registered` and S0 is returned. Do not register
+`Microsoft.Quota` merely to satisfy a generic query; the actual template preview
+and provision response remain the capacity gates for services not exposed by a
+service-specific quota API.
+
+Because the current Bicep schema cannot represent a fractional Log Analytics
+cap, later provisioning approval must also name the two immediate
 post-provision writes that set the exact new Log Analytics workspace and
-Application Insights component to 0.1 GB/day. Approval must name both target
-resource names, both `az monitor ... update` operations, and accept the brief
-interval between resource creation and verified cap application. No package,
-credential, database, or trigger operation may occur during that interval.
+Application Insights component to 0.1 GB/day. That approval must name both
+target resource names, both `az monitor ... update` operations, and accept the
+brief interval between resource creation and verified cap application. No
+package, credential, database, or trigger operation may occur during that
+interval.
 Configure `azd`:
 
 ```powershell
