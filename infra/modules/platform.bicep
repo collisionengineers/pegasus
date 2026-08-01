@@ -318,10 +318,10 @@ resource workerTransportQueueContributor 'Microsoft.Authorization/roleAssignment
   properties: { roleDefinitionId: queueDataContributorRole, principalId: workerIdentity.properties.principalId, principalType: 'ServicePrincipal' }
 }
 
-resource workerTransientCustodyContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(transientIntakeContainer.id, workerIdentity.id, blobDataContributorRole)
+resource workerTransientCustodyOwner 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(transientIntakeContainer.id, workerIdentity.id, blobDataOwnerRole)
   scope: transientIntakeContainer
-  properties: { roleDefinitionId: blobDataContributorRole, principalId: workerIdentity.properties.principalId, principalType: 'ServicePrincipal' }
+  properties: { roleDefinitionId: blobDataOwnerRole, principalId: workerIdentity.properties.principalId, principalType: 'ServicePrincipal' }
 }
 
 resource workerBoxLinkContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -330,10 +330,10 @@ resource workerBoxLinkContributor 'Microsoft.Authorization/roleAssignments@2022-
   properties: { roleDefinitionId: blobDataContributorRole, principalId: workerIdentity.properties.principalId, principalType: 'ServicePrincipal' }
 }
 
-resource webTransientCustodyContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(transientIntakeContainer.id, webIdentity.id, blobDataContributorRole)
+resource webTransientCustodyOwner 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(transientIntakeContainer.id, webIdentity.id, blobDataOwnerRole)
   scope: transientIntakeContainer
-  properties: { roleDefinitionId: blobDataContributorRole, principalId: webIdentity.properties.principalId, principalType: 'ServicePrincipal' }
+  properties: { roleDefinitionId: blobDataOwnerRole, principalId: webIdentity.properties.principalId, principalType: 'ServicePrincipal' }
 }
 
 resource webAuthenticationRingContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {

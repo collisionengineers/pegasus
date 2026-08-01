@@ -343,6 +343,33 @@ public sealed class DependencyDirectionTests
             workerApp.Value);
     }
 
+    [Fact]
+    public void TransientIntakeTagLifecycleUsesContainerScopedBlobDataOwner()
+    {
+        var platformBicep = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "infra",
+            "modules",
+            "platform.bicep"));
+
+        foreach (var resourceName in new[]
+                 {
+                     "workerTransientCustodyOwner",
+                     "webTransientCustodyOwner"
+                 })
+        {
+            var assignment = Regex.Match(
+                platformBicep,
+                $@"resource\s+{resourceName}\b[\s\S]*?\n\}}",
+                RegexOptions.CultureInvariant);
+
+            Assert.True(assignment.Success, $"{resourceName} was not found.");
+            Assert.Contains("scope: transientIntakeContainer", assignment.Value);
+            Assert.Contains("roleDefinitionId: blobDataOwnerRole", assignment.Value);
+            Assert.DoesNotContain("blobDataContributorRole", assignment.Value);
+        }
+    }
+
     private static bool IsForbiddenCoreDependency(string assemblyName) =>
         ForbiddenCoreDependencyPrefixes.Any(prefix =>
             assemblyName.Equals(prefix, StringComparison.Ordinal) ||
