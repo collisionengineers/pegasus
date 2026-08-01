@@ -234,7 +234,7 @@ if ($Mode -eq 'PreMigration') {
     if ([string]::IsNullOrWhiteSpace($Environment)) {
         throw '-Environment is required in PreMigration mode.'
     }
-    $values = & azd env get-values -e $Environment --no-prompt
+    $values = (& azd env get-values -e $Environment --no-prompt) -join "`n"
     if ($LASTEXITCODE -ne 0) { throw "Unable to read azd environment $Environment." }
     $required = @(
         'AZURE_SUBSCRIPTION_ID', 'AZURE_TENANT_ID', 'AZURE_RESOURCE_GROUP', 'AZURE_SQL_SERVER_FQDN',
