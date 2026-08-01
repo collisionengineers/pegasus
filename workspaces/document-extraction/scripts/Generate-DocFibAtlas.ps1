@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
-    [string] $SpecificationPath = (Join-Path $PSScriptRoot '..\artifacts\research\doc\2026-07-24\specifications\MS-DOC-12.5-260217.docx'),
-    [string] $OutputPath = (Join-Path $PSScriptRoot '..\docs\architecture\doc-fib-atlas.v1.json')
+    [string] $SpecificationPath = (Join-Path $PSScriptRoot '../artifacts/research/doc/2026-07-24/specifications/MS-DOC-12.5-260217.docx'),
+    [string] $OutputPath = (Join-Path $PSScriptRoot '../docs/architecture/doc-fib-atlas.v1.json')
 )
 
 Set-StrictMode -Version Latest

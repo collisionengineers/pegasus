@@ -44,23 +44,23 @@ try {
     Write-Output '[JSON documents]'
     $jsonPaths = @(
         (Join-Path $repositoryRoot 'global.json'),
-        (Join-Path $repositoryRoot 'docs\licensing\provenance-manifest.schema.json'),
-        (Join-Path $repositoryRoot 'docs\licensing\doc-source-provenance.json'),
-        (Join-Path $repositoryRoot 'docs\architecture\doc-format-classification.v1.json'),
-        (Join-Path $repositoryRoot 'docs\architecture\doc-text-story-contract.v1.json'),
-        (Join-Path $repositoryRoot 'docs\architecture\doc-sprm-catalogue.v1.json'),
-        (Join-Path $repositoryRoot 'docs\schemas\extraction-result.v1.schema.json'),
-        (Join-Path $repositoryRoot 'docs\schemas\evidence-bundle-manifest.v1.schema.json'),
-        (Join-Path $repositoryRoot 'tests\fixtures\manifests\fixture-manifest.schema.json')
+        (Join-Path $repositoryRoot 'docs/licensing/provenance-manifest.schema.json'),
+        (Join-Path $repositoryRoot 'docs/licensing/doc-source-provenance.json'),
+        (Join-Path $repositoryRoot 'docs/architecture/doc-format-classification.v1.json'),
+        (Join-Path $repositoryRoot 'docs/architecture/doc-text-story-contract.v1.json'),
+        (Join-Path $repositoryRoot 'docs/architecture/doc-sprm-catalogue.v1.json'),
+        (Join-Path $repositoryRoot 'docs/schemas/extraction-result.v1.schema.json'),
+        (Join-Path $repositoryRoot 'docs/schemas/evidence-bundle-manifest.v1.schema.json'),
+        (Join-Path $repositoryRoot 'tests/fixtures/manifests/fixture-manifest.schema.json')
     )
     foreach ($jsonPath in $jsonPaths) {
         Get-Content -Raw -LiteralPath $jsonPath | ConvertFrom-Json | Out-Null
     }
 
-    & (Join-Path $repositoryRoot 'scripts\Test-DocFibAtlas.ps1')
-    & (Join-Path $repositoryRoot 'scripts\Test-DocFormatClassification.ps1')
-    & (Join-Path $repositoryRoot 'scripts\Test-DocTextStoryContract.ps1')
-    & (Join-Path $repositoryRoot 'scripts\Test-DocSprmCatalogue.ps1')
+    & (Join-Path $repositoryRoot 'scripts/Test-DocFibAtlas.ps1')
+    & (Join-Path $repositoryRoot 'scripts/Test-DocFormatClassification.ps1')
+    & (Join-Path $repositoryRoot 'scripts/Test-DocTextStoryContract.ps1')
+    & (Join-Path $repositoryRoot 'scripts/Test-DocSprmCatalogue.ps1')
 
     Write-Output '[local Markdown links]'
     $markdownFiles = @(

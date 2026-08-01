@@ -64,7 +64,15 @@ function Test-ArtifactManifest {
     }
 
     $manifestDirectory = Split-Path -Parent $resolvedManifest
-    $requiredNames = @('web.zip', 'web-image.tar.gz', 'worker.zip', 'efbundle.exe')
+    # The migration bundle name follows the release terminal's runtime
+    # identifier, so read it from the manifest rather than assuming a platform.
+    # Manifests written before that field existed always carried the win-x64 bundle.
+    $migrationBundleName = 'efbundle.exe'
+    if ($manifest.PSObject.Properties.Name -contains 'migrationBundleName' -and
+        -not [string]::IsNullOrWhiteSpace($manifest.migrationBundleName)) {
+        $migrationBundleName = [string]$manifest.migrationBundleName
+    }
+    $requiredNames = @('web.zip', 'web-image.tar.gz', 'worker.zip', $migrationBundleName)
     foreach ($name in $requiredNames) {
         $entry = @($manifest.artifacts | Where-Object name -eq $name)
         if ($entry.Count -ne 1) {

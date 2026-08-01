@@ -42,7 +42,7 @@ function Convert-GuidToSqlSid([string] $Value) {
 }
 
 function Get-MigrationPermissionMatrix {
-    $migrationPath = Join-Path $PSScriptRoot '..\src\Pegasus.Infrastructure\Persistence\Migrations\20260729199000_RuntimeRoleReconciliation.cs'
+    $migrationPath = Join-Path $PSScriptRoot '../src/Pegasus.Infrastructure/Persistence/Migrations/20260729199000_RuntimeRoleReconciliation.cs'
     $source = Get-Content -Raw -LiteralPath $migrationPath
     function Read-Block([string] $Name) {
         $match = [regex]::Match(

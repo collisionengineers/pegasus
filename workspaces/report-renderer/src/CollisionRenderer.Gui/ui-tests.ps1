@@ -2,8 +2,8 @@ param([Parameter(Mandatory)][int]$AppPid)
 
 $ErrorActionPreference = 'Continue'
 $pass = 0; $fail = 0; $results = @()
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$artifactRoot = Join-Path $repoRoot 'artifacts\gui-ui-tests'
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
+$artifactRoot = Join-Path $repoRoot 'artifacts/gui-ui-tests'
 
 function Test-UI {
     param([string]$Name, [scriptblock]$Script)

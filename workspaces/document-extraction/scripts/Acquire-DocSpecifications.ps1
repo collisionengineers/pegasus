@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string] $OutputDirectory = (Join-Path $PSScriptRoot '..\artifacts\research\doc\2026-07-24\specifications'),
+    [string] $OutputDirectory = (Join-Path $PSScriptRoot '../artifacts/research/doc/2026-07-24/specifications'),
     [switch] $VerifyOnly
 )
 

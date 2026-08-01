@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string] $ContractPath = (Join-Path $PSScriptRoot '..\docs\architecture\doc-text-story-contract.v1.json')
+    [string] $ContractPath = (Join-Path $PSScriptRoot '../docs/architecture/doc-text-story-contract.v1.json')
 )
 
 Set-StrictMode -Version Latest

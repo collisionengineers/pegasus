@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string] $AtlasPath = (Join-Path $PSScriptRoot '..\docs\architecture\doc-fib-atlas.v1.json'),
+    [string] $AtlasPath = (Join-Path $PSScriptRoot '../docs/architecture/doc-fib-atlas.v1.json'),
     [string] $SpecificationPath
 )
 

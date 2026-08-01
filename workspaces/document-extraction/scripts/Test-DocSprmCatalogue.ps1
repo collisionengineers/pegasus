@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string] $CataloguePath = (Join-Path $PSScriptRoot '..\docs\architecture\doc-sprm-catalogue.v1.json')
+    [string] $CataloguePath = (Join-Path $PSScriptRoot '../docs/architecture/doc-sprm-catalogue.v1.json')
 )
 
 Set-StrictMode -Version Latest
