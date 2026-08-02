@@ -2,7 +2,47 @@
 
 This plan replaces the old pre-release application deliberately. Pegasus `0.1.0-alpha.1` starts with fresh application data: predecessor cases, users, action-history records, and queue state are not migrated or preserved as `0.1.0-alpha.1` release requirements. The exact implementation and execution sequence is the repository-root [production replacement runbook](../../azure-production-replacement-plan.md). This document authorizes no deletion or cloud mutation.
 
-## Decision classes
+## Executed disposition — 2026-08-02
+
+The production replacement and predecessor retirement were executed under the
+operator's separate exact-target and destructive-operation authority.
+
+- Pegasus production is deployed in `rg-pegasus-prod`. The active Web revision
+  is sourced from `94997dd036a48cde23fce0f960b159a2b4a921c0` and uses image
+  digest
+  `sha256:da11059f89e42d74d93ea7ed732d6b7ed8faca7ceb106ecb68875e5d5d8eda75`.
+  Both health endpoints returned HTTP 200 after retirement; the production
+  Worker is running, all nine functions are enabled, and the final telemetry
+  readback found 83 recent successful Worker executions with zero failures and
+  zero exceptions since activation.
+- The final archive root is
+  `C:\Users\Alex\Documents\Pegasus-Predecessor-Archive\collisionspike-dev-retirement-20260802T000640Z`.
+  The archive-manifest SHA-256 is
+  `D0A2D03A09D54142F3337B0A186131133DB9D8B19180048AB71544D88522808A`;
+  every one of the 16 unique predecessor OCI digests was verified before ACR
+  deletion.
+- Retirement executed from the exact manifest with SHA-256
+  `3CC3F1224239E9F30B687302EE813AB081950DC4B020AF84368BDD8AC2D40CBF`.
+  Its eight resource batches completed in order. All 30 predecessor-only role
+  assignment IDs are absent; all seven retained IDs are present.
+- `rg-collisionspike-dev` was not group-deleted. It now contains exactly the
+  adopted vaults `cespkboxkvv76a47` and `cespkenrichkvgi62sd`. The managed OCR
+  child group is absent. `cespk-pg-kv-dev`, `cespkevakvufa3ci`, and
+  `cespklockva7tzj2` are soft-deleted without purge, with scheduled purge date
+  2026-08-09.
+- All six approved Box/DVLA/DVSA Key Vault references report `Resolved` through
+  metadata-only App Service status. No secret value was read. Graph Inbox and
+  Sent Items processing is live-verified; configuration resolution remains
+  distinct from unperformed end-to-end Box, DVLA, or DVSA outcome probes.
+- The predecessor test application data, queues, Durable state, evidence blobs,
+  and telemetry were intentionally not migrated. Recovery remains the next
+  release gate, not a condition retroactively inferred from deployment.
+
+The remaining sections preserve the pre-execution decision and procedure record.
+Where they describe a candidate or blocker, the executed disposition above is
+the current live-state evidence.
+
+## Pre-execution decision classes
 
 | Class | Assets |
 |---|---|
@@ -12,7 +52,7 @@ This plan replaces the old pre-release application deliberately. Pegasus `0.1.0-
 | Retain | Visual Studio accounts and default workspace until a separate shared-ownership review says otherwise |
 | Likely defer/retire | location/Maps/Vision and cloud evaluation functions when their `0.1.0-alpha.1` scope is explicitly excluded and evidence is preserved |
 
-## Non-negotiable blockers
+## Pre-execution non-negotiable blockers
 
 Do not delete either predecessor resource group until all are true:
 
