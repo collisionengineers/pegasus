@@ -10,11 +10,12 @@
 
 - Fix committed-migration test expectation: `CommittedMigrationCreatesTheSqlServerSchema` expects a migration list ending at `20260729199000_RuntimeRoleReconciliation`, but the committed stream now includes `20260730203141_ThirdPartyVehicleEvidenceAndRemoveBootstrap` and `20260730203833_RemoveDormantOpenIddict`.
 - Roadmap sequencing session: answer the three questions under "First production journey and release sequencing" in [docs/open-decisions.md](docs/open-decisions.md), then fill in Path below.
-- Repo simplification remainder: add the link-check CI step, then the post-deploy sweep (fold the Azure runbook into operations.md, delete predecessor scripts).
+- Post-deploy sweep: fold the Azure runbook into operations.md, delete the three predecessor-retirement scripts and docs/azure teardown docs.
 
 ## Waiting (max 3 — each line names its unblock condition)
 
-- Merge of `cross-platform-development` and `repo-simplification` branches to `main` — unblocks the link-check CI step.
+- Production deploy completion — unblocks the post-deploy sweep.
+- Merge of `repo-simplification` and `feat/azure-production-replacement` to `main` — needs review and `MERGE AUTH GRANTED`.
 
 ## Path (the current walking skeleton, ordered, ≤10 lines)
 
