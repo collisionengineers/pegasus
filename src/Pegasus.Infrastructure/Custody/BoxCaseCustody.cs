@@ -30,9 +30,9 @@ public sealed record BoxCustodyOptions(
     {
         var api = RequireBoxUri(baseUri, "api.box.com", "Box:BaseUri");
         var upload = RequireBoxUri(uploadUri, "upload.box.com", "Box:UploadUri");
-        if (!string.Equals(rootFolderId, "392761581105", StringComparison.Ordinal))
+        if (!string.Equals(rootFolderId, "405543781910", StringComparison.Ordinal))
         {
-            throw new InvalidOperationException("Box:RootFolderId must be the approved root 392761581105.");
+            throw new InvalidOperationException("Box:RootFolderId must be the approved pegasus root 405543781910.");
         }
         if (string.IsNullOrWhiteSpace(configJson))
         {

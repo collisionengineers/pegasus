@@ -10,13 +10,14 @@
 
 - Fix `ProjectReferencesFollowTheModularMonolithDirection` backslash parsing so architecture tests also pass on Linux.
 - Remove the superseded Box File Request UI (create/revoke on the Case documents surface) in favour of request-scoped upload links (INT-31).
+- Apply the decided Box custody root `405543781910` to production (source guard, Bicep, and tests carry it; the deployed app setting changes only through the next approved deployment).
 
 ## Waiting (max 3 — each line names its unblock condition)
 
 - Isolated RPO/RTO recovery exercise — blocks any second production release ([operations](docs/operations.md#production-recovery)).
 - Obsolete predecessor vault purge — platform-scheduled 2026-08-09, no action unless it fails.
 
-## Path (decided 2026-08-02: full QDOS cutover — every new QDOS instruction is worked in Pegasus through to the EVA handoff; EVA keeps engineering and reports. Box custody root decided 2026-08-02: all case folders under folder `392761581105` only.)
+## Path (decided 2026-08-02: full QDOS cutover — every new QDOS instruction is worked in Pegasus through to the EVA handoff; EVA keeps engineering and reports. Box custody root decided 2026-08-02: all case folders under the pegasus folder `405543781910` only.)
 
 1. Green `main` (the remaining failing tests above).
 2. Prove the spine on one genuine QDOS email in production: mailbox intake → custody → extraction draft → principal → Case/PO minted → Box folder (INT-02/08/09/19/22/25, CASE-07, DOC-01/02).

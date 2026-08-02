@@ -19,9 +19,10 @@ critical path, the non-blocking capability set, and the acceptance boundary
 (OPS-23/OPS-25 close `0.1.0-alpha.1`; the RPO/RTO exercise gates the second
 release). The remaining evidence gate on that path is item 4 (extraction
 thresholds) below. The Box production custody boundary was decided 2026-08-02:
-folder `392761581105` is the production custody root and all case folders are
-created only under it (owner:
-[operations](operations.md#approved-box-integration-test-target)).
+folder `405543781910` ("pegasus") is the production custody root and all case
+folders are created only under it (owner:
+[operations](operations.md#approved-box-integration-test-target); the deployed
+configuration applies the decided root at the next approved deployment).
 
 ## QDOS alpha activation details (migrated from the retired delivery plan)
 

@@ -233,13 +233,17 @@ Install-Module ExchangeOnlineManagement -Scope CurrentUser -RequiredVersion 3.10
 ### Approved Box custody root
 
 The Box production custody boundary is decided (2026-08-02): Box folder
-`392761581105` is the production custody root, and all case folders are created
-only under this root. The same folder is the only eligible controlled
-integration-test boundary — testing remains confined to an approved disposable
-test subtree beneath it — and it grants no standing write authority. Before any
-non-production invocation, obtain explicit approval naming the exact target
-folder/object and create or controlled-update operation. The activated
-production caller remains confined to case-scoped objects under that root. No caller may delete, move, copy, or share Box content,
+`405543781910` ("pegasus") is the production custody root, and all case folders
+are created only under this root. The source guard, Bicep app setting, and
+tests carry that root; the currently deployed production configuration still
+points at the former folder `392761581105` until the next approved deployment
+applies the decided root. Folder `392761581105` remains the only eligible
+controlled integration-test boundary — testing remains confined to an approved
+disposable test subtree — and neither folder grants standing write authority.
+Before any non-production invocation, obtain explicit approval naming the
+exact target folder/object and create or controlled-update operation. The
+activated production caller remains confined to case-scoped objects under the
+configured root. No caller may delete, move, copy, or share Box content,
 operate outside that folder, or expose credentials in source, configuration,
 command lines, prompts, output, telemetry, or business history. Every invocation
 must verify ancestry and the target/action allowlist and retain stable source and
@@ -655,7 +659,7 @@ that actor.
 | Use an Azure service | Subscription, resource group, resource, operation | Explicit mutation/cost approval, fresh inventory, least-privilege identity |
 | Read or change an Outlook mailbox | Tenant, application, mailbox, folder, action | Exchange Application RBAC approval and negative scope test before the Graph call |
 | Use Box or another vendor sandbox | Enterprise/account, folder/project, operation | Credential/data approval and controlled non-corpus input |
-| Test against the approved Box custody root | Folder `392761581105` (the production custody root); local or explicitly approved non-production deployment; create and update controlled non-corpus artifacts only | Approved disposable test subtree beneath the root; no delete, move, copy, share, broader folder access, or credential exposure; production case custody belongs only to the activated production caller |
+| Use the approved Box integration-test target | Folder `392761581105`; local or explicitly approved non-production deployment; create and update controlled non-corpus artifacts only | Approved disposable test subtree; no delete, move, copy, share, broader folder access, or credential exposure; production case custody belongs only to the activated production caller under the decided root `405543781910` |
 | Send a document to OCR, vision, AI, or another processor | Service, region, model, input class | Data, licence, cost, and security approval; corpus remains prohibited unless separately authorised |
 | Deploy, restore, fail over, or retire | Exact environment (isolated local development or production only, per ADR-0014) and recoverable target | Explicit operation approval for the exact target, fresh inventory, rollback path, retained source data |
 
@@ -823,8 +827,10 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   Worker (83 successful executions, zero exceptions in the final readback).
 - **Integrations:** Graph via the Worker managed identity scoped by Exchange
   Application RBAC to `instructions@collisionengineers.co.uk`; Box production
-  custody rooted at folder `392761581105`; official DVLA VES v1.2 and DVSA MOT
-  History v1; EVA remains the accepted manual JSON/image handoff.
+  custody deployed with root folder `392761581105` — the decided root is
+  `405543781910` ("pegasus") and applies at the next approved deployment;
+  official DVLA VES v1.2 and DVSA MOT History v1; EVA remains the accepted
+  manual JSON/image handoff.
 - **Secrets:** the adopted predecessor vaults `cespkboxkvv76a47` and
   `cespkenrichkvgi62sd` remain (intentionally retained inside
   `rg-collisionspike-dev`); secret-level access only for the identities and
