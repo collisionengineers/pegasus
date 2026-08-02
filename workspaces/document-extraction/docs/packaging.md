@@ -276,7 +276,7 @@ A support or security report should include:
 
 Reports and logs must not contain extracted content or sensitive filenames. Retain the original input privately. Do not attach it to an issue or upload it without explicit data-handling authorisation.
 
-Operational handling remains subject to the [operations guidance](../../../docs/operations.md) and [operator notes](../../../docs/operator-notes.md). Architecture and implementation changes must follow the [architecture](architecture.md), the [installed skills](../../../.agents/skills/ask-matt/SKILL.md), and applicable [decision records](../../../docs/adr/README.md).
+Operational handling remains subject to the [operations guidance](../../../docs/operations.md) and [operator notes](../../../docs/operator-notes.md). Architecture and implementation changes must follow the [architecture](architecture.md), [engineering](../../../docs/engineering.md), and applicable [decision records](../../../docs/adr/README.md).
 
 ## Open release gates and non-claims
 
@@ -296,4 +296,4 @@ Before any distribution or acceptance claim, the applicable unresolved gates mus
 - startup, temporary-extraction, signing, security and performance review for single-file packages; and
 - independent caller-owned acceptance.
 
-A successful build, test run or pack cannot by itself close these gates. Unresolved product and policy choices remain owned by [open decisions](../../../docs/open-decisions.md); accepted changes must be recorded through the [change process](../../../docs/changes/README.md).
+A successful build, test run or pack cannot by itself close these gates. Unresolved product and policy choices remain owned by [open decisions](../../../docs/open-decisions.md); accepted changes are recorded in git history.

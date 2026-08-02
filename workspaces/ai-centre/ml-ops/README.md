@@ -16,8 +16,9 @@ business workflow, or autonomous decision-maker.
 1. This README defines the current ML-operations contract.
 2. Versioned manifests instantiate the contract for a specific dataset, experiment, evaluation, or
    artifact.
-3. Files under `datasets/`, `pipelines/`, `training/`, `evaluation/`, and `registry/` may add
-   implementation detail but must not weaken or redefine this contract.
+3. Files under `datasets/`, `pipelines/`, `training/`, `evaluation/`, and `registry/` (none of
+   which exist yet — see the layout table) may add implementation detail once created but must not
+   weaken or redefine this contract.
 4. Historical strategy and research material may support a current hypothesis only when its dated
    evidence identity, checksum status, limitation, and current experiment link are recorded below.
    It is not runtime, product, architecture, custody, or approval authority.
@@ -27,11 +28,12 @@ business workflow, or autonomous decision-maker.
 | Location | Purpose | Repository treatment |
 |---|---|---|
 | Repository-root `corpus/ai-centre/` | Approved private source inputs | Ignored, immutable or versioned, access-controlled, and never committed |
-| `datasets/` | Dataset recipes, schemas, taxonomies, synthetic fixtures, manifests, and cards | Tracked |
-| `pipelines/` | Deterministic inventory, extraction, OCR, hashing, deduplication, lineage, minimisation, annotation, splitting, and deletion code | Tracked |
-| `training/` | Configuration-driven training entry points and environment definitions | Tracked |
-| `evaluation/` | Baselines, sealed-suite definitions, challenge slices, calibration, abstention, human-review protocols, and regression gates | Tracked |
-| `registry/` | Model cards, reviewed promotion manifests, licences, inference contracts, artifact hashes, expiry, and rollback instructions | Tracked |
+| `reports/` | Dated, qualified evidence records (currently the 01-data-readiness sample-corpus inventory) | Tracked; the only ml-ops content besides this README today |
+| `datasets/` | Dataset recipes, schemas, taxonomies, synthetic fixtures, manifests, and cards | Intended; tracked when created |
+| `pipelines/` | Deterministic inventory, extraction, OCR, hashing, deduplication, lineage, minimisation, annotation, splitting, and deletion code | Intended; tracked when created |
+| `training/` | Configuration-driven training entry points and environment definitions | Intended; tracked when created |
+| `evaluation/` | Baselines, sealed-suite definitions, challenge slices, calibration, abstention, human-review protocols, and regression gates | Intended; tracked when created |
+| `registry/` | Model cards, reviewed promotion manifests, licences, inference contracts, artifact hashes, expiry, and rollback instructions | Intended; tracked when created |
 | Repository-root `artifacts/` | Generated datasets, run outputs, reports, logs, metrics, and other payloads | Generated; not source authority |
 | Approved external artifact store | Binary checkpoints, adapters, exports, processors, and large immutable outputs | Referenced by immutable hash; not committed |
 

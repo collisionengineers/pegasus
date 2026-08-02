@@ -2,7 +2,7 @@
 
 ## Authority and evidence boundaries
 
-This document is the sole workspace architecture owner for CollisionDocNetExtractor. Product obligations are owned by [requirements](../../../docs/requirements.md), capability boundaries by [capabilities](../../../docs/capabilities.md), unresolved choices by [open decisions](../../../docs/open-decisions.md), accepted architectural decisions by the [decision index](../../../docs/adr/README.md), and operational procedures by [operations](../../../docs/operations.md); repository-development practice is governed by the [installed skills](../../../.agents/skills/ask-matt/SKILL.md). See the [documentation index](../../../docs/index.md) for canonical navigation and the [workspace index](../../README.md) for repository boundaries.
+This document is the sole workspace architecture owner for CollisionDocNetExtractor. Product obligations are owned by [requirements](../../../docs/requirements.md), capability boundaries by [capabilities](../../../docs/capabilities.md), unresolved choices by [open decisions](../../../docs/open-decisions.md), accepted architectural decisions by the [decision index](../../../docs/adr/README.md), and operational procedures by [operations](../../../docs/operations.md); repository-development practice is governed by [engineering](../../../docs/engineering.md). See the [documentation index](../../../docs/index.md) for canonical navigation and the [workspace index](../../README.md) for repository boundaries.
 
 Architecture statements use these evidence states distinctly:
 
@@ -68,7 +68,7 @@ The installed and pinned development SDK is .NET `10.0.302`; .NET `10.0.300` is 
 
 A possible Pegasus application integration is a `Pegasus.Infrastructure` adapter calling the public extraction library directly. No such adapter or caller is currently proved; activation requires a separately accepted integration contract.
 
-Current source evidence shows only a development-local Pegasus intake path: `Pegasus.Web` Razor Page `POST /Intake/Upload` calls `Pegasus.Core.Intake.ProcessIntake.ExecuteAsync`. It is enabled only when both the `DevelopmentOffline` runtime profile and `Features:LocalIntake` are active; otherwise `/Intake` returns `404`. This is not production, deployment, or extractor-caller evidence.
+The current Pegasus manual intake path is the authenticated `/Intake` `ReceiveIntake` POST handler calling `Pegasus.Core.Intake.ProcessIntake.ExecuteAsync` (the former Development-only `/Intake/Upload` page is retired); local intake is enabled only when both the `DevelopmentOffline` runtime profile and `Features:LocalIntake` are active, otherwise `/Intake` returns `404`. This is not extractor-caller evidence.
 
 `Pegasus.Infrastructure` owns current intake registrations, while `Pegasus.Core` owns business policy and ports. The document-extraction workspace:
 
@@ -118,7 +118,7 @@ Projects are created only when an active `EXT-*` implementation unit owns source
 
 ### Current implementation boundary
 
-Current source proves only focused `CollisionDocNet.Storage` work for strict fixed-header parsing of CFB v3. FAT/DIFAT, MiniFAT, mini-stream, directory, and full stream traversal remain pending; therefore neither `.doc` nor `.msg` is supported end to end. Other target projects must not be inferred to exist or work merely because this architecture specifies them.
+Current source proves focused `CollisionDocNet.Storage` work for CFB parsing; the exact per-row support state (including the locally verified CFB v3/v4 DIFAT/FAT, miniFAT, directory, and stream traversal) is owned exclusively by `docs/compatibility/feature-matrix.md`. Neither `.doc` nor `.msg` is supported end to end. Other target projects must not be inferred to exist or work merely because this architecture specifies them.
 
 Current row-level support and test evidence remain exclusively in `docs/compatibility/feature-matrix.md`.
 
@@ -859,4 +859,4 @@ Generated row tests may consume the committed catalogue, but expected framing an
 
 The target library and CLI are headless and cross-platform. No component may reference WindowsDesktop, ASP.NET hosting, Office or Outlook automation, an external office-suite runtime, a UI toolkit, browser engine, or mailbox client.
 
-Specification mapping, implementation, caller proof, deployment, packaging, and accepted support remain separate gates. Release and operational evidence are governed by [operations](../../../docs/operations.md), repository-development practice by the [installed skills](../../../.agents/skills/ask-matt/SKILL.md), and operator-facing cautions by [operator notes](../../../docs/operator-notes.md).
+Specification mapping, implementation, caller proof, deployment, packaging, and accepted support remain separate gates. Release and operational evidence are governed by [operations](../../../docs/operations.md), repository-development practice by [engineering](../../../docs/engineering.md), and operator-facing cautions by [operator notes](../../../docs/operator-notes.md).

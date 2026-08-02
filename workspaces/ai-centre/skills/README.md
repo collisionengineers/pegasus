@@ -36,3 +36,9 @@ Each imported package remains self-contained. Package-local references, wrapper 
 | [`vehicle-history-check`](vehicle-history-check/SKILL.md) | Source-only evidence, drafting, lookup, style, or deterministic rendering experiment | Never Pegasus product policy, case mutation, approval, legal/engineering authority, caller, or deployment |
 
 `Pegasus.Core` and authorised humans retain accepted facts, economics, findings, outcomes, legal use, report issue, and approval.
+
+Known import gap: `vehicle-history-check` names `vehicle-valuation` as an
+intended subject-fact consumer, but no `vehicle-valuation` package exists in
+this imported set. The protected SKILL.md text is retained unmodified as
+source provenance; the reference is unresolvable here until such a package is
+separately imported.

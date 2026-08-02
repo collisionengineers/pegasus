@@ -11,11 +11,11 @@ Canonical ownership is split as follows:
 - [Open decisions](../../../docs/open-decisions.md) own unresolved choices.
 - [Architecture](architecture.md) owns technical contracts and design rationale.
 - [Operations](../../../docs/operations.md) owns executable operational procedures.
-- [Installed skills](../../../.agents/skills/ask-matt/SKILL.md) own repository-development and test practice.
+- [Engineering](../../../docs/engineering.md) owns repository-development and test practice.
 - [Operator notes](../../../docs/operator-notes.md) own approved local-data handling.
 - [Decision index](../../../docs/adr/README.md) owns ADRs and supersession.
-- [Change index](../../../docs/changes/README.md) owns accepted change records.
-- [Design index](../../../design/README.md), [reference index](../../../docs/reference/README.md), [Azure index](../../../docs/azure/README.md), [workspace index](../../README.md) and [documentation index](../../../docs/index.md) provide canonical navigation.
+- Git history owns accepted change records.
+- [Design index](../../../design/README.md), [reference index](../../../docs/reference/README.md), [workspace index](../../README.md) and [documentation index](../../../docs/index.md) provide canonical navigation.
 
 This document does not maintain a competing status ledger. Historical source-tree, test or research records below are evidence qualifications only. Intended, mapped, specified, source-present, locally verified, conformant, differentially verified, caller-proved, deployed and accepted are distinct states.
 

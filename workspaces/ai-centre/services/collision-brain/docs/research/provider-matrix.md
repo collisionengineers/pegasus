@@ -114,7 +114,7 @@ service, network path, reconciliation, deletion and recovery work.
 Before selecting a reference deployment:
 
 1. Complete the corpus, traffic, region, retention, RPO/RTO and budget inputs in
-   [requirements](../requirements.md).
+   [provider evaluation](../provider-evaluation.md).
 2. Use only synthetic or separately approved non-sensitive content.
 3. Benchmark at least two direct OCI hosts, two managed PostgreSQL options and representative
    low-cost and higher-quality hosted embeddings.
