@@ -1,14 +1,15 @@
 # Azure deployment plan
 
-Status: **Production-route implementation is active under issue #311. ADR-0015
-replaces the blocked App Service design with Azure Container Apps Consumption,
-scale-to-zero, and a separate production Basic ACR. The earlier B1/P0v4 quota
-attempts are dated evidence only and are not an active deployment gate.
-Provisioning, deployment, and retirement have not run and
-retain the exact-target gates in the
-[production replacement runbook](../azure-production-replacement-plan.md).**
+Status: **Pegasus `0.1.0-alpha.1` is deployed to the sole Azure production
+environment in `rg-pegasus-prod` using Azure Container Apps Consumption, Flex
+Consumption, and a separate production Basic ACR. The predecessor test estate
+has been retired through the exact manifest; only its two adopted Key Vaults
+remain in `rg-collisionspike-dev`. The isolated recovery exercise remains a
+mandatory gate before a second production release. See the
+[production replacement runbook](../azure-production-replacement-plan.md) for
+the exact executed evidence and hashes.**
 
-Last reviewed: 2026-08-01, Europe/London.
+Last reviewed: 2026-08-02, Europe/London.
 
 ## Confirmed context
 
@@ -23,7 +24,7 @@ Last reviewed: 2026-08-01, Europe/London.
 | IaC/orchestration | Bicep plus Azure Developer CLI |
 | Current policy assignments | none returned at subscription scope on 2026-07-23 |
 
-## Proposed production resources
+## Deployed production resources
 
 Pegasus has no Azure development, test, integration, or staging environment.
 Local development is isolated; this table describes the one production target
@@ -49,7 +50,7 @@ only, as decided in [ADR-0014](../docs/adr/0014-local-to-production-deployment.m
 - Web and Worker use distinct user-assigned identities.
 - The Worker identity exists before the Function App so Flex deployment and host storage can use identity-based access.
 - Storage roles are separated between Functions transport/deployment and application custody/protection accounts. Shared-key access is disabled; roles are container/queue scoped except the Function host roles that Azure Functions requires at account scope.
-- Azure SQL uses a Microsoft Entra administrator and Entra-only authentication. Migration `20260729176000_AzureSqlRuntimeLeastPrivilege` creates distinct fixed Web and Worker roles. Role-reconciliation migration `20260729199000_RuntimeRoleReconciliation` resets their direct DML across the complete application-table census, grants only the exhaustive caller-derived matrix, denies Worker `DELETE` everywhere, and denies Web `DELETE` except on its four required relationship/value workflows. Neither role receives DDL or broad built-in data roles. `scripts/Invoke-AzureDatabaseBootstrap.ps1` implements the separately gated managed-identity user/role operation and verifies the exhaustive migration-defined matrix; it has not run against Azure. A temporary migrator group owns schema changes and has no standing runtime use.
+- Azure SQL uses a Microsoft Entra administrator and Entra-only authentication. Migration `20260729176000_AzureSqlRuntimeLeastPrivilege` creates distinct fixed Web and Worker roles. Role-reconciliation migration `20260729199000_RuntimeRoleReconciliation` resets their direct DML across the complete application-table census, grants only the exhaustive caller-derived matrix, denies Worker `DELETE` everywhere, and denies Web `DELETE` except on its four required relationship/value workflows. Neither role receives DDL or broad built-in data roles. `scripts/Invoke-AzureDatabaseBootstrap.ps1` ran against production and verified the exhaustive migration-defined matrix. A temporary migrator group owns schema changes and has no standing runtime use.
 - Private networking is a `Not planned` boundary. The scaffold therefore uses public
   service endpoints and the Azure SQL `AllowAllWindowsAzureIps` firewall rule so
   Container Apps and Flex can reach SQL. Authentication remains Entra-only. This
@@ -70,58 +71,51 @@ Before provisioning, recheck:
 - two production storage accounts;
 - role-assignment authority for the provisioning principal.
 
-## Production route implementation
+## Executed production route
 
-Issue #311 owns implementation of the production-only infrastructure,
-release-artifact builder, deployment-plan validator, migration operation,
-interactive first-Administrator bootstrap, smoke route, archive, and exact-ID
-retirement commands. Their presence will establish implementation only; the
-local proof commands and artifact manifest establish local verification.
+Issue #311 owns the production-only infrastructure, release-artifact builder,
+deployment-plan validator, migration operation, interactive first-Administrator
+bootstrap, smoke route, archive, and exact-ID retirement commands. The deployed
+Web source revision is `94997dd036a48cde23fce0f960b159a2b4a921c0`; its active
+image digest is
+`sha256:da11059f89e42d74d93ea7ed732d6b7ed8faca7ceb106ecb68875e5d5d8eda75`.
+The Web live/ready probes returned HTTP 200, the Administrator password-change
+route was exercised, and the Worker is running with all nine functions enabled.
 
-Every Azure action remains separately gated. The controlling runbook fixes the
-source revision, immutable artifact provenance, migration sequence, identity
-creation, disabled trigger state, validation, rollback, and recovery evidence.
+The executed route retained the runbook's source revision, immutable artifact
+provenance, migration sequence, identity creation, trigger activation,
+validation, and retirement boundaries. Deployment does not prove the still
+outstanding recovery exercise.
 
-## Azure activation gate
+## Azure activation and retirement evidence
 
-The activation route remains fail-closed unless
-`deploymentMode=approved-live-deployment` is supplied. The concrete gate is the
-runbook's exact subscription, resource group, principal, cost scope, data
-boundary, and migration/deployment sequence, plus a fresh authorised-terminal
-recheck of service availability, quota, pricing, role-assignment authority,
-target names, SQL Entra administrator, and external credential readiness.
+The activation route was executed with
+`deploymentMode=approved-live-deployment` against the exact subscription and
+resource group. The fail-closed mode remains part of the reusable route.
 
-Issue #311 implements that explicit mode and removes remote build before any
-preview. Applying the idempotent migration bundle remains an explicit
-pre-application step; schema rollback is not a down-migration.
+Remote build was not used. The idempotent migration bundle was applied before
+application activation; schema rollback is not a down-migration.
 
-ADR-0015 implementation compiles locally and the deployment-plan validator
-passes. Local OCI publication and ORAS digest inspection also pass. Core and
-Architecture tests pass; the Integration project remained responsive but did
-not complete inside a ten-minute isolated run, so clean release packaging and
-the first Container Apps preview remain blocked rather than inferred.
-## Deployment blockers
+The final retirement archive manifest SHA-256 is
+`D0A2D03A09D54142F3337B0A186131133DB9D8B19180048AB71544D88522808A`.
+The executable retirement manifest SHA-256 is
+`3CC3F1224239E9F30B687302EE813AB081950DC4B020AF84368BDD8AC2D40CBF`.
+All eight resource batches completed, all 30 delete-classified role assignments
+are absent, and all seven retain-classified assignments remain. The old group
+contains exactly `cespkboxkvv76a47` and `cespkenrichkvgi62sd`; the managed OCR
+child group is absent.
 
-- The operator directed autonomous CLI execution on 2026-08-01. That direction does not waive the repository's exact-target gates: provider registration, each observed preview, provisioning, credential/role changes, live provider operations, and retirement proceed only under their separately recorded target-specific approval.
-- The predecessor is pre-release and its test application data is not migrated into `0.1.0-alpha.1`. Retirement remains a separately approved operation, not a deployment prerequisite.
-- SQL Entra administrator name/object ID must be confirmed at deployment time.
-- GitHub Actions/OIDC deployment is a `Not planned` boundary, not a missing scaffold item.
-- The release scripts, production adapters, migration operation, and
-  first-Administrator bootstrap are implemented. Restore, Release build, 539
-  non-corpus tests, Bicep compilation, and local deployment-plan validation
-  passed on 2026-07-31. Revision-bound QDOS CI pressure (3/3, no skips) and
-  immutable Web, Worker, and migration packaging also passed from a clean
-  reviewed commit. These are local proof, not deployment or live acceptance.
-- Versioned metadata for all six retained Box/DVLA/DVSA secret references, the
-  entitlement-specific DVSA token route, and Graph mailbox/folder identities
-  are configured. The predecessor application identity resolved Graph folder
-  metadata without message or attachment access.
+## Remaining release gates
+
+- GitHub Actions/OIDC deployment is a `Not planned` boundary, not a missing
+  production component.
+- All six approved retained-vault references report `Resolved`. Graph Inbox and
+  Sent Items processing is live-verified. Reference resolution is not evidence
+  for every Box, DVLA, or DVSA outcome.
+- The first production release may operate under the accepted recovery
+  exception. Before any second production deployment, the isolated recovery
+  exercise in the production replacement runbook must prove RPO at most 15
+  minutes and RTO at most four hours.
 - The B1 quota request `b9df19cc-54b2-4876-9c4c-1eb9ba99076a` and later P0v4
-  aggregate-quota preview failed without creating a workload resource. ADR-0015
-  supersedes that fixed App Service route. Do not retry either quota operation.
-- The next gate is a clean base preview with `PEGASUS_WEB_ACTIVATION=disabled`,
-  followed by base provisioning, local OCI upload/digest verification, database
-  migration/bootstrap, and a second preview that adds only the Web Container
-  App and its HTTP alert.
-
-This file must not be changed to `Ready for Validation` merely because Bicep compiles.
+  aggregate-quota preview remain superseded historical evidence. Do not retry
+  either fixed App Service route.
