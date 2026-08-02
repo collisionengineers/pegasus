@@ -67,7 +67,12 @@ foreach ($repository in @('ce-ocr', 'valuationbot-mcp')) {
                 throw "OCI archive target escaped the approved archive root: $target"
             }
             if (Test-Path -LiteralPath $target) {
-                $existingDigest = ((& oras resolve --oci-layout "${target}:archive" 2>$null) -join '').Trim()
+                $existingDigest = $null
+                try {
+                    $existingDigest = ((& oras resolve --oci-layout "${target}:archive" 2>$null) -join '').Trim()
+                } catch {
+                    $existingDigest = $null
+                }
                 if ($LASTEXITCODE -eq 0 -and $existingDigest -eq $digest) {
                     continue
                 }
