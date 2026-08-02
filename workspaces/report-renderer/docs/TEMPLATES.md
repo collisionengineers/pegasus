@@ -379,7 +379,7 @@ The red-bordered summary figure used for headline values such as a settlement fi
 ### `mediarow`
 
 A row of image columns. Each item has a `caption`, an optional `imagePath`, and an optional `note`.
-`imagePath` accepts a data URI, an `http(s)` URL, or an absolute path to a file on disk (PNG/JPG/GIF,
+`imagePath` accepts a data URI, an `http(s)` URL, or an absolute path to a file on disk (PNG/JPEG/WebP,
 inlined as a data URI). When `imagePath` is empty, a placeholder slot is rendered with the caption.
 
 This is the default Core policy, not the API attachment policy. `CollisionRenderer.Core` preserves an

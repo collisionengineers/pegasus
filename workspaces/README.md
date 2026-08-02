@@ -34,6 +34,13 @@ skills row also excludes nested `.github/`, caches, and
 represented under `dev-ref/<skill-name>/`. A manifest proves source identity,
 not application integration, deployment, or acceptance.
 
+Each manifest describes the snapshot **at import time**. The current tracked
+tree differs where post-import repository work has been accepted (for example
+documentation corrections and the Pegasus-authored
+`document-extraction/tracked_files.txt` import inventory, which lists the 202
+imported files and not itself), so current file counts come from
+`git ls-files`, not from these import records.
+
 ## Ownership and activation
 
 The register above is the sole workspace integration-status authority. Local
