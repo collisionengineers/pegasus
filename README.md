@@ -1,9 +1,10 @@
 # Pegasus
 
 Pegasus is Collision Engineers' clean-room case-management and reporting
-application. The repository uses .NET 10 and remains in development;
-`0.1.0-alpha.1` is an allocated release target, not an implementation,
-deployment, or acceptance claim.
+application. The repository uses .NET 10. `0.1.0-alpha.1` is deployed to the
+sole production environment
+([operations](docs/operations.md#production-environment)); operator acceptance
+remains outstanding, so deployment is not an acceptance claim.
 
 ## Get started
 

@@ -321,7 +321,7 @@ upload one supported local source
 → authorised retained-asset download
 ```
 
-It does not authenticate staff, create a case, allocate a reference or prove the planned shell.
+It runs under authenticated staff identity (the DevelopmentOffline profile's server-derived actor); it does not create a case, allocate a reference or prove the planned shell.
 
 ### Core outcome to operator label and persistence
 

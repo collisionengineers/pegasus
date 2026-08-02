@@ -36,9 +36,9 @@ flowchart LR
     Infra -. target .-> EVA[EVA]
 ```
 
-The current repository exposes an ASP.NET Core Razor Pages host and a .NET 10 isolated Azure Functions Worker. The Worker has timer and queue-trigger callers that translate bounded work into Core use cases. Local evidence does not show staff use of a deployed Pegasus application, supported non-Development intake, live traffic, external-system activation, or operator acceptance. Any provider API or Automation MCP caller remains separately gated.
+The current repository exposes an ASP.NET Core Razor Pages host and a .NET 10 isolated Azure Functions Worker. The Worker has timer and queue-trigger callers that translate bounded work into Core use cases. Any provider API or Automation MCP caller remains separately gated.
 
-The repository identifies its package and release target as `0.1.0-alpha.1`; no Pegasus Azure deployment has occurred.
+The repository identifies its package and release target as `0.1.0-alpha.1`. Pegasus is deployed to its sole production environment; the current production state is owned exclusively by [operations § Production environment](operations.md#production-environment) and is not restated here. Operator acceptance remains outstanding.
 
 ## Components and dependency direction
 
@@ -89,7 +89,8 @@ than attempts.
 - `GET /Intake/{id}/Source` calls Core `DownloadIntakeSource`, which authorises the current staff actor, resolves the receipt-owned source, validates retained length and SHA-256, and returns only a no-sniff attachment with a safe filename and content type.
 - `/Triage` and `/Triage/{id}` are the physical list/detail owners for Core triage queries and commands. The former Development web evaluator is not an application caller; the separately owned desktop evaluator remains outside the Web runtime.
 - Anonymous request submission exists only at `/Uploads/{token}`. The PageModel calls `GetRequestUpload` and one `UploadToRequest` command, uses antiforgery and an idempotent operation key, and presents generic non-disclosing outcomes through PRG.
-- These implemented callers are local/offline-alpha source state. This change does not establish deployment, browser accessibility acceptance, or operator acceptance.
+- The Case documents surface still implements Box File Request create/revoke (`src/Pegasus.Web/Pages/Cases/Shared/_CaseDocuments.cshtml`). That mechanism is superseded by the operator decision in favour of request-scoped upload links (INT-31) and is pending removal; it must gain no new callers.
+- These callers are source-state evidence; deployment state is owned by [operations § Production environment](operations.md#production-environment). Caller evidence alone does not establish browser accessibility acceptance or operator acceptance.
 
 ### Technical entry points
 
@@ -105,10 +106,13 @@ A Worker `local.settings.json` is unnecessary at this baseline. Copy `src/Pegasu
 
 ### Implemented production targets and absent callers
 
-Worker production composition now registers bounded Graph Inbox/Sent, Box
-custody, and DVLA/DVSA adapters plus Azure Blob/queue transport. That is
-**Implemented** composition evidence only: no production trigger has run, no
-live provider has been called, and no operator acceptance exists.
+Worker production composition registers bounded Graph Inbox/Sent, Box
+custody, and DVLA/DVSA adapters plus Azure Blob/queue transport. These are
+**Deployed**: the production Worker runs with its functions enabled, and
+Graph Inbox/Sent processing has been live-verified; the current production
+state is owned by
+[operations § Production environment](operations.md#production-environment).
+Operator acceptance remains outstanding.
 
 The following remain planned or absent, not merely unverified:
 
@@ -118,11 +122,8 @@ The following remain planned or absent, not merely unverified:
 - vehicle-registration OCR or VLM recognition;
 - EVA export;
 - provider API, which is deferred to the exact target owned by the [capability inventory](capabilities.md);
-- a vendor-neutral Automation MCP, identified as a `0.1.0-alpha.1` target and separately gated pending its actor contract;
-- authenticated case lifecycle actions;
-- live Azure telemetry and deployed Azure callers.
-
-No production route should be enabled from the current slice.
+- a vendor-neutral Automation MCP, allocated but non-blocking for `0.1.0-alpha.1` and separately gated pending its actor contract;
+- an in-process Web telemetry exporter (the Worker exports Application Insights telemetry; the Web host does not).
 
 ## Current intake and extraction boundary
 
@@ -279,7 +280,7 @@ No Web or Worker caller currently consumes the catalog. Package presence, migrat
 
 ### Current Development data
 
-`DevelopmentOffline` uses SQL Server Express LocalDB through connection name `Pegasus`, database `PegasusDevelopment`, and the committed SQL Server migration stream. Deployed Pegasus uses Azure SQL through that SQL Server migration stream; there is no supported database-provider choice.
+`DevelopmentOffline` uses the platform's supported SQL Server — SQL Server Express LocalDB on Windows, a per-run container on Linux — through connection name `Pegasus`, database `PegasusDevelopment`, and the committed SQL Server migration stream. Deployed Pegasus uses Azure SQL through that SQL Server migration stream; there is no supported database-provider choice.
 
 Current source and extracted bytes are retained under the ignored content-addressed root:
 
@@ -311,7 +312,9 @@ Sequential receipt-token/content conflicts are rejected before artifact storage.
 | Transient processing bytes and delivery work | Private Azure Blob and queues; never long-term custody |
 | Local content-addressed artifacts | Development evidence only |
 
-No Pegasus migration has been applied to a live database.
+Deployed migrations are applied through the release-owned migration bundle
+before application activation; the executed production record is owned by
+[operations § Production environment](operations.md#production-environment).
 
 Pegasus starts with fresh application data. The predecessor’s pre-release test cases and application state are not migrated or preserved as a `0.1.0-alpha.1` requirement.
 
@@ -323,25 +326,20 @@ Normal Web or Worker startup never applies migrations. Development migration is 
 
 A release-owned migration bundle or explicit operation must apply deployed migrations before the application package. Schema recovery is not an automatic down-migration.
 
-LocalDB is the canonical local provider for persistence, migration, concurrency, and recovery evidence. Each disposable result proves only the exercised local behavior; it does not prove Azure SQL locking, upgrade behavior, recovery, or live deployment.
+The platform's supported local SQL Server (LocalDB on Windows, a per-run container on Linux) is the canonical local provider for persistence, migration, concurrency, and recovery evidence. Each disposable result proves only the exercised local behavior; it does not prove Azure SQL locking, upgrade behavior, recovery, or live deployment.
 
 ## Authentication and authorization boundary
 
-There is currently:
+Staff authentication and authorization are implemented and enforced:
 
-- no application authentication;
-- no role enforcement;
-- no authenticated action actor;
-- no authenticated draft-confirmation mutation.
+- self-managed ASP.NET Core Identity staff sign-in with Account pages for sign-in, sign-out, password change, and access denial (`src/Pegasus.Web/Pages/Account/`);
+- named authorization policies including the enforced Administrator role (`src/Pegasus.Web/Program.cs`), with Core-owned staff authorization and account administration (`src/Pegasus.Core/Identity/`);
+- a server-derived authenticated action actor on intake and case mutations;
+- anonymous intake review denied; disabled or stale staff sessions fail closed;
+- draft confirmation as a separate authenticated mutation with optimistic-concurrency evidence;
+- a gated production first-Administrator path (`--bootstrap-production-administrator`).
 
-The bounded next security boundary is intended to:
-
-1. add self-managed staff sign-in, roles, and an authenticated action actor;
-2. deny anonymous intake review;
-3. fail closed for disabled or stale staff sessions;
-4. make draft confirmation a separate authenticated mutation with optimistic-concurrency evidence.
-
-This sequence does not authorize case creation. Case and reference allocation remain absent until principal identity, durable custody, and the accepted allocation transaction are ready. Decisions that withhold slices remain authoritative in [open decisions](open-decisions.md).
+Login protection uses generic authentication failure plus transient request throttling rather than persistent Identity account lockout (ADR-0013 clause 12). Authentication alone does not authorize case creation; allocation still requires principal identity, durable custody, and the accepted allocation transaction. Decisions that withhold slices remain authoritative in [open decisions](open-decisions.md).
 
 Secrets must use managed identity and RBAC where supported. Infisical or Key Vault may hold only unavoidable third-party credentials.
 
@@ -353,8 +351,10 @@ Deferred capabilities retain only the stable identities and ports necessary for 
 
 The implemented Graph source feeds the existing provider-neutral intake and
 sent-evidence use cases through Worker. It must not copy receipt, extraction,
-categorisation, or workflow rules into Worker. Its triggers remain disabled
-until exact Exchange RBAC, live sandbox, and activation evidence pass.
+categorisation, or workflow rules into Worker. Its production triggers are
+enabled and live-verified under exact Exchange Application RBAC; the current
+production state is owned by
+[operations § Production environment](operations.md#production-environment).
 
 Its adapter boundary provides:
 
@@ -431,7 +431,7 @@ Production recovery is forward-oriented:
 4. restore data through the accepted backup and recovery path;
 5. avoid automatic schema down-migration.
 
-The four-hour restoration and 15-minute recovery-point outcomes remain unproved acceptance gates.
+The four-hour restoration and 15-minute recovery-point outcomes remain unproved; the isolated recovery exercise gates any second production release (OPS-09).
 
 ## Deployment boundary
 
@@ -451,14 +451,12 @@ describe only the approved production resource group containing:
 
 The intended release owner uses an authorized Windows terminal, required by the `win-x64` migration bundle fixed in ADR-0007 rather than by the development platform, committed Bicep, `azd`, the .NET SDK OCI publisher, and ORAS. GitHub Actions deployment is not planned. Base infrastructure is provisioned without the public Web resource; the reviewed OCI digest is uploaded and verified, then an explicit database migration and Administrator bootstrap precede Container App activation.
 
-This route executed on 2026-08-02: Pegasus `0.1.0-alpha.1` is deployed to the
-sole production environment in `rg-pegasus-prod` (Web revision `94997dd0…` on an
-immutable image digest), and the predecessor test estate was retired through the
-exact verified manifest, leaving only the two adopted Key Vaults in
-`rg-collisionspike-dev`. The executed evidence is summarized in
-[operations](operations.md#production-environment); the full runbook and hashes
-are in git history. Deployment does not prove an untested provider outcome, and
-the isolated recovery exercise remains a mandatory gate before a second release.
+This route executed on 2026-08-02. The current production state — deployed
+resources, revisions, integrations, and their qualifications — is owned
+exclusively by [operations § Production environment](operations.md#production-environment);
+the full runbook and hashes are in git history. Deployment does not prove an
+untested provider outcome, and the isolated recovery exercise remains a
+mandatory gate before a second release.
 
 Bicep compilation proves syntax and type consistency only.
 
@@ -485,7 +483,7 @@ Development configuration selects:
 
 The `--migrate-development` process validates the local-only profile, applies the committed migration stream, prints completion, and exits. The Web host must then be started separately.
 
-The Intake routes and Development evaluator are deny-by-default and return `404` unless both the DevelopmentOffline runtime profile and local-intake feature gate are active. The evaluator has no endpoint selector outside that gate.
+The Intake routes are deny-by-default and return `404` unless both the DevelopmentOffline runtime profile and local-intake feature gate are active.
 
 ## Implementation map
 
