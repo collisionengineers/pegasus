@@ -772,12 +772,14 @@ pwsh ./scripts/Invoke-PredecessorRetirement.ps1 `
 
 3. Re-run dependency, role, lock, activity, and traffic checks. Confirm zero
    callers. Review the generator's complete retained set, platform-owned child
-   IDs, locally scoped role-assignment candidates, and dependency-ordered
-   batches. Classify every role-assignment candidate as retained or
+   IDs, live type-level `managedBy` owner, separately bound exact same-name
+   Function App `parentResourceId`, locally scoped role-assignment candidates,
+   and dependency-ordered batches. Classify every role-assignment candidate as retained or
    predecessor-only. Then obtain approval naming
    `$FinalRetirementManifestSha256`, its bound `archiveManifestSha256`, every
-   exact stop/delete resource ID, the bound managed child-group ID and
-   `managedBy` parent, and every exact predecessor-only role assignment ID.
+   exact stop/delete resource ID, the bound managed child-group ID, live
+   type-level `managedBy` owner, exact `parentResourceId`, and every exact
+   predecessor-only role assignment ID.
 4. Confirm the retained set contains only:
    - `cespkboxkvv76a47`;
    - `cespkenrichkvgi62sd`.

@@ -89,8 +89,11 @@ $expectedChildGroupId = "/subscriptions/$subscription/resourceGroups/cespkocr-en
 $managedChildGroup = $manifest.managedChildResourceGroup
 if (
     -not ([string]$managedChildGroup.id).Equals($expectedChildGroupId, [StringComparison]::OrdinalIgnoreCase) -or
-    [string]::IsNullOrWhiteSpace([string]$managedChildGroup.managedBy) -or
-    $managedChildGroup.managedBy -notin $allBatchIds
+    -not ([string]$managedChildGroup.managedBy).Equals(
+        "$expectedChildGroupId/providers/Microsoft.Web/sites",
+        [StringComparison]::OrdinalIgnoreCase) -or
+    [string]::IsNullOrWhiteSpace([string]$managedChildGroup.parentResourceId) -or
+    $managedChildGroup.parentResourceId -notin $allBatchIds
 ) {
     throw 'The manifest does not bind the exact managed child group to a deletion-batched parent.'
 }
@@ -187,7 +190,7 @@ function Assert-InventoryBoundary {
     foreach ($expectedVaultId in $expectedRetainedIds) {
         if ($expectedVaultId -notin $current.id) { throw "Approved retained vault is unexpectedly absent: $expectedVaultId" }
     }
-    $parentExists = $managedChildGroup.managedBy -in $current.id
+    $parentExists = $managedChildGroup.parentResourceId -in $current.id
     $liveManagedChildren = @($current.id | Where-Object { $_ -in $managedChildIds })
     $childGroup = Get-ManagedChildGroup
     if (-not $parentExists -and ($null -ne $childGroup -or $liveManagedChildren.Count -ne 0)) {
@@ -259,7 +262,7 @@ if ($Stage -eq 'DeleteManagedChildGroup') {
     foreach ($expectedVaultId in $expectedRetainedIds) {
         if ($expectedVaultId -notin $currentResources.id) { throw "Approved retained vault is unexpectedly absent: $expectedVaultId" }
     }
-    if ($managedChildGroup.managedBy -in $currentResources.id) { throw 'The managed child parent still exists.' }
+    if ($managedChildGroup.parentResourceId -in $currentResources.id) { throw 'The managed child parent still exists.' }
     $childGroup = Get-ManagedChildGroup
     if ($null -eq $childGroup) {
         Write-Output "ALREADY ABSENT $($managedChildGroup.id)"
@@ -322,7 +325,7 @@ foreach ($id in $ids) {
     Write-Output "DELETE $id"
     az resource delete --ids $id --verbose
     if ($LASTEXITCODE -ne 0) { throw "Deletion failed: $id" }
-    if ($id.Equals([string]$managedChildGroup.managedBy, [StringComparison]::OrdinalIgnoreCase)) {
+    if ($id.Equals([string]$managedChildGroup.parentResourceId, [StringComparison]::OrdinalIgnoreCase)) {
         Write-Output "MANAGED CHILD GROUP GATE $($managedChildGroup.id)"
         return
     }
