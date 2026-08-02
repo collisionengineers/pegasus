@@ -7,6 +7,7 @@ using Pegasus.Core;
 namespace Pegasus.IntegrationTests;
 
 [Collection(LocalDbFixtureDefinition.Name)]
+[Trait("Category", "SqlServer")]
 public sealed class QdosAlphaAcceptanceGateTests
 {
     private const string ManifestEnvironmentVariable = "PEGASUS_QDOS_ACCEPTANCE_MANIFEST";

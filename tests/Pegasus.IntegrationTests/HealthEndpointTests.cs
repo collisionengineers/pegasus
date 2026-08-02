@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace Pegasus.IntegrationTests;
 
 [Collection(LocalDbFixtureDefinition.Name)]
+[Trait("Category", "SqlServer")]
 public sealed class HealthEndpointTests : IClassFixture<IntakeWebApplicationFactory>
 {
     private readonly IntakeWebApplicationFactory factory;

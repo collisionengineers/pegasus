@@ -3,6 +3,7 @@ using Microsoft.Playwright;
 namespace Pegasus.IntegrationTests.Browser;
 
 [Collection(LocalDbFixtureDefinition.Name)]
+[Trait("Category", "SqlServer")]
 [Trait("Category", "Browser")]
 public sealed class AccessibilityTests
 {

@@ -1,7 +1,7 @@
 
 # Complete feature traceability matrix
 
-Status: **Planned exhaustive source trace for the selected Operations-first `0.1.0-alpha.1` direction.** Exactly one row appears for every ID in the canonical [capability inventory](../../docs/capabilities.md) (229 total). Each capability's durable-outcome wording lives only in that inventory — rows here carry the ID, its copied `Horizon / target`, and the design-owned actor/rule/surface columns. Intended owner/caller is Planned unless stated current elsewhere; it is not runtime-call evidence.
+Status: **Planned exhaustive source trace for the selected Operations-first `0.1.0-alpha.1` direction.** Exactly one row appears for every ID in the canonical [capability inventory](../../docs/capabilities.md) (228 total; `DOC-06` was merged into `INT-31` and retired). Each capability's durable-outcome wording lives only in that inventory — rows here carry the ID, its copied `Horizon / target`, and the design-owned actor/rule/surface columns. Intended owner/caller is Planned unless stated current elsewhere; it is not runtime-call evidence.
 
 ## Selected shell and rejected directions
 
@@ -133,7 +133,6 @@ surface.
 | DOC-03 | `Now / 0.1.0-alpha.1` | Staff / case document work | Document custody / Case Web route | No physical deletion or closed-case changes | Case document flow |
 | DOC-04 | `Now / 0.1.0-alpha.1` | Staff / case document work | Document custody / Case Web route | No physical deletion or closed-case changes | Case document flow |
 | DOC-05 | `Now / 0.1.0-alpha.1` | Staff / case document work | Document custody / Case Web route | No physical deletion or closed-case changes | Case document flow |
-| DOC-06 | `Now / 0.1.0-alpha.1` | Staff / bounded in-house upload request | Request-scoped upload policy / authenticated staff creator and isolated public upload route | No external account, cross-request access, case/reference/request-history disclosure, or upload after expiry/revocation; success proves request-local custody only, not Box custody or delivery | Case initiation; bound upload fields and immediate request-local result only |
 | DOC-07 | `Now / 0.1.0-alpha.1` | Staff / case document work | Document custody / Case Web route | No physical deletion or closed-case changes | Case document flow |
 | DOC-08 | `Now / 0.1.0-alpha.1` | Private processing custody | Worker staging boundary / Worker caller | No staff surface or downloadable staging area | Non-UI |
 | EXT-01 | `Now / 0.1.0-alpha.1` | Staff / case enrichment | Case enrichment/effect / Case Web route | No invented external result or unapproved mutation | Case enrichment/evidence flow |
