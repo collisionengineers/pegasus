@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
     <ProjectReference Include="..\Pegasus.Core\Pegasus.Core.csproj" />
@@ -16,6 +16,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <NoWarn>$(NoWarn);NU1510</NoWarn>
+    <UserSecretsId>63edeba7-ecac-4928-8df3-071d2cf276bf</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

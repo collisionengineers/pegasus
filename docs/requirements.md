@@ -695,8 +695,11 @@ On a fresh visit, the workspace resets to the default all-Inboxes view rather
 than retaining a cross-session user preference.
 The workspace provides an explicit manual refresh, last successful update time,
 and distinct stale and unavailable states rather than silently presenting old
-data. Refresh preserves the active mailbox, folder, queue, search filters,
+data. It does not refresh automatically while an operator is reading or acting.
+Refresh preserves the active mailbox, folder, queue, search filters,
 page and open-message context when that message remains available.
+If it no longer remains in that scope, its detail stays visible with an
+explicit no-longer-in-this-view state and a return-to-list action.
 Each Inbox row includes a short message-body excerpt beneath sender and subject.
 Inbox rows visibly distinguish retained read and unread state, but this
 workspace does not change that state.
