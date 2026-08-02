@@ -150,7 +150,10 @@ $roleAssignmentCandidates = foreach ($group in $allowedGroups) {
             }
         }
 }
-$roleAssignmentCandidates = @($roleAssignmentCandidates | Sort-Object id -Unique)
+$roleAssignmentCandidates = @(
+    $roleAssignmentCandidates |
+        Sort-Object { [string]$_['id'] } -Unique
+)
 $roleDispositionSha256 = $null
 if ([string]::IsNullOrWhiteSpace($RoleDispositionPath)) {
     if ($RequireRoleDisposition -and $roleAssignmentCandidates.Count -ne 0) {
@@ -163,8 +166,9 @@ if ([string]::IsNullOrWhiteSpace($RoleDispositionPath)) {
     $resolvedRoleDisposition = Resolve-Path -LiteralPath $RoleDispositionPath
     $roleDispositionSha256 = (Get-FileHash -LiteralPath $resolvedRoleDisposition -Algorithm SHA256).Hash
     $dispositions = @(Get-Content -LiteralPath $resolvedRoleDisposition -Raw | ConvertFrom-Json)
-    if ($dispositions.Count -ne $roleAssignmentCandidates.Count -or $dispositions.Count -ne @($dispositions.id | Select-Object -Unique).Count) {
-        throw 'Role dispositions must classify every candidate exactly once.'
+    $uniqueDispositionCount = @($dispositions.id | Select-Object -Unique).Count
+    if ($dispositions.Count -ne $roleAssignmentCandidates.Count -or $dispositions.Count -ne $uniqueDispositionCount) {
+        throw "Role dispositions must classify every candidate exactly once; expected $($roleAssignmentCandidates.Count), found $($dispositions.Count), unique $uniqueDispositionCount."
     }
     foreach ($disposition in $dispositions) {
         if ($disposition.id -notin $roleAssignmentCandidates.id -or $disposition.disposition -notin @('retain','delete') -or [string]::IsNullOrWhiteSpace([string]$disposition.rationale)) {
