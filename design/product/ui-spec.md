@@ -109,7 +109,7 @@ address fields. Ordinary-image VRM and vehicle/MOT results show suggestion,
 confirmed, unknown/no-result, stale, unavailable, and failed distinctions with
 source/version/age; refresh never overwrites confirmed or last-good data.
 
-Image readiness shows the source/versioned advisory for registration overview, damage close-up, and the applicable reflection criterion. It refreshes whenever current Case images change and has no Case-state, eligibility, or chase effect.
+Image readiness display is a future surface: the advisory (registration overview, damage close-up, and the applicable reflection criterion, refreshed whenever current Case images change, with no Case-state, eligibility, or chase effect) is owned by [AI-05, `Later / 1.0.0`](../../docs/capabilities.md#capabilities) and has no `0.1.0-alpha.1` surface.
 
 Roadworthiness and Assessment are separate professional findings. A correction
 shows the retained earlier version and reasoned superseding version; a closed

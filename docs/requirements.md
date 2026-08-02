@@ -973,7 +973,7 @@ Required qualities:
 - no secrets in source, logs, proof artifacts, URLs, or client-rendered configuration;
 - immutable source and action provenance;
 - structured diagnostics without source-content leakage;
-- a 15-minute database recovery-point objective and four-hour restoration objective, proved through the operator-run [production recovery procedure](operations.md#production-recovery);
+- a 15-minute database recovery-point objective and four-hour restoration objective, proved through the operator-run [production recovery procedure](operations.md#production-recovery) executed after `0.1.0-alpha.1` acceptance and gating any second production release (OPS-09; [capabilities](capabilities.md) owns the gate);
 - reasoned recovery, restore, and replay proof without duplicate case/reference allocation;
 - local development on a supported platform, and supported-browser accessibility proof on Windows with Microsoft Edge Stable and Narrator;
 - independently buildable source workspaces with no application reference, dynamic load, dependency hoist, or deployment inclusion;
@@ -1018,7 +1018,7 @@ retained in the dependency-ordered delivery roadmap (git history); the operator 
 routes preserve detail and procedure without becoming requirements, allocation,
 implementation-status, or acceptance owners.
 
-The alpha delivery order is dependency-bound: relational draft and trusted actors; identity/history/Administrator data; durable source custody and ordinary-image vehicle identity; reference allocation; one definitive acceptance transaction; Box custody; exclusive editing; lifecycle and work scheduling; Operations-first UI; real Graph Worker; Triage; vehicle/EVA handoff; Claude Automation MCP; Azure/recovery proof; then operator acceptance. A later step never treats an allocated file, registration, or green structural check as caller proof.
+The alpha delivery order is dependency-bound: relational draft and trusted actors; identity/history/Administrator data; durable source custody and ordinary-image vehicle identity; reference allocation; one definitive acceptance transaction; Box custody; exclusive editing; lifecycle and work scheduling; Operations-first UI; real Graph Worker; Triage; vehicle/EVA handoff; then operator acceptance. Blocking status for each allocated capability is owned by [capabilities](capabilities.md); the Automation MCP and the recovery proof are allocated but non-blocking for acceptance (the recovery proof gates the second release). A later step never treats an allocated file, registration, or green structural check as caller proof.
 
 Deferred provider, mailbox, post-report, finance, AI, external-account, and replacement branches may progress only after their capability activation gate. They rejoin the main route through the same Core identity, authorization, custody, idempotency, history, recovery, caller, and acceptance evidence; they do not create parallel policy owners.
 
