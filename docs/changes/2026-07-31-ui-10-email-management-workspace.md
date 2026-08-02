@@ -17,7 +17,9 @@
 - Active mailbox, folder, queue and search filters remain visible and survive return from message or Case detail.
 - A fresh visit resets to the default all-Inboxes view rather than retaining cross-session filters.
 - The workspace provides manual refresh, last successful update time and distinct stale/unavailable state.
+- It does not refresh automatically while an operator is reading or acting.
 - Refresh preserves active filters, page and open-message context when still available.
+- A refreshed-away open message remains visible with explicit no-longer-in-this-view state and return to list.
 - Inbox rows include a short message-body excerpt beneath sender and subject.
 - Inbox rows display read/unread state but UI-10 does not change it.
 - Keep quick preview as non-mutating evidence navigation, showing sender, subject, timestamp, excerpt, classification, association and attachment names without mutation controls. Opening a message preserves the originating filtered-list position and provides a detail view.
