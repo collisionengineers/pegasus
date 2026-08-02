@@ -2,6 +2,7 @@
 param(
     [Parameter(Mandatory)][string] $ArchiveRoot,
     [switch] $IncludeOciImages,
+    [switch] $ResumeIncompleteOciArchive,
     [switch] $ExcludeData
 )
 
@@ -21,7 +22,10 @@ $archiveManifestPath = Join-Path $resolvedRoot 'archive-manifest.json'
 if (Test-Path -LiteralPath $resolvedRoot) {
     $existingEntries = @(Get-ChildItem -LiteralPath $resolvedRoot -Force)
     if ($existingEntries.Count -ne 0) {
-        throw 'A predecessor archive refresh requires a new empty timestamped ArchiveRoot.'
+        if (-not $ResumeIncompleteOciArchive -or -not $IncludeOciImages -or
+            (Test-Path -LiteralPath $archiveManifestPath)) {
+            throw 'A predecessor archive refresh requires a new empty timestamped ArchiveRoot; only an OCI archive without archive-manifest.json may use explicit resume mode.'
+        }
     }
 }
 New-Item -ItemType Directory -Path $resolvedRoot -Force | Out-Null
@@ -63,6 +67,10 @@ foreach ($repository in @('ce-ocr', 'valuationbot-mcp')) {
                 throw "OCI archive target escaped the approved archive root: $target"
             }
             if (Test-Path -LiteralPath $target) {
+                $existingDigest = ((& oras resolve --oci-layout "${target}:archive" 2>$null) -join '').Trim()
+                if ($LASTEXITCODE -eq 0 -and $existingDigest -eq $digest) {
+                    continue
+                }
                 Remove-Item -LiteralPath $target -Recurse -Force
             }
             New-Item -ItemType Directory -Path $target -Force | Out-Null
