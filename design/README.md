@@ -13,7 +13,7 @@ Intended, planned, implemented, caller-proved, deployed and accepted are distinc
 - **Accepted** requires the specified accessibility and operator review evidence.
 - The three retained comparison rasters record the shell-selection comparison. Operations-first is the selected strategy; raster pixels and details are not design approval or runtime evidence.
 
-The prior dated caller proof covered the now-retired Development-only `/Intake/Upload` thin slice. The implemented offline QDOS-alpha surface now assigns authenticated manual receipt/list/detail/source work to `/Intake`, `/Intake/{id}`, and `/Intake/{id}/Source`, keeps the non-persistent evaluator at `/Development/EmailEvaluation`, and exposes token-bound public request submission only at `/Uploads/{token}`. This cutover is not deployment, accessibility acceptance, or operator acceptance evidence.
+The prior dated caller proof covered the now-retired Development-only `/Intake/Upload` thin slice. The implemented offline QDOS-alpha surface now assigns authenticated manual receipt/list/detail/source work to `/Intake`, `/Intake/{id}`, and `/Intake/{id}/Source`, and exposes token-bound public request submission only at `/Uploads/{token}`. The former `/Development/EmailEvaluation` web route was removed in the [ADR-0016](../docs/adr/0016-standalone-desktop-email-evaluator.md) cutover to the separately owned desktop evaluator. This cutover is not deployment, accessibility acceptance, or operator acceptance evidence.
 
 Detailed durable product-design owners are the
 [operator-experience requirements](product/requirements.md),

@@ -634,9 +634,12 @@ Graph Sent-item evidence does not prove recipient delivery or automatic case mat
 ### Automation MCP remains a deferred ingress
 
 No Automation MCP endpoint, OAuth client, metadata route, staff impersonation
-path, credential, or application caller is implemented. ADR-0013 leaves the
-Automation Actor identity and authentication/client contract open. The current
-application therefore fails closed by exposing no such ingress.
+path, credential, or application caller is implemented. Migration
+`20260729150000_DocumentCustodyAndRequests` created the dormant OpenIddict
+tables that a later client contract would use; schema presence is not an
+implemented ingress. ADR-0013 leaves the Automation Actor identity and
+authentication/client contract open. The current application therefore fails
+closed by exposing no such ingress.
 
 Activation requires an accepted contract naming the durable actor identity,
 authentication and client custody, approved tools and scopes, action-history
@@ -705,7 +708,7 @@ The retained evidence observations are qualified as follows:
 
 ### Planned EML evaluator
 
-The caller-scoped evidence plan allocates local working-copy EML evaluation to `0.0.0-development`. This remains an evaluator boundary, not proof that the current real caller was exercised.
+Local working-copy EML evaluation belongs to the separately owned desktop evaluator ([ADR-0016](adr/0016-standalone-desktop-email-evaluator.md)); its allocation is owned by the [capability inventory](capabilities.md) evaluator boundary. This remains an evaluator boundary, not proof that the current real caller was exercised.
 
 EML contract evidence must cover parsing, provenance, corruption, nesting, cancellation, resource limits, deterministic failures, and content safety. Product-behavior claims require the current Web or later Worker caller; a standalone evaluator or historical endpoint is insufficient.
 
@@ -906,7 +909,7 @@ A production recovery exercise must:
 
 Automatic schema down-migration and deletion of source evidence or shared cloud resources are not recovery steps.
 
-Before the allocated [OPS-09](capabilities.md) capability, its [product-quality objectives](requirements.md#quality-capacity-security-and-evidence), and `0.1.0-alpha.1` can be accepted, prove:
+The allocated [OPS-09](capabilities.md) capability and its [product-quality objectives](requirements.md#quality-capacity-security-and-evidence) are proved after `0.1.0-alpha.1` acceptance and gate any second production release (NOW.md path, decided 2026-08-02). The isolated exercise must prove:
 
 - a 15-minute recovery point objective; and
 - a four-hour restoration path.
