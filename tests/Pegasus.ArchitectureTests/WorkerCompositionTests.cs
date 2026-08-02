@@ -30,10 +30,12 @@ public sealed class WorkerCompositionTests
             using var scope = provider.CreateScope();
             var scopedServices = scope.ServiceProvider;
             var artifactStore = provider.GetRequiredService<IIntakeArtifactStore>();
+            var quarantineStore = provider.GetRequiredService<IIntakeQuarantineArtifactStore>();
             var custody = provider.GetRequiredService<ICaseCustody>();
             var vehicleLookup = provider.GetRequiredService<IVehicleLookupAdapter>();
 
-            Assert.Equal("Pegasus.Worker.AzureBlobIntakeArtifactStore", artifactStore.GetType().FullName);
+            Assert.IsType<AzureBlobIntakeArtifactStore>(artifactStore);
+            Assert.Same(artifactStore, quarantineStore);
             Assert.Equal("Pegasus.Infrastructure.Custody.BoxCaseCustody", custody.GetType().FullName);
             Assert.Equal(
                 "Pegasus.Infrastructure.Vehicle.DvlaDvsaProductionAdapter",

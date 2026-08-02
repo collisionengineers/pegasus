@@ -165,10 +165,28 @@ internal sealed class GraphMailClient(
 
     private void ValidateDeltaUri(Uri uri, string approvedFolderId)
     {
-        var approvedPath = InitialDeltaUri(approvedFolderId, 1).AbsolutePath;
+        var mailboxId = Uri.EscapeDataString(options.MailboxId);
+        var folderId = Uri.EscapeDataString(approvedFolderId);
+        var approvedPaths = new[]
+        {
+            InitialDeltaUri(approvedFolderId, 1),
+            new Uri(
+                options.BaseUri,
+                $"users/{mailboxId}/mailfolders('{folderId}')/messages/delta"),
+            new Uri(
+                options.BaseUri,
+                $"users/{mailboxId}/mailFolders('{folderId}')/messages/delta"),
+            new Uri(
+                options.BaseUri,
+                $"users('{mailboxId}')/mailfolders('{folderId}')/messages/delta"),
+            new Uri(
+                options.BaseUri,
+                $"users('{mailboxId}')/mailFolders('{folderId}')/messages/delta")
+        }.Select(value => value.GetComponents(UriComponents.Path, UriFormat.Unescaped));
+        var actualPath = uri.GetComponents(UriComponents.Path, UriFormat.Unescaped);
         if (uri.Scheme != Uri.UriSchemeHttps
             || !uri.Host.Equals(options.BaseUri.Host, StringComparison.OrdinalIgnoreCase)
-            || !uri.AbsolutePath.Equals(approvedPath, StringComparison.Ordinal))
+            || !approvedPaths.Contains(actualPath, StringComparer.Ordinal))
         {
             throw new UnauthorizedAccessException(
                 "The Microsoft Graph cursor escaped the exact approved mailbox folder.");

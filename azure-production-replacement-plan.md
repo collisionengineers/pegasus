@@ -15,6 +15,57 @@ Replace the unused CollisionSpike Azure estate with Pegasus `0.1.0-alpha.1` usin
 
 This plan authorizes no cloud action, merge, credential access, deployment, or deletion. Each external stage requires exact-target approval when executed.
 
+## Executed Outcome — 2026-08-02
+
+The operator supplied the required execution and destructive-operation authority.
+The production replacement and manifest-bound predecessor retirement have now
+run. This is deployment and live-verification evidence for the scopes named
+below; it is not evidence for an unperformed recovery exercise or an untested
+provider outcome.
+
+- Production was deployed only to `rg-pegasus-prod`; no Azure development,
+  test, integration, or staging environment was created.
+- The deployed Web source revision is
+  `94997dd036a48cde23fce0f960b159a2b4a921c0`. Container App
+  `pegasus-prod-web-252ow37gij` is active on immutable image digest
+  `sha256:da11059f89e42d74d93ea7ed732d6b7ed8faca7ceb106ecb68875e5d5d8eda75`.
+  Its `/health/live` and `/health/ready` endpoints both returned HTTP 200 after
+  predecessor retirement.
+- The production Razor Pages sign-in, forced first-password change, and
+  authenticated operator routes were exercised as `alex`. The Worker Function
+  App `pegasus-prod-worker-252ow37gij` is `Running`; all nine function-disable
+  settings are `false`.
+- Microsoft Graph Inbox and Sent Items processing was live-verified through the
+  production Worker. The approved mailbox policy contains both inbound-intake
+  and sent-evidence scopes. Production telemetry showed 83 successful Worker
+  executions in the final 20-minute readback and zero exceptions since the
+  final Worker activation at `2026-08-01T23:55:24Z`.
+- Metadata-only App Service reference status returned `Resolved` for all six
+  approved retained-vault settings: `Box__ConfigJson`, `Box__ClientSecret`,
+  `Dvla__ApiKey`, `Dvsa__ApiKey`, `Dvsa__ClientId`, and
+  `Dvsa__ClientSecret`. No secret value was retrieved or recorded. This proves
+  configuration resolution, not every Box, DVLA, or DVSA business outcome.
+- Revision-bound QDOS CI pressure passed 3/3 with run ID
+  `6d387276e878444bb7963afd6f2c0aa3` and evidence SHA-256
+  `66b0f315e9fb9cbd56ae6c1bed0a9c910b78b714f589b858ef4c0c906e9c0147`.
+- The final predecessor archive is
+  `C:\Users\Alex\Documents\Pegasus-Predecessor-Archive\collisionspike-dev-retirement-20260802T000640Z`.
+  Its `archive-manifest.json` SHA-256 is
+  `D0A2D03A09D54142F3337B0A186131133DB9D8B19180048AB71544D88522808A`;
+  all 16 unique `ce-ocr` and `valuationbot-mcp` OCI digests were verified before
+  the predecessor registry was removed.
+- The executable `retirement-manifest.json` SHA-256 is
+  `3CC3F1224239E9F30B687302EE813AB081950DC4B020AF84368BDD8AC2D40CBF`.
+  Its eight ordered resource batches completed. All 30 delete-classified role
+  assignments are absent and all seven retain-classified assignments remain.
+- `rg-collisionspike-dev` intentionally remains as the container for exactly
+  `cespkboxkvv76a47` and `cespkenrichkvgi62sd`. The managed OCR child resource
+  group is absent. The obsolete vaults `cespk-pg-kv-dev`,
+  `cespkevakvufa3ci`, and `cespklockva7tzj2` are soft-deleted without purge and
+  are scheduled for platform purge on 2026-08-09.
+- The first-release recovery exception remains in force: no second production
+  release may proceed until section 10's isolated RPO/RTO exercise passes.
+
 ## Locked End State
 
 - Environments: isolated local development and production only; no Azure dev/test/staging resources.
@@ -708,6 +759,11 @@ future deletion batches, then obtain approval naming
 `$StopRetirementManifestSha256` and every exact stop resource ID. Only after
 that approval run:
 
+The Function Apps platform-owned child Container App remains inventory-bound
+but is never a direct stop target because its managed resource group applies a
+deny assignment. Stop and later delete its exact same-name Function App
+`parentResourceId`; Azure owns the child lifecycle.
+
 ```powershell
 pwsh ./scripts/Invoke-PredecessorRetirement.ps1 `
   -Stage Stop `
@@ -742,6 +798,12 @@ $ArchivedRoles = Get-Content "$PegasusRetirementArchive\subscription-role-assign
 $ArchivedRoles | Format-Table
 ```
 
+If this large OCI copy is interrupted or times out before
+`archive-manifest.json` exists, resume only that exact incomplete root with
+`-ResumeIncompleteOciArchive`. The archive script verifies every completed
+local layout by digest, replaces an invalid partial layout, and downloads only
+missing digests. Resume mode refuses a completed archive.
+
 Stop and classify every displayed assignment as `retain` or `delete`, with a
 non-empty rationale. Approve every exact ID and both sets. Persist that decision
 outside the bound archive; no archived candidate may be omitted or added. A
@@ -772,12 +834,14 @@ pwsh ./scripts/Invoke-PredecessorRetirement.ps1 `
 
 3. Re-run dependency, role, lock, activity, and traffic checks. Confirm zero
    callers. Review the generator's complete retained set, platform-owned child
-   IDs, locally scoped role-assignment candidates, and dependency-ordered
-   batches. Classify every role-assignment candidate as retained or
+   IDs, live type-level `managedBy` owner, separately bound exact same-name
+   Function App `parentResourceId`, locally scoped role-assignment candidates,
+   and dependency-ordered batches. Classify every role-assignment candidate as retained or
    predecessor-only. Then obtain approval naming
    `$FinalRetirementManifestSha256`, its bound `archiveManifestSha256`, every
-   exact stop/delete resource ID, the bound managed child-group ID and
-   `managedBy` parent, and every exact predecessor-only role assignment ID.
+   exact stop/delete resource ID, the bound managed child-group ID, live
+   type-level `managedBy` owner, exact `parentResourceId`, and every exact
+   predecessor-only role assignment ID.
 4. Confirm the retained set contains only:
    - `cespkboxkvv76a47`;
    - `cespkenrichkvgi62sd`.
