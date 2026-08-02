@@ -241,7 +241,7 @@ The report has two permitted inspection-address treatments:
 1. Record the physical location of the vehicle, such as the client’s address or the garage or repairer location.
 2. Record the exact text **“Image Based Assessment”** instead of an address.
 
-Some providers must always use **“Image Based Assessment”**. For many others, the vehicle’s physical location is important and must appear on the report even though the Engineer is inspecting remotely.
+Some providers default to **“Image Based Assessment”**: it is autofilled when the Case is made, even when a repairer/location appears in the instructions, and an authorised staff member may override it. For many others, the vehicle’s physical location is important and must appear on the report even though the Engineer is inspecting remotely.
 
 Current address determination is not handled ideally:
 
@@ -339,7 +339,7 @@ This table records binding product needs, not implementation, caller, deployment
 | `CAP-014` | Provide an in-house guided-capture system. | Not in `0.1.0-alpha.1`. Tractable and Ravin remain evaluation evidence, not the in-house implementation. |
 | `CAP-015` | Provide in-app AI features. | Not in `0.1.0-alpha.1`. |
 | `CAP-016` | Give staff full case-management capability, including editing case details as necessary. | Intended eventual replacement scope includes EVA’s case-management functions. |
-| `CAP-017` | Provide OCR for vehicle registrations and scanned PDFs. | Not in `0.1.0-alpha.1` (scan-like OCR is `INT-16`, `Next / 0.2.0`). Must support VRM recognition and non-embedded-text documents. |
+| `CAP-017` | Provide OCR for vehicle registrations and scanned PDFs. | Scan-like OCR is `INT-16` (`Next / 0.2.0`); ordinary-image VRM reading is `INT-17` (alpha, non-blocking). Must support VRM recognition and non-embedded-text documents. |
 | `CAP-018` | Provide an inspection-address helper. | Suggestions should use provider frequency, accident location when available, and image or vision AI. Not in `0.1.0-alpha.1`. |
 | `CAP-019` | Look up vehicle details through DVLA and DVSA when instructions do not contain them. | Lookup authority does not itself authorize an external operation. |
 | `CAP-020` | Estimate mileage from MOT data when available. | An estimate must remain distinguishable from supplied mileage. |

@@ -55,7 +55,8 @@ step it names.
    invariant.
 5. **Telemetry sampling and daily cap** — Exact sampling rate and daily
    ingestion cap (31-day interactive retention is settled), accepted from
-   measured alpha workload and cost evidence.
+   measured alpha workload and cost evidence; the deployed adaptive sampling
+   and 0.1 GB/day cap are interim.
 6. **Azure budget wiring** — Billing scope, notification contacts/Action Group,
    and budget start/end dates were wired in the executed release (£75/month
    alert-only monitoring; see

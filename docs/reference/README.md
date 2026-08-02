@@ -26,10 +26,8 @@ authority.
 These reports remain source-labelled evidence and accepted-decision provenance.
 Their current product clauses are centralized in
 [requirements](../requirements.md); retention does not make predecessor
-implementation or raw source rows authoritative. Twelve reports whose
-present-tense claims had been overtaken by current documentation were removed
-on 2026-08-02; they remain in git history, and every decision they recorded
-stays owned by its canonical document.
+implementation or raw source rows authoritative. Reports overtaken by current
+documentation are removed; git history retains them.
 
 - [Collision Engineers administrative workflow observations](reports/collision_engineers_admin_overview.md)
 - [UI/UX interaction findings](reports/ui-ux.md)

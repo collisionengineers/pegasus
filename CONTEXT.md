@@ -53,7 +53,7 @@ A distinct staff workflow for a recorded matter requiring a finding and, where a
 _Avoid_: Inbox sorting, generic sorting
 
 **Needs sorting**:
-An email-receiving outcome for material that can be persisted safely but cannot be classified into a category. It is never a pre-Case Image intake or `Not ready`.
+A safe pre-case routing state for persisted material that cannot yet progress: unclassifiable email, and recorded Triage material awaiting a vehicle registration. It is never a pre-Case Image intake or `Not ready`.
 _Avoid_: Triage, Blocked intake
 
 **Blocked intake**:
@@ -113,7 +113,7 @@ An advisory assessment of a Case's current image set against registration-overvi
 _Avoid_: Case validity, image validation
 
 **Always-image-based Principal**:
-A Principal whose accepted route policy waives only the image-readiness reflection advisory. It does not waive other image-readiness advisories or the report-image reflection exclusion.
+A Principal whose accepted route policy autofills `Image Based Assessment` as the inspection address at Case creation (authorised staff may override to an explicit location) and waives only the image-readiness reflection advisory. It does not waive other image-readiness advisories or the report-image reflection exclusion.
 _Avoid_: Image-based client, provider exception
 
 **Vehicle enrichment**:
