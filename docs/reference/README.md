@@ -26,20 +26,13 @@ authority.
 These reports remain source-labelled evidence and accepted-decision provenance.
 Their current product clauses are centralized in
 [requirements](../requirements.md); retention does not make predecessor
-implementation or raw source rows authoritative. Six reports whose unqualified
+implementation or raw source rows authoritative. Twelve reports whose
 present-tense claims had been overtaken by current documentation were removed
-on 2026-08-02 (EVA API preference, historical correspondence boundary, manual
-chaser history, parser boundary, repository data authority, and UI required
-fields); they remain in git history.
+on 2026-08-02; they remain in git history, and every decision they recorded
+stays owned by its canonical document.
 
-- [Case/PO decision](reports/case-po-info.md)
-- [Repairer identity and case-party roles](reports/repairer-identity-and-case-party-roles.md)
 - [Collision Engineers administrative workflow observations](reports/collision_engineers_admin_overview.md)
-- [Provider API intake finding](reports/provider-api-intake-already-covered.md)
-- [Report delivery and post-report lifecycle](reports/report-delivery-and-post-report-lifecycle.md)
-- [Suggestion-first image analysis and VRM recognition](reports/suggestion-first-image-analysis-and-vrm-recognition.md)
 - [UI/UX interaction findings](reports/ui-ux.md)
-- [VRM correlation and source deduplication](reports/vrm-correlation-and-source-deduplication.md)
 
 ## Handling rules
 
