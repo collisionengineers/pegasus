@@ -28,6 +28,59 @@ is a planning conversation, not new documentation.
    journey, in what dependency order, and which alpha capabilities are
    non-blocking until a later frontier?
 
+## QDOS alpha activation details (migrated from the retired delivery plan)
+
+Still-open questions preserved from the deleted
+`research-and-planning/qdos-full-alpha-delivery-plan.md`; each blocks only the
+step it names.
+
+1. **VRM recognition engine (`INT-17`)** — Which recognition mechanism, if any,
+   does alpha adopt: in-process model bytes (reviewed origin/licence/hash/RIDs,
+   no Python service or runtime download) or one guarded external adapter (with
+   an image-egress/credential/retention/latency/cost contract)? A frozen genuine
+   labelled cohort + untouched holdout and preaccepted accuracy/abstention gates
+   come first; if nothing meets the gate the capability blocks rather than
+   falls back.
+2. **`INT-31` upload-link limits** — Exact token lifetime, aggregate and
+   per-file byte limits, file count, allowed content types, per-token/per-IP
+   rate, one-time vs reuse, and revocation/expiry error contract. Interim bound:
+   the existing aggregate 10 MB intake limit; hashed 256-bit token; anonymous
+   `/Uploads/{token}` form; no case disclosure.
+3. **Box production custody boundary** — Which enterprise, service/application
+   user, root folder, and Box File Request template ID hold real-case custody
+   (Case/PO folder + nested Audit subfolder)? Only folder `392761581105` is
+   approved today, and only as a disposable integration-test subtree.
+4. **External credential ownership** — For each credential (Box, DVLA/DVSA, any
+   VRM service, the Exchange application RBAC grant): the named operations owner
+   and the provider-specific issue/rotate/revoke/emergency-disable procedure.
+   The contract shape (Key Vault URI/version only, prove-then-cut-over, no
+   local fallback) is settled.
+5. **QDOS extractor acceptance thresholds (`INT-21`)** — Per-field
+   accuracy/coverage thresholds and truth representation for the ten fields
+   (Claimant Name, Claim Number, VRM, Make, Model, Mileage, Accident
+   Circumstances, Incident Date, Instruction Date, Inspection Address), from an
+   operator-reviewed cohort + untouched holdout. Zero false case creation is
+   invariant.
+6. **Telemetry sampling and daily cap** — Exact sampling rate and daily
+   ingestion cap (31-day interactive retention is settled), accepted from
+   measured alpha workload and cost evidence.
+7. **Azure budget wiring** — Billing scope, notification contacts/Action Group,
+   budget start/end dates, and a refreshed UK South GBP forecast against the
+   accepted £35–£70 range inside the £75/month alert-only envelope; variance
+   needs a named expenditure owner's sign-off.
+8. **Production identity targets** — The dedicated assigned-membership Entra
+   group (recorded name, tenant, immutable object ID, proven empty) for SQL
+   administration/migration, and the exact subscription/resource-group names and
+   per-resource dispositions for the isolated Development and Production
+   targets.
+9. **Release-artifact custody** — Where the versioned release packages live
+   (private Blob vs GitHub), recorded version IDs/hashes/custodian, and the
+   retention window, before `azd deploy --from-package`.
+10. **Performance dataset ownership** — Who supplies and approves the immutable
+    2,000-case performance dataset, observed document/source distribution, and
+    measured peak burst that the capacity gate needs (fabricated domain data is
+    forbidden; absence blocks the gate).
+
 ## Mailbox rule activation, automatic matching, and confidence display
 
 The [Received/Sent taxonomy, mirrored Reply rule, `Other` behavior, separation

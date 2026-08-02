@@ -436,6 +436,40 @@ The storage statements describe different layers rather than competing custody r
 
 A staged image must not be treated as definitively associated merely because it has been received. The supplied sources do not establish that movement from staging into Box is automated.
 
+# Additional recorded operator statements
+
+> **Source label:** `pre-deletion migration from docs/history/product/project-discovery-questionnaire.md, 2026-08-02`
+
+These statements were made in the discovery questionnaire and are preserved here
+verbatim because no other canonical document records them.
+
+- **Box filing of the secondary Audit:** "The Audit is stored in a subfolder
+  beneath the original Inspection folder in Box." (The Audit's Box folder nests
+  under the parent Inspection case folder, not beside it.)
+- **Operating hours:** "Automated mailbox ingestion and case processing operate
+  continuously. Staff-facing use is expected primarily during Collision
+  Engineers business hours, but the application should remain available outside
+  those hours unless undergoing planned maintenance."
+- **Support and incident response:** "Alex provides first-line application
+  support." Alex initially receives security, availability, failure, and cost
+  alerts; additional recipients may be added later through monitoring
+  configuration without code changes. "Critical incidents should be acknowledged
+  immediately while Alex is in the staffed office. Outside staffed hours,
+  respond as soon as reasonably possible." Emergency production access: "Alex
+  initially, plus any specifically designated Administrator or Azure operator
+  added later."
+- **Commercial and licensing constraints:** "No fixed monthly budget. Use the
+  lowest practical Azure tiers that still support required development and
+  integration testing." No fixed monthly ceiling has been set. "Reuse Collision
+  Engineers' existing Microsoft 365, Azure, Box, EVA, Audatex, and other vendor
+  accounts/licences where applicable" and "confirm commercial/API entitlement
+  before enabling each vendor integration." No fixed procurement or vendor
+  restriction has been supplied.
+- **Data residency and region:** A primary Azure region is not a requirement
+  "unless it impacts performance", and application data is not required to
+  remain in the UK ("Anything related to Data is not a concern"). UK South is a
+  chosen default (ADR-0015), not an operator constraint.
+
 # Source provenance
 
 > **Source label:** `pre-consolidation operator source: README`
