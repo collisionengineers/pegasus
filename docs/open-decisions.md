@@ -233,8 +233,8 @@ Azure ownership changes and retirement are separate exact-target decisions. The
 production replacement runbook fixes the intended production group and the
 candidate predecessor groups, but dated names are not current identity proof.
 Each mutation requires fresh inventory and explicit approval for the resolved
-resource IDs; see the canonical [Azure guidance](azure/README.md),
-[operations guidance](operations.md), and [execution runbook](../azure-production-replacement-plan.md).
+resource IDs; see [operations](operations.md#production-environment). The
+executed 2026-08-02 runbook evidence is in git history.
 
 | Decision | Evidence needed | Impact | Recommended default | Decision question |
 |---|---|---|---|---|

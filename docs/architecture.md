@@ -451,20 +451,20 @@ describe only the approved production resource group containing:
 
 The intended release owner uses an authorized Windows terminal, required by the `win-x64` migration bundle fixed in ADR-0007 rather than by the development platform, committed Bicep, `azd`, the .NET SDK OCI publisher, and ORAS. GitHub Actions deployment is not planned. Base infrastructure is provisioned without the public Web resource; the reviewed OCI digest is uploaded and verified, then an explicit database migration and Administrator bootstrap precede Container App activation.
 
-Issue #311 implements this route under the repository-root
-[production replacement runbook](../azure-production-replacement-plan.md). It is
-not deployed or production-ready. The repository contains the schema-2
-Web-OCI/Worker/migration packaging route, migration operation, identity and
-Entra inputs, provenance checks, and remote-build prohibition. The current
-Container Apps change compiles and publishes a disposable local OCI layout,
-but clean reviewed schema-2 packaging and the Integration gate remain
-incomplete; no Azure preview or provision has run for this topology.
+This route executed on 2026-08-02: Pegasus `0.1.0-alpha.1` is deployed to the
+sole production environment in `rg-pegasus-prod` (Web revision `94997dd0…` on an
+immutable image digest), and the predecessor test estate was retired through the
+exact verified manifest, leaving only the two adopted Key Vaults in
+`rg-collisionspike-dev`. The executed evidence is summarized in
+[operations](operations.md#production-environment); the full runbook and hashes
+are in git history. Deployment does not prove an untested provider outcome, and
+the isolated recovery exercise remains a mandatory gate before a second release.
 
-Bicep compilation proves syntax and type consistency only. Neither Bicep nor `azure.yaml` proves a runnable release path. No resource has been provisioned or changed by the Pegasus target definition, and the legacy `rg-collisionspike-dev` estate remains untouched.
+Bicep compilation proves syntax and type consistency only.
 
 Any Azure resource creation, deployment, role or credential change, setting change, or retirement requires explicit user approval for the exact target. Ownership of shared Foundry, ACR/ValuationBot, capture, or default-workspace assets must not be inferred from the predecessor resource group.
 
-The release design, live-inventory qualifications, and deployment procedures are owned by [Azure documentation](azure/README.md) and [operations](operations.md).
+The release design, live-inventory qualifications, and deployment procedures are owned by [operations](operations.md#production-environment).
 
 ## Local development procedure
 
