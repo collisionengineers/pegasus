@@ -17,8 +17,11 @@ QDOS instruction email through intake, review, Case/PO allocation, Box custody,
 and the EVA handoff bundle. [`NOW.md`](../NOW.md) "Path" owns the ordered
 critical path, the non-blocking capability set, and the acceptance boundary
 (OPS-23/OPS-25 close `0.1.0-alpha.1`; the RPO/RTO exercise gates the second
-release). The remaining evidence gates on that path are items 3 (Box custody
-boundary) and 5 (extraction thresholds) below.
+release). The remaining evidence gate on that path is item 4 (extraction
+thresholds) below. The Box production custody boundary was decided 2026-08-02:
+folder `392761581105` is the production custody root and all case folders are
+created only under it (owner:
+[operations](operations.md#approved-box-integration-test-target)).
 
 ## QDOS alpha activation details (migrated from the retired delivery plan)
 
@@ -38,40 +41,32 @@ step it names.
    rate, one-time vs reuse, and revocation/expiry error contract. Interim bound:
    the existing aggregate 10 MB intake limit; hashed 256-bit token; anonymous
    `/Uploads/{token}` form; no case disclosure.
-3. **Box production custody boundary** — Which enterprise, service/application
-   user, root folder, and Box File Request template ID hold real-case custody
-   (Case/PO folder + nested Audit subfolder)? Only folder `392761581105` is
-   approved today, and only as a disposable integration-test subtree.
-4. **External credential ownership** — For each credential (Box, DVLA/DVSA, any
+3. **External credential ownership** — For each credential (Box, DVLA/DVSA, any
    VRM service, the Exchange application RBAC grant): the named operations owner
    and the provider-specific issue/rotate/revoke/emergency-disable procedure.
    The contract shape (Key Vault URI/version only, prove-then-cut-over, no
    local fallback) is settled.
-5. **QDOS extractor acceptance thresholds (`INT-21`)** — Per-field
+4. **QDOS extractor acceptance thresholds (`INT-21`)** — Per-field
    accuracy/coverage thresholds and truth representation for the ten fields
    (Claimant Name, Claim Number, VRM, Make, Model, Mileage, Accident
    Circumstances, Incident Date, Instruction Date, Inspection Address), from an
    operator-reviewed cohort + untouched holdout. Zero false case creation is
    invariant.
-6. **Telemetry sampling and daily cap** — Exact sampling rate and daily
+5. **Telemetry sampling and daily cap** — Exact sampling rate and daily
    ingestion cap (31-day interactive retention is settled), accepted from
    measured alpha workload and cost evidence.
-7. **Azure budget wiring** — Billing scope, notification contacts/Action Group,
-   budget start/end dates, and a refreshed UK South GBP forecast against the
-   accepted £35–£70 range inside the £75/month alert-only envelope; variance
-   needs a named expenditure owner's sign-off.
-8. **Production identity targets** — The dedicated assigned-membership Entra
-   group (recorded name, tenant, immutable object ID, proven empty) for SQL
-   administration/migration, and the exact subscription/resource-group names and
-   per-resource dispositions for the isolated Development and Production
-   targets.
-9. **Release-artifact custody** — Where the versioned release packages live
-   (private Blob vs GitHub), recorded version IDs/hashes/custodian, and the
-   retention window, before `azd deploy --from-package`.
-10. **Performance dataset ownership** — Who supplies and approves the immutable
-    2,000-case performance dataset, observed document/source distribution, and
-    measured peak burst that the capacity gate needs (fabricated domain data is
-    forbidden; absence blocks the gate).
+6. **Azure budget wiring** — Billing scope, notification contacts/Action Group,
+   and budget start/end dates were wired in the executed release (£75/month
+   alert-only monitoring; see
+   [operations](operations.md#production-environment)). Still open: a refreshed
+   UK South GBP forecast from measured alpha workload — no fixed monthly
+   ceiling or accepted spend range exists
+   ([operator notes](operator-notes.md)); material variance from forecast needs
+   a named expenditure owner's sign-off.
+7. **Performance dataset ownership** — Who supplies and approves the immutable
+   2,000-case performance dataset, observed document/source distribution, and
+   measured peak burst that the capacity gate needs (fabricated domain data is
+   forbidden; absence blocks the gate).
 
 ## Mailbox rule activation, automatic matching, and confidence display
 

@@ -16,7 +16,7 @@ created only as ADRs under [docs/adr/](adr/README.md).
 | What durable technical decisions apply? | [Decision index](adr/README.md) (ADR bodies are immutable) |
 | What raw supplied evidence exists? | [Reference evidence](reference/README.md) |
 | What are the UI rules? | [Design](../design/README.md) |
-| What is the Azure production state? | [Operations § Production environment](operations.md#production-environment) and `.azure/deployment-plan.md` |
+| What is the Azure production state? | [Operations § Production environment](operations.md#production-environment) — the sole current-state owner; `.azure/deployment-plan.md` is the immutable 2026-08-02 execution record |
 | What do the imported source workspaces own? | [Workspaces](../workspaces/README.md) |
 | What do domain terms mean? | [`CONTEXT.md`](../CONTEXT.md) (repo root) |
 

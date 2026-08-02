@@ -231,12 +231,14 @@ Install-Module ExchangeOnlineManagement -Scope CurrentUser -RequiredVersion 3.10
 
 ### Approved Box custody root
 
-Box folder `392761581105` is the exact root for the production custody adapter
-and the only eligible controlled integration-test boundary; it grants no
-standing write authority. Before any pre-activation invocation, obtain explicit
-approval naming the exact target folder/object and create or controlled-update
-operation. The activated production caller remains confined to case-scoped
-objects under that root. No caller may delete, move, copy, or share Box content,
+The Box production custody boundary is decided (2026-08-02): Box folder
+`392761581105` is the production custody root, and all case folders are created
+only under this root. The same folder is the only eligible controlled
+integration-test boundary — testing remains confined to an approved disposable
+test subtree beneath it — and it grants no standing write authority. Before any
+non-production invocation, obtain explicit approval naming the exact target
+folder/object and create or controlled-update operation. The activated
+production caller remains confined to case-scoped objects under that root. No caller may delete, move, copy, or share Box content,
 operate outside that folder, or expose credentials in source, configuration,
 command lines, prompts, output, telemetry, or business history. Every invocation
 must verify ancestry and the target/action allowlist and retain stable source and
@@ -260,8 +262,9 @@ post-provision, post-migration user/role operation. It creates only the fixed
 external-user aliases from the Web/Worker managed-identity client-ID SIDs,
 rejects broad roles or direct DDL, and compares the live object permission set
 with the exhaustive migration-defined grant and `DELETE`-denial matrix. It is
-not an automatic `azure.yaml` hook and has not run against Azure. Execution is a
-separately approved exact-target cloud write.
+not an automatic `azure.yaml` hook. It ran against production on 2026-08-02 as
+part of the executed release and verified the exhaustive matrix; any further
+execution is a separately approved exact-target cloud write.
 
 Migration `20260729176000_AzureSqlRuntimeLeastPrivilege` creates and owns the
 fixed custom roles `pegasus_web_runtime_role` and
@@ -648,9 +651,9 @@ that actor.
 | Use an Azure service | Subscription, resource group, resource, operation | Explicit mutation/cost approval, fresh inventory, least-privilege identity |
 | Read or change an Outlook mailbox | Tenant, application, mailbox, folder, action | Exchange Application RBAC approval and negative scope test before the Graph call |
 | Use Box or another vendor sandbox | Enterprise/account, folder/project, operation | Credential/data approval and controlled non-corpus input |
-| Use the approved Box integration-test target | Folder `392761581105`; local or explicitly approved non-production deployment; create and update controlled non-corpus artifacts only | Approved disposable test subtree; no delete, move, copy, share, broader folder access, credential exposure, or production activation |
+| Test against the approved Box custody root | Folder `392761581105` (the production custody root); local or explicitly approved non-production deployment; create and update controlled non-corpus artifacts only | Approved disposable test subtree beneath the root; no delete, move, copy, share, broader folder access, or credential exposure; production case custody belongs only to the activated production caller |
 | Send a document to OCR, vision, AI, or another processor | Service, region, model, input class | Data, licence, cost, and security approval; corpus remains prohibited unless separately authorised |
-| Deploy, restore, fail over, or retire | Exact non-production environment and recoverable target | Explicit operation approval, fresh inventory, rollback path, retained source data |
+| Deploy, restore, fail over, or retire | Exact environment (isolated local development or production only, per ADR-0014) and recoverable target | Explicit operation approval for the exact target, fresh inventory, rollback path, retained source data |
 
 Offline profiles contain no live credentials. A selected live profile must require an allowlisted tenant, subscription, account, mailbox, folder, resource, and action, and reject missing or broader scope before constructing the external client.
 
@@ -768,7 +771,7 @@ The Web exposes:
 
 Readiness requires the database and all committed migrations.
 
-Core contains local `ActivitySource` instrumentation, but the current Web host registers no telemetry exporter. The Worker has Application Insights packages and source-level timer/queue callers, but there is no deployed Pegasus telemetry, alert delivery, live incident record, or current recovery/deletion incident evidence; historical predecessor incidents do not establish current Pegasus behavior.
+Core contains local `ActivitySource` instrumentation. The deployed Worker registers and exports Application Insights telemetry (its live executions are observable in the production Application Insights resource), and the production budget/alert wiring is recorded under [production environment](#production-environment). The current Web host registers no in-process telemetry exporter, so correlated Web/Worker telemetry (OPS-07) remains open work; there is no live incident record or current recovery/deletion incident evidence, and historical predecessor incidents do not establish current Pegasus behavior.
 
 A releasable implementation requires correlated Web/Worker telemetry and alerts for:
 
@@ -868,11 +871,12 @@ Current source provides no application backup/restore executable or
 receipt/artifact deletion route, and no Pegasus recovery, failover, RPO, or
 RTO exercise has completed; the first production release launched under an
 explicit exception, and a second release is blocked until the isolated
-exercise below passes. A production Box custody adapter is
-implemented behind the existing Core port, but it is not deployed, live
-verified, recovery-tested, or accepted. Test cleanup and migration tests are
+exercise below passes. The production Box custody adapter is deployed behind
+the existing Core port and rooted at the approved custody root (see
+[production environment](#production-environment)); it is not
+recovery-tested or operator-accepted. Test cleanup and migration tests are
 narrower evidence. The procedures below are release gates, not claims that
-recovery or deletion is implemented, deployed, or accepted.
+recovery or deletion is accepted.
 
 ### Local recovery
 
