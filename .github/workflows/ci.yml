@@ -10,8 +10,10 @@ permissions:
 
 jobs:
   validate:
+    # Historical full runs take 32-43 minutes on windows-latest; the timeout
+    # guards against a hung run, not normal variance.
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v7
       - name: Documentation links
