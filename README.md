@@ -13,19 +13,27 @@ platform per workstation, not a mixture.
 
 ### On Windows
 
-The repository retains long supplied-reference paths. Enable Windows long-path
-support and configure Git for Windows before cloning:
+The repository retains long supplied-reference paths (longest tracked path is
+about 122 characters), and build output nests deeper. Enabling Windows
+long-path support and configuring Git for Windows before cloning avoids any
+checkout-root constraint:
 
 ```powershell
 git config --global core.longpaths true
 npm ci
-dotnet restore ./Pegasus.slnx
+dotnet restore ./Pegasus.slnx --locked-mode
 sqllocaldb start MSSQLLocalDB
 dotnet build ./Pegasus.slnx --configuration Release --no-restore
+pwsh ./tests/Pegasus.IntegrationTests/bin/Release/net10.0/playwright.ps1 install chromium
 dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"
 dotnet run --project ./src/Pegasus.Web --configuration Release --launch-profile https --no-build -- --migrate-development
 dotnet run --project ./src/Pegasus.Web --configuration Release --launch-profile https --no-build
 ```
+
+The Playwright step installs the pinned Chromium the `Browser` test lane needs
+(CI performs the same step); alternatively,
+`pwsh ./scripts/Initialize-LocalDevelopment.ps1` performs initialization
+including that browser install.
 
 ### On Linux
 
@@ -34,8 +42,9 @@ rather than LocalDB, so start one and point the application at it:
 
 ```powershell
 npm ci
-dotnet restore ./Pegasus.slnx
+dotnet restore ./Pegasus.slnx --locked-mode
 dotnet build ./Pegasus.slnx --configuration Release --no-restore
+pwsh ./tests/Pegasus.IntegrationTests/bin/Release/net10.0/playwright.ps1 install chromium
 dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus&Category!=SqlServer"
 $env:ConnectionStrings__Pegasus = 'Server=127.0.0.1,<port>;Database=PegasusDevelopment;User ID=sa;Password=<password>;Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True'
 dotnet run --project ./src/Pegasus.Web --configuration Release --launch-profile https --no-build -- --migrate-development
@@ -44,8 +53,10 @@ dotnet run --project ./src/Pegasus.Web --configuration Release --launch-profile 
 
 The `SqlServer` test lane runs on Linux too once the tests are pointed at that
 container; [operations](docs/operations.md#locked-restore-build-and-test) owns
-the exact variables. Prefer `pwsh ./scripts/Invoke-LocalDevelopment.ps1`, which
-manages the container, Azurite, and the Functions host for you.
+the exact variables. Prefer
+`pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start` (after
+`Initialize-LocalDevelopment.ps1` has run once), which manages the container,
+Azurite, and the Functions host for you.
 
 The first `dotnet run` applies every committed Development migration and exits;
 the second starts Web against the migrated database. Normal Web startup never

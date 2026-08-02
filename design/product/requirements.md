@@ -34,7 +34,7 @@ Case/PO, Image Intake Reference, registration, claimant, claim number, principal
 
 ## Operations and state boundaries
 
-Operations shows Not ready, Review, Held, Needs sorting, exact `Blocked intake`, separate Triage, Due today, New cases today, Sent to Engineer today/week, and Reports sent today/week. It uses Europe/London midnight days and Monday-week boundaries. `New cases today` has the exact Case-creation definition in the [requirements](../../docs/requirements.md#dashboard-freshness-and-reconciliation). Counts open their exact filtered queues; zero is distinct from stale/unavailable; last updated and manual refresh are visible. Receiving work, Queries and Other are `Next / 0.3.0` in the [capability inventory](../../docs/capabilities.md#capabilities), with no `0.1.0-alpha.1` surface. |
+Operations shows Not ready, Review, Held, Needs sorting, exact `Blocked intake`, separate Triage, Due today, New cases today, Sent to Engineer today/week, and Reports sent today/week. It uses Europe/London midnight days and Monday-week boundaries. `New cases today` has the exact Case-creation definition in the [requirements](../../docs/requirements.md#dashboard-freshness-and-reconciliation). Counts open their exact filtered queues; zero is distinct from stale/unavailable; last updated and manual refresh are visible. Receiving work, Queries and Other are `Next / 0.3.0` in the [capability inventory](../../docs/capabilities.md#capabilities), with no `0.1.0-alpha.1` surface.
 
 An intake row always presents received date above received time and its precise processing outcome. At constrained desktop width, long Case/PO or Image Intake Reference text moves to a labelled second line; it must not overlap the received timestamp or another row field.
 

@@ -144,7 +144,7 @@ source/version, prior and new value, actor, time, outcome, and required reason
 in permanent history.
 ## UI-07 exact search and filters
 
-Case/PO, registration, claimant, claim number, principal, state, Engineer, received/instruction dates and range, and origin.
+Case/PO, Image Intake Reference, registration, claimant, claim number, principal, state, Engineer, received/instruction dates and range, and origin.
 
 ## Exceptions and necessary copy
 

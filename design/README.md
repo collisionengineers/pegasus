@@ -1,6 +1,6 @@
 # Design authority
 
-This file is the durable authority for Pegasus visual design, Web interaction contracts, approved assets, component and pattern boundaries, and source-to-runtime mappings. Product scope and business capability remain owned by [requirements](../docs/requirements.md) and [capabilities](../docs/capabilities.md); architecture, repository-development workflow, deployment and operational procedure remain with [architecture](../docs/architecture.md), the [installed skills](../.agents/skills/ask-matt/SKILL.md), [operations](../docs/operations.md) and [operator notes](../docs/operator-notes.md).
+This file is the durable authority for Pegasus visual design, Web interaction contracts, approved assets, component and pattern boundaries, and source-to-runtime mappings. Product scope and business capability remain owned by [requirements](../docs/requirements.md) and [capabilities](../docs/capabilities.md); architecture, deployment and operational procedure remain with [architecture](../docs/architecture.md), [operations](../docs/operations.md) and [operator notes](../docs/operator-notes.md); repository-development workflow is owned by [engineering](../docs/engineering.md).
 
 ## Evidence discipline
 
@@ -160,7 +160,7 @@ Current consumers:
 
 - embedded by `workspaces/report-renderer/src/CollisionRenderer.Core`;
 - linked by `workspaces/report-renderer/src/CollisionRenderer.Gui`;
-- approved as the source for the selected future Web shell, but not yet adopted by the current Development layout.
+- copied byte-for-byte to the Web runtime and embedded by `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` (see the source-to-runtime mapping below).
 
 Rules:
 
@@ -168,7 +168,7 @@ Rules:
 - Never extract it from a screenshot.
 - Never recolour the master or invent another mark.
 - Copy or optimise it for a runtime only through a reviewed source-to-runtime mapping with checksum proof.
-- The current HTML/CSS `.brand-mark` spelling `CE` is runtime divergence, not an approved logo variant.
+- The former `CE` text mark was replaced by the mapped logo in `_Layout.cshtml`; the leftover `.brand-mark` CSS rule in `site.css` is dead styling, not an approved logo variant.
 
 The upstream source directory may be absent from a clean checkout. The checksum-pinned repository copy is the durable source.
 
@@ -190,7 +190,7 @@ Lucide is the only approved Web/UI icon system:
 
 Do not use emoji, Unicode dingbats, hand-drawn icons or infrastructure symbols.
 
-No Lucide package or copied SVG set is currently exercised. A selected implementation must choose a repository-owned delivery path, map every used glyph and provide accessible labels whenever an icon is not decorative. `src/Pegasus.Web/wwwroot/favicon.ico` has unrecorded provenance and is not icon-system authority.
+The checksummed Lucide sprite is delivered at `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg` (see the mapping below), but no page references a glyph from it yet — glyph usage remains unexercised. A selected implementation must map every used glyph and provide accessible labels whenever an icon is not decorative. `src/Pegasus.Web/wwwroot/favicon.ico` has unrecorded provenance and is not icon-system authority.
 
 
  #### Lucide icons source-to-runtime mapping
@@ -325,17 +325,20 @@ It runs under authenticated staff identity (the DevelopmentOffline profile's ser
 
 ### Core outcome to operator label and persistence
 
-The current caller exposes these exact outcome labels. The supplied evidence does not establish different public enum names, so implementations must not invent aliases.
+The current caller exposes these exact outcome labels (owned by
+`src/Pegasus.Web/Pages/Intake/Index.cshtml.cs` `DecisionLabel`); implementations
+must not invent aliases.
 
-| Core result exposed to the UI | Exact operator label | Receipt persisted | Case/reference persisted |
+| Core intake decision | Exact operator label | Receipt persisted | Case/reference persisted |
 | --- | --- | --- | --- |
-| `Draft ready` | Draft ready | Yes | No |
-| `Needs sorting` | Needs sorting | Yes | No |
-| `OCR required` | OCR required | Yes | No |
+| `DraftReady` | Instruction draft | Yes | No |
+| `NeedsSorting` | Needs sorting | Yes | No |
+| `BlockedIntake` | Blocked intake | Yes | No |
+| `OcrRequired` | Document text required | Yes | No |
+| `TechnicalFailure` | Technical failure | Yes | No |
 | `Unsupported` | Unsupported | Yes | No |
-| `Retryable failure` | Retryable failure | Yes | No |
 
-`OCR required` records a fail-closed outcome; it does not prove that deferred OCR capability is implemented.
+`Document text required` records a fail-closed outcome; it does not prove that deferred OCR capability is implemented.
 
 Validation or refusal before an accepted intake receipt must not be described as case creation. The current Development path never creates a case/reference, regardless of its receipt outcome.
 
@@ -633,7 +636,7 @@ The following are permanent absences, not backlog placeholders:
 - quarterly restore exercises;
 - predecessor data import, predecessor availability after cutover or predecessor code reuse;
 - SMS or Microsoft Teams integration;
-- customer/claimant portal;
+- customer/claimant portal (request-scoped upload links under INT-31 remain permitted; a link exposes no case or request state and creates no account);
 - independent Engineer accounts;
 - solicitor, insurer, repairer or vehicle-owner accounts.
 
@@ -647,7 +650,7 @@ A supported desktop reflow does not alter the permanent mobile-product boundary.
 | Open policy and token questions | [Open decisions](../docs/open-decisions.md) | No implementation inference until resolved |
 | Architecture and caller boundaries | [Architecture](../docs/architecture.md) | Core, Web, Worker, MCP and external adapters |
 | Operations and deployment | [Operations](../docs/operations.md) | No deployment claim from design or source presence |
-| Engineering procedure | [Installed skills](../.agents/skills/ask-matt/SKILL.md) | Reviewed implementation and verification |
+| Engineering procedure | [Engineering](../docs/engineering.md) | Reviewed implementation and verification; `.agents/skills/` routes remain subject to it |
 | Design authority | This file | Approved Web tokens, assets, components and patterns |
 | Current Web shell | This file’s approved direction; current code is evidence only | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` |
 | Current Web tokens/layout | This file | `src/Pegasus.Web/wwwroot/css/site.css`, currently divergent |

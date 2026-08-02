@@ -19,7 +19,9 @@ $mainBicepPath = Join-Path $repositoryRoot 'infra/main.bicep'
 $platformBicepPath = Join-Path $repositoryRoot 'infra/modules/platform.bicep'
 $parametersPath = Join-Path $repositoryRoot 'infra/main.parameters.json'
 $azureYamlPath = Join-Path $repositoryRoot 'azure.yaml'
-$productionPlanPath = Join-Path $repositoryRoot 'azure-production-replacement-plan.md'
+# The executed production runbook (azure-production-replacement-plan.md) and
+# the one-off predecessor archive/retirement scripts were retired after the
+# 2026-08-02 release; their content assertions retired with them (git history).
 
 function Assert-Text {
     param(
@@ -117,7 +119,6 @@ $mainBicep = Get-Content -LiteralPath $mainBicepPath -Raw
 $platformBicep = Get-Content -LiteralPath $platformBicepPath -Raw
 $parameters = Get-Content -LiteralPath $parametersPath -Raw
 $azureYaml = Get-Content -LiteralPath $azureYamlPath -Raw
-$productionPlan = Get-Content -LiteralPath $productionPlanPath -Raw
 $combined = "$mainBicep`n$platformBicep`n$parameters`n$azureYaml"
 
 Assert-Text $mainBicep "@allowed\(\[\s*'prod'\s*\]\)" 'infra/main.bicep must accept production only.'
@@ -150,9 +151,6 @@ Assert-Text $platformBicep "name:\s*'APPLICATIONINSIGHTS_AUTHENTICATION_STRING'"
 Assert-Text $platformBicep "AzureWebJobs\.[A-Za-z0-9]+\.Disabled'[\s\S]*?value:\s*'true'" 'Worker triggers must start disabled.'
 Assert-Text $platformBicep 'retentionInDays:\s*31' 'Log Analytics retention must be exactly 31 days.'
 Assert-Text $mainBicep 'LOG_ANALYTICS_WORKSPACE_NAME' 'The Log Analytics workspace name must be exported for exact post-provision configuration.'
-Assert-Text $productionPlan 'az monitor log-analytics workspace update[\s\S]*?workspaceCapping\.dailyQuotaGb=0\.1' 'The runbook must set the Log Analytics cap to exactly 0.1 GB after provisioning.'
-Assert-Text $productionPlan 'az monitor app-insights component billing update[\s\S]*?--cap 0\.1' 'The runbook must set the Application Insights cap to exactly 0.1 GB after provisioning.'
-Assert-Text $productionPlan '\[decimal\]\$WorkspaceCap -ne 0\.1 -or \[decimal\]\$ApplicationInsightsCap -ne 0\.1' 'The runbook must fail closed unless both telemetry caps verify as exactly 0.1 GB.'
 Assert-Text $platformBicep "APPLICATIONINSIGHTS_ENABLEADAPTIVESAMPLING'[\s\S]*?value:\s*'true'" 'Adaptive sampling must be enabled for production telemetry.'
 Assert-TextAbsent $platformBicep "resource\s+webPlan\b|name:\s*'P0v4'|kind:\s*'app,linux'" 'The superseded App Service Web route is prohibited.'
 Assert-TextAbsent $platformBicep '4633458b-17de-408a-b874-0445c86b69e6' 'Vault-wide Key Vault Secrets User grants are prohibited; exact secret grants occur only after the secret census.'
@@ -169,18 +167,9 @@ if ([regex]::Matches($platformBicep, "resource\s+\w+\s+'Microsoft\.Storage/stora
 }
 Assert-TextAbsent $platformBicep 'workerAuthenticationRing' 'Worker access to the Web authentication ring is prohibited.'
 Assert-TextAbsent $combined '(?i)\bdocumentintelligence\b|\bcognitiveservices\b|\bfoundry\b|\bmaps\b|\bvision\b|\bstaticwebapp\b' 'Deferred Azure services are prohibited from the alpha deployment.'
-Assert-Text $productionPlan 'oras cp --from-oci-layout' 'The runbook must upload the exact local OCI layout without a remote build.'
-Assert-Text $productionPlan 'Mode PreUpload[\s\S]*?ManifestSha256 \$ApprovedReleaseManifestSha256[\s\S]*?oras cp --from-oci-layout' 'The runbook must authenticate the complete approved manifest before the ACR upload.'
-Assert-Text $productionPlan 'Mode PreMigration[\s\S]*?ManifestSha256 \$ApprovedReleaseManifestSha256[\s\S]*?efbundle\.exe' 'The runbook must re-authenticate the approved manifest before migration.'
-Assert-Text $productionPlan 'az acr manifest show-metadata[\s\S]*?RegistryDigest -ne \$LocalDigest' 'The runbook must compare the ACR and local OCI digests.'
-Assert-Text $productionPlan 'PEGASUS_WEB_ACTIVATION disabled[\s\S]*?azd provision[\s\S]*?PEGASUS_WEB_ACTIVATION approved' 'The runbook must provision the base before approving Web activation.'
-Assert-TextAbsent $productionPlan '(?m)^\s*azd deploy web\b' 'Deploying Web from a ZIP or azd service deploy is prohibited.'
 
 $bootstrapScript = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts/Invoke-ProductionAdministratorBootstrap.ps1') -Raw
 $databaseBootstrapScript = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts/Invoke-AzureDatabaseBootstrap.ps1') -Raw
-$predecessorArchiveScript = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts/Invoke-PredecessorArchive.ps1') -Raw
-$retirementManifestScript = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts/New-PredecessorRetirementManifest.ps1') -Raw
-$predecessorRetirementScript = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts/Invoke-PredecessorRetirement.ps1') -Raw
 Assert-Text $bootstrapScript 'Get-FileHash[\s\S]*SHA256' 'Administrator bootstrap must verify the immutable Web package SHA-256.'
 Assert-Text $bootstrapScript 'ManifestSha256' 'Administrator bootstrap must require the operator-approved manifest SHA-256.'
 Assert-Text $bootstrapScript "Test-AzureDeploymentPlan\.ps1'\) -Mode Artifact" 'Administrator bootstrap must run full release-manifest and artifact validation.'
@@ -196,25 +185,6 @@ Assert-Text $databaseBootstrapScript 'manifest\.sourceRevision' 'Database bootst
 Assert-Text $databaseBootstrapScript 'status --porcelain' 'Database bootstrap must require a clean source checkout before reading the migration-defined matrix.'
 Assert-Text $databaseBootstrapScript 'sys\.schemas[\s\S]*sys\.objects[\s\S]*owning_principal_id[\s\S]*owner_sid' 'Database bootstrap must reject schema, object, principal, and database ownership authority.'
 Assert-Text $databaseBootstrapScript 'HAS_PERMS_BY_NAME' 'Database bootstrap must compare effective per-table runtime DML with the migration-defined matrix.'
-Assert-Text $predecessorArchiveScript 'new empty timestamped ArchiveRoot' 'A predecessor archive refresh must refuse reuse of an existing manifested archive.'
-foreach ($vaultName in @('cespkboxkvv76a47', 'cespkenrichkvgi62sd', 'cespk-pg-kv-dev', 'cespkevakvufa3ci', 'cespklockva7tzj2')) {
-    Assert-Text $predecessorArchiveScript ([regex]::Escape($vaultName)) "The predecessor archive must census secret metadata for $vaultName."
-}
-Assert-Text $retirementManifestScript 'archiveManifestSha256' 'The retirement manifest generator must bind the exact archive manifest hash.'
-Assert-Text $retirementManifestScript 'retirement batches do not cover every non-retained resource exactly once' 'The retirement manifest generator must prove complete exact-ID allocation.'
-Assert-Text $retirementManifestScript 'managedChildResourceIds' 'The retirement manifest must separate platform-owned child resources from direct deletion batches.'
-Assert-Text $predecessorArchiveScript "role', 'assignment', 'list', '--all'" 'The archive must census subscription role assignments including resource-scoped assignments.'
-Assert-Text $retirementManifestScript 'managedChildResourceGroup' 'The retirement manifest must bind the managed child group and parent ownership.'
-Assert-Text $retirementManifestScript 'roleDispositionSha256' 'The retirement manifest must bind exact role-assignment dispositions.'
-Assert-Text $predecessorRetirementScript 'not bound to the adjacent verified archive manifest' 'Retirement execution must verify the bound archive hash.'
-Assert-Text $predecessorRetirementScript 'Bound archive entry identity mismatch' 'Retirement execution must re-hash every bound archive entry before mutation.'
-Assert-Text $predecessorRetirementScript "Stage -eq 'Inspect'" 'Retirement execution must provide a non-mutating exact-ID inspection stage.'
-Assert-Text $predecessorRetirementScript 'Retirement batches must run in manifest order' 'Retirement execution must prohibit batch skipping.'
-Assert-Text $predecessorRetirementScript 'Retained vault or descendant is prohibited from retirement' 'Retirement execution must protect retained vault descendants.'
-Assert-Text $predecessorRetirementScript 'Resource has not verified as Stopped' 'Retirement deletion must fail closed if a stop target is running.'
-Assert-Text $predecessorRetirementScript 'Unexpected live predecessor resources are absent from the approved manifest' 'Retirement execution must reject live resource inventory drift.'
-Assert-Text $predecessorRetirementScript "Stage -eq 'DeleteManagedChildGroup'" 'Managed child-group deletion must run through the manifest-bound executor.'
-Assert-Text $predecessorRetirementScript "Stage -eq 'DeleteRoleAssignment'" 'Role-assignment deletion must run through the manifest-bound executor.'
 
 & az bicep build --file $mainBicepPath --stdout | Out-Null
 if ($LASTEXITCODE -ne 0) {
