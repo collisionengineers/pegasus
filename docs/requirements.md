@@ -6,7 +6,7 @@ This document is the sole owner of Pegasus intended product requirements. The [c
 
 The [operator notes](operator-notes.md) are the binding source for Collision Engineers’ business process and current-system knowledge. [Architecture](architecture.md) owns what is currently implemented and called. [Operations](operations.md) owns procedures and evidence profiles. [Open decisions](open-decisions.md) owns unresolved material questions. [Design](../design/README.md) owns the durable UI contract.
 
-The accepted [QDOS alpha implementation contract](adr/0013-qdos-alpha-implementation-contract.md) fixes checkpoint 1's clause-specific implementation and Razor/Worker/MCP caller boundary. The existing [QDOS change record](changes/2026-07-27-qdos-alpha-reference-corpora.md) remains the sole delivery/evidence owner. Neither document changes capability allocation or promotes an intended caller to implementation, caller, deployment, or acceptance evidence.
+The accepted [QDOS alpha implementation contract](adr/0013-qdos-alpha-implementation-contract.md) fixes checkpoint 1's clause-specific implementation and Razor/Worker/MCP caller boundary. It does not change capability allocation or promotes an intended caller to implementation, caller, deployment, or acceptance evidence.
 
 Evidence states remain distinct:
 
@@ -609,10 +609,10 @@ The target product covers the approved mailbox estate and full source messages; 
 
 ### Settled mailbox taxonomy and correction
 
-The user directly confirmed this taxonomy from the [retained current-tree
-evidence](reference/CollisionSPikeCurrenttree.txt). This subsection is the sole
+The user directly confirmed this taxonomy from the retained current-tree
+evidence. This subsection is the sole
 product-behavior owner. The [operator confirmation](operator-notes.md#confirmed-mailbox-categorisation)
-and [retained decision dossier](history/plans/mailbox-categorisation-and-email-matching/README.md#settled-detailed-taxonomy)
+and retained decision dossier (git history: `docs/history/plans/mailbox-categorisation-and-email-matching/`)
 preserve provenance and research context without becoming competing policy
 owners.
 
@@ -759,7 +759,7 @@ Administrator evaluator approval. A separately delivered evaluator may exercise
 shared policy and produce accepted, source-labelled evidence where the shared
 mail policy requires it; that call and its review mechanics remain evaluator
 evidence, not QDOS delivery or activation proof. The capability inventory's
-`DOC-CON-052` boundary owns the unchanged evaluator allocations. Shared Core
+evaluator allocation boundary owns the unchanged evaluator allocations. Shared Core
 mail policy, production intake, Graph replay/live adapters, and their
 genuine-evidence and caller requirements remain in QDOS scope.
 
@@ -1010,8 +1010,7 @@ No irreversible choice is made merely to reserve a seam. New top-level projects,
 
 This section owns release precedence. The complete source-labelled dependency
 graph, including `Next` parallel branches and `Later` independent gates, is
-retained in the [dependency-ordered delivery
-roadmap](history/plans/delivery-roadmap.md); the operator execution route is
+retained in the dependency-ordered delivery roadmap (git history); the operator execution route is
 [Release dependency order](operations.md#release-dependency-order). Those
 routes preserve detail and procedure without becoming requirements, allocation,
 implementation-status, or acceptance owners.

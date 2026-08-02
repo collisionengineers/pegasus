@@ -51,10 +51,11 @@ the second starts Web against the migrated database. Normal Web startup never
 applies migrations.
 
 Exact prerequisites, initialization, migration, test profiles, and evidence
-limits are in [operations](docs/operations.md). Start with the
-[documentation map](docs/index.md), [requirements](docs/requirements.md),
-[capabilities](docs/capabilities.md), [architecture](docs/architecture.md), and
-[repository-development workflow](.agents/skills/ask-matt/SKILL.md).
+limits are in [operations](docs/operations.md). Current work is tracked in
+[`NOW.md`](NOW.md); start with the [documentation map](docs/index.md),
+[requirements](docs/requirements.md), [capabilities](docs/capabilities.md),
+[architecture](docs/architecture.md), and the
+[engineering workflow](docs/engineering.md).
 
 `workspaces/` contains independently maintained and buildable source imports.
 They are not Pegasus callers, runtime acceptance, projects in `Pegasus.slnx`,

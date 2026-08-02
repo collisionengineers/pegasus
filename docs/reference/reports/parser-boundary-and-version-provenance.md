@@ -19,7 +19,7 @@ ADR-0022 (`../dealt-with/rejected/0022-retroactive-case-reconstruction.md`) was 
 
 The current real path is:
 
-`POST /Intake/Upload` -> [`UploadModel.OnPostAsync`](../../../src/Pegasus.Web/Pages/Intake/Upload.cshtml.cs) -> [`ProcessIntake`](../../../src/Pegasus.Core/Intake/ProcessIntake.cs) -> Core [`IIntakeSourceReader`](../../../src/Pegasus.Core/Intake/IntakeContracts.cs) -> Infrastructure [`MimeKitPdfPigOpenXmlIntakeSourceReader`](../../../src/Pegasus.Infrastructure/Intake/MimeKitPdfPigOpenXmlIntakeSourceReader.cs).
+`POST /Intake/Upload` -> `UploadModel.OnPostAsync` -> [`ProcessIntake`](../../../src/Pegasus.Core/Intake/ProcessIntake.cs) -> Core [`IIntakeSourceReader`](../../../src/Pegasus.Core/Intake/IntakeContracts.cs) -> Infrastructure [`MimeKitPdfPigOpenXmlIntakeSourceReader`](../../../src/Pegasus.Infrastructure/Intake/MimeKitPdfPigOpenXmlIntakeSourceReader.cs).
 
 MimeKit, PdfPig, and Open XML remain Infrastructure dependencies. Provider-specific extraction and review decisions remain in Core. The Web caller is Development-only; the Worker currently has composition and telemetry but no intake trigger or parser caller. No current intake code is coupled to EVA.
 

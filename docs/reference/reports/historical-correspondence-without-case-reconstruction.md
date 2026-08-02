@@ -10,11 +10,11 @@ No legacy finding from ADR-0022 was accepted. This report records the current Pe
 
 ### Current authority
 
-- The [discovery questionnaire](../../history/product/project-discovery-questionnaire.md) says Pegasus starts fresh: previous application cases, users, action-history records and application state are not migrated. Historical documents and operational records stay in Box, EVA, Outlook, spreadsheets or the network drive, and the previous application is shut down after cutover.
+- The discovery questionnaire says Pegasus starts fresh: previous application cases, users, action-history records and application state are not migrated. Historical documents and operational records stay in Box, EVA, Outlook, spreadsheets or the network drive, and the previous application is shut down after cutover.
 - A case and principal reference arise only from accepted definitive instructions or usable image-led intake. A missing or ambiguous input remains pre-case; it is not converted into a case merely because historical material exists.
 - Related email may be associated automatically only when it definitively matches an existing Pegasus case. An uncertain match is operator-visible in `Needs sorting`.
 - [`Held`](../../../AGENTS.md#product-language-and-invariants) is a reasoned pause on an existing case. It is not a pre-case state or a fallback case constructor.
-- Post-report queries and disputes are required operational work, but the exact predicates for `Queries`, `Other`, and `Needs sorting` remain unresolved in the combined [mailbox categorisation and email-matching research](../../history/plans/mailbox-categorisation-and-email-matching/README.md).
+- Post-report queries and disputes are required operational work, but the exact predicates for `Queries`, `Other`, and `Needs sorting` remain unresolved in the combined mailbox categorisation and email-matching research.
 
 ### Decision boundary for new correspondence about historical work
 
@@ -44,11 +44,11 @@ The eventual mailbox caller must record any staff association or resolution it p
 
 The only current intake caller is the Development-only path:
 
-`POST /Intake/Upload` -> [`UploadModel.OnPostAsync`](../../../src/Pegasus.Web/Pages/Intake/Upload.cshtml.cs) -> [`ProcessIntake`](../../../src/Pegasus.Core/Intake/ProcessIntake.cs).
+`POST /Intake/Upload` -> `UploadModel.OnPostAsync` -> [`ProcessIntake`](../../../src/Pegasus.Core/Intake/ProcessIntake.cs).
 
 It processes new QDOS input; it does not search historical Box/Outlook records or reconstruct predecessor cases. The planned mailbox Worker, broader email management and related-correspondence caller are not implemented. The current dashboard's [`Queries` tile](../../../src/Pegasus.Web/Pages/Index.cshtml) is static and is not evidence of a query workflow.
 
-The [Outlook delivery plan](../../history/plans/remainder-delivery/integrations/outlook-and-background-processing.md) likewise routes uncertain associations to `Needs sorting` and excludes broader mailbox coverage from its current slice. A targeted repository search on 2026-07-24 found no production caller for retroactive case reconstruction.
+The Outlook delivery plan likewise routes uncertain associations to `Needs sorting` and excludes broader mailbox coverage from its current slice. A targeted repository search on 2026-07-24 found no production caller for retroactive case reconstruction.
 
 ## Evidence still required
 

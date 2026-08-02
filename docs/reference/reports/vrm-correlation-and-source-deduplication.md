@@ -13,11 +13,11 @@
 - The original intake source and provenance remain available after matching or merging.
 - Replaying the same source occurrence is idempotent. Equal bytes received as distinct permitted occurrences remain distinct evidence.
 
-These rules are already recorded in the [questionnaire](../../history/product/project-discovery-questionnaire.md#5-case-information), [remaining requirements](../../product/qdos-alpha-gap.md#3-complete-intake-formats-and-paths), and accepted [multi-format intake ADR](../../adr/0005-multiformat-intake-assets.md).
+These rules are already recorded in the questionnaire, remaining requirements, and accepted [multi-format intake ADR](../../adr/0005-multiformat-intake-assets.md).
 
 ### Plan
 
-The [lifecycle and work-management plan](../../history/plans/remainder-delivery/casework/lifecycle-and-work-management.md) already assigns definitive matching, `Needs sorting`, association history, manual linking, and merge reversal to one planned Core policy. It does not need a duplicate task derived from these legacy ADRs.
+The lifecycle and work-management plan already assigns definitive matching, `Needs sorting`, association history, manual linking, and merge reversal to one planned Core policy. It does not need a duplicate task derived from these legacy ADRs.
 
 ### Implementation and verified evidence
 

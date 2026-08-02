@@ -317,22 +317,6 @@ not run.
 
 These commands prove repository compilation and the selected non-corpus tests only. Genuine corpus, browser, LocalDB/Azurite/Functions, cloud, recovery, and operator evidence are separate caller-specific gates.
 
-### Temporarily deferred repository-policy command
-
-`scripts/Test-RepositoryPolicy.ps1` is temporarily disabled and deferred until
-after `0.1.0-alpha.1`. Direct invocation, including invocation through
-`scripts/Test-RepositoryLanguage.ps1`, prints a deferral notice and exits
-successfully without evaluating repository policy. Report that result as
-**skipped/deferred**, not **passed**: it proves no repository-policy property,
-cannot be cited as green evidence, and is not a required alpha gate. Continue
-to run the restore, build, and test commands above and every other separately
-operating language, build, or test gate.
-
-Post-alpha activation requires a reviewed re-enable change, reproducible proof
-inputs, a clean-checkout pass, and independent review. Until that evidence
-exists, neither the direct command nor a green caller or CI step is repository-
-policy proof.
-
 ### Imported source workspaces
 
 Source workspaces validate independently and are not part of the application solution:
@@ -726,7 +710,7 @@ DOC and MSG automatic extraction remain deferred until safe local parsing fixtur
 
 ## Release dependency order
 
-Release allocation does not waive technical prerequisites. [Delivery dependencies](requirements.md#delivery-dependencies) owns current precedence. The restored [dependency-ordered delivery roadmap](history/plans/delivery-roadmap.md) is subordinate, source-labelled historical planning evidence; it preserves the complete prerequisite, parallel-branch, and rejoin route without becoming a second requirements, allocation, or status owner. Revalidate it against current canonical owners before execution.
+Release allocation does not waive technical prerequisites. [Delivery dependencies](requirements.md#delivery-dependencies) owns current precedence. The predecessor delivery roadmap (git history) preserved the prerequisite, parallel-branch, and rejoin route; revalidate any of its claims against current canonical owners before use.
 
 Operationally, do not run later caller or release gates before the revalidated spine has supplied relational intake state, trusted staff identity/action history, principal/configuration data, durable custody and the allocator, definitive acceptance, then case files/editing/lifecycle/UI, the real Worker and Triage, vehicle/EVA, and finally Azure migration/recovery and operator acceptance. An Automation MCP caller remains a separately deferred ingress. A local check, generated package, Bicep file, or deployment cannot advance a missing predecessor gate.
 
@@ -974,9 +958,7 @@ visual confirmation are not current operating evidence. Current user direction
 on 2026-07-29 stopped Project presentation work in favour of alpha delivery.
 Repository allocation and alpha delivery do not depend on a Project view.
 
-Issue `#3` owns the QDOS alpha delivery cohort. Issue `#19` owns exact release
-allocation and Project synchronization. Change records are indexed in
-[changes](changes/README.md).
+Work tracking lives in [`NOW.md`](../NOW.md); the roadmap in [capabilities](capabilities.md).
 
 ## Maintenance
 

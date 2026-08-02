@@ -2,8 +2,9 @@
 
 This is the stable product-capability inventory. Each capability keeps its
 settled ID and durable outcome, has one canonical owner, and uses an exact
-Semantic Version or `unallocated`. GitHub issues exist only when work is
-activated; this table is not a backlog or implementation-status ledger.
+Semantic Version or `unallocated`. Work tracking lives in
+[`NOW.md`](../NOW.md); this table is the roadmap, not an implementation-status
+ledger.
 
 ## Historical allocation provenance
 
@@ -50,7 +51,7 @@ Total: **229 capabilities; 229 unique IDs**.
 | `1.4.0` | 3 |
 | `unallocated` | 29 permanent boundaries |
 
-### `DOC-CON-052`: evaluator allocation conflict requiring resolution
+### Evaluator allocation boundary
 
 Current user direction assigns the Development/local email evaluator to a
 separate delivery and removes it from QDOS-alpha implementation scope. The
@@ -68,13 +69,13 @@ callers.
 | ID | Durable outcome | Horizon | Target release | Canonical owner | Activation/boundary |
 | --- | --- | --- | --- | --- | --- |
 | OPS-10 | Production environment deployed directly from an authorised terminal | Now | 0.1.0-alpha.1 | [ADR-0014](adr/0014-local-to-production-deployment.md) | Allocation only; owning evidence still required. |
-| OPS-22 | Genuine-corpus local evaluation harness | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target is the `DOC-CON-052` allocation conflict, not a QDOS implementation gate. |
-| EVAL-01 | Local development-only EML categorisation evaluator using `unchecked` and `checked` workspace folders | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target is the `DOC-CON-052` allocation conflict, not a QDOS implementation gate. |
-| EVAL-02 | Reviewer selects from the detailed Received/Sent/Reply taxonomy and records required reasoning | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target is the `DOC-CON-052` allocation conflict, not a QDOS implementation gate. |
-| EVAL-03 | `Other` category lets the reviewer enter a new category name and reasoning | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target is the `DOC-CON-052` allocation conflict, not a QDOS implementation gate. |
-| EVAL-04 | Moving the reviewed workspace EML into `checked` records the human result | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target is the `DOC-CON-052` allocation conflict, not a QDOS implementation gate. |
-| EVAL-05 | Display the rule-generated category and evidence beside the human review once rules exist | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target is the `DOC-CON-052` allocation conflict, not a QDOS implementation gate. |
-| MAIL-20 | Run live provider-specific instruction-email categorisation against `.eml` files in the local folder-based evaluator | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target is the `DOC-CON-052` allocation conflict, not a QDOS implementation gate. |
+| OPS-22 | Genuine-corpus local evaluation harness | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target records the evaluator allocation boundary above, not a QDOS implementation gate. |
+| EVAL-01 | Local development-only EML categorisation evaluator using `unchecked` and `checked` workspace folders | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target records the evaluator allocation boundary above, not a QDOS implementation gate. |
+| EVAL-02 | Reviewer selects from the detailed Received/Sent/Reply taxonomy and records required reasoning | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target records the evaluator allocation boundary above, not a QDOS implementation gate. |
+| EVAL-03 | `Other` category lets the reviewer enter a new category name and reasoning | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target records the evaluator allocation boundary above, not a QDOS implementation gate. |
+| EVAL-04 | Moving the reviewed workspace EML into `checked` records the human result | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target records the evaluator allocation boundary above, not a QDOS implementation gate. |
+| EVAL-05 | Display the rule-generated category and evidence beside the human review once rules exist | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target records the evaluator allocation boundary above, not a QDOS implementation gate. |
+| MAIL-20 | Run live provider-specific instruction-email categorisation against `.eml` files in the local folder-based evaluator | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target records the evaluator allocation boundary above, not a QDOS implementation gate. |
 | MAIL-21 | Minimum shared Core classification foundation: versioned rules, decision evidence, ambiguity outcome, and acceptance cohort | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
 | MAIL-22 | User-confirmed detailed Received/Sent categories and subtypes, mirrored Reply classifications, `Other` name/reason behavior, and category/destination separation | Now | 0.1.0-alpha.1 | [Settled mailbox taxonomy and correction](requirements.md#settled-mailbox-taxonomy-and-correction) | This row owns allocation only; the linked requirements clause owns behavior and routes to accepted provenance. |
 | ACC-01 | Staff sign-in with Pegasus-managed usernames and passwords | Now | 0.1.0-alpha.1 | [Staff role access matrix](requirements.md#staff-role-access-matrix) | Required and accepted before 0.1.0-alpha.1. |

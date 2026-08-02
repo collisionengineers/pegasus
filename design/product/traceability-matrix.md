@@ -29,7 +29,7 @@ The canonical inventory retains exact `Now / 0.1.0-alpha.1` allocations for
 `OPS-22`, `EVAL-01` through `EVAL-05`, and `MAIL-20`, although current user
 direction assigns their Development/local evaluator outcomes to separate
 delivery. QDOS therefore has no route, caller, report campaign, or acceptance
-checkpoint for those rows; `DOC-CON-052` records that delivery/caller boundary
+checkpoint for those rows; the evaluator allocation boundary in the capability inventory records that delivery/caller boundary
 without changing their exact allocation. `OPS-10`, `MAIL-21`, and `MAIL-22`
 retain QDOS development evidence qualifiers without creating a local evaluator
 surface.

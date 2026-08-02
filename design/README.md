@@ -659,7 +659,7 @@ A supported desktop reflow does not alter the permanent mobile-product boundary.
 | Temporary renderer GUI assets | Repository renderer GUI asset sources | `workspaces/report-renderer/src/CollisionRenderer.Gui`; remove with GUI |
 | Imported renderer/skills/AI source | [Workspaces](../workspaces/README.md) | Non-caller evidence unless separately integrated and accepted |
 | Decision rationale | [Decision records](../docs/adr/README.md) | Does not itself prove implementation |
-| Change evidence | [Change records](../docs/changes/README.md) | Does not replace caller, deployment or acceptance evidence |
+| Change evidence | Git history | Does not replace caller, deployment or acceptance evidence |
 | External reference qualification | [Reference index](../docs/reference/README.md) | Reference presence never creates authority |
 
 The original `collision-engineers-design-dev` bundle supplied the shared logo, colour, type and icon foundation but explicitly did not define this internal command-centre application. The repository imports only approved shared essentials and renderer assets. Marketing layouts, imagery, fonts, WhatsApp styling, scroll reveals and mobile navigation are excluded. The source bundle is not retained as a second design system.

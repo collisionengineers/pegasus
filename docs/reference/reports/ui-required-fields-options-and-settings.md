@@ -8,7 +8,7 @@
 
 ## Source and interpretation boundary
 
-Current UI direction comes from [design authority](../../../design/README.md), [operator experience requirements](../../../design/product/requirements.md), operator truth, the [settled questionnaire](../../history/product/project-discovery-questionnaire.md), [the `0.1.0-alpha.1` gap](../../product/qdos-alpha-gap.md), product areas, and the [open-decision register](../../product/open-decisions.md). The former UI plan pack is historical evidence only.
+Current UI direction comes from [design authority](../../../design/README.md), [operator experience requirements](../../../design/product/requirements.md), operator truth, the settled questionnaire, the `0.1.0-alpha.1` gap, product areas, and the open-decision register. The former UI plan pack is historical evidence only.
 
 The legacy design and review guide (`../guide/04-design-and-reviews.md`) was used to route the predecessor interaction rules (`../docs/design/ui-ux.md`) and dated reviews. Those files supply terminology, pain points, and candidate controls only. Their old screen layouts, completion claims, API/EVA field rules, theme decisions, and configuration model are not Pegasus authority.
 
