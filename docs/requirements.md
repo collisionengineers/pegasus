@@ -414,13 +414,17 @@ reviewable.
 **Settled operator truth:** the report records either the physical vehicle/repairer location, when that
 location is explicitly supplied or operator-confirmed, or the exact value
 `Image Based Assessment`. Collision Engineers performs desktop assessments
-only. A provider setting may suggest a mode later, but it cannot overwrite
-explicit evidence or operator confirmation. The current provider-domain
-reference package contains no address or address-mode default, so none may be
-inferred from a provider or domain match.
+only. For an always-image-based Principal, `Image Based Assessment` is
+autofilled at Case creation even when a physical location appears in the
+instruction; authorised staff may override it to the explicitly supplied or
+confirmed location. For other Principals a provider setting may suggest a mode
+but cannot overwrite explicit evidence or operator confirmation. The current
+provider-domain reference package contains no address or address-mode default,
+so none may be inferred from a provider or domain match.
 
-Selecting `Image Based Assessment` requires an attributed staff reason in
-permanent Case history; it is never inferred from a corpus row or route match.
+A manual selection of `Image Based Assessment` requires an attributed staff
+reason in permanent Case history; the always-image-based autofill records its
+route-policy provenance. Neither is inferred from a corpus row or domain match.
 
 When `DATA-02` activates, its separately approved reference-data pipeline
 accepts only reviewed full addresses, retaining each complete display address

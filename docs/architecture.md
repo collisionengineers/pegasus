@@ -84,7 +84,6 @@ than attempts.
 
 ### Offline QDOS-alpha Web callers
 
-- The prior dated local proof exercised the now-retired Development-only `/Intake/Upload` thin slice. It remains historical evidence only.
 - `GET /Intake` calls Core `ListIntake`; the `ReceiveIntake` POST handler submits one bounded authenticated manual source and preserves the selected filter/page through PRG. `GET /Intake/{id}` calls `GetIntake`, and its mutations call the named Core intake commands with a server-derived actor, expected versions or case lease, operation key, and reason as applicable.
 - `GET /Intake/{id}/Source` calls Core `DownloadIntakeSource`, which authorises the current staff actor, resolves the receipt-owned source, validates retained length and SHA-256, and returns only a no-sniff attachment with a safe filename and content type.
 - `/Triage` and `/Triage/{id}` are the physical list/detail owners for Core triage queries and commands. The former Development web evaluator is not an application caller; the separately owned desktop evaluator remains outside the Web runtime.

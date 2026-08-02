@@ -47,8 +47,9 @@ The register above is the sole workspace integration-status authority. Local
 workspace READMEs retain implementation, build, test, package, and evidence
 details and link back to their row rather than restating integration status.
 
-- `Pegasus.Core` owns every business rule and accepted case outcome.
-  Infrastructure, Web, and Worker are the application composition roots.
+- `Pegasus.Core` owns every business rule and accepted case outcome. Web and
+  Worker are the application composition roots; Infrastructure implements Core
+  ports.
 - Workspace validation is independent. Application build, publish, and deploy
   must not compile, reference, dynamically load, invoke, or package workspace
   code without the separately accepted contract and actual caller recorded in

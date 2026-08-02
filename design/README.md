@@ -13,7 +13,7 @@ Intended, planned, implemented, caller-proved, deployed and accepted are distinc
 - **Accepted** requires the specified accessibility and operator review evidence.
 - The three retained comparison rasters record the shell-selection comparison. Operations-first is the selected strategy; raster pixels and details are not design approval or runtime evidence.
 
-The prior dated caller proof covered the now-retired Development-only `/Intake/Upload` thin slice. The implemented offline QDOS-alpha surface now assigns authenticated manual receipt/list/detail/source work to `/Intake`, `/Intake/{id}`, and `/Intake/{id}/Source`, and exposes token-bound public request submission only at `/Uploads/{token}`. The former `/Development/EmailEvaluation` web route was removed in the [ADR-0016](../docs/adr/0016-standalone-desktop-email-evaluator.md) cutover to the separately owned desktop evaluator. This cutover is not deployment, accessibility acceptance, or operator acceptance evidence.
+The implemented offline QDOS-alpha surface assigns authenticated manual receipt/list/detail/source work to `/Intake`, `/Intake/{id}`, and `/Intake/{id}/Source`, and exposes token-bound public request submission only at `/Uploads/{token}`; the desktop evaluator is separately owned ([ADR-0016](../docs/adr/0016-standalone-desktop-email-evaluator.md)). Implementation is not deployment, accessibility acceptance, or operator acceptance evidence.
 
 Detailed durable product-design owners are the
 [operator-experience requirements](product/requirements.md),
@@ -252,7 +252,7 @@ Permanent consequences must be visible without hover or colour alone. Illustrati
 
 ## Access and permissions
 
-Staff accounts, authentication, and authorisation remain planned until an authenticated Web caller exists. Planned accounts use Pegasus-managed usernames and passwords. Core owns the exact [staff role access matrix](../docs/requirements.md#staff-role-access-matrix), automated-actor boundary, and [case edit authority](../docs/requirements.md#case-edit-authority-and-recovery); this section owns only how those decisions appear in the planned UI.
+Staff accounts, authentication, and authorisation are implemented and enforced through authenticated Web callers ([architecture](../docs/architecture.md)). Accounts use Pegasus-managed usernames and passwords. Core owns the exact [staff role access matrix](../docs/requirements.md#staff-role-access-matrix), automated-actor boundary, and [case edit authority](../docs/requirements.md#case-edit-authority-and-recovery); this section owns only how those decisions appear in the planned UI.
 
 | Actor | Planned UI boundary |
 | --- | --- |
@@ -260,7 +260,7 @@ Staff accounts, authentication, and authorisation remain planned until an authen
 | Engineer, User | Staff shell without Administration surfaces. Their ordinary Intake, Triage, Case, document, evidence, and lifecycle controls are identical. |
 | Automated processing | No UI account or interactive control. |
 | Provider API client ([API-01–API-04, `Next / 0.4.0`](../docs/capabilities.md#capabilities)) | No staff shell, Case workspace, or Administration surface. |
-| External/customer | No application account or application surface. |
+| External/customer | No application account; the only external surface is the isolated request-scoped `/Uploads/{token}` upload page (INT-31), which exposes no case or request state. |
 
 Every protected route and action must handle unauthenticated, disabled-session, stale-role, denied, loading, and successful outcomes. Hiding a route or control never replaces server authorisation. Administration has no generic rules editor, credential/cloud/release operation, bulk predecessor import, or bulk Case-edit tool. No surface permits permanent deletion or direct external/customer Case editing.
 
@@ -367,6 +367,7 @@ Only the first table describes exercised components. Planned contracts do not cr
 | Queue/metric card | Show persisted Development intake counts and open the exact list; empty/value links are exercised; stale/unavailable is planned but unimplemented | `src/Pegasus.Web/Pages/Index.cshtml`, `src/Pegasus.Web/wwwroot/css/site.css` |
 | Intake receipt and upload | Submit one bounded authenticated source through `ReceiveIntake`; list retained receipts; inspect provenance and decisions; download the retained source only as an authorised safe attachment | `src/Pegasus.Web/Pages/Intake/{Index,Details,Source}.cshtml(.cs)` |
 | Triage queue/detail | List and filter triage records and execute the Core-owned detail commands without adding due/chaser controls | `src/Pegasus.Web/Pages/Triage/{Index,Details}.cshtml(.cs)` |
+| Anonymous request upload | Token-bound `/Uploads/{token}` form and immediate result; antiforgery, idempotent operation key, generic non-disclosing outcomes | `src/Pegasus.Web/Pages/Uploads/Request.cshtml(.cs)` |
 
 ### Planned component contracts
 
@@ -656,7 +657,7 @@ A supported desktop reflow does not alter the permanent mobile-product boundary.
 | Current Web tokens/layout | This file | `src/Pegasus.Web/wwwroot/css/site.css`, currently divergent |
 | Current dashboard | Current exercised component map | `src/Pegasus.Web/Pages/Index.cshtml` |
 | Current intake caller | Current Development pattern | `src/Pegasus.Web/Pages/Intake/` → Core `ProcessIntake` |
-| Master logo | `design/brand/logos/logo_no_margin.png`, checksum above | Renderer Core and temporary renderer GUI; future reviewed Web copy |
+| Master logo | `design/brand/logos/logo_no_margin.png`, checksum above | Renderer Core, temporary renderer GUI, and the checksummed Web copy embedded by `_Layout.cshtml` |
 | Renderer templates/style | Repository renderer asset sources | `workspaces/report-renderer/src/CollisionRenderer.Core` |
 | Engineer signatures | Repository renderer signature sources | Renderer Core only; excluded from Web decorative imagery |
 | Temporary renderer GUI assets | Repository renderer GUI asset sources | `workspaces/report-renderer/src/CollisionRenderer.Gui`; remove with GUI |

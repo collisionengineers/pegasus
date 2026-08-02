@@ -10,7 +10,7 @@ Use these evidence states literally and independently:
 
 Compilation, registration, mocks, local execution, deployment, live-service observation, and operator acceptance are different conclusions. Describe code as **Implemented** only when source exists and is connected as claimed; reserve **Called** for a genuine input traversing a real Web or Worker entry point. Direct dependency-injection resolution, registration, host startup, an emulator, source workspace, or benchmark harness is not caller proof.
 
-The authenticated `/Intake` `ReceiveIntake` POST handler through `ProcessIntake` is the manual HTTP intake entry point (the former Development-only `/Intake/Upload` page is retired). The Worker has implemented timer and queue-triggered callers for intake dispatch, inbox polling, due work, sent evidence, staged-artifact reconciliation, and external work. Those source-level callers are not deployment, live traffic, or acceptance evidence; starting a Functions host alone remains host evidence only.
+The authenticated `/Intake` `ReceiveIntake` POST handler through `ProcessIntake` is the manual HTTP intake entry point. The Worker has implemented timer and queue-triggered callers for intake dispatch, inbox polling, due work, sent evidence, staged-artifact reconciliation, and external work. Those source-level callers are not deployment, live traffic, or acceptance evidence; starting a Functions host alone remains host evidence only.
 
 Every external read, mutation, billed call, data transfer, credential change, deployment, recovery exercise, or resource retirement requires explicit approval after showing the exact target, scope, operation, data class, cost exposure, and rollback path. Installed tools, repository configuration, credentials, and authentication never grant authority by themselves.
 
@@ -232,16 +232,13 @@ Install-Module ExchangeOnlineManagement -Scope CurrentUser -RequiredVersion 3.10
 
 ### Approved Box custody root
 
-The Box production custody boundary is decided (2026-08-02): Box folder
-`405543781910` ("pegasus") is the production custody root, and all case folders
-are created only under this root. The source guard, Bicep app setting, and
-tests carry that root; the currently deployed production configuration still
-points at the former folder `392761581105` until the next approved deployment
-applies the decided root. Folder `392761581105` remains the only eligible
-controlled integration-test boundary — testing remains confined to an approved
-disposable test subtree — and neither folder grants standing write authority.
-Before any non-production invocation, obtain explicit approval naming the
-exact target folder/object and create or controlled-update operation. The
+Box folder `405543781910` ("pegasus") is the production custody root: all case
+folders are created only under it. The deployed configuration applies this
+root from the next approved deployment (it currently carries `392761581105`).
+Folder `392761581105` is the only eligible controlled integration-test
+boundary, confined to an approved disposable test subtree; neither folder
+grants standing write authority. Before any non-production invocation, obtain
+explicit approval naming the exact target folder/object and operation. The
 activated production caller remains confined to case-scoped objects under the
 configured root. No caller may delete, move, copy, or share Box content,
 operate outside that folder, or expose credentials in source, configuration,
@@ -524,7 +521,7 @@ Use managed identity and scoped RBAC. Store unavoidable third-party secrets in I
 - A test-only or registered-only path is not a caller.
 - Current SQL persistence contains pre-case receipts, typed drafts, evidence, and events. The application outbox is a release dependency, not current source evidence.
 - When a storage queue is activated, it carries identifiers rather than file content.
-- Delete-after-Box-confirmation is a target transient-Blob invariant; neither Blob staging nor Box custody is a current caller.
+- Delete-after-Box-confirmation is a target transient-Blob invariant.
 - Any future external side effect must be idempotent.
 - Every local run isolates databases, ports, storage state, and ignored artifacts.
 - Cleanup operates only on resources owned by that run.
@@ -607,7 +604,7 @@ For each delivered capability, identify the authoritative rule, Core policy owne
 6. **Functions/Azurite caller** — actual timer/queue trigger, Blob staging, identifier-only messages, duplicate/retry/poison/restart behavior, and delete-after-Box-confirmation.
 7. **Browser/accessibility** — authenticated workflows, dashboard/queue agreement, two-session editing, keyboard, focus and error behavior, semantic labels, text-plus-colour states, 200% zoom, and supported-browser coverage. Automated axe results do not replace manual keyboard or assistive-technology review.
 8. **Genuine corpus** — immutable reviewed cohort and untouched holdout through the real caller, including field-level accuracy, conflicts, unreadable pages, and false case/reference outcomes. Detailed evidence remains ignored and local.
-9. **Security/observability** — role matrix, secure cookies, lockout, request forgery, denial before client construction/call, dependency and dynamic scanning, correlation, health, redaction, and bounded failure metrics.
+9. **Security/observability** — role matrix, secure cookies, transient authentication throttling, request forgery, denial before client construction/call, dependency and dynamic scanning, correlation, health, redaction, and bounded failure metrics.
 10. **Performance/concurrency** — eight concurrent operators, 2,000 cases per month, 2–20+ files per case, the one-file 10 MiB limit and 10 MiB-plus-64-KiB multipart envelope, burst/soak behavior, and 48,000–480,000+ annual asset-metadata shapes. Do not invent a release latency threshold without an explicit decision.
 11. **Migration/recovery** — every supported prior schema, idempotent migration scripts, previous-artifact compatibility, restore into a new database, and reconciliation by stable Outlook/Box identities.
 12. **Integrated workflow** — authenticated source receipt through Core, SQL/outbox, actual Worker trigger, adapter outcome, persisted operator view, telemetry, and safe replay. Registration or mock-only paths do not satisfy this tier.
@@ -916,7 +913,7 @@ A production recovery exercise must:
 
 Automatic schema down-migration and deletion of source evidence or shared cloud resources are not recovery steps.
 
-The allocated [OPS-09](capabilities.md) capability and its [product-quality objectives](requirements.md#quality-capacity-security-and-evidence) are proved after `0.1.0-alpha.1` acceptance and gate any second production release (NOW.md path, decided 2026-08-02). The isolated exercise must prove:
+The allocated [OPS-09](capabilities.md) capability and its [product-quality objectives](requirements.md#quality-capacity-security-and-evidence) are proved after `0.1.0-alpha.1` acceptance and gate any second production release. The isolated exercise must prove:
 
 - a 15-minute recovery point objective; and
 - a four-hour restoration path.

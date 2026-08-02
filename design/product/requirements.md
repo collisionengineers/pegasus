@@ -4,7 +4,7 @@ Status: **Planned `0.1.0-alpha.1` requirements with Operations-first shell selec
 
 ## Evidence state and scope
 
-The prior dated caller proof covered the now-retired Development-only `/Intake/Upload` pre-case slice. The implemented offline QDOS-alpha route allocation is authenticated `/Intake`, `/Intake/{id}`, and `/Intake/{id}/Source`, and anonymous token-bound `/Uploads/{token}` with generic non-disclosing terminal outcomes; the former Development-only `/Development/EmailEvaluation` route was removed by [ADR-0016](../../docs/adr/0016-standalone-desktop-email-evaluator.md). This implementation state does not by itself prove deployment or operator acceptance.
+The implemented offline QDOS-alpha route allocation is authenticated `/Intake`, `/Intake/{id}`, and `/Intake/{id}/Source`, and anonymous token-bound `/Uploads/{token}` with generic non-disclosing terminal outcomes; the desktop evaluator is separately owned ([ADR-0016](../../docs/adr/0016-standalone-desktop-email-evaluator.md)). This implementation state does not by itself prove deployment or operator acceptance.
 
 The intended setting is a small office of approximately eight users. Staff accounts use Pegasus-managed usernames and passwords; authenticated Web callers derive the actor and roles server-side, while implementation does not itself prove deployed session behavior. Core owns the exact [staff role access matrix](../../docs/requirements.md#staff-role-access-matrix), automated-actor boundary, and [case edit authority and recovery](../../docs/requirements.md#case-edit-authority-and-recovery); this design must not create broader permissions or a second role policy.
 
