@@ -747,6 +747,12 @@ $ArchivedRoles = Get-Content "$PegasusRetirementArchive\subscription-role-assign
 $ArchivedRoles | Format-Table
 ```
 
+If this large OCI copy is interrupted or times out before
+`archive-manifest.json` exists, resume only that exact incomplete root with
+`-ResumeIncompleteOciArchive`. The archive script verifies every completed
+local layout by digest, replaces an invalid partial layout, and downloads only
+missing digests. Resume mode refuses a completed archive.
+
 Stop and classify every displayed assignment as `retain` or `delete`, with a
 non-empty rationale. Approve every exact ID and both sets. Persist that decision
 outside the bound archive; no archived candidate may be omitted or added. A
