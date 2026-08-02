@@ -105,13 +105,22 @@ if (-not ([string]$childGroupEvidence.id).Equals($childGroupId, [StringCompariso
 }
 $managedByProperty = $childGroupEvidence.PSObject.Properties['managedBy']
 $managedBy = if ($null -ne $managedByProperty) { [string]$managedByProperty.Value } else { $null }
-if (
-    [string]::IsNullOrWhiteSpace($managedBy) -or
-    -not $managedBy.StartsWith("$mainGroupId/providers/", [StringComparison]::OrdinalIgnoreCase) -or
-    $managedBy -notin $resources.id
-) {
-    throw 'The child resource group is not proven as managed by an inventoried parent in the main predecessor group.'
+$expectedManagedBy = "$childGroupId/providers/Microsoft.Web/sites"
+if (-not $managedBy.Equals($expectedManagedBy, [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'The child resource group does not have the exact expected Function Apps platform owner.'
 }
+if ($managedChildResources.Count -ne 1 -or $managedChildResources[0].type -ine 'Microsoft.App/containerApps') {
+    throw 'The Function Apps managed child group must contain exactly one platform-owned Container App.'
+}
+$managedParentCandidates = @($resources | Where-Object {
+    $_.id.StartsWith("$mainGroupId/providers/", [StringComparison]::OrdinalIgnoreCase) -and
+    $_.type -ieq 'Microsoft.Web/sites' -and
+    $_.name -ceq $managedChildResources[0].name
+})
+if ($managedParentCandidates.Count -ne 1) {
+    throw 'The platform-owned Container App does not map to exactly one same-named Function App parent.'
+}
+$managedParentId = [string]$managedParentCandidates[0].id
 $deleteResources = @($resources | Where-Object {
     $_.id -notin $retainedResources.id -and $_.id -notin $managedChildResources.id
 })
@@ -141,7 +150,10 @@ $roleAssignmentCandidates = foreach ($group in $allowedGroups) {
             }
         }
 }
-$roleAssignmentCandidates = @($roleAssignmentCandidates | Sort-Object id -Unique)
+$roleAssignmentCandidates = @(
+    $roleAssignmentCandidates |
+        Sort-Object { [string]$_['id'] } -Unique
+)
 $roleDispositionSha256 = $null
 if ([string]::IsNullOrWhiteSpace($RoleDispositionPath)) {
     if ($RequireRoleDisposition -and $roleAssignmentCandidates.Count -ne 0) {
@@ -154,8 +166,9 @@ if ([string]::IsNullOrWhiteSpace($RoleDispositionPath)) {
     $resolvedRoleDisposition = Resolve-Path -LiteralPath $RoleDispositionPath
     $roleDispositionSha256 = (Get-FileHash -LiteralPath $resolvedRoleDisposition -Algorithm SHA256).Hash
     $dispositions = @(Get-Content -LiteralPath $resolvedRoleDisposition -Raw | ConvertFrom-Json)
-    if ($dispositions.Count -ne $roleAssignmentCandidates.Count -or $dispositions.Count -ne @($dispositions.id | Select-Object -Unique).Count) {
-        throw 'Role dispositions must classify every candidate exactly once.'
+    $uniqueDispositionCount = @($dispositions.id | Select-Object -Unique).Count
+    if ($dispositions.Count -ne $roleAssignmentCandidates.Count -or $dispositions.Count -ne $uniqueDispositionCount) {
+        throw "Role dispositions must classify every candidate exactly once; expected $($roleAssignmentCandidates.Count), found $($dispositions.Count), unique $uniqueDispositionCount."
     }
     foreach ($disposition in $dispositions) {
         if ($disposition.id -notin $roleAssignmentCandidates.id -or $disposition.disposition -notin @('retain','delete') -or [string]::IsNullOrWhiteSpace([string]$disposition.rationale)) {
@@ -218,7 +231,7 @@ if ($batchedIds.Count -ne $deleteResources.Count -or $batchedIds.Count -ne @($ba
     throw 'The retirement batches do not cover every non-retained resource exactly once.'
 }
 
-$stopResourceIds = @(@($deleteResources) + @($managedChildResources) |
+$stopResourceIds = @($deleteResources |
     Where-Object { $_.type -ieq 'Microsoft.Web/sites' -or $_.type -ieq 'Microsoft.App/containerApps' } |
     Sort-Object id |
     Select-Object -ExpandProperty id)
@@ -232,7 +245,11 @@ $retirementManifest = [ordered]@{
     archiveManifestSha256 = (Get-FileHash -LiteralPath $archiveManifestPath -Algorithm SHA256).Hash
     retainedResourceIds = @($retainedResources.id | Sort-Object)
     managedChildResourceIds = @($managedChildResources.id | Sort-Object)
-    managedChildResourceGroup = [ordered]@{ id=$childGroupId; managedBy=$managedBy }
+    managedChildResourceGroup = [ordered]@{
+        id = $childGroupId
+        managedBy = $managedBy
+        parentResourceId = $managedParentId
+    }
     roleDispositionSha256 = $roleDispositionSha256
     roleAssignments = $roleAssignments
     stopResourceIds = $stopResourceIds

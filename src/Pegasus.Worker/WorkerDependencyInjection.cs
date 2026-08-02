@@ -68,11 +68,15 @@ public static class WorkerDependencyInjection
         }
         else
         {
-            services.AddSingleton<IIntakeArtifactStore>(serviceProvider =>
+            services.AddSingleton(serviceProvider =>
                 new AzureBlobIntakeArtifactStore(
                     serviceProvider.GetRequiredService<Azure.Storage.Blobs.BlobContainerClient>(),
                     serviceProvider.GetRequiredService<WorkerStorageProvisioning>()
                         .AllowLocalCreateIfNotExists));
+            services.AddSingleton<IIntakeArtifactStore>(serviceProvider =>
+                serviceProvider.GetRequiredService<AzureBlobIntakeArtifactStore>());
+            services.AddSingleton<IIntakeQuarantineArtifactStore>(serviceProvider =>
+                serviceProvider.GetRequiredService<AzureBlobIntakeArtifactStore>());
             services.AddProductionExternalAdapters(
                 productionOptions!.Value.Graph,
                 productionOptions.Value.Box,
