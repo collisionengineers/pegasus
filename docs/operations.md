@@ -787,7 +787,7 @@ Local telemetry must be content-safe and prove correlation, attributes, health, 
 
 Bicep compilation proves syntax and type consistency only.
 
-The Azure inventory owned through [Azure documentation](azure/README.md) includes a snapshot dated 2026-07-23 and may be stale. Refresh it under separate authorization immediately before any cloud decision.
+Refresh the live Azure inventory under separate authorization immediately before any cloud decision; the [production environment](#production-environment) section records the deployed end state, and dated names are not current identity proof.
 
 ## Deployment and release
 
@@ -795,42 +795,80 @@ The accepted direct-terminal Azure design is indexed by [architecture](architect
 
 `azd up` is not the release procedure. GitHub Actions/OIDC deployment is `Not planned`.
 
+### Production environment
+
+Executed 2026-08-02 (full runbook and evidence hashes: git history,
+`azure-production-replacement-plan.md`):
+
+- **Environments:** isolated local development and production only; no Azure
+  dev/test/integration/staging resources (ADR-0014).
+- **Production target:** subscription `e6076573-23a5-46a8-acef-7e22d264e5db`,
+  tenant `858cf5b3-aa0a-47a6-9b40-4851fd0afa94`, resource group
+  `rg-pegasus-prod`, region `uksouth`.
+- **Compute/data:** Linux/AMD64 Razor Pages Web on Container Apps Consumption
+  (single revision, 0.5 vCPU / 1 GiB, min 0 max 1 replica — cold start
+  accepted), FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard
+  LRS storage accounts, distinct Web/Worker managed identities, a Pegasus Key
+  Vault, Log Analytics, and Application Insights.
+- **Deployed evidence (2026-08-02):** Web source revision `94997dd0…` on an
+  immutable image digest; health endpoints returned 200 after predecessor
+  retirement; Graph Inbox/Sent processing live-verified through the production
+  Worker (83 successful executions, zero exceptions in the final readback).
+- **Integrations:** Graph via the Worker managed identity scoped by Exchange
+  Application RBAC to `instructions@collisionengineers.co.uk`; Box production
+  custody rooted at folder `392761581105`; official DVLA VES v1.2 and DVSA MOT
+  History v1; EVA remains the accepted manual JSON/image handoff.
+- **Secrets:** the adopted predecessor vaults `cespkboxkvv76a47` and
+  `cespkenrichkvgi62sd` remain (intentionally retained inside
+  `rg-collisionspike-dev`); secret-level access only for the identities and
+  exact secrets that call them. The three obsolete vaults are soft-deleted with
+  platform purge scheduled 2026-08-09.
+- **Predecessor retirement:** executed through the exact verified manifest;
+  eight resource batches completed, 30 delete-classified role assignments
+  removed, 7 retained; the archive manifest hash is recorded in the runbook
+  (git history).
+- **Monitoring/cost:** 31-day retention, adaptive sampling, 0.1 GB/day
+  Application Insights cap, £75 monthly budget notifying
+  `digital@collisionengineers.co.uk` at actual 50/80/100% and forecast 100%.
+  Alerts never stop resources.
+- **Recovery gate:** the first release launched under an explicit exception —
+  no second production release until the isolated RPO/RTO recovery exercise in
+  [production recovery](#production-recovery) passes.
+
 ### Release artifacts and bootstrap
 
-Issue #311 implements release-artifact, deployment-plan, database-bootstrap,
-first-Administrator bootstrap, smoke, archive, and retirement scripts within
-the existing `scripts/` boundary. It adds no project or deployment unit. The
-repository-root [production replacement runbook](../azure-production-replacement-plan.md)
-owns their exact sequence and evidence gates. The prior reviewed route passed
-539 non-corpus tests, revision-bound QDOS pressure, and ZIP/migration packaging
-on 2026-07-31. For the ADR-0015 Container Apps change, restore, zero-warning
-Release build, Bicep compilation, local deployment-plan validation, Core tests,
-Architecture tests, and disposable OCI/ORAS inspection pass locally. The
-Integration project timed out while remaining responsive, and schema-2 release
-packaging has not run from a clean reviewed revision. Every cloud gate remains
-pending; no command is claimed deployed or live verified.
+The release scripts are `Build-ReleaseArtifacts.ps1` (immutable packages from
+a clean tree at an exact HEAD), `Test-AzureDeploymentPlan.ps1` (local, artifact,
+pre-upload, and pre-migration validation), `Invoke-AzureDatabaseBootstrap.ps1`
+and `Invoke-ProductionAdministratorBootstrap.ps1` (manifest-SHA-gated), and
+`Invoke-ProductionSmoke.ps1` (health and exact version/SHA assertions). The
+executed 2026-08-02 sequence and its evidence gates are recorded in the retired
+runbook (git history, `azure-production-replacement-plan.md`). The one-off
+predecessor archive/retirement scripts completed their purpose in that run and
+are also recoverable from git history.
 
 ### Azure activation remains fail-closed
 
 `infra/main.bicep` remains fail-closed unless the exact
-`deploymentMode=approved-live-deployment` value is supplied. Issue #311 removes
-the former development/offline topology and implements the production-only
-route; Bicep compilation and local plan validation do not authorize Azure.
+`deploymentMode=approved-live-deployment` value is supplied. The production-only
+route replaced the former development/offline topology; Bicep compilation and
+local plan validation do not authorize Azure.
 
 The concrete activation gate is a separately recorded approval for the exact
 subscription, resource group, principal, cost scope, data boundary, and
 migration/deployment sequence, followed by a fresh authorised-terminal check of
 availability, quota, pricing, role-assignment authority, target names, SQL Entra
-administrator, and external credential readiness. The issue #311 implementation
-must remove remote build before immutable package deployment can be authorised.
+administrator, and external credential readiness.
 
 Apply migrations explicitly before application packages. Application startup must never silently migrate a non-Development database. Deployment does not itself prove live behavior or acceptance.
 
 ## Recovery
 
-Current source provides no application backup/restore executable,
-receipt/artifact deletion route, or completed Pegasus recovery, failover,
-retirement, RPO, or RTO exercise. A production Box custody adapter is
+Current source provides no application backup/restore executable or
+receipt/artifact deletion route, and no Pegasus recovery, failover, RPO, or
+RTO exercise has completed; the first production release launched under an
+explicit exception, and a second release is blocked until the isolated
+exercise below passes. A production Box custody adapter is
 implemented behind the existing Core port, but it is not deployed, live
 verified, recovery-tested, or accepted. Test cleanup and migration tests are
 narrower evidence. The procedures below are release gates, not claims that
@@ -873,7 +911,7 @@ Repeat the proof after material persistence or release changes where required. R
 
 A recovery, restore, failover, or retirement exercise requires exact target approval, fresh inventory, a recoverable target, retained source data, and a rollback path.
 
-Predecessor retirement is separate from Pegasus deployment. Never begin by deleting `rg-collisionspike-dev`. Any predecessor action requires separately approved exact targets.
+Predecessor retirement executed on 2026-08-02 through the exact verified manifest. `rg-collisionspike-dev` intentionally remains only as the container for the two adopted Key Vaults; any further action on it requires separately approved exact targets.
 
 ## Deferred capability seams
 

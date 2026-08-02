@@ -4,22 +4,21 @@
 
 ## Doing (max 1)
 
-- Production deploy — runbook: [azure-production-replacement-plan.md](azure-production-replacement-plan.md)
+- Roadmap sequencing session: answer the three questions under "First production journey and release sequencing" in [docs/open-decisions.md](docs/open-decisions.md), then fill in Path below.
 
 ## Next (max 3)
 
 - Fix committed-migration test expectation: `CommittedMigrationCreatesTheSqlServerSchema` expects a migration list ending at `20260729199000_RuntimeRoleReconciliation`, but the committed stream now includes `20260730203141_ThirdPartyVehicleEvidenceAndRemoveBootstrap` and `20260730203833_RemoveDormantOpenIddict`.
-- Roadmap sequencing session: answer the three questions under "First production journey and release sequencing" in [docs/open-decisions.md](docs/open-decisions.md), then fill in Path below.
-- Post-deploy sweep: fold the Azure runbook into operations.md, delete the three predecessor-retirement scripts and docs/azure teardown docs.
+- Fix `ProjectReferencesFollowTheModularMonolithDirection` (architecture tests): csproj `ProjectReference` paths use backslashes, so the test fails on Linux while passing on Windows CI.
 
 ## Waiting (max 3 — each line names its unblock condition)
 
-- Production deploy completion — unblocks the post-deploy sweep.
-- Merge of `repo-simplification` and `feat/azure-production-replacement` to `main` — needs review and `MERGE AUTH GRANTED`.
+- Isolated RPO/RTO recovery exercise — blocks any second production release ([operations](docs/operations.md#production-recovery)).
+- Obsolete predecessor vault purge — platform-scheduled 2026-08-09, no action unless it fails.
 
 ## Path (the current walking skeleton, ordered, ≤10 lines)
 
-- (Defined in the roadmap sequencing session — see Next.)
+- (Defined in the roadmap sequencing session — see Doing.)
 
 ---
 

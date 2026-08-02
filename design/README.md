@@ -646,7 +646,7 @@ A supported desktop reflow does not alter the permanent mobile-product boundary.
 | Product capability and horizon | [Requirements](../docs/requirements.md), [capabilities](../docs/capabilities.md) | Planned staff routes; current caller is narrower |
 | Open policy and token questions | [Open decisions](../docs/open-decisions.md) | No implementation inference until resolved |
 | Architecture and caller boundaries | [Architecture](../docs/architecture.md) | Core, Web, Worker, MCP and external adapters |
-| Operations and deployment | [Operations](../docs/operations.md), [Azure](../docs/azure/README.md) | No deployment claim from design or source presence |
+| Operations and deployment | [Operations](../docs/operations.md) | No deployment claim from design or source presence |
 | Engineering procedure | [Installed skills](../.agents/skills/ask-matt/SKILL.md) | Reviewed implementation and verification |
 | Design authority | This file | Approved Web tokens, assets, components and patterns |
 | Current Web shell | This file’s approved direction; current code is evidence only | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` |
