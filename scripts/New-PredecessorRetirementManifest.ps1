@@ -227,7 +227,7 @@ if ($batchedIds.Count -ne $deleteResources.Count -or $batchedIds.Count -ne @($ba
     throw 'The retirement batches do not cover every non-retained resource exactly once.'
 }
 
-$stopResourceIds = @(@($deleteResources) + @($managedChildResources) |
+$stopResourceIds = @($deleteResources |
     Where-Object { $_.type -ieq 'Microsoft.Web/sites' -or $_.type -ieq 'Microsoft.App/containerApps' } |
     Sort-Object id |
     Select-Object -ExpandProperty id)

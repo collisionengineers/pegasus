@@ -708,6 +708,11 @@ future deletion batches, then obtain approval naming
 `$StopRetirementManifestSha256` and every exact stop resource ID. Only after
 that approval run:
 
+The Function Apps platform-owned child Container App remains inventory-bound
+but is never a direct stop target because its managed resource group applies a
+deny assignment. Stop and later delete its exact same-name Function App
+`parentResourceId`; Azure owns the child lifecycle.
+
 ```powershell
 pwsh ./scripts/Invoke-PredecessorRetirement.ps1 `
   -Stage Stop `
