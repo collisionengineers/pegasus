@@ -156,7 +156,7 @@ callers.
 | UI-04 | New cases today, Sent to Engineer, and Reports sent day/week activity | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
 | UI-05 | Click-through filtered work queues | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
 | UI-06 | Last-good time, distinct current/stale/partial/unavailable/failed states, auditable reconciliation, and manual refresh | Now | 0.1.0-alpha.1 | [Dashboard freshness and reconciliation](requirements.md#dashboard-freshness-and-reconciliation) | Required and accepted before 0.1.0-alpha.1. |
-| UI-07 | Search/filter by reference, registration, claimant, claim, principal, state, Engineer, dates, and origin | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
+| UI-07 | Search/filter by reference (Case/PO or Image Intake Reference), registration, claimant, claim, principal, state, Engineer, dates, and origin | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
 | UI-08 | Three-column intake review workbench | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
 | UI-09 | Full case workspace | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
 | UI-11 | Accounts, principals, mailbox allowlist, and configuration workspace | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
