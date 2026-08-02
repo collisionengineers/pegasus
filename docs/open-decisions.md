@@ -10,6 +10,24 @@ Accepted decisions should move to the appropriate [decision](adr/README.md) or [
 
 Staff roles and access, principal and historical case-party identity, the Case/PO and case-type rules, Triage’s normal workflow, named terminal outcomes and reasoned reopen, exclusive one-case edit actions, immutable source-occurrence/dispatch identity, and reasoned source/Case or outbound-evidence reassociation are settled. Their canonical clauses are [principal and case-party identity](requirements.md#principal-reference-organisation-and-case-party-identity), [source occurrence and dispatch](requirements.md#source-occurrence-and-dispatch-identity), [matching and reversible association](requirements.md#matching-conflicts-and-reversible-association), [Triage](requirements.md#normal-workflow-and-completion-evidence), [case lifecycle](requirements.md#lifecycle-closure-and-correspondence), [case edit authority](requirements.md#case-edit-authority-and-recovery), [staff role access](requirements.md#staff-role-access-matrix), and [outbound correspondence evidence](requirements.md#outbound-correspondence-evidence). This register may block only the named automatic predicate, transport, credential, or activation detail; it must not reopen those settled behaviors.
 
+## First production journey and release sequencing
+
+Migrated from the retired GitHub issues #307–#310. These three questions define
+the walking skeleton recorded in [`NOW.md`](../NOW.md) ("Path"); answering them
+is a planning conversation, not new documentation.
+
+1. **First live journey** — What is the smallest complete QDOS journey that may
+   be live in production first? Name the staff/operator outcome, the real
+   caller, the Case and custody boundaries it crosses, and the evidence that
+   distinguishes it from a partial technical deployment.
+2. **Release boundary and evidence** — Once that journey is fixed, what precise
+   production release boundary and evidence packet (caller, migration,
+   operational recovery, health/smoke, operator and management evidence) must be
+   complete before its incremental deployment? Deployment is not acceptance.
+3. **Critical path** — Which capabilities form the single critical path to that
+   journey, in what dependency order, and which alpha capabilities are
+   non-blocking until a later frontier?
+
 ## Mailbox rule activation, automatic matching, and confidence display
 
 The [Received/Sent taxonomy, mirrored Reply rule, `Other` behavior, separation
