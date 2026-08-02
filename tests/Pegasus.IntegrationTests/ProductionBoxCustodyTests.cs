@@ -22,7 +22,7 @@ public sealed class ProductionBoxCustodyTests
             BoxConfigJson,
             "client-secret"));
 
-        Assert.Contains("392761581105", error.Message, StringComparison.Ordinal);
+        Assert.Contains("405543781910", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -31,19 +31,19 @@ public sealed class ProductionBoxCustodyTests
         var missingConfiguration = Assert.Throws<InvalidOperationException>(() => BoxCustodyOptions.Create(
             "https://api.box.com/2.0/",
             "https://upload.box.com/api/2.0/",
-            "392761581105",
+            "405543781910",
             null,
             "client-secret"));
         var missingSecret = Assert.Throws<InvalidOperationException>(() => BoxCustodyOptions.Create(
             "https://api.box.com/2.0/",
             "https://upload.box.com/api/2.0/",
-            "392761581105",
+            "405543781910",
             BoxConfigJson,
             null));
         var malformedConfiguration = Assert.Throws<InvalidOperationException>(() => BoxCustodyOptions.Create(
             "https://api.box.com/2.0/",
             "https://upload.box.com/api/2.0/",
-            "392761581105",
+            "405543781910",
             "{}",
             "client-secret"));
 
@@ -59,8 +59,8 @@ public sealed class ProductionBoxCustodyTests
         var expectedName = $"QDOS31001-{caseId:N}";
         var handler = new DelegateHandler(request => request.RequestUri!.AbsolutePath switch
         {
-            "/2.0/folders/392761581105/items" => Json($$"""{"entries":[{"id":"case-folder","name":"{{expectedName}}","type":"folder","etag":"1"}]}"""),
-            "/2.0/folders/case-folder" => Json("""{"id":"case-folder","parent":{"id":"392761581105"},"trashed_at":null}"""),
+            "/2.0/folders/405543781910/items" => Json($$"""{"entries":[{"id":"case-folder","name":"{{expectedName}}","type":"folder","etag":"1"}]}"""),
+            "/2.0/folders/case-folder" => Json("""{"id":"case-folder","parent":{"id":"405543781910"},"trashed_at":null}"""),
             _ => throw new InvalidOperationException(request.RequestUri.AbsoluteUri)
         });
         var custody = Create(handler);
@@ -79,7 +79,7 @@ public sealed class ProductionBoxCustodyTests
         var expectedName = $"QDOS31001-{caseId:N}";
         var handler = new DelegateHandler(request => request.RequestUri!.AbsolutePath switch
         {
-            "/2.0/folders/392761581105/items" => Json($$"""{"entries":[{"id":"case-folder","name":"{{expectedName}}","type":"folder","etag":"1"}]}"""),
+            "/2.0/folders/405543781910/items" => Json($$"""{"entries":[{"id":"case-folder","name":"{{expectedName}}","type":"folder","etag":"1"}]}"""),
             "/2.0/folders/case-folder" => Json("""{"id":"case-folder","parent":{"id":"outside"},"trashed_at":null}"""),
             "/2.0/folders/outside" => Json("""{"id":"outside","parent":null,"trashed_at":null}"""),
             _ => throw new InvalidOperationException(request.RequestUri.AbsoluteUri)
@@ -102,7 +102,7 @@ public sealed class ProductionBoxCustodyTests
         var handler = new DelegateHandler(request =>
         {
             var path = request.RequestUri!.AbsolutePath;
-            if (path == "/2.0/folders/392761581105/items")
+            if (path == "/2.0/folders/405543781910/items")
             {
                 return Json($$"""{"entries":[{"id":"case-folder","name":"{{expectedCaseName}}","type":"folder","etag":"1"}]}""");
             }
@@ -125,7 +125,7 @@ public sealed class ProductionBoxCustodyTests
             }
             return path switch
             {
-                "/2.0/folders/case-folder" => Parent("392761581105"),
+                "/2.0/folders/case-folder" => Parent("405543781910"),
                 "/2.0/folders/documents" => Parent("case-folder"),
                 "/2.0/folders/receipt" => Parent("documents"),
                 "/2.0/files/file-version" => Parent("receipt"),
@@ -182,7 +182,7 @@ public sealed class ProductionBoxCustodyTests
         BoxCustodyOptions.Create(
             "https://api.box.com/2.0/",
             "https://upload.box.com/api/2.0/",
-            "392761581105",
+            "405543781910",
             BoxConfigJson,
             "client-secret"),
         artifactStore ?? new EmptyArtifactStore(),
