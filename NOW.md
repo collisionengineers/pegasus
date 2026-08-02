@@ -4,11 +4,10 @@
 
 ## Doing (max 1)
 
-- Make `main` green: fix `CommittedMigrationCreatesTheSqlServerSchema` (expected migration list stops at `20260729199000_RuntimeRoleReconciliation`; committed stream adds `20260730203141_ThirdPartyVehicleEvidenceAndRemoveBootstrap` and `20260730203833_RemoveDormantOpenIddict`) and `OperationsFirstJourneyUsesAuthenticatedRealHttpRoutes` (Assert.Contains drift after the production operator shell change).
+- Decide the Box production custody boundary (open-decisions: enterprise, service user, root folder, File Request template) — blocks Path step 3.
 
 ## Next (max 3)
 
-- Decide the Box production custody boundary (open-decisions: enterprise, service user, root folder, File Request template) — blocks Path step 3.
 - Assemble the operator-reviewed extraction cohort + untouched holdout and accept the per-field thresholds (open-decisions) — blocks Path step 4.
 - Fix `ProjectReferencesFollowTheModularMonolithDirection` backslash parsing so architecture tests also pass on Linux.
 

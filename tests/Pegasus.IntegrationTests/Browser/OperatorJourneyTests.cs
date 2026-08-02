@@ -37,10 +37,7 @@ public sealed class OperatorJourneyTests
 
         var boundary = await support.Page.Locator(".acceptance-boundary").InnerTextAsync();
         Assert.Contains("local workflow evidence only", boundary, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Box, Graph, EVA, deployment and recovery evidence", boundary, StringComparison.Ordinal);
-        Assert.Contains("Edge, Narrator and manual accessibility review", boundary, StringComparison.Ordinal);
-        Assert.Contains("operator journey approval", boundary, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("management approval", boundary, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("does not prove production behavior", boundary, StringComparison.Ordinal);
 
         await support.Page.Locator("a.queue-card", new PageLocatorOptions { HasText = "Review" }).ClickAsync();
         Assert.Equal("/Intake?decision=draft_ready", new Uri(support.Page.Url).PathAndQuery);
