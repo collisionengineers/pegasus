@@ -1,5 +1,13 @@
 **EVA Information**
 
+> Retained vendor reference evidence only (predecessor-era notes). The current
+> accepted EVA integration is the manual 13-key JSON/image handoff owned by
+> [requirements](../../requirements.md) and
+> [open decisions § EVA](../../open-decisions.md); the vendor API text below is
+> not the current specification and grants no permission to call EVA
+> ([capabilities](../../capabilities.md) allocates direct EVA API use to
+> `0.7.0` as optional and non-blocking).
+
 
 
 EVA is a case management system used by Collision Engineers, developed by Minotaur Software Ltd.

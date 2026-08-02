@@ -1,4 +1,4 @@
-# emailevals/ extracted email addresses (scratchpad-only, not committed)
+# emailevals/ extracted email addresses (tracked reference evidence)
 
 Total distinct addresses (excl. collisionengineers.co.uk, cid:, CSS @media noise): 191
 
