@@ -12,21 +12,13 @@ Staff roles and access, principal and historical case-party identity, the Case/P
 
 ## First production journey and release sequencing
 
-Migrated from the retired GitHub issues #307–#310. These three questions define
-the walking skeleton recorded in [`NOW.md`](../NOW.md) ("Path"); answering them
-is a planning conversation, not new documentation.
-
-1. **First live journey** — What is the smallest complete QDOS journey that may
-   be live in production first? Name the staff/operator outcome, the real
-   caller, the Case and custody boundaries it crosses, and the evidence that
-   distinguishes it from a partial technical deployment.
-2. **Release boundary and evidence** — Once that journey is fixed, what precise
-   production release boundary and evidence packet (caller, migration,
-   operational recovery, health/smoke, operator and management evidence) must be
-   complete before its incremental deployment? Deployment is not acceptance.
-3. **Critical path** — Which capabilities form the single critical path to that
-   journey, in what dependency order, and which alpha capabilities are
-   non-blocking until a later frontier?
+Decided 2026-08-02: the first live journey is the full QDOS cutover — a genuine
+QDOS instruction email through intake, review, Case/PO allocation, Box custody,
+and the EVA handoff bundle. [`NOW.md`](../NOW.md) "Path" owns the ordered
+critical path, the non-blocking capability set, and the acceptance boundary
+(OPS-23/OPS-25 close `0.1.0-alpha.1`; the RPO/RTO exercise gates the second
+release). The remaining evidence gates on that path are items 3 (Box custody
+boundary) and 5 (extraction thresholds) below.
 
 ## QDOS alpha activation details (migrated from the retired delivery plan)
 
