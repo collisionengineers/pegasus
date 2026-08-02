@@ -8,9 +8,12 @@ ledger.
 
 ## Historical allocation provenance
 
-The active inventory contains 229 stable IDs. It was reconciled from a 213-row
+The active inventory contains 228 stable IDs. It was reconciled from a 213-row
 allocation worksheet and its normalized maturity map; those deleted source rows
-are provenance, not a second allocation table.
+are provenance, not a second allocation table. On 2026-08-02, `DOC-06` was
+merged into `INT-31` — both recorded the same request-scoped in-house
+upload-link outcome under one canonical owner — and the `DOC-06` ID is retired,
+never reused.
 
 | Pre-consolidation source | Baseline SHA-256 | Preserved meaning |
 | --- | --- | --- |
@@ -19,7 +22,7 @@ are provenance, not a second allocation table.
 
 The additional stable IDs split compound outcomes or explicit boundaries; they
 do not invent a second product scope. Active timing uses `Now`, `Next`, `Later`,
-or `Not planned`. All 200 planned capabilities have an exact first-introduction
+or `Not planned`. All 199 planned capabilities have an exact first-introduction
 target; the 29 permanent boundaries remain `unallocated`. Allocation,
 implementation, registration, build, deployment, live verification, and
 acceptance remain separate states.
@@ -28,16 +31,16 @@ acceptance remain separate states.
 
 | Horizon | Capabilities | Meaning |
 | --- | ---: | --- |
-| Now | 128 | Current proof and QDOS-alpha outcome; activate issues only for selected work. |
+| Now | 127 | Current proof and QDOS-alpha outcome; activate issues only for selected work. |
 | Next | 31 | Post-alpha provider, pairing, provider-location, email, and API outcomes after named dependencies. |
 | Later | 41 | Retained outcomes requiring promotion conditions, contracts, callers, or direct decisions. |
 | Not planned | 29 | Permanent product boundaries; no implementation issue or placeholder. |
 
-Total: **229 capabilities; 229 unique IDs**.
+Total: **228 capabilities; 228 unique IDs**.
 
 | Target release | Planned capabilities |
 | --- | ---: |
-| `0.1.0-alpha.1` | 128 |
+| `0.1.0-alpha.1` | 127 |
 | `0.2.0` | 7 |
 | `0.3.0` | 19 |
 | `0.4.0` | 5 |
@@ -166,7 +169,6 @@ callers.
 | DOC-03 | Retained document versions | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#documents-extraction-and-custody) | Required and accepted before 0.1.0-alpha.1. |
 | DOC-04 | Closed-case read-only files and reopen-before-edit behavior | Now | 0.1.0-alpha.1 | [Staging and custody](requirements.md#staging-and-custody) | Required and accepted before 0.1.0-alpha.1. |
 | DOC-05 | Logical file removal without destroying history | Now | 0.1.0-alpha.1 | [Staging and custody](requirements.md#staging-and-custody) | Required and accepted before 0.1.0-alpha.1. |
-| DOC-06 | Staff-created temporary, revocable, expiring, request-scoped in-house upload link with cross-request isolation and no case/reference disclosure | Now | 0.1.0-alpha.1 | [Request-scoped upload links](requirements.md#request-scoped-upload-links) | Supersedes Box File Request; token, limit, custody, retry, revocation, and abuse handling are acceptance gates. |
 | DOC-07 | Staff upload, view, download, and export actions | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#documents-extraction-and-custody) | Required and accepted before 0.1.0-alpha.1. |
 | DOC-08 | Private transient file staging for Worker processing | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#documents-extraction-and-custody) | Required and accepted before 0.1.0-alpha.1. |
 | EXT-01 | DVLA/DVSA make, model, manufacture year, engine capacity, fuel type, MOT chronology, mileage evidence, and operator-confirmed reconciliation | Now | 0.1.0-alpha.1 | [Vehicle data and MOT enrichment](requirements.md#vehicle-data-and-mot-enrichment) | Live adapter/provider contract remains unresolved; approved local replay returns explicit unavailable when evidence is absent. |

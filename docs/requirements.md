@@ -29,7 +29,7 @@ credential, external operation, deployment, or acceptance. The
 
 | Order | Target release | Stage and dependency intent | Count |
 | ---: | --- | --- | ---: |
-| 01 | `0.1.0-alpha.1` | Existing QDOS-alpha scope; allocation unchanged, not a completion claim | 128 |
+| 01 | `0.1.0-alpha.1` | Existing QDOS-alpha scope; allocation unchanged, not a completion claim | 127 |
 | 02 | `0.2.0` | Provider expansion and intake fidelity after QDOS acceptance | 7 |
 | 03 | `0.3.0` | Four-mailbox classification, association, folder actions, email workspace and email MCP | 19 |
 | 04 | `0.4.0` | Principal-scoped provider API and post-report query/dispute casework | 5 |
@@ -42,7 +42,7 @@ credential, external operation, deployment, or acceptance. The
 | 11 | `1.3.0` | Vendor-neutral AI work requests, Engineer-reviewed query proposals and staff-selected AI Assessor | 3 |
 | 12 | `1.4.0` | Conditional capture and domain outcomes after direct promotion decisions | 3 |
 
-The 200 planned capabilities use these twelve targets; 29 permanent boundaries
+The 199 planned capabilities use these twelve targets; 29 permanent boundaries
 remain `Not planned / unallocated`.
 
 Sequence constraints:

@@ -7,7 +7,7 @@ created only as ADRs under [docs/adr/](adr/README.md).
 | --- | --- |
 | What am I doing right now? | [`NOW.md`](../NOW.md) (repo root) |
 | What must Pegasus do? | [Requirements](requirements.md) |
-| What does the product do, in what order? | [Capabilities](capabilities.md) — the roadmap: 229 stable IDs with release targets |
+| What does the product do, in what order? | [Capabilities](capabilities.md) — the roadmap: 228 stable IDs with release targets |
 | What is undecided? | [Open decisions](open-decisions.md) |
 | What did Collision Engineers actually say? | [Operator notes](operator-notes.md) |
 | What exists now? | [Architecture](architecture.md) |
