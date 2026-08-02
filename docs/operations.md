@@ -976,21 +976,6 @@ Work tracking uses no GitHub issues, labels, milestones, or project boards.
 implementation, caller proof, deployment, live verification, and
 operator/management acceptance remain distinct states.
 
-Synchronisation is keyed by Capability ID and is sequential, idempotent, and
-fail-closed on field, option, title/key, issue-binding, or duplicate ambiguity.
-It may archive duplicate keyed drafts after deterministic reconciliation but
-never deletes cards, closes issues, rewrites repository issue/PR content, or
-modifies unrelated unkeyed items. No committed Project export or second status
-database is permitted.
-
-The Project API mirror contains the keyed capability fields and draft cards, but
-saved-view grouping, filtering, displayed-field configuration, and authenticated
-visual confirmation are not current operating evidence. Current user direction
-on 2026-07-29 stopped Project presentation work in favour of alpha delivery.
-Repository allocation and alpha delivery do not depend on a Project view.
-
-Work tracking lives in [`NOW.md`](../NOW.md); the roadmap in [capabilities](capabilities.md).
-
 ## Maintenance
 
 Reconcile this procedure whenever requirements, accepted decisions, production callers, external contracts, supported platforms, evidence boundaries, or deployment architecture change.
