@@ -53,6 +53,17 @@ public sealed class WorkerCompositionTests
                 provider.GetRequiredService<IApprovedSentSource>().GetType().FullName);
             Assert.Null(provider.GetService<LocalApprovedSentOptions>());
             Assert.NotNull(scopedServices.GetRequiredService<PollSentEvidence>());
+            Assert.NotNull(scopedServices.GetRequiredService<ProcessQueuedIntake>());
+
+            Assert.NotNull(ActivatorUtilities.CreateInstance<PendingWorkDispatchFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<IntakeWorkFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<IntakePoisonFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<StagedArtifactReconciliationFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<InboxPollFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<SentEvidencePollFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<DueWorkSweepFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<ExternalWorkFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<ExternalPoisonFunction>(scopedServices));
         }
         finally
         {

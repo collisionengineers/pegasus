@@ -77,6 +77,8 @@ public static class WorkerDependencyInjection
                 serviceProvider.GetRequiredService<AzureBlobIntakeArtifactStore>());
             services.AddSingleton<IIntakeQuarantineArtifactStore>(serviceProvider =>
                 serviceProvider.GetRequiredService<AzureBlobIntakeArtifactStore>());
+            services.AddScoped<IIntakeSourceReader, MimeKitPdfPigOpenXmlIntakeSourceReader>();
+            services.AddScoped<ProcessIntake>();
             services.AddProductionExternalAdapters(
                 productionOptions!.Value.Graph,
                 productionOptions.Value.Box,
