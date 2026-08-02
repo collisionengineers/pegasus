@@ -36,13 +36,13 @@ If selected later, it belongs behind an engine-neutral Infrastructure adapter ca
 
 ## Current Pegasus position
 
-The [operator capability overview](../../operator-notes/product-requirements/required-capabilities.md) records vehicle-registration OCR as a required product capability, while marking in-app AI, guided capture and image/vision address assistance outside the `0.1.0-alpha.1`. The settled [questionnaire](../../history/product/project-discovery-questionnaire.md) and [remaining requirements](../../product/qdos-alpha-gap.md) place automated VRM OCR/VLM and AI/vision beyond the `0.1.0-alpha.1`. The accepted finding therefore preserves eventual scope without changing the current release boundary.
+The operator capability overview records vehicle-registration OCR as a required product capability, while marking in-app AI, guided capture and image/vision address assistance outside the `0.1.0-alpha.1`. The settled questionnaire and remaining requirements place automated VRM OCR/VLM and AI/vision beyond the `0.1.0-alpha.1`. The accepted finding therefore preserves eventual scope without changing the current release boundary.
 
 Current accepted architecture separates the two concerns:
 
 - [ADR-0001](../../adr/0001-hybrid-pdf-extraction.md) and [ADR-0005](../../adr/0005-multiformat-intake-assets.md) permit targeted Document Intelligence OCR only for persisted scan-like PDF page candidates and keep ordinary images out of OCR.
-- The [source-custody plan](../../history/plans/remainder-delivery/integrations/source-custody-and-document-processing.md) keeps AI/vision and VRM OCR deferred, retains engine-neutral source identities, and deliberately adds no dormant model, client, flag, queue, or widened OCR route.
-- The [vehicle and EVA plan](../../history/plans/remainder-delivery/integrations/vehicle-data-and-eva-export.md) permits future typed, staff-visible suggestions but forbids silent overwriting of case data.
+- The source-custody plan keeps AI/vision and VRM OCR deferred, retains engine-neutral source identities, and deliberately adds no dormant model, client, flag, queue, or widened OCR route.
+- The vehicle and EVA plan permits future typed, staff-visible suggestions but forbids silent overwriting of case data.
 
 The current evidence state is therefore **Planned/deferred**, not implemented or called. The Development-only `/Intake/Upload` path retains ordinary image evidence; no current Pegasus VRM-recognition or image-analysis caller is established by these legacy files.
 

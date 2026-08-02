@@ -25,9 +25,9 @@ Legacy ADR-0020 contains the same high-level channel and shared-policy direction
 
 ## Current architecture, plan and evidence state
 
-The settled [questionnaire](../../history/product/project-discovery-questionnaire.md) and [remaining requirements](../../product/qdos-alpha-gap.md) already require the principal-scoped, idempotent provider submission and own-result boundary.
+The settled questionnaire and remaining requirements already require the principal-scoped, idempotent provider submission and own-result boundary.
 
-Current [ADR-0004](../../adr/0004-provider-api-and-staff-mcp-authentication.md) owns the provider authentication and MCP separation decision. The [provider submissions delivery plan](../../history/plans/remainder-delivery/integrations/provider-submissions.md) assigns business policy to shared Core intake and principal authorization, with Web translating a later accepted HTTP contract.
+Current [ADR-0004](../../adr/0004-provider-api-and-staff-mcp-authentication.md) owns the provider authentication and MCP separation decision. The provider submissions delivery plan assigns business policy to shared Core intake and principal authorization, with Web translating a later accepted HTTP contract.
 
 The evidence state remains **Planned**. There is no current provider endpoint, credential store, registered caller, live provider client or proven Pegasus submission. The Development-only `/Intake/Upload` path is not a provider API, and predecessor deployment evidence does not change current status.
 

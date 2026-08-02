@@ -16,16 +16,16 @@ The case must retain the historical inspection-address and role facts used for t
 
 ### Current Pegasus authority and evidence
 
-- The [questionnaire](../../history/product/project-discovery-questionnaire.md#5-case-information) says a repairer/garage/bodyshop can be connected to a case and requires the physical vehicle/repairer address where applicable.
-- The [operator inspection-address note](../../operator-notes/business-process/inspection-address.md) says staff may need the garage/repairer location and often know which repairer a principal generally uses.
-- [Remaining requirements](../../product/qdos-alpha-gap.md#4-case-model-and-lifecycle) require the full case record and allow a real vehicle/repairer address or `Image Based Assessment`.
+- The questionnaire says a repairer/garage/bodyshop can be connected to a case and requires the physical vehicle/repairer address where applicable.
+- The operator inspection-address note says staff may need the garage/repairer location and often know which repairer a principal generally uses.
+- Remaining requirements require the full case record and allow a real vehicle/repairer address or `Image Based Assessment`.
 - The examined spreadsheet contains recurring repairer records with distinct codes, names, and address components. Its evidence limits are recorded below.
 
 ### Difference from current implementation and plan
 
 - The only current real caller is the Development-only `/Intake/Upload` path. Its [typed pre-case draft](../../../src/Pegasus.Core/Intake/IntakeContracts.cs) stores `InspectionAddress` as a nullable string.
 - [Current EF persistence](../../../src/Pegasus.Infrastructure/Persistence/PegasusDbContext.cs) likewise persists only that draft string. There is no accepted Case, Repairer identity, case-to-repairer association, or historical address policy.
-- The [intake and case-acceptance plan](../../history/plans/remainder-delivery/casework/intake-and-case-acceptance.md) mentions typed fields and associations but does not identify a repairer policy owner, persisted identity, migration, failure behaviour, or caller test.
+- The intake and case-acceptance plan mentions typed fields and associations but does not identify a repairer policy owner, persisted identity, migration, failure behaviour, or caller test.
 
 ### Not accepted from the legacy design
 
@@ -54,9 +54,9 @@ Principal, Intermediary, Repairer, and Image Source are distinct functions on a 
 
 ### Current Pegasus authority and evidence
 
-- The [operator intake note](../../operator-notes/business-process/intake-and-work-instructions.md) distinguishes instructions sent by or on behalf of a work provider from images supplied by a repairer where the related work provider may be unknown.
-- The [questionnaire](../../history/product/project-discovery-questionnaire.md#5-case-information) already lists the Principal, claimant, Repairer, insurer, and operational contacts as case-connected people and organisations.
-- [Remaining requirements](../../product/qdos-alpha-gap.md#what-is-already-proved-locally) say strong QDOS instruction content outranks the sender of a staff-forwarded email.
+- The operator intake note distinguishes instructions sent by or on behalf of a work provider from images supplied by a repairer where the related work provider may be unknown.
+- The questionnaire already lists the Principal, claimant, Repairer, insurer, and operational contacts as case-connected people and organisations.
+- Remaining requirements say strong QDOS instruction content outranks the sender of a staff-forwarded email.
 - The real Web caller has a [caller-level integration test](../../../tests/Pegasus.IntegrationTests/QdosIntakeWebTests.cs) for that forwarded-sender precedence rule.
 
 ### Difference from current implementation and plan

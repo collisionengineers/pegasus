@@ -1,4 +1,4 @@
-# ADR-0010: Standalone local desktop email evaluator
+# ADR-0016: Standalone local desktop email evaluator
 
 - Date: 2026-07-29
 - Status: accepted

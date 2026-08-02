@@ -411,7 +411,7 @@ Workspace provenance and source manifests are owned by [the workspace index](../
 
 ## Release dependency provenance
 
-Exact release allocation in [capabilities](capabilities.md) does not by itself define implementation order. The restored [dependency-ordered delivery roadmap](history/plans/delivery-roadmap.md) is subordinate, source-labelled pre-conversion planning evidence retained because it uniquely records prerequisite edges, safe parallel branches, and rejoin gates. Its historical `CollisionSpike` labels do not name a current caller, and every edge must be revalidated against current requirements, allocation, decisions, architecture, and code before use.
+Exact release allocation in [capabilities](capabilities.md) does not by itself define implementation order. The predecessor delivery roadmap (git history) recorded prerequisite edges; revalidate any of its claims against current requirements, allocation, decisions, architecture, and code before use.
 
 The retained alpha spine orders relational intake state before staff identity and action history; those before principal/configuration, durable custody, image/address evidence, and the allocator; those before definitive acceptance; and acceptance before case files, edit leases, lifecycle, UI, Worker callers, Triage, vehicle/EVA work, Automation MCP, Azure/recovery evidence, and operator acceptance. Provider activation and later parallel branches rejoin only after their shared actor, source, case, Worker, and history contracts are stable. This summary neither activates an external capability nor proves deployment, recovery, or acceptance.
 
@@ -576,4 +576,4 @@ These results do not prove:
 - Do not treat local artifacts or transient Blob storage as Box custody.
 - Do not treat accepted design as implementation, implementation as caller proof, caller proof as deployment, or deployment as operator acceptance.
 
-Product behavior is governed by [requirements](requirements.md), capability scope by [capabilities](capabilities.md), unresolved gates by [open decisions](open-decisions.md), operational procedures by [operations](operations.md), repository-development workflow by the [installed skills](../.agents/skills/ask-matt/SKILL.md), and business authority by [operator notes](operator-notes.md). Repository navigation is maintained by the [documentation index](index.md), and durable change history by the [change index](changes/README.md).
+Product behavior is governed by [requirements](requirements.md), capability scope by [capabilities](capabilities.md), unresolved gates by [open decisions](open-decisions.md), operational procedures by [operations](operations.md), repository-development workflow by [engineering](engineering.md), and business authority by [operator notes](operator-notes.md). Repository navigation is maintained by the [documentation index](index.md), and durable change history by git history.
