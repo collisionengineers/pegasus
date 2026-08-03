@@ -122,8 +122,10 @@ per ADR-0018; peer precedent `IVehicleLookupAdapter`):
   the requirement of exactly ONE distinct normalised VRM across the
   receipt's confident reads.
 
-Automatic flow, integrated where image-only receipts currently fall to
-`NeedsSorting` (`src/Pegasus.Core/Intake/ProcessIntake.cs:262-283`):
+Automatic flow, hooked into `ProcessQueuedIntake` immediately after the
+evaluation revision is durably recorded (registration binds to that
+revision; hooking earlier would race the evaluation commit), covering both
+the fresh-processing and completed-replay paths:
 
 - For a receipt whose retained assets are images only (no instruction
   evidence): scan each retained image via the engine, record every outcome
@@ -298,10 +300,11 @@ convention `[Authorize(Roles = Administrator + Engineer + User)]`):
   one mechanism, surfaced from here for convenience).
 
 `src/Pegasus.Web/Pages/Cases/Details.cshtml(.cs)`: an "Image intakes"
-section (`ListForCaseAsync`) with reference links and the reasoned unlink
-(existing reverse choreography); a link action accepting an Image Intake
-Reference (resolved via `GetByReferenceAsync`, rejecting an
-already-associated intake, acting on the origin receipt).
+section (`ListForCaseAsync`) with reference links through to the Image
+intake and its origin receipt. Link, unlink, and re-link stay ONE surface —
+the origin receipt's existing lease choreography (one association, one
+mechanism); the case and Image-intake pages navigate there rather than
+duplicating the forms.
 
 `src/Pegasus.Web/Pages/Cases/Index.cshtml(.cs)`: search unification per
 the operator's direction — a bare VRM search returns matching Cases AND
@@ -343,13 +346,17 @@ image-intake results are an additive lookup beside it.
   marked `[Trait("Category", "Corpus")]`, modelled on
   `MultiFormatGenuineCorpusWebTests.cs` (resolves `corpus/` at the repo
   root, skips with reason when absent; CI filters `Category!=Corpus`).
-  Reads locally prepared, gitignored cohort/holdout manifests under
-  `corpus/` (frozen file-hash lists with case-attributed VRM labels; labels
-  never leave the machine), runs the engine over the cohort, writes
-  `artifacts/vrm-recognition-eval/<run-id>/report.json` with suggestion
-  rate, wrong-suggestion rate (primary), and abstention rate at candidate
-  thresholds. The holdout is evaluated once, only after the bar is fixed
-  from the cohort.
+  Labels parse from the corpus's own case-export file names
+  (`...__{PROVIDER}_{VRM}_img_{n}_{m}`, `UnknownVRM` excluded); the split
+  is a deterministic 80/20 path-hash cohort/holdout; labels never leave
+  the machine. `PEGASUS_CORPUS_ROOT` points a task worktree at the main
+  checkout's corpus; `PEGASUS_VRM_EVAL_LIMIT` bounds a run and the report
+  records the bound explicitly; the holdout is evaluated only via
+  `PEGASUS_VRM_EVAL_HOLDOUT=1`, once, after the bar is fixed. The report
+  (`artifacts/vrm-recognition-eval/<run-id>/report.json`) carries
+  suggestion, wrong-suggestion (primary), and abstention rates at
+  candidate thresholds. The first bounded run's numbers are transcribed
+  in `docs/open-decisions.md` item 1.
 - The run's numbers set the provisional bar constants (Step 2) and are
   transcribed with corpus sizes + commit hash into `docs/open-decisions.md`
   item 1 for operator review.

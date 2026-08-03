@@ -115,7 +115,7 @@ Required outcomes:
 
 Intake may begin through staff-forwarded email, a staff-created request-scoped upload link, provider material, manually supplied files, images, correspondence, or a future approved API route. Receipt is not case creation.
 
-Image-only material with a usable normalised VRM creates a pre-Case Image intake with an Image Intake Reference; it is not `Needs sorting` merely because it lacks a formal instruction or accepted Principal. Image material without a usable normalised VRM remains `Needs sorting`. An Image intake is never allocated a Case/PO or promoted into a Case merely because images arrived.
+Image-only material with a usable normalised VRM creates a pre-Case Image intake with an Image Intake Reference; it is not `Needs sorting` merely because it lacks a formal instruction or accepted Principal. A usable normalised VRM is a staff-confirmed registration or an automatic engine read that meets the current accepted recognition bar (provisional until open decision 1 closes; operator-directed 2026-08-03). Image material without a usable normalised VRM remains `Needs sorting`. An Image intake is never allocated a Case/PO or promoted into a Case merely because images arrived.
 
 Every intake path must:
 
@@ -441,8 +441,14 @@ spreadsheet import, route, or caller before its separate acceptance evidence.
 suggestion-first. Every result remains attached to one retained source-image
 occurrence; staff confirmation creates the provisional vehicle identity. Before
 confirmation, a suggestion must not create or identify a case, allocate a
-reference, overwrite a confirmed registration, select an EVA image, satisfy a
-readiness gate, or mutate workflow.
+Case/PO reference, overwrite a confirmed registration, select an EVA image,
+satisfy a readiness gate, or mutate case workflow. By operator direction
+(2026-08-03), a confident unambiguous read at the current accepted recognition
+bar may automatically register the pre-Case Image intake (allocating its Image
+Intake Reference) and, where exactly one eligible pre-report instructed Case
+carries that confirmed registration with no contradictory identity evidence,
+automatically associate it under the settled matching rules; both actions are
+recorded with system attribution and remain reasonedly reversible by staff.
 
 The operator surface distinguishes a suggestion from no readable result or an
 unknown result, an unavailable dependency, and a technical failure. It never
