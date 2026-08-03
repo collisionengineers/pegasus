@@ -39,7 +39,7 @@ else
             {
                 <table>
                     <thead>
-                        <tr><th>Code</th><th>Status</th><th>Sequence lineage</th><th>Predecessor</th><th>Successor</th><th>Allocated cases</th><th></th></tr>
+                        <tr><th>Code</th><th>Status</th><th>Inspection mode</th><th>Sequence lineage</th><th>Predecessor</th><th>Successor</th><th>Allocated cases</th><th></th></tr>
                     </thead>
                     <tbody>
                     @foreach (var principal in organization.Principals)
@@ -47,6 +47,7 @@ else
                         <tr>
                             <td>@principal.Code</td>
                             <td>@(principal.IsActive ? "Active" : "Disabled")</td>
+                            <td>@(principal.InspectionMode == Pegasus.Core.Cases.CaseInspectionMode.ImageBasedAssessment ? "Image Based Assessment" : "Physical address")</td>
                             <td>@principal.SequenceLineageId</td>
                             <td>@(principal.PredecessorId?.ToString("D") ?? "None")</td>
                             <td>@(principal.SuccessorId?.ToString("D") ?? "None")</td>

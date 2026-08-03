@@ -316,9 +316,16 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             {
                 table.HasCheckConstraint("CK_Principals_Code", "[Code] <> ''");
                 table.HasCheckConstraint("CK_Principals_Version", "[Version] >= 0");
+                table.HasCheckConstraint(
+                    "CK_Principals_InspectionMode",
+                    "[InspectionMode] IN ('physical_address', 'image_based_assessment')");
             });
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Code).HasMaxLength(20).IsRequired();
+            entity.Property(item => item.InspectionMode)
+                .HasMaxLength(40)
+                .IsRequired()
+                .HasDefaultValue("physical_address");
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.HasIndex(item => item.Code).IsUnique();
             entity.HasIndex(item => item.PredecessorId).IsUnique();
@@ -844,6 +851,7 @@ internal sealed class PrincipalEntity
     public Guid? SuccessorId { get; set; }
     public PrincipalEntity? Successor { get; set; }
     public bool IsActive { get; set; }
+    public string InspectionMode { get; set; } = "physical_address";
     public long Version { get; set; }
     public List<CaseEntity> Cases { get; set; } = [];
 }

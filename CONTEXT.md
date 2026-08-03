@@ -113,8 +113,12 @@ An advisory assessment of a Case's current image set against registration-overvi
 _Avoid_: Case validity, image validation
 
 **Always-image-based Principal**:
-A Principal whose accepted route policy autofills `Image Based Assessment` as the inspection address at Case creation (authorised staff may override to an explicit location) and waives only the image-readiness reflection advisory. It does not waive other image-readiness advisories or the report-image reflection exclusion.
+A Principal whose persisted inspection-mode setting autofills `Image Based Assessment` as the inspection address at Case creation (authorised staff may override to an explicit location on the specific Case with a reason) and waives only the image-readiness reflection advisory. It does not waive other image-readiness advisories or the report-image reflection exclusion.
 _Avoid_: Image-based client, provider exception
+
+**Image Based Assessment**:
+The exact report value recorded instead of a physical inspection address when a Case is assessed from images alone; always written out in full in staff-facing surfaces and documents.
+_Avoid_: IBA, image-based mode, desktop assessment value
 
 **Vehicle enrichment**:
 The acquisition of externally sourced vehicle observations after case intake to enhance, but never silently replace, Case data.

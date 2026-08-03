@@ -58,6 +58,55 @@ public sealed class CaseDataOperationsTests
     }
 
     [Fact]
+    public void NormalizeRequiresInspectionAddressAndModeTogether()
+    {
+        Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.Normalize(
+            new(InspectionAddress: "1 Test Street, London")));
+        Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.Normalize(
+            new(InspectionMode: CaseInspectionMode.PhysicalAddress)));
+    }
+
+    [Fact]
+    public void NormalizeRequiresTheExactValueForImageBasedAssessmentMode()
+    {
+        Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.Normalize(
+            new(
+                InspectionAddress: "1 Test Street, London",
+                InspectionMode: CaseInspectionMode.ImageBasedAssessment)));
+        Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.Normalize(
+            new(
+                InspectionAddress: "image based assessment",
+                InspectionMode: CaseInspectionMode.ImageBasedAssessment)));
+
+        var normalized = CaseDataPolicy.Normalize(
+            new(
+                InspectionAddress: "Image Based Assessment",
+                InspectionMode: CaseInspectionMode.ImageBasedAssessment));
+        Assert.Equal("Image Based Assessment", normalized.InspectionAddress);
+        Assert.Equal(CaseInspectionMode.ImageBasedAssessment, normalized.InspectionMode);
+    }
+
+    [Fact]
+    public void NormalizeRejectsTheImageBasedAssessmentValueAsAPhysicalAddress()
+    {
+        Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.Normalize(
+            new(
+                InspectionAddress: "Image Based Assessment",
+                InspectionMode: CaseInspectionMode.PhysicalAddress)));
+        Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.Normalize(
+            new(
+                InspectionAddress: "IMAGE BASED ASSESSMENT",
+                InspectionMode: CaseInspectionMode.PhysicalAddress)));
+
+        var normalized = CaseDataPolicy.Normalize(
+            new(
+                InspectionAddress: "5 Repairer Way, Leeds",
+                InspectionMode: CaseInspectionMode.PhysicalAddress));
+        Assert.Equal("5 Repairer Way, Leeds", normalized.InspectionAddress);
+        Assert.Equal(CaseInspectionMode.PhysicalAddress, normalized.InspectionMode);
+    }
+
+    [Fact]
     public async Task SaveCaseNormalizesExplicitConfirmedValuesWithoutAnIdentityField()
     {
         var store = new RecordingStore();
