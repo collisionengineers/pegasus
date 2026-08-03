@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.WebUtilities;
@@ -13,6 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using MimeKit;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Web.Authentication;
 
@@ -26,6 +28,7 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     private readonly TimeProvider timeProvider;
     private readonly IIntakeArtifactStore? artifactStore;
     private readonly IInstructionExtractionPolicy? extractionPolicy;
+    private readonly IVrmRecognitionEngine? recognitionEngine;
     private readonly bool useIntegrationTestAuthentication;
     private readonly bool initializeDevelopmentOffline;
     private readonly LocalDbTestDatabase database;
@@ -60,16 +63,22 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         IIntakeArtifactStore? artifactStore = null,
         IInstructionExtractionPolicy? extractionPolicy = null,
         bool useIntegrationTestAuthentication = false,
-        bool initializeDevelopmentOffline = true)
+        bool initializeDevelopmentOffline = true,
+        IVrmRecognitionEngine? recognitionEngine = null)
     {
         this.environment = environment;
         this.localIntakeEnabled = localIntakeEnabled;
         this.timeProvider = timeProvider ?? new TestTimeProvider(FixedUtcNow);
         this.artifactStore = artifactStore;
         this.extractionPolicy = extractionPolicy;
+        this.recognitionEngine = recognitionEngine;
         this.useIntegrationTestAuthentication = useIntegrationTestAuthentication;
         this.initializeDevelopmentOffline = initializeDevelopmentOffline;
-        database = LocalDbTestDatabase.CreateAsync(migrate: false).GetAwaiter().GetResult();
+        // Restored from the per-run template rather than migrated here: this
+        // constructor is the suite's most-repeated database lifecycle.
+        // CreateHost still runs DevelopmentOfflineInitialization, whose own
+        // MigrateAsync then finds nothing to apply.
+        database = LocalDbTestDatabase.CreateAsync().GetAwaiter().GetResult();
     }
 
     internal LocalDbTestDatabase Database => database;
@@ -123,6 +132,14 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         });
         builder.ConfigureServices(services =>
         {
+            // Program.cs configures data protection only on the Production
+            // branch, so a Development host would otherwise fall back to the
+            // machine-global key ring under
+            // %LOCALAPPDATA%\ASP.NET\DataProtection-Keys under one
+            // discriminator — the suite's only genuinely shared OS resource
+            // once hosts are built concurrently. ConfiguredWebApplicationFactory
+            // already does this.
+            services.AddDataProtection().UseEphemeralDataProtectionProvider();
             if (useIntegrationTestAuthentication)
             {
                 services.AddAuthentication(options =>
@@ -142,6 +159,11 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
             {
                 services.RemoveAll<IInstructionExtractionPolicy>();
                 services.AddSingleton(extractionPolicy);
+            }
+            if (recognitionEngine is not null)
+            {
+                services.RemoveAll<IVrmRecognitionEngine>();
+                services.AddSingleton(recognitionEngine);
             }
         });
     }

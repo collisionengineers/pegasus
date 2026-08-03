@@ -190,6 +190,7 @@ public sealed class EfCaseQueryStore(
             .Select(item => new CaseHistoryEntry(
                 item.EventType,
                 item.ActorSubjectId,
+                item.ActorKind,
                 item.OccurredAtUtc,
                 item.Reason,
                 item.BeforeVersion,

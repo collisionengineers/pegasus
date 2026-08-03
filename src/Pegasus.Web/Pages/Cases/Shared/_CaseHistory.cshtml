@@ -20,7 +20,16 @@
                     <tr>
                         <td>@entry.OccurredAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</td>
                         <td>@entry.EventType</td>
-                        <td>@entry.Actor</td>
+                        <td>
+                            @if (entry.ActorKind == nameof(Pegasus.Core.Identity.ActorKind.Automation))
+                            {
+                                <span class="status-chip status-chip--review" title="@entry.Actor">Automation</span>
+                            }
+                            else
+                            {
+                                @entry.Actor
+                            }
+                        </td>
                         <td>@entry.Reason</td>
                         <td>@entry.BeforeVersion → @entry.AfterVersion</td>
                     </tr>

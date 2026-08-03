@@ -10,7 +10,6 @@ using Pegasus.Web.Pages.Administration;
 
 namespace Pegasus.IntegrationTests;
 
-[Collection(LocalDbFixtureDefinition.Name)]
 [Trait("Category", "SqlServer")]
 public sealed class AdministrationSearchAccountWebTests
 {
