@@ -576,7 +576,7 @@ do {
       --resource-group $PegasusProductionResourceGroup --name $Web.name `
       --revision $ActiveWebRevision --output json | ConvertFrom-Json
     if ($WebRevision.properties.provisioningState -ne 'Provisioned' -or
-        $WebRevision.properties.runningState -ne 'Running' -or
+        $WebRevision.properties.runningState -notin @('Running', 'ScaledToZero') -or
         $WebRevision.properties.healthState -ne 'Healthy') {
       $UnhealthyWebRevisions += $ActiveWebRevision
     }
@@ -604,10 +604,12 @@ if ($WebReady.StatusCode -ne 200) {
 
 The metadata readback requires both target-vault URLs and the Web identity. It
 then restarts every active revision, not an arbitrary first revision, and polls
-for `Provisioned`, `Running`, and `Healthy` before an unauthenticated
-`/health/ready` HTTP 200 check. A healthy restarted revision is required before
-the predecessor vaults can be considered for retirement. Stop and restore the
-saved predecessor reference metadata if any revision does not become healthy.
+for `Provisioned`, `Healthy`, and either `Running` or `ScaledToZero` before an
+unauthenticated `/health/ready` HTTP 200 check. A healthy scale-to-zero
+revision is valid; the readiness request activates it. A healthy restarted
+revision is required before the predecessor vaults can be considered for
+retirement. Stop and restore the saved predecessor reference metadata if any
+revision does not become healthy.
 
 ### 7. Independent readback, retirement, and final cleanup
 
