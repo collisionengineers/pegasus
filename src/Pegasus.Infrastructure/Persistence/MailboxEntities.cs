@@ -72,6 +72,24 @@ internal sealed class ApprovedSentPollOutcomeEntity
     public required string OperationKey { get; set; }
 }
 
+internal sealed class IntakeMailClassificationDecisionEntity
+{
+    public Guid IntakeReceiptId { get; set; }
+    public IntakeReceiptEntity IntakeReceipt { get; set; } = null!;
+    public required string Outcome { get; set; }
+    public string? Direction { get; set; }
+    public string? Family { get; set; }
+    public string? Subtype { get; set; }
+    public bool IsReplyContext { get; set; }
+    public string? OtherName { get; set; }
+    public string? OtherReasoning { get; set; }
+    public required string AmbiguousCandidatesJson { get; set; }
+    public required string PredicatesJson { get; set; }
+    public required string Reason { get; set; }
+    public required string PolicyKey { get; set; }
+    public int PolicyVersion { get; set; }
+}
+
 internal sealed class IntakeMailRouteDecisionEntity
 {
     public Guid IntakeReceiptId { get; set; }

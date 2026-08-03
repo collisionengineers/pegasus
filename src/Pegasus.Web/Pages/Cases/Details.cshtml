@@ -13,6 +13,9 @@
     return;
 }
 
+@* Defensive only: the handler returns 404 when the case is absent or
+   unauthorised, so the not-found surface is owned by the error page rather
+   than by this view. *@
 @if (Model.Case is null)
 {
     return;
@@ -45,6 +48,24 @@
 }
 
 <partial name="Shared/_CaseSummary" model="Model" />
+
+@if (Model.ImageIntakes.Count > 0)
+{
+    <section class="panel section-gap" aria-labelledby="case-image-intakes-title">
+        <h2 id="case-image-intakes-title" class="section-label">Image intakes</h2>
+        <p>Image-led material associated with this case. Both identities are permanent; association can be reasonedly reversed on the origin receipt before report delivery.</p>
+        <div class="queue-list">
+            @foreach (var item in Model.ImageIntakes)
+            {
+                <a asp-page="/ImageIntake/Details" asp-route-id="@item.Id">
+                    <span><strong>@item.ImageIntakeReference</strong><small>@item.NormalizedVehicleRegistration</small></span>
+                    <span><strong>Associated with Case</strong><small>@item.RegisteredAtUtc.ToLocalTime().ToString("dd MMM yyyy") @item.RegisteredAtUtc.ToLocalTime().ToString("HH:mm")</small></span>
+                </a>
+            }
+        </div>
+    </section>
+}
+
 <partial name="Shared/_CaseWorkflow" model="Model" />
 <partial name="Shared/_CaseDocuments" model="Model" />
 <partial name="Shared/_CaseHistory" model="Model" />

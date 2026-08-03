@@ -2,19 +2,38 @@ using Microsoft.Playwright;
 
 namespace Pegasus.IntegrationTests.Browser;
 
-[Collection(LocalDbFixtureDefinition.Name)]
 [Trait("Category", "SqlServer")]
 [Trait("Category", "Browser")]
 public sealed class AccessibilityTests
 {
+    // Every authenticated route that renders without a seeded record id.
+    // /Account/SignIn is absent on purpose: the DevelopmentOffline profile
+    // authenticates automatically and redirects it, so it cannot return 200
+    // through this harness. It shares the auth-panel markup with
+    // /Account/PasswordChange, which is covered here.
     public static TheoryData<string> AuthenticatedRoutes => new()
     {
         "/",
         "/Intake",
+        "/ImageIntake",
         "/Triage",
+        "/Cases",
+        "/Search",
+        "/Operations/Email",
+        "/Operations/Requests",
         "/Administration",
+        "/Administration/Accounts",
+        "/Administration/Roles",
+        "/Administration/Access",
+        "/Administration/Organizations",
+        "/Administration/Principals",
+        "/Administration/Principals/Create",
+        "/Administration/Configuration",
+        "/Administration/Mailboxes",
+        "/Administration/Automation",
+        "/Administration/Automation/Activity",
         "/Account/PasswordChange",
-        "/Cases"
+        "/Account/AccessDenied"
     };
 
     [Theory]

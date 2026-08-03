@@ -4,61 +4,91 @@
     ViewData["Title"] = "Manage organization roles";
 }
 
+<a class="back-link" asp-page="Index">
+    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+    Back to Organizations
+</a>
+
+@* Defensive only: the handler returns 404 when the organization is absent or
+   unauthorised, so the not-found surface is owned by the error page. *@
 @if (Model.Organization is not null)
 {
-    <h1>Manage @Model.Organization.Name</h1>
-    <p><a asp-page="Index">Back to Organizations</a></p>
+    <div class="page-heading">
+        <div>
+            <p class="eyebrow">Administration</p>
+            <h1>Manage @Model.Organization.Name</h1>
+            <p class="lede">Roles are independently selectable. Work Provider cannot be removed while an active principal belongs to this organization.</p>
+        </div>
+        <div class="page-heading-actions">
+            <span class="updated tabular">Version @Model.Organization.Version</span>
+        </div>
+    </div>
 
     @if (TempData["AdministrationStatus"] is string status)
     {
-        <div role="status">@status</div>
+        <div class="status-card" role="status">@status</div>
     }
 
-    <p>Current version: @Model.Organization.Version</p>
-    <p>Roles are independently selectable. Work Provider cannot be removed while an active principal belongs to this organization.</p>
-
-    <form method="post" asp-page-handler="Update">
-        <div asp-validation-summary="ModelOnly"></div>
-        <input asp-for="ExpectedVersion" type="hidden" />
-        <input asp-for="OperationKey" type="hidden" />
-        <fieldset>
-            <legend>Organization roles</legend>
-            <label><input asp-for="WorkProvider" /> Work Provider</label>
-            <label><input asp-for="InstructionIntermediary" /> Instruction Intermediary</label>
-        </fieldset>
-        <div>
-            <label asp-for="Reason">Reason for change</label>
-            <textarea asp-for="Reason" rows="3"></textarea>
-            <span asp-validation-for="Reason"></span>
-        </div>
-        <button type="submit">Update roles</button>
-    </form>
-
-    <section aria-labelledby="organization-principals-heading">
-        <h2 id="organization-principals-heading">Principals</h2>
-        @if (Model.Organization.Principals.Count == 0)
-        {
-            <p>This organization has no principals.</p>
-        }
-        else
-        {
-            <table>
-                <thead><tr><th>Code</th><th>Status</th><th>Allocated cases</th></tr></thead>
-                <tbody>
-                @foreach (var principal in Model.Organization.Principals)
-                {
-                    <tr>
-                        <td>@principal.Code</td>
-                        <td>@(principal.IsActive ? "Active" : "Disabled")</td>
-                        <td>@principal.AllocatedCaseCount</td>
-                    </tr>
-                }
-                </tbody>
-            </table>
-            @if (Model.Organization.HasMorePrincipals)
+    <div class="split-main">
+        <section aria-labelledby="organization-principals-heading">
+            <h2 id="organization-principals-heading" class="section-label">Principals</h2>
+            @if (Model.Organization.Principals.Count == 0)
             {
-                <p>The principal projection is bounded; additional principals exist.</p>
+                <div class="panel empty-state">This organization has no principals.</div>
             }
-        }
-    </section>
+            else
+            {
+                <div class="table-wrap">
+                    <table>
+                        <caption>Principals owned by @Model.Organization.Name</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Code</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Allocated cases</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var principal in Model.Organization.Principals)
+                        {
+                            <tr>
+                                <td>@principal.Code</td>
+                                <td><partial name="Shared/_StatusChip" model="@(principal.IsActive ? "Active" : "Disabled")" /></td>
+                                <td class="tabular">@principal.AllocatedCaseCount</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+                @if (Model.Organization.HasMorePrincipals)
+                {
+                    <p class="empty-state">The principal projection is bounded; additional principals exist.</p>
+                }
+            }
+        </section>
+
+        <section aria-labelledby="organization-roles-heading">
+            <h2 id="organization-roles-heading" class="section-label">Organization roles</h2>
+            <div class="panel form-panel form-panel--wide">
+                <form method="post" asp-page-handler="Update">
+                    <div asp-validation-summary="ModelOnly"></div>
+                    <input asp-for="ExpectedVersion" type="hidden" />
+                    <input asp-for="OperationKey" type="hidden" />
+                    <fieldset class="role-choices role-choices--stacked">
+                        <legend>Organization roles</legend>
+                        <label class="choice"><input asp-for="WorkProvider" /> <span>Work Provider</span></label>
+                        <label class="choice"><input asp-for="InstructionIntermediary" /> <span>Instruction Intermediary</span></label>
+                    </fieldset>
+                    <div>
+                        <label asp-for="Reason">Reason for change</label>
+                        <textarea asp-for="Reason" rows="3"></textarea>
+                        <span asp-validation-for="Reason"></span>
+                    </div>
+                    <div class="button-row">
+                        <button type="submit" class="primary-action">Update roles</button>
+                    </div>
+                </form>
+            </div>
+        </section>
+    </div>
 }

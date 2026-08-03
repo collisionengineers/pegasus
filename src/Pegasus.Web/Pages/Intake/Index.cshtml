@@ -26,7 +26,7 @@
         "reversed" => "The intake-to-case association was reversed.",
         _ => "The instruction has been retained and queued for processing."
     };
-    <div class="notice" role="status">@statusMessage</div>
+    <div class="status-card" role="status">@statusMessage</div>
 }
 
 <section class="panel form-panel" aria-labelledby="receive-intake-title">
@@ -49,6 +49,7 @@
     <a asp-page="/Intake/Index" asp-route-decision="needs_sorting">Needs sorting</a>
     <a asp-page="/Intake/Index" asp-route-decision="blocked_intake">Blocked intake</a>
     <a asp-page="/Intake/Index" asp-route-decision="ocr_required">Document text required</a>
+    <a asp-page="/Intake/Index" asp-route-decision="image_intake_registered">Image intakes</a>
 </nav>
 
 <section class="panel">
@@ -63,7 +64,7 @@
             {
                 <a asp-page="/Intake/Details" asp-route-id="@item.Id">
                     <span><strong>@item.SourceFileName</strong><small>@item.ReceivedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</small></span>
-                    <span><strong>@IndexModel.DecisionLabel(item.Decision)</strong><small>@item.FailureReason</small></span>
+                    <span><strong>@Model.RowOutcomeLabel(item)</strong><small>@item.FailureReason</small></span>
                 </a>
             }
         </div>
