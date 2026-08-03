@@ -886,6 +886,269 @@ textarea:focus-visible,
   }
 }
 
+/* ---------------------------------------------------------------------------
+   Engineers assessment workbench.
+
+   Every value below resolves to a token already declared at the top of this
+   file: no new colour, spacing step, radius, border, focus value, transition
+   or animation is introduced here.
+   --------------------------------------------------------------------------- */
+
+/* Visually hidden. Names controls that a column header cannot name — a
+   `<th scope="col">` labels a cell, not the input inside it — and is revealed
+   again by the stacked reflow below, where each line becomes its own block. */
+.vh {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Readiness rail first in the DOM, so the constrained-desktop single column
+   puts what is outstanding above the section being worked on. */
+.workbench-grid {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 2fr);
+  gap: var(--sp-5);
+  align-items: start;
+}
+
+.workbench-grid > aside { position: sticky; top: var(--sp-5); display: grid; gap: var(--sp-3); }
+.workbench-grid > div { display: grid; min-width: 0; gap: var(--sp-5); }
+.workbench-grid .form-grid small { color: var(--muted); font-size: var(--t-xs); }
+.workbench-grid label.choice { min-height: 44px; }
+/* `.button-row` is declared after `.section-gap`, so its own margin would
+   otherwise win and leave the save control tight against the block above. */
+.workbench-grid .button-row.section-gap { margin-top: var(--sp-6); }
+
+/* The Send control is the rail's own action and must not read as a Cancel.
+   Collision red is reserved for the section's save, so this takes the approved
+   navy channel — distinct in tone, still a 1px border and the 2px radius, with
+   no gradient, shadow, lift or motion, all of which design/README.md excludes.
+   Full width follows the reference's sidebar treatment: in a 320px rail a
+   centred inline button reads as an afterthought. */
+.send-action {
+  border-color: var(--navy-line);
+  background: var(--navy-bg);
+  color: var(--navy-fg);
+}
+
+.send-action:hover { border-color: var(--navy-fg); background: var(--navy-bg); }
+.send-action .icon { color: var(--navy-line); }
+/* Full width only in the rail; in the dialog it sits beside Cancel. */
+.workbench-grid .send-action { width: 100%; }
+
+/* Buttons had no disabled treatment, so an unavailable action still read as
+   available. Matches the recessed ground disabled inputs already use. */
+.workbench-grid .primary-action:disabled,
+.workbench-grid .secondary-action:disabled {
+  border-color: var(--line);
+  background: var(--paper);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+/* Row headers carry a name, not a column caption, so they drop the uppercase
+   eyebrow treatment `th` applies to column headers. */
+.workbench-grid tbody th[scope="row"],
+.workbench-grid tfoot th[scope="row"] {
+  color: var(--ink);
+  font-size: var(--t-sm);
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Section nav. Mirrors the shell's active-route treatment: colour is paired
+   with a weight change and an underline, never used alone. */
+.section-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-5);
+  border-bottom: var(--border);
+}
+
+.section-tabs a {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--sp-3);
+  color: var(--charcoal);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.section-tabs a:hover { color: var(--ce-red); }
+.section-tabs a[aria-current="page"] { color: var(--ce-red); font-weight: 700; }
+
+.section-tabs a[aria-current="page"]::after {
+  position: absolute;
+  right: var(--sp-3);
+  bottom: -1px;
+  left: var(--sp-3);
+  height: 2px;
+  background: var(--ce-red);
+  content: "";
+}
+
+/* One unmet requirement per item, each naming its own field and resolution.
+   The state channel supplies the tone, so `data-state` is the only switch. */
+.blocker-list { display: grid; gap: var(--sp-2); margin: 0; padding: 0; list-style: none; }
+
+.blocker {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-3);
+  border: var(--border);
+  border-left: 3px solid var(--state-line);
+  border-radius: var(--radius);
+  background: var(--state-bg);
+}
+
+.blocker strong { font-size: var(--t-sm); }
+.blocker small { color: var(--muted); font-size: var(--t-xs); }
+
+/* Guide evidence. Read-only, on the recessed ground, so it never reads as one
+   of the three figures the engineer chooses on the panel below it. */
+.evidence-figure {
+  padding: var(--sp-3) var(--sp-4);
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+
+.evidence-figure__label {
+  color: var(--muted);
+  font-size: var(--t-eyebrow);
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.evidence-figure__value { font-size: var(--t-h3); font-variant-numeric: tabular-nums; font-weight: 700; }
+.evidence-figure__source { color: var(--muted); font-size: var(--t-xs); }
+
+/* Recorded value beside proposed value, equal weight: neither side is the
+   default outcome. */
+.proposal-diff {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--line);
+}
+
+.proposal-diff > div { display: grid; align-content: start; gap: var(--sp-2); padding: var(--sp-5); background: var(--panel); }
+
+.proposal-diff h3 {
+  color: var(--muted);
+  font-size: var(--t-eyebrow);
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.proposal-diff p { margin: 0; }
+.status-card h3 { margin: 0 0 var(--sp-1); }
+
+/* A calculated total is separated from the components it came from. */
+table tfoot td,
+table tfoot th {
+  border-top: var(--border);
+  border-bottom: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* Repair specification. Fixed layout so three equal entry columns share the
+   width instead of one long description starving the others. */
+.line-grid { table-layout: fixed; }
+.line-grid th, .line-grid td { padding: var(--sp-2) var(--sp-3); vertical-align: top; }
+.line-grid th:first-child, .line-grid td:first-child { width: 6rem; }
+
+/* A repair line carries eleven columns. Below this width the cells stop being
+   usable, so the wrapper scrolls instead of crushing them; under 900px the
+   stacked reflow takes over and the scroll never applies. */
+.line-grid { min-width: 78rem; }
+/* Column headers wrap here. The global `th` rule keeps headers on one line,
+   which under `table-layout: fixed` makes a long header overrun its column and
+   collide with the next one. */
+.line-grid thead th { white-space: normal; line-height: 1.3; }
+.line-grid input, .line-grid select { font-size: var(--t-xs); }
+.line-grid label.choice { margin-top: var(--sp-1); font-size: var(--t-xs); font-weight: 600; }
+@media (max-width: 900px) { .line-grid { min-width: 0; } }
+
+/* Used by the report-projection cards, which sit a level below the section
+   heading. `.field-card` only styled h3. */
+.field-card h4 {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--t-eyebrow);
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 1279px) {
+  .workbench-grid { grid-template-columns: minmax(0, 1fr); }
+  .workbench-grid > aside { position: static; }
+}
+
+/* Below this width three side-by-side inputs would scroll horizontally, so
+   each line becomes one labelled block and the hidden control names — which
+   are the only accessible names those inputs have — become visible text. */
+@media (max-width: 900px) {
+  .proposal-diff { grid-template-columns: minmax(0, 1fr); }
+  .line-grid, .line-grid thead, .line-grid tbody, .line-grid tr, .line-grid th, .line-grid td { display: block; }
+  /* Without a table box the caption loses its full-width sizing and collapses
+     to shrink-to-fit, wrapping one word per line. */
+  .line-grid caption { display: block; }
+
+  .line-grid thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .line-grid tbody tr { padding: var(--sp-3) 0; border-bottom: var(--border); }
+  .line-grid tbody tr:last-child { border-bottom: 0; }
+  .line-grid tbody th[scope="row"] { padding: 0 var(--sp-3) var(--sp-2); border-bottom: 0; background: transparent; }
+  .line-grid td { padding: var(--sp-1) var(--sp-3) var(--sp-3); border-bottom: 0; }
+  .line-grid th:first-child, .line-grid td:first-child { width: auto; }
+
+  .line-grid td .vh {
+    position: static;
+    display: block;
+    width: auto;
+    height: auto;
+    margin: 0 0 var(--sp-1);
+    overflow: visible;
+    clip-path: none;
+    color: var(--ink);
+    font-size: var(--t-sm);
+    font-weight: 700;
+  }
+}
+
+/* Declared last so `hidden` wins over the layout `display` values above; the
+   attribute and a single class carry equal specificity, so source order is
+   what decides. */
+[hidden] { display: none; }
+
 @media (forced-colors: active) {
   .queue-card,
   .metric-tile,
