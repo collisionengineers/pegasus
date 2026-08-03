@@ -48,6 +48,7 @@ internal sealed class EfDocumentCustodyStore(
             command.ExpectedCaseVersion,
             command.EditLeaseToken,
             timeProvider.GetUtcNow());
+        var caseReference = workflow.Case.Reference;
 
         var document = await context.Set<CaseDocumentEntity>()
             .SingleOrDefaultAsync(
@@ -103,6 +104,7 @@ internal sealed class EfDocumentCustodyStore(
 
         await contentStore.StoreAsync(
             command.CaseId,
+            caseReference,
             version.Id,
             command.Content,
             contentHash,
@@ -134,6 +136,7 @@ internal sealed class EfDocumentCustodyStore(
                     dbContextFactory,
                     contentStore,
                     command.CaseId,
+                    caseReference,
                     version.Id,
                     exception);
             }
@@ -183,7 +186,11 @@ internal sealed class EfDocumentCustodyStore(
         ValidateActor(query.Actor);
         var operationKey = ValidateOperationKey(query.OperationKey);
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        if (!await context.Set<CaseEntity>().AnyAsync(value => value.Id == query.CaseId, cancellationToken))
+        var caseReference = await context.Set<CaseEntity>()
+            .Where(value => value.Id == query.CaseId)
+            .Select(value => value.Reference)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (caseReference is null)
         {
             return null;
         }
@@ -231,6 +238,7 @@ internal sealed class EfDocumentCustodyStore(
 
         var stream = await contentStore.OpenReadAsync(
             query.CaseId,
+            caseReference,
             item.Version.Id,
             item.Version.Sha256,
             item.Version.ContentLength,
@@ -280,6 +288,11 @@ internal sealed class EfDocumentCustodyStore(
 
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var caseReference = await context.Set<CaseEntity>()
+            .Where(value => value.Id == command.CaseId)
+            .Select(value => value.Reference)
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new InvalidOperationException("The case is unavailable.");
         var history = await FindDocumentHistoryAsync(context, operationKey, cancellationToken);
 
         var requested = command.Selections
@@ -337,6 +350,7 @@ internal sealed class EfDocumentCustodyStore(
 
         var export = await BuildExportAsync(
             command.CaseId,
+            caseReference,
             items,
             command.MaximumArchiveBytes,
             cancellationToken);
@@ -515,6 +529,7 @@ internal sealed class EfDocumentCustodyStore(
 
     private async Task<DocumentExport> BuildExportAsync(
         Guid caseId,
+        string caseReference,
         IReadOnlyList<ExportItem> items,
         long maximumArchiveBytes,
         CancellationToken cancellationToken)
@@ -547,6 +562,7 @@ internal sealed class EfDocumentCustodyStore(
                     await using var destination = entry.Open();
                     await using var source = await contentStore.OpenReadAsync(
                         caseId,
+                        caseReference,
                         item.Version.Id,
                         item.Version.Sha256,
                         item.Version.ContentLength,
@@ -585,6 +601,7 @@ internal sealed class EfDocumentCustodyStore(
         }
 
         return await context.CaseWorkflows
+            .Include(value => value.Case)
             .SingleOrDefaultAsync(value => value.CaseId == caseId, cancellationToken)
             ?? throw new InvalidOperationException("The case is unavailable.");
     }

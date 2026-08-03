@@ -1,36 +1,99 @@
+@*
+    Last-good time and current refresh state for one query, with the manual
+    refresh that reruns the same filter.
+
+    Model: the last successful load time, or null when nothing has loaded.
+    ViewData["RefreshStatus"] — current | loading | stale | partial |
+                               unavailable | failed.
+
+    design/README.md requires that `0`, loading, current, stale, partial,
+    unavailable and failed stay distinct, that the last-good time stays visible
+    when a later refresh degrades, and that refresh never claims an external
+    action succeeded. Times render in Europe/London because that is the day
+    boundary the dashboard counts against.
+*@
 @model DateTimeOffset?
 @{
-    var status = ViewData["RefreshStatus"] as string ?? "current"; // current, loading, stale, partial, unavailable, failed
-    var asOf = Model.HasValue ? Model.Value.ToString("yyyy-MM-dd HH:mm:ss") + " London" : "Unknown";
+    var status = ViewData["RefreshStatus"] as string ?? "current";
+
+    TimeZoneInfo londonZone;
+    try
+    {
+        londonZone = TimeZoneInfo.FindSystemTimeZoneById("Europe/London");
+    }
+    catch (TimeZoneNotFoundException)
+    {
+        londonZone = TimeZoneInfo.Utc;
+    }
+    catch (InvalidTimeZoneException)
+    {
+        londonZone = TimeZoneInfo.Utc;
+    }
+
+    var london = Model.HasValue
+        ? TimeZoneInfo.ConvertTime(Model.Value, londonZone)
+        : (DateTimeOffset?)null;
+
     var bannerClass = status switch
     {
         "loading" => "freshness-banner--loading",
-        "stale" => "freshness-banner--stale",
+        "stale" or "partial" => "freshness-banner--stale",
         "failed" or "unavailable" => "freshness-banner--failed",
-        _ => ""
+        _ => string.Empty
+    };
+
+    var statusLabel = status switch
+    {
+        "loading" => "Refreshing",
+        "stale" => "Stale",
+        "partial" => "Partial",
+        "unavailable" => "Unavailable",
+        "failed" => "Failed",
+        _ => "Current"
     };
 }
 <div class="freshness-banner @bannerClass" role="status" aria-live="polite">
-    <div class="updated">
-        <svg class="icon" aria-hidden="true"><use href="#icon-clock"/></svg>
-        <span>Data as of: <strong>@asOf</strong></span>
-        @if (status == "stale")
+    <span class="updated">
+        <svg class="icon" aria-hidden="true"><use href="#icon-clock" /></svg>
+        @if (london is { } lastGood)
         {
-            <span class="status-chip status-chip--not-ready">Stale</span>
+            <span>
+                Last updated
+                <time datetime="@lastGood.ToString("O")">@lastGood.ToString("d MMM yyyy HH:mm")</time>
+                London
+            </span>
         }
-        else if (status == "loading")
+        else
         {
-            <span class="status-chip status-chip--not-ready">Refreshing…</span>
+            <span>No successful update recorded</span>
         }
-        else if (status == "failed")
-        {
-            <span class="status-chip status-chip--blocked">Refresh Failed</span>
-        }
-    </div>
-    <form method="get" style="margin: 0;">
-        <button type="submit" class="secondary-action" style="min-height: 36px; padding: 0 12px; font-size: 0.85rem;" title="Rerun current filter and refresh data">
-            <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw"/></svg>
-            <span>Refresh</span>
+        <partial name="Shared/_StatusChip" model="@statusLabel" />
+    </span>
+    <form method="get" data-refresh-form>
+        <button type="submit" class="secondary-action">
+            <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+            <span data-refresh-label>Refresh</span>
         </button>
     </form>
 </div>
+<script>
+    // Start feedback for a manual refresh, which design/README.md requires.
+    // The label change is the signal; the spin is decoration on top of it, so
+    // the feedback still reads correctly under reduced motion or no CSS.
+    document.querySelectorAll('[data-refresh-form]').forEach(function (form) {
+        form.addEventListener('submit', function () {
+            var banner = form.closest('.freshness-banner');
+            if (banner) {
+                banner.classList.add('is-refreshing');
+                banner.setAttribute('aria-busy', 'true');
+            }
+            var label = form.querySelector('[data-refresh-label]');
+            if (label) {
+                label.textContent = 'Refreshing';
+            }
+            form.querySelectorAll('button').forEach(function (button) {
+                button.disabled = true;
+            });
+        });
+    });
+</script>

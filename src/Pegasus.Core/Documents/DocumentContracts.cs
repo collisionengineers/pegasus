@@ -19,7 +19,8 @@ public enum DocumentSource
     StaffUpload,
     RequestUpload,
     ExternalCorrespondence,
-    Generated
+    Generated,
+    Automation
 }
 
 public enum DocumentCustodyStatus
@@ -280,6 +281,7 @@ public interface IDocumentContentStore
 {
     Task StoreAsync(
         Guid caseId,
+        string caseReference,
         Guid versionId,
         ReadOnlyMemory<byte> content,
         string expectedSha256,
@@ -287,6 +289,7 @@ public interface IDocumentContentStore
 
     Task<Stream> OpenReadAsync(
         Guid caseId,
+        string caseReference,
         Guid versionId,
         string expectedSha256,
         long expectedLength,
@@ -294,6 +297,7 @@ public interface IDocumentContentStore
 
     Task DeleteAsync(
         Guid caseId,
+        string caseReference,
         Guid versionId,
         CancellationToken cancellationToken);
 }

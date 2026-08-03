@@ -1243,6 +1243,7 @@ public sealed class EfTriageStore(
     {
         IntakeSourceChannel.ManualUpload => "manual_upload",
         IntakeSourceChannel.Mailbox => "mailbox",
+        IntakeSourceChannel.Automation => "automation",
         _ => throw new ArgumentOutOfRangeException(nameof(value))
     };
 
@@ -1250,6 +1251,7 @@ public sealed class EfTriageStore(
     {
         "manual_upload" => IntakeSourceChannel.ManualUpload,
         "mailbox" => IntakeSourceChannel.Mailbox,
+        "automation" => IntakeSourceChannel.Automation,
         _ => throw new InvalidDataException($"Unknown persisted intake source channel '{value}'.")
     };
 

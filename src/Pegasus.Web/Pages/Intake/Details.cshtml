@@ -1,5 +1,6 @@
 @page "/Intake/{id:guid}"
 @model Pegasus.Web.Pages.Intake.DetailsModel
+@using Pegasus.Core.ImageIntake
 @using Pegasus.Core.Intake
 @{
     ViewData["Title"] = "Intake review";
@@ -16,15 +17,15 @@
 
 @if (Model.IsDuplicate)
 {
-    <div class="notice" role="status">This source receipt was already processed. The existing intake record is shown.</div>
+    <div class="status-card" role="status">This source receipt was already processed. The existing intake record is shown.</div>
 }
 @if (TempData["InspectionAddressStatus"] is string inspectionAddressStatus)
 {
-    <div class="notice" role="status">@inspectionAddressStatus</div>
+    <div class="status-card" role="status">@inspectionAddressStatus</div>
 }
 @if (TempData["IntakeDetailsStatus"] is string intakeDetailsStatus)
 {
-    <div class="notice" role="status">@intakeDetailsStatus</div>
+    <div class="status-card" role="status">@intakeDetailsStatus</div>
 }
 @if (TempData["IntakeDetailsError"] is string intakeDetailsError)
 {
@@ -65,6 +66,79 @@
         }
     </section>
 </div>
+@if (Model.ImageIntake is { } imageIntake)
+{
+    <section class="panel section-gap" aria-labelledby="image-intake-title">
+        <h2 id="image-intake-title" class="section-label">Image intake</h2>
+        <dl class="detail-list">
+            <div><dt>Image Intake Reference</dt><dd><a asp-page="/ImageIntake/Details" asp-route-id="@imageIntake.Record.Id">@imageIntake.Record.ImageIntakeReference</a></dd></div>
+            <div><dt>Vehicle registration</dt><dd>@imageIntake.Record.NormalizedVehicleRegistration</dd></div>
+            <div><dt>Registered</dt><dd>@imageIntake.RegisteredAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd></div>
+            <div>
+                <dt>Status</dt>
+                <dd>
+                    @if (imageIntake.AssociatedCaseId is { } associatedCase)
+                    {
+                        <text>Associated with Case </text><a asp-page="/Cases/Details" asp-route-id="@associatedCase">@(imageIntake.AssociatedCaseReference ?? associatedCase.ToString())</a>
+                    }
+                    else
+                    {
+                        <text>Image intake registered</text>
+                    }
+                </dd>
+            </div>
+        </dl>
+    </section>
+}
+
+@if (Model.CanRegisterImageIntake)
+{
+    <section class="panel form-panel section-gap" aria-labelledby="register-image-intake-title">
+        <h2 id="register-image-intake-title" class="section-label">Register Image intake</h2>
+        <p>Image-only material with a usable normalised registration becomes a pre-Case Image intake with a permanent reference. It never becomes a Case by itself.</p>
+        <form method="post" asp-page-handler="RegisterImageIntake" asp-route-id="@Model.Receipt.Id">
+            <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+            <label for="register-vrm">Vehicle registration</label>
+            <input id="register-vrm" name="vehicleRegistration" value="@Model.RegistrationPrefill" maxlength="20" required autocomplete="off" />
+            <label for="register-reason">Reason for registering</label>
+            <textarea id="register-reason" name="reason" maxlength="500" rows="2" required></textarea>
+            <button type="submit" class="primary-action">Register Image intake</button>
+        </form>
+    </section>
+}
+
+@if (Model.VrmSuggestions.Count > 0)
+{
+    <section class="panel section-gap" aria-labelledby="vrm-suggestions-title">
+        <h2 id="vrm-suggestions-title" class="section-label">Registration reading results</h2>
+        <p>Each retained image was read automatically. A suggestion never registers, links or identifies anything on its own; an unreadable image, an unavailable engine and a technical failure remain distinct recorded outcomes.</p>
+        <ul class="evidence-list">
+            @foreach (var suggestion in Model.VrmSuggestions)
+            {
+                <li>
+                    <strong>@DetailsModel.SuggestionOutcomeLabel(suggestion)</strong>
+                    <span>@suggestion.EngineKey v@(suggestion.EngineVersion) · @suggestion.OccurredAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm") · @suggestion.Disposition.ToString().ToLowerInvariant()</span>
+                    @if (suggestion.FailureReason is not null)
+                    {
+                        <span>@suggestion.FailureReason</span>
+                    }
+                    @if (suggestion.Disposition == ImageVrmSuggestionDisposition.Pending
+                        && suggestion.Outcome == VrmRecognitionOutcomeKind.Suggested)
+                    {
+                        <form method="post" asp-page-handler="DismissSuggestion" asp-route-id="@Model.Receipt.Id">
+                            <input type="hidden" name="suggestionId" value="@suggestion.Id" />
+                            <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+                            <label for="dismiss-reason-@suggestion.Id">Reason for dismissing this suggestion</label>
+                            <textarea id="dismiss-reason-@suggestion.Id" name="reason" maxlength="500" rows="2" required></textarea>
+                            <button type="submit" class="secondary-action">Dismiss suggestion</button>
+                        </form>
+                    }
+                </li>
+            }
+        </ul>
+    </section>
+}
+
 @if (Model.Receipt.AcceptedCaseId is null)
 {
     <section class="panel form-panel section-gap" aria-labelledby="intake-resolution-title">
@@ -133,6 +207,17 @@
     else
     {
         <p>This intake receipt is not currently linked to a case.</p>
+    }
+
+    @if (Model.AssociationCandidates.Count > 0 && Model.Receipt.CurrentCaseId is null)
+    {
+        <p>Eligible pre-report cases with this Image intake's confirmed registration:</p>
+        <ul class="plain-list">
+            @foreach (var candidate in Model.AssociationCandidates)
+            {
+                <li>@candidate.CaseReference · case @candidate.CaseId · version @candidate.CaseVersion</li>
+            }
+        </ul>
     }
 
     @if (Model.LeasedCaseId is null)

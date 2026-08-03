@@ -28,6 +28,8 @@ public sealed class DependencyDirectionTests
         "UglyToad.PdfPig",
         "Microsoft.Data.SqlClient",
         "System.Net.Http",
+        "OpenIddict",
+        "ModelContextProtocol",
         "Pegasus.Infrastructure",
         "Pegasus.Web",
         "Pegasus.Worker"

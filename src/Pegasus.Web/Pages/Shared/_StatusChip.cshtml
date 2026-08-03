@@ -1,20 +1,94 @@
+@*
+    The single place a business or query state chooses its visual treatment.
+
+    Model: the exact state text to display. Business labels keep their settled
+    casing (`Not ready`, `Blocked intake`, `Needs sorting`, `Review`, `Held`);
+    this partial never rewrites the caller's words, it only picks a tone and an
+    icon for them.
+
+    ViewData["StatusCount"] — optional count appended in brackets.
+    ViewData["StatusTone"]  — optional explicit tone override
+                              (navy | amber | red | green | neutral).
+
+    Tone rules follow design/README.md: amber is incomplete or pending, navy is
+    Review and other in-flight states, red is blocked/failed/denied, green is
+    confirmed completion only, and neutral covers absent, loading, current and
+    settled-terminal states. Every chip carries its text label, so no state is
+    ever conveyed by colour or icon alone.
+*@
 @model string
 @{
-    var state = Model ?? "Unknown";
-    var (chipClass, iconId) = state.ToLowerInvariant() switch
+    var state = string.IsNullOrWhiteSpace(Model) ? "Unknown" : Model.Trim();
+
+    var key = new string(state
+        .ToLowerInvariant()
+        .Select(character => character is '_' or '-' ? ' ' : character)
+        .Where(character => char.IsLetterOrDigit(character) || character == ' ')
+        .ToArray());
+    key = string.Join(' ', key.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+    var (tone, iconId) = key switch
     {
-        "review" => ("status-chip--review", "icon-info"),
-        "not ready" or "pending" => ("status-chip--not-ready", "icon-alert-triangle"),
-        "held" or "blocked intake" or "blocked" or "error" => ("status-chip--blocked", "icon-alert-circle"),
-        "completed" or "success" or "draft ready" => ("status-chip--completed", "icon-check-circle"),
-        _ => ("", "icon-info")
+        // Case lifecycle
+        "not ready" => ("amber", "icon-alert-triangle"),
+        "review" => ("navy", "icon-info"),
+        "held" => ("amber", "icon-clock"),
+        "completed" or "post report completion" => ("green", "icon-check-circle"),
+        "cancelled" or "provider cancellation" or "archived" => ("neutral", "icon-info"),
+        "created in error" => ("neutral", "icon-alert-circle"),
+        "reopened" or "open" => ("navy", "icon-info"),
+
+        // Intake and Triage
+        "needs sorting" => ("amber", "icon-alert-triangle"),
+        "blocked intake" or "blocked" => ("red", "icon-alert-circle"),
+        "draft ready" or "instruction draft" => ("navy", "icon-file-text"),
+        "document text required" or "unsupported" => ("amber", "icon-file-text"),
+        "awaiting information" => ("amber", "icon-clock"),
+        "finding recorded" => ("navy", "icon-check-circle"),
+        "registration missing" => ("amber", "icon-alert-triangle"),
+
+        // Query freshness
+        "current" => ("neutral", "icon-check-circle"),
+        "loading" or "refreshing" => ("neutral", "icon-refresh-cw"),
+        "stale" => ("amber", "icon-clock"),
+        "partial" or "limit reached" => ("amber", "icon-alert-triangle"),
+        "unavailable" => ("neutral", "icon-alert-circle"),
+        "failed" or "technical failure" or "error" => ("red", "icon-alert-circle"),
+
+        // Access and mutation
+        "denied" or "unauthenticated" => ("red", "icon-lock"),
+        "disabled" => ("neutral", "icon-lock"),
+        "approved" or "enabled" => ("navy", "icon-check-circle"),
+        "conflict" or "stale version" => ("red", "icon-alert-triangle"),
+        "lease lost" => ("red", "icon-lock"),
+        "lease held" or "editing" => ("navy", "icon-lock"),
+        "lease expired" => ("amber", "icon-clock"),
+        "locked" => ("neutral", "icon-lock"),
+
+        // Access review
+        "due no review recorded" or "due" => ("amber", "icon-clock"),
+        "recorded" => ("neutral", "icon-check-circle"),
+
+        // External and document custody
+        "pending" => ("amber", "icon-clock"),
+        "retry" => ("amber", "icon-refresh-cw"),
+        "success" => ("green", "icon-check-circle"),
+        "unknown" => ("neutral", "icon-info"),
+
+        _ => ("neutral", "icon-info")
     };
 
-    var hasDigit = state.Any(char.IsDigit);
-    var count = ViewData["StatusCount"] as int? ?? 0;
-    var displayText = hasDigit ? state : $"{state} ({count})";
+    if (ViewData["StatusTone"] is string toneOverride && !string.IsNullOrWhiteSpace(toneOverride))
+    {
+        tone = toneOverride;
+    }
+
+    var count = ViewData["StatusCount"] as int?;
+    var displayText = count is { } suppliedCount && !state.Any(char.IsDigit)
+        ? $"{state} ({suppliedCount})"
+        : state;
 }
-<span class="status-chip @chipClass">
-    <svg class="icon" aria-hidden="true"><use href="#@iconId"/></svg>
+<span class="status-chip status-chip--@tone">
+    <svg class="icon" aria-hidden="true"><use href="#@iconId" /></svg>
     <span>@displayText</span>
 </span>

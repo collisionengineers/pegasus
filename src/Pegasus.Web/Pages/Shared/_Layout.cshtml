@@ -5,6 +5,16 @@
     var intakeEnabled = Environment.IsProduction()
         || (Environment.IsDevelopment()
             && Configuration.GetValue<bool>("Features:LocalIntake"));
+
+    // Marks the route the operator is on. aria-current is the accessible signal;
+    // site.css pairs it with weight and an underline so it never relies on colour.
+    var currentPage = ViewContext.RouteData.Values["page"] as string ?? string.Empty;
+    string? CurrentWhen(params string[] pagePrefixes) =>
+        pagePrefixes.Any(prefix =>
+            currentPage.Equals(prefix, StringComparison.OrdinalIgnoreCase)
+            || currentPage.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase))
+            ? "page"
+            : null;
 }
 <html lang="en">
 <head>
@@ -14,6 +24,7 @@
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
 <body>
+    <partial name="Shared/_LucideSprite" />
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <header class="app-nav">
         <div class="nav-inner">
@@ -22,22 +33,22 @@
                 <span>Pegasus</span>
             </a>
             <nav class="nav-links" aria-label="Primary">
-                <a class="nav-link" asp-page="/Index">Operations</a>
+                <a class="nav-link" asp-page="/Index" aria-current="@CurrentWhen("/Index", "/Operations")">Operations</a>
                 @if (intakeEnabled)
                 {
-                    <a class="nav-link" asp-page="/Intake/Index">Intake</a>
+                    <a class="nav-link" asp-page="/Intake/Index" aria-current="@CurrentWhen("/Intake")">Intake</a>
                 }
                 else
                 {
                     <span class="nav-link nav-link--unavailable" aria-disabled="true">Intake unavailable</span>
                 }
-                <a class="nav-link" asp-page="/Triage/Index">Triage</a>
-                <a class="nav-link" asp-page="/Cases/Index">Cases</a>
+                <a class="nav-link" asp-page="/Triage/Index" aria-current="@CurrentWhen("/Triage")">Triage</a>
+                <a class="nav-link" asp-page="/Cases/Index" aria-current="@CurrentWhen("/Cases")">Cases</a>
                 @if (User.IsInRole(Pegasus.Core.Identity.StaffRoleNames.Administrator))
                 {
-                    <a class="nav-link" asp-page="/Administration/Index">Administration</a>
+                    <a class="nav-link" asp-page="/Administration/Index" aria-current="@CurrentWhen("/Administration")">Administration</a>
                 }
-                <a class="nav-link" asp-page="/Search/Index">Search</a>
+                <a class="nav-link" asp-page="/Search/Index" aria-current="@CurrentWhen("/Search")">Search</a>
                 @if (User.Identity?.IsAuthenticated == true)
                 {
                     <span class="user-menu" role="group" aria-label="User">

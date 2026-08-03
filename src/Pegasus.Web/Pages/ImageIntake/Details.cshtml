@@ -1,0 +1,91 @@
+@page "/ImageIntake/{id:guid}"
+@model Pegasus.Web.Pages.ImageIntake.DetailsModel
+@using Pegasus.Core.ImageIntake
+@{
+    ViewData["Title"] = $"Image intake {Model.Detail.Record.ImageIntakeReference}";
+}
+
+<header class="page-heading">
+    <div>
+        <p class="eyebrow">Image intake</p>
+        <h1>@Model.Detail.Record.ImageIntakeReference</h1>
+        <p class="lede">
+            @if (Model.Detail.AssociatedCaseId is not null)
+            {
+                <text>Associated with Case</text>
+            }
+            else
+            {
+                <text>Image intake registered — awaiting definitive instruction</text>
+            }
+        </p>
+    </div>
+    <a class="secondary-action" asp-page="/ImageIntake/Index">All Image intakes</a>
+</header>
+
+<div class="review-grid">
+    <section class="panel" aria-labelledby="image-intake-record-title">
+        <h2 id="image-intake-record-title" class="section-label">Record</h2>
+        <dl class="detail-list">
+            <div><dt>Image Intake Reference</dt><dd>@Model.Detail.Record.ImageIntakeReference</dd></div>
+            <div><dt>Vehicle registration</dt><dd>@Model.Detail.Record.NormalizedVehicleRegistration</dd></div>
+            <div><dt>Registered</dt><dd>@Model.Detail.RegisteredAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd></div>
+            <div>
+                <dt>Case association</dt>
+                <dd>
+                    @if (Model.Detail.AssociatedCaseId is { } caseId)
+                    {
+                        <a asp-page="/Cases/Details" asp-route-id="@caseId">@(Model.Detail.AssociatedCaseReference ?? caseId.ToString())</a>
+                    }
+                    else
+                    {
+                        <text>None — awaiting instruction</text>
+                    }
+                </dd>
+            </div>
+        </dl>
+    </section>
+
+    <section class="panel" aria-labelledby="image-intake-origin-title">
+        <h2 id="image-intake-origin-title" class="section-label">Preserved origin</h2>
+        <dl class="detail-list">
+            <div><dt>Origin receipt</dt><dd><a asp-page="/Intake/Details" asp-route-id="@Model.Detail.Record.Origin.ReceiptId">@Model.Detail.Record.Origin.ReceiptId</a></dd></div>
+            <div><dt>Source channel</dt><dd>@Model.Detail.Record.Origin.SourceIdentity.Channel</dd></div>
+            <div><dt>Source receipt token</dt><dd>@Model.Detail.Record.Origin.SourceIdentity.ExternalReceiptToken</dd></div>
+            <div><dt>Source hash</dt><dd>@Model.Detail.Record.Origin.SourceHash</dd></div>
+            <div><dt>Evaluation revision</dt><dd>@Model.Detail.Record.Origin.EvaluationRevisionId</dd></div>
+        </dl>
+        <p>Association, reversal and re-linking are reasoned actions on the origin receipt; the reference above is permanent either way.</p>
+        <a class="secondary-action" asp-page="/Intake/Details" asp-route-id="@Model.Detail.Record.Origin.ReceiptId">Open the origin receipt to link or unlink</a>
+    </section>
+</div>
+
+@if (Model.AssociationCandidates.Count > 0)
+{
+    <section class="panel section-gap" aria-labelledby="image-intake-candidates-title">
+        <h2 id="image-intake-candidates-title" class="section-label">Eligible case candidates</h2>
+        <p>Pre-report instructed cases whose confirmed registration matches this Image intake. Linking remains a reasoned staff action on the origin receipt.</p>
+        <ul class="plain-list">
+            @foreach (var candidate in Model.AssociationCandidates)
+            {
+                <li><a asp-page="/Cases/Details" asp-route-id="@candidate.CaseId">@candidate.CaseReference</a> · version @candidate.CaseVersion</li>
+            }
+        </ul>
+    </section>
+}
+
+@if (Model.Suggestions.Count > 0)
+{
+    <section class="panel section-gap" aria-labelledby="image-intake-suggestions-title">
+        <h2 id="image-intake-suggestions-title" class="section-label">Registration reading results</h2>
+        <ul class="evidence-list">
+            @foreach (var suggestion in Model.Suggestions)
+            {
+                <li>
+                    <strong>@Pegasus.Web.Pages.Intake.DetailsModel.SuggestionOutcomeLabel(suggestion)</strong>
+                    <span>@suggestion.EngineKey v@(suggestion.EngineVersion) · @suggestion.OccurredAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm") · @suggestion.Disposition.ToString().ToLowerInvariant()</span>
+                </li>
+            }
+        </ul>
+    </section>
+}

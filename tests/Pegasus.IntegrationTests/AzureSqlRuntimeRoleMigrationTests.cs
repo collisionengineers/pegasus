@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Pegasus.IntegrationTests;
 
-[Collection(LocalDbFixtureDefinition.Name)]
 [Trait("Category", "SqlServer")]
 public sealed class AzureSqlRuntimeRoleMigrationTests
 {
@@ -209,7 +208,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         """;
 
     [Fact]
-    public async Task LatestMigrationRemovesDormantBootstrapAndOAuthStateAndAddsThirdPartyVehicleEvidenceState()
+    public async Task LatestMigrationKeepsBootstrapRemovedAndRestoresAutomationOpenIddictState()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
         await using var context = await database.CreateContextAsync();
@@ -218,7 +217,12 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
 
         Assert.Equal(0, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'ApplicationInitializations'"));
-        Assert.Equal(0, await database.ScalarAsync<int>(
+        // 20260803151159_AutomationActorOpenIddict re-creates the four
+        // OpenIddict tables for the Automation Actor client-credentials
+        // ingress with the Web-only least-privilege posture they previously
+        // held: OpenIddict state stays owned by the Web process, scopes are
+        // read-only, and DELETE is denied to both runtime roles.
+        Assert.Equal(4, await database.ScalarAsync<int>(
             """
             SELECT COUNT(*)
             FROM sys.tables
@@ -228,6 +232,84 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                 N'OpenIddictScopes',
                 N'OpenIddictTokens')
             """));
+        Assert.Equal(
+            [
+                "OpenIddictApplications:D:DELETE",
+                "OpenIddictApplications:G:INSERT",
+                "OpenIddictApplications:G:SELECT",
+                "OpenIddictApplications:G:UPDATE",
+                "OpenIddictAuthorizations:D:DELETE",
+                "OpenIddictAuthorizations:G:INSERT",
+                "OpenIddictAuthorizations:G:SELECT",
+                "OpenIddictAuthorizations:G:UPDATE",
+                "OpenIddictScopes:D:DELETE",
+                "OpenIddictScopes:G:SELECT",
+                "OpenIddictTokens:D:DELETE",
+                "OpenIddictTokens:G:INSERT",
+                "OpenIddictTokens:G:SELECT",
+                "OpenIddictTokens:G:UPDATE"
+            ],
+            await ReadValuesAsync(
+                database,
+                $"""
+                SELECT CONCAT(
+                    tableObject.name COLLATE DATABASE_DEFAULT,
+                    N':',
+                    permission.[state] COLLATE DATABASE_DEFAULT,
+                    N':',
+                    permission.permission_name COLLATE DATABASE_DEFAULT)
+                FROM sys.database_permissions AS permission
+                INNER JOIN sys.objects AS tableObject
+                    ON tableObject.object_id = permission.major_id
+                INNER JOIN sys.database_principals AS principal
+                    ON principal.principal_id = permission.grantee_principal_id
+                WHERE tableObject.name IN (
+                        N'OpenIddictApplications',
+                        N'OpenIddictAuthorizations',
+                        N'OpenIddictScopes',
+                        N'OpenIddictTokens')
+                  AND permission.class = 1
+                  AND permission.minor_id = 0
+                  AND principal.name = N'{WebRole}'
+                ORDER BY
+                    tableObject.name COLLATE DATABASE_DEFAULT,
+                    permission.[state] COLLATE DATABASE_DEFAULT,
+                    permission.permission_name COLLATE DATABASE_DEFAULT
+                """));
+        Assert.Equal(
+            [
+                "OpenIddictApplications:D:DELETE",
+                "OpenIddictAuthorizations:D:DELETE",
+                "OpenIddictScopes:D:DELETE",
+                "OpenIddictTokens:D:DELETE"
+            ],
+            await ReadValuesAsync(
+                database,
+                $"""
+                SELECT CONCAT(
+                    tableObject.name COLLATE DATABASE_DEFAULT,
+                    N':',
+                    permission.[state] COLLATE DATABASE_DEFAULT,
+                    N':',
+                    permission.permission_name COLLATE DATABASE_DEFAULT)
+                FROM sys.database_permissions AS permission
+                INNER JOIN sys.objects AS tableObject
+                    ON tableObject.object_id = permission.major_id
+                INNER JOIN sys.database_principals AS principal
+                    ON principal.principal_id = permission.grantee_principal_id
+                WHERE tableObject.name IN (
+                        N'OpenIddictApplications',
+                        N'OpenIddictAuthorizations',
+                        N'OpenIddictScopes',
+                        N'OpenIddictTokens')
+                  AND permission.class = 1
+                  AND permission.minor_id = 0
+                  AND principal.name = N'{WorkerRole}'
+                ORDER BY
+                    tableObject.name COLLATE DATABASE_DEFAULT,
+                    permission.[state] COLLATE DATABASE_DEFAULT,
+                    permission.permission_name COLLATE DATABASE_DEFAULT
+                """));
         Assert.Equal(
             3,
             await database.ScalarAsync<int>(
