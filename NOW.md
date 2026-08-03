@@ -37,20 +37,16 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 
 ## Next (ordered queue — take from the top)
 
-- Compose the production staff surface: register the document/EVA/upload
-  services under the Production profile with a Box-backed production document
-  content store, lift the `/Intake` 404 for authenticated staff, replace the
-  no-op Triage matcher, and add a production-composition activation test —
-  blocks Path steps 2–6.
-- Ship with the composition-fix release: a forwarded-headers fix (redirects
-  currently emit `http://`) and vault consolidation (copy the Box/DVLA/DVSA
-  secrets into the Pegasus Key Vault, repoint the Worker's references, prove
-  resolution, then retire the two adopted vaults and `rg-collisionspike-dev`).
+- Ship with the composition-fix release: the Web identity's Key Vault Secrets
+  User grant for the two Box secrets the Web container app now references,
+  and vault consolidation (copy the Box/DVLA/DVSA secrets into the Pegasus
+  Key Vault, repoint the Worker's references, prove resolution, then retire
+  the two adopted vaults and `rg-collisionspike-dev`).
 - Assemble the operator-reviewed extraction cohort + untouched holdout and
   accept the per-field thresholds (INT-21, open-decisions) — blocks Path
   step 3.
-- Fix `ProjectReferencesFollowTheModularMonolithDirection` backslash parsing
-  and open the PR so the branch gets `repository-check` evidence.
+- Accept the Box managed-document layout from operator review
+  (open-decisions) before the document surface carries real case work.
 
 ## Waiting (each line names its unblock condition)
 

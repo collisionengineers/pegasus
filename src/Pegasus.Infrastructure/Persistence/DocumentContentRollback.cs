@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using Pegasus.Infrastructure.Custody;
+using Pegasus.Core.Documents;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -7,7 +7,7 @@ internal static class DocumentContentRollback
 {
     public static async Task RemoveOrphanAsync(
         IDbContextFactory<PegasusDbContext> dbContextFactory,
-        LocalDocumentContentStore contentStore,
+        IDocumentContentStore contentStore,
         Guid caseId,
         Guid versionId,
         Exception databaseFailure)
