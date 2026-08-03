@@ -14,7 +14,13 @@ procedures and evidence in [operations](operations.md), and current work in
   [capabilities](capabilities.md) when one applies.
 - A durable decision that constrains future architecture gets an ADR under
   [docs/adr/](adr/README.md). Everything else is a commit message.
-- CI green (build, tests, link check) is the merge bar.
+- CI green is the merge bar. The `repository-check` workflow
+  (`.github/workflows/ci.yml`) runs two jobs on
+  `windows-latest`: `validate` (documentation link check first, then locked
+  restore, Release build, pinned Playwright Chromium install, and the
+  non-corpus test suite; 75-minute timeout) and `qdos-pressure`
+  (`Invoke-QdosAlphaAcceptance.ps1 -Profile CiPressure` with evidence upload).
+  `.github/workflows/workspaces.yml` separately gates `workspaces/**` changes.
 
 ## Evidence
 

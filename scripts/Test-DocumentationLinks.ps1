@@ -1,13 +1,14 @@
 # Fails when a tracked Markdown file contains a relative link to a path that
 # does not exist. External URLs and same-file anchors are not checked.
-# Scope excludes workspaces/ (imported source snapshots own their docs).
+# Scope includes workspaces/ documentation; the protected skill packages under
+# workspaces/ai-centre/skills/ remain excluded as immutable imported source.
 [CmdletBinding()]
 param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$excluded = '^(workspaces|node_modules|corpus|artifacts|\.git|\.claude|\.agents|\.codex)/'
+$excluded = '^(node_modules|corpus|artifacts|\.git|\.claude|\.agents|\.codex)/|^workspaces/ai-centre/skills/(?!README\.md$)'
 $linkPattern = [regex]'\[[^\]]*\]\(([^)\s]+)\)'
 
 $files = git -C $repoRoot ls-files '*.md' | Where-Object { $_ -notmatch $excluded }

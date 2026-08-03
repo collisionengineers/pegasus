@@ -71,7 +71,7 @@ public sealed class QdosIntakeWebTests
             scope.ServiceProvider.GetRequiredService<IIntakeSubmission>());
     }
 
-    [GenuineQdosCorpusFact]
+    [GenuineQdosCorpusFact(ForwardedEmailHash)]
     [Trait("Category", "Corpus")]
     public async Task StaffForwardedEmailStrongContentBeatsSenderAndRendersPersistedDraft()
     {
@@ -105,7 +105,7 @@ public sealed class QdosIntakeWebTests
         Assert.Contains("Typed review draft", html, StringComparison.Ordinal);
     }
 
-    [GenuineQdosCorpusFact]
+    [GenuineQdosCorpusFact(LowTextNonScanPdfHash)]
     [Trait("Category", "Corpus")]
     public async Task LowTextPdfWithoutDominantRasterNeedsSortingWithoutOcrOrReference()
     {
@@ -132,7 +132,7 @@ public sealed class QdosIntakeWebTests
         Assert.Contains("Needs sorting", queueHtml, StringComparison.Ordinal);
     }
 
-    [GenuineQdosCorpusFact]
+    [GenuineQdosCorpusFact(ForwardedEmailHash, ConfirmedInputTwoHash)]
     [Trait("Category", "Corpus")]
     public async Task RepeatExternalReceiptTokenReturnsSamePreCaseReceipt()
     {
@@ -166,7 +166,7 @@ public sealed class QdosIntakeWebTests
         Assert.Equal(2, (await queries.ListAsync(null, CancellationToken.None)).Count);
     }
 
-    [GenuineQdosCorpusFact]
+    [GenuineQdosCorpusFact(ForwardedEmailHash, ConfirmedInputTwoHash)]
     [Trait("Category", "Corpus")]
     public async Task ConfirmedCoreCallsPersistDistinctPreCaseDraftsWithoutSequenceConsumption()
     {
@@ -196,7 +196,12 @@ public sealed class QdosIntakeWebTests
         Assert.Equal(IntakeDecision.DraftReady, authorized.Decision);
     }
 
-    [GenuineQdosCorpusFact]
+    [GenuineQdosCorpusFact(
+        ForwardedEmailHash,
+        ConfirmedInputTwoHash,
+        ConfirmedInputThreeHash,
+        ConfirmedInputFourHash,
+        ConfirmedInputFiveHash)]
     [Trait("Category", "Corpus")]
     public async Task ParallelDistinctConfirmedInputsPersistUniquePreCaseReceiptsInLocalDb()
     {
@@ -232,7 +237,7 @@ public sealed class QdosIntakeWebTests
         Assert.Equal(5, receipts.Count);
     }
 
-    [GenuineQdosCorpusFact]
+    [GenuineQdosCorpusFact(ForwardedEmailHash, NeedsSortingEmailHash)]
     [Trait("Category", "Corpus")]
     public async Task DashboardAndQueueCountsAreBackedByPersistedDecisions()
     {

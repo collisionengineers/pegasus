@@ -493,6 +493,9 @@ internal static class GenuineQdosCorpus
 
     public static bool IsPresent => Directory.Exists(CorpusRoot);
 
+    public static bool Contains(string expectedHash) =>
+        IsPresent && PathsByHash.Value.ContainsKey(expectedHash);
+
     public static GenuineCorpusSample Read(string expectedHash)
     {
         Assert.True(PathsByHash.Value.TryGetValue(expectedHash, out var path),
@@ -542,11 +545,18 @@ internal static class GenuineQdosCorpus
 
 internal sealed class GenuineQdosCorpusFactAttribute : FactAttribute
 {
-    public GenuineQdosCorpusFactAttribute()
+    public GenuineQdosCorpusFactAttribute(params string[] requiredHashes)
     {
         if (!GenuineQdosCorpus.IsPresent)
         {
             Skip = "The ignored local corpus/emailevals/qdos-email-corpus is absent; genuine-input evidence was not run.";
+            return;
+        }
+
+        var missing = requiredHashes.FirstOrDefault(hash => !GenuineQdosCorpus.Contains(hash));
+        if (missing is not null)
+        {
+            Skip = $"This machine's qdos-email-corpus lacks the frozen item {missing[..12]}...; corpora differ per system.";
         }
     }
 }

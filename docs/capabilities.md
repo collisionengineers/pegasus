@@ -8,9 +8,12 @@ ledger.
 
 ## Historical allocation provenance
 
-The active inventory contains 229 stable IDs. It was reconciled from a 213-row
+The active inventory contains 228 stable IDs. It was reconciled from a 213-row
 allocation worksheet and its normalized maturity map; those deleted source rows
-are provenance, not a second allocation table.
+are provenance, not a second allocation table. On 2026-08-02, `DOC-06` was
+merged into `INT-31` — both recorded the same request-scoped in-house
+upload-link outcome under one canonical owner — and the `DOC-06` ID is retired,
+never reused.
 
 | Pre-consolidation source | Baseline SHA-256 | Preserved meaning |
 | --- | --- | --- |
@@ -19,7 +22,7 @@ are provenance, not a second allocation table.
 
 The additional stable IDs split compound outcomes or explicit boundaries; they
 do not invent a second product scope. Active timing uses `Now`, `Next`, `Later`,
-or `Not planned`. All 200 planned capabilities have an exact first-introduction
+or `Not planned`. All 199 planned capabilities have an exact first-introduction
 target; the 29 permanent boundaries remain `unallocated`. Allocation,
 implementation, registration, build, deployment, live verification, and
 acceptance remain separate states.
@@ -28,16 +31,16 @@ acceptance remain separate states.
 
 | Horizon | Capabilities | Meaning |
 | --- | ---: | --- |
-| Now | 128 | Current proof and QDOS-alpha outcome; activate issues only for selected work. |
+| Now | 127 | Current proof and QDOS-alpha outcome; activate issues only for selected work. |
 | Next | 31 | Post-alpha provider, pairing, provider-location, email, and API outcomes after named dependencies. |
 | Later | 41 | Retained outcomes requiring promotion conditions, contracts, callers, or direct decisions. |
 | Not planned | 29 | Permanent product boundaries; no implementation issue or placeholder. |
 
-Total: **229 capabilities; 229 unique IDs**.
+Total: **228 capabilities; 228 unique IDs**.
 
 | Target release | Planned capabilities |
 | --- | ---: |
-| `0.1.0-alpha.1` | 128 |
+| `0.1.0-alpha.1` | 127 |
 | `0.2.0` | 7 |
 | `0.3.0` | 19 |
 | `0.4.0` | 5 |
@@ -70,10 +73,10 @@ callers.
 | --- | --- | --- | --- | --- | --- |
 | OPS-10 | Production environment deployed directly from an authorised terminal | Now | 0.1.0-alpha.1 | [ADR-0014](adr/0014-local-to-production-deployment.md) | Allocation only; owning evidence still required. |
 | OPS-22 | Genuine-corpus local evaluation harness | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target records the evaluator allocation boundary above, not a QDOS implementation gate. |
-| EVAL-01 | Local development-only EML categorisation evaluator using `unchecked` and `checked` workspace folders | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target records the evaluator allocation boundary above, not a QDOS implementation gate. |
+| EVAL-01 | Local development-only EML categorisation evaluator over a read-only local working copy, recording adjudications into the local `emailevallocal` tree ([ADR-0016](adr/0016-standalone-desktop-email-evaluator.md)) | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target records the evaluator allocation boundary above, not a QDOS implementation gate. |
 | EVAL-02 | Reviewer selects from the detailed Received/Sent/Reply taxonomy and records required reasoning | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target records the evaluator allocation boundary above, not a QDOS implementation gate. |
 | EVAL-03 | `Other` category lets the reviewer enter a new category name and reasoning | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target records the evaluator allocation boundary above, not a QDOS implementation gate. |
-| EVAL-04 | Moving the reviewed workspace EML into `checked` records the human result | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target records the evaluator allocation boundary above, not a QDOS implementation gate. |
+| EVAL-04 | Copying the reviewed EML into the local `emailevallocal` tree and appending the JSONL adjudication log records the human result; source files are never moved or modified ([ADR-0016](adr/0016-standalone-desktop-email-evaluator.md)) | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target records the evaluator allocation boundary above, not a QDOS implementation gate. |
 | EVAL-05 | Display the rule-generated category and evidence beside the human review once rules exist | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target records the evaluator allocation boundary above, not a QDOS implementation gate. |
 | MAIL-20 | Run live provider-specific instruction-email categorisation against `.eml` files in the local folder-based evaluator | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target records the evaluator allocation boundary above, not a QDOS implementation gate. |
 | MAIL-21 | Minimum shared Core classification foundation: versioned rules, decision evidence, ambiguity outcome, and acceptance cohort | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
@@ -98,7 +101,7 @@ callers.
 | INT-11 | PDF embedded-text and embedded-image extraction | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#intake-and-source-identity) | Required and accepted before 0.1.0-alpha.1. |
 | INT-12 | DOCX text and every visible image-placement extraction, without deduplicating repeated appearances | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#intake-and-source-identity) | Required and accepted before 0.1.0-alpha.1. |
 | INT-13 | JPEG and PNG image-led intake | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#intake-and-source-identity) | Required and accepted before 0.1.0-alpha.1. |
-| INT-17 | Automatic vehicle-registration reading from ordinary vehicle images | Now | 0.1.0-alpha.1 | [Ordinary-image VRM and image analysis](requirements.md#ordinary-image-vrm-and-image-analysis) | Suggestion-first and source-image-bound; no autonomous acceptance, instruction invention, or external upload. |
+| INT-17 | Automatic vehicle-registration reading from ordinary vehicle images | Now | 0.1.0-alpha.1 | [Ordinary-image VRM and image analysis](requirements.md#ordinary-image-vrm-and-image-analysis) | Allocated but non-blocking for `0.1.0-alpha.1` acceptance; the recognition-engine seam remains deferred pending open decision 1. Suggestion-first and source-image-bound; no autonomous acceptance, instruction invention, or external upload. |
 | INT-18 | Bounded, fail-closed processing for unreadable, oversized, or incomplete sources | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#intake-and-source-identity) | Required and accepted before 0.1.0-alpha.1. |
 | INT-19 | Typed, editable, operator-reviewable extracted case draft | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#intake-and-source-identity) | Required and accepted before 0.1.0-alpha.1. |
 | INT-20 | Field provenance, validation, missing-value, and contradiction display | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#intake-and-source-identity) | Required and accepted before 0.1.0-alpha.1. |
@@ -111,9 +114,9 @@ callers.
 | INT-27 | Registration-based provisional identity for image-led work | Now | 0.1.0-alpha.1 | [Ways intake starts](requirements.md#ways-intake-starts) | Required and accepted before 0.1.0-alpha.1. |
 | INT-29 | Manual linking and reasoned reversal of a mistaken match/merge | Now | 0.1.0-alpha.1 | [Matching conflicts and reversible association](requirements.md#matching-conflicts-and-reversible-association) | Required and accepted before 0.1.0-alpha.1. |
 | INT-30 | Preservation of original intake origin after linking or merging | Now | 0.1.0-alpha.1 | [Matching conflicts and reversible association](requirements.md#matching-conflicts-and-reversible-association) | Required and accepted before 0.1.0-alpha.1. |
-| MAIL-14 | Detect an exact Outlook Sent item as report-sent evidence | Now | 0.1.0-alpha.1 | [Outbound correspondence evidence](requirements.md#outbound-correspondence-evidence) | Required and accepted before 0.1.0-alpha.1. |
+| MAIL-14 | Detect an exact Outlook Sent item as report-sent evidence | Now | 0.1.0-alpha.1 | [Outbound correspondence evidence](requirements.md#outbound-correspondence-evidence) | Allocated but non-blocking for `0.1.0-alpha.1` acceptance; post-report tracking starts manual via MAIL-15. |
 | MAIL-15 | Manually link, unlink, or relink an exact Sent item with a reason | Now | 0.1.0-alpha.1 | [Outbound correspondence evidence](requirements.md#outbound-correspondence-evidence) | Required and accepted before 0.1.0-alpha.1. |
-| MAIL-16 | Automatically match the exact report Sent item to its case | Now | 0.1.0-alpha.1 | [Outbound correspondence evidence](requirements.md#outbound-correspondence-evidence) | Required and accepted before 0.1.0-alpha.1. |
+| MAIL-16 | Automatically match the exact report Sent item to its case | Now | 0.1.0-alpha.1 | [Outbound correspondence evidence](requirements.md#outbound-correspondence-evidence) | Allocated but non-blocking for `0.1.0-alpha.1` acceptance; post-report tracking starts manual via MAIL-15. |
 | MAIL-18 | Generate copyable chaser messages for staff to send manually | Now | 0.1.0-alpha.1 | [Due work, chasing, and action history](requirements.md#due-work-chasing-and-action-history) | Preparation is not sent/delivered evidence; required and accepted before 0.1.0-alpha.1. |
 | TRI-01 | Distinct inbox Triage label and separate pre-case record/workflow | Now | 0.1.0-alpha.1 | [Triage normal workflow](requirements.md#normal-workflow-and-completion-evidence) | Required and accepted before 0.1.0-alpha.1. |
 | TRI-02 | Vehicle-registration gate and `Needs sorting` fallback | Now | 0.1.0-alpha.1 | [Triage normal workflow](requirements.md#normal-workflow-and-completion-evidence) | Required and accepted before 0.1.0-alpha.1. |
@@ -156,7 +159,7 @@ callers.
 | UI-04 | New cases today, Sent to Engineer, and Reports sent day/week activity | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
 | UI-05 | Click-through filtered work queues | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
 | UI-06 | Last-good time, distinct current/stale/partial/unavailable/failed states, auditable reconciliation, and manual refresh | Now | 0.1.0-alpha.1 | [Dashboard freshness and reconciliation](requirements.md#dashboard-freshness-and-reconciliation) | Required and accepted before 0.1.0-alpha.1. |
-| UI-07 | Search/filter by reference, registration, claimant, claim, principal, state, Engineer, dates, and origin | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
+| UI-07 | Search/filter by reference (Case/PO or Image Intake Reference), registration, claimant, claim, principal, state, Engineer, dates, and origin | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
 | UI-08 | Three-column intake review workbench | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
 | UI-09 | Full case workspace | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
 | UI-11 | Accounts, principals, mailbox allowlist, and configuration workspace | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
@@ -166,7 +169,6 @@ callers.
 | DOC-03 | Retained document versions | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#documents-extraction-and-custody) | Required and accepted before 0.1.0-alpha.1. |
 | DOC-04 | Closed-case read-only files and reopen-before-edit behavior | Now | 0.1.0-alpha.1 | [Staging and custody](requirements.md#staging-and-custody) | Required and accepted before 0.1.0-alpha.1. |
 | DOC-05 | Logical file removal without destroying history | Now | 0.1.0-alpha.1 | [Staging and custody](requirements.md#staging-and-custody) | Required and accepted before 0.1.0-alpha.1. |
-| DOC-06 | Staff-created temporary, revocable, expiring, request-scoped in-house upload link with cross-request isolation and no case/reference disclosure | Now | 0.1.0-alpha.1 | [Request-scoped upload links](requirements.md#request-scoped-upload-links) | Supersedes Box File Request; token, limit, custody, retry, revocation, and abuse handling are acceptance gates. |
 | DOC-07 | Staff upload, view, download, and export actions | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#documents-extraction-and-custody) | Required and accepted before 0.1.0-alpha.1. |
 | DOC-08 | Private transient file staging for Worker processing | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#documents-extraction-and-custody) | Required and accepted before 0.1.0-alpha.1. |
 | EXT-01 | DVLA/DVSA make, model, manufacture year, engine capacity, fuel type, MOT chronology, mileage evidence, and operator-confirmed reconciliation | Now | 0.1.0-alpha.1 | [Vehicle data and MOT enrichment](requirements.md#vehicle-data-and-mot-enrichment) | Live adapter/provider contract remains unresolved; approved local replay returns explicit unavailable when evidence is absent. |
@@ -175,9 +177,9 @@ callers.
 | EXT-14 | Manual addition of relevant WhatsApp material | Now | 0.1.0-alpha.1 | [Staging and custody](requirements.md#staging-and-custody) | Required and accepted before 0.1.0-alpha.1. |
 | EXT-18 | Operator-confirmed physical vehicle/repairer address or exact `Image Based Assessment`; no provider/domain inference | Now | 0.1.0-alpha.1 | [Inspection address](requirements.md#inspection-address) | Required and accepted before 0.1.0-alpha.1. |
 | MCP-01 | Management/development-controlled MCP ingress for one named vendor-neutral Automation Actor through Pegasus Core use cases | Now | 0.1.0-alpha.1 | [MCP automation and actor boundary](requirements.md#mcp-automation-and-actor-boundary) | Allocation only; ordinary staff have no MCP access, Claude Desktop may provide initial client evidence without owning the actor identity, no current product caller is proven, and no AI proposal transport is activated. |
-| MCP-02 | Automation Actor Case actions through the same Core use cases as the staff app | Now | 0.1.0-alpha.1 | [MCP automation and actor boundary](requirements.md#mcp-automation-and-actor-boundary) | Required and accepted before 0.1.0-alpha.1. |
-| MCP-03 | Automation Actor intake-queue actions through the same Core use cases as the QDOS-alpha staff app | Now | 0.1.0-alpha.1 | [MCP automation and actor boundary](requirements.md#mcp-automation-and-actor-boundary) | Required and accepted before 0.1.0-alpha.1. |
-| MCP-04 | Automation Actor document actions through the same Core use cases as the staff app | Now | 0.1.0-alpha.1 | [MCP automation and actor boundary](requirements.md#mcp-automation-and-actor-boundary) | Required and accepted before 0.1.0-alpha.1. |
+| MCP-02 | Automation Actor Case actions through the same Core use cases as the staff app | Now | 0.1.0-alpha.1 | [MCP automation and actor boundary](requirements.md#mcp-automation-and-actor-boundary) | Allocated but non-blocking for `0.1.0-alpha.1` acceptance; the MCP ingress remains a separately gated deferred seam. |
+| MCP-03 | Automation Actor intake-queue actions through the same Core use cases as the QDOS-alpha staff app | Now | 0.1.0-alpha.1 | [MCP automation and actor boundary](requirements.md#mcp-automation-and-actor-boundary) | Allocated but non-blocking for `0.1.0-alpha.1` acceptance; the MCP ingress remains a separately gated deferred seam. |
+| MCP-04 | Automation Actor document actions through the same Core use cases as the staff app | Now | 0.1.0-alpha.1 | [MCP automation and actor boundary](requirements.md#mcp-automation-and-actor-boundary) | Allocated but non-blocking for `0.1.0-alpha.1` acceptance; the MCP ingress remains a separately gated deferred seam. |
 | OPS-01 | Production staff Web application on Azure | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
 | OPS-02 | Continuously running Worker for mailbox and background processing | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
 | OPS-03 | Azure SQL persistence | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
@@ -186,7 +188,7 @@ callers.
 | OPS-06 | Infisical/Key Vault custody for unavoidable third-party secrets | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
 | OPS-07 | Correlated Web/Worker telemetry and dependency readiness checks | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
 | OPS-08 | Alerts for ingestion, processing, Box, matching, chasing, export, security, availability, and cost failures | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
-| OPS-09 | Database backup, restore proof, 15-minute RPO, and four-hour RTO | Now | 0.1.0-alpha.1 | [Quality and recovery objectives](requirements.md#quality-capacity-security-and-evidence) | Allocation only; the linked requirement owns the objectives and [operations](operations.md#production-recovery) owns the proof procedure. |
+| OPS-09 | Database backup, restore proof, 15-minute RPO, and four-hour RTO | Now | 0.1.0-alpha.1 | [Quality and recovery objectives](requirements.md#quality-capacity-security-and-evidence) | Allocated but non-blocking; deferred and gates no release (2026-08-03). The linked requirement owns the objectives and [operations](operations.md#production-recovery) owns the proof procedure. |
 | OPS-11 | Production isolated from local-development resources | Now | 0.1.0-alpha.1 | [ADR-0014](adr/0014-local-to-production-deployment.md) | Required and accepted before 0.1.0-alpha.1. |
 | OPS-13 | Deployment preview, policy/quota checks, health probes, and smoke tests | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
 | OPS-14 | Production cutover and previous-artifact rollback procedure | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | 0.1.0-alpha.1 gate; implementation/recovery detail remains open. |
@@ -195,7 +197,7 @@ callers.
 | DATA-01 | Publish immutable cumulative provider-domain reference snapshots from approved spreadsheets | Now | 0.1.0-alpha.1 | [Provider API principal and contract boundary](requirements.md#provider-api-principal-and-contract-boundary) | Evidence only; a domain snapshot is not principal or tenant identity, route activation, or an API contract. |
 | OPS-23 | Operator acceptance against the real end-to-end workflow | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required before 0.1.0-alpha.1 acceptance. |
 | OPS-25 | Collision Engineers management approval before production release | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required before 0.1.0-alpha.1 acceptance. |
-| INT-31 | Authenticated staff generate a temporary, revocable, expiring, request-scoped link for isolated unauthenticated image/document upload; it exposes only the upload form and immediate result, never case/reference/request state or another document | Now | 0.1.0-alpha.1 | [Request-scoped upload links](requirements.md#request-scoped-upload-links) | Token, limit, custody, retry, revocation, abuse, and cross-request isolation contracts are acceptance gates; supersedes Box File Request. |
+| INT-31 | Authenticated staff generate a temporary, revocable, expiring, request-scoped link for isolated unauthenticated image/document upload; it exposes only the upload form and immediate result, never case/reference/request state or another document | Now | 0.1.0-alpha.1 | [Request-scoped upload links](requirements.md#request-scoped-upload-links) | Allocated but non-blocking for `0.1.0-alpha.1` acceptance. Token, limit, custody, retry, revocation, abuse, and cross-request isolation contracts are acceptance gates for the capability itself; supersedes Box File Request (UI removal pending). |
 | DATA-02 | Prepare inspection-address / repairer reference data from separately approved spreadsheets | Next | 0.2.0 | [Inspection address](requirements.md#inspection-address) | Deferred pending accepted provider-location evidence, schema/package, migration, and caller proof; no domain-based address inference. |
 | INT-04 | Activate additional providers through the shared intake/case workflow using separately accepted provider evidence and rules | Next | 0.2.0 | [Requirements](requirements.md#intake-and-source-identity) | Adding reference evidence is not workflow activation; activation precedes INT-05–INT-07 within the `Next` horizon. |
 | INT-05 | Automatic ingestion from `desk@collisionengineers.co.uk` | Next | 0.3.0 | [Requirements](requirements.md#intake-and-source-identity) | Allocation only; owning evidence still required. |

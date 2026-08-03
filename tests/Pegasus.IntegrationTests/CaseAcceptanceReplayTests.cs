@@ -19,6 +19,7 @@ using Pegasus.Web.Authentication;
 namespace Pegasus.IntegrationTests;
 
 [Collection(LocalDbFixtureDefinition.Name)]
+[Trait("Category", "SqlServer")]
 public sealed partial class CaseAcceptanceReplayTests
 {
     private const string PrincipalCode = QdosAlphaCaseActivationPolicy.PrincipalCode;

@@ -29,7 +29,7 @@ credential, external operation, deployment, or acceptance. The
 
 | Order | Target release | Stage and dependency intent | Count |
 | ---: | --- | --- | ---: |
-| 01 | `0.1.0-alpha.1` | Existing QDOS-alpha scope; allocation unchanged, not a completion claim | 128 |
+| 01 | `0.1.0-alpha.1` | Existing QDOS-alpha scope; allocation unchanged, not a completion claim | 127 |
 | 02 | `0.2.0` | Provider expansion and intake fidelity after QDOS acceptance | 7 |
 | 03 | `0.3.0` | Four-mailbox classification, association, folder actions, email workspace and email MCP | 19 |
 | 04 | `0.4.0` | Principal-scoped provider API and post-report query/dispute casework | 5 |
@@ -42,7 +42,7 @@ credential, external operation, deployment, or acceptance. The
 | 11 | `1.3.0` | Vendor-neutral AI work requests, Engineer-reviewed query proposals and staff-selected AI Assessor | 3 |
 | 12 | `1.4.0` | Conditional capture and domain outcomes after direct promotion decisions | 3 |
 
-The 200 planned capabilities use these twelve targets; 29 permanent boundaries
+The 199 planned capabilities use these twelve targets; 29 permanent boundaries
 remain `Not planned / unallocated`.
 
 Sequence constraints:
@@ -414,13 +414,17 @@ reviewable.
 **Settled operator truth:** the report records either the physical vehicle/repairer location, when that
 location is explicitly supplied or operator-confirmed, or the exact value
 `Image Based Assessment`. Collision Engineers performs desktop assessments
-only. A provider setting may suggest a mode later, but it cannot overwrite
-explicit evidence or operator confirmation. The current provider-domain
-reference package contains no address or address-mode default, so none may be
-inferred from a provider or domain match.
+only. For an always-image-based Principal, `Image Based Assessment` is
+autofilled at Case creation even when a physical location appears in the
+instruction; authorised staff may override it to the explicitly supplied or
+confirmed location. For other Principals a provider setting may suggest a mode
+but cannot overwrite explicit evidence or operator confirmation. The current
+provider-domain reference package contains no address or address-mode default,
+so none may be inferred from a provider or domain match.
 
-Selecting `Image Based Assessment` requires an attributed staff reason in
-permanent Case history; it is never inferred from a corpus row or route match.
+A manual selection of `Image Based Assessment` requires an attributed staff
+reason in permanent Case history; the always-image-based autofill records its
+route-policy provenance. Neither is inferred from a corpus row or domain match.
 
 When `DATA-02` activates, its separately approved reference-data pipeline
 accepts only reviewed full addresses, retaining each complete display address
@@ -973,7 +977,7 @@ Required qualities:
 - no secrets in source, logs, proof artifacts, URLs, or client-rendered configuration;
 - immutable source and action provenance;
 - structured diagnostics without source-content leakage;
-- a 15-minute database recovery-point objective and four-hour restoration objective, proved through the operator-run [production recovery procedure](operations.md#production-recovery);
+- a 15-minute database recovery-point objective and four-hour restoration objective, proved through the operator-run [production recovery procedure](operations.md#production-recovery) (OPS-09 — deferred; gates no release);
 - reasoned recovery, restore, and replay proof without duplicate case/reference allocation;
 - local development on a supported platform, and supported-browser accessibility proof on Windows with Microsoft Edge Stable and Narrator;
 - independently buildable source workspaces with no application reference, dynamic load, dependency hoist, or deployment inclusion;
@@ -1018,7 +1022,7 @@ retained in the dependency-ordered delivery roadmap (git history); the operator 
 routes preserve detail and procedure without becoming requirements, allocation,
 implementation-status, or acceptance owners.
 
-The alpha delivery order is dependency-bound: relational draft and trusted actors; identity/history/Administrator data; durable source custody and ordinary-image vehicle identity; reference allocation; one definitive acceptance transaction; Box custody; exclusive editing; lifecycle and work scheduling; Operations-first UI; real Graph Worker; Triage; vehicle/EVA handoff; Claude Automation MCP; Azure/recovery proof; then operator acceptance. A later step never treats an allocated file, registration, or green structural check as caller proof.
+The alpha delivery order is dependency-bound: relational draft and trusted actors; identity/history/Administrator data; durable source custody and ordinary-image vehicle identity; reference allocation; one definitive acceptance transaction; Box custody; exclusive editing; lifecycle and work scheduling; Operations-first UI; real Graph Worker; Triage; vehicle/EVA handoff; then operator acceptance. Blocking status for each allocated capability is owned by [capabilities](capabilities.md); the Automation MCP and the recovery proof are allocated but non-blocking for acceptance. A later step never treats an allocated file, registration, or green structural check as caller proof.
 
 Deferred provider, mailbox, post-report, finance, AI, external-account, and replacement branches may progress only after their capability activation gate. They rejoin the main route through the same Core identity, authorization, custody, idempotency, history, recovery, caller, and acceptance evidence; they do not create parallel policy owners.
 

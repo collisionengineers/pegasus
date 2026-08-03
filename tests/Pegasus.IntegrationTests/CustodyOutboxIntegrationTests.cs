@@ -15,6 +15,7 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.IntegrationTests;
 
 [Collection(LocalDbFixtureDefinition.Name)]
+[Trait("Category", "SqlServer")]
 public sealed class CustodyOutboxIntegrationTests
 {
     private static readonly DateTimeOffset FixedUtcNow =

@@ -8,6 +8,7 @@ using MimeKit;
 namespace Pegasus.IntegrationTests;
 
 [Collection(LocalDbFixtureDefinition.Name)]
+[Trait("Category", "SqlServer")]
 public sealed class IntakeWebNegativeTests
 {
     private static readonly (string Table, long ExpectedCount)[] BusinessTableBaselines =

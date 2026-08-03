@@ -53,7 +53,7 @@ A distinct staff workflow for a recorded matter requiring a finding and, where a
 _Avoid_: Inbox sorting, generic sorting
 
 **Needs sorting**:
-An email-receiving outcome for material that can be persisted safely but cannot be classified into a category. It is never a pre-Case Image intake or `Not ready`.
+A safe pre-case routing state for persisted material that cannot yet progress: unclassifiable email, and recorded Triage material awaiting a vehicle registration. It is never a pre-Case Image intake or `Not ready`.
 _Avoid_: Triage, Blocked intake
 
 **Blocked intake**:
@@ -69,7 +69,7 @@ The terminal outcome for a Case created against the wrong Principal; the origina
 _Avoid_: Delete, reopen
 
 **Associated**:
-The terminal outcome for an Image intake whose evidence has been linked to one eligible pre-report instructed Case. Before report delivery, authorised staff may reasonedly reverse the association; the intake reference, Case identity, source evidence, and relationship history remain permanent.
+The settled outcome for an Image intake whose evidence has been linked to one eligible pre-report instructed Case; it becomes final at report delivery. Before report delivery, authorised staff may reasonedly reverse the association; the intake reference, Case identity, source evidence, and relationship history remain permanent.
 _Avoid_: Merged, delete, erase
 
 **AI Proposal**:
@@ -83,6 +83,14 @@ _Avoid_: Service account, staff impersonation, background task
 **Send to AI**:
 The stable user-triggered domain action that creates a later AI work request and may return a proposed repair specification for named-Engineer review. Provider wording does not rename the action or permit direct Case mutation.
 _Avoid_: Send to Claude, AI assessment, automatic report
+
+**First sent to Engineer**:
+The once-per-Case proxy event recorded when the Case's first successful EVA export bundle is generated. It is generation evidence, never receipt, delivery, or report-sent evidence, and it never repeats for the same Case.
+_Avoid_: Sent to Engineer (the activity count), report sent
+
+**Sent to Engineer today/week**:
+The Operations activity count of `First sent to Engineer` proxy events within the Europe/London day or Monday-based week. A count of events is not the once-per-Case proxy itself.
+_Avoid_: First sent to Engineer (the per-Case event), reports sent
 
 **New cases today**:
 The Operations metric for instructed Cases created since Europe/London midnight, including Cases later closed that day and excluding Image intakes, Triage, `Needs sorting`, and `Blocked intake`.
@@ -105,7 +113,7 @@ An advisory assessment of a Case's current image set against registration-overvi
 _Avoid_: Case validity, image validation
 
 **Always-image-based Principal**:
-A Principal whose accepted route policy waives only the image-readiness reflection advisory. It does not waive other image-readiness advisories or the report-image reflection exclusion.
+A Principal whose accepted route policy autofills `Image Based Assessment` as the inspection address at Case creation (authorised staff may override to an explicit location) and waives only the image-readiness reflection advisory. It does not waive other image-readiness advisories or the report-image reflection exclusion.
 _Avoid_: Image-based client, provider exception
 
 **Vehicle enrichment**:

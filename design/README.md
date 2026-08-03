@@ -1,6 +1,6 @@
 # Design authority
 
-This file is the durable authority for Pegasus visual design, Web interaction contracts, approved assets, component and pattern boundaries, and source-to-runtime mappings. Product scope and business capability remain owned by [requirements](../docs/requirements.md) and [capabilities](../docs/capabilities.md); architecture, repository-development workflow, deployment and operational procedure remain with [architecture](../docs/architecture.md), the [installed skills](../.agents/skills/ask-matt/SKILL.md), [operations](../docs/operations.md) and [operator notes](../docs/operator-notes.md).
+This file is the durable authority for Pegasus visual design, Web interaction contracts, approved assets, component and pattern boundaries, and source-to-runtime mappings. Product scope and business capability remain owned by [requirements](../docs/requirements.md) and [capabilities](../docs/capabilities.md); architecture, deployment and operational procedure remain with [architecture](../docs/architecture.md), [operations](../docs/operations.md) and [operator notes](../docs/operator-notes.md); repository-development workflow is owned by [engineering](../docs/engineering.md).
 
 ## Evidence discipline
 
@@ -13,7 +13,7 @@ Intended, planned, implemented, caller-proved, deployed and accepted are distinc
 - **Accepted** requires the specified accessibility and operator review evidence.
 - The three retained comparison rasters record the shell-selection comparison. Operations-first is the selected strategy; raster pixels and details are not design approval or runtime evidence.
 
-The prior dated caller proof covered the now-retired Development-only `/Intake/Upload` thin slice. The implemented offline QDOS-alpha surface now assigns authenticated manual receipt/list/detail/source work to `/Intake`, `/Intake/{id}`, and `/Intake/{id}/Source`, keeps the non-persistent evaluator at `/Development/EmailEvaluation`, and exposes token-bound public request submission only at `/Uploads/{token}`. This cutover is not deployment, accessibility acceptance, or operator acceptance evidence.
+The implemented offline QDOS-alpha surface assigns authenticated manual receipt/list/detail/source work to `/Intake`, `/Intake/{id}`, and `/Intake/{id}/Source`, and exposes token-bound public request submission only at `/Uploads/{token}`; the desktop evaluator is separately owned ([ADR-0016](../docs/adr/0016-standalone-desktop-email-evaluator.md)). Implementation is not deployment, accessibility acceptance, or operator acceptance evidence.
 
 Detailed durable product-design owners are the
 [operator-experience requirements](product/requirements.md),
@@ -160,7 +160,7 @@ Current consumers:
 
 - embedded by `workspaces/report-renderer/src/CollisionRenderer.Core`;
 - linked by `workspaces/report-renderer/src/CollisionRenderer.Gui`;
-- approved as the source for the selected future Web shell, but not yet adopted by the current Development layout.
+- copied byte-for-byte to the Web runtime and embedded by `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` (see the source-to-runtime mapping below).
 
 Rules:
 
@@ -168,7 +168,7 @@ Rules:
 - Never extract it from a screenshot.
 - Never recolour the master or invent another mark.
 - Copy or optimise it for a runtime only through a reviewed source-to-runtime mapping with checksum proof.
-- The current HTML/CSS `.brand-mark` spelling `CE` is runtime divergence, not an approved logo variant.
+- The former `CE` text mark was replaced by the mapped logo in `_Layout.cshtml`; the leftover `.brand-mark` CSS rule in `site.css` is dead styling, not an approved logo variant.
 
 The upstream source directory may be absent from a clean checkout. The checksum-pinned repository copy is the durable source.
 
@@ -190,7 +190,7 @@ Lucide is the only approved Web/UI icon system:
 
 Do not use emoji, Unicode dingbats, hand-drawn icons or infrastructure symbols.
 
-No Lucide package or copied SVG set is currently exercised. A selected implementation must choose a repository-owned delivery path, map every used glyph and provide accessible labels whenever an icon is not decorative. `src/Pegasus.Web/wwwroot/favicon.ico` has unrecorded provenance and is not icon-system authority.
+The checksummed Lucide sprite is delivered at `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg` (see the mapping below), but no page references a glyph from it yet — glyph usage remains unexercised. A selected implementation must map every used glyph and provide accessible labels whenever an icon is not decorative. `src/Pegasus.Web/wwwroot/favicon.ico` has unrecorded provenance and is not icon-system authority.
 
 
  #### Lucide icons source-to-runtime mapping
@@ -252,7 +252,7 @@ Permanent consequences must be visible without hover or colour alone. Illustrati
 
 ## Access and permissions
 
-Staff accounts, authentication, and authorisation remain planned until an authenticated Web caller exists. Planned accounts use Pegasus-managed usernames and passwords. Core owns the exact [staff role access matrix](../docs/requirements.md#staff-role-access-matrix), automated-actor boundary, and [case edit authority](../docs/requirements.md#case-edit-authority-and-recovery); this section owns only how those decisions appear in the planned UI.
+Staff accounts, authentication, and authorisation are implemented and enforced through authenticated Web callers ([architecture](../docs/architecture.md)). Accounts use Pegasus-managed usernames and passwords. Core owns the exact [staff role access matrix](../docs/requirements.md#staff-role-access-matrix), automated-actor boundary, and [case edit authority](../docs/requirements.md#case-edit-authority-and-recovery); this section owns only how those decisions appear in the planned UI.
 
 | Actor | Planned UI boundary |
 | --- | --- |
@@ -260,7 +260,7 @@ Staff accounts, authentication, and authorisation remain planned until an authen
 | Engineer, User | Staff shell without Administration surfaces. Their ordinary Intake, Triage, Case, document, evidence, and lifecycle controls are identical. |
 | Automated processing | No UI account or interactive control. |
 | Provider API client ([API-01–API-04, `Next / 0.4.0`](../docs/capabilities.md#capabilities)) | No staff shell, Case workspace, or Administration surface. |
-| External/customer | No application account or application surface. |
+| External/customer | No application account; the only external surface is the isolated request-scoped `/Uploads/{token}` upload page (INT-31), which exposes no case or request state. |
 
 Every protected route and action must handle unauthenticated, disabled-session, stale-role, denied, loading, and successful outcomes. Hiding a route or control never replaces server authorisation. Administration has no generic rules editor, credential/cloud/release operation, bulk predecessor import, or bulk Case-edit tool. No surface permits permanent deletion or direct external/customer Case editing.
 
@@ -321,21 +321,24 @@ upload one supported local source
 → authorised retained-asset download
 ```
 
-It does not authenticate staff, create a case, allocate a reference or prove the planned shell.
+It runs under authenticated staff identity (the DevelopmentOffline profile's server-derived actor); it does not create a case, allocate a reference or prove the planned shell.
 
 ### Core outcome to operator label and persistence
 
-The current caller exposes these exact outcome labels. The supplied evidence does not establish different public enum names, so implementations must not invent aliases.
+The current caller exposes these exact outcome labels (owned by
+`src/Pegasus.Web/Pages/Intake/Index.cshtml.cs` `DecisionLabel`); implementations
+must not invent aliases.
 
-| Core result exposed to the UI | Exact operator label | Receipt persisted | Case/reference persisted |
+| Core intake decision | Exact operator label | Receipt persisted | Case/reference persisted |
 | --- | --- | --- | --- |
-| `Draft ready` | Draft ready | Yes | No |
-| `Needs sorting` | Needs sorting | Yes | No |
-| `OCR required` | OCR required | Yes | No |
+| `DraftReady` | Instruction draft | Yes | No |
+| `NeedsSorting` | Needs sorting | Yes | No |
+| `BlockedIntake` | Blocked intake | Yes | No |
+| `OcrRequired` | Document text required | Yes | No |
+| `TechnicalFailure` | Technical failure | Yes | No |
 | `Unsupported` | Unsupported | Yes | No |
-| `Retryable failure` | Retryable failure | Yes | No |
 
-`OCR required` records a fail-closed outcome; it does not prove that deferred OCR capability is implemented.
+`Document text required` records a fail-closed outcome; it does not prove that deferred OCR capability is implemented.
 
 Validation or refusal before an accepted intake receipt must not be described as case creation. The current Development path never creates a case/reference, regardless of its receipt outcome.
 
@@ -364,6 +367,7 @@ Only the first table describes exercised components. Planned contracts do not cr
 | Queue/metric card | Show persisted Development intake counts and open the exact list; empty/value links are exercised; stale/unavailable is planned but unimplemented | `src/Pegasus.Web/Pages/Index.cshtml`, `src/Pegasus.Web/wwwroot/css/site.css` |
 | Intake receipt and upload | Submit one bounded authenticated source through `ReceiveIntake`; list retained receipts; inspect provenance and decisions; download the retained source only as an authorised safe attachment | `src/Pegasus.Web/Pages/Intake/{Index,Details,Source}.cshtml(.cs)` |
 | Triage queue/detail | List and filter triage records and execute the Core-owned detail commands without adding due/chaser controls | `src/Pegasus.Web/Pages/Triage/{Index,Details}.cshtml(.cs)` |
+| Anonymous request upload | Token-bound `/Uploads/{token}` form and immediate result; antiforgery, idempotent operation key, generic non-disclosing outcomes | `src/Pegasus.Web/Pages/Uploads/Request.cshtml(.cs)` |
 
 ### Planned component contracts
 
@@ -633,7 +637,7 @@ The following are permanent absences, not backlog placeholders:
 - quarterly restore exercises;
 - predecessor data import, predecessor availability after cutover or predecessor code reuse;
 - SMS or Microsoft Teams integration;
-- customer/claimant portal;
+- customer/claimant portal (request-scoped upload links under INT-31 remain permitted; a link exposes no case or request state and creates no account);
 - independent Engineer accounts;
 - solicitor, insurer, repairer or vehicle-owner accounts.
 
@@ -647,13 +651,13 @@ A supported desktop reflow does not alter the permanent mobile-product boundary.
 | Open policy and token questions | [Open decisions](../docs/open-decisions.md) | No implementation inference until resolved |
 | Architecture and caller boundaries | [Architecture](../docs/architecture.md) | Core, Web, Worker, MCP and external adapters |
 | Operations and deployment | [Operations](../docs/operations.md) | No deployment claim from design or source presence |
-| Engineering procedure | [Installed skills](../.agents/skills/ask-matt/SKILL.md) | Reviewed implementation and verification |
+| Engineering procedure | [Engineering](../docs/engineering.md) | Reviewed implementation and verification; `.agents/skills/` routes remain subject to it |
 | Design authority | This file | Approved Web tokens, assets, components and patterns |
 | Current Web shell | This file’s approved direction; current code is evidence only | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` |
 | Current Web tokens/layout | This file | `src/Pegasus.Web/wwwroot/css/site.css`, currently divergent |
 | Current dashboard | Current exercised component map | `src/Pegasus.Web/Pages/Index.cshtml` |
 | Current intake caller | Current Development pattern | `src/Pegasus.Web/Pages/Intake/` → Core `ProcessIntake` |
-| Master logo | `design/brand/logos/logo_no_margin.png`, checksum above | Renderer Core and temporary renderer GUI; future reviewed Web copy |
+| Master logo | `design/brand/logos/logo_no_margin.png`, checksum above | Renderer Core, temporary renderer GUI, and the checksummed Web copy embedded by `_Layout.cshtml` |
 | Renderer templates/style | Repository renderer asset sources | `workspaces/report-renderer/src/CollisionRenderer.Core` |
 | Engineer signatures | Repository renderer signature sources | Renderer Core only; excluded from Web decorative imagery |
 | Temporary renderer GUI assets | Repository renderer GUI asset sources | `workspaces/report-renderer/src/CollisionRenderer.Gui`; remove with GUI |
