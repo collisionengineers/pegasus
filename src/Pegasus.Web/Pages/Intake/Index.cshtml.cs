@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Pegasus.Core.Actors;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 
 namespace Pegasus.Web.Pages.Intake;
@@ -9,8 +10,11 @@ namespace Pegasus.Web.Pages.Intake;
 public sealed class IndexModel(
     IListIntake listIntake,
     IIntakeSubmission intakeSubmission,
+    IImageIntakeQueries imageIntakeQueries,
     TimeProvider timeProvider) : PageModel
 {
+    private Dictionary<Guid, ImageIntakeSummary> _imageIntakesByReceipt = [];
+
     private const int PageSize = 25;
 
     [BindProperty(SupportsGet = true, Name = "decision")]
@@ -161,6 +165,18 @@ public sealed class IndexModel(
         _ => throw new InvalidOperationException($"Unknown intake decision '{(int)decision}'.")
     };
 
+    /// <summary>
+    /// The precise processing outcome for a row: a registered receipt whose
+    /// Image intake is currently associated shows `Associated with Case`,
+    /// derived live from the receipt's single association.
+    /// </summary>
+    public string RowOutcomeLabel(IntakeReceiptSummary item) =>
+        item.Decision == IntakeDecision.ImageIntakeRegistered
+            && _imageIntakesByReceipt.TryGetValue(item.Id, out var imageIntake)
+            && imageIntake.AssociatedCaseId is not null
+            ? "Associated with Case"
+            : DecisionLabel(item.Decision);
+
     private async Task<bool> LoadAsync(CancellationToken cancellationToken)
     {
         if (!StaffActorFactory.TryCreate(
@@ -175,6 +191,14 @@ public sealed class IndexModel(
         Results = await listIntake.ExecuteAsync(
             new(actor, Decision, CurrentPage, PageSize),
             cancellationToken);
+        var registeredIds = Results.Items
+            .Where(item => item.Decision == IntakeDecision.ImageIntakeRegistered)
+            .Select(item => item.Id)
+            .ToArray();
+        _imageIntakesByReceipt = registeredIds.Length == 0
+            ? new Dictionary<Guid, ImageIntakeSummary>()
+            : (await imageIntakeQueries.ListByOriginReceiptsAsync(registeredIds, cancellationToken))
+                .ToDictionary(summary => summary.OriginReceiptId);
         return true;
     }
 
@@ -189,6 +213,7 @@ public sealed class IndexModel(
             "unsupported" => IntakeDecision.Unsupported,
             "ocr_required" => IntakeDecision.OcrRequired,
             "technical_failure" => IntakeDecision.TechnicalFailure,
+            "image_intake_registered" => IntakeDecision.ImageIntakeRegistered,
             _ => null
         };
         return string.IsNullOrWhiteSpace(value) || decision is not null;
