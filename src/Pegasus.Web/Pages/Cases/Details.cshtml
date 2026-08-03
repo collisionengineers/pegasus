@@ -13,6 +13,9 @@
     return;
 }
 
+@* Defensive only: the handler returns 404 when the case is absent or
+   unauthorised, so the not-found surface is owned by the error page rather
+   than by this view. *@
 @if (Model.Case is null)
 {
     return;

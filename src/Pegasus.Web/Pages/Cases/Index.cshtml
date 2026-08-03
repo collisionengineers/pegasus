@@ -98,9 +98,9 @@
 }
 else if (Model.Results is { Items.Count: 0 })
 {
-    <section class="empty-state" aria-live="polite">
+    <section class="panel empty-state" aria-live="polite">
         <h2>No matching cases</h2>
-        <p>No authorised cases match the current filters.</p>
+        <p>No authorised cases match the current filters. Clear a filter to widen the search.</p>
     </section>
 }
 else if (Model.Results is { } results)
@@ -132,9 +132,9 @@ else if (Model.Results is { } results)
                             <td>@(item.Claimant ?? "Not recorded")</td>
                             <td>@(item.ClaimNumber ?? "Not recorded")</td>
                             <td>@item.Principal</td>
-                            <td>@item.State</td>
+                            <td><partial name="Shared/_StatusChip" model="@item.State.ToString()" /></td>
                             <td>@(item.EngineerId?.ToString("D") ?? "Unassigned")</td>
-                            <td>@item.ReceivedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</td>
+                            <td><time datetime="@item.ReceivedAtUtc.ToString("O")">@item.ReceivedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</time></td>
                             <td>@(item.InstructionDate?.ToString("dd MMM yyyy") ?? "Not recorded")</td>
                             <td>@item.Origin</td>
                         </tr>
@@ -142,15 +142,15 @@ else if (Model.Results is { } results)
                 </tbody>
             </table>
         </div>
-        <nav class="button-row" aria-label="Case result pages">
+        <nav class="pager" aria-label="Case result pages">
             @if (results.HasPreviousPage)
             {
-                <a href="@Model.PageUrl(results.Page - 1)" class="secondary-action">Previous</a>
+                <a href="@Model.PageUrl(results.Page - 1)">Previous</a>
             }
-            <span>Page @results.Page</span>
+            <span class="pager__context">Page @results.Page · showing @results.Items.Count</span>
             @if (results.HasNextPage)
             {
-                <a href="@Model.PageUrl(results.Page + 1)" class="secondary-action">Next</a>
+                <a href="@Model.PageUrl(results.Page + 1)">Next</a>
             }
         </nav>
     </section>
