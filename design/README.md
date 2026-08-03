@@ -178,6 +178,7 @@ The upstream source directory may be absent from a clean checkout. The checksum-
  | Asset | Upstream source & SHA-256 | Web runtime destination & SHA-256 | Mapping & usage |
  | --- | --- | --- | --- |
  | Primary logo | `design/brand/logos/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | `src/Pegasus.Web/wwwroot/images/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | Byte-for-byte copy embedded in `_Layout.cshtml` header navbar link. Replaces fake `CE` mark and unproven favicon link. |
+
 ### Icons
 
 Lucide is the only approved Web/UI icon system:
@@ -216,6 +217,7 @@ The checksummed Lucide sprite is delivered at `src/Pegasus.Web/wwwroot/images/lu
  | `arrow-right` | `D8B246C7FDBAB41053F2016892C0664BB64C0C6D1ED4594C9D80470C1B219C70` | Action transition and external link indicator |
  | `upload` | `EE63E95EFECDAF141338475D367A54EF891E337491993DCDC1F3ED7936A42660` | Intake manual upload action icon |
  | `lock` | `1F0A0861A3752428E1D5CABDAC22608E645A008229EF58415EC0C0E112F5BF2D` | Case edit lease indicator icon |
+
 ### Imagery and evidence
 
 No brand or decorative imagery is needed for the internal Web application. Upstream marketing photography is excluded.
