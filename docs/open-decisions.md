@@ -52,22 +52,29 @@ step it names.
    bar from the first evaluation; acceptance of the reviewed numbers still
    closes this item, and if nothing meets the accepted bar the capability
    blocks rather than falls back.
-   Full-cohort evaluation evidence (2026-08-03, run `20260803-083635`,
-   superseding the bounded 400-image first pass `20260803-073755`): 3,523
-   case-attributed labelled corpus images; deterministic cohort 2,818
-   (all evaluated) / untouched holdout 705; zero technical failures.
-   Candidate confidence is the weakest per-character probability capped
-   by the detection score. Measured: 0.80 bar → 11.2% suggestion rate
-   with **18.1% wrong-suggestion rate** (57 of 315); 0.90 bar → 2.3%
-   suggestion rate with **7.8% wrong-suggestion rate** (5 of 64), 97.7%
-   abstention. The implemented provisional bar is therefore **0.90** —
-   the bounded first pass understated the 0.80 wrong rate and a wrong
-   automatic registration mints a permanent never-reused reference.
-   Caveat for review: labels are case-level, so a correctly read
-   third-party plate in a multi-vehicle photo counts as wrong — the true
-   misread rate is at most the reported number. Operator acceptance of
-   these reviewed numbers (and one-time holdout confirmation at the
-   accepted bar via `PEGASUS_VRM_EVAL_HOLDOUT=1`) closes this item.
+   Full-cohort evaluation evidence (2026-08-03, run `20260803-085406`,
+   superseding the bounded 400-image first pass): 3,523 case-attributed
+   labelled corpus images; deterministic cohort 2,818 (all evaluated) /
+   untouched holdout 705; zero technical failures. Candidate confidence
+   is the weakest per-character probability capped by the detection
+   score. Wrong suggestions split by edit distance from the case-level
+   label (operator-requested 2026-08-03): distance 1–2 is a near-miss —
+   a genuine misread of the case vehicle, the dangerous kind — while
+   distance 3+ is almost certainly a correctly read third-party
+   registration in a multi-vehicle photo that case-level attribution
+   cannot credit. Measured: **0.80 bar** → 315 suggestions (11.2% of
+   images), wrong 57 (18.1%) = **14 near-misses (4.4%)** + 43 different
+   registrations (13.7%); **0.90 bar** → 64 suggestions (2.3%), wrong 5
+   (7.8%) = **4 near-misses (6.2%)** + 1 different registration; 97.7%
+   abstention. Observed near-miss shapes are truncations and single
+   character confusions, not random values. The implemented provisional
+   bar is **0.90** (conservative); the split shows 0.80's true-misread
+   rate is ~4.4% with five times the coverage, so the accepted bar is a
+   genuine operator trade between coverage and misread risk — the local
+   report `artifacts/vrm-recognition-eval/20260803-085406/report.json`
+   lists every wrong pair for that review. Operator acceptance of the
+   reviewed numbers (and one-time holdout confirmation at the accepted
+   bar via `PEGASUS_VRM_EVAL_HOLDOUT=1`) closes this item.
 2. **`INT-31` upload-link limits** — Exact token lifetime, aggregate and
    per-file byte limits, file count, allowed content types, per-token/per-IP
    rate, one-time vs reuse, and revocation/expiry error contract. Interim bound:
