@@ -194,6 +194,27 @@ Inventory rules:
   plus `UseStructuredContent` for typed results — which the SDK maps
   onto the MCP `ToolAnnotations` hints.
 
+**Assessment-detail editing (ADR-0011 scope note).** ADR-0011's
+mechanism — an approved inventory of ordinary operational Core use
+cases — does cover modifying assessment/case details: the typed Case
+data staff edit in the Web UI (the CASE-11 fields: provider, claimant,
+claim, vehicle, accident, contact, inspection) can be exposed as
+lease-guarded Actor tools, and generating the manual EVA bundle
+(EXT-03/CASE-21) is likewise an ordinary operational action. Both are
+therefore inventory candidates for the 1.10(d) approval question:
+`pegasus_case_update_details` and `pegasus_eva_bundle_generate`. What
+ADR-0011 does **not** cover, and other authorities forbid regardless of
+inventory: issuing or altering the professional findings
+(Roadworthiness / Assessment are Engineer-owned, and a permanent
+boundary bars any model or external source from issuing an accepted
+case, engineering, economic, legal, or report outcome), report
+approval or sending, and report generation itself — report preparation
+is EVA-owned through `0.1.0-alpha.1`, Pegasus-owned rendering is
+`1.0.0`/`1.1.0` work, and the AI route into a repair specification is
+proposal-only with named-Engineer review (AI-09, ENG-01). ADR-0011's
+closing clause requires a new accepted decision for any authority
+expansion beyond the ordinary operational surface.
+
 ### 1.7 Attribution, history, and telemetry
 
 - Every tool call resolves the authenticated client principal to
@@ -273,7 +294,10 @@ c. **Initial evidence client** — recommended: Claude Code. Its
    client is Claude Code or a scripted MCP client, and the plan review
    should record that finding.
 d. **v1 tool inventory** — approve or amend the table in 1.6, in
-   particular whether any Case lifecycle transition belongs in v1.
+   particular whether any Case lifecycle transition belongs in v1, and
+   whether the assessment-detail candidates
+   (`pegasus_case_update_details`, `pegasus_eva_bundle_generate`) join
+   it (see the ADR-0011 scope note in 1.6).
 
 ---
 
@@ -475,6 +499,78 @@ design re-entry) and nothing near-term touches the staff shell.
 End-state: Option 3 under AI-09's own 1.3.0 gates. Deep links (Option 2)
 are a zero-infrastructure fallback worth knowing about, not a
 foundation.
+
+### 3.3 Channel receiver — implementation plan (reviewed)
+
+Designed as a concrete plan and reviewed against MCPB local-server
+security guidance. MCPB itself does not apply: `.mcpb` bundles install
+local servers into Claude Desktop, and the channel capability is a
+Claude Code research-preview contract that Desktop does not consume —
+but the MCPB security discipline (localhost binding, sender auth,
+secrets outside code, input validation, no assumed sandbox) is applied
+throughout.
+
+- **Shape**: one single-file TypeScript stdio MCP server
+  (`pegasus-claude-channel`, sole dependency `@modelcontextprotocol/sdk`,
+  Node LTS via `tsx`), spawned by Claude Code from the operator's
+  `.mcp.json` beside the Part 1 Actor connector (`type: http` +
+  `headersHelper`). It opens a localhost-only HTTP listener (default
+  port 8629; `127.0.0.1` bind asserted at startup) and forwards each
+  authenticated POST as a `notifications/claude/channel` event.
+- **Location**: its own sibling repo (`../pegasus-claude-channel/`),
+  outside this repository — the external client stays outside Pegasus
+  per requirements; a new top-level directory here would need an ADR,
+  and `workspaces/` is the wrong boundary (non-caller imports).
+- **Contract**: `POST /send` carries `{case_reference, instruction,
+  request_id}` with the sender token in the `Authorization` header;
+  `case_reference` pattern-validated, `instruction` plain text capped
+  (~500 chars), no case data or documents ever in the event.
+  Notification `content` = instruction; `meta` =
+  channel/case_reference/request_id/received_at (identifier-only
+  keys). Reply tool `pegasus_channel_reply {request_id, status,
+  message}` records delivery state (append-only JSONL,
+  `GET /status/{id}`, SSE `GET /events`) — the confirmation loop the
+  protocol lacks, since delivery is unacknowledged. Business data
+  still returns only through Actor write tools.
+- **Security controls**: ≥32-byte sender token in an ACL-restricted,
+  gitignored `.env`, constant-time comparison, rejects before any
+  notification is emitted; control-character and tag-lookalike
+  stripping; the server's `instructions` string frames channel text as
+  untrusted routing data with all Pegasus access through the
+  `pegasus_*` Actor tools; permission relay deliberately **not**
+  declared (a shared local token must not become a remote tool-use
+  approver — the operator approves at the terminal); the channel holds
+  no Pegasus credential (the Actor client secret lives only with the
+  `headersHelper` script, outside this repo); no outbound network
+  calls, no process spawns, no filesystem beyond its own log
+  directory; tokens never logged. Review addition: `GET /status` and
+  `GET /events` require the same bearer token as `POST /send` — reply
+  messages reference cases and must not stream to unauthenticated
+  local processes.
+- **Test plan = the 1.9 evidence run**: gating negatives
+  (401/403/400, LAN-address connection refused, no event emitted),
+  happy path (`<channel>` event with correct meta, queued batch
+  delivery if mid-turn), fetch via Actor tools with
+  `ActionActor.Automation` action-history rows, lease-guarded
+  write-back with an `mcp:` OperationKey re-run to prove idempotency,
+  reply status loop, and Actor negatives (headersHelper re-exchange on
+  401, out-of-inventory refusal with a security-event row, validation
+  failure with no partial custody). No-session behavior is a visible
+  connection-refused, not a silent drop, because Claude Code spawns
+  the listener. Artifacts: session transcript, curl transcripts,
+  channel JSONL, action-history and security-event query output — the
+  tier-5 success/authorization-failure/validation-failure set.
+- **Packaging**: near-term a bare `.mcp.json` entry behind
+  `--dangerously-load-development-channels`; later a Claude Code
+  plugin on a private marketplace (org `channelsEnabled` +
+  `allowedChannelPlugins` removes the dev flag), with the server
+  bundled (esbuild) at plugin time so it runs without a dev toolchain.
+- **Known limits** (research preview): the protocol may drift — pin
+  the Claude Code version for evidence runs; events drop silently only
+  when the channel is loaded but org policy blocks it (otherwise
+  no-session is connection-refused); one machine, one session per port
+  (`EADDRINUSE` is the concurrency guard); requires claude.ai or
+  Console authentication (not Bedrock/Foundry).
 
 ## Part 4 — Promotion path
 
