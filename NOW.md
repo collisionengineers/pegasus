@@ -29,6 +29,18 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   LocalDB setup with a per-run migrated template database, and cache NuGet
   packages and the pinned Playwright Chromium (branch
   task/repository-check-speed, taken 2026-08-03, by claude).
+- UI alpha design pass: build the visual/interaction layer for the
+  Operations-first `0.1.0-alpha.1` shell against fixture data only — UI-01
+  (Operations dashboard), UI-02 (Not ready/Review/Held queues), UI-03
+  (Needs sorting/Blocked intake queues), UI-04 (activity counters), UI-05
+  (click-through filtered queues), UI-06 (freshness/reconciliation states),
+  UI-08 (three-column intake workbench), UI-09 (full case workspace), UI-11
+  (accounts/principals/mailbox allowlist/configuration), UI-13
+  (accessibility); no Core wiring, no real case/reference mutation, no
+  business-rule resolution ahead of open decisions; excludes UI-07 (already
+  in task/image-led-intake), UI-10 (`Next / 0.3.0`, out of scope), and UI-12
+  (`Not planned`) (branch task/ui-alpha-design-pass, taken 2026-08-03, by
+  claude).
 
 ## Next (ordered queue — take from the top)
 
