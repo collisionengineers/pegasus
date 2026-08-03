@@ -182,6 +182,9 @@ if (($Bindings.SourceVaultName | Sort-Object -Unique | Compare-Object $SourceVau
     ($Bindings.SettingName | Sort-Object -Unique | Compare-Object $WorkerSettingNames)) {
   throw 'The Worker reference inventory does not match the approved sources or settings.'
 }
+if (@($Bindings.SecretName | Sort-Object -Unique).Count -ne $WorkerSettingNames.Count) {
+  throw 'The approved Worker settings do not resolve to six distinct secrets.'
+}
 foreach ($WebSecret in $WebSecrets) {
   if ($WebSecret.keyVaultUrl -notmatch '^https://[^/]+\.vault\.azure\.net/secrets/[^/]+/[^/]+$' -or
       $WebSecret.identity -ne $WebIdentityResourceId) {
@@ -191,6 +194,9 @@ foreach ($WebSecret in $WebSecrets) {
 $BoxBindings = @($Bindings | Where-Object {
   $_.SettingName -in @('Box__ConfigJson', 'Box__ClientSecret')
 })
+if ($BoxBindings.Count -ne $WebSecretNames.Count) {
+  throw 'The Worker does not expose exactly the two approved Box bindings.'
+}
 foreach ($BoxBinding in $BoxBindings) {
   $ExpectedWebSecretName = if ($BoxBinding.SettingName -eq 'Box__ConfigJson') {
     'box-config-json'
@@ -203,30 +209,56 @@ foreach ($BoxBinding in $BoxBindings) {
   }
 }
 
-$SourceSecretMetadata = foreach ($Binding in $Bindings) {
-  az keyvault secret list --vault-name $Binding.SourceVaultName `
-    --query "[?name=='$($Binding.SecretName)'].{name:name,enabled:attributes.enabled}" `
-    --output json | ConvertFrom-Json
-}
-if ($SourceSecretMetadata.Count -ne $Bindings.Count -or
-    ($SourceSecretMetadata | Where-Object { -not $_.enabled }).Count -ne 0) {
-  throw 'An approved source secret is absent or disabled.'
+foreach ($Binding in $Bindings) {
+  $SourceVersionMetadata = @(az keyvault secret list-versions `
+    --vault-name $Binding.SourceVaultName --name $Binding.SecretName `
+    --query "[?id=='$($Binding.SourceUri)'].{id:id,enabled:attributes.enabled}" `
+    --output json | ConvertFrom-Json)
+  if ($SourceVersionMetadata.Count -ne 1 -or -not $SourceVersionMetadata[0].enabled) {
+    throw "The specifically referenced source version for $($Binding.SettingName) is absent or disabled."
+  }
 }
 
 $ExistingTargetNames = @(az keyvault secret list --vault-name $TargetVault.name `
   --query '[].name' --output json | ConvertFrom-Json)
-$DuplicateTargetNames = @($Bindings.SecretName | Where-Object {
+$DeletedTargetNames = @(az keyvault secret list-deleted --vault-name $TargetVault.name `
+  --query '[].name' --output json | ConvertFrom-Json)
+$DeletedApprovedTargetNames = @($Bindings.SecretName | Where-Object {
+  $_ -in $DeletedTargetNames
+} | Sort-Object -Unique)
+if ($DeletedApprovedTargetNames.Count -ne 0) {
+  throw "Target vault has soft-deleted approved names: $($DeletedApprovedTargetNames -join ', '). Do not recover or purge them."
+}
+$ExistingApprovedTargetNames = @($Bindings.SecretName | Where-Object {
   $_ -in $ExistingTargetNames
 } | Sort-Object -Unique)
-if ($DuplicateTargetNames.Count -ne 0) {
-  throw "Target vault already contains: $($DuplicateTargetNames -join ', '). Do not overwrite it."
+foreach ($Binding in $Bindings) {
+  $CopyRequired = $Binding.SecretName -notin $ExistingApprovedTargetNames
+  $Binding | Add-Member -NotePropertyName CopyRequired -NotePropertyValue $CopyRequired
+  if (-not $CopyRequired) {
+    $ExpectedTargetUri = "$($TargetVault.uri)secrets/$($Binding.SecretName)/$($Binding.SourceVersion)"
+    $TargetVersionMetadata = @(az keyvault secret list-versions `
+      --vault-name $TargetVault.name --name $Binding.SecretName `
+      --query "[?id=='$ExpectedTargetUri'].{id:id,enabled:attributes.enabled}" `
+      --output json | ConvertFrom-Json)
+    if ($TargetVersionMetadata.Count -ne 1 -or -not $TargetVersionMetadata[0].enabled) {
+      throw "Existing target secret $($Binding.SecretName) is not an exact, enabled prior copy; do not overwrite it."
+    }
+  }
 }
 ```
 
 The commands only handle Key Vault reference strings and metadata. They do
 not query a secret value. Review the six derived source URI/name/version pairs,
-the two Web URI/name pairs, and the empty target-name check. Obtain a second,
-specific approval before copying any secret.
+the two Web URI/name pairs, and the target-name state. An exact, enabled copy
+of a previously restored source version is the only permitted pre-existing
+approved target secret is allowed. A soft-deleted approved name, an unverified
+copy, or an unrelated existing target-vault secret remains out of scope. This
+lets a stopped run resume without overwriting, recovering, or purging a secret. Obtain a
+second, specific approval before copying any secret. That approval must also confirm
+that the executing principal already has `secrets/backup` on each source vault
+and `secrets/restore` on the target vault; the plan never grants those highly
+privileged data-plane permissions.
 
 ### 3. Copy each complete secret history without exposing a value
 
@@ -234,7 +266,7 @@ specific approval before copying any secret.
 $BackupRoot = Join-Path $env:TEMP "pegasus-vault-consolidation-$(Get-Date -AsUTC -Format 'yyyyMMddTHHmmssZ')"
 New-Item -ItemType Directory -Path $BackupRoot -ErrorAction Stop | Out-Null
 
-foreach ($Binding in $Bindings) {
+foreach ($Binding in @($Bindings | Where-Object { $_.CopyRequired })) {
   $BackupPath = Join-Path $BackupRoot "$($Binding.SecretName).backup"
   az keyvault secret backup --vault-name $Binding.SourceVaultName `
     --name $Binding.SecretName --file $BackupPath --only-show-errors
@@ -243,23 +275,25 @@ foreach ($Binding in $Bindings) {
 }
 
 foreach ($Binding in $Bindings) {
-  $Binding | Add-Member -NotePropertyName TargetUri -NotePropertyValue (
-    az keyvault secret list-versions --vault-name $TargetVault.name `
-      --name $Binding.SecretName `
-      --query 'max_by([?attributes.enabled], &attributes.updated).id' `
-      --output tsv
-  )
-  if ($Binding.TargetUri -notmatch "^$([regex]::Escape($TargetVault.uri))secrets/$([regex]::Escape($Binding.SecretName))/[0-9a-f]+$") {
-    throw "No enabled versioned target URI was restored for $($Binding.SecretName)."
+  $ExpectedTargetUri = "$($TargetVault.uri)secrets/$($Binding.SecretName)/$($Binding.SourceVersion)"
+  $TargetVersionMetadata = @(az keyvault secret list-versions `
+    --vault-name $TargetVault.name --name $Binding.SecretName `
+    --query "[?id=='$ExpectedTargetUri'].{id:id,enabled:attributes.enabled}" `
+    --output json | ConvertFrom-Json)
+  if ($TargetVersionMetadata.Count -ne 1 -or -not $TargetVersionMetadata[0].enabled) {
+    throw "The referenced source version was not restored as an enabled target version for $($Binding.SecretName)."
   }
+  $Binding | Add-Member -NotePropertyName TargetUri -NotePropertyValue $ExpectedTargetUri
 }
 ```
 
 Stop if any backup or restore fails, a restored secret is disabled, an existing
-target secret causes a conflict, the target URI is not versioned, or the source
-and target vault locations are not compatible for backup/restore. Do not fall
-back to `az keyvault secret show`, `--value`, or a pipeline that exposes a
-secret value.
+target secret causes a conflict, the specifically referenced source version is
+not present and enabled in the target, or the source and target vault locations
+are not compatible for backup/restore. The service permits restore only within
+the same Azure subscription and geography; this plan's same-region check is a
+deliberately stricter gate. Do not fall back to `az keyvault secret show`,
+`--value`, or a pipeline that exposes a secret value.
 
 ### 4. Grant only the necessary secret-level reads
 
@@ -292,12 +326,43 @@ foreach ($BoxBinding in $BoxBindings) {
   $SecretScope = "$($TargetVaultProperties.id)/secrets/$($BoxBinding.SecretName)"
   Ensure-SecretUserRole -PrincipalId $WebPrincipalId -SecretScope $SecretScope
 }
+
+$ExpectedWorkerSecretScopes = @($Bindings | ForEach-Object {
+  "$($TargetVaultProperties.id)/secrets/$($_.SecretName)"
+} | Sort-Object -Unique)
+$ExpectedWebSecretScopes = @($BoxBindings | ForEach-Object {
+  "$($TargetVaultProperties.id)/secrets/$($_.SecretName)"
+} | Sort-Object -Unique)
+function Assert-ExactSecretUserScopes {
+  param(
+    [Parameter(Mandatory)] [string] $PrincipalId,
+    [Parameter(Mandatory)] [string[]] $ExpectedScopes
+  )
+
+  $AllSecretUserScopes = @(az role assignment list --assignee-object-id $PrincipalId `
+    --all --role $KeyVaultSecretsUserRoleId `
+    --fill-principal-name false --fill-role-definition-name false `
+    --query '[].scope' --output json | ConvertFrom-Json)
+  $TargetSecretUserScopes = @($AllSecretUserScopes | Where-Object {
+    $_ -eq $TargetVaultProperties.id -or
+    $TargetVaultProperties.id -like "$_/*" -or
+    $_ -like "$($TargetVaultProperties.id)/*"
+  } | Sort-Object -Unique)
+  if (Compare-Object $ExpectedScopes $TargetSecretUserScopes) {
+    throw "Key Vault Secrets User scopes for $PrincipalId are not exactly the approved secret scopes."
+  }
+}
+Assert-ExactSecretUserScopes -PrincipalId $WorkerPrincipalId `
+  -ExpectedScopes $ExpectedWorkerSecretScopes
+Assert-ExactSecretUserScopes -PrincipalId $WebPrincipalId `
+  -ExpectedScopes $ExpectedWebSecretScopes
 ```
 
-Read back the roles by secret scope. The Worker must have six grants; the Web
-must have only the two Box grants. Stop if either identity receives a vault-,
-resource-group-, or subscription-scoped secret role, or any role other than
-`Key Vault Secrets User`.
+The readback requires exactly six target-vault secret scopes for the Worker and
+two for the Web. It fails on a `Key Vault Secrets User` grant at the vault,
+resource-group, or subscription scope. Review any other assignment applying to
+the target vault before proceeding; this task must not be used to broaden
+runtime access.
 
 ### 5. Repoint the Worker and prove all six references resolve
 
@@ -309,35 +374,58 @@ az functionapp config appsettings set `
   --resource-group $PegasusProductionResourceGroup --name $Worker.name `
   --settings $WorkerUpdates --only-show-errors --output none
 
-az rest --method POST --uri (
-  "https://management.azure.com$($Worker.id)/config/configreferences/appsettings/refresh?api-version=2022-03-01"
-) --only-show-errors --output none
-
-$WorkerReferenceStatus = az rest --method GET --uri (
-  "https://management.azure.com$($Worker.id)/config/configreferences/appsettings?api-version=2025-03-01"
-) --output json | ConvertFrom-Json
-$UnresolvedWorkerSettings = @(foreach ($WorkerSettingName in $WorkerSettingNames) {
-  $WorkerReference = @($WorkerReferenceStatus.value | Where-Object {
-    $_.name -eq $WorkerSettingName
-  })
-  $Binding = $Bindings | Where-Object { $_.SettingName -eq $WorkerSettingName }
-  $TargetUriParts = ([Uri]$Binding.TargetUri).AbsolutePath.Trim('/').Split('/')
-  if ($WorkerReference.Count -ne 1 -or
-      $WorkerReference[0].properties.status -ne 'Resolved' -or
-      $WorkerReference[0].properties.vaultName -ne $TargetVault.name -or
-      $WorkerReference[0].properties.secretName -ne $Binding.SecretName -or
-      $WorkerReference[0].properties.secretVersion -ne $TargetUriParts[2]) {
-    $WorkerSettingName
+function Get-UnresolvedWorkerKeyVaultReferences {
+  $CurrentWorkerSettings = @(az functionapp config appsettings list `
+    --resource-group $PegasusProductionResourceGroup --name $Worker.name `
+    --query "[?contains(['Box__ConfigJson','Box__ClientSecret','Dvla__ApiKey','Dvsa__ClientId','Dvsa__ClientSecret','Dvsa__ApiKey'],name)].{name:name,value:value}" `
+    --output json | ConvertFrom-Json)
+  $WorkerReferenceStatus = az rest --method GET --uri (
+    "https://management.azure.com$($Worker.id)/config/configreferences/appsettings?api-version=2025-03-01"
+  ) --output json | ConvertFrom-Json
+  $Unresolved = @()
+  foreach ($WorkerSettingName in $WorkerSettingNames) {
+    $CurrentWorkerSetting = @($CurrentWorkerSettings | Where-Object {
+      $_.name -eq $WorkerSettingName
+    })
+    $WorkerReference = @($WorkerReferenceStatus.value | Where-Object {
+      $_.name -eq $WorkerSettingName
+    })
+    $Binding = $Bindings | Where-Object { $_.SettingName -eq $WorkerSettingName }
+    $ExpectedReference = "@Microsoft.KeyVault(SecretUri=$($Binding.TargetUri))"
+    $TargetUriParts = ([Uri]$Binding.TargetUri).AbsolutePath.Trim('/').Split('/')
+    if ($CurrentWorkerSetting.Count -ne 1 -or
+        $CurrentWorkerSetting[0].value -ne $ExpectedReference -or
+        $WorkerReference.Count -ne 1 -or
+        $WorkerReference[0].properties.status -ne 'Resolved' -or
+        $WorkerReference[0].properties.vaultName -ne $TargetVault.name -or
+        $WorkerReference[0].properties.secretName -ne $Binding.SecretName -or
+        $WorkerReference[0].properties.secretVersion -ne $TargetUriParts[2]) {
+      $Unresolved += $WorkerSettingName
+    }
   }
-})
-if ($UnresolvedWorkerSettings.Count -ne 0) {
-  throw "Worker Key Vault reference resolution failed: $($UnresolvedWorkerSettings -join ', ')."
+  return @($Unresolved | Sort-Object -Unique)
 }
+
+$WorkerReferenceDeadline = (Get-Date).AddMinutes(10)
+do {
+  az rest --method POST --uri (
+    "https://management.azure.com$($Worker.id)/config/configreferences/appsettings/refresh?api-version=2022-03-01"
+  ) --only-show-errors --output none
+  $UnresolvedWorkerSettings = @(Get-UnresolvedWorkerKeyVaultReferences)
+  if ($UnresolvedWorkerSettings.Count -eq 0) {
+    break
+  }
+  if ((Get-Date) -ge $WorkerReferenceDeadline) {
+    throw "Worker Key Vault reference resolution timed out: $($UnresolvedWorkerSettings -join ', ')."
+  }
+  Start-Sleep -Seconds 15
+} while ($true)
 ```
 
-Read back the six setting strings separately and confirm their target URI
-versions equal `$Bindings.TargetUri`. The `Resolved` statuses prove reference
-resolution only; they do not prove a Box, DVLA, or DVSA business outcome.
+The loop reads the six setting strings as references (not secret values) and
+their status collection until all six are `Resolved`, or ten minutes passes.
+The `Resolved` statuses prove reference resolution only; they do not prove a
+Box, DVLA, or DVSA business outcome.
 
 ### 6. Repoint the Web and prove the revision becomes healthy
 
@@ -356,26 +444,79 @@ az containerapp secret set `
     "box-client-secret=keyvaultref:$WebClientSecretUri,identityref:$WebIdentityResourceId"
   ) --only-show-errors --output none
 
-$ActiveWebRevision = az containerapp revision list `
+$CurrentWebSecrets = @(az containerapp secret list `
   --resource-group $PegasusProductionResourceGroup --name $Web.name `
-  --query '[?properties.active].name | [0]' --output tsv
-if ([string]::IsNullOrWhiteSpace($ActiveWebRevision)) {
-  throw 'No active Web revision exists to restart.'
+  --query "[?contains(['box-config-json','box-client-secret'],name)].{name:name,keyVaultUrl:keyVaultUrl,identity:identity}" `
+  --output json | ConvertFrom-Json)
+if ($CurrentWebSecrets.Count -ne $WebSecretNames.Count) {
+  throw 'The Web does not expose exactly its two approved Key Vault secrets after update.'
 }
-az containerapp revision restart `
-  --resource-group $PegasusProductionResourceGroup --name $Web.name `
-  --revision $ActiveWebRevision --only-show-errors --output none
+foreach ($ExpectedWebSecret in @(
+  [pscustomobject]@{ name = 'box-config-json'; keyVaultUrl = $WebConfigUri },
+  [pscustomobject]@{ name = 'box-client-secret'; keyVaultUrl = $WebClientSecretUri }
+)) {
+  $CurrentWebSecret = @($CurrentWebSecrets | Where-Object {
+    $_.name -eq $ExpectedWebSecret.name
+  })
+  if ($CurrentWebSecret.Count -ne 1 -or
+      $CurrentWebSecret[0].keyVaultUrl -ne $ExpectedWebSecret.keyVaultUrl -or
+      $CurrentWebSecret[0].identity -ne $WebIdentityResourceId) {
+    throw "Web secret $($ExpectedWebSecret.name) was not saved as the approved target-vault reference."
+  }
+}
 
-az containerapp revision show `
+$ActiveWebRevisions = @(az containerapp revision list `
   --resource-group $PegasusProductionResourceGroup --name $Web.name `
-  --revision $ActiveWebRevision --query 'properties.runningState' --output tsv
+  --query '[?properties.active].name' --output json | ConvertFrom-Json)
+if ($ActiveWebRevisions.Count -eq 0) {
+  throw 'No active Web revisions exist to restart.'
+}
+foreach ($ActiveWebRevision in $ActiveWebRevisions) {
+  az containerapp revision restart `
+    --resource-group $PegasusProductionResourceGroup --name $Web.name `
+    --revision $ActiveWebRevision --only-show-errors --output none
+}
+
+$WebRevisionDeadline = (Get-Date).AddMinutes(10)
+do {
+  $UnhealthyWebRevisions = @()
+  foreach ($ActiveWebRevision in $ActiveWebRevisions) {
+    $WebRevision = az containerapp revision show `
+      --resource-group $PegasusProductionResourceGroup --name $Web.name `
+      --revision $ActiveWebRevision --output json | ConvertFrom-Json
+    if ($WebRevision.properties.provisioningState -ne 'Provisioned' -or
+        $WebRevision.properties.runningState -ne 'Running' -or
+        $WebRevision.properties.healthState -ne 'Healthy') {
+      $UnhealthyWebRevisions += $ActiveWebRevision
+    }
+  }
+  if ($UnhealthyWebRevisions.Count -eq 0) {
+    break
+  }
+  if ((Get-Date) -ge $WebRevisionDeadline) {
+    throw "Web revisions did not become healthy: $($UnhealthyWebRevisions -join ', ')."
+  }
+  Start-Sleep -Seconds 15
+} while ($true)
+
+$WebFqdn = az containerapp show --resource-group $PegasusProductionResourceGroup `
+  --name $Web.name --query 'properties.configuration.ingress.fqdn' --output tsv
+if ([string]::IsNullOrWhiteSpace($WebFqdn)) {
+  throw 'The Web ingress FQDN is absent.'
+}
+$WebReady = Invoke-WebRequest -Uri "https://$WebFqdn/health/ready" `
+  -MaximumRedirection 0 -TimeoutSec 30
+if ($WebReady.StatusCode -ne 200) {
+  throw "Web readiness returned HTTP $($WebReady.StatusCode)."
+}
 ```
 
-Read back the two Container Apps secret metadata records: their key-vault URLs
-must equal `$WebConfigUri` and `$WebClientSecretUri` and their identity must
-equal `$WebIdentityResourceId`. A healthy restarted revision is required before
+The metadata readback requires both target-vault URLs and the Web identity. It
+then restarts every active revision, not an arbitrary first revision, and polls
+for `Provisioned`, `Running`, and `Healthy` before an unauthenticated
+`/health/ready` HTTP 200 check. A healthy restarted revision is required before
 the predecessor vaults can be considered for retirement. Stop and restore the
-saved predecessor reference metadata if the revision does not become healthy.
+saved predecessor reference metadata if any revision does not become healthy.
 
 ### 7. Independent readback, retirement, and final cleanup
 
@@ -398,43 +539,40 @@ if (($PredecessorResources.Count -ne 2) -or
   throw 'Predecessor group is not exactly the two approved source vaults.'
 }
 
-$WorkerReferenceStatus = az rest --method GET --uri (
-  "https://management.azure.com$($Worker.id)/config/configreferences/appsettings?api-version=2025-03-01"
-) --output json | ConvertFrom-Json
-$UnresolvedWorkerSettings = @(foreach ($WorkerSettingName in $WorkerSettingNames) {
-  $WorkerReference = @($WorkerReferenceStatus.value | Where-Object {
-    $_.name -eq $WorkerSettingName
-  })
-  $Binding = $Bindings | Where-Object { $_.SettingName -eq $WorkerSettingName }
-  $TargetUriParts = ([Uri]$Binding.TargetUri).AbsolutePath.Trim('/').Split('/')
-  if ($WorkerReference.Count -ne 1 -or
-      $WorkerReference[0].properties.status -ne 'Resolved' -or
-      $WorkerReference[0].properties.vaultName -ne $TargetVault.name -or
-      $WorkerReference[0].properties.secretName -ne $Binding.SecretName -or
-      $WorkerReference[0].properties.secretVersion -ne $TargetUriParts[2]) {
-    $WorkerSettingName
-  }
-})
+$UnresolvedWorkerSettings = @(Get-UnresolvedWorkerKeyVaultReferences)
 if ($UnresolvedWorkerSettings.Count -ne 0) {
   throw 'Worker references are no longer all resolved.'
 }
+Assert-ExactSecretUserScopes -PrincipalId $WorkerPrincipalId `
+  -ExpectedScopes $ExpectedWorkerSecretScopes
+Assert-ExactSecretUserScopes -PrincipalId $WebPrincipalId `
+  -ExpectedScopes $ExpectedWebSecretScopes
 
 $CurrentWebSecrets = @(az containerapp secret list `
   --resource-group $PegasusProductionResourceGroup --name $Web.name `
   --query "[?contains(['box-config-json','box-client-secret'],name)].{name:name,keyVaultUrl:keyVaultUrl,identity:identity}" `
   --output json | ConvertFrom-Json)
-if (($CurrentWebSecrets | Where-Object {
-  $_.keyVaultUrl -match 'cespkboxkvv76a47|cespkenrichkvgi62sd' -or
-  $_.identity -ne $WebIdentityResourceId
-}).Count -ne 0) {
-  throw 'Web still has a predecessor Key Vault reference or wrong identity.'
+if ($CurrentWebSecrets.Count -ne $WebSecretNames.Count) {
+  throw 'Web does not expose exactly the two approved Key Vault secrets at final readback.'
+}
+foreach ($ExpectedWebSecret in @(
+  [pscustomobject]@{ name = 'box-config-json'; keyVaultUrl = $WebConfigUri },
+  [pscustomobject]@{ name = 'box-client-secret'; keyVaultUrl = $WebClientSecretUri }
+)) {
+  $CurrentWebSecret = @($CurrentWebSecrets | Where-Object {
+    $_.name -eq $ExpectedWebSecret.name
+  })
+  if ($CurrentWebSecret.Count -ne 1 -or
+      $CurrentWebSecret[0].keyVaultUrl -ne $ExpectedWebSecret.keyVaultUrl -or
+      $CurrentWebSecret[0].identity -ne $WebIdentityResourceId) {
+    throw "Web secret $($ExpectedWebSecret.name) is not the approved target-vault reference at final readback."
+  }
 }
 
 foreach ($SourceVault in $SourceVaults) {
   az resource delete --ids $SourceVault.id --only-show-errors
   az resource wait --ids $SourceVault.id --deleted --timeout 300
 }
-az group wait --name $PredecessorResourceGroup --exists --timeout 300
 
 $RemainingPredecessorResources = @(az resource list `
   --resource-group $PredecessorResourceGroup --output json | ConvertFrom-Json)
