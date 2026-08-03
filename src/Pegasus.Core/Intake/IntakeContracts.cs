@@ -59,7 +59,8 @@ public enum IntakeSourceReadStatus
 public enum IntakeSourceChannel
 {
     ManualUpload,
-    Mailbox
+    Mailbox,
+    Automation
 }
 
 public enum InstructionPolicyApplicability

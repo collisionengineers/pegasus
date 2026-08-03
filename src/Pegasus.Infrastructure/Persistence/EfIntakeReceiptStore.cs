@@ -726,6 +726,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
     {
         IntakeSourceChannel.ManualUpload => "manual_upload",
         IntakeSourceChannel.Mailbox => "mailbox",
+        IntakeSourceChannel.Automation => "automation",
         _ => throw UnknownEnum(value)
     };
 
@@ -733,6 +734,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
     {
         "manual_upload" => IntakeSourceChannel.ManualUpload,
         "mailbox" => IntakeSourceChannel.Mailbox,
+        "automation" => IntakeSourceChannel.Automation,
         _ => throw UnknownCode("source channel", value)
     };
 

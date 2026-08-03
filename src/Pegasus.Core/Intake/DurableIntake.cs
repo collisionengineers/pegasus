@@ -268,6 +268,7 @@ public sealed class ReceiveIntake(
         {
             IntakeSourceChannel.ManualUpload => true,
             IntakeSourceChannel.Mailbox => true,
+            IntakeSourceChannel.Automation => true,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(source),
                 source.SourceIdentity.Channel,
