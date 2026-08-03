@@ -49,7 +49,14 @@ public static class WorkerDependencyInjection
             : null;
         services.AddPegasusInfrastructure(
             (_, options) => ConfigureDatabase(configuration, options),
-            localArtifactRootFactory);
+            localArtifactRootFactory,
+            documentStorage: developmentOffline
+                ? null
+                : registrations => registrations.AddProductionDocumentStorage(
+                    provider => provider.GetRequiredService<Azure.Storage.Blobs.BlobContainerClient>(),
+                    provider => provider.GetRequiredService<WorkerStorageProvisioning>()
+                        .AllowLocalCreateIfNotExists,
+                    productionOptions!.Value.Box));
         azureClientRegistration.AddTo(services);
 
         if (developmentOffline)
@@ -68,20 +75,8 @@ public static class WorkerDependencyInjection
         }
         else
         {
-            services.AddSingleton(serviceProvider =>
-                new AzureBlobIntakeArtifactStore(
-                    serviceProvider.GetRequiredService<Azure.Storage.Blobs.BlobContainerClient>(),
-                    serviceProvider.GetRequiredService<WorkerStorageProvisioning>()
-                        .AllowLocalCreateIfNotExists));
-            services.AddSingleton<IIntakeArtifactStore>(serviceProvider =>
-                serviceProvider.GetRequiredService<AzureBlobIntakeArtifactStore>());
-            services.AddSingleton<IIntakeQuarantineArtifactStore>(serviceProvider =>
-                serviceProvider.GetRequiredService<AzureBlobIntakeArtifactStore>());
-            services.AddScoped<IIntakeSourceReader, MimeKitPdfPigOpenXmlIntakeSourceReader>();
-            services.AddScoped<ProcessIntake>();
             services.AddProductionExternalAdapters(
                 productionOptions!.Value.Graph,
-                productionOptions.Value.Box,
                 productionOptions.Value.Vehicle);
             services.AddScoped<IProcessQueuedVehicleLookup, ProcessQueuedVehicleLookup>();
             services.AddScoped<IProcessQueuedExternalWork, ProcessQueuedExternalWork>();

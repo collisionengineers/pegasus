@@ -241,9 +241,9 @@ The report has two permitted inspection-address treatments:
 1. Record the physical location of the vehicle, such as the client’s address or the garage or repairer location.
 2. Record the exact text **“Image Based Assessment”** instead of an address.
 
-Some providers default to **“Image Based Assessment”**: it is autofilled when the Case is made, even when a repairer/location appears in the instructions, and an authorised staff member may override it. For many others, the vehicle’s physical location is important and must appear on the report even though the Engineer is inspecting remotely.
+Which treatment applies depends on the provider, not on the instruction text: instruction documents do not contain the literal “Image Based Assessment”. Some providers — QDOS among them — always use **“Image Based Assessment”**: it is autofilled when the Case is made from the provider’s recorded setting, even when a repairer/location appears in the instructions, and an authorised staff member may override it on that Case with a recorded reason (and switch it back the same way). For many others, the vehicle’s physical location is important and must appear on the report even though the Engineer is inspecting remotely. (Provider-driven determination confirmed by the product owner on 2026-08-03.)
 
-Current address determination is not handled ideally:
+Physical-address determination is not handled ideally:
 
 - some instruction documents identify the vehicle location;
 - otherwise, Admin staff often rely on provider-specific knowledge;

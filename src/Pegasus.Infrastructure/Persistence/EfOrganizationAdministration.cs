@@ -229,7 +229,8 @@ public sealed class EfOrganizationAdministration(
             command = CreatePrincipalKind,
             actor = ActorMaterial(request.Actor),
             request.OrganizationId,
-            request.Code
+            request.Code,
+            inspectionMode = ProviderInspectionModePolicy.ToCode(request.InspectionMode)
         });
 
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
@@ -260,7 +261,8 @@ public sealed class EfOrganizationAdministration(
             lineageId,
             ToOrganization(organization),
             request.Code,
-            codeAlreadyExists);
+            codeAlreadyExists,
+            request.InspectionMode);
         var lineage = new PrincipalSequenceLineageEntity
         {
             Id = lineageId,
@@ -275,6 +277,7 @@ public sealed class EfOrganizationAdministration(
             PredecessorId = result.PredecessorId,
             SuccessorId = result.SuccessorId,
             IsActive = result.IsActive,
+            InspectionMode = ProviderInspectionModePolicy.ToCode(result.InspectionMode),
             Version = result.Version
         };
         context.PrincipalSequenceLineages.Add(lineage);
@@ -365,6 +368,7 @@ public sealed class EfOrganizationAdministration(
             PredecessorId = result.PredecessorId,
             SuccessorId = result.SuccessorId,
             IsActive = result.IsActive,
+            InspectionMode = ProviderInspectionModePolicy.ToCode(result.InspectionMode),
             Version = result.Version
         };
         var predecessorAfter = replacement.Predecessor;
@@ -443,7 +447,8 @@ public sealed class EfOrganizationAdministration(
                         principal.SuccessorId,
                         principal.IsActive,
                         principal.Version,
-                        principal.Cases.Count))
+                        principal.Cases.Count,
+                        principal.InspectionMode))
                     .ToArray()))
             .ToArrayAsync(cancellationToken);
 
@@ -505,7 +510,8 @@ public sealed class EfOrganizationAdministration(
                         principal.SuccessorId,
                         principal.IsActive,
                         principal.Version,
-                        principal.Cases.Count))
+                        principal.Cases.Count,
+                        principal.InspectionMode))
                     .ToArray()))
             .SingleOrDefaultAsync(cancellationToken);
         if (row is null)
@@ -541,7 +547,8 @@ public sealed class EfOrganizationAdministration(
             row.SuccessorId,
             row.IsActive,
             row.Version,
-            row.AllocatedCaseCount);
+            row.AllocatedCaseCount,
+            ProviderInspectionModePolicy.Parse(row.InspectionMode));
 
     private static Organization ToOrganization(OrganizationEntity entity) =>
         new(
@@ -559,7 +566,8 @@ public sealed class EfOrganizationAdministration(
             entity.PredecessorId,
             entity.SuccessorId,
             entity.IsActive,
-            entity.Version);
+            entity.Version,
+            ProviderInspectionModePolicy.Parse(entity.InspectionMode));
 
     private static OrganizationRole[] ParseRoles(IEnumerable<string> roles) =>
         roles.Select(ParseRole).OrderBy(role => role).ToArray();
@@ -801,5 +809,6 @@ public sealed class EfOrganizationAdministration(
         Guid? SuccessorId,
         bool IsActive,
         long Version,
-        int AllocatedCaseCount);
+        int AllocatedCaseCount,
+        string InspectionMode);
 }

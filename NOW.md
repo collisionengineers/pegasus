@@ -2,19 +2,51 @@
 
 (Anything here older than 14 days is stale: delete it, don't investigate it.)
 
-## Doing (max 1)
+## Doing (one line per live claim)
 
-- Compose the production staff surface: register the document/EVA/upload services under the Production profile with a Box-backed production document content store, lift the `/Intake` 404 for authenticated staff, replace the no-op Triage matcher, and add a production-composition activation test — blocks Path steps 2–6.
+Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
+<agent>)`. Nothing is in flight unless it is claimed here on `origin/dev`.
 
-## Next (max 3)
+- Image-led intake: build the pre-Case Image intake record (manual VRM entry,
+  manual link/unlink/relink to a Case, origin preservation, search by Image
+  Intake Reference — INT-13/27/29/30, UI-07), and research open decision 1
+  (VRM recognition engine) to write an evidence-backed recommendation for
+  operator decision, unblocking INT-17/28/32; no vendor selection,
+  credential, or automatic-matching activation without operator sign-off
+  (branch task/image-led-intake, taken 2026-08-03, by claude).
+- QDOS email identification and classification: build the shared Core
+  classification foundation — the settled Received/Sent families and
+  subtypes, Reply as mirrored context, validated `Other` name and reason,
+  versioned policy key, decision evidence, explicit ambiguity outcome, and
+  the acceptance cohort, keeping category separate from queue, Triage
+  routing, and Outlook destination (MAIL-21/22); no rule-precedence or
+  confidence-threshold invention (open decision: mailbox rule activation),
+  no evaluator surface (EVAL-01–05, MAIL-20, OPS-22 are separately owned),
+  no folder move, mailbox mutation, or AI classifier (branch
+  task/qdos-email-classification, taken 2026-08-03, by claude).
+- Cut `repository-check` wall clock (agreed 2026-08-03): shard validate into
+  parallel unit / SQL-integration / browser jobs, replace migrate-per-test
+  LocalDB setup with a per-run migrated template database, and cache NuGet
+  packages and the pinned Playwright Chromium (branch
+  task/repository-check-speed, taken 2026-08-03, by claude).
 
-- Release 2 deployment carrying the composition fix, the Box custody root `405543781910`, a forwarded-headers fix (redirects currently emit `http://`), and vault consolidation: copy the Box/DVLA/DVSA secrets into the Pegasus Key Vault, repoint the Worker's references, prove resolution, then retire the two adopted vaults and `rg-collisionspike-dev`.
-- Assemble the operator-reviewed extraction cohort + untouched holdout and accept the per-field thresholds (INT-21, open-decisions) — blocks Path step 3.
-- Fix `ProjectReferencesFollowTheModularMonolithDirection` backslash parsing and open the PR so the branch gets `repository-check` evidence.
+## Next (ordered queue — take from the top)
 
-## Waiting (max 3 — each line names its unblock condition)
+- Ship with the composition-fix release: the Web identity's Key Vault Secrets
+  User grant for the two Box secrets the Web container app references from
+  that release, and vault consolidation (copy the Box/DVLA/DVSA secrets into
+  the Pegasus Key Vault, repoint the Worker's references, prove resolution,
+  then retire the two adopted vaults and `rg-collisionspike-dev`).
+- Assemble the operator-reviewed extraction cohort + untouched holdout and
+  accept the per-field thresholds (INT-21, open-decisions) — blocks Path
+  step 3.
+- Accept the Box managed-document layout from operator review
+  (open-decisions) before the document surface carries real case work.
 
-- Obsolete predecessor vault purge — platform-scheduled 2026-08-09, no action unless it fails.
+## Waiting (each line names its unblock condition)
+
+- Obsolete predecessor vault purge — platform-scheduled 2026-08-09, no action
+  unless it fails.
 
 ## Path (decided 2026-08-02: full QDOS cutover — every new QDOS instruction is worked in Pegasus through to the EVA handoff; EVA keeps engineering and reports. Box custody root decided 2026-08-02: all case folders under the pegasus folder `405543781910` only.)
 
@@ -33,4 +65,16 @@ Explicitly NOT on the path (allocated but non-blocking): MCP-01–04, INT-17 VRM
 
 Roadmap: [docs/capabilities.md](docs/capabilities.md) · Questions: [docs/open-decisions.md](docs/open-decisions.md) · How-to: [docs/operations.md](docs/operations.md)
 
-Rules: this file is touched only in the commit that starts or finishes a piece of work; the caps are enforced by deleting lines, not growing sections; the date is bumped whenever it is touched. No other file may contain a "current status" or "next steps" section.
+Rules: the claimable unit is a task line — goal text first, capability IDs
+when they apply, several small features may share one line; one task = one
+worktree = one PR. The authoritative copy of this file is the one on
+`origin/dev` after a fetch. Claiming, releasing, abandoning, and stale-claim
+removal happen through the task workflow owned by
+[engineering](docs/engineering.md#task-workflow); claim and maintenance
+pushes to `dev` touch only this file and `docs/temp-plans/` deletions.
+Staleness ladder, removable by anyone: a claim whose `task/<slug>` branch was
+never pushed within 48 hours; a `Doing` line older than 14 days with no
+branch activity; an orphaned `docs/temp-plans/` file with no matching `Doing`
+line. The date above is bumped whenever this file is touched. No other file
+may contain a "current status" or "next steps" section; transient task plans
+under `docs/temp-plans/` are the one exception.
