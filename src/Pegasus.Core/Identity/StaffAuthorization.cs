@@ -14,6 +14,7 @@ public enum StaffAccessRight
     ManageOrganizationsAndPrincipals,
     ManageWorkflowConfiguration,
     ManageApprovedMailboxes,
+    ManageAutomationClients,
     ExecuteSystemWork,
     SubmitRequestUpload
 }
@@ -30,15 +31,22 @@ public static class StaffAuthorization
 
         return permission switch
         {
-            StaffAccessRight.AccessStaffApplication or StaffAccessRight.PerformCasework =>
-                actor.Kind == ActorKind.Staff,
+            StaffAccessRight.AccessStaffApplication => actor.Kind == ActorKind.Staff,
+
+            // The Automation Actor is granted only the ordinary operational
+            // casework surface (ADR-0011). Every management, configuration,
+            // credential, system-work, and request-upload right below stays
+            // denied for it, and unknown combinations fail closed.
+            StaffAccessRight.PerformCasework =>
+                actor.Kind is ActorKind.Staff or ActorKind.Automation,
 
             StaffAccessRight.ManageStaffAccounts or
             StaffAccessRight.ReviewStaffAccess or
             StaffAccessRight.AssignStaffRoles or
             StaffAccessRight.ManageOrganizationsAndPrincipals or
             StaffAccessRight.ManageWorkflowConfiguration or
-            StaffAccessRight.ManageApprovedMailboxes =>
+            StaffAccessRight.ManageApprovedMailboxes or
+            StaffAccessRight.ManageAutomationClients =>
                 actor.Kind == ActorKind.Staff && actor.IsInRole(StaffRole.Administrator),
 
             StaffAccessRight.ExecuteSystemWork => actor.Kind == ActorKind.SystemWorker,

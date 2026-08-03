@@ -36,7 +36,7 @@ flowchart LR
     Infra -. target .-> EVA[EVA]
 ```
 
-The current repository exposes an ASP.NET Core Razor Pages host and a .NET 10 isolated Azure Functions Worker. The Worker has timer and queue-trigger callers that translate bounded work into Core use cases. Any provider API or Automation MCP caller remains separately gated.
+The current repository exposes an ASP.NET Core Razor Pages host and a .NET 10 isolated Azure Functions Worker. The Worker has timer and queue-trigger callers that translate bounded work into Core use cases. Any provider API caller remains separately gated. The Automation MCP ingress is implemented inside `Pegasus.Web` behind a composition gate that is off by default; when the gate is off no automation route exists, and live activation remains separately approved.
 
 The repository identifies its package and release target as `0.1.0-alpha.1`. Pegasus is deployed to its sole production environment; the current production state is owned exclusively by [operations § Production environment](operations.md#production-environment) and is not restated here. Operator acceptance remains outstanding.
 
@@ -127,7 +127,7 @@ The following remain planned or absent, not merely unverified:
 - vehicle-registration OCR or VLM recognition;
 - EVA export;
 - provider API, which is deferred to the exact target owned by the [capability inventory](capabilities.md);
-- a vendor-neutral Automation MCP, allocated but non-blocking for `0.1.0-alpha.1` and separately gated pending its actor contract;
+- live activation of the vendor-neutral Automation MCP: the ingress, actor contract, and tools are implemented but composition-gated off outside DevelopmentOffline evidence runs, non-blocking for `0.1.0-alpha.1`;
 - an in-process Web telemetry exporter (the Worker exports Application Insights telemetry; the Web host does not).
 
 ## Current intake and extraction boundary
@@ -378,7 +378,9 @@ A first Document Intelligence caller may submit only persisted scan-like PDF pag
 
 ### Provider API and Automation MCP
 
-Provider API and Automation MCP are separate Web ingress boundaries. They must invoke the same Core business actions as staff UI or Worker callers rather than introducing parallel policy engines. Their exact client, actor, authentication, and activation evidence remain separately gated.
+Provider API and Automation MCP are separate Web ingress boundaries. They must invoke the same Core business actions as staff UI or Worker callers rather than introducing parallel policy engines. The provider API's exact client, actor, authentication, and activation evidence remain separately gated.
+
+The Automation MCP ingress is implemented in `Pegasus.Web` per ADR-0011 and ADR-0013 clause 10: `ActorKind.Automation` is a Core actor granted exactly the ordinary casework surface (every administration, system-work, and request-upload right is denied and unknown rights fail closed), one seeded OpenIddict client-credentials registration authenticates the single vendor-neutral Automation client, and a streamable-HTTP MCP endpoint at `/mcp` exposes nine tools wrapping existing Core case, intake-queue, and document use cases with per-area scopes (`automation.cases`, `automation.intake`, `automation.documents`). Case mutations present the same edit lease and version guard as staff saves; every tool invocation and material denial is attributable permanent history. The whole surface registers only when `Features:AutomationMcp` enables it in the DevelopmentOffline profile; production exposure and any live caller remain separately approved activation work.
 
 ### EVA and case lifecycle
 
