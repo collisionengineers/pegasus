@@ -86,6 +86,26 @@ internal static class MailboxModelConfiguration
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        builder.Entity<IntakeMailClassificationDecisionEntity>(entity =>
+        {
+            entity.ToTable("IntakeMailClassificationDecisions");
+            entity.HasKey(item => item.IntakeReceiptId);
+            entity.Property(item => item.Outcome).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.Direction).HasMaxLength(20);
+            entity.Property(item => item.Family).HasMaxLength(100);
+            entity.Property(item => item.Subtype).HasMaxLength(100);
+            entity.Property(item => item.OtherName).HasMaxLength(200);
+            entity.Property(item => item.OtherReasoning).HasMaxLength(1000);
+            entity.Property(item => item.AmbiguousCandidatesJson).IsRequired();
+            entity.Property(item => item.PredicatesJson).IsRequired();
+            entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.PolicyKey).HasMaxLength(100).IsRequired();
+            entity.HasOne(item => item.IntakeReceipt)
+                .WithOne(item => item.MailClassificationDecision)
+                .HasForeignKey<IntakeMailClassificationDecisionEntity>(item => item.IntakeReceiptId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
         builder.Entity<IntakeMailRouteDecisionEntity>(entity =>
         {
             entity.ToTable("IntakeMailRouteDecisions");

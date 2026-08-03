@@ -678,6 +678,7 @@ public sealed class ProcessIntakeTests
         new(reader, store, artifactStore ?? new RecordingArtifactStore(),
             extractionPolicy ?? new QdosInstructionExtractionPolicy(),
             mailRoutePolicy ?? new QdosMailRoutePolicy(),
+            [new QdosMailClassificationPolicy()],
             new FixedTimeProvider(ProcessedAtUtc));
 
     private static IntakeSource CreateSource() =>

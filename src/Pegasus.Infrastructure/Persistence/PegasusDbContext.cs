@@ -84,6 +84,9 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<IntakeMailRouteDecisionEntity> IntakeMailRouteDecisions =>
         Set<IntakeMailRouteDecisionEntity>();
 
+    internal DbSet<IntakeMailClassificationDecisionEntity> IntakeMailClassificationDecisions =>
+        Set<IntakeMailClassificationDecisionEntity>();
+
 
 
 
@@ -1091,6 +1094,7 @@ internal sealed class IntakeReceiptEntity
     public required string OcrCandidatesJson { get; set; }
     public InstructionDraftEntity? InstructionDraft { get; set; }
     public IntakeMailRouteDecisionEntity? MailRouteDecision { get; set; }
+    public IntakeMailClassificationDecisionEntity? MailClassificationDecision { get; set; }
     public IntakeManualAssociationEntity? ManualAssociation { get; set; }
     public List<IntakeAssetEntity> Assets { get; set; } = [];
 }

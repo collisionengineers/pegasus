@@ -9,6 +9,7 @@ public sealed class ProcessIntake(
     IIntakeArtifactStore artifactStore,
     IInstructionExtractionPolicy extractionPolicy,
     IMailRoutePolicy mailRoutePolicy,
+    IEnumerable<IMailClassificationPolicy> mailClassificationPolicies,
     TimeProvider timeProvider)
 {
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
@@ -151,6 +152,15 @@ public sealed class ProcessIntake(
         activity?.SetTag(
             "intake.mail_route_policy_version",
             assessment.MailRouteDecision?.PolicyVersion);
+        activity?.SetTag(
+            "intake.mail_classification_outcome",
+            assessment.MailClassificationDecision?.Outcome.ToString());
+        activity?.SetTag(
+            "intake.mail_classification_policy_key",
+            assessment.MailClassificationDecision?.PolicyKey);
+        activity?.SetTag(
+            "intake.mail_classification_policy_version",
+            assessment.MailClassificationDecision?.PolicyVersion);
         var draft = new IntakeReceiptDraft(
             safeSource.FileName,
             safeSource.MediaType,
@@ -174,7 +184,8 @@ public sealed class ProcessIntake(
             assessment.ExtractionPolicyVersion,
             assets,
             readResult.ScannedPdfPages,
-            assessment.MailRouteDecision);
+            assessment.MailRouteDecision,
+            assessment.MailClassificationDecision);
 
         IntakeReceipt receipt;
         try
@@ -260,6 +271,7 @@ public sealed class ProcessIntake(
                 mailRouteDecision);
         }
 
+        var mailClassificationDecision = EvaluateMailClassification(readResult, mailRouteDecision);
         var policyResult = extractionPolicy.Extract(readResult, processedAtUtc);
         EnsureConsistentPolicyResult(policyResult);
         var (decision, reason, failureCode, failureReason) = policyResult.Applicability switch
@@ -293,7 +305,71 @@ public sealed class ProcessIntake(
             failureReason,
             policyResult.PolicyKey,
             policyResult.PolicyVersion,
-            mailRouteDecision);
+            mailRouteDecision,
+            mailClassificationDecision);
+    }
+
+    private MailClassificationResult? EvaluateMailClassification(
+        IntakeSourceReadResult readResult,
+        MailRouteEvaluationResult? mailRouteDecision)
+    {
+        if (mailRouteDecision is not
+            { Disposition: MailRouteDisposition.Accepted, SelectedRoute: { } route })
+        {
+            return null;
+        }
+
+        var policy = mailClassificationPolicies.SingleOrDefault(candidate =>
+            string.Equals(
+                candidate.WorkProviderCode,
+                route.WorkProviderCode,
+                StringComparison.Ordinal));
+        if (policy is null)
+        {
+            return null;
+        }
+
+        var result = policy.Classify(readResult);
+        EnsureConsistentClassificationResult(result);
+        return result;
+    }
+
+    private static void EnsureConsistentClassificationResult(MailClassificationResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        ArgumentNullException.ThrowIfNull(result.Predicates);
+        ArgumentNullException.ThrowIfNull(result.AmbiguousCandidates);
+        ArgumentException.ThrowIfNullOrWhiteSpace(result.Reason);
+        ArgumentException.ThrowIfNullOrWhiteSpace(result.PolicyKey);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(result.PolicyVersion);
+
+        if (result.Predicates.Any(predicate =>
+                string.IsNullOrWhiteSpace(predicate.Key)
+                || string.IsNullOrWhiteSpace(predicate.Detail))
+            || result.Predicates
+                .Select(predicate => predicate.Key)
+                .Distinct(StringComparer.Ordinal)
+                .Count() != result.Predicates.Count)
+        {
+            throw new InvalidOperationException(
+                "The mail-classification policy returned incomplete or duplicate predicate evidence.");
+        }
+
+        var consistent = result.Outcome switch
+        {
+            MailClassificationOutcome.Classified =>
+                result.Category is not null && result.AmbiguousCandidates.Count == 0,
+            MailClassificationOutcome.Ambiguous =>
+                result.Category is null && result.AmbiguousCandidates.Count > 1,
+            MailClassificationOutcome.Unclassified =>
+                result.Category is null && result.AmbiguousCandidates.Count == 0,
+            _ => false
+        };
+        if (!consistent)
+        {
+            throw new InvalidOperationException(
+                "The mail-classification outcome is inconsistent with its category and candidate evidence.");
+        }
     }
 
     private MailRouteEvaluationResult? EvaluateMailRoute(
@@ -506,7 +582,8 @@ public sealed class ProcessIntake(
         string? FailureReason,
         string? ExtractionPolicyKey,
         int? ExtractionPolicyVersion,
-        MailRouteEvaluationResult? MailRouteDecision)
+        MailRouteEvaluationResult? MailRouteDecision,
+        MailClassificationResult? MailClassificationDecision = null)
     {
         public static IntakeAssessment Failure(
             IntakeDecision decision,
