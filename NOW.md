@@ -8,7 +8,7 @@
 
 ## Next (max 3)
 
-- Release 2 deployment carrying the composition fix, the Box custody root `405543781910`, a forwarded-headers fix (redirects currently emit `http://`), and vault consolidation: copy the Box/DVLA/DVSA secrets into the Pegasus Key Vault, repoint the Worker's references, prove resolution, then retire the two adopted vaults and `rg-collisionspike-dev`.
+- Ship with the composition-fix release: a forwarded-headers fix (redirects currently emit `http://`) and vault consolidation (copy the Box/DVLA/DVSA secrets into the Pegasus Key Vault, repoint the Worker's references, prove resolution, then retire the two adopted vaults and `rg-collisionspike-dev`).
 - Assemble the operator-reviewed extraction cohort + untouched holdout and accept the per-field thresholds (INT-21, open-decisions) — blocks Path step 3.
 - Fix `ProjectReferencesFollowTheModularMonolithDirection` backslash parsing and open the PR so the branch gets `repository-check` evidence.
 
