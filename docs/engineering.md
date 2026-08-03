@@ -24,30 +24,35 @@ procedures and evidence in [operations](operations.md), and current work in
   [docs/adr/](adr/README.md). Everything else is a commit message.
 - Green means every `repository-check` job for the PR's head revision
   succeeded or was path-skipped. The workflow (`.github/workflows/ci.yml`)
-  runs six jobs. `changes` is a path-detection job on a Linux runner that
+  runs seven jobs. `changes` is a path-detection job on a Linux runner that
   inspects only the diff, exercises no application code, and provides no
   Linux-development evidence. `documentation` (`windows-latest`, 10 minutes)
   runs the documentation link check for every change set, so
   `scripts/Test-DocumentationLinks.ps1` is deliberately not a build-relevant
-  path. The remaining lanes
-  run in parallel and only when a build-relevant path changed; the three
-  `windows-latest` test lanes each do their own locked restore and Release
-  build through the shared `.github/actions/dotnet-build` composite action.
+  path. The remaining lanes run in parallel and only when a build-relevant
+  path changed; the `windows-latest` test lanes each do their own locked
+  restore and Release build through the shared
+  `.github/actions/dotnet-build` composite action.
   `unit` runs `Pegasus.Core.Tests` and `Pegasus.ArchitectureTests` whole and
-  unfiltered (20 minutes). `sql-integration` runs
-  `Category!=Corpus&Category!=Browser` (20 minutes).
+  unfiltered (20 minutes). `sql-integration` is a three-shard matrix running
+  `Invoke-TestShard.ps1` over `Category!=Corpus&Category!=Browser`, each shard
+  taking whole test classes and failing if it runs fewer tests than it was
+  assigned (20 minutes); `sql-integration-coverage` then proves on a Linux
+  runner that the shards enumerated one set and covered it exactly once, which
+  matters because `dotnet test` exits zero when a filter matches nothing.
   `browser` runs `Category=Browser&Category!=Corpus` after the pinned
   Playwright Chromium install, at half the thread cap (25 minutes), and
-  `qdos-pressure` runs
-  `Invoke-QdosAlphaAcceptance.ps1 -Profile CiPressure` with evidence upload
-  (15 minutes). `Category=Browser` and `Category!=Browser` are a complement
+  `qdos-pressure` runs `Invoke-QdosAlphaAcceptance.ps1 -Profile CiPressure`
+  with evidence upload (15 minutes). `Category=Browser` and
+  `Category!=Browser` are a complement
   pair, so the two integration lanes together select exactly the non-corpus
   suite; the unit projects carry no traits, so nothing filters them. Every
   test project runs its classes in parallel; the integration project caps
   concurrency in `tests/Pegasus.IntegrationTests/xunit.runner.json`. A
   build-relevant path is `src/`, `tests/`, `Pegasus.slnx`,
-  project/props/targets/lock/`global.json`/`nuget.config` files, a
-  CI-executed script, `ci.yml` itself, or `.github/actions/`; every other
+  project/props/targets/lock/`global.json`/`nuget.config` files,
+  `scripts/Invoke-QdosAlphaAcceptance.ps1` or `scripts/Invoke-TestShard.ps1`,
+  `ci.yml` itself, or `.github/actions/`; every other
   change set runs only the documentation link check.
   `.github/workflows/workspaces.yml` separately gates `workspaces/**`
   changes.

@@ -59,11 +59,13 @@ matrix-sharded three ways.
 
 New `tests/Pegasus.IntegrationTests/LocalDbTemplateDatabase.cs`: a
 `Lazy<Task<…>>` (`LazyThreadSafetyMode.ExecutionAndPublication`) that, once per
-test-run process, creates `Pegasus_Template_<guid:N>`, migrates it through the
-existing `LocalDbTestDatabase` code path, `BACKUP DATABASE … TO DISK` into the
-server's default data directory, records the logical file names from
-`RESTORE FILELISTONLY`, then drops the template database itself. Only the
-`.bak` survives.
+test-run process, builds the template through the ordinary
+`LocalDbTestDatabase` factory — so it is an ordinary disposable
+`Pegasus_Test_<guid:N>` database, migrated by the same code path every other
+test uses — then `BACKUP DATABASE … TO DISK` into the server's default data
+directory, records the logical file names from `RESTORE FILELISTONLY`, and
+disposes the database through the same guarded drop as any other. Only the
+`.bak` survives, and it carries that database's name.
 
 `BACKUP`/`RESTORE` is chosen over `DBCC CLONEDATABASE` (copies no data, so
 `__EFMigrationsHistory` rows would be missing, and the clone is read-only and
@@ -230,29 +232,34 @@ concurrency entered the picture:
 Since the shared LocalDB is the resource everything contends for, this is also
 what makes the shard matrix unnecessary — see below.
 
-### 5. Removing the shard matrix
+### 5. The shard matrix: removed, measured, restored
 
-With the lane at roughly five minutes, three sharded runners cost three
-checkouts, three restores, three builds, and three template builds to save
-about two minutes of wall clock, and they carry a 182-line script, an artifact
-round-trip, and a coverage job. The plan's own rule was to decline the
-machinery below roughly eight minutes, so `scripts/Invoke-TestShard.ps1`,
-`sql-integration-coverage`, and the matrix are deleted and `sql-integration`
-runs the lane whole.
+Local parallel runs of 4.6–6.2 minutes suggested the matrix no longer earned
+its keep, so it was deleted. **CI disproved that and it is back.** The
+workstation has eight cores; a `windows-latest` runner has four, and each test
+restores a database and builds an ASP.NET host, so parallelism returns far less
+there. Measured on run `30808191513`, the unsharded lane took 11 m 55 s of
+tests — above this plan's own eight-minute threshold — and the whole workflow
+came to 15 m 19 s against 15 m 15 s for the sharded-serial arrangement it
+replaced. Parallelism gained almost exactly what removing the matrix cost.
 
-Worth being explicit about what is lost. `sql-integration-coverage` compared
-the shards to each other, not to any baseline, so it would have gone green if
-every shard had lost the same tests. The count-invariance evidence below is a
-stricter guard than the job it replaces.
+The stop condition this plan pre-registered (a single lane above twelve
+minutes) therefore fired, and `scripts/Invoke-TestShard.ps1`,
+`sql-integration-coverage`, and the three-shard matrix are restored on top of
+parallelism. The two compose: classes run in parallel within a shard, and the
+shards divide whole classes across runners. Each shard now carries 111, 88, and
+121 of 320 tests and verifies clean.
 
-But one guard is genuinely given up: the shard script threw when enumeration
-returned nothing, and `dotnet test` does not. Measured — a filter matching no
-test prints "No test matches the given testcase filter" and **exits 0**. So a
-mistyped lane filter would leave that lane green having run nothing. This is
-an accepted residual risk, mitigated only by the recorded arithmetic (309 + 14
-against 323 at the time of the split, 320 + 14 against 334 now) and by the
-fact that both lane filters are complement halves of one expression rather
-than independent lists. Anyone editing those filters must re-check the counts.
+Keeping the coverage job matters more than it did. `dotnet test` exits zero
+when a filter matches nothing — measured — so a shard that quietly ran none of
+its assigned tests would otherwise pass. The job's union and disjointness check
+is what catches that.
+
+One limit of that job is worth stating: it compares the shards to each other,
+not to any baseline, so it would go green if every shard lost the same tests.
+The lane-count arithmetic (320 + 14 against 334) and the count invariance
+across repeated runs are what guard that, and anyone editing the lane filters
+must re-check those numbers.
 
 ### 6. Documentation
 
@@ -264,7 +271,7 @@ verbatim, and adds any new CI-executed script to the build-relevant path list.
 are, adds the per-lane focused commands and states that their union equals the
 canonical filter, notes that the template database uses server-side
 `BACKUP`/`RESTORE` on the container path with a migrate-per-test fallback, and
-records the manual sweep for stray `Pegasus_Template_*.bak` files. No new
+records the manual sweep for stray `Pegasus_Test_*.bak` files. No new
 Markdown file other than this plan; no ADR is required, because nothing adds a
 top-level directory, project, store, runtime, migration stream, or deployment
 unit.
@@ -339,6 +346,19 @@ Attempt 2 was cancelled: `actions/checkout` in `changes` stalled in
 `git fetch` for that job's whole five-minute timeout, which skipped every
 dependent lane. Nothing in this change touches that checkout, and the same
 step took 20 seconds on attempt 1.
+
+Run `30808191513` measured the parallel-but-unsharded arrangement, green in
+all six jobs: `changes` 21 s, `documentation` 12 s, `unit` 2 m 52 s,
+`qdos-pressure` 2 m 27 s, `browser` 4 m 08 s, and `sql-integration` 14 m 47 s
+(2 m 50 s of warm setup plus 11 m 55 s of tests), for 15 m 19 s overall. That
+is the measurement that sent the shard matrix back — see section 5 — and the
+final arrangement's own run is recorded on the pull request.
+
+A separate lesson worth recording: two pushes produced no CI run at all, and
+the cause was not a platform stall but that the branch had become
+`CONFLICTING` against `dev`. GitHub cannot build a merge ref for a conflicted
+pull request, so no `pull_request` run is created and the pull request simply
+sits with no checks. Resolve the conflict first and the runs appear.
 
 Left unproved: the `PEGASUS_TEST_SQL_DATASOURCE` container path, since no
 Linux CI job exists — server-side `BACKUP`/`RESTORE` there and its

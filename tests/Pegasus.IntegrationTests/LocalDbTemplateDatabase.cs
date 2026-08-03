@@ -42,6 +42,11 @@ internal static class LocalDbTemplateDatabase
     private static async Task<LocalDbTemplateSnapshot?> BuildAsync()
     {
         Interlocked.Increment(ref buildCount);
+        // Outside the try, so it still runs when the template cannot be built:
+        // a process that falls back to migrating each database shares the
+        // instance with whatever an earlier run abandoned just the same, and
+        // the container path is exactly where both are most likely.
+        await SweepAbandonedDatabasesAsync();
         try
         {
             return await BuildTemplateAsync();
@@ -78,7 +83,6 @@ internal static class LocalDbTemplateDatabase
         var (dataLogicalName, logLogicalName) = await ReadLogicalFileNamesAsync(backupPath);
         AppDomain.CurrentDomain.ProcessExit += (_, _) => DeleteQuietly(backupPath);
         SweepAbandonedBackups(dataDirectory, backupPath);
-        await SweepAbandonedDatabasesAsync();
         return new(backupPath, dataLogicalName, logLogicalName, dataDirectory);
     }
 
