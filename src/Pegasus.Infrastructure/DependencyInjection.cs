@@ -90,6 +90,7 @@ public static class DependencyInjection
             new QdosInstructionExtractionPolicy(
                 provider.GetRequiredService<IIntakeTriageMatcher>()));
         services.AddScoped<ICaseAcceptanceStore, EfCaseAcceptanceStore>();
+        services.AddScoped<IProviderInspectionModeStore, EfProviderInspectionModeStore>();
         services.AddScoped<EfStaffAccountAdministration>();
         services.AddScoped<IStaffAccountQueries>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
