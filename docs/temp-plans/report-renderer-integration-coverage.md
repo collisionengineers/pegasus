@@ -146,6 +146,17 @@ either an allocated identifier or a reasoned retirement.
 
 And in the other direction: **RPT-03 has no renderer template at all.**
 
+## Corrections this audit produced
+
+Three assertions made earlier in this task were wrong and are corrected here so
+no later reader inherits them.
+
+| Assertion | Correction | Source |
+| --- | --- | --- |
+| The `roadworthy-report` skill pairs with the `roadworthy-criminal-report` template | **False.** The skill produces a Hackney Solutions taxi and private-hire licensing document from a third-party DOCX template, and `collision-engineers-design` explicitly instructs "do **not** apply CE styling". No imported skill produces `roadworthy-criminal-report` | skills-surface §1 |
+| The `total-loss-assessment` skill pairs with the `total-loss-report` template | **False, and the skill forbids it.** `total-loss-assessment/SKILL.md:76`: "Do not route this output through the `collisionrenderer` connector: its `total-loss-report` template is the CE-branded expert report, a different document." Its output is the Audatex-format EVA-import PDF; its nearest Pegasus relative is `EXT-03`, not `RPT-02` | skills-surface §1 |
+| The next available ADR number is 0021 (the seam plan said the last accepted is 0019) | **The last accepted is ADR-0020** (`0020-accepted-qdos-case-association-predicates.md`), so the next is 0021. The seam plan has been corrected | consumers, verified basis |
+
 ## Honest summary
 
 Before the scope widening, the plan set covered the **seam** and not the
