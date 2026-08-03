@@ -119,10 +119,10 @@ child group is absent.
 - All six approved retained-vault references report `Resolved`. Graph Inbox and
   Sent Items processing is live-verified. Reference resolution is not evidence
   for every Box, DVLA, or DVSA outcome.
-- The first production release may operate under the accepted recovery
-  exception. Before any second production deployment, the isolated recovery
-  exercise in the production replacement runbook must prove RPO at most 15
-  minutes and RTO at most four hours.
+- The OPS-09 recovery proof is deferred and gates no release (removed as a
+  gate 2026-08-03; owner:
+  [operations § Production environment](../docs/operations.md#production-environment)).
+  The recovery procedure itself remains in operations § Production recovery.
 - The B1 quota request `b9df19cc-54b2-4876-9c4c-1eb9ba99076a` and later P0v4
   aggregate-quota preview remain superseded historical evidence. Do not retry
   either fixed App Service route.

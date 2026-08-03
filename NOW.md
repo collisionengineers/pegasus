@@ -7,34 +7,72 @@
 Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 <agent>)`. Nothing is in flight unless it is claimed here on `origin/dev`.
 
-- QDOS email identification and classification: build the shared Core
-  classification foundation — the settled Received/Sent families and
-  subtypes, Reply as mirrored context, validated `Other` name and reason,
+- QDOS email identification, classification, and case matching: build the
+  shared Core classification foundation — the settled Received/Sent families
+  and subtypes, Reply as mirrored context, validated `Other` name and reason,
   versioned policy key, decision evidence, explicit ambiguity outcome, and
   the acceptance cohort, keeping category separate from queue, Triage
-  routing, and Outlook destination (MAIL-21/22); no rule-precedence or
-  confidence-threshold invention (open decision: mailbox rule activation),
-  no evaluator surface (EVAL-01–05, MAIL-20, OPS-22 are separately owned),
-  no folder move, mailbox mutation, or AI classifier (branch
-  task/qdos-email-classification, taken 2026-08-03, by claude).
-- Cut `repository-check` wall clock (agreed 2026-08-03): shard validate into
-  parallel unit / SQL-integration / browser jobs, replace migrate-per-test
-  LocalDB setup with a per-run migrated template database, and cache NuGet
-  packages and the pinned Playwright Chromium (branch
-  task/repository-check-speed, taken 2026-08-03, by claude).
+  routing, and Outlook destination (MAIL-21/22); split the QDOS policy into
+  route and extraction parts, activate the operator-accepted three-domain
+  QDOS route set (`qdos_mail_route` v3), and add operator-accepted QDOS
+  automatic case matching and association — eliminator predicates over claim
+  reference, VRM, and claimant name with incident-date elimination, pulling
+  the MAIL-09 QDOS-direct subset forward (operator decisions 2026-08-03,
+  recorded by ADR in the task PR); still no confidence scores or generic
+  rule engine (the multi-rule precedence open decision stays open beyond the
+  accepted QDOS predicates), no evaluator surface (EVAL-01–05, MAIL-20,
+  OPS-22 are separately owned), no folder move, mailbox mutation, or AI
+  classifier (branch task/qdos-email-classification, taken 2026-08-03, by
+  claude).
+- UI alpha design pass: build the visual/interaction layer for the
+  Operations-first `0.1.0-alpha.1` shell against fixture data only — UI-01
+  (Operations dashboard), UI-02 (Not ready/Review/Held queues), UI-03
+  (Needs sorting/Blocked intake queues), UI-04 (activity counters), UI-05
+  (click-through filtered queues), UI-06 (freshness/reconciliation states),
+  UI-08 (three-column intake workbench), UI-09 (full case workspace), UI-11
+  (accounts/principals/mailbox allowlist/configuration), UI-13
+  (accessibility); no Core wiring, no real case/reference mutation, no
+  business-rule resolution ahead of open decisions; excludes UI-07 (already
+  in task/image-led-intake), UI-10 (`Next / 0.3.0`, out of scope), and UI-12
+  (`Not planned`). Widened 2026-08-03 by operator decision to also carry the
+  design route for UI-15 (Engineer assessment workbench, `Later / 1.0.0`)
+  and its `Send to Claude` action surface (AI-09, `Later / 1.3.0`): design
+  and markup only, built unlinked from navigation, satisfying the
+  design/README.md rule that a deferred UI capability re-enters
+  specification and review before implementation — it activates no route,
+  Core field, or transport (branch task/ui-alpha-design-pass, taken
+  2026-08-03, by claude).
+- Box Case/PO document custody: remove internal `caseId` values from the Box
+  folder hierarchy; store retained intake sources and managed document versions
+  under the allocated Case/PO-named case folder, reshaping the Core
+  content-store contract rather than duplicating policy in infrastructure;
+  preserve version identity, replay, hash/length verification, and lifecycle
+  gates, with focused local/in-memory custody proof. No Box/Azure read, write,
+  credential/configuration change, or migration of existing Box content without
+  separately approved target and inventory (DOC-02/03) (branch
+  task/box-casepo-document-custody, taken 2026-08-03, by codex).
+
+- Vault consolidation: copy the Box/DVLA/DVSA secrets into the Pegasus Key
+  Vault, repoint the Worker's and Web's references, prove resolution, then
+  retire the two adopted vaults and `rg-collisionspike-dev` (branch
+  task/vault-consolidation, taken 2026-08-03, by codex).
+- MCP Automation Actor ingress: build the management/development-controlled
+  MCP ingress for one named, vendor-neutral Automation Actor invoking
+  existing Core use cases through its own authentication and identity
+  (ADR-0011/ADR-0013) — Case actions, intake-queue actions, and document
+  actions (MCP-01/02/03/04); reuse the existing ActionActor/ExecuteAsync/
+  IActionHistoryWriter pattern rather than the deleted per-staff-OAuth MCP
+  surface; no per-staff MCP access, no Administrator/config/credential/
+  cloud/release/deletion authority, no AI proposal transport (AI-09 stays
+  separate), MCP-05's broader email-workspace actions out of scope pending
+  the email workspace itself (branch task/mcp-automation-actor, taken
+  2026-08-03, by claude).
 
 ## Next (ordered queue — take from the top)
 
-- Ship with the composition-fix release: the Web identity's Key Vault Secrets
-  User grant for the two Box secrets the Web container app references from
-  that release, and vault consolidation (copy the Box/DVLA/DVSA secrets into
-  the Pegasus Key Vault, repoint the Worker's references, prove resolution,
-  then retire the two adopted vaults and `rg-collisionspike-dev`).
 - Assemble the operator-reviewed extraction cohort + untouched holdout and
   accept the per-field thresholds (INT-21, open-decisions) — blocks Path
   step 3.
-- Accept the Box managed-document layout from operator review
-  (open-decisions) before the document surface carries real case work.
 
 ## Waiting (each line names its unblock condition)
 

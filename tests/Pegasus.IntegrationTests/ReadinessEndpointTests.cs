@@ -67,7 +67,6 @@ public sealed class WebCompositionTests
     }
 }
 
-[Collection(LocalDbFixtureDefinition.Name)]
 [Trait("Category", "SqlServer")]
 public sealed class SqlServerReadinessEndpointTests
 {
@@ -168,7 +167,6 @@ public sealed class SqlServerReadinessEndpointTests
         });
 }
 
-[Collection(LocalDbFixtureDefinition.Name)]
 [Trait("Category", "SqlServer")]
 public sealed class LocalDbReadinessEndpointTests
 {
