@@ -1263,3 +1263,63 @@ table tfoot th {
     outline-color: Highlight;
   }
 }
+
+/* CSP-safe replacements for the former inline style attributes: the
+   production Content-Security-Policy (default-src 'self', no style-src)
+   discards inline styles, so every style the markup needs must live here.
+   The sprite-sheet rule is load-bearing — without it the Lucide sprite
+   renders as a full-size inline SVG at the top of every page. */
+
+.sprite-sheet {
+  display: none;
+}
+
+.validation-summary__heading {
+  font-size: 1rem;
+  margin: 0 0 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.validation-summary__list {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.queue-card__value--absent {
+  font-size: 1.4rem;
+  color: var(--muted);
+}
+
+.queue-card__chevron {
+  align-self: flex-end;
+}
+
+.section-label--iconed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.code--compact {
+  font-size: 0.8rem;
+}
+
+.reason-dialog__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.button-row--end {
+  justify-content: flex-end;
+}
+
+/* The validation-summary tag helper emits <li style="display:none"> inside
+   its valid-state placeholder; the production CSP discards that inline
+   style, which would render a stray empty bullet. Hide the valid-state
+   summary itself so the framework's placeholder never shows. */
+.validation-summary-valid {
+  display: none;
+}
