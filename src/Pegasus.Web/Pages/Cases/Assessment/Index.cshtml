@@ -448,6 +448,22 @@
                     <p>They are evidence for your opinion and are read-only here. Only the three figures below reach the report.</p>
                 </div>
 
+                @{
+                    var pavFigures = new[]
+                    {
+                        Model.MoneyField(AssessmentVocabulary.ValueRetail),
+                        Model.MoneyField(AssessmentVocabulary.ValueTrade),
+                        Model.MoneyField(AssessmentVocabulary.ValueEngineer)
+                    }.Where(figure => figure is not null).Select(figure => figure!.Value).ToArray();
+                    var pavMinimum = pavFigures.Length == 0 ? 0m : pavFigures.Min();
+                    var pavMaximum = pavFigures.Length == 0 ? 0m : pavFigures.Max();
+                    var pavDefault = Model.MoneyField(AssessmentVocabulary.ValueEngineer)
+                        ?? (pavFigures.Length == 0 ? 0m : pavFigures.Max());
+                    var pavHasRange = pavFigures.Length >= 2 && pavMinimum < pavMaximum;
+                    var pavSalvage = Model.MoneyField(AssessmentVocabulary.SalvageValue);
+                    var pavOutcomeIsTotalLoss = Model.FieldValue(AssessmentVocabulary.Outcome) == "total_loss";
+                }
+
                 <h3 class="section-label">Chosen figures</h3>
                 <div class="form-grid">
                     <div>
@@ -466,6 +482,59 @@
                         <small id="value-engineer-hint">Required. Your opinion. Usually the retail value; it may differ.</small>
                     </div>
                 </div>
+
+                <h3 class="section-label section-gap">Pre-accident value sensitivity</h3>
+                @* A review aid only: it writes nothing, its value is never
+                   copied into an input, and no figure is ever invented — a
+                   missing input renders its named missing-evidence state. *@
+                @if (pavHasRange)
+                {
+                    <div data-pav-slider
+                         data-pav-minimum="@pavMinimum.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)"
+                         data-pav-maximum="@pavMaximum.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)"
+                         data-pav-default="@pavDefault.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)"
+                         data-pav-salvage="@(pavSalvage?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))"
+                         data-pav-total-loss="@(pavOutcomeIsTotalLoss ? "true" : "false")">
+                        <p>Drag the pre-accident value across the recorded figures to see how sensitive the recorded outcome is to the PAV opinion.</p>
+                        <div class="form-grid">
+                            <div class="field-wide">
+                                <label for="pav-range">Pre-accident value (&#163;)</label>
+                                <input type="range" id="pav-range" min="@pavMinimum" max="@pavMaximum" step="1" value="@pavDefault" aria-describedby="pav-range-hint" />
+                                <small id="pav-range-hint">The range spans the recorded valuation figures. Nothing is saved from this control.</small>
+                            </div>
+                            <div>
+                                <label for="pav-value">Exact figure (&#163;)</label>
+                                <input type="number" id="pav-value" class="tabular" min="@pavMinimum" max="@pavMaximum" step="1" value="@pavDefault" inputmode="numeric" />
+                            </div>
+                        </div>
+                        <dl class="detail-list section-gap" aria-live="polite">
+                            <div>
+                                <dt>Repair-cost-to-PAV ratio</dt>
+                                <dd class="empty-state">No costed repair total is recorded on this case. A ratio without a costed repair total is not evidence.</dd>
+                            </div>
+                            <div>
+                                <dt>Position against threshold</dt>
+                                <dd class="empty-state">No accepted total-loss threshold is recorded for this instruction.</dd>
+                            </div>
+                            <div>
+                                <dt>Indicative settlement (PAV &#8722; salvage)</dt>
+                                @if (pavOutcomeIsTotalLoss && pavSalvage is not null)
+                                {
+                                    <dd class="tabular" data-pav-settlement></dd>
+                                }
+                                else
+                                {
+                                    <dd class="empty-state">Shown when the recorded outcome is Total loss with a salvage value.</dd>
+                                }
+                            </div>
+                        </dl>
+                    </div>
+                }
+                else
+                {
+                    <p class="empty-state">The slider needs at least two distinct recorded valuation figures to give a range. Record the retail, trade, and engineer's values above.</p>
+                }
+
                 <div class="button-row section-gap">
                     <button type="button" class="primary-action">Save valuation</button>
                 </div>
@@ -869,6 +938,44 @@
 </div>
 
 @section Scripts {
+    <script>
+        // PAV sensitivity slider: a review aid that writes nothing. It keeps
+        // the range and numeric inputs in step and recomputes the indicative
+        // settlement as text. No animation, no colour signalling, no network.
+        (function () {
+            var host = document.querySelector('[data-pav-slider]');
+            if (!host) { return; }
+
+            var range = host.querySelector('#pav-range');
+            var exact = host.querySelector('#pav-value');
+            var settlement = host.querySelector('[data-pav-settlement]');
+            var salvage = parseFloat(host.getAttribute('data-pav-salvage'));
+            var isTotalLoss = host.getAttribute('data-pav-total-loss') === 'true';
+            if (!range || !exact) { return; }
+
+            function formatPounds(value) {
+                return '£' + value.toLocaleString('en-GB', {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 2
+                });
+            }
+
+            function update(value) {
+                var figure = parseFloat(value);
+                if (!isFinite(figure)) { return; }
+                range.value = String(figure);
+                exact.value = String(figure);
+                if (settlement && isTotalLoss && isFinite(salvage)) {
+                    settlement.textContent = formatPounds(figure - salvage)
+                        + ' at a PAV of ' + formatPounds(figure);
+                }
+            }
+
+            range.addEventListener('input', function () { update(range.value); });
+            exact.addEventListener('input', function () { update(exact.value); });
+            update(range.value);
+        }());
+    </script>
     <script>
         // Ember field behind the Send to Claude glyph. Decoration only: it draws
         // to a canvas layered under the label and reads nothing from the page.
