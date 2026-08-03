@@ -29,8 +29,8 @@ credential, external operation, deployment, or acceptance. The
 
 | Order | Target release | Stage and dependency intent | Count |
 | ---: | --- | --- | ---: |
-| 01 | `0.1.0-alpha.1` | Existing QDOS-alpha scope; allocation unchanged, not a completion claim | 129 |
-| 02 | `0.2.0` | Provider expansion and intake fidelity after QDOS acceptance | 7 |
+| 01 | `0.1.0-alpha.1` | Existing QDOS-alpha scope; allocation unchanged, not a completion claim | 131 |
+| 02 | `0.2.0` | Provider expansion and intake fidelity after QDOS acceptance | 5 |
 | 03 | `0.3.0` | Four-mailbox classification, association, folder actions, email workspace and email MCP | 19 |
 | 04 | `0.4.0` | Principal-scoped provider API and post-report query/dispute casework | 5 |
 | 05 | `0.5.0` | Extended case types and staff/outbound communication channels | 5 |
@@ -49,7 +49,8 @@ Sequence constraints:
 
 - accepted `0.1.0-alpha.1` evidence precedes activation of later releases;
 - `INT-04` precedes `INT-05`, `INT-06`, and `INT-07`;
-- `INT-28` precedes `INT-32` within `0.2.0`;
+- `INT-28` and `INT-32` are coupled within `0.1.0-alpha.1` (operator-directed
+  2026-08-03); `INT-28` evidence precedes `INT-32` pairing visibility;
 - accepted `CASE-31`, `ENG-01`, and `ENG-02` data/workflow precede
   `EXT-08` and `RPT-01`–`RPT-05` rendering;
 - accepted report events/rendering precede `MAIL-17` and the `MI-*`
@@ -319,7 +320,7 @@ authoritative in EVA; Pegasus neither assigns nor mirrors a named Engineer.
 That authority transfers only with the accepted `1.0.0` Engineer-workbench
 capabilities and caller evidence.
 
-Incoming cancellation classification or association never changes a Case automatically. In the focused alpha, mailbox processing covers incoming instructions only; a separately retained and reasonedly associated cancellation message may support an authorised staff action to place a pre-report Case in `Held pending staff decision`, confirm `Provider cancelled`, or release it. Release requires the message to be reasonedly recategorised, unlinked, or reassociated first. Every original and corrected classification/association, actor, time, reason, and evidence remains permanent history.
+Incoming cancellation classification or association never changes a Case automatically. In the focused alpha, mailbox processing records the settled classification for every route-accepted received message and may automatically associate QDOS-direct correspondence with its Case under the accepted ADR-0020 predicates, but only an incoming instruction creates intake work and no classification or association mutates Case state; a separately retained and reasonedly associated cancellation message may support an authorised staff action to place a pre-report Case in `Held pending staff decision`, confirm `Provider cancelled`, or release it. Release requires the message to be reasonedly recategorised, unlinked, or reassociated first. Every original and corrected classification/association, actor, time, reason, and evidence remains permanent history.
 
 ### Case edit authority and recovery
 
@@ -684,9 +685,11 @@ A `general-chase` message may refer to several Cases but remains a single unlink
 Classification, application queue, Triage routing, and Outlook folder
 destination are separate facts. `new-instruction-received` is a Received family
 and no equivalent Sent family is confirmed. That direction boundary does not
-choose between multiple simultaneously matching rules: exact predicate
-precedence and ambiguity handling remain unresolved in [open
-decisions](open-decisions.md#mailbox-rule-activation-automatic-matching-and-confidence-display).
+choose between multiple simultaneously matching rules: exact multi-rule
+precedence and any confidence display remain unresolved in [open
+decisions](open-decisions.md#mailbox-rule-activation-automatic-matching-and-confidence-display);
+the delivered QDOS classification policy records simultaneous category matches
+as the explicit ambiguity outcome with no invented winner.
 
 Every automated or human categorisation decision retains the source identity,
 policy key and version, outcome, material evidence references, applicable
@@ -1053,7 +1056,7 @@ Deferred capabilities remain named in [capabilities](capabilities.md). Preservin
 
 | Deferred area | Preserved seam or data identity | Excluded until activation | Activation evidence |
 | --- | --- | --- | --- |
-| additional mailboxes and classification | mailbox/source/message/occurrence identity; provider/domain route identity | live Graph caller, automated application of the settled taxonomy, mailbox mutation | accepted rule predicates and holdout, exact mailbox/folder scopes, test mailbox, Worker caller, recovery, and operator acceptance |
+| additional mailboxes and classification | mailbox/source/message/occurrence identity; provider/domain route identity | live Graph caller, automated application of the settled taxonomy beyond the delivered recorded-only QDOS-route classification (MAIL-21/22), mailbox mutation | accepted rule predicates and holdout, exact mailbox/folder scopes, test mailbox, Worker caller, recovery, and operator acceptance |
 | scanned-document OCR | source hash, scan-like decision, page/image provenance | OCR service, flag, route, fallback | accepted OCR slice, provider/licensing/security decision, genuine cohort evaluation, caller and recovery proof |
 | provider APIs | intake command, source/correlation/idempotency identity | endpoint, credentials, retry client, activation | provider contract, credential/scopes, failure/recovery, real caller and acceptance |
 | EVA API/replacement | manual handoff identity and payload version | network adapter or replacement workflow | vendor access, mapping, auth, idempotency, current-version handling, caller and acceptance |

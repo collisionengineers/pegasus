@@ -21,7 +21,8 @@ The mailbox-rule-activation open decision requires each automatic matcher to
 stay inactive until its exact predicates and conservative outcomes are
 operator-accepted. On 2026-08-03 the operator accepted the predicates below in
 a recorded design session, grounded in the 329-email corpus evidence
-(`docs/temp-plans/qdos-email-tells.md`): the durable QDOS claim identity is the
+(a since-deleted transient corpus note; the durable findings are restated
+below and pinned as tests): the durable QDOS claim identity is the
 `NNNNN/N` reference tail (present in 326 of 329), handler prefixes vary on the
 same claim, `qdoslaw.co.uk` uses a distinct reference grammar under the same
 principal, instruction letters carry both the client and third-party vehicle,
