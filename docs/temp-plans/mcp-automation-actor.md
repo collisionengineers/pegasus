@@ -399,7 +399,30 @@ Automation Actor tools. This is coherent with ADR-0011 — the session is
 management/development-controlled and the MCP client is the one named
 Actor — and the same setup doubles as the MCP-01–04 real-caller evidence
 run. Two-way replies and even remote permission approval are supported
-by the channel contract. Constraints, all documented: research preview;
+by the channel contract.
+
+**Return path — results go back through the same ingress.** Work
+product re-enters Pegasus only through the Automation Actor's approved
+write tools (`pegasus_document_add`, intake submission, lease-guarded
+case mutations), with the Actor's attribution, idempotency
+`OperationKey`, and action history — never through the channel. The
+channel's reply tool is operator chat (confirmations like "document
+added to CE-1234") and permission relay; routing business data back
+through the channel server into Pegasus would require a second
+authenticated ingress and become exactly the parallel policy path the
+architecture forbids. Two consequences:
+
+- Write-back shapes the v1 inventory approval (1.10(d)): the specific
+  operational write actions a Send-to-Claude workflow needs must be on
+  the approved list, and the lease tools make Claude follow the same
+  acquire-edit-release discipline as a staff editor.
+- Anything **proposal-shaped** (an AI-drafted finding, specification, or
+  query response) has no accepted write path until AI-09's proposal
+  contract exists: the model can never issue an accepted case,
+  engineering, economic, legal, or report outcome. Whether an AI-drafted
+  *artifact* may enter case custody as an ordinary document (clearly
+  provenance-labelled, accepted by nobody) is an inventory-approval
+  question for the operator, not something this design assumes. Constraints, all documented: research preview;
 custom channels run only behind `--dangerously-load-development-channels`
 (or an org `allowedChannelPlugins` entry on Team/Enterprise with
 `channelsEnabled`); events arrive only while a session is open; delivery
