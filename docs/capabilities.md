@@ -31,8 +31,8 @@ acceptance remain separate states.
 
 | Horizon | Capabilities | Meaning |
 | --- | ---: | --- |
-| Now | 127 | Current proof and QDOS-alpha outcome; activate issues only for selected work. |
-| Next | 31 | Post-alpha provider, pairing, provider-location, email, and API outcomes after named dependencies. |
+| Now | 129 | Current proof and QDOS-alpha outcome; activate issues only for selected work. |
+| Next | 29 | Post-alpha provider, pairing, provider-location, email, and API outcomes after named dependencies. |
 | Later | 41 | Retained outcomes requiring promotion conditions, contracts, callers, or direct decisions. |
 | Not planned | 29 | Permanent product boundaries; no implementation issue or placeholder. |
 
@@ -40,8 +40,8 @@ Total: **228 capabilities; 228 unique IDs**.
 
 | Target release | Planned capabilities |
 | --- | ---: |
-| `0.1.0-alpha.1` | 127 |
-| `0.2.0` | 7 |
+| `0.1.0-alpha.1` | 129 |
+| `0.2.0` | 5 |
 | `0.3.0` | 19 |
 | `0.4.0` | 5 |
 | `0.5.0` | 5 |
@@ -71,7 +71,7 @@ callers.
 
 | ID | Durable outcome | Horizon | Target release | Canonical owner | Activation/boundary |
 | --- | --- | --- | --- | --- | --- |
-| OPS-10 | Production environment deployed directly from an authorised terminal | Now | 0.1.0-alpha.1 | [ADR-0014](adr/0014-local-to-production-deployment.md) | Allocation only; owning evidence still required. |
+| OPS-10 | Production environment deployed directly from an authorised terminal | Now | 0.1.0-alpha.1 | [ADR-0014](adr/0014-local-to-production-deployment.md) | Executed for releases 1–3 ([operations — production environment](operations.md#production-environment) owns the evidence); operator acceptance outstanding. |
 | OPS-22 | Genuine-corpus local evaluation harness | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target records the evaluator allocation boundary above, not a QDOS implementation gate. |
 | EVAL-01 | Local development-only EML categorisation evaluator over a read-only local working copy, recording adjudications into the local `emailevallocal` tree ([ADR-0016](adr/0016-standalone-desktop-email-evaluator.md)) | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target records the evaluator allocation boundary above, not a QDOS implementation gate. |
 | EVAL-02 | Reviewer selects from the detailed Received/Sent/Reply taxonomy and records required reasoning | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target records the evaluator allocation boundary above, not a QDOS implementation gate. |
@@ -79,7 +79,7 @@ callers.
 | EVAL-04 | Copying the reviewed EML into the local `emailevallocal` tree and appending the JSONL adjudication log records the human result; source files are never moved or modified ([ADR-0016](adr/0016-standalone-desktop-email-evaluator.md)) | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target records the evaluator allocation boundary above, not a QDOS implementation gate. |
 | EVAL-05 | Display the rule-generated category and evidence beside the human review once rules exist | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target records the evaluator allocation boundary above, not a QDOS implementation gate. |
 | MAIL-20 | Run live provider-specific instruction-email categorisation against `.eml` files in the local folder-based evaluator | Now | 0.1.0-alpha.1 | [QDOS-alpha evaluation boundary](requirements.md#qdos-alpha-evaluation-boundary) | Separately owned prerequisite; not QDOS delivery. The retained `Now` target records the evaluator allocation boundary above, not a QDOS implementation gate. |
-| MAIL-21 | Minimum shared Core classification foundation: versioned rules, decision evidence, ambiguity outcome, and acceptance cohort | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
+| MAIL-21 | Minimum shared Core classification foundation: versioned rules, decision evidence, ambiguity outcome, and acceptance cohort | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#email-mailbox-and-background-processing) | Implemented on dev for the QDOS route (versioned rules, per-message decision evidence, explicit ambiguity outcome); acceptance cohort, deployment, and live verification remain separate evidence states. |
 | MAIL-22 | User-confirmed detailed Received/Sent categories and subtypes, mirrored Reply classifications, `Other` name/reason behavior, and category/destination separation | Now | 0.1.0-alpha.1 | [Settled mailbox taxonomy and correction](requirements.md#settled-mailbox-taxonomy-and-correction) | This row owns allocation only; the linked requirements clause owns behavior and routes to accepted provenance. |
 | ACC-01 | Staff sign-in with Pegasus-managed usernames and passwords | Now | 0.1.0-alpha.1 | [Staff role access matrix](requirements.md#staff-role-access-matrix) | Required and accepted before 0.1.0-alpha.1. |
 | ACC-02 | Administrator superuser, Engineer, and User roles; Andrew and Alex are initial Administrator assignments held as data/configuration, never hard-coded authorization | Now | 0.1.0-alpha.1 | [Staff role access matrix](requirements.md#staff-role-access-matrix) | Required and accepted before 0.1.0-alpha.1. |
