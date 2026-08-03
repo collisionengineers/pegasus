@@ -10,15 +10,17 @@ permissions:
 
 jobs:
   changes:
+    # Path detection only: no application code runs here, so this job is not
+    # Linux-development evidence (docs/operations.md "Supported platform").
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      docs-only: ${{ steps.detect.outputs.docs-only }}
+      build: ${{ steps.detect.outputs.build }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - name: Detect a Markdown-only change set
+      - name: Detect whether a build-relevant path changed
         id: detect
         shell: pwsh
         run: |
@@ -29,20 +31,24 @@ jobs:
             $base = '${{ github.event.before }}'
             $head = '${{ github.sha }}'
           }
-          $docsOnly = 'false'
+          # Build/test lanes run only for changes that can affect the built
+          # application: source, tests, the solution, project/lock/config
+          # files, or a script a CI job executes
+          # (docs/engineering.md "Branches and delivery").
+          $buildPattern = '^(src|tests)/|^Pegasus\.slnx$|\.csproj$|\.props$|\.targets$|packages\.lock\.json$|^global\.json$|^nuget\.config$|^scripts/Invoke-QdosAlphaAcceptance\.ps1$'
+          $build = 'true'
           if ($base -and $base -notmatch '^0+$') {
             $files = @(git diff --name-only "$base...$head")
-            if ($files.Count -gt 0 -and -not ($files | Where-Object { $_ -notmatch '\.md$' })) {
-              $docsOnly = 'true'
+            if ($LASTEXITCODE -eq 0) {
+              $build = if ($files | Where-Object { $_ -match $buildPattern }) { 'true' } else { 'false' }
             }
           }
-          "docs-only=$docsOnly" >> $env:GITHUB_OUTPUT
+          "build=$build" >> $env:GITHUB_OUTPUT
 
   validate:
     # Historical full runs take 32-43 minutes on windows-latest; the timeout
-    # guards against a hung run, not normal variance. Markdown-only change
-    # sets run the documentation link check and path-skip the build/test
-    # steps (docs/engineering.md "Branches and delivery").
+    # guards against a hung run, not normal variance. Change sets touching no
+    # build-relevant path run only the documentation link check (docs/engineering.md "Branches and delivery").
     needs: changes
     runs-on: windows-latest
     timeout-minutes: 75
@@ -52,23 +58,23 @@ jobs:
         shell: pwsh
         run: ./scripts/Test-DocumentationLinks.ps1
       - uses: actions/setup-dotnet@v6
-        if: needs.changes.outputs.docs-only != 'true'
+        if: needs.changes.outputs.build == 'true'
         with:
           dotnet-version: 10.0.x
       - name: Restore
-        if: needs.changes.outputs.docs-only != 'true'
+        if: needs.changes.outputs.build == 'true'
         shell: pwsh
         run: dotnet restore ./Pegasus.slnx --locked-mode
       - name: Build
-        if: needs.changes.outputs.docs-only != 'true'
+        if: needs.changes.outputs.build == 'true'
         shell: pwsh
         run: dotnet build ./Pegasus.slnx --configuration Release --no-restore
       - name: Install pinned Playwright Chromium
-        if: needs.changes.outputs.docs-only != 'true'
+        if: needs.changes.outputs.build == 'true'
         shell: pwsh
         run: pwsh ./tests/Pegasus.IntegrationTests/bin/Release/net10.0/playwright.ps1 install chromium
       - name: Test
-        if: needs.changes.outputs.docs-only != 'true'
+        if: needs.changes.outputs.build == 'true'
         shell: pwsh
         run: dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"
 
@@ -77,7 +83,7 @@ jobs:
     # but fail a deadlocked caller path rather than consuming GitHub's six-hour
     # default job window.
     needs: changes
-    if: needs.changes.outputs.docs-only != 'true'
+    if: needs.changes.outputs.build == 'true'
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
