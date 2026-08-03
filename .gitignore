@@ -22,6 +22,7 @@ appsettings.*.local.json
 /artifacts/
 
 # Tool and editor working state
+/.claude/
 /.vs/
 /.obsidian/workspace.json
 /.obsidian/workspace-mobile.json
