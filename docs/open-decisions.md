@@ -35,10 +35,24 @@ step it names.
    from the candidate evidence recorded in that ADR and this register's
    history. Still open here: the accepted accuracy/abstention thresholds
    from the operator-reviewed frozen genuine cohort + untouched holdout.
-   The first local evaluation run proposes the provisional bar
-   (wrong-suggestion rate primary); operator acceptance of the reviewed
-   numbers closes this item. If nothing meets the accepted bar the
-   capability blocks rather than falls back.
+   The operator additionally directed on 2026-08-03 that automatic
+   registration and unambiguous-match association run at the provisional
+   bar from the first evaluation; acceptance of the reviewed numbers still
+   closes this item, and if nothing meets the accepted bar the capability
+   blocks rather than falls back.
+   First local evaluation evidence (2026-08-03, run `20260803-073755`,
+   task branch commit `52dbef3`): 3,523 case-attributed labelled corpus
+   images; deterministic cohort 2,818 / untouched holdout 705; bounded
+   first pass over 400 cohort images (`PEGASUS_VRM_EVAL_LIMIT=400`), zero
+   technical failures. At the implemented provisional bar of **0.80**
+   minimum candidate confidence (the weakest per-character probability
+   capped by the detection score): suggestion rate 9.25%, wrong-suggestion
+   rate 8.11% (3 of 37), abstention 90.75%. Neighbouring thresholds: 0.70
+   → 12.8% wrong of 39; 0.90 → 1 of 7 (too few samples to rank). Caveat
+   for review: labels are case-level, so a correctly read third-party
+   plate in a multi-vehicle photo counts as wrong — the true misread rate
+   is at most the reported number. Proposed provisional bar: keep 0.80
+   pending the full-cohort run and operator review of these numbers.
 2. **`INT-31` upload-link limits** — Exact token lifetime, aggregate and
    per-file byte limits, file count, allowed content types, per-token/per-IP
    rate, one-time vs reuse, and revocation/expiry error contract. Interim bound:
