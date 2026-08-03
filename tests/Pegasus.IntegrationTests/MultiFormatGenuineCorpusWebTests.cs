@@ -5,7 +5,6 @@ using Xunit.Abstractions;
 
 namespace Pegasus.IntegrationTests;
 
-[Collection(LocalDbFixtureDefinition.Name)]
 public sealed class MultiFormatGenuineCorpusWebTests(ITestOutputHelper output)
 {
     private const string PinnedDocHash = "F4FE03C41F7B1B43998A33196FE5EE0F40E94EB7DD199FE12003F929D2229139";

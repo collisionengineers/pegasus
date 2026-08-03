@@ -3,64 +3,81 @@
 @using Pegasus.Core.Identity
 @{
     ViewData["Title"] = "Staff roles";
+    ViewData["Eyebrow"] = "Administration";
 }
 
-<h1>Staff roles</h1>
-<p><a asp-page="/Administration/Index">Back to Administration</a></p>
+<a class="back-link" asp-page="/Administration/Index">
+    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+    Back to Administration
+</a>
+
+<partial name="Shared/_PageHeader" />
 
 @if (TempData["AdministrationStatus"] is string status)
 {
-    <div role="status">@status</div>
+    <div class="status-card" role="status">@status</div>
 }
 
 <div asp-validation-summary="ModelOnly"></div>
+
 <section aria-labelledby="role-governance-heading">
-    <h2 id="role-governance-heading">Current role assignments</h2>
-    <p>Every enabled staff member needs at least one role. Removing the final enabled Administrator is denied. Role changes invalidate existing browser sessions.</p>
+    <h2 id="role-governance-heading" class="section-label">Current role assignments</h2>
+    <div class="status-card status-card--attention">
+        <p>Every enabled staff member needs at least one role. Removing the final enabled Administrator is denied. Role changes invalidate existing browser sessions.</p>
+    </div>
 
     @if (Model.Accounts.Count == 0)
     {
-        <p>No staff accounts are available for role assignment.</p>
+        <div class="panel empty-state">No staff accounts are available for role assignment.</div>
     }
     else
     {
-        <table>
-            <caption>Current staff role assignments</caption>
-            <thead>
-                <tr><th scope="col">Username</th><th scope="col">Status</th><th scope="col">Current roles</th><th scope="col">Assign roles</th></tr>
-            </thead>
-            <tbody>
-            @foreach (var account in Model.Accounts)
-            {
-                var operationKey = Guid.NewGuid().ToString("N");
-                <tr>
-                    <td>@account.UserName</td>
-                    <td>@(account.IsEnabled ? "Enabled" : "Disabled")</td>
-                    <td>@string.Join(", ", account.CurrentRoles)</td>
-                    <td>
-                        <form method="post" asp-page-handler="Assign">
-                            <input type="hidden" name="StaffId" value="@account.StaffId" />
-                            <input type="hidden" name="OperationKey" value="@operationKey" />
-                            <fieldset>
-                                <legend>Roles for @account.UserName</legend>
-                                @foreach (var role in StaffRoleNames.All)
-                                {
-                                    <label>
-                                        <input type="checkbox" name="SelectedRoles" value="@role" checked="@Model.IsRoleSelected(account, role)" />
-                                        @role
-                                    </label>
-                                }
-                            </fieldset>
-                            <label>
-                                Reason
-                                <input name="Reason" value="@Model.ReasonFor(account)" required maxlength="1000" />
-                            </label>
-                            <button type="submit">Save roles</button>
-                        </form>
-                    </td>
-                </tr>
-            }
-            </tbody>
-        </table>
+        <div class="table-wrap">
+            <table>
+                <caption>Current staff role assignments</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Username</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Current roles</th>
+                        <th scope="col">Assign roles</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var account in Model.Accounts)
+                {
+                    var operationKey = Guid.NewGuid().ToString("N");
+                    <tr>
+                        <td>@account.UserName</td>
+                        <td><partial name="Shared/_StatusChip" model="@(account.IsEnabled ? "Enabled" : "Disabled")" /></td>
+                        <td>@string.Join(", ", account.CurrentRoles)</td>
+                        <td>
+                            <form method="post" asp-page-handler="Assign" class="role-form">
+                                <input type="hidden" name="StaffId" value="@account.StaffId" />
+                                <input type="hidden" name="OperationKey" value="@operationKey" />
+                                <fieldset class="role-choices">
+                                    <legend>Roles for @account.UserName</legend>
+                                    @foreach (var role in StaffRoleNames.All)
+                                    {
+                                        <label class="choice">
+                                            <input type="checkbox" name="SelectedRoles" value="@role" checked="@Model.IsRoleSelected(account, role)" />
+                                            <span>@role</span>
+                                        </label>
+                                    }
+                                </fieldset>
+                                <label>
+                                    Reason
+                                    <input name="Reason" value="@Model.ReasonFor(account)" required maxlength="1000" />
+                                </label>
+                                <div class="button-row">
+                                    <button type="submit" class="primary-action">Save roles</button>
+                                </div>
+                            </form>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
     }
 </section>

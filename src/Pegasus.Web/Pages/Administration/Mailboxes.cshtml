@@ -3,121 +3,138 @@
 @using Pegasus.Core.Identity
 @{
     ViewData["Title"] = "Approved mailboxes";
+    ViewData["Eyebrow"] = "Administration";
+    ViewData["Lede"] = "This allowlist approves an address for one or both fixed read-only routes: inbound Intake from Inbox, or exact Sent evidence. It does not grant Exchange access and provides no mailbox browsing, message sending, credentials, rules, or folder controls.";
 }
 
-<h1>Approved mailboxes</h1>
-<p><a asp-page="/Administration/Index">Back to Administration</a></p>
-<p>This allowlist approves an address for one or both fixed read-only routes: inbound Intake from Inbox, or exact Sent evidence. It does not grant Exchange access and provides no mailbox browsing, message sending, credentials, rules, or folder controls.</p>
+<a class="back-link" asp-page="/Administration/Index">
+    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+    Back to Administration
+</a>
+
+<partial name="Shared/_PageHeader" />
 
 @if (TempData["AdministrationStatus"] is string status)
 {
-    <div role="status">@status</div>
+    <div class="status-card" role="status">@status</div>
 }
 
+@* A rejected save is most often a stale version: the policy moved since this
+   page loaded. The summary carries the exact outcome; recovery is to reload
+   and reapply against the current version. *@
 <div asp-validation-summary="All"></div>
+
 <section aria-labelledby="approved-mailboxes-heading">
-    <h2 id="approved-mailboxes-heading">Current policies</h2>
+    <h2 id="approved-mailboxes-heading" class="section-label">Current policies</h2>
     @if (Model.Mailboxes.Count == 0)
     {
-        <p>No mailbox addresses are approved.</p>
+        <div class="panel empty-state">No mailbox addresses are approved.</div>
     }
     else
     {
-        <table>
-            <caption>Versioned approved-mailbox policies</caption>
-            <thead>
-                <tr>
-                    <th scope="col">Address</th>
-                    <th scope="col">Route scope</th>
-                    <th scope="col">State</th>
-                    <th scope="col">Version</th>
-                    <th scope="col">Update</th>
-                </tr>
-            </thead>
-            <tbody>
-            @foreach (var mailbox in Model.Mailboxes)
-            {
-                var operationKey = mailbox.Id == Model.MailboxId && Model.ExpectedVersion > 0
-                    ? Model.OperationKey
-                    : Guid.NewGuid().ToString("N");
-                <tr>
-                    <td>@mailbox.Address</td>
-                    <td>@string.Join(", ", mailbox.RouteScopes)</td>
-                    <td>@mailbox.State</td>
-                    <td>@mailbox.Version</td>
-                    <td>
-                        <form method="post" asp-page-handler="Update">
-                            <input type="hidden" name="MailboxId" value="@mailbox.Id" />
-                            <input type="hidden" name="ExpectedVersion" value="@mailbox.Version" />
-                            <input type="hidden" name="OperationKey" value="@operationKey" />
-                            <label>
-                                Approved address
-                                <input name="Address" value="@Model.AddressFor(mailbox)" required maxlength="320" inputmode="email" />
-                            </label>
-                            <fieldset>
-                                <legend>Read-only route scope</legend>
+        <div class="table-wrap">
+            <table>
+                <caption>Versioned approved-mailbox policies</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Address</th>
+                        <th scope="col">Route scope</th>
+                        <th scope="col">State</th>
+                        <th scope="col">Version</th>
+                        <th scope="col">Update</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var mailbox in Model.Mailboxes)
+                {
+                    var operationKey = mailbox.Id == Model.MailboxId && Model.ExpectedVersion > 0
+                        ? Model.OperationKey
+                        : Guid.NewGuid().ToString("N");
+                    <tr>
+                        <td>@mailbox.Address</td>
+                        <td>@string.Join(", ", mailbox.RouteScopes)</td>
+                        <td><partial name="Shared/_StatusChip" model="@mailbox.State.ToString()" /></td>
+                        <td class="tabular">@mailbox.Version</td>
+                        <td>
+                            <form method="post" asp-page-handler="Update" class="role-form">
+                                <input type="hidden" name="MailboxId" value="@mailbox.Id" />
+                                <input type="hidden" name="ExpectedVersion" value="@mailbox.Version" />
+                                <input type="hidden" name="OperationKey" value="@operationKey" />
                                 <label>
-                                    <input type="checkbox" name="SelectedRouteScopes" value="InboundIntake" checked="@Model.IsRouteSelected(mailbox, ApprovedMailboxRouteScope.InboundIntake)" />
-                                    Inbound Intake (Inbox)
+                                    Approved address
+                                    <input name="Address" value="@Model.AddressFor(mailbox)" required maxlength="320" inputmode="email" />
+                                </label>
+                                <fieldset class="role-choices role-choices--stacked">
+                                    <legend>Read-only route scope</legend>
+                                    <label class="choice">
+                                        <input type="checkbox" name="SelectedRouteScopes" value="InboundIntake" checked="@Model.IsRouteSelected(mailbox, ApprovedMailboxRouteScope.InboundIntake)" />
+                                        <span>Inbound Intake (Inbox)</span>
+                                    </label>
+                                    <label class="choice">
+                                        <input type="checkbox" name="SelectedRouteScopes" value="SentEvidence" checked="@Model.IsRouteSelected(mailbox, ApprovedMailboxRouteScope.SentEvidence)" />
+                                        <span>Exact report and Triage evidence (Sent Items)</span>
+                                    </label>
+                                </fieldset>
+                                <label>
+                                    State
+                                    <select name="SelectedState">
+                                        <option value="Approved" selected="@Model.IsStateSelected(mailbox, ApprovedMailboxState.Approved)">Approved</option>
+                                        <option value="Disabled" selected="@Model.IsStateSelected(mailbox, ApprovedMailboxState.Disabled)">Disabled</option>
+                                    </select>
                                 </label>
                                 <label>
-                                    <input type="checkbox" name="SelectedRouteScopes" value="SentEvidence" checked="@Model.IsRouteSelected(mailbox, ApprovedMailboxRouteScope.SentEvidence)" />
-                                    Exact report and Triage evidence (Sent Items)
+                                    Reason
+                                    <input name="Reason" value="@Model.ReasonFor(mailbox)" required maxlength="1000" />
                                 </label>
-                            </fieldset>
-                            <label>
-                                State
-                                <select name="SelectedState">
-                                    <option value="Approved" selected="@Model.IsStateSelected(mailbox, ApprovedMailboxState.Approved)">Approved</option>
-                                    <option value="Disabled" selected="@Model.IsStateSelected(mailbox, ApprovedMailboxState.Disabled)">Disabled</option>
-                                </select>
-                            </label>
-                            <label>
-                                Reason
-                                <input name="Reason" value="@Model.ReasonFor(mailbox)" required maxlength="1000" />
-                            </label>
-                            <button type="submit">Save mailbox policy</button>
-                        </form>
-                    </td>
-                </tr>
-            }
-            </tbody>
-        </table>
+                                <div class="button-row">
+                                    <button type="submit" class="primary-action">Save mailbox policy</button>
+                                </div>
+                            </form>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
     }
 </section>
 
-<section aria-labelledby="add-approved-mailbox-heading">
-    <h2 id="add-approved-mailbox-heading">Add an approved address</h2>
-    <form method="post" asp-page-handler="Update">
-        <input type="hidden" name="MailboxId" value="@Model.NewMailboxId" />
-        <input type="hidden" name="ExpectedVersion" value="0" />
-        <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
-        <label>
-            Approved address
-            <input name="Address" value="@Model.NewAddress" required maxlength="320" inputmode="email" />
-        </label>
-        <fieldset>
-            <legend>Read-only route scope</legend>
+<section class="section-gap" aria-labelledby="add-approved-mailbox-heading">
+    <h2 id="add-approved-mailbox-heading" class="section-label">Add an approved address</h2>
+    <div class="panel form-panel">
+        <form method="post" asp-page-handler="Update">
+            <input type="hidden" name="MailboxId" value="@Model.NewMailboxId" />
+            <input type="hidden" name="ExpectedVersion" value="0" />
+            <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
             <label>
-                <input type="checkbox" name="SelectedRouteScopes" value="InboundIntake" checked="@Model.IsNewRouteSelected(ApprovedMailboxRouteScope.InboundIntake)" />
-                Inbound Intake (Inbox)
+                Approved address
+                <input name="Address" value="@Model.NewAddress" required maxlength="320" inputmode="email" />
+            </label>
+            <fieldset class="role-choices role-choices--stacked">
+                <legend>Read-only route scope</legend>
+                <label class="choice">
+                    <input type="checkbox" name="SelectedRouteScopes" value="InboundIntake" checked="@Model.IsNewRouteSelected(ApprovedMailboxRouteScope.InboundIntake)" />
+                    <span>Inbound Intake (Inbox)</span>
+                </label>
+                <label class="choice">
+                    <input type="checkbox" name="SelectedRouteScopes" value="SentEvidence" checked="@Model.IsNewRouteSelected(ApprovedMailboxRouteScope.SentEvidence)" />
+                    <span>Exact report and Triage evidence (Sent Items)</span>
+                </label>
+            </fieldset>
+            <label>
+                State
+                <select name="SelectedState">
+                    <option value="Approved" selected="@Model.IsNewStateSelected(ApprovedMailboxState.Approved)">Approved</option>
+                    <option value="Disabled" selected="@Model.IsNewStateSelected(ApprovedMailboxState.Disabled)">Disabled</option>
+                </select>
             </label>
             <label>
-                <input type="checkbox" name="SelectedRouteScopes" value="SentEvidence" checked="@Model.IsNewRouteSelected(ApprovedMailboxRouteScope.SentEvidence)" />
-                Exact report and Triage evidence (Sent Items)
+                Reason
+                <input name="Reason" value="@Model.NewReason" required maxlength="1000" />
             </label>
-        </fieldset>
-        <label>
-            State
-            <select name="SelectedState">
-                <option value="Approved" selected="@Model.IsNewStateSelected(ApprovedMailboxState.Approved)">Approved</option>
-                <option value="Disabled" selected="@Model.IsNewStateSelected(ApprovedMailboxState.Disabled)">Disabled</option>
-            </select>
-        </label>
-        <label>
-            Reason
-            <input name="Reason" value="@Model.NewReason" required maxlength="1000" />
-        </label>
-        <button type="submit">Add mailbox policy</button>
-    </form>
+            <div class="button-row">
+                <button type="submit" class="primary-action">Add mailbox policy</button>
+            </div>
+        </form>
+    </div>
 </section>

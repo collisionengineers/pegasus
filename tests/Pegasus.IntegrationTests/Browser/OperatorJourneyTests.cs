@@ -2,7 +2,6 @@ using Microsoft.Playwright;
 
 namespace Pegasus.IntegrationTests.Browser;
 
-[Collection(LocalDbFixtureDefinition.Name)]
 [Trait("Category", "SqlServer")]
 [Trait("Category", "Browser")]
 public sealed class OperatorJourneyTests
@@ -40,7 +39,9 @@ public sealed class OperatorJourneyTests
         Assert.Contains("local workflow evidence only", boundary, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("does not prove production behavior", boundary, StringComparison.Ordinal);
 
-        await support.Page.Locator("a.queue-card", new PageLocatorOptions { HasText = "Review" }).ClickAsync();
+        // The Operations queue tiles are `.metric` in the approved metric-strip
+        // shell; the destinations they open are unchanged.
+        await support.Page.Locator(".metric-strip a.metric", new PageLocatorOptions { HasText = "Review" }).ClickAsync();
         Assert.Equal("/Intake?decision=draft_ready", new Uri(support.Page.Url).PathAndQuery);
         Assert.Contains(
             "Instruction drafts",
@@ -48,7 +49,7 @@ public sealed class OperatorJourneyTests
             StringComparison.Ordinal);
 
         await support.GoToAsync("/");
-        await support.Page.Locator("a.queue-card", new PageLocatorOptions { HasText = "Triage" }).ClickAsync();
+        await support.Page.Locator(".metric-strip a.metric", new PageLocatorOptions { HasText = "Triage" }).ClickAsync();
         Assert.Equal("/Triage", new Uri(support.Page.Url).AbsolutePath.TrimEnd('/'));
         Assert.Contains(
             "No triage records match this view.",

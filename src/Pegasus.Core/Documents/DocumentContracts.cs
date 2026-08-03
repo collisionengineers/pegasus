@@ -19,7 +19,8 @@ public enum DocumentSource
     StaffUpload,
     RequestUpload,
     ExternalCorrespondence,
-    Generated
+    Generated,
+    Automation
 }
 
 public enum DocumentCustodyStatus

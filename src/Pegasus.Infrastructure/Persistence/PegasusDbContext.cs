@@ -31,6 +31,11 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         Set<VehicleLookupObservationEntity>();
     internal DbSet<VehicleConfirmationEntity> VehicleConfirmations =>
         Set<VehicleConfirmationEntity>();
+    internal DbSet<ImageIntakeEntity> ImageIntakes => Set<ImageIntakeEntity>();
+    internal DbSet<ImageIntakeSequenceEntity> ImageIntakeSequences =>
+        Set<ImageIntakeSequenceEntity>();
+    internal DbSet<ImageVrmSuggestionEntity> ImageVrmSuggestions =>
+        Set<ImageVrmSuggestionEntity>();
     internal DbSet<TriageEntity> Triage => Set<TriageEntity>();
     internal DbSet<TriageFindingEntity> TriageFindings => Set<TriageFindingEntity>();
     internal DbSet<TriageResponseEvidenceLinkEntity> TriageResponseEvidenceLinks =>
@@ -84,6 +89,15 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<IntakeMailRouteDecisionEntity> IntakeMailRouteDecisions =>
         Set<IntakeMailRouteDecisionEntity>();
 
+    internal DbSet<IntakeMailClassificationDecisionEntity> IntakeMailClassificationDecisions =>
+        Set<IntakeMailClassificationDecisionEntity>();
+
+    internal DbSet<CaseMatchIndexEntity> CaseMatchIndex =>
+        Set<CaseMatchIndexEntity>();
+
+    internal DbSet<IntakeCaseMatchDecisionEntity> IntakeCaseMatchDecisions =>
+        Set<IntakeCaseMatchDecisionEntity>();
+
 
 
 
@@ -121,11 +135,15 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        // Registers the OpenIddict application/authorization/scope/token
+        // entities backing the Automation Actor client-credentials ingress.
+        builder.UseOpenIddict();
         CustodyModelConfiguration.Configure(builder);
         MailboxModelConfiguration.Configure(builder);
         AuditIdentityModelConfiguration.Configure(builder);
         AdministrationPolicyModelConfiguration.Configure(builder);
         CaseDataModelConfiguration.Configure(builder);
+        CaseMatchModelConfiguration.Configure(builder);
         VehicleModelConfiguration.Configure(builder);
         EvaHandoffModelConfiguration.Configure(builder);
 
@@ -455,6 +473,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.ActorRolesJson).IsRequired();
             entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
             entity.Property(item => item.LastOperationKey).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.MatchPolicyKey).HasMaxLength(100);
             entity.HasIndex(item => item.CaseId);
             entity.HasIndex(item => item.LastOperationKey).IsUnique();
             entity.HasOne(item => item.IntakeReceipt)
@@ -504,6 +523,71 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasOne(item => item.Case)
                 .WithMany(item => item.History)
                 .HasForeignKey(item => item.CaseId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<ImageIntakeEntity>(entity =>
+        {
+            entity.ToTable("ImageIntakes");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.SourceChannel).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.ExternalReceiptToken).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.SourceHash).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.Property(item => item.NormalizedVehicleRegistration).HasMaxLength(20).IsRequired();
+            entity.Property(item => item.ImageIntakeReference).HasMaxLength(30).IsRequired();
+            entity.Property(item => item.CreatedByActorKind).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.CreatedByActorSubjectId).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.CreationOperationKey).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.RequestFingerprint).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.HasIndex(item => item.OriginReceiptId).IsUnique();
+            entity.HasIndex(item => new { item.SourceChannel, item.ExternalReceiptToken }).IsUnique();
+            entity.HasIndex(item => item.ImageIntakeReference).IsUnique();
+            entity.HasIndex(item => item.CreationOperationKey).IsUnique();
+            entity.HasIndex(item => new { item.NormalizedVehicleRegistration, item.CreatedAtUtc });
+            entity.HasOne(item => item.OriginReceipt)
+                .WithMany()
+                .HasForeignKey(item => item.OriginReceiptId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<ImageIntakeSequenceEntity>(entity =>
+        {
+            entity.ToTable("ImageIntakeSequences", table =>
+                table.HasCheckConstraint(
+                    "CK_ImageIntakeSequences_LastAllocatedSequence",
+                    "[LastAllocatedSequence] >= 0"));
+            entity.HasKey(item => item.NormalizedVehicleRegistration);
+            entity.Property(item => item.NormalizedVehicleRegistration).HasMaxLength(20);
+        });
+
+        builder.Entity<ImageVrmSuggestionEntity>(entity =>
+        {
+            entity.ToTable("ImageVrmSuggestions");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.StorageKey).HasMaxLength(400).IsRequired();
+            entity.Property(item => item.ContentHash).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.Property(item => item.EngineKey).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.EngineVersion).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.ModelHashes).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.Outcome).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.SuggestedRegistration).HasMaxLength(20);
+            entity.Property(item => item.FailureCode).HasMaxLength(100);
+            entity.Property(item => item.FailureReason).HasMaxLength(500);
+            entity.Property(item => item.OperationKey).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.Disposition).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.DispositionActor).HasMaxLength(200);
+            entity.Property(item => item.DispositionReason).HasMaxLength(500);
+            entity.Property(item => item.DispositionOperationKey).HasMaxLength(100);
+            entity.HasIndex(item => item.OperationKey).IsUnique();
+            entity.HasIndex(item => new { item.IntakeReceiptId, item.OccurredAtUtc });
+            entity.HasOne(item => item.IntakeReceipt)
+                .WithMany()
+                .HasForeignKey(item => item.IntakeReceiptId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.IntakeAsset)
+                .WithMany()
+                .HasForeignKey(item => item.IntakeAssetId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -868,6 +952,8 @@ internal sealed class IntakeManualAssociationEntity
     public required string ActorRolesJson { get; set; }
     public required string Reason { get; set; }
     public required string LastOperationKey { get; set; }
+    public string? MatchPolicyKey { get; set; }
+    public int? MatchPolicyVersion { get; set; }
 }
 
 internal sealed class IntakeMutationHistoryEntity
@@ -1091,6 +1177,8 @@ internal sealed class IntakeReceiptEntity
     public required string OcrCandidatesJson { get; set; }
     public InstructionDraftEntity? InstructionDraft { get; set; }
     public IntakeMailRouteDecisionEntity? MailRouteDecision { get; set; }
+    public IntakeMailClassificationDecisionEntity? MailClassificationDecision { get; set; }
+    public IntakeCaseMatchDecisionEntity? CaseMatchDecision { get; set; }
     public IntakeManualAssociationEntity? ManualAssociation { get; set; }
     public List<IntakeAssetEntity> Assets { get; set; } = [];
 }

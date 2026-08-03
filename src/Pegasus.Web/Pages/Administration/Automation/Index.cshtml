@@ -1,0 +1,75 @@
+@page
+@model Pegasus.Web.Pages.Administration.Automation.IndexModel
+@{
+    ViewData["Title"] = "Automation";
+    ViewData["Eyebrow"] = "Administration";
+    ViewData["Lede"] = "One named Automation actor may call approved ordinary case, intake, and document actions through its own authenticated machine ingress. It is not a staff account, holds no administration authority, and every action it takes is permanently recorded. Client secrets are never shown here.";
+}
+
+<a class="back-link" asp-page="/Administration/Index">
+    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+    Back to Administration
+</a>
+
+<partial name="Shared/_PageHeader" />
+
+@if (TempData["AdministrationStatus"] is string status)
+{
+    <div role="status" class="status-card">@status</div>
+}
+
+<div asp-validation-summary="All" class="validation-summary"></div>
+
+<section class="panel" aria-labelledby="automation-registration-heading">
+    <h2 id="automation-registration-heading" class="section-label">Client registration</h2>
+    @if (!Model.IngressComposed)
+    {
+        <p>The Automation ingress is not composed in this deployment: the configuration gate is off, no endpoint or token route exists, and no automation action is possible.</p>
+    }
+    else if (Model.Status is { } registration)
+    {
+        <dl class="detail-list">
+            <div><dt>Client identifier</dt><dd>@registration.ClientId</dd></div>
+            <div><dt>Display name</dt><dd>@(registration.DisplayName ?? "—")</dd></div>
+            <div>
+                <dt>State</dt>
+                <dd>
+                    @if (registration.IsEnabled)
+                    {
+                        <partial name="Shared/_StatusChip" model="@("Enabled")" />
+                    }
+                    else
+                    {
+                        <partial name="Shared/_StatusChip" model="@("Disabled")" />
+                    }
+                </dd>
+            </div>
+            <div><dt>Granted scopes</dt><dd>@string.Join(", ", registration.GrantedScopes)</dd></div>
+        </dl>
+        <form method="post" asp-page-handler="SetEnabled" class="section-gap">
+            <input type="hidden" name="TargetEnabled" value="@((!registration.IsEnabled).ToString())" />
+            <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
+            <label>
+                Reason
+                <input name="Reason" required maxlength="1000" />
+            </label>
+            <div class="button-row">
+                @if (registration.IsEnabled)
+                {
+                    <button type="submit" class="primary-action">Disable the Automation client</button>
+                }
+                else
+                {
+                    <button type="submit" class="secondary-action">Enable the Automation client</button>
+                }
+            </div>
+        </form>
+        <p class="section-gap">Disabling refuses new tokens immediately and rejects requests that present an already-issued token within seconds. Both changes are recorded as attributable administrator actions.</p>
+    }
+</section>
+
+<section class="panel section-gap" aria-labelledby="automation-activity-link-heading">
+    <h2 id="automation-activity-link-heading" class="section-label">Activity</h2>
+    <p>Every Automation action and every denied automation request is recorded in permanent history with a correlation identifier.</p>
+    <p><a asp-page="/Administration/Automation/Activity">Review Automation activity</a></p>
+</section>

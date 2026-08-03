@@ -83,6 +83,58 @@ function Get-MigrationPermissionMatrix {
         }
         $expected.Add("pegasus_worker_runtime_role|D|DELETE|$table")
     }
+
+    # Grant-carrying migrations after the 2026-07-29 reconciliation. Each block
+    # mirrors its migration's SQL exactly; a later grant-carrying migration
+    # must extend this matrix or the release verify step throws.
+    # 20260803071539_ImageIntakeRegistration (both roles, DELETE denied).
+    foreach ($role in @('pegasus_web_runtime_role', 'pegasus_worker_runtime_role')) {
+        foreach ($grant in @(
+            @{ Table = 'ImageIntakes'; Permissions = 'SELECT', 'INSERT' },
+            @{ Table = 'ImageIntakeSequences'; Permissions = 'SELECT', 'INSERT', 'UPDATE' },
+            @{ Table = 'ImageVrmSuggestions'; Permissions = 'SELECT', 'INSERT', 'UPDATE' })) {
+            foreach ($permission in $grant.Permissions) {
+                $expected.Add("$role|G|$permission|$($grant.Table)")
+            }
+            $expected.Add("$role|D|DELETE|$($grant.Table)")
+        }
+        # 20260803151159_AutomationActorOpenIddict denies DELETE to both roles.
+        foreach ($table in @('OpenIddictApplications', 'OpenIddictAuthorizations', 'OpenIddictScopes', 'OpenIddictTokens')) {
+            $expected.Add("$role|D|DELETE|$table")
+        }
+    }
+    # 20260803123935_MailClassificationDecisions: Worker replaces the decision
+    # row during re-evaluation, the Web reads only.
+    $expected.Add('pegasus_web_runtime_role|G|SELECT|IntakeMailClassificationDecisions')
+    $expected.Add('pegasus_web_runtime_role|D|DELETE|IntakeMailClassificationDecisions')
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE', 'DELETE')) {
+        $expected.Add("pegasus_worker_runtime_role|G|$permission|IntakeMailClassificationDecisions")
+    }
+    # 20260803125915_CaseMatchDecisionsAndAssociationPolicy: the Web's
+    # acceptance-path projector replaces CaseMatchIndex rows in place; the
+    # Worker owns the decision rows and the automatic-association writes.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE', 'DELETE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|CaseMatchIndex")
+        $expected.Add("pegasus_worker_runtime_role|G|$permission|IntakeCaseMatchDecisions")
+    }
+    $expected.Add('pegasus_worker_runtime_role|G|SELECT|CaseMatchIndex')
+    $expected.Add('pegasus_worker_runtime_role|D|DELETE|CaseMatchIndex')
+    $expected.Add('pegasus_web_runtime_role|G|SELECT|IntakeCaseMatchDecisions')
+    $expected.Add('pegasus_web_runtime_role|D|DELETE|IntakeCaseMatchDecisions')
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_worker_runtime_role|G|$permission|IntakeManualAssociations")
+    }
+    $expected.Add('pegasus_worker_runtime_role|D|DELETE|IntakeManualAssociations')
+    $expected.Add('pegasus_worker_runtime_role|G|SELECT|IntakeMutationHistory')
+    $expected.Add('pegasus_worker_runtime_role|G|INSERT|IntakeMutationHistory')
+    $expected.Add('pegasus_worker_runtime_role|D|DELETE|IntakeMutationHistory')
+    # 20260803151159_AutomationActorOpenIddict Web grants (Worker gets none).
+    foreach ($table in @('OpenIddictApplications', 'OpenIddictAuthorizations', 'OpenIddictTokens')) {
+        foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+            $expected.Add("pegasus_web_runtime_role|G|$permission|$table")
+        }
+    }
+    $expected.Add('pegasus_web_runtime_role|G|SELECT|OpenIddictScopes')
     return @($expected | Sort-Object -Unique)
 }
 

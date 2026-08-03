@@ -4,6 +4,16 @@
     ViewData["Title"] = "Access denied";
 }
 
-<h1>Access denied</h1>
-<p>Your current staff role does not authorize this page or action. If your access was changed, sign out and sign in again.</p>
-<p><a asp-page="/Index">Return to Pegasus</a></p>
+<div class="auth-panel">
+    <div class="panel">
+        <span class="status-chip status-chip--red">
+            <svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg>
+            <span>Denied</span>
+        </span>
+        <h1>Access denied</h1>
+        <p class="lede">Your current staff role does not authorize this page or action. If your access was changed, sign out and sign in again.</p>
+        <div class="button-row">
+            <a class="secondary-action" asp-page="/Index">Return to Pegasus</a>
+        </div>
+    </div>
+</div>

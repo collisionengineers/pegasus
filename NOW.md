@@ -7,47 +7,6 @@
 Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 <agent>)`. Nothing is in flight unless it is claimed here on `origin/dev`.
 
-- Image-led intake: build the pre-Case Image intake record (manual VRM entry,
-  manual link/unlink/relink to a Case, origin preservation, search by Image
-  Intake Reference — INT-13/27/29/30, UI-07), and research open decision 1
-  (VRM recognition engine) to write an evidence-backed recommendation for
-  operator decision, unblocking INT-17/28/32; no vendor selection,
-  credential, or automatic-matching activation without operator sign-off
-  (branch task/image-led-intake, taken 2026-08-03, by claude).
-- QDOS email identification, classification, and case matching: build the
-  shared Core classification foundation — the settled Received/Sent families
-  and subtypes, Reply as mirrored context, validated `Other` name and reason,
-  versioned policy key, decision evidence, explicit ambiguity outcome, and
-  the acceptance cohort, keeping category separate from queue, Triage
-  routing, and Outlook destination (MAIL-21/22); split the QDOS policy into
-  route and extraction parts, activate the operator-accepted three-domain
-  QDOS route set (`qdos_mail_route` v3), and add operator-accepted QDOS
-  automatic case matching and association — eliminator predicates over claim
-  reference, VRM, and claimant name with incident-date elimination, pulling
-  the MAIL-09 QDOS-direct subset forward (operator decisions 2026-08-03,
-  recorded by ADR in the task PR); still no confidence scores or generic
-  rule engine (the multi-rule precedence open decision stays open beyond the
-  accepted QDOS predicates), no evaluator surface (EVAL-01–05, MAIL-20,
-  OPS-22 are separately owned), no folder move, mailbox mutation, or AI
-  classifier (branch task/qdos-email-classification, taken 2026-08-03, by
-  claude).
-- Cut `repository-check` wall clock (agreed 2026-08-03): shard validate into
-  parallel unit / SQL-integration / browser jobs, replace migrate-per-test
-  LocalDB setup with a per-run migrated template database, and cache NuGet
-  packages and the pinned Playwright Chromium (branch
-  task/repository-check-speed, taken 2026-08-03, by claude).
-- UI alpha design pass: build the visual/interaction layer for the
-  Operations-first `0.1.0-alpha.1` shell against fixture data only — UI-01
-  (Operations dashboard), UI-02 (Not ready/Review/Held queues), UI-03
-  (Needs sorting/Blocked intake queues), UI-04 (activity counters), UI-05
-  (click-through filtered queues), UI-06 (freshness/reconciliation states),
-  UI-08 (three-column intake workbench), UI-09 (full case workspace), UI-11
-  (accounts/principals/mailbox allowlist/configuration), UI-13
-  (accessibility); no Core wiring, no real case/reference mutation, no
-  business-rule resolution ahead of open decisions; excludes UI-07 (already
-  in task/image-led-intake), UI-10 (`Next / 0.3.0`, out of scope), and UI-12
-  (`Not planned`) (branch task/ui-alpha-design-pass, taken 2026-08-03, by
-  claude).
 - Box Case/PO document custody: remove internal `caseId` values from the Box
   folder hierarchy; store retained intake sources and managed document versions
   under the allocated Case/PO-named case folder, reshaping the Core
@@ -62,23 +21,73 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   Vault, repoint the Worker's and Web's references, prove resolution, then
   retire the two adopted vaults and `rg-collisionspike-dev` (branch
   task/vault-consolidation, taken 2026-08-03, by codex).
-- MCP Automation Actor ingress: build the management/development-controlled
-  MCP ingress for one named, vendor-neutral Automation Actor invoking
-  existing Core use cases through its own authentication and identity
-  (ADR-0011/ADR-0013) — Case actions, intake-queue actions, and document
-  actions (MCP-01/02/03/04); reuse the existing ActionActor/ExecuteAsync/
-  IActionHistoryWriter pattern rather than the deleted per-staff-OAuth MCP
-  surface; no per-staff MCP access, no Administrator/config/credential/
-  cloud/release/deletion authority, no AI proposal transport (AI-09 stays
-  separate), MCP-05's broader email-workspace actions out of scope pending
-  the email workspace itself (branch task/mcp-automation-actor, taken
-  2026-08-03, by claude).
-
+- Report renderer integration planning: plan the retirement of the
+  `workspaces/report-renderer/` source import into the monolith — locate the
+  Core render port seam and Infrastructure adapter placement that RPT-01–05
+  and EXT-08 would activate through, fold the workspace's own documentation
+  into the canonical docs, plan the renderer's .NET 8 → repository-TFM
+  uplift, plan the `docs/reference/rendererref1` blueprint and report-template
+  intake, plan promotion of the renderer's pre-existing MCP server as the
+  replacement for the current `.mcpb` packaging (MCP-01–04 follow-ups), and
+  plan removal of any remaining renderer desktop/UI elements. Draft planning
+  documents under `docs/temp-plans/` only: no activation, no `Pegasus.slnx`
+  change, no caller, no workspace deletion, and no acceptance in this task —
+  every integration stays behind the workspace register's activation
+  conditions and needs its own ADR and implementation task (branch
+  task/report-renderer-integration, taken 2026-08-03, by claude).
+- AI-09 Send to AI round trip and the Automation Actor assessment toolset:
+  implement `docs/temp-plans/mcp-assessment-toolset.md` and
+  `docs/temp-plans/send-to-claude-channel-integration.md` under the
+  operator's 2026-08-03 direct-write decision — Core assessment model and
+  AiWork work-request lifecycle, `automation.assessment` scope and the five
+  new Automation Actor tools, `Features:SendToAi` gate/adapter/panel wiring,
+  PAV slider, the Automation Actor ADR carrying the AI-09 contract
+  rewording, and the `pegasus-claude-channel` 0.2.0 close-out in the sibling
+  repo. Everything composition-gated DevelopmentOffline-only; estimate
+  derivation stays D2-gated; no activation or tier-5 claim (branch
+  task/send-to-ai-round-trip, taken 2026-08-03, by claude).
 ## Next (ordered queue — take from the top)
 
 - Assemble the operator-reviewed extraction cohort + untouched holdout and
   accept the per-field thresholds (INT-21, open-decisions) — blocks Path
   step 3.
+- Before the next production deploy, verify the ADR-0020 premise that no
+  environment holds an accepted case (CaseMatchIndex ships empty with no
+  backfill); if any accepted QDOS case exists, add a one-shot reprojection
+  (task/qdos-email-classification review, 2026-08-03).
+- Operator decision: the pre-scrub commits of task/qdos-email-classification
+  still carry corpus-derived names/references in GitHub PR refs — decide
+  whether to request a history purge; and decide handling of the real staff
+  addresses and case data in the operator-supplied
+  docs/reference/workproviders-and-repairers files
+  (task/qdos-email-classification review, 2026-08-03).
+- UI polish follow-ups from the design-pass review: Send-confirm focus drop,
+  focus-trap escape edge case, sparkle glyph clipping, and the freshness
+  banner's London label falling back to a UTC value without IANA data
+  (task/ui-alpha-design-pass review, 2026-08-03).
+- Relabel the Operations dashboard's DraftReady intake tile from `Review` to
+  the design authority's `Instruction draft` mapping: `DraftReady` is the
+  internal intake-receipt decision (a route-accepted instruction whose
+  extraction produced a complete reviewable draft, pre-Case), and the
+  internal wording leaked into the UI where `Review` is reserved for the
+  Case state (operator decision 2026-08-03: ship as-is, fix later).
+- Prove the per-run template database's server-side BACKUP/RESTORE against a
+  PEGASUS_TEST_SQL_DATASOURCE container (Linux workstation or a CI job) and
+  lift the review gate that disables the template for external servers
+  (task/repository-check-speed review, 2026-08-03).
+- After task/repository-check-speed merges, observe the hardened
+  abandoned-database sweep on a shared LocalDB instance: every sweep failure
+  is now swallowed, so confirm abandoned Pegasus_Test_* databases and .bak
+  files still get reclaimed rather than accumulating
+  (task/repository-check-speed review, 2026-08-03).
+- Record the MCP Automation Actor tier-5 evidence: a real external client
+  (Claude Code over a bearer token) against the locally enabled `/mcp`
+  surface, evidence recorded per operations.md, before any activation claim
+  (task/mcp-automation-actor review, 2026-08-03).
+- Promote the settled Automation Actor identity/authentication/tool-inventory
+  contract to an ADR — with the temp plan deleted it is owned only by
+  architecture.md/operations.md prose
+  (task/mcp-automation-actor review, 2026-08-03).
 
 ## Waiting (each line names its unblock condition)
 
