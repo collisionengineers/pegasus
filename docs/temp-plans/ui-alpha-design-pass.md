@@ -213,3 +213,18 @@ must not invent aliases; `Review` is a Case state, and this count is of
 pre-case intake drafts. The existing wording was left unchanged because
 changing it changes what an operator reads. It needs a business decision,
 not a design one.
+
+## Review addendum (2026-08-03, PR #326 independent review)
+
+- The two Assessment surfaces no longer register routes: `@page` directives
+  and the two empty PageModels are deleted, so "activates no route" in the
+  operator widening is now literally true. design/README.md § Deferred
+  casework records the authorized routeless artifact. Restoring the routes
+  belongs to the wiring task's re-entry approval.
+- The saved-browser reference files (`sendtoclaudeexample.html` and its
+  `_files` css) are deleted; the design/README.md divergence table is the
+  record of the `Send to Claude` values.
+- After merging dev (PR #327), the Automation administration surface was
+  conformed: Administration index entry is an `.admin-card`, both Automation
+  pages use `_PageHeader`/`.back-link`/`_StatusChip`, and both routes joined
+  the accessibility theory.
