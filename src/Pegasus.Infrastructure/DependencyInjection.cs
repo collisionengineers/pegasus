@@ -1,3 +1,5 @@
+using Pegasus.Core.AiWork;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
@@ -222,6 +224,11 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfCaseDataStore>());
         services.AddScoped<IConfirmCompleteness, ConfirmCompleteness>();
         services.AddScoped<ISaveCase, SaveCase>();
+        services.AddScoped<ICaseAssessmentStore, EfCaseAssessmentStore>();
+        services.AddScoped<IGetCaseAssessment, GetCaseAssessment>();
+        services.AddScoped<ISaveAssessment, SaveAssessment>();
+        services.AddScoped<IAiWorkRequestStore, EfAiWorkRequestStore>();
+        services.AddScoped<ISendToAiControl, EfSendToAiControlStore>();
         services.AddScoped<EfCaseTaskStore>();
         services.AddScoped<ICaseTaskStore>(
             provider => provider.GetRequiredService<EfCaseTaskStore>());
