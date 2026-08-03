@@ -50,14 +50,10 @@ internal sealed class VisionModelSet
         var hashSummaries = new List<string>(manifest.Models.Count);
         foreach (var model in manifest.Models)
         {
-            var bytes = ReadResource(assembly, ResourcePrefix + model.Name);
-            var actual = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
-            if (!string.Equals(actual, model.Sha256, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new VisionModelIntegrityException(
-                    $"Embedded model '{model.Name}' does not match its pinned SHA-256.");
-            }
-
+            var bytes = VerifyModel(
+                model.Name,
+                ReadResource(assembly, ResourcePrefix + model.Name),
+                model.Sha256);
             hashSummaries.Add($"{model.Role}={model.Sha256}");
             switch (model.Role)
             {
@@ -82,6 +78,22 @@ internal sealed class VisionModelSet
             detection,
             recognition,
             string.Join(';', hashSummaries));
+    }
+
+    /// <summary>
+    /// The one hash gate between embedded model bytes and an inference
+    /// session: bytes that do not match their pinned SHA-256 never load.
+    /// </summary>
+    internal static byte[] VerifyModel(string name, byte[] bytes, string pinnedSha256)
+    {
+        var actual = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+        if (!string.Equals(actual, pinnedSha256, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new VisionModelIntegrityException(
+                $"Embedded model '{name}' does not match its pinned SHA-256.");
+        }
+
+        return bytes;
     }
 
     private static readonly JsonSerializerOptions ManifestJsonOptions =

@@ -1,4 +1,5 @@
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.ImageIntake;
@@ -39,6 +40,42 @@ public static class ImageIntakeLifecycleRules
             or CaseLifecycleState.Held
             or CaseLifecycleState.Review
             or CaseLifecycleState.ReportPreparation;
+
+    /// <summary>
+    /// Image-only material: at least one retained asset, every retained asset
+    /// an image, and evaluation produced no instruction evidence. Anything
+    /// else is instruction-bearing and never registers an Image intake. This
+    /// is the one owner of the rule; the automation, the intake surface, and
+    /// the registration write path all consume it.
+    /// </summary>
+    public static bool IsImageOnlyMaterial(IntakeReceipt receipt)
+    {
+        ArgumentNullException.ThrowIfNull(receipt);
+        return IsImageOnlyMaterial(
+            receipt.InstructionDraft is not null,
+            receipt.Fields.Count,
+            receipt.AssetRecords.Select(asset => asset.MediaType));
+    }
+
+    public static bool IsImageOnlyMaterial(
+        bool hasInstructionDraft,
+        int extractedFieldCount,
+        IEnumerable<string> retainedAssetMediaTypes)
+    {
+        ArgumentNullException.ThrowIfNull(retainedAssetMediaTypes);
+        var sawAsset = false;
+        foreach (var mediaType in retainedAssetMediaTypes)
+        {
+            if (!mediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            sawAsset = true;
+        }
+
+        return !hasInstructionDraft && extractedFieldCount == 0 && sawAsset;
+    }
 
     public static void ValidateRegister(RegisterImageIntakeRequest request)
     {

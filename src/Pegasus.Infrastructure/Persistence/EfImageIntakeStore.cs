@@ -79,9 +79,12 @@ public sealed class EfImageIntakeStore(
             return Map(existing);
         }
 
-        var receipt = await context.IntakeReceipts.SingleOrDefaultAsync(
-            item => item.Id == request.Origin.ReceiptId,
-            cancellationToken)
+        var receipt = await context.IntakeReceipts
+            .Include(item => item.InstructionDraft)
+            .Include(item => item.Assets)
+            .SingleOrDefaultAsync(
+                item => item.Id == request.Origin.ReceiptId,
+                cancellationToken)
             ?? throw new InvalidOperationException("The originating intake receipt does not exist.");
         if (receipt.SourceChannel != sourceChannel
             || receipt.ExternalReceiptToken != sourceToken
@@ -100,7 +103,11 @@ public sealed class EfImageIntakeStore(
                 "The registering intake evaluation revision does not exist for the receipt.");
         }
 
-        if (receipt.Decision != EfIntakeReceiptStore.ToCode(IntakeDecision.NeedsSorting))
+        if (receipt.Decision != EfIntakeReceiptStore.ToCode(IntakeDecision.NeedsSorting)
+            || !ImageIntakeLifecycleRules.IsImageOnlyMaterial(
+                receipt.InstructionDraft is not null,
+                EfIntakeReceiptStore.DeserializeFields(receipt.FieldsJson).Length,
+                receipt.Assets.Select(asset => asset.MediaType)))
         {
             throw new InvalidOperationException(
                 "Only an image-only intake receipt awaiting sorting can register an Image intake.");

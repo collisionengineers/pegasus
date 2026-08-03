@@ -101,18 +101,9 @@ public sealed class ImageIntakeAutomation(
         return updated ?? receipt;
     }
 
-    /// <summary>
-    /// Image-only material: at least one retained asset, every retained asset
-    /// is an image, and evaluation produced no instruction evidence. Anything
-    /// else is instruction-bearing and never registers an Image intake.
-    /// </summary>
     private static bool IsImageOnly(IntakeReceipt receipt) =>
         receipt.Decision == IntakeDecision.NeedsSorting
-        && receipt.InstructionDraft is null
-        && receipt.Fields.Count == 0
-        && receipt.AssetRecords.Count > 0
-        && receipt.AssetRecords.All(asset =>
-            asset.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase));
+        && ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt);
 
     private async Task<IReadOnlyList<ImageVrmSuggestion>> ScanAsync(
         IntakeReceipt receipt,

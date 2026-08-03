@@ -123,6 +123,117 @@ public sealed class ImageIntakePersistenceTests
     }
 
     [Fact]
+    public async Task NonImageNeedsSortingMaterialCannotRegister()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var email = IntakeTestEvidence.CreateEmail(
+            "loose-notes.eml",
+            "Please review this ordinary correspondence; no instruction, no image.");
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
+            client,
+            email.FileName,
+            email.MediaType,
+            email.Content);
+        var receiptId = IntakeWebDriver.ReceiptId(upload);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
+        var receipt = await receipts.GetAsync(receiptId, CancellationToken.None);
+        // The guard under test is the material shape, not the queue decision:
+        // this receipt sits in Needs sorting exactly like image-only material.
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt!.Decision);
+
+        var resolver = services.GetRequiredService<IImageIntakeOriginResolver>();
+        var register = services.GetRequiredService<IRegisterImageIntake>();
+        var origin = await resolver.ResolveOriginAsync(receiptId, CancellationToken.None);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => register.ExecuteAsync(
+                new(
+                    origin!,
+                    "AB12CDE",
+                    StaffActor(),
+                    "image-intake-register-non-image",
+                    "Attempted registration of non-image material."),
+                CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ConcurrentSameVrmRegistrationsAllocateDistinctSequentialReferences()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var firstReceiptId = await UploadImageAsync(factory, client);
+        var secondReceiptId = await UploadImageAsync(factory, client);
+
+        // Both registrations race the same per-VRM sequence row under
+        // serializable isolation. The winner commits; a loser may deadlock or
+        // hit a serialization failure, must surface that failure rather than
+        // reuse or skip a reference, and must succeed cleanly when retried.
+        var outcomes = await Task.WhenAll(
+            Task.Run(() => TryRegisterAsync(
+                factory.Services, firstReceiptId, "concurrent-register-first")),
+            Task.Run(() => TryRegisterAsync(
+                factory.Services, secondReceiptId, "concurrent-register-second")));
+
+        Assert.Contains(outcomes, outcome => outcome is null);
+        foreach (var (receiptId, operationKey) in new[]
+        {
+            (firstReceiptId, "concurrent-register-first"),
+            (secondReceiptId, "concurrent-register-second")
+        })
+        {
+            for (var attempt = 0; attempt < 3; attempt++)
+            {
+                if (await TryRegisterAsync(factory.Services, receiptId, operationKey) is null)
+                {
+                    break;
+                }
+            }
+        }
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IImageIntakeQueries>();
+        var registered = await queries.SearchByRegistrationAsync("AB12CDE", CancellationToken.None);
+        Assert.Equal(2, registered.Count);
+        Assert.Collection(
+            registered
+                .Select(intake => intake.ImageIntakeReference)
+                .OrderBy(reference => reference, StringComparer.Ordinal),
+            reference => Assert.Equal("AB12CDE-01", reference),
+            reference => Assert.Equal("AB12CDE-02", reference));
+    }
+
+    private static async Task<Exception?> TryRegisterAsync(
+        IServiceProvider services,
+        Guid receiptId,
+        string operationKey)
+    {
+        try
+        {
+            await using var scope = services.CreateAsyncScope();
+            await RegisterAsync(scope.ServiceProvider, receiptId, "AB12CDE", operationKey);
+            return null;
+        }
+        catch (Exception exception)
+        {
+            // Never a replay conflict: the race loses on the sequence row,
+            // not on the operation key.
+            Assert.IsNotType<ImageIntakeOperationConflictException>(exception);
+            return exception;
+        }
+    }
+
+    [Fact]
     public async Task ReceiptLinkEnforcesEligibilityOnceAnImageIntakeExists()
     {
         using var factory = new IntakeWebApplicationFactory(

@@ -6,9 +6,10 @@ Scope notes:
 
 - The operator decided open decision 1's mechanism on 2026-08-03 (ADR-0019,
   in-process ONNX engine) and added full implementation of that engine to
-  this task. Threshold acceptance (open decision 1's remainder) stays open:
-  this task produces the first local evaluation evidence and the provisional
-  bar, not an accepted threshold.
+  this task. Threshold acceptance was initially left open; a third operator
+  direction round later the same day accepted the 0.80 bar with the match
+  rules and closed open decision 1 (see the addendum at the end of this
+  plan).
 - A second operator direction round on 2026-08-03 (recorded here; doc edits
   in Step 6) settled the remaining seams:
   1. Registration is offered/performed only for image-only receipts (no
@@ -432,8 +433,10 @@ worktree and branch are removed.
   image-intake search results are an additive lookup.
 - `corpus/` stays gitignored; no corpus content, label, or VRM enters the
   repository; cohort/holdout manifests and evaluation reports stay local.
-- Open decision 1's threshold acceptance is not closed by this task; the
-  provisional bar is active but explicitly pending operator review.
+- Open decision 1 closed inside this task: the operator accepted the 0.80
+  bar with the match rules on 2026-08-03 after the full-cohort run
+  `20260803-092906`, confirmed by the one-time holdout run `20260803-102921`
+  (the ADR-0019 index entry owns the numbers; see the addendum).
 
 ## Verification
 
@@ -487,3 +490,37 @@ review.
 - `--locked-mode` restore fails CI instantly if any `packages.lock.json`
   regeneration is missed. SkiaSharp is a new native dependency subject to
   the same origin/hash/RID review.
+
+## Addendum (2026-08-03, post-plan operator directions and review fixes)
+
+Ten commits followed the plan baseline under a third operator direction
+round the same day; this addendum brings the review baseline up to what the
+branch delivers.
+
+- **Match rules** (operator-directed): a read missing exactly one character
+  of a candidate's confirmed registration counts as the unambiguous match,
+  and the confirmed registration — never the truncated read — becomes the
+  registered identity; an eight-character read whose fifth character is `1`
+  is retried without it (plate furniture). Any second consistent candidate
+  is ambiguous; an exact candidate beats near-miss candidates. Owned by
+  `VrmRegistrationMatching` in Core; requirements own the wording.
+- **Reverse pairing** (operator-directed): case acceptance checks waiting
+  unassociated Image intakes (`IImageIntakeCasePairing` hooked from
+  `AcceptIntake`), sharing the association operation key across both
+  directions. Review fix: the reverse direction associates on exact
+  registration equality only — the registered identity is immutable, so a
+  near-miss cannot be "completed" after the fact and stays a reasoned staff
+  suggestion.
+- **Threshold accepted, decision 1 closed**: full-cohort run
+  `20260803-092906` under the match rules, holdout confirmation
+  `20260803-102921`, operator accepted the 0.80 bar. The ADR-0019 index
+  entry owns the numbers.
+- **Review fixes** (independent PR review, 2026-08-03): the image-only rule
+  has one Core owner (`ImageIntakeLifecycleRules.IsImageOnlyMaterial`)
+  enforced at the registration write path, not only in the UI, with a
+  non-image Needs-sorting persistence test; the engine refuses
+  absurd declared image dimensions from the codec header before decoding
+  (OOM is non-recoverable in intake, so a decode bomb could otherwise fail
+  processing); the plan-promised tampered-model and concurrent same-VRM
+  registration tests exist (`VrmRecognitionEngineTests`,
+  `ImageIntakePersistenceTests`).

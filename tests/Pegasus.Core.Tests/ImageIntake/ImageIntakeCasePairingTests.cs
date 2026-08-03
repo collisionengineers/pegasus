@@ -51,6 +51,26 @@ public sealed class ImageIntakeCasePairingTests
     }
 
     [Fact]
+    public async Task ANearMissCandidateNeverPairsInTheReverseDirection()
+    {
+        // The registered identity is immutable here, so the scan-time
+        // completion rules cannot apply: a case whose confirmed registration
+        // is one character off the intake's registered value stays a staff
+        // suggestion.
+        var queries = new FakeQueries { Unassociated = [Summary("AB12CDE-01", "AB12CDE")] };
+        var candidates = new FakeCandidates
+        {
+            Result = [new(CaseId, "QDS26001", 0, "AB12CDEF")]
+        };
+        var mutationStore = new FakeMutationStore();
+
+        await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System)
+            .PairAcceptedCaseAsync(CaseId, CancellationToken.None);
+
+        Assert.Empty(mutationStore.AutoLinks);
+    }
+
+    [Fact]
     public async Task OneFailedPairingNeverStopsTheOthers()
     {
         var first = Summary("AB12CDE-01", "AB12CDE");
