@@ -1,4 +1,4 @@
-# ADR-0017: Provider-determined inspection mode as a database setting
+# ADR-0018: Provider-determined inspection mode as a database setting
 
 - Date: 2026-08-03
 - Status: accepted

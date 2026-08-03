@@ -5,7 +5,7 @@
 namespace Pegasus.Infrastructure.Persistence.Migrations
 {
     /// <summary>
-    /// Adds the per-principal inspection-mode setting (ADR-0017, 2026-08-03
+    /// Adds the per-principal inspection-mode setting (ADR-0018, 2026-08-03
     /// product-owner decision) and widens the case-data source kinds with
     /// 'provider_setting'. QDOS is seeded 'image_based_assessment' from the
     /// evidence workbook docs/reference/workproviders-and-repairers/

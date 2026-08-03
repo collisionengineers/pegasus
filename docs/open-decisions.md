@@ -21,8 +21,7 @@ path is item 4 (extraction
 thresholds) below. The Box production custody boundary was decided 2026-08-02:
 folder `405543781910` ("pegasus") is the production custody root and all case
 folders are created only under it (owner:
-[operations](operations.md#approved-box-integration-test-target); the deployed
-configuration applies the decided root at the next approved deployment).
+[operations](operations.md#approved-box-integration-test-target)).
 
 ## QDOS alpha activation details (migrated from the retired delivery plan)
 
@@ -55,7 +54,7 @@ step it names.
    invariant. Inspection Address extraction is meaningful only for
    physical-address Principals; an always-image-based Principal's Cases take
    the exact `Image Based Assessment` value from the provider setting
-   (ADR-0017), not from extraction.
+   (ADR-0018), not from extraction.
 5. **Telemetry sampling and daily cap** — Exact sampling rate and daily
    ingestion cap (31-day interactive retention is settled), accepted from
    measured alpha workload and cost evidence; the deployed adaptive sampling

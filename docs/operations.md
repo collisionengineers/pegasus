@@ -31,10 +31,12 @@ release-route decision recorded in ADR-0007, not a development-platform
 requirement. Web and Worker packages are `linux-x64` and build identically on
 either platform.
 
-Hosted continuous integration runs `windows-latest` only. Linux development is
-supported by these procedures and is not proved by any automated gate: a Linux
-result is developer evidence, not repository-check evidence, until a Linux job
-exists and passes.
+Hosted continuous integration runs application evidence on `windows-latest`
+only; the `repository-check` `changes` job is a Linux path detector that
+exercises no application code and provides no Linux-development evidence.
+Linux development is supported by these procedures and is not proved by any
+automated gate: a Linux result is developer evidence, not repository-check
+evidence, until a Linux application job exists and passes.
 
 ### Platform capability differences
 
@@ -233,8 +235,7 @@ Install-Module ExchangeOnlineManagement -Scope CurrentUser -RequiredVersion 3.10
 ### Approved Box custody root
 
 Box folder `405543781910` ("pegasus") is the production custody root: all case
-folders are created only under it. The deployed configuration applies this
-root from the next approved deployment (it currently carries `392761581105`).
+folders are created only under it, and the deployed configuration carries it.
 Folder `392761581105` is the only eligible controlled integration-test
 boundary, confined to an approved disposable test subtree; neither folder
 grants standing write authority. Before any non-production invocation, obtain
@@ -405,7 +406,7 @@ Successful completion proves deterministic authoring bytes only. It does not act
 
 Each Principal row carries an `InspectionMode` setting
 (`physical_address` or `image_based_assessment`) under
-[ADR-0017](adr/0017-provider-inspection-mode-database-setting.md). It is not
+[ADR-0018](adr/0018-provider-inspection-mode-database-setting.md). It is not
 part of the provider-domain reference package above and never will be: that
 package remains domain evidence only. QDOS is seeded `image_based_assessment`
 by migration; principal creation and replacement carry the setting, and a
@@ -522,6 +523,7 @@ stops only matching child processes, drops only that LocalDB database, and
 removes only that run directory. A malformed or ambiguous manifest refuses
 action. Never manually repurpose these commands to remove another run,
 `corpus/`, tracked reference files, or an Azure resource.
+
 ## Configuration and secrets
 
 Configuration ownership is:
@@ -842,14 +844,16 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   accepted), FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard
   LRS storage accounts, distinct Web/Worker managed identities, a Pegasus Key
   Vault, Log Analytics, and Application Insights.
-- **Deployed evidence (2026-08-02):** Web source revision `94997dd0…` on an
-  immutable image digest; health endpoints returned 200 after predecessor
-  retirement; Graph Inbox/Sent processing live-verified through the production
-  Worker (83 successful executions, zero exceptions in the final readback).
+- **Deployed evidence:** release 2 executed 2026-08-03 through the same
+  authorised-terminal route — Web source revision `836db05c…` on immutable
+  digest `sha256:90e5e1e1…` (single healthy revision), Worker package
+  redeployed with all nine functions, production smoke passed (health, exact
+  version/SHA, anonymous-`/Cases` denial). Release 1 (2026-08-02, revision
+  `94997dd0…`) live-verified Graph Inbox/Sent processing through the
+  production Worker (83 successful executions, zero exceptions).
 - **Integrations:** Graph via the Worker managed identity scoped by Exchange
   Application RBAC to `instructions@collisionengineers.co.uk`; Box production
-  custody deployed with root folder `392761581105` — the decided root is
-  `405543781910` ("pegasus") and applies at the next approved deployment;
+  custody rooted at the pegasus folder `405543781910` (applied by release 2);
   official DVLA VES v1.2 and DVSA MOT History v1; EVA remains the accepted
   manual JSON/image handoff.
 - **Secrets:** the adopted predecessor vaults `cespkboxkvv76a47` and
@@ -989,7 +993,9 @@ Malware scanning has no activation path. There is no scanner port, fixture, clie
 Repository visibility was explicitly authorised as public on 2026-07-27. The tracked history and documentation, including [operator notes](operator-notes.md) and supplied reference material, are publicly readable. Never commit secrets, personal/case material, or anything not approved for public source control.
 
 Work tracking uses no GitHub issues, labels, milestones, or project boards.
-[`NOW.md`](../NOW.md) is the only work tracker, the
+[`NOW.md`](../NOW.md) is the only work tracker and the multi-agent task
+queue — agents claim task lines and work them in worktrees under the
+[task workflow](engineering.md#task-workflow) — the
 [capability inventory](capabilities.md) is the roadmap, and
 [open decisions](open-decisions.md) holds unresolved questions
 (see the [repository instructions](../AGENTS.md)). Allocation, activation,

@@ -8,7 +8,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$excluded = '^(node_modules|corpus|artifacts|\.git|\.claude|\.agents|\.codex)/|^workspaces/ai-centre/skills/(?!README\.md$)'
+$excluded = '^(node_modules|corpus|artifacts|\.git|\.claude|\.agents|\.codex)/|^docs/temp-plans/(?!README\.md$)|^workspaces/ai-centre/skills/(?!README\.md$)'
 $linkPattern = [regex]'\[[^\]]*\]\(([^)\s]+)\)'
 
 $files = git -C $repoRoot ls-files '*.md' | Where-Object { $_ -notmatch $excluded }
