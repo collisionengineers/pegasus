@@ -166,7 +166,7 @@ interfaces at implementation time:
 | Intake queue (MCP-03) | `pegasus_intake_submit` | the Core intake receipt use case (immutable source occurrence submission — the document-action route the external scan client would use) | not read-only, idempotent per source occurrence |
 | Documents (MCP-04) | `pegasus_document_add` | `IAddCaseDocument` | not read-only, idempotent per `OperationKey` |
 | Documents (MCP-04) | `pegasus_document_download` | `IDownloadCaseDocument` | read-only, idempotent |
-| Documents (MCP-04) | `pegasus_document_export` | `IExportCaseDocuments` | read-only, idempotent |
+| Documents (MCP-04) | `pegasus_document_export` | `IExportCaseDocuments` | not read-only (the Core command is lease-guarded: `ExpectedCaseVersion` + `EditLeaseToken`), idempotent |
 
 Inventory rules:
 
@@ -640,7 +640,7 @@ schema is `1.0.0` capability work (CASE-31, ENG-01, ENG-02, EXT-09,
 EXT-10; rendering `1.1.0`); reference and workspace material is
 evidence, never authority; nothing here creates a schema.
 
-### 5.1 Source ranking (corrected by the sweep)
+### 4.1 Source ranking (corrected by the sweep)
 
 - Best single contract: `docs/reference/rendererref1/report_data_schema.json`
   — the predecessor generator's typed, validated, outcome-branching job
@@ -661,7 +661,7 @@ evidence, never authority; nothing here creates a schema.
   add the operational superset (valuation adjustments, salvage
   administration, estimated-vs-assessed comparison).
 
-### 5.2 Field groups inventoried (full provenance delivered separately)
+### 4.2 Field groups inventoried (full provenance delivered separately)
 
 Repair specification lines · labour + rates · paint + materials ·
 parts · specialist extras · totals + the VAT-registration rule ·
@@ -671,7 +671,7 @@ roadworthiness reasoning (`unroadworthy_reason` mandatory when
 unroadworthy) · fee note · narrative sections · audit
 conservative-vs-maximised specifications.
 
-### 5.3 What exists in Pegasus.Core today
+### 4.3 What exists in Pegasus.Core today
 
 Only Triage-level `RoadworthinessFinding`/`AssessmentFinding` enums
 (and requirements forbid Triage findings populating case findings),
@@ -681,7 +681,7 @@ Only Triage-level `RoadworthinessFinding`/`AssessmentFinding` enums
 implemented**, and every estimate/assessment field group above has no
 Core schema.
 
-### 5.4 What the scoping surfaces
+### 4.4 What the scoping surfaces
 
 - The stored model must be **line-level** (operations with work units,
   price, status, justification) with category totals derived once; the
