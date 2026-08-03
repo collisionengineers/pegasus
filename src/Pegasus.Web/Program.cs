@@ -505,10 +505,6 @@ if (requestUploadLimitsFactory is not null)
 {
     builder.Services.AddSingleton<RequestUploadAttemptLimiter>();
 }
-builder.Services.AddScoped<IMailRoutePolicy>(serviceProvider =>
-    serviceProvider.GetRequiredService<IInstructionExtractionPolicy>() as IMailRoutePolicy
-    ?? throw new InvalidOperationException(
-        "The configured instruction extraction policy must implement the mail-route policy contract."));
 builder.Services.AddScoped<EfIntakeWorkStore>();
 builder.Services.AddScoped<IIntakeWorkStore>(serviceProvider =>
     serviceProvider.GetRequiredService<EfIntakeWorkStore>());

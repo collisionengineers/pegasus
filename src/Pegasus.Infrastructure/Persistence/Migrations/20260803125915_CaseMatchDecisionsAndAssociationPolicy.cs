@@ -102,7 +102,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 migrationBuilder.Sql(
                     "GRANT SELECT ON OBJECT::[dbo].[IntakeCaseMatchDecisions] TO [pegasus_web_runtime_role];");
                 migrationBuilder.Sql(
-                    "GRANT SELECT, INSERT ON OBJECT::[dbo].[IntakeCaseMatchDecisions] TO [pegasus_worker_runtime_role];");
+                    "GRANT SELECT, INSERT, UPDATE, DELETE ON OBJECT::[dbo].[IntakeCaseMatchDecisions] TO [pegasus_worker_runtime_role];");
                 migrationBuilder.Sql(
                     "GRANT SELECT, INSERT, UPDATE ON OBJECT::[dbo].[IntakeManualAssociations] TO [pegasus_worker_runtime_role];");
                 migrationBuilder.Sql(

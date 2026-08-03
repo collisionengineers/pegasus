@@ -139,18 +139,58 @@ public sealed class EvaluateIntakeCaseMatchTests
     }
 
     [Fact]
-    public async Task SameSurnameWithADifferentInitialIsANonHitNotAContradiction()
+    public async Task NameContradictionEliminatesAVrmHitCandidate()
+    {
+        var result = await Execute(
+            Keys(surname: "SMITH", initial: "J", vrm: "AB12CDE"),
+            [Candidate(CaseA, surname: "JONES", initial: "B", vrm: "AB12CDE")]);
+
+        Assert.Equal(CaseMatchOutcome.NoMatch, result!.Outcome);
+        Assert.Null(result.MatchedCaseId);
+        var evaluation = Assert.Single(result.Candidates);
+        Assert.Contains(EvaluateIntakeCaseMatch.VehicleRegistrationKey, evaluation.HitKeys);
+        Assert.Contains(
+            evaluation.Eliminations,
+            reason => reason.Contains("claimant", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task NameContradictionEliminatesAClaimHitCandidate()
+    {
+        var result = await Execute(
+            Keys(claim: "46553/1", surname: "SMITH", initial: "J"),
+            [Candidate(CaseA, claim: "46553/1", surname: "JONES", initial: "B")]);
+
+        Assert.Equal(CaseMatchOutcome.NoMatch, result!.Outcome);
+        Assert.NotEmpty(Assert.Single(result.Candidates).Eliminations);
+    }
+
+    [Fact]
+    public async Task SameSurnameWithADifferentInitialIsARecordedContradiction()
     {
         var result = await Execute(
             Keys(surname: "KHAN", initial: "S"),
             [Candidate(CaseA, surname: "KHAN", initial: "A")]);
 
         Assert.Equal(CaseMatchOutcome.NoMatch, result!.Outcome);
-        Assert.Empty(result.Candidates);
+        var evaluation = Assert.Single(result.Candidates);
+        Assert.Empty(evaluation.HitKeys);
+        Assert.NotEmpty(evaluation.Eliminations);
     }
 
     [Fact]
-    public async Task CreatedInErrorSurvivorRedirectsToItsLinkedReplacement()
+    public async Task PartialNamePairNeverEliminates()
+    {
+        var result = await Execute(
+            Keys(claim: "46553/1", surname: "SMITH"),
+            [Candidate(CaseA, claim: "46553/1", surname: "JONES", initial: "B")]);
+
+        Assert.Equal(CaseMatchOutcome.UniqueMatch, result!.Outcome);
+        Assert.Equal(CaseA, result.MatchedCaseId);
+    }
+
+    [Fact]
+    public async Task CreatedInErrorSurvivorRedirectsToItsLinkedReplacementEvaluatedOnItsOwnKeys()
     {
         var result = await Execute(
             Keys(claim: "46553/1"),
@@ -160,10 +200,95 @@ public sealed class EvaluateIntakeCaseMatchTests
                     claim: "46553/1",
                     state: CaseLifecycleState.CreatedInError,
                     replacement: CaseB)
-            ]);
+            ],
+            byCaseId: [Candidate(CaseB, claim: "46553/1")]);
 
         Assert.Equal(CaseMatchOutcome.UniqueMatch, result!.Outcome);
         Assert.Equal(CaseB, result.MatchedCaseId);
+        Assert.Equal(CaseA, result.RedirectedFromCaseId);
+    }
+
+    [Fact]
+    public async Task ReplacementContradictedByTheMessageIsEliminatedNotInherited()
+    {
+        var result = await Execute(
+            Keys(claim: "46553/1", date: new DateOnly(2026, 6, 18)),
+            [
+                Candidate(
+                    CaseA,
+                    claim: "46553/1",
+                    state: CaseLifecycleState.CreatedInError,
+                    replacement: CaseB)
+            ],
+            byCaseId: [Candidate(CaseB, claim: "46553/1", date: new DateOnly(2025, 1, 2))]);
+
+        Assert.Equal(CaseMatchOutcome.NoMatch, result!.Outcome);
+        Assert.Null(result.MatchedCaseId);
+        Assert.NotEmpty(Assert.Single(result.Candidates).Eliminations);
+    }
+
+    [Fact]
+    public async Task ReplacementSharingNoIdentityWithTheMessageFailsClosed()
+    {
+        var result = await Execute(
+            Keys(claim: "46553/1"),
+            [
+                Candidate(
+                    CaseA,
+                    claim: "46553/1",
+                    state: CaseLifecycleState.CreatedInError,
+                    replacement: CaseB)
+            ],
+            byCaseId: [Candidate(CaseB, claim: "99999/9")]);
+
+        Assert.Equal(CaseMatchOutcome.NoMatch, result!.Outcome);
+        Assert.Null(result.MatchedCaseId);
+    }
+
+    [Fact]
+    public async Task ReplacementWithoutAnIndexIdentityFailsClosed()
+    {
+        var result = await Execute(
+            Keys(claim: "46553/1"),
+            [
+                Candidate(
+                    CaseA,
+                    claim: "46553/1",
+                    state: CaseLifecycleState.CreatedInError,
+                    replacement: CaseB)
+            ],
+            byCaseId: []);
+
+        Assert.Equal(CaseMatchOutcome.NoMatch, result!.Outcome);
+        Assert.Contains(
+            Assert.Single(result.Candidates).Eliminations,
+            reason => reason.Contains("no match-index identity", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ChainedCreatedInErrorReplacementsResolveToTheLiveCase()
+    {
+        var result = await Execute(
+            Keys(claim: "46553/1"),
+            [
+                Candidate(
+                    CaseA,
+                    claim: "46553/1",
+                    state: CaseLifecycleState.CreatedInError,
+                    replacement: CaseB)
+            ],
+            byCaseId:
+            [
+                Candidate(
+                    CaseB,
+                    claim: "46553/1",
+                    state: CaseLifecycleState.CreatedInError,
+                    replacement: CaseC),
+                Candidate(CaseC, claim: "46553/1")
+            ]);
+
+        Assert.Equal(CaseMatchOutcome.UniqueMatch, result!.Outcome);
+        Assert.Equal(CaseC, result.MatchedCaseId);
         Assert.Equal(CaseA, result.RedirectedFromCaseId);
     }
 
@@ -220,11 +345,12 @@ public sealed class EvaluateIntakeCaseMatchTests
     private static Task<CaseMatchEvaluationResult?> Execute(
         CaseMatchKeys keys,
         IReadOnlyList<CaseMatchCandidate> candidates,
-        MailRouteEvaluationResult? route = null)
+        MailRouteEvaluationResult? route = null,
+        IReadOnlyList<CaseMatchCandidate>? byCaseId = null)
     {
         var sut = new EvaluateIntakeCaseMatch(
             [new StubPolicy(keys)],
-            new StubQueries(candidates));
+            new StubQueries(candidates, byCaseId));
         return sut.ExecuteAsync(
             Readable(),
             route ?? Route(
@@ -280,7 +406,9 @@ public sealed class EvaluateIntakeCaseMatchTests
             new(null, null, null, null, null);
     }
 
-    private sealed class StubQueries(IReadOnlyList<CaseMatchCandidate> candidates)
+    private sealed class StubQueries(
+        IReadOnlyList<CaseMatchCandidate> candidates,
+        IReadOnlyList<CaseMatchCandidate>? byCaseId = null)
         : ICaseMatchCandidateQueries
     {
         public Task<IReadOnlyList<CaseMatchCandidate>> FindByAnyKeyAsync(
@@ -288,5 +416,11 @@ public sealed class EvaluateIntakeCaseMatchTests
             CaseMatchKeys keys,
             CancellationToken cancellationToken) =>
             Task.FromResult(candidates);
+
+        public Task<CaseMatchCandidate?> FindByCaseIdAsync(
+            Guid caseId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(
+                (byCaseId ?? candidates).FirstOrDefault(item => item.CaseId == caseId));
     }
 }

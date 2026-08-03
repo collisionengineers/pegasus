@@ -226,4 +226,37 @@ public sealed class EfCaseMatchIndex(
                 row.ReplacementCaseId))
             .ToArray();
     }
+
+    public async Task<CaseMatchCandidate?> FindByCaseIdAsync(
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var row = await context.CaseMatchIndex
+            .AsNoTracking()
+            .Where(item => item.CaseId == caseId)
+            .Join(
+                context.CaseWorkflows.AsNoTracking(),
+                index => index.CaseId,
+                workflow => workflow.CaseId,
+                (index, workflow) => new
+                {
+                    Index = index,
+                    workflow.State,
+                    workflow.ReplacementCaseId
+                })
+            .SingleOrDefaultAsync(cancellationToken);
+        return row is null
+            ? null
+            : new(
+                row.Index.CaseId,
+                row.Index.WorkProviderCode,
+                row.Index.DurableClaimToken,
+                row.Index.NormalizedVrm,
+                row.Index.NormalizedSurname,
+                row.Index.NormalizedFirstInitial,
+                row.Index.IncidentDate,
+                Enum.Parse<CaseLifecycleState>(row.State),
+                row.ReplacementCaseId);
+    }
 }

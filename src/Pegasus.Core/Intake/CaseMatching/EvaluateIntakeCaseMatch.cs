@@ -67,9 +67,13 @@ public sealed class EvaluateIntakeCaseMatch(
 
         var evaluations = candidates
             .Select(candidate => Evaluate(keys, candidate))
-            .Where(evaluation => evaluation.HitKeys.Count > 0)
+            .Where(evaluation => evaluation.HitKeys.Count > 0 || evaluation.Eliminations.Count > 0)
             .ToList();
-        evaluations = RedirectCreatedInError(candidates, evaluations);
+        evaluations = await RedirectCreatedInErrorAsync(
+            keys,
+            candidates,
+            evaluations,
+            cancellationToken);
 
         var survivors = evaluations
             .Where(evaluation => evaluation.Eliminations.Count == 0)
@@ -148,19 +152,26 @@ public sealed class EvaluateIntakeCaseMatch(
         }
 
         if (keys.NormalizedSurname is not null
-            && candidate.NormalizedSurname is not null
-            && string.Equals(
-                keys.NormalizedSurname,
-                candidate.NormalizedSurname,
-                StringComparison.OrdinalIgnoreCase)
             && keys.NormalizedFirstInitial is not null
-            && candidate.NormalizedFirstInitial is not null
-            && string.Equals(
-                keys.NormalizedFirstInitial,
-                candidate.NormalizedFirstInitial,
-                StringComparison.OrdinalIgnoreCase))
+            && candidate.NormalizedSurname is not null
+            && candidate.NormalizedFirstInitial is not null)
         {
-            hits.Add(ClaimantNameKey);
+            if (string.Equals(
+                    keys.NormalizedSurname,
+                    candidate.NormalizedSurname,
+                    StringComparison.OrdinalIgnoreCase)
+                && string.Equals(
+                    keys.NormalizedFirstInitial,
+                    candidate.NormalizedFirstInitial,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                hits.Add(ClaimantNameKey);
+            }
+            else
+            {
+                eliminations.Add(
+                    $"The message claimant '{keys.NormalizedFirstInitial} {keys.NormalizedSurname}' contradicts the case's '{candidate.NormalizedFirstInitial} {candidate.NormalizedSurname}'.");
+            }
         }
 
         if (keys.IncidentDate is not null
@@ -174,41 +185,91 @@ public sealed class EvaluateIntakeCaseMatch(
         return new(candidate.CaseId, hits, eliminations);
     }
 
-    private static List<CaseMatchCandidateEvaluation> RedirectCreatedInError(
+    /// <summary>
+    /// A Created in error survivor never associates itself: its linked replacement is
+    /// followed (bounded, cycle-safe) and the replacement is evaluated against the
+    /// message on its OWN index keys — hits and eliminations never transfer from the
+    /// error case, so a replacement whose corrected identity contradicts the message is
+    /// eliminated rather than inherited. A replacement without an index identity fails
+    /// closed with a recorded reason.
+    /// </summary>
+    private async Task<List<CaseMatchCandidateEvaluation>> RedirectCreatedInErrorAsync(
+        CaseMatchKeys keys,
         IReadOnlyList<CaseMatchCandidate> candidates,
-        List<CaseMatchCandidateEvaluation> evaluations)
+        List<CaseMatchCandidateEvaluation> evaluations,
+        CancellationToken cancellationToken)
     {
-        var statesById = candidates.ToDictionary(
+        const int maximumRedirectHops = 5;
+        var candidatesById = candidates.ToDictionary(
             candidate => candidate.CaseId,
             candidate => candidate);
         var redirected = new List<CaseMatchCandidateEvaluation>();
         foreach (var evaluation in evaluations)
         {
-            var candidate = statesById[evaluation.CaseId];
+            var candidate = candidatesById[evaluation.CaseId];
             if (candidate.State != CaseLifecycleState.CreatedInError)
             {
                 redirected.Add(evaluation);
                 continue;
             }
 
-            if (candidate.ReplacementCaseId is not { } replacementId)
+            var visited = new HashSet<Guid> { candidate.CaseId };
+            var target = candidate;
+            var hops = 0;
+            var terminalReason = (string?)null;
+            while (target.State == CaseLifecycleState.CreatedInError)
+            {
+                if (target.ReplacementCaseId is not { } replacementId)
+                {
+                    terminalReason =
+                        "The candidate was closed as Created in error with no linked replacement; it never reopens.";
+                    break;
+                }
+
+                if (!visited.Add(replacementId) || ++hops > maximumRedirectHops)
+                {
+                    terminalReason =
+                        "The Created in error replacement chain is cyclic or too deep; the match fails closed.";
+                    break;
+                }
+
+                var next = candidatesById.GetValueOrDefault(replacementId)
+                    ?? await candidateQueries.FindByCaseIdAsync(replacementId, cancellationToken);
+                if (next is null)
+                {
+                    terminalReason =
+                        "The linked replacement case has no match-index identity; the match fails closed.";
+                    break;
+                }
+
+                target = next;
+            }
+
+            if (terminalReason is not null)
             {
                 redirected.Add(evaluation with
                 {
-                    Eliminations =
-                    [
-                        .. evaluation.Eliminations,
-                        "The candidate was closed as Created in error with no linked replacement; it never reopens."
-                    ]
+                    Eliminations = [.. evaluation.Eliminations, terminalReason]
                 });
                 continue;
             }
 
-            redirected.Add(evaluation with
+            var targetEvaluation = Evaluate(keys, target) with
             {
-                CaseId = replacementId,
-                RedirectedFromCaseId = evaluation.CaseId
-            });
+                RedirectedFromCaseId = candidate.CaseId
+            };
+            if (targetEvaluation.HitKeys.Count == 0 && targetEvaluation.Eliminations.Count == 0)
+            {
+                targetEvaluation = targetEvaluation with
+                {
+                    Eliminations =
+                    [
+                        "The linked replacement case shares no identity key with the message; the match fails closed."
+                    ]
+                };
+            }
+
+            redirected.Add(targetEvaluation);
         }
 
         return redirected

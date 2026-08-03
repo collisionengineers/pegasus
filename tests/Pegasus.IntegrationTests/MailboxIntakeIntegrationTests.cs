@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure;
@@ -15,6 +16,106 @@ public sealed class MailboxIntakeIntegrationTests
 {
     private static readonly DateTimeOffset RecordedAtUtc =
         new(2031, 7, 8, 9, 10, 0, TimeSpan.Zero);
+
+    [Fact]
+    public async Task ReevaluationPreservesThePriorDecisionRecordsInPermanentHistory()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var sourceHash = new string('E', 64);
+        var sourceAsset = new IntakeAssetRecord(
+            Guid.NewGuid(),
+            "uploaded source",
+            "reevaluated.eml",
+            "message/rfc822",
+            IntakeAssetKind.Source,
+            IntakeAssetDisposition.Source,
+            1,
+            sourceHash,
+            "reevaluation-storage-key",
+            null,
+            null,
+            null,
+            null);
+        var originalClassification = MailClassificationResult.Classified(
+            MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "audit"),
+            [new("attachment.audit-report-notification", true, "The generated title was present.")],
+            "Exactly one accepted classification predicate family matched.",
+            "qdos_mail_classification",
+            1);
+        var originalMatch = new CaseMatchEvaluationResult(
+            CaseMatchOutcome.NoMatch,
+            null,
+            null,
+            new("46553/1", null, null, null, null),
+            [],
+            "No case of the provider matches any extracted key.",
+            "qdos_case_match",
+            1);
+
+        IntakeReceiptDraft Draft(
+            IntakeDecision decision,
+            MailClassificationResult? classification,
+            CaseMatchEvaluationResult? match) => new(
+            SourceFileName: "reevaluated.eml",
+            MediaType: "message/rfc822",
+            SourceLength: 1,
+            SourceHash: sourceHash,
+            SourceIdentity: new(IntakeSourceChannel.Mailbox, "reevaluation-history-token"),
+            ReceivedAtUtc: RecordedAtUtc,
+            ProcessedAtUtc: RecordedAtUtc,
+            Actor: "system-worker:approved-inbox-poller",
+            Decision: decision,
+            DecisionReason: "Fixture evaluation.",
+            Evidence: [],
+            Fields: [],
+            InstructionDraft: null,
+            MissingFields: [],
+            FailureCode: null,
+            FailureReason: null,
+            SourceReaderKey: "protocol_reader",
+            SourceReaderVersion: "1",
+            ExtractionPolicyKey: "protocol_policy",
+            ExtractionPolicyVersion: 1,
+            Assets: [sourceAsset],
+            MailClassificationDecision: classification,
+            CaseMatchDecision: match);
+
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IIntakeReceiptStore>();
+        var stored = await store.StoreAsync(
+            Draft(IntakeDecision.NeedsSorting, originalClassification, originalMatch),
+            CancellationToken.None);
+
+        var reevaluatedClassification = MailClassificationResult.Unclassified(
+            [new("attachment.audit-report-notification", false, "No generated title was present.")],
+            "No accepted classification predicate matched; the message fails closed for staff review.",
+            "qdos_mail_classification",
+            1);
+        await store.ReplaceEvaluationAsync(
+            Draft(IntakeDecision.NeedsSorting, reevaluatedClassification, null),
+            CancellationToken.None);
+
+        await using var context = await scope.ServiceProvider
+            .GetRequiredService<Microsoft.EntityFrameworkCore.IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var reevaluationEvent = Assert.Single(
+            await context.IntakeReceiptEvents
+                .AsNoTracking()
+                .Where(item => item.IntakeReceiptId == stored.Id
+                    && item.EventType == "intake_receipt_reevaluated")
+                .ToListAsync());
+        Assert.Contains("priorDecisions", reevaluationEvent.DetailsJson, StringComparison.Ordinal);
+        Assert.Contains("audit", reevaluationEvent.DetailsJson, StringComparison.Ordinal);
+        Assert.Contains("46553/1", reevaluationEvent.DetailsJson, StringComparison.Ordinal);
+
+        var reloaded = await scope.ServiceProvider
+            .GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(stored.Id, CancellationToken.None);
+        Assert.Equal(
+            MailClassificationOutcome.Unclassified,
+            reloaded?.MailClassificationDecision?.Outcome);
+        Assert.Null(reloaded?.CaseMatchDecision);
+    }
 
     [Fact]
     public async Task FullVersionedMailClassificationDecisionReloadsWithoutLosingAuditEvidence()

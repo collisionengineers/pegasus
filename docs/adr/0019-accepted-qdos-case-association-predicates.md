@@ -75,8 +75,14 @@ and stay gated by the open decision.
   `EvaluateIntakeCaseMatch`); a behaviour change is a version bump, never a
   silent redefinition, and any normalization change requires an explicit
   rebuild of the derived match index.
-- The match index is a same-transaction read model of accepted case data;
-  write and read sides share the one provider grammar, so they cannot drift.
+- The match index is a read model of accepted case data maintained in the same
+  transaction by every case-data writer — case acceptance, staff case-data
+  save, vehicle-suggestion confirmation, and Created in error replacement
+  creation — all through one shared projector, so write and read sides share
+  the one provider grammar. Any new case-data writer must call the projector;
+  the index starts empty at migration because no environment holds an accepted
+  case before this release, so no backfill exists and a future normalization
+  bump still requires the explicit rebuild above.
 - The predecessor's false-registration shapes (`AND2`, `OCTOBER`, postcode
   outward codes, `X5 NOW`) are pinned as negative tests, and claim tokens
   proved collision-free across distinct labelled corpus cases.

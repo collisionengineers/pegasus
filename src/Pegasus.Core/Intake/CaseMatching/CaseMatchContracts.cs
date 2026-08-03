@@ -61,6 +61,15 @@ public interface ICaseMatchCandidateQueries
         string workProviderCode,
         CaseMatchKeys keys,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Fetches one case's index identity and lifecycle state, used to evaluate a
+    /// Created in error replacement on its own keys. Null when the case has no
+    /// match-index row.
+    /// </summary>
+    Task<CaseMatchCandidate?> FindByCaseIdAsync(
+        Guid caseId,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>

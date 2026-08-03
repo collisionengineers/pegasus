@@ -138,6 +138,44 @@ public sealed class CaseMatchIntegrationTests
     }
 
     [Fact]
+    public async Task StaffReversedAssociationIsNeverSilentlyRelinkedByAutomaticMatching()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var outcome = await harness.AcceptAsync("case-match-accept-5");
+        var caseId = outcome.Identity.CaseId;
+        var chaserReceiptId = await harness.SeedAdditionalReceiptAsync("chaser-token-2");
+
+        await using (var seed = await harness.Factory.CreateDbContextAsync())
+        {
+            await seed.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO IntakeManualAssociations (IntakeReceiptId, CaseId, IsActive, Version, LinkedAtUtc, UnlinkedAtUtc, ActorKind, ActorSubjectId, ActorRolesJson, Reason, LastOperationKey, MatchPolicyKey, MatchPolicyVersion) VALUES ({chaserReceiptId}, {caseId}, {false}, {1L}, {StartUtc}, {StartUtc.AddMinutes(5)}, {"Staff"}, {Guid.NewGuid().ToString()}, {"[]"}, {"Staff reversed a mistaken automatic match"}, {"case-match-association:reversed-op"}, {"qdos_case_match"}, {1})");
+        }
+
+        var store = new EfIntakeMutationStore(harness.Factory);
+        var outcomeAfterReversal = await store.AssociateFromMatchAsync(
+            new(
+                chaserReceiptId,
+                caseId,
+                "qdos_case_match",
+                1,
+                "system-worker:intake-processing",
+                "case-match-association:new-evaluation-op",
+                "Automatic association from a later evaluation."),
+            StartUtc.AddMinutes(10),
+            CancellationToken.None);
+
+        Assert.Equal(AutomaticCaseAssociationOutcome.AlreadyAssociated, outcomeAfterReversal);
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var association = Assert.Single(
+            await context.IntakeManualAssociations
+                .AsNoTracking()
+                .Where(item => item.IntakeReceiptId == chaserReceiptId)
+                .ToListAsync());
+        Assert.False(association.IsActive);
+        Assert.Equal("case-match-association:reversed-op", association.LastOperationKey);
+    }
+
+    [Fact]
     public async Task CaseMatchDecisionReloadsWithoutLosingAuditEvidence()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
