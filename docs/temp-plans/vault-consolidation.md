@@ -328,6 +328,7 @@ have passed the following metadata verification.
 $BackupRoot = Join-Path $env:TEMP "pegasus-vault-consolidation-$(Get-Date -AsUTC -Format 'yyyyMMddTHHmmssZ')"
 New-Item -ItemType Directory -Path $BackupRoot -ErrorAction Stop | Out-Null
 
+try {
 foreach ($Binding in @($Bindings | Where-Object { $_.CopyRequired })) {
   $BackupPath = Join-Path $BackupRoot "$($Binding.SecretName).backup"
   az keyvault secret backup --vault-name $Binding.SourceVaultName `
@@ -347,7 +348,7 @@ foreach ($Binding in $Bindings) {
   }
   $Binding | Add-Member -NotePropertyName TargetUri -NotePropertyValue $ExpectedTargetUri
 }
-
+} finally {
 if ($null -ne $CreatedTargetSecretsOfficerAssignmentId) {
   az role assignment delete --ids $CreatedTargetSecretsOfficerAssignmentId `
     --only-show-errors
@@ -360,6 +361,7 @@ if ($null -ne $CreatedTargetSecretsOfficerAssignmentId) {
     throw 'The temporary target Key Vault Secrets Officer assignment remains.'
   }
 }
+}
 ```
 
 Stop if any backup or restore fails, a restored secret is disabled, an existing
@@ -369,6 +371,9 @@ are not compatible for backup/restore. The service permits restore only within
 the same Azure subscription and geography; this plan's same-region check is a
 deliberately stricter gate. Do not fall back to `az keyvault secret show`,
 `--value`, or a pipeline that exposes a secret value.
+Whether the copy succeeds or fails, a target `Key Vault Secrets Officer`
+assignment created by this plan is removed and independently read back before
+the command stops.
 
 ### 4. Grant only the necessary secret-level reads
 
