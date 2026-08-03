@@ -35,6 +35,14 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   every integration stays behind the workspace register's activation
   conditions and needs its own ADR and implementation task (branch
   task/report-renderer-integration, taken 2026-08-03, by claude).
+- Documentation truth-up after the five 2026-08-03 merges, operator-vetted
+  2026-08-03: conform architecture/design/requirements/capabilities/
+  operations/open-decisions to the delivered INT-17/28/32, MAIL-21/22, and
+  ADR-0020 state; extend the Azure bootstrap grant matrix to the four new
+  migrations; delete the orphaned qdos temp-plan evidence notes with an
+  ADR-0020 index note; record the DraftReady tile label as a fix-later task.
+  No product behaviour change (branch task/docs-truth-up, taken 2026-08-03,
+  by claude).
 ## Next (ordered queue — take from the top)
 
 - Assemble the operator-reviewed extraction cohort + untouched holdout and
