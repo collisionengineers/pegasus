@@ -1,8 +1,9 @@
 using System.Security.Cryptography;
+using Pegasus.Core.Documents;
 
 namespace Pegasus.Infrastructure.Custody;
 
-public sealed class LocalDocumentContentStore(string rootPath)
+public sealed class LocalDocumentContentStore(string rootPath) : IDocumentContentStore
 {
     private readonly string rootPath = Path.GetFullPath(rootPath);
 
