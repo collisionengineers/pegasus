@@ -136,6 +136,73 @@ Inspection-letter emails appear under EREF 5, 6, 7, 8, 9, 10, 11, 13 and 15 —
 the codes overlap heavily. `EREF` remains a useful type hint for other
 categories, but the Inspection/Audit distinction is carried by the attachment.
 
+### Inside the letter: an explicit notification title
+
+The attachments were extracted and their text read, not just their names. Each
+instruction letter carries a title line that states the work type outright:
+
+| Title inside the document | Meaning | Files |
+| --- | --- | ---: |
+| `AUDIT REPORT NOTIFICATION` | Standalone Audit | 26 / 26 |
+| `ENGINEER NOTIFICATION (REPORT + AUDIT REPORT)` | Inspection **and** Audit | 17 / 17 |
+
+43 of the 44 extracted letters were examined (one filename collision), and
+**every document's title agreed with its filename**. Zero mismatches. So the
+filename and the document content are two independent tells that corroborate
+each other, which is what makes this safe to rely on.
+
+The title is the stronger of the two: a filename can be changed by whoever
+forwards the mail, but the title is inside the generated document.
+
+### No plain-Inspection instruction appears in this sample
+
+All 17 non-audit letters say `REPORT + AUDIT REPORT`. Not one says
+`ENGINEER NOTIFICATION` alone.
+
+That means the three work types the operator asked about map like this:
+
+| Operator's category | Tell found | Present in sample |
+| --- | --- | ---: |
+| Standalone Audit | `AUDIT REPORT NOTIFICATION` | 26 |
+| Inspection + Audit | `ENGINEER NOTIFICATION (REPORT + AUDIT REPORT)` | 17 |
+| Base instruction (Inspection only) | none found | **0** |
+
+Either QDOS routinely instructs report and audit together, or plain Inspection
+instructions exist but none reached this 329-email sample. This must be settled
+before anything is built: a classifier that has never seen the third type
+cannot be trusted to recognise it, and a missing category silently becoming
+`Inspection + Audit` would be a wrong Case type.
+
+### What else the letter contains
+
+The audit letter states the instruction in plain words — "Please can you
+prepare an audit report based on the attached engineers report" — and carries
+structured fields usable for extraction (INT-19/INT-20): `Our Ref`, `Date`,
+`Our Client`, `Our Client's Vehicle`, `Registration`, `Date of Accident`,
+`CLIENT DETAILS` with address and phones, `REPAIRER DETAILS`, damage-area
+description, pre-existing damage, `TP Vehicle`, `TP Registration`, and
+`TP Representative Name`.
+
+It also carries conditional business instructions, for example: "this is a
+Right Choice Insurance Brokers case. If the vehicle is a total loss, DO NOT
+produce an audit report", plus repair-authority limits ("do not authorise
+repairs", "not in excess of 80% of the vehicle value"). These are operator
+instructions inside the source document, not classification signals, but they
+show the letter is the authoritative instruction artifact rather than the email
+body.
+
+### File formats differ by type, and that matters for reading them
+
+| Type | Format | Detail |
+| --- | --- | --- |
+| Audit letter | PDF (`%PDF`) | Text extracts cleanly |
+| Inspection letter | Legacy binary `.doc` (OLE2, `D0 CF 11 E0`) | Not DOCX; needs legacy-format reading |
+
+INT-14 (legacy DOC extraction) is allocated `Next` / `0.2.0`. If the
+Inspection + Audit instruction letter is always a legacy `.doc`, then reading
+that filetype is on the critical path for QDOS intake, not a later nicety. This
+should be checked against the capability allocation.
+
 ### Supporting, not decisive
 
 - 26 of the 27 audit-instruction emails come from `nduncombe@qdosassist.co.uk`,
@@ -219,6 +286,52 @@ category tells.
 - Coverage limits of this sample: 27 audit and 17 inspection instruction
   letters is thin for threshold setting, and `qdoslaw.co.uk` contributes only
   2 emails with a different reference format entirely.
+
+## The corpus is already labelled by case reference
+
+The `test folder` corpus is filed one folder per case, named with Collision
+Engineers' own reference:
+
+```
+corpus/test folder/test folder/A.QDOS26016/message.eml
+```
+
+Across the 329 emails there are 233 such folders:
+
+| Reference shape | Meaning under [CASE-08](../capabilities.md) | Folders |
+| --- | --- | ---: |
+| `A.QDOS…` | Repairable standalone Audit | 146 |
+| `QDOS…` (no prefix) | Normal Inspection sequence | 87 |
+| `AP.QDOS…` | Total-loss standalone Audit | 0 |
+
+This is existing human-filed ground truth, produced as ordinary business work
+rather than for evaluation. It can label a cohort without anyone sorting
+emails by hand, which directly serves the MAIL-21 acceptance cohort.
+
+Two cautions before relying on it:
+
+- The folder records what the case **became**, which is not always what a
+  single email in it announced. A chaser filed under `A.QDOS26016` is still a
+  chaser, not an audit instruction.
+- No `AP.` case appears here, so the total-loss audit reference form has no
+  example in this sample.
+
+## Worked example: an audit chaser
+
+Operator asked for an exact path. This is the email containing "Please can you
+forward your final audit report as soon as possible":
+
+```
+corpus/test folder/test folder/A.QDOS26016/message.eml
+```
+
+From `accounts@qdosassist.co.uk`, subject
+`(EREF26) RTA on 20/05/2026 : Mrs Vivien Healey (Our Ref: TG/45497/1)`.
+
+It illustrates the trap: the case reference is an Audit, the body says "audit",
+the claim reference is present — and yet the email is a chase on existing work,
+not an instruction. Only the absence of an instruction-letter attachment
+separates it from a real audit instruction.
 
 ## How this evidence was produced
 
