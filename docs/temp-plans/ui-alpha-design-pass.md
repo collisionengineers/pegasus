@@ -1,8 +1,9 @@
 # UI alpha design pass
 
-Design-only build of the Operations-first `0.1.0-alpha.1` shell's visual and
-interaction layer, against fixture data only — no Core wiring, no real
-mutation, no unresolved-decision invention.
+Design-only visual and conformance pass over the Operations-first
+`0.1.0-alpha.1` shell. Entirely view layer: `.cshtml`, `site.css`, and the
+`AccessibilityTests` route list. No Core, Infrastructure, or Worker change,
+and no change to PageModel query or command logic.
 
 ## Scope
 
@@ -11,75 +12,145 @@ UI-11, UI-13 ([capabilities.md](../capabilities.md)).
 
 Excluded and why:
 
-- UI-07 (search/filter) — already in flight under `task/image-led-intake`.
-- UI-10 (email-management workspace) — allocated `Next / 0.3.0`
-  ([capabilities.md:223](../capabilities.md)), not part of `0.1.0-alpha.1`.
-- UI-12 (responsive/mobile) — `Not planned`, permanent boundary
-  ([capabilities.md:276](../capabilities.md)).
+- UI-07 (search/filter) — in flight under `task/image-led-intake`.
+- UI-10 (email-management workspace) — allocated `Next / 0.3.0`, not
+  `0.1.0-alpha.1`.
+- UI-12 (responsive/mobile) — `Not planned`, permanent boundary.
 
-Also excluded as non-alpha sub-surfaces inside UI-08/UI-09
-([design/product/ui-spec.md](../../design/product/ui-spec.md)):
+Also excluded as non-alpha sub-surfaces: report-image selection (future
+Engineers screen), the image-readiness advisory (AI-05, `Later / 1.0.0`),
+email quick preview and mailbox-refresh mechanics (belong to UI-10), and
+any upload limit beyond the interim bound in
+[open-decisions](../open-decisions.md).
 
-- Report-image selection (future Engineers-screen surface).
-- Image readiness advisory (owned by AI-05, `Later / 1.0.0`).
-- Email quick preview / mailbox-refresh mechanics (belong to UI-10).
-- Request-scoped in-house upload: only the interim bound from
-  [open-decisions.md](../open-decisions.md) (10 MB aggregate, hashed
-  256-bit token, no case disclosure) is rendered — no invented exact
-  limits.
+## Evidence state
 
-## What changes
+**Implemented.** Not caller-proved beyond the authenticated Development
+route, not deployed, not operator-accepted. No accessibility *acceptance*
+is claimed; automated scanning and manual desktop review are recorded
+below, and the remaining review items in
+[design/README.md](../../design/README.md) § Accessibility are outstanding.
 
-Razor views/components under the Web project's existing composition-root
-boundary (no new top-level directory, project, or store — see the
-architecture invariant), built against `design/product/ui-spec.md`'s
-Shared shell/hierarchy, per-component contracts table, and the [requirements
-state matrix](../requirements.md#complete-state-matrix):
+## What changed
 
-1. Shared shell: identity/role, navigation, sign-out, permitted-route
-   visibility (UI-13 keyboard/screen-reader/focus/contrast baseline built
-   in from the start, not retrofitted).
-2. Operations dashboard (UI-01/UI-04/UI-05/UI-06): exact `Blocked intake`,
-   Due today, New cases today, day/week Sent to Engineer and Reports sent
-   metrics; click-through to filtered queues; last-good time and distinct
-   current/stale/partial/unavailable/failed states with manual refresh.
-3. Case queues — Not ready / Review / Held (UI-02).
-4. QDOS-alpha intake queues — Needs sorting / Blocked intake (UI-03).
-5. Three-column intake review workbench (UI-08): source identity,
-   `All`/`Instructions`/`Images` filter, evidence/candidate, fact vs
-   suggestion vs confirmed, provenance/missing/conflict, acceptance path,
-   no-case failure consequence.
-6. Full case workspace (UI-09): persistent identity header, due/chaser
-   panel, inspection-address defaulting/override, provenance-marked
-   fields, engineering findings (Roadworthiness/Assessment separate),
-   evidence/document panel, named state actions, history — all sections
-   from `ui-spec.md`'s Case flow minus the excluded sub-surfaces above.
-7. Administration workspace (UI-11): account creation/disable/access
-   review/roles, principal successor cutover, configuration, mailbox
-   allowlist.
+**Defects fixed (present before this task).**
 
-All list/detail data is fixture-backed (repository-provided genuine
-material where content resembles real cases/claimants, never fabricated
-domain data) and illustrates every required state (loading, empty,
-current, stale, partial, unavailable, failed, denied, conflict) rather
-than a single happy path. No action performs a real mutation; actions may
-be visually present and show their target state without wiring to Core.
+- `_Layout.cshtml` never rendered `_LucideSprite.cshtml`, so every
+  `<use href="#icon-…">` in the app resolved to nothing. The sprite is now
+  rendered once per page.
+- The sprite defined glyphs as `<g id>` while every consumer used
+  `<svg class="icon">` with no `viewBox`, so icons would have rendered
+  clipped even once present. Glyphs are now `<symbol viewBox="0 0 24 24">`,
+  and `.icon` carries the approved 2px stroke and round caps, which `<use>`
+  clones do not inherit from the sprite root.
+- `_StatusChip.cshtml` appended `" (0)"` to any state without a digit, so
+  `Review` displayed as `Review (0)`.
+- `_MetricCard` referenced `queue-card--green` and `_FreshnessBanner`
+  referenced `freshness-banner--loading`; neither class existed.
+- CSS targeted `.validation-summary`/`.field-validation`, but the tag
+  helpers emit `validation-summary-errors`/`field-validation-error`, so
+  validation styling never applied to generated markup.
+- `_FreshnessBanner` stamped a UTC value with the label "London", an hour
+  wrong under BST. It now converts to Europe/London, the day boundary the
+  dashboard counts against.
+
+**Token layer.** `site.css` rewritten around the approved sets: full colour
+palette including the amber and navy triads that were previously inline
+literals; the `4/8/12/14/18/24/32/40/64` spacing rhythm; a restrained type
+scale (`h1` from ~50px to 24px, body 15px, tabular numerals on metric and
+numeric values); 2px radius throughout, replacing the 3px divergence
+`design/README.md` already flagged. Every unapproved one-off literal
+(`#485568`, `#6d5321`, `#9b9995`, `#78808c`, `#667085`, `#dda01f` and the
+rest) now resolves to an approved token — **no new colour token was needed
+and no reviewed divergence is claimed**. Navigation moved from cool slate
+to warm charcoal, and the dead `.brand-mark` rule was removed.
+
+**State channel.** One `--state-line`/`--state-bg`/`--state-fg` channel,
+selected by `data-state` or a tone class, drives card rails, row rails,
+chips and icon tints. `_StatusChip` is the single place a business or query
+state chooses its tone and glyph, now covering the full state contract
+rather than four states. Every chip carries its text label, so no state is
+conveyed by colour or icon alone. Where a tile carries both what it is and
+whether its datum loaded, absence wins: an unavailable tile does not borrow
+the urgency of the queue it stands for.
+
+**Operations dashboard.** Rebuilt to the shape `design/README.md` §
+Operations-first shell already specifies and the code had never
+implemented: a seven-across metric strip, a second tier for today/this
+week, freshness and manual refresh, then a split pane. Fake single-letter
+glyphs (`E`, `R`, `!`, `T`) and the text chevron were replaced with mapped
+Lucide icons. An absent query now renders a quiet `Unavailable` chip
+instead of the word set at metric size, which previously made a missing
+query the loudest element on the page.
+
+**Administration and Account.** All twelve Administration views and the
+three Account views used bare `<h1>`/`<input>`/`<button>` and default
+browser-blue underlined links. They now use the application's own
+vocabulary: `_PageHeader`, `.panel`, `.status-card`, `.primary-action`,
+`.table-wrap`, `scope="col"` on every column header, `<caption>` on every
+table, and `_StatusChip` in place of raw enum text.
+
+**Refresh feedback.** `design/README.md` requires manual refresh to give
+start feedback. The Refresh control now sets a busy state, disables to
+prevent double submission, and changes its label to `Refreshing`. A spin on
+the icon decorates that; the label carries the meaning, so reduced motion
+loses nothing. This is the only animation in the product and no duration or
+easing token was introduced.
+
+## Deliberate deviations from the approved plan
+
+- **Typed partial models were not added.** The plan proposed converting the
+  shared partials from `ViewData` to typed records. That means new C# types
+  in a task scoped design-only; a normalised string mapping in
+  `_StatusChip` gives nearly the same safety with no non-view footprint.
+- **`_ReasonDialog` was not wired.** It remains built-but-unused. Wiring it
+  would replace the inline reason inputs on roughly fifteen mutation forms,
+  which changes how permanent actions are confirmed — behaviour, not
+  design, and too large to carry safely here. It stays a live finding
+  against `engineering.md`'s built-but-unwired rule.
+- **`_LeasePanel` was not extracted.** The duplicated lease block in
+  `Operations/Requests.cshtml` is unchanged; extraction is refactoring
+  without visual benefit and the page was not otherwise restructured.
+- **Not-found panels were reverted.** They were written, then removed on
+  finding that all four handlers return `NotFound()`, making the branches
+  unreachable. Building a styled surface for an unreachable state is the
+  dead-code this repository forbids; 404 is owned by the error page.
 
 ## Verification
 
-- `dotnet build --configuration Release` stays green.
-- `dotnet test` (focused Web/UI tests, plus full suite before PR) stays
-  green; no test asserts a fabricated business outcome as real.
-- Manual pass at 1280+, 1024–1279, and 200% zoom per the acceptance
-  section (`ui-spec.md`), confirming dense panes vs labelled
-  tabs/drawers/ordered sections and that identity/state/actions stay
-  first.
-- Keyboard-only and screen-reader spot check of the shell, one queue, the
-  intake workbench, and the case workspace (UI-13).
-- Confirm no fixture view reachable from a real authenticated route
-  performs a Core call, Box/Outlook/DVLA/DVSA call, or case/reference
-  mutation — grep for the boundary and review call sites.
-- Review confirms no capability ID outside the claimed set was touched,
-  and none of the excluded sub-surfaces (report-image selection, image
-  readiness advisory, email quick preview/mailbox refresh, upload limits
-  beyond the interim bound) were implemented.
+- `dotnet build --configuration Release` green.
+- Tests green with zero failures across all three projects:
+  `Pegasus.Core.Tests` 186, `Pegasus.ArchitectureTests` 73, and all 343
+  `Pegasus.IntegrationTests`. The integration project was run in four
+  filtered chunks because a single run takes ~28 minutes; coverage was then
+  proved rather than assumed by enumerating `--list-tests` per chunk and
+  confirming the union equals the full discovered set in both directions.
+  One test (`InstructionDraftWebTests.SameManualUploadTokenWithDifferentBytes…`)
+  matches two chunk filters and therefore ran twice; no test ran zero times.
+- `AccessibilityTests` extended from 6 authenticated routes to 18, adding
+  every Administration sub-route plus Search, both Operations routes and
+  `/Account/AccessDenied`. All pass: zero axe violations, exactly one
+  `<main>` and one `<h1>` per route, no horizontal overflow at 1024×768 or
+  512×768, forced-colours and reduced-motion renders clean, and queue state
+  not conveyed by colour alone.
+- Manual review at 1280, 1024 and 512 against the running Development
+  caller, with before/after captures of Operations, Administration, Cases
+  and Staff accounts.
+
+Not verified: populated Case, Intake and Triage detail states, which need
+case data this pass did not create (fabricating operational material is
+forbidden). Those views received consistency edits only — status banners
+and state chips — and were checked in their empty state. `/Account/SignIn`
+is not covered by the axe theory because the DevelopmentOffline profile
+authenticates automatically and redirects it; it shares the `.auth-panel`
+markup with `/Account/PasswordChange`, which is covered.
+
+## Open question for the operator
+
+The Operations dashboard labels the `DraftReady` intake count **Review**.
+`design/README.md` § "Core outcome to operator label" maps `DraftReady` to
+the exact operator label **Instruction draft** and says implementations
+must not invent aliases; `Review` is a Case state, and this count is of
+pre-case intake drafts. The existing wording was left unchanged because
+changing it changes what an operator reads. It needs a business decision,
+not a design one.

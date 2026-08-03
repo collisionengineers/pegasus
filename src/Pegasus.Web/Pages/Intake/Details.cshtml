@@ -16,15 +16,15 @@
 
 @if (Model.IsDuplicate)
 {
-    <div class="notice" role="status">This source receipt was already processed. The existing intake record is shown.</div>
+    <div class="status-card" role="status">This source receipt was already processed. The existing intake record is shown.</div>
 }
 @if (TempData["InspectionAddressStatus"] is string inspectionAddressStatus)
 {
-    <div class="notice" role="status">@inspectionAddressStatus</div>
+    <div class="status-card" role="status">@inspectionAddressStatus</div>
 }
 @if (TempData["IntakeDetailsStatus"] is string intakeDetailsStatus)
 {
-    <div class="notice" role="status">@intakeDetailsStatus</div>
+    <div class="status-card" role="status">@intakeDetailsStatus</div>
 }
 @if (TempData["IntakeDetailsError"] is string intakeDetailsError)
 {
