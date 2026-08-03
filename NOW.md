@@ -30,7 +30,6 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   packages and the pinned Playwright Chromium (branch
   task/repository-check-speed, taken 2026-08-03, by claude).
 
-
 ## Next (ordered queue — take from the top)
 
 - Vault consolidation: copy the Box/DVLA/DVSA secrets into the Pegasus Key
