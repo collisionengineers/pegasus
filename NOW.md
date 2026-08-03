@@ -73,6 +73,15 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 - Assemble the operator-reviewed extraction cohort + untouched holdout and
   accept the per-field thresholds (INT-21, open-decisions) — blocks Path
   step 3.
+- Prove the per-run template database's server-side BACKUP/RESTORE against a
+  PEGASUS_TEST_SQL_DATASOURCE container (Linux workstation or a CI job) and
+  lift the review gate that disables the template for external servers
+  (task/repository-check-speed review, 2026-08-03).
+- After task/repository-check-speed merges, observe the hardened
+  abandoned-database sweep on a shared LocalDB instance: every sweep failure
+  is now swallowed, so confirm abandoned Pegasus_Test_* databases and .bak
+  files still get reclaimed rather than accumulating
+  (task/repository-check-speed review, 2026-08-03).
 
 ## Waiting (each line names its unblock condition)
 
