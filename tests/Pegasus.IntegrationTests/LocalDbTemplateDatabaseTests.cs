@@ -12,7 +12,6 @@ namespace Pegasus.IntegrationTests;
 /// whole suite green and slow, and a template that restored a stale or partial
 /// schema would weaken every other SQL Server test at once.
 /// </remarks>
-[Collection(LocalDbFixtureDefinition.Name)]
 [Trait("Category", "SqlServer")]
 public sealed class LocalDbTemplateDatabaseTests
 {
