@@ -629,7 +629,80 @@ throughout.
   (`EADDRINUSE` is the concurrency guard); requires claude.ai or
   Console authentication (not Bedrock/Foundry).
 
-## Part 4 — Promotion path
+## Part 4 — Estimate/assessment field scoping (research)
+
+Question answered here: are the fields of the actual repair
+estimate/assessment scoped (operations, labour, paint, parts, totals,
+VAT, valuation, salvage, outcome, roadworthiness reasoning, fee note) —
+as opposed to the basic case details? **They were not; this section
+records the candidate inventory's sources and findings.** The accepted
+schema is `1.0.0` capability work (CASE-31, ENG-01, ENG-02, EXT-09,
+EXT-10; rendering `1.1.0`); reference and workspace material is
+evidence, never authority; nothing here creates a schema.
+
+### 5.1 Source ranking (corrected by the sweep)
+
+- Best single contract: `docs/reference/rendererref1/report_data_schema.json`
+  — the predecessor generator's typed, validated, outcome-branching job
+  schema, with `DESIGN_SPEC.md` beside it.
+- The imported `workspaces/report-renderer` is a **downgrade** for this
+  purpose: it genericised the four outcome reports into one untyped
+  `ExpertReportDocument` (title + free content blocks; estimate field
+  names survive only as blank starter labels). Only the fee note is
+  properly typed there (`FeeNoteDocument`).
+- Richest line-level model: the AI-centre assessment payload schema
+  (`workspaces/ai-centre/skills/vehicle-assessment/scripts/`,
+  duplicated in total-loss-assessment): `operations[]` with a ten-value
+  type enum, work units, price, part number, betterment, per-line
+  justification, evidence label, and confirmed/estimated/provisional
+  status — plus ABP reference data (rates, uplifts, fixed/conditional
+  extras) and the salvage decision table.
+- EVA's screenshot inventory and API schema corroborate most groups and
+  add the operational superset (valuation adjustments, salvage
+  administration, estimated-vs-assessed comparison).
+
+### 5.2 Field groups inventoried (full provenance delivered separately)
+
+Repair specification lines · labour + rates · paint + materials ·
+parts · specialist extras · totals + the VAT-registration rule ·
+vehicle valuation/PAV · salvage (category, value, decision inputs) ·
+outcome + total-loss calculus (four outcomes; 66–80% PAV thresholds) ·
+roadworthiness reasoning (`unroadworthy_reason` mandatory when
+unroadworthy) · fee note · narrative sections · audit
+conservative-vs-maximised specifications.
+
+### 5.3 What exists in Pegasus.Core today
+
+Only Triage-level `RoadworthinessFinding`/`AssessmentFinding` enums
+(and requirements forbid Triage findings populating case findings),
+`AuditAssessment` driving the `a.`/`ap.` reference prefix,
+`CaseInspectionMode`, and the `CaseField<T>` provenance envelope.
+**CASE-28's case-level professional findings are allocated but not
+implemented**, and every estimate/assessment field group above has no
+Core schema.
+
+### 5.4 What the scoping surfaces
+
+- The stored model must be **line-level** (operations with work units,
+  price, status, justification) with category totals derived once; the
+  render schema's category totals are a projection, not the model.
+- Every figure needs the version/provenance envelope (ENG-01/ENG-02/
+  RPT-03 and the correction rules demand versions); `CaseField<T>` is
+  the existing precedent.
+- Outcomes are four (`total_loss`, `repairable`, `cash_in_lieu`,
+  `contract_repair`); guide identity (Guide Used/Month/Code) is stored
+  but suppressed in reports; CE and EVA enums differ in granularity in
+  both directions.
+- Genuine gaps needing operator/Engineer input: RPT-03's
+  conservative/maximised audit specification has no schema anywhere
+  (one capability row; its "uplift" is not the ABP labour-rate
+  uplift); salvage paragraph wording for categories N/A/B; the
+  statement-of-truth revision; two engineers' qualifications.
+- Near-term lane-1 consequence: a Claude draft assessment can target
+  the rendererref1 schema shape as a document artifact today with no
+  Core schema work; the Core schema itself stays `1.0.0` work.
+
+## Part 5 — Promotion path
 
 - Part 1's settled auth + actor contract is promoted to an ADR before or
   with the implementation PR (it is a durable technical decision;
