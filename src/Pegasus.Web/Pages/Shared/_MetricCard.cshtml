@@ -18,12 +18,12 @@
         <span>@label</span>
         @if (isUnavailable)
         {
-            <strong style="font-size: 1.4rem; color: var(--muted);">—</strong>
+            <strong class="queue-card__value--absent">—</strong>
         }
         else
         {
             <strong>@(value ?? 0)</strong>
         }
     </div>
-    <svg class="icon" aria-hidden="true" style="align-self: flex-end;"><use href="#icon-chevron-right"/></svg>
+    <svg class="icon queue-card__chevron" aria-hidden="true"><use href="#icon-chevron-right"/></svg>
 </a>

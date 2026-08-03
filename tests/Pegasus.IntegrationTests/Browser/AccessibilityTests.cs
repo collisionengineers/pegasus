@@ -109,6 +109,37 @@ public sealed class AccessibilityTests
         }
     }
 
+    [Theory]
+    [MemberData(nameof(AuthenticatedRoutes))]
+    public async Task ServerRenderedMarkupCarriesNoInlineStyleAttribute(string route)
+    {
+        // The production CSP (default-src 'self', no style-src) discards
+        // inline style attributes, so any styling delivered through one works
+        // locally and silently vanishes on the deployed site — that is how
+        // the sprite's inline display:none shipped a ~1,900px blank band on
+        // every page. The invariant is mechanical: server markup never
+        // carries a style attribute; everything styles through site.css.
+        await using var support = await BrowserTestSupport.StartAsync();
+
+        await support.GoToAsync(route);
+
+        // The one allowed [style] carrier is the validation-summary tag
+        // helper's valid-state <li> placeholder — framework output we cannot
+        // author away; site.css hides its .validation-summary-valid parent so
+        // the discarded inline style has nothing left to break.
+        var inlineStyled = await support.Page.EvaluateAsync<string[]>(
+            "Array.from(document.querySelectorAll('[style]'))" +
+            ".filter(element => !(element.tagName === 'LI' && element.closest('[data-valmsg-summary]')))" +
+            ".map(element => element.tagName + '.' + element.getAttribute('class'))");
+        Assert.Empty(inlineStyled);
+        Assert.Equal(
+            "none",
+            await support.Page.EvaluateAsync<string>(
+                "getComputedStyle(document.querySelector('svg.sprite-sheet')).display"));
+        Assert.True(await support.Page.EvaluateAsync<bool>(
+            "document.querySelector('.app-nav').getBoundingClientRect().top < 10"));
+    }
+
     private static Task<bool> HasHorizontalOverflowAsync(IPage page) =>
         page.EvaluateAsync<bool>("document.documentElement.scrollWidth > window.innerWidth");
 }
