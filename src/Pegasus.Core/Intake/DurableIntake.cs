@@ -408,6 +408,7 @@ public sealed class ProcessQueuedIntake(
     ProcessIntake processIntake,
     IIntakeReceiptQueries receiptQueries,
     ICreateTriageFromIntake createTriage,
+    IAutomaticCaseAssociationStore caseAssociationStore,
     TimeProvider timeProvider)
 {
     private const string SystemActor = "system-worker:intake-processing";
@@ -443,6 +444,10 @@ public sealed class ProcessQueuedIntake(
                 cancellationToken)
                 ?? throw new InvalidDataException(
                     "The completed intake evaluation does not identify a persisted receipt.");
+            await AssociateCaseIfUnambiguousAsync(
+                completedReceipt,
+                completedEvaluation,
+                cancellationToken);
             await CreateTriageIfQualifyingAsync(
                 completedReceipt,
                 completedEvaluation,
@@ -514,7 +519,37 @@ public sealed class ProcessQueuedIntake(
             stagedReceipt.StorageKey,
             cancellationToken);
 
+        await AssociateCaseIfUnambiguousAsync(processed, evaluation, cancellationToken);
         await CreateTriageIfQualifyingAsync(processed, evaluation, cancellationToken);
+    }
+
+    private async Task AssociateCaseIfUnambiguousAsync(
+        IntakeReceipt receipt,
+        IntakeEvaluationRevision evaluation,
+        CancellationToken cancellationToken)
+    {
+        if (receipt.CaseMatchDecision is not
+            { Outcome: CaseMatchOutcome.UniqueMatch, MatchedCaseId: { } matchedCaseId } decision)
+        {
+            return;
+        }
+
+        if (receipt.CurrentCaseId is not null)
+        {
+            return;
+        }
+
+        await caseAssociationStore.AssociateFromMatchAsync(
+            new(
+                receipt.Id,
+                matchedCaseId,
+                decision.PolicyKey,
+                decision.PolicyVersion,
+                SystemActor,
+                $"case-match-association:{evaluation.Id:N}",
+                $"Automatic association from the recorded case-match decision ({decision.PolicyKey} v{decision.PolicyVersion})."),
+            timeProvider.GetUtcNow(),
+            cancellationToken);
     }
 
     private async Task TryDeleteCompletedStagingAsync(

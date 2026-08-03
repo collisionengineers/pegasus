@@ -1336,6 +1336,57 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("CaseManualChases", (string)null);
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseMatchIndexEntity", b =>
+                {
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("DurableClaimToken")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateOnly?>("IncidentDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("MatchPolicyKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("MatchPolicyVersion")
+                        .HasColumnType("int");
+
+                    b.Property<string>("NormalizedFirstInitial")
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
+                    b.Property<string>("NormalizedSurname")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("NormalizedVrm")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("WorkProviderCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("CaseId");
+
+                    b.HasIndex("WorkProviderCode", "DurableClaimToken");
+
+                    b.HasIndex("WorkProviderCode", "NormalizedSurname");
+
+                    b.HasIndex("WorkProviderCode", "NormalizedVrm");
+
+                    b.ToTable("CaseMatchIndex", (string)null);
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseReportApprovalEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2371,6 +2422,48 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("IntakeAssets", (string)null);
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeCaseMatchDecisionEntity", b =>
+                {
+                    b.Property<Guid>("IntakeReceiptId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CandidatesJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("MatchKeysJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("MatchedCaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("PolicyKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("PolicyVersion")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid?>("RedirectedFromCaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("IntakeReceiptId");
+
+                    b.ToTable("IntakeCaseMatchDecisions", (string)null);
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeEvaluationEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2548,6 +2641,13 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTimeOffset>("LinkedAtUtc")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("MatchPolicyKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("MatchPolicyVersion")
+                        .HasColumnType("int");
 
                     b.Property<string>("Reason")
                         .IsRequired()
@@ -4336,6 +4436,17 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("DueWork");
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseMatchIndexEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.CaseEntity", "Case")
+                        .WithOne()
+                        .HasForeignKey("Pegasus.Infrastructure.Persistence.CaseMatchIndexEntity", "CaseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Case");
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseReportApprovalEntity", b =>
                 {
                     b.HasOne("Pegasus.Infrastructure.Persistence.CaseEntity", null)
@@ -4543,6 +4654,17 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasOne("Pegasus.Infrastructure.Persistence.IntakeReceiptEntity", "IntakeReceipt")
                         .WithMany("Assets")
                         .HasForeignKey("IntakeReceiptId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("IntakeReceipt");
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeCaseMatchDecisionEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.IntakeReceiptEntity", "IntakeReceipt")
+                        .WithOne("CaseMatchDecision")
+                        .HasForeignKey("Pegasus.Infrastructure.Persistence.IntakeCaseMatchDecisionEntity", "IntakeReceiptId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -4896,6 +5018,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeReceiptEntity", b =>
                 {
                     b.Navigation("Assets");
+
+                    b.Navigation("CaseMatchDecision");
 
                     b.Navigation("InstructionDraft");
 

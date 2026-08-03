@@ -941,6 +941,7 @@ public sealed class CustodyOutboxIntegrationTests
                 services.GetRequiredService<ProcessIntake>(),
                 services.GetRequiredService<IIntakeReceiptQueries>(),
                 services.GetRequiredService<ICreateTriageFromIntake>(),
+                services.GetRequiredService<IAutomaticCaseAssociationStore>(),
                 services.GetRequiredService<TimeProvider>())
             .ExecuteAsync(received.StagedReceiptId, CancellationToken.None);
         var receipt = Assert.IsType<IntakeReceipt>(
