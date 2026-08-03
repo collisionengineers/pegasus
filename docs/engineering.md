@@ -46,7 +46,10 @@ procedures and evidence in [operations](operations.md), and current work in
   with evidence upload (15 minutes). `Category=Browser` and
   `Category!=Browser` are a complement
   pair, so the two integration lanes together select exactly the non-corpus
-  suite; the unit projects carry no traits, so nothing filters them. Every
+  suite; the unit projects carry no traits, so nothing filters them. The
+  lanes run named projects, not the solution: a new test project is in no
+  lane until `ci.yml` names it, so adding one without amending `ci.yml`
+  ships tests that CI never runs. Every
   test project runs its classes in parallel; the integration project caps
   concurrency in `tests/Pegasus.IntegrationTests/xunit.runner.json`. A
   build-relevant path is `src/`, `tests/`, `Pegasus.slnx`,

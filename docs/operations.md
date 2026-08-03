@@ -362,10 +362,10 @@ $env:PEGASUS_TEST_SQL_PASSWORD = '<password>'
 Leaving `PEGASUS_TEST_SQL_DATASOURCE` unset keeps the LocalDB default, so the
 Windows command is unchanged. Without it on Linux, exclude the lane with
 `--filter "Category!=Corpus&Category!=SqlServer"` and record that the lane did
-not run. The template database uses server-side `BACKUP` and `RESTORE`, so it
-works the same way against the container when the login may back up; the
-template tests skip themselves when `PEGASUS_TEST_SQL_DATASOURCE` is set,
-because no CI job exercises that path and nothing proves it there.
+not run. The template database never engages when
+`PEGASUS_TEST_SQL_DATASOURCE` is set: no CI job exercises that path, its
+guard tests skip themselves there, and an unverified template is worse than
+the slower migrate-per-test path the container falls back to.
 
 These commands prove repository compilation and the selected non-corpus tests only. Genuine corpus, browser, LocalDB/Azurite/Functions, cloud, recovery, and operator evidence are separate caller-specific gates.
 
