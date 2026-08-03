@@ -1,0 +1,866 @@
+@page "/Cases/{id:guid}/Assessment"
+@model Pegasus.Web.Pages.Cases.Assessment.IndexModel
+@*
+    Engineers assessment screen — design only.
+
+    Every control is rendered empty and unbound. Field `name` attributes follow
+    the report job definition under docs/reference/rendererref1/, so the sibling
+    worktree can bind them without renaming anything here. No control is inside
+    a form: this pass owns arrangement, labelling and copy, and the save path
+    belongs to the task that wires it.
+
+    This surface is deliberately not linked from _Layout navigation or from the
+    case record. design/README.md § Deferred casework and advanced surfaces
+    forbids an alpha route, control or placeholder for an Engineer workbench,
+    so it stays reachable by direct URL only, pending approval.
+*@
+@{
+    ViewData["Title"] = "Assessment";
+    ViewData["Eyebrow"] = "Case";
+    ViewData["Lede"] = "Record the engineering assessment and the content the report is written from.";
+
+    var caseId = RouteData.Values["id"]?.ToString() ?? string.Empty;
+    var assessmentUrl = $"/Cases/{caseId}/Assessment";
+
+    var sections = new (string Key, string Label)[]
+    {
+        ("vehicle", "Vehicle"),
+        ("incident", "Incident and impact"),
+        ("inspection", "Inspection"),
+        ("valuation", "Valuation"),
+        ("estimate", "Estimate"),
+        ("findings", "Findings"),
+        ("report", "Report content"),
+    };
+
+    var requested = Request.Query["section"].ToString().Trim();
+    var current = "vehicle";
+    foreach (var candidate in sections)
+    {
+        if (string.Equals(candidate.Key, requested, StringComparison.OrdinalIgnoreCase))
+        {
+            current = candidate.Key;
+        }
+    }
+}
+
+<a class="back-link" href="/Cases/@caseId">
+    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+    <span>Back to the case</span>
+</a>
+
+<partial name="Shared/_PageHeader" />
+
+<section class="panel" aria-labelledby="case-identity-title">
+    <h2 id="case-identity-title" class="section-label">Case identity</h2>
+    <dl class="detail-list">
+        <div>
+            <dt>Case/PO</dt>
+            <dd><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></dd>
+        </div>
+        <div>
+            <dt>Principal</dt>
+            <dd><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></dd>
+        </div>
+        <div>
+            <dt>Registration</dt>
+            <dd><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></dd>
+        </div>
+        <div>
+            <dt>Case type</dt>
+            <dd><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></dd>
+        </div>
+        <div>
+            <dt>Workflow state</dt>
+            <dd><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></dd>
+        </div>
+        <div>
+            <dt>Due by</dt>
+            <dd><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></dd>
+        </div>
+    </dl>
+</section>
+
+<nav class="section-tabs section-gap" aria-label="Assessment sections">
+    @* `tab`, not `section`: `@section` is the Razor section directive. *@
+    @foreach (var tab in sections)
+    {
+        <a href="@assessmentUrl?section=@tab.Key"
+           aria-current="@(tab.Key == current ? "page" : null)">@tab.Label</a>
+    }
+</nav>
+
+<div class="workbench-grid">
+    <aside aria-label="Assessment readiness">
+        <section class="panel" aria-labelledby="readiness-title">
+            <h2 id="readiness-title" class="section-label">Readiness</h2>
+            <p class="empty-state">No outstanding requirements are listed.</p>
+            <ul class="blocker-list" hidden>
+                <li class="blocker" data-state="not-ready">
+                    <strong>Requirement</strong>
+                    <small>Where the value comes from, why it is outstanding, and how to resolve it.</small>
+                </li>
+            </ul>
+        </section>
+
+        <section class="panel" aria-labelledby="send-title">
+            <h2 id="send-title" class="section-label">Send to Claude</h2>
+            <p>Assessment content is sent for review. Nothing on this case changes until you accept a suggestion.</p>
+
+            <div class="button-row" data-send-available>
+                <button type="button" class="secondary-action send-action" data-send-open>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                    <span>Send to Claude</span>
+                </button>
+            </div>
+
+            <div role="status" aria-live="polite">
+                <p class="empty-state" data-send-state="in-flight" hidden>Sending.</p>
+                <p class="empty-state" data-send-state="sent" hidden>Sent. Suggestions appear here when they return.</p>
+                <div class="status-card status-card--attention" data-send-state="unavailable" hidden>
+                    <h3>Not available</h3>
+                    <p>Sending is not available for this case. The readiness list above names what is outstanding.</p>
+                </div>
+                <div class="status-card status-card--error" data-send-state="failed" hidden>
+                    <h3>Nothing was sent</h3>
+                    <p>The case is unchanged. You can try again.</p>
+                </div>
+            </div>
+        </section>
+    </aside>
+
+    <div>
+        @if (current == "vehicle")
+        {
+            <section class="panel" aria-labelledby="vehicle-title">
+                <h2 id="vehicle-title">Vehicle</h2>
+                <p class="lede">Identity and condition of the vehicle assessed. VIN, engine, fuel and odometer are not carried by every vehicle type.</p>
+                <div class="form-grid section-gap">
+                    <div>
+                        <label for="vehicle-registration">Registration</label>
+                        <input type="text" id="vehicle-registration" name="vehicle.registration" aria-describedby="vehicle-registration-hint" />
+                        <small id="vehicle-registration-hint">Required.</small>
+                    </div>
+                    <div>
+                        <label for="vehicle-type">Vehicle type</label>
+                        <select id="vehicle-type" name="vehicle.vehicle_type" aria-describedby="vehicle-type-hint">
+                            <option value=""></option>
+                            <option value="car">Car</option>
+                            <option value="van">Van</option>
+                            <option value="motorcycle">Motorcycle</option>
+                            <option value="scooter">Scooter</option>
+                            <option value="bicycle">Bicycle</option>
+                            <option value="trailer">Trailer</option>
+                            <option value="caravan">Caravan</option>
+                            <option value="other">Other</option>
+                        </select>
+                        <small id="vehicle-type-hint">Required.</small>
+                    </div>
+                    <div>
+                        <label for="vehicle-make">Make</label>
+                        <input type="text" id="vehicle-make" name="vehicle.make" aria-describedby="vehicle-make-hint" />
+                        <small id="vehicle-make-hint">Required.</small>
+                    </div>
+                    <div>
+                        <label for="vehicle-model">Model</label>
+                        <input type="text" id="vehicle-model" name="vehicle.model" aria-describedby="vehicle-model-hint" />
+                        <small id="vehicle-model-hint">Required.</small>
+                    </div>
+                    <div>
+                        <label for="vehicle-year">Year</label>
+                        <input type="text" id="vehicle-year" name="vehicle.year" class="tabular" aria-describedby="vehicle-year-hint" />
+                        <small id="vehicle-year-hint">Required.</small>
+                    </div>
+                    <div>
+                        <label for="vehicle-vin">VIN</label>
+                        <input type="text" id="vehicle-vin" name="vehicle.vin" aria-describedby="vehicle-vin-hint" />
+                        <small id="vehicle-vin-hint">Optional. No format is enforced.</small>
+                    </div>
+                    <div>
+                        <label for="vehicle-engine">Engine size</label>
+                        <input type="number" id="vehicle-engine" name="vehicle.engine_cc" min="0" step="1" class="tabular" aria-describedby="vehicle-engine-hint" />
+                        <small id="vehicle-engine-hint">Optional. In cc.</small>
+                    </div>
+                    <div>
+                        <label for="vehicle-fuel">Fuel</label>
+                        <input type="text" id="vehicle-fuel" name="vehicle.fuel" aria-describedby="vehicle-fuel-hint" />
+                        <small id="vehicle-fuel-hint">Optional.</small>
+                    </div>
+                    <div>
+                        <label for="vehicle-odometer">Odometer reading</label>
+                        <input type="number" id="vehicle-odometer" name="vehicle.odometer_miles" min="0" step="1" class="tabular" aria-describedby="vehicle-odometer-hint" />
+                        <small id="vehicle-odometer-hint">In miles. Required unless the mileage source is To be confirmed.</small>
+                    </div>
+                    <div>
+                        <label for="vehicle-mileage-source">Mileage source</label>
+                        <select id="vehicle-mileage-source" name="vehicle.mileage_source" aria-describedby="vehicle-mileage-source-hint">
+                            <option value=""></option>
+                            <option value="online_data">Online data</option>
+                            <option value="owner">Owner</option>
+                            <option value="repairer">Repairer</option>
+                            <option value="principal">Principal</option>
+                            <option value="average">Average</option>
+                            <option value="tbc">To be confirmed</option>
+                        </select>
+                        <small id="vehicle-mileage-source-hint">Required. Sets the mileage sentence in the Engineer's comments.</small>
+                    </div>
+                    <div>
+                        <label for="vehicle-condition">Pre-incident condition</label>
+                        <select id="vehicle-condition" name="vehicle.condition" aria-describedby="vehicle-condition-hint">
+                            <option value=""></option>
+                            <option value="poor">Poor</option>
+                            <option value="below_average">Below average</option>
+                            <option value="average">Average</option>
+                            <option value="good">Good</option>
+                            <option value="excellent">Excellent</option>
+                        </select>
+                        <small id="vehicle-condition-hint">Required.</small>
+                    </div>
+                </div>
+                <div class="button-row section-gap">
+                    <button type="button" class="primary-action">Save vehicle</button>
+                </div>
+            </section>
+        }
+
+        @if (current == "incident")
+        {
+            <section class="panel" aria-labelledby="incident-title">
+                <h2 id="incident-title">Incident and impact</h2>
+                <p class="lede">Dates for the incident and this instruction, and where and how hard the vehicle was struck.</p>
+                <div class="form-grid section-gap">
+                    <div>
+                        <label for="incident-date">Incident date</label>
+                        <input type="date" id="incident-date" name="incident.date" class="tabular" aria-describedby="incident-date-hint" />
+                        <small id="incident-date-hint">Optional.</small>
+                    </div>
+                    <div>
+                        <label for="incident-instructions">Instructions received</label>
+                        <input type="date" id="incident-instructions" name="incident.instructions_received" class="tabular" aria-describedby="incident-instructions-hint" />
+                        <small id="incident-instructions-hint">Required.</small>
+                    </div>
+                    <div>
+                        <label for="incident-assessed">Assessed</label>
+                        <input type="date" id="incident-assessed" name="incident.assessed" class="tabular" aria-describedby="incident-assessed-hint" />
+                        <small id="incident-assessed-hint">Required.</small>
+                    </div>
+                    <div>
+                        <label for="impact-severity">Impact severity</label>
+                        <select id="impact-severity" name="assessment.impact_severity" aria-describedby="impact-severity-hint">
+                            <option value=""></option>
+                            <option value="light">Light</option>
+                            <option value="light_to_moderate">Light to moderate</option>
+                            <option value="moderate">Moderate</option>
+                            <option value="moderate_to_heavy">Moderate to heavy</option>
+                            <option value="heavy">Heavy</option>
+                        </select>
+                        <small id="impact-severity-hint">Required.</small>
+                    </div>
+                    <div>
+                        <label for="impact-location">Impact location</label>
+                        <select id="impact-location" name="assessment.impact_location" aria-describedby="impact-location-hint">
+                            <option value=""></option>
+                            <option value="front">Front</option>
+                            <option value="left_front">Left front</option>
+                            <option value="right_front">Right front</option>
+                            <option value="left_side">Left side</option>
+                            <option value="right_side">Right side</option>
+                            <option value="rear">Rear</option>
+                            <option value="left_rear">Left rear</option>
+                            <option value="right_rear">Right rear</option>
+                            <option value="roof">Roof</option>
+                            <option value="underside">Underside</option>
+                            <option value="wheel">Wheel</option>
+                            <option value="interior">Interior</option>
+                            <option value="mechanical">Mechanical</option>
+                            <option value="multiple">Multiple</option>
+                        </select>
+                        <small id="impact-location-hint">Required.</small>
+                    </div>
+                    <div class="field-wide">
+                        <label for="incident-nature">Nature of the incident</label>
+                        <textarea id="incident-nature" name="narrative.nature_of_incident" rows="3" aria-describedby="incident-nature-hint"></textarea>
+                        <small id="incident-nature-hint">Optional. Replaces the sentence written from the impact severity and location.</small>
+                    </div>
+                </div>
+                <div class="button-row section-gap">
+                    <button type="button" class="primary-action">Save incident and impact</button>
+                </div>
+            </section>
+        }
+
+        @if (current == "inspection")
+        {
+            <section class="panel" aria-labelledby="inspection-title">
+                <h2 id="inspection-title">Inspection</h2>
+                <p class="lede">How the vehicle was assessed, and where, when a physical inspection took place.</p>
+
+                <div class="status-card status-card--info">
+                    <h3>The principal sets the default</h3>
+                    <p>The inspection mode comes from the principal's setting. Changing it on this case needs a reason, and address fields never imply attendance.</p>
+                </div>
+
+                <fieldset class="role-choices role-choices--stacked">
+                    <legend>Assessment method</legend>
+                    <label class="choice" for="method-image">
+                        <input type="radio" id="method-image" name="assessment.method" value="image_based" />
+                        <span>Image Based Assessment</span>
+                    </label>
+                    <label class="choice" for="method-physical">
+                        <input type="radio" id="method-physical" name="assessment.method" value="physical" />
+                        <span>Physical</span>
+                    </label>
+                </fieldset>
+
+                <div class="form-grid section-gap">
+                    <div class="field-wide">
+                        <label for="inspection-address">Inspection address</label>
+                        <textarea id="inspection-address" name="assessment.location_address" rows="4" aria-describedby="inspection-address-hint"></textarea>
+                        <small id="inspection-address-hint">Required when the method is Physical. Leave empty for an Image Based Assessment.</small>
+                    </div>
+                </div>
+                <div class="button-row section-gap">
+                    <button type="button" class="primary-action">Save inspection</button>
+                </div>
+            </section>
+        }
+
+        @if (current == "valuation")
+        {
+            <section class="panel" aria-labelledby="valuation-title">
+                <h2 id="valuation-title">Valuation</h2>
+                <p class="lede">Guide evidence supports your opinion. The three figures you choose are the ones the report carries.</p>
+
+                <h3 class="section-label section-gap">Guide evidence</h3>
+                <div class="form-grid">
+                    <div class="evidence-figure">
+                        <span class="evidence-figure__label">CAP retail</span>
+                        <span class="evidence-figure__value"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></span>
+                        <span class="evidence-figure__source">No figure recorded</span>
+                    </div>
+                    <div class="evidence-figure">
+                        <span class="evidence-figure__label">CAP trade</span>
+                        <span class="evidence-figure__value"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></span>
+                        <span class="evidence-figure__source">No figure recorded</span>
+                    </div>
+                    <div class="evidence-figure">
+                        <span class="evidence-figure__label">Glass's retail</span>
+                        <span class="evidence-figure__value"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></span>
+                        <span class="evidence-figure__source">No figure recorded</span>
+                    </div>
+                    <div class="evidence-figure">
+                        <span class="evidence-figure__label">Glass's trade</span>
+                        <span class="evidence-figure__value"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></span>
+                        <span class="evidence-figure__source">No figure recorded</span>
+                    </div>
+                    <div class="evidence-figure">
+                        <span class="evidence-figure__label">Cazana retail</span>
+                        <span class="evidence-figure__value"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></span>
+                        <span class="evidence-figure__source">No figure recorded</span>
+                    </div>
+                    <div class="evidence-figure">
+                        <span class="evidence-figure__label">Cazana trade</span>
+                        <span class="evidence-figure__value"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></span>
+                        <span class="evidence-figure__source">No figure recorded</span>
+                    </div>
+                </div>
+
+                <div class="status-card status-card--info">
+                    <h3>Guide figures stay on this screen</h3>
+                    <p>They are evidence for your opinion and are read-only here. Only the three figures below reach the report.</p>
+                </div>
+
+                <h3 class="section-label">Chosen figures</h3>
+                <div class="form-grid">
+                    <div>
+                        <label for="value-retail">Retail value (&#163;)</label>
+                        <input type="number" id="value-retail" name="assessment.values.retail" min="0" step="0.01" inputmode="decimal" class="tabular" aria-describedby="value-retail-hint" />
+                        <small id="value-retail-hint">Required. Chosen from the guide evidence above.</small>
+                    </div>
+                    <div>
+                        <label for="value-trade">Trade value (&#163;)</label>
+                        <input type="number" id="value-trade" name="assessment.values.trade" min="0" step="0.01" inputmode="decimal" class="tabular" aria-describedby="value-trade-hint" />
+                        <small id="value-trade-hint">Required. Chosen from the guide evidence above.</small>
+                    </div>
+                    <div>
+                        <label for="value-engineer">Engineer's value (&#163;)</label>
+                        <input type="number" id="value-engineer" name="assessment.values.engineer" min="0" step="0.01" inputmode="decimal" class="tabular" aria-describedby="value-engineer-hint" />
+                        <small id="value-engineer-hint">Required. Your opinion. Usually the retail value; it may differ.</small>
+                    </div>
+                </div>
+                <div class="button-row section-gap">
+                    <button type="button" class="primary-action">Save valuation</button>
+                </div>
+            </section>
+        }
+
+        @if (current == "estimate")
+        {
+            <section class="panel" aria-labelledby="estimate-title">
+                <h2 id="estimate-title">Estimate</h2>
+                <p class="lede">Build the repair one line at a time. Every total below follows from the lines and the rate card, so none of them are typed in.</p>
+
+                <h3 class="section-label section-gap">Rate card</h3>
+                @* Rates are published reference data with their own dates and caveat, not a
+                   Pegasus tariff, so no figure is written into this page. The card supplies
+                   them and the rate in use is shown back as a derived value. *@
+                <div class="form-grid">
+                    <div class="field-wide">
+                        <label for="rate-card">Rate card</label>
+                        <select id="rate-card" name="rates.card" aria-describedby="rate-card-hint">
+                            <option value="">Choose a rate card</option>
+                        </select>
+                        <small id="rate-card-hint">A guide to charges, not a fixed tariff. The card carries its own dates.</small>
+                    </div>
+                    <div>
+                        <fieldset class="role-choices role-choices--stacked">
+                            <legend>Rate class</legend>
+                            <label class="choice"><input type="radio" name="rates.class" value="standard" /> <span>Standard</span></label>
+                            <label class="choice"><input type="radio" name="rates.class" value="prestige" /> <span>Prestige</span></label>
+                            <label class="choice"><input type="radio" name="rates.class" value="van" /> <span>Vans up to 3.5 tonnes</span></label>
+                        </fieldset>
+                    </div>
+                    <div>
+                        <fieldset class="role-choices role-choices--stacked">
+                            <legend>Adjustments</legend>
+                            <label class="choice"><input type="checkbox" name="rates.manufacturer_approved" value="true" /> <span>Manufacturer-approved repairer</span></label>
+                            <label class="choice"><input type="checkbox" name="rates.regional_uplift" value="true" /> <span>Higher-cost area</span></label>
+                        </fieldset>
+                        <small>Say what the case shows before applying either one.</small>
+                    </div>
+                    <div>
+                        <dl class="detail-list">
+                            <div>
+                                <dt>Labour rate in use</dt>
+                                <dd class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No rate card chosen</span></dd>
+                            </div>
+                            <div>
+                                <dt>Paint rate in use</dt>
+                                <dd class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No rate card chosen</span></dd>
+                            </div>
+                        </dl>
+                    </div>
+                </div>
+
+                <h3 class="section-label section-gap">Repair lines</h3>
+                <div class="table-wrap">
+                    <table class="line-grid">
+                        <caption>Each line is worth its work units divided by ten, times the rate &#8212; or its price, for parts and fixed charges.</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Line</th>
+                                <th scope="col">Type</th>
+                                <th scope="col">Code</th>
+                                <th scope="col">Description</th>
+                                <th scope="col">Work units</th>
+                                <th scope="col">Price</th>
+                                <th scope="col">Part number</th>
+                                <th scope="col">Betterment</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Where this came from</th>
+                                <th scope="col">Why this line</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (var line = 0; line < 3; line++)
+                            {
+                                <tr>
+                                    <th scope="row">Line @(line + 1)</th>
+                                    <td>
+                                        <label class="vh" for="line-type-@line">Type, line @(line + 1)</label>
+                                        <select id="line-type-@line" name="operations[@line].type">
+                                            <option value="">Choose</option>
+                                            <option value="rnr">Remove and refit</option>
+                                            <option value="repair">Repair</option>
+                                            <option value="new_part">New part</option>
+                                            <option value="check_labour">Check</option>
+                                            <option value="paint_new">Paint &#8212; new part</option>
+                                            <option value="paint_repair">Paint &#8212; repair</option>
+                                            <option value="paint_blend">Paint &#8212; blend</option>
+                                            <option value="paint_prep">Paint &#8212; preparation</option>
+                                            <option value="specialist_fixed">Specialist, fixed price</option>
+                                            <option value="specialist_wu">Specialist, by work units</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <label class="vh" for="line-guide-@line">Code, line @(line + 1)</label>
+                                        <input type="text" id="line-guide-@line" name="operations[@line].guide" />
+                                    </td>
+                                    <td>
+                                        <label class="vh" for="line-desc-@line">Description, line @(line + 1)</label>
+                                        <input type="text" id="line-desc-@line" name="operations[@line].desc" />
+                                    </td>
+                                    <td>
+                                        <label class="vh" for="line-wu-@line">Work units, line @(line + 1)</label>
+                                        <input type="number" id="line-wu-@line" name="operations[@line].wu" min="0" step="0.1" inputmode="decimal" class="tabular" />
+                                    </td>
+                                    <td>
+                                        <label class="vh" for="line-price-@line">Price, line @(line + 1)</label>
+                                        <input type="number" id="line-price-@line" name="operations[@line].price" min="0" step="0.01" inputmode="decimal" class="tabular" />
+                                        <label class="choice" for="line-unpriced-@line">
+                                            <input type="checkbox" id="line-unpriced-@line" name="operations[@line].unpriced" value="true" />
+                                            <span>To be confirmed</span>
+                                        </label>
+                                    </td>
+                                    <td>
+                                        <label class="vh" for="line-part-@line">Part number, line @(line + 1)</label>
+                                        <input type="text" id="line-part-@line" name="operations[@line].part_num" />
+                                    </td>
+                                    <td>
+                                        <label class="vh" for="line-bet-@line">Betterment, line @(line + 1)</label>
+                                        <input type="text" id="line-bet-@line" name="operations[@line].bet" />
+                                    </td>
+                                    <td>
+                                        <label class="vh" for="line-status-@line">Status, line @(line + 1)</label>
+                                        <select id="line-status-@line" name="operations[@line].status">
+                                            <option value="">Choose</option>
+                                            <option value="confirmed">Confirmed</option>
+                                            <option value="estimated">Estimated</option>
+                                            <option value="provisional">Provisional</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <label class="vh" for="line-evidence-@line">Where this came from, line @(line + 1)</label>
+                                        <select id="line-evidence-@line" name="operations[@line].evidence_label">
+                                            <option value="">Choose</option>
+                                            <option value="official">Official or live source</option>
+                                            <option value="reference">Maintained reference</option>
+                                            <option value="case">Case evidence</option>
+                                            <option value="judgement">Judgement</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <label class="vh" for="line-just-@line">Why this line, line @(line + 1)</label>
+                                        <input type="text" id="line-just-@line" name="operations[@line].justification" />
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="button-row">
+                    <button type="button" class="secondary-action">Add a repair line</button>
+                </div>
+
+                <h3 class="section-label section-gap">Charges and VAT</h3>
+                <div class="form-grid">
+                    <div>
+                        <label for="cost-recovery">Recovery charge (&#163;)</label>
+                        <input type="number" id="cost-recovery" name="costs.recovery_charge" min="0" step="0.01" inputmode="decimal" class="tabular" aria-describedby="cost-recovery-hint" />
+                        <small id="cost-recovery-hint">Optional. A recovery and storage paragraph is written when either charge is present.</small>
+                    </div>
+                    <div>
+                        <label for="cost-storage">Storage charge (&#163;)</label>
+                        <input type="number" id="cost-storage" name="costs.storage_charge" min="0" step="0.01" inputmode="decimal" class="tabular" aria-describedby="cost-storage-hint" />
+                        <small id="cost-storage-hint">Optional.</small>
+                    </div>
+                    <div>
+                        @* A required answer, so it is a two-way choice with no default. A single
+                           checkbox could not tell "not registered" apart from "not answered",
+                           and the two produce different VAT. *@
+                        <fieldset class="role-choices role-choices--stacked">
+                            <legend>Is the repairer VAT registered?</legend>
+                            <label class="choice"><input type="radio" name="costs.repairer_vat_registered" value="true" aria-describedby="cost-vat-hint" /> <span>Yes</span></label>
+                            <label class="choice"><input type="radio" name="costs.repairer_vat_registered" value="false" aria-describedby="cost-vat-hint" /> <span>No</span></label>
+                        </fieldset>
+                        <small id="cost-vat-hint">Yes &#8212; VAT is added to the whole repair cost. No &#8212; VAT is added to parts and paint materials only.</small>
+                    </div>
+                </div>
+
+                <h3 class="section-label section-gap">What the lines add up to</h3>
+                <div class="table-wrap">
+                    <table>
+                        <caption>How the repair cost is worked out. Nothing here is typed in.</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Item</th>
+                                <th scope="col">Working</th>
+                                <th scope="col">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th scope="row">Body labour</th>
+                                <td class="empty-state">Work units on repair, remove-and-refit and check lines, divided by ten, times the labour rate</td>
+                                <td class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Paint labour</th>
+                                <td class="empty-state">Work units on paint lines, divided by ten, times the paint rate</td>
+                                <td class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Parts</th>
+                                <td class="empty-state">New part prices, plus the card&#8217;s sundry parts percentage</td>
+                                <td class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Paint materials</th>
+                                <td class="empty-state">The card&#8217;s material band for this size of job, plus sundry and pre-paint charges</td>
+                                <td class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Specialist and extras</th>
+                                <td class="empty-state">Fixed specialist prices, plus specialist work units at the labour rate</td>
+                                <td class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <th scope="row">Repair cost before VAT</th>
+                                <td class="empty-state">The five rows above</td>
+                                <td class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">VAT</th>
+                                <td class="empty-state">Waiting on the VAT answer above</td>
+                                <td class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Repair cost</th>
+                                <td class="empty-state">Before VAT, plus VAT</td>
+                                <td class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <h3 class="section-label section-gap">What goes on the report</h3>
+                @* The three lists the report prints are grouped from the lines above, not
+                   entered separately. Paint work is named among the additional operations;
+                   there is no fourth list. *@
+                <div class="field-grid">
+                    <div class="field-card">
+                        <h4>Main new parts</h4>
+                        <p class="empty-state">No new part lines yet.</p>
+                    </div>
+                    <div class="field-card">
+                        <h4>Repairs</h4>
+                        <p class="empty-state">No repair lines yet.</p>
+                    </div>
+                    <div class="field-card">
+                        <h4>Additional operations</h4>
+                        <p class="empty-state">No check, paint or specialist lines yet.</p>
+                    </div>
+                </div>
+                <p class="empty-state">Remove-and-refit lines are not named on the report. Their labour is carried in the hours.</p>
+
+                <div class="button-row section-gap">
+                    <button type="button" class="primary-action">Save estimate</button>
+                    <button type="button" class="secondary-action">Discard changes</button>
+                </div>
+            </section>
+        }
+
+        @if (current == "findings")
+        {
+            <section class="panel" aria-labelledby="findings-title">
+                <h2 id="findings-title">Findings</h2>
+                <p class="lede">Roadworthiness and the assessment outcome are separate professional findings.</p>
+
+                <div class="status-card status-card--attention">
+                    <h3>A correction keeps the earlier finding</h3>
+                    <p>Changing a recorded finding needs a reason and keeps the version it replaces. A correction never implies a fee or invoice change.</p>
+                </div>
+
+                <div class="form-grid">
+                    <div>
+                        <label for="finding-outcome">Assessment outcome</label>
+                        <select id="finding-outcome" name="assessment.outcome" aria-describedby="finding-outcome-hint">
+                            <option value=""></option>
+                            <option value="total_loss">Total loss</option>
+                            <option value="repairable">Repairable</option>
+                            <option value="cash_in_lieu">Cash in lieu</option>
+                            <option value="contract_repair">Contract repair</option>
+                        </select>
+                        <small id="finding-outcome-hint">Required.</small>
+                    </div>
+                    <div>
+                        <label for="finding-roadworthiness">Roadworthiness</label>
+                        <select id="finding-roadworthiness" name="assessment.legal_status" aria-describedby="finding-roadworthiness-hint">
+                            <option value=""></option>
+                            <option value="roadworthy">Roadworthy</option>
+                            <option value="unroadworthy">Unroadworthy</option>
+                        </select>
+                        <small id="finding-roadworthiness-hint">Required.</small>
+                    </div>
+                    <div class="field-wide">
+                        <label for="finding-unroadworthy-reason">Reason the vehicle is unroadworthy</label>
+                        <textarea id="finding-unroadworthy-reason" name="assessment.unroadworthy_reason" rows="3" aria-describedby="finding-unroadworthy-reason-hint"></textarea>
+                        <small id="finding-unroadworthy-reason-hint">Required when roadworthiness is Unroadworthy. It is written into the Engineer's comments.</small>
+                    </div>
+                    <div>
+                        <label for="finding-category">Salvage category</label>
+                        <select id="finding-category" name="assessment.category" aria-describedby="finding-category-hint">
+                            <option value=""></option>
+                            <option value="A">Category A</option>
+                            <option value="B">Category B</option>
+                            <option value="S">Category S</option>
+                            <option value="N">Category N</option>
+                            <option value="N/A">Not applicable</option>
+                        </select>
+                        <small id="finding-category-hint">Required when the outcome is Total loss.</small>
+                    </div>
+                    <div>
+                        <label for="finding-salvage-value">Salvage value (&#163;)</label>
+                        <input type="number" id="finding-salvage-value" name="assessment.salvage_value" min="0" step="0.01" inputmode="decimal" class="tabular" aria-describedby="finding-salvage-value-hint" />
+                        <small id="finding-salvage-value-hint">Required when the outcome is Total loss.</small>
+                    </div>
+                </div>
+                <div class="button-row section-gap">
+                    <button type="button" class="primary-action">Save findings</button>
+                </div>
+            </section>
+        }
+
+        @if (current == "report")
+        {
+            <section class="panel" aria-labelledby="report-title">
+                <h2 id="report-title">Report content</h2>
+                <p class="lede">The remaining text the report carries, plus who signs it and the agreed fee.</p>
+
+                <div class="status-card status-card--info">
+                    <h3>Most of the report is written for you</h3>
+                    <p>The introduction, the mileage sentence, the pre-incident condition, and the settlement and salvage paragraphs come from the values recorded in the other sections.</p>
+                </div>
+
+                <div class="form-grid">
+                    <div class="field-wide">
+                        <label for="report-history-check">Vehicle history check</label>
+                        <textarea id="report-history-check" name="narrative.history_check" rows="4" aria-describedby="report-history-check-hint"></textarea>
+                        <small id="report-history-check-hint">Required. The result returned by the vehicle history provider.</small>
+                    </div>
+                    <div class="field-wide">
+                        <label for="report-comments">Engineer's comments</label>
+                        <textarea id="report-comments" name="narrative.engineers_comments" rows="5" aria-describedby="report-comments-hint"></textarea>
+                        <small id="report-comments-hint">Optional. Added to the comments written from the sections above.</small>
+                    </div>
+                    <div>
+                        <label for="report-engineer-name">Engineer name</label>
+                        <input type="text" id="report-engineer-name" name="engineer.name" aria-describedby="report-engineer-name-hint" />
+                        <small id="report-engineer-name-hint">Required.</small>
+                    </div>
+                    <div>
+                        <label for="report-engineer-qualifications">Qualifications</label>
+                        <input type="text" id="report-engineer-qualifications" name="engineer.qualifications" aria-describedby="report-engineer-qualifications-hint" />
+                        <small id="report-engineer-qualifications-hint">Required.</small>
+                    </div>
+                    <div>
+                        <label for="report-signature">Signature</label>
+                        <select id="report-signature" name="engineer.signature" aria-describedby="report-signature-hint">
+                            <option value=""></option>
+                        </select>
+                        <small id="report-signature-hint">Required. Chosen from the approved signatories.</small>
+                    </div>
+                    <div>
+                        <label for="report-fee">Agreed fee (&#163;)</label>
+                        <input type="number" id="report-fee" name="fee.agreed_fee" min="0" step="0.01" inputmode="decimal" class="tabular" aria-describedby="report-fee-hint" />
+                        <small id="report-fee-hint">Required.</small>
+                    </div>
+                    <div class="field-wide">
+                        <label for="report-fee-description">Fee description</label>
+                        <textarea id="report-fee-description" name="fee.description_lines" rows="3" aria-describedby="report-fee-description-hint"></textarea>
+                        <small id="report-fee-description-hint">Optional. One line per row.</small>
+                    </div>
+                    <div class="field-wide">
+                        <label for="report-statement-of-truth">Statement of truth</label>
+                        <textarea id="report-statement-of-truth" name="statement_of_truth" rows="4" aria-describedby="report-statement-of-truth-hint"></textarea>
+                        <small id="report-statement-of-truth-hint">Optional. Leave empty to carry the standard CPR wording.</small>
+                    </div>
+                </div>
+                <div class="button-row section-gap">
+                    <button type="button" class="primary-action">Save report content</button>
+                </div>
+            </section>
+        }
+    </div>
+</div>
+
+<div id="send-confirm" class="reason-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="send-confirm-title" aria-describedby="send-confirm-body" hidden>
+    <div class="reason-dialog">
+        <h2 id="send-confirm-title">Send this assessment to Claude?</h2>
+        <p id="send-confirm-body">The assessment content is sent for review. Nothing on this case changes until you accept a suggestion, and you can stop before then.</p>
+        <div class="button-row">
+            <button type="button" class="secondary-action" data-send-cancel>Cancel</button>
+            <button type="button" class="secondary-action send-action" data-send-confirm>
+                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                <span>Send to Claude</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Presentation only: opens the confirm dialog, keeps focus inside it,
+        // returns focus to the invoking control, and reveals the in-flight
+        // state so each state in this panel can be seen. No case data moves.
+        (function () {
+            var dialog = document.getElementById('send-confirm');
+            if (!dialog) { return; }
+
+            var opener = document.querySelector('[data-send-open]');
+            var available = document.querySelector('[data-send-available]');
+            var inFlight = document.querySelector('[data-send-state="in-flight"]');
+            var invoker = null;
+
+            function focusable() {
+                return Array.prototype.filter.call(
+                    dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+                    function (element) { return !element.disabled && !element.hidden; });
+            }
+
+            function close() {
+                dialog.hidden = true;
+                document.removeEventListener('keydown', onKeydown, true);
+                if (invoker) { invoker.focus(); }
+            }
+
+            function onKeydown(event) {
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    close();
+                    return;
+                }
+                if (event.key !== 'Tab') { return; }
+                var items = focusable();
+                if (items.length === 0) { return; }
+                var first = items[0];
+                var last = items[items.length - 1];
+                if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first.focus();
+                }
+            }
+
+            if (opener) {
+                opener.addEventListener('click', function () {
+                    invoker = opener;
+                    dialog.hidden = false;
+                    document.addEventListener('keydown', onKeydown, true);
+                    var items = focusable();
+                    if (items.length > 0) { items[0].focus(); }
+                });
+            }
+
+            dialog.addEventListener('click', function (event) {
+                if (event.target === dialog) { close(); }
+            });
+
+            var cancel = dialog.querySelector('[data-send-cancel]');
+            if (cancel) { cancel.addEventListener('click', close); }
+
+            var confirmButton = dialog.querySelector('[data-send-confirm]');
+            if (confirmButton) {
+                confirmButton.addEventListener('click', function () {
+                    close();
+                    if (available) { available.hidden = true; }
+                    if (inFlight) { inFlight.hidden = false; }
+                });
+            }
+        }());
+    </script>
+}

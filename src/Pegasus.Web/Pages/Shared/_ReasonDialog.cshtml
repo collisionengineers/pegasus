@@ -1,12 +1,22 @@
+@*
+    Reason dialog.
+
+    design/product/ui-spec.md requires a named requirement and consequence, a
+    labelled reason, confirmation and cancel, initial focus, focus containment,
+    Escape where safe, and focus return to the invoking control.
+
+    Open it from any control carrying `data-dialog-open="<DialogId>"`; the
+    script below handles the rest and needs no inline handler.
+*@
 @{
     var dialogId = ViewData["DialogId"] as string ?? "reasonModal";
     var title = ViewData["DialogTitle"] as string ?? "Required Reason";
     var actionUrl = ViewData["DialogActionUrl"] as string ?? "#";
     var consequence = ViewData["DialogConsequence"] as string ?? "A reason is required to perform this permanent business action.";
 }
-<div id="@dialogId" class="reason-dialog-backdrop" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="@(dialogId)_title">
+<div id="@dialogId" class="reason-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="@(dialogId)_title" data-reason-dialog hidden>
     <div class="reason-dialog">
-        <h2 id="@(dialogId)_title" style="margin-top: 0; display: flex; align-items: center; gap: 0.5rem;">
+        <h2 id="@(dialogId)_title" style="display: flex; align-items: center; gap: 0.5rem;">
             <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle"/></svg>
             <span>@title</span>
         </h2>
@@ -14,13 +24,99 @@
         <form method="post" action="@actionUrl" class="form-grid">
             @Html.AntiForgeryToken()
             <div>
-                <label for="@(dialogId)_reason">Reason for action <span style="color: var(--red);">*</span></label>
-                <textarea id="@(dialogId)_reason" name="Reason" rows="3" required placeholder="Enter clear business reason…"></textarea>
+                @* `--red` was never declared, so the required marker rendered in
+                   the inherited text colour. It now uses the same approved dark
+                   red as every other validation cue. *@
+                <label for="@(dialogId)_reason">
+                    Reason for action
+                    <span class="field-validation" aria-hidden="true">*</span>
+                </label>
+                <textarea id="@(dialogId)_reason" name="Reason" rows="3" required aria-describedby="@(dialogId)_reason_hint" placeholder="Enter clear business reason…"></textarea>
+                <small id="@(dialogId)_reason_hint">Required.</small>
             </div>
             <div class="button-row" style="justify-content: flex-end;">
-                <button type="button" class="secondary-action" onclick="document.getElementById('@dialogId').style.display='none';">Cancel</button>
+                <button type="button" class="secondary-action" data-dialog-dismiss>Cancel</button>
                 <button type="submit" class="primary-action">Confirm Action</button>
             </div>
         </form>
     </div>
 </div>
+<script>
+    // Initial focus, focus containment, Escape, and focus return to the control
+    // that opened the dialog. Written in the same shape as the refresh feedback
+    // in _FreshnessBanner: one small block beside the markup it belongs to, with
+    // no inline handler on any control.
+    document.querySelectorAll('[data-reason-dialog]').forEach(function (dialog) {
+        if (dialog.dataset.dialogBound === 'true') {
+            return;
+        }
+        dialog.dataset.dialogBound = 'true';
+
+        var invoker = null;
+
+        function focusable() {
+            return Array.prototype.filter.call(
+                dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+                function (element) { return !element.disabled && !element.hidden; });
+        }
+
+        function open(source) {
+            invoker = source;
+            dialog.hidden = false;
+            document.addEventListener('keydown', onKeydown, true);
+            var items = focusable();
+            if (items.length > 0) {
+                items[0].focus();
+            }
+        }
+
+        function close() {
+            dialog.hidden = true;
+            document.removeEventListener('keydown', onKeydown, true);
+            if (invoker) {
+                invoker.focus();
+            }
+        }
+
+        function onKeydown(event) {
+            if (event.key === 'Escape') {
+                // Safe: closing abandons an unsent reason and changes nothing.
+                event.preventDefault();
+                close();
+                return;
+            }
+            if (event.key !== 'Tab') {
+                return;
+            }
+            var items = focusable();
+            if (items.length === 0) {
+                return;
+            }
+            var first = items[0];
+            var last = items[items.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        }
+
+        dialog.querySelectorAll('[data-dialog-dismiss]').forEach(function (control) {
+            control.addEventListener('click', close);
+        });
+
+        dialog.addEventListener('click', function (event) {
+            if (event.target === dialog) {
+                close();
+            }
+        });
+
+        document.querySelectorAll('[data-dialog-open="' + dialog.id + '"]').forEach(function (control) {
+            control.addEventListener('click', function () {
+                open(control);
+            });
+        });
+    });
+</script>

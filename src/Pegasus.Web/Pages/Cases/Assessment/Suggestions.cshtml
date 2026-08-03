@@ -1,0 +1,129 @@
+@page "/Cases/{id:guid}/Assessment/Suggestions/{suggestionId:guid}"
+@model Pegasus.Web.Pages.Cases.Assessment.SuggestionsModel
+@*
+    Returned suggestions — design only.
+
+    Field names below come from the assessment's own vocabulary, not from a case.
+    Every recorded and proposed value renders empty: this pass must not invent
+    what Claude said or what the case holds. The task that wires this surface
+    owns the decision, the confirmation and the recorded outcome.
+
+    Three rules are built into the markup rather than left to the wiring:
+    Reject is preselected on every row, so arriving here applies nothing;
+    Amend takes the Engineer's own value rather than Claude's; and the findings,
+    the signature and the fee each carry their own decision, so no single action
+    can sweep them through.
+*@
+@{
+    ViewData["Title"] = "Suggestions";
+    ViewData["Eyebrow"] = "Assessment";
+    ViewData["Lede"] = "Decide on each suggestion. Nothing reaches the case until you apply what you have accepted.";
+
+    var caseId = RouteData.Values["id"]?.ToString() ?? string.Empty;
+
+    // Field label, the section it belongs to, and whether it is a professional
+    // decision that must be taken on its own.
+    var suggested = new[]
+    {
+        ("Odometer reading", "Vehicle", false),
+        ("Condition", "Vehicle", false),
+        ("How hard the impact was", "Incident and impact", false),
+        ("Engineer's value", "Valuation", false),
+        ("Outcome", "Findings", true),
+        ("Roadworthiness", "Findings", true)
+    };
+}
+
+<a class="back-link" href="/Cases/@caseId/Assessment">
+    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+    <span>Back to the assessment</span>
+</a>
+
+<partial name="Shared/_PageHeader" />
+
+<div class="workbench-grid">
+    <aside aria-label="About these suggestions">
+        <section class="panel" aria-labelledby="suggestion-source-title">
+            <h2 id="suggestion-source-title" class="section-label">Where these came from</h2>
+            <dl class="detail-list">
+                <div>
+                    <dt>Sent</dt>
+                    <dd><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></dd>
+                </div>
+                <div>
+                    <dt>Came back</dt>
+                    <dd><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></dd>
+                </div>
+                <div>
+                    <dt>Suggestions</dt>
+                    <dd class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></dd>
+                </div>
+            </dl>
+        </section>
+
+        <section class="panel" aria-labelledby="suggestion-boundary-title">
+            <h2 id="suggestion-boundary-title" class="section-label">What a suggestion is</h2>
+            <p>A suggestion is a proposal for you to weigh. It changes nothing on its own, and what you accept is recorded against your name.</p>
+        </section>
+    </aside>
+
+    <div>
+        <section class="panel" aria-labelledby="suggestion-list-title">
+            <h2 id="suggestion-list-title">Suggested changes</h2>
+            <p class="lede">Each one starts on Reject. Change only the ones you want.</p>
+
+            @* `section` is a reserved Razor directive, so the loop variable cannot use it. *@
+    @foreach (var (field, inSection, ownDecision) in suggested)
+            {
+                var key = field.ToLowerInvariant().Replace(" ", "-").Replace("'", string.Empty);
+                <section class="section-gap" aria-labelledby="suggestion-@key-title">
+                    <h3 id="suggestion-@key-title">@field</h3>
+                    <p class="empty-state">In @inSection</p>
+
+                    <div class="proposal-diff">
+                        <div>
+                            <h4>On the case now</h4>
+                            <p class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No recorded value</span></p>
+                        </div>
+                        <div>
+                            <h4>Claude suggests</h4>
+                            <p class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No suggested value</span></p>
+                        </div>
+                    </div>
+
+                    <dl class="detail-list">
+                        <div>
+                            <dt>Claude&#8217;s reason</dt>
+                            <dd><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></dd>
+                        </div>
+                    </dl>
+
+                    @if (ownDecision)
+                    {
+                        <p class="empty-state">This is a professional finding, so it is decided on its own.</p>
+                    }
+
+                    <fieldset class="role-choices">
+                        <legend>What to do with this suggestion</legend>
+                        <label class="choice"><input type="radio" name="decision-@key" value="reject" checked /> <span>Reject</span></label>
+                        <label class="choice"><input type="radio" name="decision-@key" value="accept" /> <span>Accept</span></label>
+                        <label class="choice"><input type="radio" name="decision-@key" value="amend" /> <span>Amend</span></label>
+                    </fieldset>
+
+                    <div class="form-grid">
+                        <div class="field-wide">
+                            <label for="amend-@key">Your value</label>
+                            <input type="text" id="amend-@key" name="amend-@key" aria-describedby="amend-@key-hint" />
+                            <small id="amend-@key-hint">Used only when you choose Amend. What is applied is your value, not Claude&#8217;s.</small>
+                        </div>
+                    </div>
+                </section>
+            }
+
+            <div class="button-row section-gap">
+                <button type="button" class="primary-action" disabled>Apply what I accepted</button>
+                <span class="empty-state">Nothing accepted yet.</span>
+            </div>
+        </section>
+    </div>
+</div>
