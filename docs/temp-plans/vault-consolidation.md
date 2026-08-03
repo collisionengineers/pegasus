@@ -79,11 +79,11 @@ $TargetVault = $TargetVaults[0]
 
 $WorkerApps = @(az functionapp list `
   --resource-group $PegasusProductionResourceGroup `
-  --query "[?tags.\"azd-service-name\"=='worker'].{name:name,id:id,state:state}" `
+  --query '[?tags."azd-service-name"==''worker''].{name:name,id:id,state:state}' `
   --output json | ConvertFrom-Json)
 $WebApps = @(az containerapp list `
   --resource-group $PegasusProductionResourceGroup `
-  --query "[?tags.\"azd-service-name\"=='web'].{name:name,id:id}" `
+  --query '[?tags."azd-service-name"==''web''].{name:name,id:id}' `
   --output json | ConvertFrom-Json)
 if ($WorkerApps.Count -ne 1 -or $WebApps.Count -ne 1) {
   throw 'Expected exactly one tagged Worker and one tagged Web application.'
