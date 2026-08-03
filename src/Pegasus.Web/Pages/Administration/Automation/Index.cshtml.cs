@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Identity;
 using Pegasus.Web.Mcp;
 
@@ -12,6 +13,10 @@ public sealed class IndexModel : AdministrationPageModel
     public bool IngressComposed { get; private set; }
 
     public AutomationClientStatus? Status { get; private set; }
+
+    public bool SendToAiComposed { get; private set; }
+
+    public bool SendToAiEnabled { get; private set; }
 
     [BindProperty]
     public bool TargetEnabled { get; set; }
@@ -73,6 +78,39 @@ public sealed class IndexModel : AdministrationPageModel
         return Page();
     }
 
+    public async Task<IActionResult> OnPostSetSendToAiEnabledAsync(
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        StaffAuthorization.Require(actor, StaffAccessRight.ManageAutomationClients);
+        if (!IsOperationKeyValid(OperationKey))
+        {
+            ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
+        }
+
+        if (ModelState.IsValid)
+        {
+            var control = HttpContext.RequestServices.GetRequiredService<ISendToAiControl>();
+            var enabled = await control.SetEnabledAsync(
+                TargetEnabled,
+                actor,
+                Reason,
+                OperationKey,
+                cancellationToken);
+            TempData["AdministrationStatus"] = enabled
+                ? "Sending to AI is enabled."
+                : "Sending to AI is disabled; new hand-offs are refused immediately.";
+            return RedirectToPage();
+        }
+
+        await LoadAsync(actor, cancellationToken);
+        return Page();
+    }
+
     private async Task LoadAsync(ActionActor actor, CancellationToken cancellationToken)
     {
         var registry = Registry();
@@ -80,6 +118,10 @@ public sealed class IndexModel : AdministrationPageModel
         Status = registry is null
             ? null
             : await registry.GetStatusAsync(actor, cancellationToken);
+        SendToAiComposed = HttpContext.RequestServices.GetService<ISendCaseToAi>() is not null;
+        SendToAiEnabled = await HttpContext.RequestServices
+            .GetRequiredService<ISendToAiControl>()
+            .IsEnabledAsync(cancellationToken);
     }
 
     private AutomationClientRegistry? Registry() =>
