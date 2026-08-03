@@ -402,6 +402,30 @@ Corrections or removals require separately accepted authority and a new explicit
 
 Successful completion proves deterministic authoring bytes only. It does not activate an email route, resolve a provider at intake, prove a migration or caller, or establish release acceptance. Runtime reads only the explicit versioned SQL snapshot and never opens a workbook. Reference ownership is indexed in [reference material](reference/README.md).
 
+## Provider inspection-mode setting
+
+Each Principal row carries an `InspectionMode` setting
+(`physical_address` or `image_based_assessment`) under
+[ADR-0018](adr/0018-provider-inspection-mode-database-setting.md). It is not
+part of the provider-domain reference package above and never will be: that
+package remains domain evidence only. QDOS is seeded `image_based_assessment`
+by migration; principal creation and replacement carry the setting, and a
+successor inherits its predecessor's mode.
+
+Changing an existing Principal's mode in production is a runbook action until
+a dedicated administration operation is justified. With recorded change
+authority, run against the production database:
+
+```sql
+UPDATE [Principals] SET [InspectionMode] = 'image_based_assessment' -- or 'physical_address'
+WHERE [Code] = '<PRINCIPAL-CODE>';
+```
+
+The change affects only cases accepted after it. An acceptance replayed
+across a mode change fails closed with an operation conflict instead of
+deduplicating, and an acceptance in flight during the change is rejected and
+must be retried from a reloaded intake receipt.
+
 ## Local setup and run
 
 Run these commands from PowerShell 7 at the repository root:
@@ -767,7 +791,7 @@ The following contracts must be proved through the owning Core policy and actual
 
 Automatic mailbox categorisation and email matching await the single combined research decision in [open decisions](open-decisions.md). Tests must not invent that policy.
 
-Image association stays conservative when evidence is not definitive. Inspection address accepts confirmed physical data or the exact value `Image Based Assessment` without inferring precedence. `0.1.0-alpha.1` email operations remain explicitly unsupported unless required. Reversible EVA wire mapping is an owning integration contract validated with operator acceptance, not an unresolved product rule.
+Image association stays conservative when evidence is not definitive. Inspection address accepts confirmed physical data, or the exact value `Image Based Assessment` autofilled from the accepted Principal's inspection-mode setting with provider-setting provenance; no address text is ever inferred from a provider, spreadsheet, geocoder or model, and a physical-address Principal fails closed without confirmed address evidence. `0.1.0-alpha.1` email operations remain explicitly unsupported unless required. Reversible EVA wire mapping is an owning integration contract validated with operator acceptance, not an unresolved product rule.
 
 ## Monitoring and diagnosis
 
@@ -820,23 +844,37 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   accepted), FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard
   LRS storage accounts, distinct Web/Worker managed identities, a Pegasus Key
   Vault, Log Analytics, and Application Insights.
-- **Deployed evidence:** release 2 executed 2026-08-03 through the same
-  authorised-terminal route — Web source revision `836db05c…` on immutable
-  digest `sha256:90e5e1e1…` (single healthy revision), Worker package
-  redeployed with all nine functions, production smoke passed (health, exact
-  version/SHA, anonymous-`/Cases` denial). Release 1 (2026-08-02, revision
-  `94997dd0…`) live-verified Graph Inbox/Sent processing through the
-  production Worker (83 successful executions, zero exceptions).
+- **Deployed evidence:** release 3 executed 2026-08-03 through the same
+  authorised-terminal route — Web source revision `ef987ac4…` on immutable
+  digest `sha256:89165ad5…` (single healthy revision `ef987ac49cb4` at 100%
+  traffic, proving the Key Vault secret references resolved), the
+  inspection-mode migration applied before activation with the runtime-role
+  matrix re-verified, Worker package redeployed with all nine functions, and
+  smoke evidence: health live/ready 200, exact version/SHA match, and
+  anonymous `/Cases` 302 to the **https** sign-in route (the forwarded-headers
+  fix live-verified; earlier releases redirected to `http://`). Release 2
+  (2026-08-03, revision `836db05c…`) applied the Box custody root; release 1
+  (2026-08-02, revision `94997dd0…`) live-verified Graph Inbox/Sent processing
+  through the production Worker (83 successful executions, zero exceptions).
 - **Integrations:** Graph via the Worker managed identity scoped by Exchange
   Application RBAC to `instructions@collisionengineers.co.uk`; Box production
   custody rooted at the pegasus folder `405543781910` (applied by release 2);
+  since release 3 Box is reached by both hosts — the Worker for intake-source
+  custody and Web for the staff document surface and managed document
+  content — through the one root-fenced client;
   official DVLA VES v1.2 and DVSA MOT History v1; EVA remains the accepted
   manual JSON/image handoff.
 - **Secrets:** the adopted predecessor vaults `cespkboxkvv76a47` and
   `cespkenrichkvgi62sd` remain (intentionally retained inside
   `rg-collisionspike-dev`); secret-level access only for the identities and
   exact secrets that call them. The three obsolete vaults are soft-deleted with
-  platform purge scheduled 2026-08-09.
+  platform purge scheduled 2026-08-09. Since release 3 the Web container app
+  declares Key Vault secret references for `Box:ConfigJson` and
+  `Box:ClientSecret` resolved through the Web managed identity; the matching
+  secret-scoped `Key Vault Secrets User` grants (mirroring the Worker's) were
+  applied before that deployment, and the healthy revision start is the
+  resolution proof. Without those grants a Web revision fails to start rather
+  than starting without custody.
 - **Predecessor retirement:** executed through the exact verified manifest;
   eight resource batches completed, 30 delete-classified role assignments
   removed, 7 retained; the archive manifest hash is recorded in the runbook

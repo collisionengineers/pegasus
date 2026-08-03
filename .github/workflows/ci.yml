@@ -33,7 +33,8 @@ jobs:
           }
           # Build/test lanes run only for changes that can affect the built
           # application: source, tests, the solution, project/lock/config
-          # files, or a script a CI job executes
+          # files, or the CI-executed acceptance script — the doc-link check
+          # script is deliberately excluded because its step always runs
           # (docs/engineering.md "Branches and delivery").
           $buildPattern = '^(src|tests)/|^Pegasus\.slnx$|\.csproj$|\.props$|\.targets$|packages\.lock\.json$|^global\.json$|^nuget\.config$|^scripts/Invoke-QdosAlphaAcceptance\.ps1$'
           $build = 'true'

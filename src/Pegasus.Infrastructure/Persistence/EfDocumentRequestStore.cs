@@ -8,7 +8,7 @@ namespace Pegasus.Infrastructure.Persistence;
 
 internal sealed class EfDocumentRequestStore(
     IDbContextFactory<PegasusDbContext> dbContextFactory,
-    LocalDocumentContentStore contentStore,
+    IDocumentContentStore contentStore,
     RequestUploadPolicy uploadPolicy,
     RequestUploadLimits uploadLimits,
     TimeProvider timeProvider) :

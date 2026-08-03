@@ -679,7 +679,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_CaseDataFields_PolicyVersion", "[PolicyVersion] > 0");
 
-                            t.HasCheckConstraint("CK_CaseDataFields_SourceKind", "[SourceKind] IN ('intake_evidence', 'mail_route', 'case_acceptance', 'staff_correction', 'vehicle_lookup')");
+                            t.HasCheckConstraint("CK_CaseDataFields_SourceKind", "[SourceKind] IN ('intake_evidence', 'mail_route', 'case_acceptance', 'staff_correction', 'vehicle_lookup', 'provider_setting')");
 
                             t.HasCheckConstraint("CK_CaseDataFields_ValueKind", "[ValueKind] IN ('fact', 'suggestion', 'confirmed')");
 
@@ -3026,6 +3026,13 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<string>("InspectionMode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasDefaultValue("physical_address");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -3065,6 +3072,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("Principals", null, t =>
                         {
                             t.HasCheckConstraint("CK_Principals_Code", "[Code] <> ''");
+
+                            t.HasCheckConstraint("CK_Principals_InspectionMode", "[InspectionMode] IN ('physical_address', 'image_based_assessment')");
 
                             t.HasCheckConstraint("CK_Principals_Version", "[Version] >= 0");
                         });

@@ -24,7 +24,8 @@ public sealed record Principal(
     Guid? PredecessorId,
     Guid? SuccessorId,
     bool IsActive,
-    long Version);
+    long Version,
+    CaseInspectionMode InspectionMode = CaseInspectionMode.PhysicalAddress);
 
 public enum CaseType
 {
@@ -206,6 +207,7 @@ public sealed record CaseAcceptanceRequest(
     string PrincipalCode,
     CaseCompleteness Completeness,
     CaseCompletenessEvaluation CompletenessEvaluation,
+    CaseInspectionMode ProviderInspectionMode,
     Guid? StandaloneAuditEvidenceId = null,
     DateOnly? AcceptedInspectionDeadline = null);
 
@@ -288,7 +290,8 @@ public sealed record CreatePrincipalRequest(
     Guid OrganizationId,
     string Code,
     ActionActor Actor,
-    string OperationKey);
+    string OperationKey,
+    CaseInspectionMode InspectionMode = CaseInspectionMode.PhysicalAddress);
 
 public sealed record ReplacePrincipalRequest(
     Guid PrincipalId,

@@ -383,7 +383,7 @@ Only the first table describes exercised components. Planned contracts do not cr
 | State action | One current Case and one named Core action; prerequisites, consequence, reason where required, recovery and history link; never a generic Close, bulk edit or external edit |
 | Identity header | Read-only Case/PO, principal, registration, type/secondary Audit identity, workflow state, `Due by`/overdue state and EVA proxy limitation |
 | Due/chaser panel | Missing-material reason, next chase, most recent recorded channel/outcome, optional note and next permitted action together; preparation/copy is not sent or delivered |
-| Inspection address | Explicit physical vehicle/repairer location or exact `Image Based Assessment`; physical address fields appear only for the first mode and never imply attendance |
+| Inspection address | Provider-determined default: the Principal's inspection-mode setting autofills exact `Image Based Assessment` or requires an explicit physical vehicle/repairer location; reasoned per-Case staff override; physical address fields appear only for the physical mode and never imply attendance |
 | Engineering findings | Separate Roadworthiness and Assessment controls; accepted and superseded versions, reasoned correction, reopen requirement and no inferred fee/invoice mutation |
 | Evidence/document panel | Original/source/version, logical removal and closed lock; Box/external state; issued report versions; exact Outlook evidence with separate discovery, link and sent times |
 | Lease/conflict | One current Case; holder, expiry, renew/release/reacquire state and read-only alternative; current conflict and preserved proposed values; no forced Administrator takeover |
@@ -454,7 +454,9 @@ Case work includes:
   distinction;
 - DVLA/DVSA and MOT/mileage observations with source/version/age and
   supplied/external/estimated classification;
-- explicit physical vehicle/repairer location or exact `Image Based Assessment`;
+- provider-determined inspection mode: explicit physical vehicle/repairer
+  location or exact `Image Based Assessment` autofilled from the Principal's
+  setting, with reasoned per-Case override;
 - separate Roadworthiness and Assessment findings plus correction history;
 - tasks and reminders;
 - `Due by`, missing-material reason, next chase, last channel/outcome, optional
