@@ -78,6 +78,7 @@ internal static class LocalDbTemplateDatabase
         var (dataLogicalName, logLogicalName) = await ReadLogicalFileNamesAsync(backupPath);
         AppDomain.CurrentDomain.ProcessExit += (_, _) => DeleteQuietly(backupPath);
         SweepAbandonedBackups(dataDirectory, backupPath);
+        await SweepAbandonedDatabasesAsync();
         return new(backupPath, dataLogicalName, logLogicalName, dataDirectory);
     }
 
@@ -148,6 +149,75 @@ internal static class LocalDbTemplateDatabase
     {
         var separator = directory.Contains('\\', StringComparison.Ordinal) ? '\\' : '/';
         return directory.TrimEnd('\\', '/') + separator + fileName;
+    }
+
+    /// <summary>
+    /// Drops disposable databases that an earlier run abandoned.
+    /// </summary>
+    /// <remarks>
+    /// A run killed before its tests dispose — Ctrl-C, a CI timeout, a crash —
+    /// leaves its databases attached, and nothing else ever removes them, so
+    /// they accumulate on a developer's shared LocalDB instance. Dropping is
+    /// server-side, so unlike the backup sweep it also works when the server is
+    /// a container.
+    ///
+    /// The one-day floor is what makes this safe: a suite running right now,
+    /// including one in another worktree against the same instance, is hours
+    /// away from being in range. Nothing outside the disposable name shape is
+    /// ever considered, and every failure is swallowed — reclaiming disk is
+    /// never worth failing a test run over.
+    /// </remarks>
+    internal static async Task SweepAbandonedDatabasesAsync()
+    {
+        try
+        {
+            await using var connection = new SqlConnection(
+                LocalDbTestDatabase.MasterConnectionString());
+            await connection.OpenAsync();
+
+            var abandoned = new List<string>();
+            await using (var query = connection.CreateCommand())
+            {
+                query.CommandText =
+                    "SELECT name FROM sys.databases " +
+                    "WHERE name LIKE @pattern AND create_date < DATEADD(day, -1, GETDATE())";
+                // The prefix contains underscores, which LIKE would otherwise
+                // treat as single-character wildcards.
+                query.Parameters.AddWithValue(
+                    "@pattern",
+                    LocalDbTestDatabase.Prefix.Replace("_", "[_]", StringComparison.Ordinal) + "%");
+                await using var reader = await query.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    abandoned.Add(reader.GetString(0));
+                }
+            }
+
+            foreach (var databaseName in abandoned.Where(LocalDbTestDatabase.IsDisposableName))
+            {
+                await DropQuietlyAsync(connection, databaseName);
+            }
+        }
+        catch (SqlException)
+        {
+        }
+    }
+
+    private static async Task DropQuietlyAsync(SqlConnection connection, string databaseName)
+    {
+        try
+        {
+            await using var drop = connection.CreateCommand();
+            drop.CommandText =
+                $"ALTER DATABASE [{databaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; " +
+                $"DROP DATABASE [{databaseName}];";
+            drop.CommandTimeout = 60;
+            await drop.ExecuteNonQueryAsync();
+        }
+        catch (SqlException)
+        {
+            // Another process may hold it, or may have dropped it already.
+        }
     }
 
     /// <summary>

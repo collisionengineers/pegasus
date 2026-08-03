@@ -74,6 +74,34 @@ public sealed class LocalDbTemplateDatabaseTests
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'__EFMigrationsHistory'"));
     }
 
+    [LocalDbTemplateFact]
+    public async Task TheAbandonedDatabaseSweepLeavesALiveDatabaseAlone()
+    {
+        // The sweep drops databases by name against a shared LocalDB instance,
+        // so the suite running in another worktree right now is exactly what
+        // its one-day floor has to protect.
+        await using var live = await LocalDbTestDatabase.CreateAsync();
+
+        await LocalDbTemplateDatabase.SweepAbandonedDatabasesAsync();
+
+        Assert.Equal(1, await live.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.databases WHERE name = DB_NAME()"));
+    }
+
+    [Theory]
+    [InlineData("Pegasus_Test_0123456789abcdef0123456789abcdef", true)]
+    [InlineData("Pegasus_Test_0123456789ABCDEF0123456789ABCDEF", true)]
+    [InlineData("Pegasus", false)]
+    [InlineData("Pegasus_Test_", false)]
+    [InlineData("Pegasus_Test_0123456789abcdef0123456789abcde", false)]
+    [InlineData("Pegasus_Test_0123456789abcdef0123456789abcdef0", false)]
+    [InlineData("Pegasus_Test_not-a-guid-not-a-guid-not-a-gu", false)]
+    [InlineData("Pegasus_Template_0123456789abcdef0123456789abcd", false)]
+    [InlineData("PegasusProduction", false)]
+    [InlineData("master", false)]
+    public void OnlyAnExactDisposableNameIsEverEligibleToBeDropped(string name, bool disposable) =>
+        Assert.Equal(disposable, LocalDbTestDatabase.IsDisposableName(name));
+
     /// <summary>
     /// Every table, column, index, key, constraint, permission, database
     /// principal, and row count, as one ordered comparable sequence.

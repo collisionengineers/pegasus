@@ -322,9 +322,22 @@ process that cannot build the template says so on standard error and falls back
 to migrating each database; `LocalDbTemplateDatabaseTests` fails rather than
 letting that fallback pass quietly. The backup is deleted on process exit and
 stray `Pegasus_Test_*.bak` files older than a day are swept from the server's
-data directory on the next run; on Windows that directory is
-`%USERPROFILE%\AppData\Local\Microsoft\Microsoft SQL Server Local DB\Instances\MSSQLLocalDB`,
-and stray files there can be deleted by hand at any time.
+data directory on the next run.
+
+A run killed before its tests dispose leaves its databases attached, so the
+same sweep also drops `Pegasus_Test_*` databases older than a day. Both guards
+matter: only the exact disposable name shape is eligible, and the one-day floor
+keeps a suite running now — including one in another worktree against the same
+LocalDB instance — out of range. To see what is attached without changing
+anything:
+
+```powershell
+$pipe = (sqllocaldb info MSSQLLocalDB | Select-String 'Instance pipe name:').ToString().Split(':', 2)[1].Trim()
+sqlcmd -S $pipe -Q "SELECT name, create_date FROM sys.databases WHERE name LIKE 'Pegasus[_]Test[_]%' ORDER BY create_date"
+```
+
+Never drop a test database that a running suite may own; the sweep's one-day
+floor exists for exactly that reason.
 
 **Platform delta.** The `SqlServer` test lane needs a reachable SQL Server. On
 Windows that is LocalDB and needs no configuration. On Linux, point the tests at
