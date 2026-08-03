@@ -52,6 +52,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             .Include(item => item.InstructionDraft)
             .Include(item => item.MailRouteDecision)
             .Include(item => item.MailClassificationDecision)
+            .Include(item => item.CaseMatchDecision)
             .Include(item => item.ManualAssociation)
             .SingleOrDefaultAsync(
                 item => item.SourceChannel == channelCode
@@ -101,6 +102,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         ApplyInstructionDraft(context, receipt, draft.InstructionDraft);
         ApplyMailRouteDecision(context, receipt, draft.MailRouteDecision);
         ApplyMailClassificationDecision(context, receipt, draft.MailClassificationDecision);
+        ApplyCaseMatchDecision(context, receipt, draft.CaseMatchDecision);
         AppendNewDerivedAssets(receipt, draft.AssetRecords);
         receipt.Version++;
 
@@ -181,6 +183,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             .Include(item => item.InstructionDraft)
             .Include(item => item.MailRouteDecision)
             .Include(item => item.MailClassificationDecision)
+            .Include(item => item.CaseMatchDecision)
             .Include(item => item.ManualAssociation)
             .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
         if (entity is null)
@@ -208,6 +211,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             .Include(item => item.InstructionDraft)
             .Include(item => item.MailRouteDecision)
             .Include(item => item.MailClassificationDecision)
+            .Include(item => item.CaseMatchDecision)
             .Include(item => item.ManualAssociation)
             .SingleOrDefaultAsync(
                 item => item.SourceChannel == channelCode
@@ -256,6 +260,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             .Include(item => item.InstructionDraft)
             .Include(item => item.MailRouteDecision)
             .Include(item => item.MailClassificationDecision)
+            .Include(item => item.CaseMatchDecision)
             .Include(item => item.ManualAssociation);
         if (context.Database.IsSqlServer())
         {
@@ -271,6 +276,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 .Include(item => item.InstructionDraft)
                 .Include(item => item.MailRouteDecision)
             .Include(item => item.MailClassificationDecision)
+            .Include(item => item.CaseMatchDecision)
                 .Include(item => item.ManualAssociation);
         }
 
@@ -337,6 +343,11 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         {
             receipt.MailClassificationDecision =
                 MapMailClassificationDecision(draft.MailClassificationDecision, receipt);
+        }
+
+        if (draft.CaseMatchDecision is not null)
+        {
+            receipt.CaseMatchDecision = MapCaseMatchDecision(draft.CaseMatchDecision, receipt);
         }
 
         receipt.Assets.AddRange(draft.AssetRecords.Select(asset => new IntakeAssetEntity
@@ -414,7 +425,10 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             entity.ManualAssociation?.Version,
             entity.MailClassificationDecision is null
                 ? null
-                : MapMailClassificationDecision(entity.MailClassificationDecision));
+                : MapMailClassificationDecision(entity.MailClassificationDecision),
+            entity.CaseMatchDecision is null
+                ? null
+                : MapCaseMatchDecision(entity.CaseMatchDecision));
     }
 
     private static InstructionDraft MapInstructionDraft(InstructionDraftEntity entity) => new(
@@ -551,6 +565,70 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         entity.OtherReasoning = replacement.OtherReasoning;
         entity.AmbiguousCandidatesJson = replacement.AmbiguousCandidatesJson;
         entity.PredicatesJson = replacement.PredicatesJson;
+        entity.Reason = replacement.Reason;
+        entity.PolicyKey = replacement.PolicyKey;
+        entity.PolicyVersion = replacement.PolicyVersion;
+    }
+
+    private static IntakeCaseMatchDecisionEntity MapCaseMatchDecision(
+        CaseMatchEvaluationResult decision,
+        IntakeReceiptEntity receipt) =>
+        new()
+        {
+            IntakeReceiptId = receipt.Id,
+            IntakeReceipt = receipt,
+            Outcome = ToCode(decision.Outcome),
+            MatchedCaseId = decision.MatchedCaseId,
+            RedirectedFromCaseId = decision.RedirectedFromCaseId,
+            MatchKeysJson = SerializeEnvelope(decision.Keys),
+            CandidatesJson = SerializeEnvelope(decision.Candidates),
+            Reason = decision.Reason,
+            PolicyKey = decision.PolicyKey,
+            PolicyVersion = decision.PolicyVersion
+        };
+
+    private static CaseMatchEvaluationResult MapCaseMatchDecision(
+        IntakeCaseMatchDecisionEntity entity) =>
+        new(
+            ParseCaseMatchOutcome(entity.Outcome),
+            entity.MatchedCaseId,
+            entity.RedirectedFromCaseId,
+            DeserializeEnvelope<CaseMatchKeys>(entity.MatchKeysJson)
+                ?? new(null, null, null, null, null),
+            DeserializeEnvelope<IReadOnlyList<CaseMatchCandidateEvaluation>>(entity.CandidatesJson)
+                ?? [],
+            entity.Reason,
+            entity.PolicyKey,
+            entity.PolicyVersion);
+
+    private static void ApplyCaseMatchDecision(
+        PegasusDbContext context,
+        IntakeReceiptEntity receipt,
+        CaseMatchEvaluationResult? decision)
+    {
+        if (decision is null)
+        {
+            if (receipt.CaseMatchDecision is not null)
+            {
+                context.Remove(receipt.CaseMatchDecision);
+                receipt.CaseMatchDecision = null;
+            }
+            return;
+        }
+
+        var replacement = MapCaseMatchDecision(decision, receipt);
+        if (receipt.CaseMatchDecision is null)
+        {
+            receipt.CaseMatchDecision = replacement;
+            return;
+        }
+
+        var entity = receipt.CaseMatchDecision;
+        entity.Outcome = replacement.Outcome;
+        entity.MatchedCaseId = replacement.MatchedCaseId;
+        entity.RedirectedFromCaseId = replacement.RedirectedFromCaseId;
+        entity.MatchKeysJson = replacement.MatchKeysJson;
+        entity.CandidatesJson = replacement.CandidatesJson;
         entity.Reason = replacement.Reason;
         entity.PolicyKey = replacement.PolicyKey;
         entity.PolicyVersion = replacement.PolicyVersion;
@@ -820,6 +898,24 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         "ambiguous" => MailClassificationOutcome.Ambiguous,
         "unclassified" => MailClassificationOutcome.Unclassified,
         _ => throw UnknownCode("mail-classification outcome", value)
+    };
+
+    private static string ToCode(CaseMatchOutcome value) => value switch
+    {
+        CaseMatchOutcome.UniqueMatch => "unique_match",
+        CaseMatchOutcome.NoMatch => "no_match",
+        CaseMatchOutcome.NoKeys => "no_keys",
+        CaseMatchOutcome.Ambiguous => "ambiguous",
+        _ => throw UnknownEnum(value)
+    };
+
+    private static CaseMatchOutcome ParseCaseMatchOutcome(string value) => value switch
+    {
+        "unique_match" => CaseMatchOutcome.UniqueMatch,
+        "no_match" => CaseMatchOutcome.NoMatch,
+        "no_keys" => CaseMatchOutcome.NoKeys,
+        "ambiguous" => CaseMatchOutcome.Ambiguous,
+        _ => throw UnknownCode("case-match outcome", value)
     };
 
     private static string ToCode(MailDirection value) => value switch

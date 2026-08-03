@@ -10,6 +10,7 @@ public sealed class ProcessIntake(
     IInstructionExtractionPolicy extractionPolicy,
     IMailRoutePolicy mailRoutePolicy,
     IEnumerable<IMailClassificationPolicy> mailClassificationPolicies,
+    EvaluateIntakeCaseMatch caseMatchEvaluator,
     TimeProvider timeProvider)
 {
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
@@ -140,7 +141,11 @@ public sealed class ProcessIntake(
         }
 
         var processedAtUtc = timeProvider.GetUtcNow();
-        var assessment = Assess(readResult, safeSource.SourceIdentity.Channel, processedAtUtc);
+        var assessment = await AssessAsync(
+            readResult,
+            safeSource.SourceIdentity.Channel,
+            processedAtUtc,
+            cancellationToken);
         activity?.SetTag("intake.policy_key", assessment.ExtractionPolicyKey);
         activity?.SetTag("intake.policy_version", assessment.ExtractionPolicyVersion);
         activity?.SetTag(
@@ -161,6 +166,15 @@ public sealed class ProcessIntake(
         activity?.SetTag(
             "intake.mail_classification_policy_version",
             assessment.MailClassificationDecision?.PolicyVersion);
+        activity?.SetTag(
+            "intake.case_match_outcome",
+            assessment.CaseMatchDecision?.Outcome.ToString());
+        activity?.SetTag(
+            "intake.case_match_policy_key",
+            assessment.CaseMatchDecision?.PolicyKey);
+        activity?.SetTag(
+            "intake.case_match_policy_version",
+            assessment.CaseMatchDecision?.PolicyVersion);
         var draft = new IntakeReceiptDraft(
             safeSource.FileName,
             safeSource.MediaType,
@@ -185,7 +199,8 @@ public sealed class ProcessIntake(
             assets,
             readResult.ScannedPdfPages,
             assessment.MailRouteDecision,
-            assessment.MailClassificationDecision);
+            assessment.MailClassificationDecision,
+            assessment.CaseMatchDecision);
 
         IntakeReceipt receipt;
         try
@@ -203,10 +218,11 @@ public sealed class ProcessIntake(
         return receipt;
     }
 
-    private IntakeAssessment Assess(
+    private async Task<IntakeAssessment> AssessAsync(
         IntakeSourceReadResult readResult,
         IntakeSourceChannel sourceChannel,
-        DateTimeOffset processedAtUtc)
+        DateTimeOffset processedAtUtc,
+        CancellationToken cancellationToken)
     {
         var readerEvidence = readResult.Issues
             .Select(issue => new IntakeEvidence(
@@ -272,6 +288,10 @@ public sealed class ProcessIntake(
         }
 
         var mailClassificationDecision = EvaluateMailClassification(readResult, mailRouteDecision);
+        var caseMatchDecision = await caseMatchEvaluator.ExecuteAsync(
+            readResult,
+            mailRouteDecision,
+            cancellationToken);
         var policyResult = extractionPolicy.Extract(readResult, processedAtUtc);
         EnsureConsistentPolicyResult(policyResult);
         var (decision, reason, failureCode, failureReason) = policyResult.Applicability switch
@@ -294,6 +314,13 @@ public sealed class ProcessIntake(
             _ => throw new InvalidOperationException(
                 $"Unknown instruction policy applicability value '{(int)policyResult.Applicability}'.")
         };
+        if (caseMatchDecision is { Outcome: CaseMatchOutcome.Ambiguous }
+            && decision == IntakeDecision.DraftReady)
+        {
+            decision = IntakeDecision.NeedsSorting;
+            reason = "Competing candidate cases match this message; the association requires manual sorting.";
+        }
+
         return new(
             decision,
             reason,
@@ -306,7 +333,8 @@ public sealed class ProcessIntake(
             policyResult.PolicyKey,
             policyResult.PolicyVersion,
             mailRouteDecision,
-            mailClassificationDecision);
+            mailClassificationDecision,
+            caseMatchDecision);
     }
 
     private MailClassificationResult? EvaluateMailClassification(
@@ -583,7 +611,8 @@ public sealed class ProcessIntake(
         string? ExtractionPolicyKey,
         int? ExtractionPolicyVersion,
         MailRouteEvaluationResult? MailRouteDecision,
-        MailClassificationResult? MailClassificationDecision = null)
+        MailClassificationResult? MailClassificationDecision = null,
+        CaseMatchEvaluationResult? CaseMatchDecision = null)
     {
         public static IntakeAssessment Failure(
             IntakeDecision decision,

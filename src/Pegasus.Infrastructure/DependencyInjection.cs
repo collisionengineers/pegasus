@@ -57,6 +57,7 @@ public static class DependencyInjection
         services.AddScoped<IGetIntake, GetIntake>();
         services.AddScoped<IDownloadIntakeSource, DownloadIntakeSource>();
         services.AddScoped<IIntakeMutationStore, EfIntakeMutationStore>();
+        services.AddScoped<IAutomaticCaseAssociationStore, EfIntakeMutationStore>();
         services.AddScoped<IResolveIntake, ResolveIntake>();
         services.AddScoped<IReevaluateIntake, ReevaluateIntake>();
         services.AddScoped<ILinkIntake, LinkIntake>();
@@ -94,6 +95,9 @@ public static class DependencyInjection
         services.TryAddSingleton<IIntakeTriageMatcher, NoAcceptedIntakeTriageMatcher>();
         services.AddSingleton<IMailRoutePolicy, QdosMailRoutePolicy>();
         services.AddSingleton<IMailClassificationPolicy, QdosMailClassificationPolicy>();
+        services.AddSingleton<IProviderCaseMatchPolicy, QdosCaseMatchPolicy>();
+        services.AddScoped<ICaseMatchCandidateQueries, EfCaseMatchIndex>();
+        services.AddScoped<EvaluateIntakeCaseMatch>();
         services.AddSingleton<IInstructionExtractionPolicy>(provider =>
             new QdosInstructionExtractionPolicy(
                 provider.GetRequiredService<IIntakeTriageMatcher>()));

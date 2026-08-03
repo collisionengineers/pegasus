@@ -14,7 +14,8 @@ namespace Pegasus.Infrastructure.Persistence;
 
 public sealed class EfCaseAcceptanceStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider? timeProvider = null)
+    TimeProvider? timeProvider = null,
+    IEnumerable<Pegasus.Core.Intake.IProviderCaseMatchPolicy>? caseMatchPolicies = null)
     : ICaseAcceptanceStore
 {
     private static readonly TimeZoneInfo LondonTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Europe/London");
@@ -148,6 +149,7 @@ public sealed class EfCaseAcceptanceStore(
             .Include(item => item.InstructionDraft)
             .Include(item => item.MailRouteDecision)
             .Include(item => item.MailClassificationDecision)
+            .Include(item => item.CaseMatchDecision)
             .SingleOrDefaultAsync(item => item.Id == request.IntakeReceiptId, cancellationToken)
             ?? throw new InvalidOperationException("The intake receipt does not exist.");
         if (receipt.Version != request.ExpectedIntakeVersion)
@@ -240,8 +242,16 @@ public sealed class EfCaseAcceptanceStore(
             Version = 0
         };
         context.Cases.Add(caseEntity);
-        context.CaseDataSnapshots.Add(
-            CaseDataSnapshotFactory.Create(caseEntity, receipt, request, acceptedAtUtc));
+        var dataSnapshot = CaseDataSnapshotFactory.Create(caseEntity, receipt, request, acceptedAtUtc);
+        context.CaseDataSnapshots.Add(dataSnapshot);
+        CaseMatchIndexProjector.Apply(
+            context,
+            existing: null,
+            CaseMatchIndexProjector.Project(
+                caseEntity,
+                dataSnapshot.Fields,
+                caseMatchPolicies ?? [],
+                acceptedAtUtc));
         var workflowEntity = new CaseWorkflowEntity
         {
             Case = caseEntity,

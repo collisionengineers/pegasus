@@ -674,12 +674,23 @@ public sealed class ProcessIntakeTests
         IIntakeReceiptStore store,
         IIntakeArtifactStore? artifactStore = null,
         IInstructionExtractionPolicy? extractionPolicy = null,
-        IMailRoutePolicy? mailRoutePolicy = null) =>
+        IMailRoutePolicy? mailRoutePolicy = null,
+        EvaluateIntakeCaseMatch? caseMatchEvaluator = null) =>
         new(reader, store, artifactStore ?? new RecordingArtifactStore(),
             extractionPolicy ?? new QdosInstructionExtractionPolicy(),
             mailRoutePolicy ?? new QdosMailRoutePolicy(),
             [new QdosMailClassificationPolicy()],
+            caseMatchEvaluator ?? new EvaluateIntakeCaseMatch([], new NoCaseMatchCandidates()),
             new FixedTimeProvider(ProcessedAtUtc));
+
+    private sealed class NoCaseMatchCandidates : ICaseMatchCandidateQueries
+    {
+        public Task<IReadOnlyList<CaseMatchCandidate>> FindByAnyKeyAsync(
+            string workProviderCode,
+            CaseMatchKeys keys,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<CaseMatchCandidate>>([]);
+    }
 
     private static IntakeSource CreateSource() =>
         new(
