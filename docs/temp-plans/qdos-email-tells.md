@@ -203,6 +203,56 @@ Inspection + Audit instruction letter is always a legacy `.doc`, then reading
 that filetype is on the critical path for QDOS intake, not a later nicety. This
 should be checked against the capability allocation.
 
+### The audit verdict is in the attached third-party report
+
+Operator statement, 2026-08-03: a standalone Audit is auditing **another
+engineering firm's report**. That report is attached alongside the instruction,
+and it carries a verdict that can be extracted.
+
+Confirmed. The 27 audit-instruction emails were opened and every other readable
+document in them was extracted and read — 35 documents. The third-party report
+states its verdict in its own **title**, exactly as the instruction letter
+states the work type in its title:
+
+| Report title | Verdict | Documents |
+| --- | --- | ---: |
+| `Repairable Damage Assessment Report` / `REPAIRABLE REPORT` | Repairable | 21 |
+| `Total Loss Damage Assessment Report` | Total loss | 1 |
+| Narrative only (`deemed repairable`, `physically repairable`) | Repairable | 1 |
+| No verdict — not an engineer's report | — | 12 |
+
+Variants seen on the repairable title include `REPAIRABLE REPORT - Amended
+Report` and `- Supplementary Report`, so the match must tolerate a suffix.
+
+**23 of 27 audit emails carry an extractable verdict.** The 12 documents
+without one are correctly not reports: nine are image sheets
+(`1_Images-V1.pdf`), plus `BodyshopEngimgs`, one `Bodyshopreport-V1.pdf`, and
+`1_Estimate-V1.pdf`. So the absence is meaningful rather than a parsing
+failure.
+
+This satisfies the requirement that a standalone Audit derives lowercase `a.`
+or `ap.` only from an unambiguous repairable or total-loss assessment in the
+original Engineer report: the assessment is in the report, it is stated in the
+title, and where no report is attached there is no verdict and the case must
+fail closed rather than assume repairable.
+
+#### A total-loss audit does exist in the sample
+
+One `Total Loss Damage Assessment Report` is present. Earlier in this document
+the absence of `AP.` was noted from corpus **folder names**; that remains true
+of the folder set but must not be read as "total-loss audits do not occur".
+They occur and are rare — roughly 1 in 23 here. A rule trained only on
+repairable examples would be wrong in exactly the case that matters most.
+
+#### Two false-positive traps in this data
+
+- `No write-off recorded` appears in 6 documents. It is a vehicle-history
+  check result, not a verdict, and naive matching on "write off" would invert
+  the meaning.
+- The bare words `Write Off` and `Repairable` appear in parts lists and
+  boilerplate (`Repairable parts:-Front Bumper`). The **title** is the reliable
+  carrier; loose keyword matching over the body is not.
+
 ### Supporting, not decisive
 
 - 26 of the 27 audit-instruction emails come from `nduncombe@qdosassist.co.uk`,

@@ -91,18 +91,33 @@ The one near-miss: their content typer matches the phrase
 carve-out. They found the same signal and read it as a phrase rather than as a
 document title.
 
-### 4. Repairable versus total-loss is not knowable from the instruction
+### 4. They gave up on the audit verdict too early
 
-Stated directly in their case-type detection: `audit_total_loss` is never
-emitted at classification time because **the real QDOS letters are byte-identical
-either way**. The distinction is a review-time refinement read back from an
-`AP.`-marked reference.
+Their case-type detection never emits `audit_total_loss`, on the stated grounds
+that **the real QDOS letters are byte-identical either way**. The distinction
+was pushed to a review-time refinement read back from an `AP.`-marked
+reference.
 
-This independently corroborates our requirement that a standalone Audit derives
-`a.` or `ap.` only from an unambiguous assessment in the original Engineer
-report, and that missing or ambiguous evidence blocks creation. It also means
-our own corpus finding — 146 `A.` folders and zero `AP.` — is expected rather
-than a sampling gap in the letters themselves.
+The premise is right and the conclusion is wrong. The letters are indeed
+identical — but the verdict was never in the letter. A standalone Audit audits
+another firm's report, that report is attached to the same email, and it states
+its verdict in its own title (`Repairable Damage Assessment Report` versus
+`Total Loss Damage Assessment Report`). Confirmed in 23 of 27 audit emails in
+our corpus; see [qdos-email-tells](qdos-email-tells.md).
+
+Their pipeline could not have seen it. Their own documented defect is that
+email classification runs at orchestration step 1.5 while the document parser
+runs at step 4, so attachment content cannot feed the classification decision
+without a pipeline reorder that was only partially completed. Having ruled the
+letter out, and being unable to read the attachment in time, "not knowable" was
+the only conclusion available to them.
+
+**The lesson for Pegasus is the ordering, not the verdict.** If classification
+cannot see inside attachments, several decisions that are genuinely determinable
+become guesses. Both of our strongest tells — the instruction-letter
+notification title and the report verdict title — are inside attachments. Our
+design must read documents before, or as part of, classifying, or it inherits
+the same blind spot.
 
 ### 5. A live case was minted in error, and the class is not yet prevented
 
