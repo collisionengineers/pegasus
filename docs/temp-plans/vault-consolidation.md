@@ -40,13 +40,23 @@ does not replace that record.
 
 Run the following in PowerShell 7 from an approved operator terminal. The
 variables deliberately derive mutable resource names from the current Azure
-inventory and then fail closed if an expected singleton is not found.
+inventory and then fail closed if an expected singleton is not found. Run all
+blocks in the same terminal: the first block wraps `az` so every non-zero Azure
+CLI exit stops the sequence rather than becoming an empty PowerShell value.
 
 ### 1. Read-only target preflight
 
 ```powershell
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandArgumentPassing = 'Standard'
+$AzCommand = (Get-Command az -CommandType Application -ErrorAction Stop |
+  Select-Object -First 1).Path
+function az {
+  & $AzCommand @args
+  if ($LASTEXITCODE -ne 0) {
+    throw "Azure CLI failed with exit code $LASTEXITCODE."
+  }
+}
 $PegasusSubscription = 'e6076573-23a5-46a8-acef-7e22d264e5db'
 $PegasusProductionResourceGroup = 'rg-pegasus-prod'
 $PredecessorResourceGroup = 'rg-collisionspike-dev'
@@ -260,6 +270,10 @@ second, specific approval before copying any secret. That approval must also con
 that the executing principal already has `secrets/backup` on each source vault
 and `secrets/restore` on the target vault; the plan never grants those highly
 privileged data-plane permissions.
+
+This phase also requires `secrets/list` metadata access to each source and the
+target vault. A rejected CLI call is a stop condition, never evidence that a
+vault has no matching secret or deleted-secret metadata.
 
 ### 3. Copy each complete secret history without exposing a value
 
