@@ -56,10 +56,19 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260730203833_RemoveDormantOpenIddict",
                 "20260801220500_GrantWebMigrationHistoryRead",
                 "20260803014608_ProviderInspectionModeSetting",
-                "20260803071539_ImageIntakeRegistration"
+                "20260803071539_ImageIntakeRegistration",
+                "20260803151159_AutomationActorOpenIddict"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'OpenIddictApplications'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'OpenIddictAuthorizations'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'OpenIddictScopes'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'OpenIddictTokens'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'ImageIntakes'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
