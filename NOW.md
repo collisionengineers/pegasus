@@ -43,6 +43,17 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   ADR-0020 index note; record the DraftReady tile label as a fix-later task.
   No product behaviour change (branch task/docs-truth-up, taken 2026-08-03,
   by claude).
+- AI-09 Send to AI round trip and the Automation Actor assessment toolset:
+  implement `docs/temp-plans/mcp-assessment-toolset.md` and
+  `docs/temp-plans/send-to-claude-channel-integration.md` under the
+  operator's 2026-08-03 direct-write decision — Core assessment model and
+  AiWork work-request lifecycle, `automation.assessment` scope and the five
+  new Automation Actor tools, `Features:SendToAi` gate/adapter/panel wiring,
+  PAV slider, the Automation Actor ADR carrying the AI-09 contract
+  rewording, and the `pegasus-claude-channel` 0.2.0 close-out in the sibling
+  repo. Everything composition-gated DevelopmentOffline-only; estimate
+  derivation stays D2-gated; no activation or tier-5 claim (branch
+  task/send-to-ai-round-trip, taken 2026-08-03, by claude).
 ## Next (ordered queue — take from the top)
 
 - Assemble the operator-reviewed extraction cohort + untouched holdout and
