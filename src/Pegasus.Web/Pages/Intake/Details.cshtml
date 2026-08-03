@@ -212,7 +212,16 @@
 }
 <section class="panel form-panel section-gap" aria-labelledby="inspection-address-title">
     <h2 id="inspection-address-title" class="section-label">Inspection-address confirmation</h2>
-    @if (Model.AddressResolution.Evaluation.Suggestion is { } addressSuggestion)
+    @if (Model.ProviderIsImageBased)
+    {
+        <p>
+            This work provider uses Image Based Assessment. The inspection address will be recorded as
+            &ldquo;Image Based Assessment&rdquo; automatically when the case is created, even if the
+            instruction mentions a physical location. A physical address can still be recorded on the
+            case afterwards with a reason.
+        </p>
+    }
+    else if (Model.AddressResolution.Evaluation.Suggestion is { } addressSuggestion)
     {
         <dl class="detail-list">
             <div><dt>Suggestion</dt><dd>@addressSuggestion.Value</dd></div>
@@ -254,7 +263,7 @@
     else
     {
         <p class="failure-detail">
-            Missing or conflicting physical-address evidence remains unresolved. Pegasus will not infer an address from a provider, spreadsheet, geocoder or model.
+            Missing or conflicting physical-address evidence remains unresolved. Pegasus will not infer an address from a spreadsheet, geocoder or model.
         </p>
         @if (Model.AddressResolution.Evaluation.ConflictingEvidence.Count > 0)
         {

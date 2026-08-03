@@ -31,10 +31,12 @@ release-route decision recorded in ADR-0007, not a development-platform
 requirement. Web and Worker packages are `linux-x64` and build identically on
 either platform.
 
-Hosted continuous integration runs `windows-latest` only. Linux development is
-supported by these procedures and is not proved by any automated gate: a Linux
-result is developer evidence, not repository-check evidence, until a Linux job
-exists and passes.
+Hosted continuous integration runs application evidence on `windows-latest`
+only; the `repository-check` `changes` job is a Linux path detector that
+exercises no application code and provides no Linux-development evidence.
+Linux development is supported by these procedures and is not proved by any
+automated gate: a Linux result is developer evidence, not repository-check
+evidence, until a Linux application job exists and passes.
 
 ### Platform capability differences
 
@@ -233,8 +235,7 @@ Install-Module ExchangeOnlineManagement -Scope CurrentUser -RequiredVersion 3.10
 ### Approved Box custody root
 
 Box folder `405543781910` ("pegasus") is the production custody root: all case
-folders are created only under it. The deployed configuration applies this
-root from the next approved deployment (it currently carries `392761581105`).
+folders are created only under it, and the deployed configuration carries it.
 Folder `392761581105` is the only eligible controlled integration-test
 boundary, confined to an approved disposable test subtree; neither folder
 grants standing write authority. Before any non-production invocation, obtain
@@ -401,6 +402,30 @@ Corrections or removals require separately accepted authority and a new explicit
 
 Successful completion proves deterministic authoring bytes only. It does not activate an email route, resolve a provider at intake, prove a migration or caller, or establish release acceptance. Runtime reads only the explicit versioned SQL snapshot and never opens a workbook. Reference ownership is indexed in [reference material](reference/README.md).
 
+## Provider inspection-mode setting
+
+Each Principal row carries an `InspectionMode` setting
+(`physical_address` or `image_based_assessment`) under
+[ADR-0018](adr/0018-provider-inspection-mode-database-setting.md). It is not
+part of the provider-domain reference package above and never will be: that
+package remains domain evidence only. QDOS is seeded `image_based_assessment`
+by migration; principal creation and replacement carry the setting, and a
+successor inherits its predecessor's mode.
+
+Changing an existing Principal's mode in production is a runbook action until
+a dedicated administration operation is justified. With recorded change
+authority, run against the production database:
+
+```sql
+UPDATE [Principals] SET [InspectionMode] = 'image_based_assessment' -- or 'physical_address'
+WHERE [Code] = '<PRINCIPAL-CODE>';
+```
+
+The change affects only cases accepted after it. An acceptance replayed
+across a mode change fails closed with an operation conflict instead of
+deduplicating, and an acceptance in flight during the change is rejected and
+must be retried from a reloaded intake receipt.
+
 ## Local setup and run
 
 Run these commands from PowerShell 7 at the repository root:
@@ -498,6 +523,7 @@ stops only matching child processes, drops only that LocalDB database, and
 removes only that run directory. A malformed or ambiguous manifest refuses
 action. Never manually repurpose these commands to remove another run,
 `corpus/`, tracked reference files, or an Azure resource.
+
 ## Configuration and secrets
 
 Configuration ownership is:
@@ -765,7 +791,7 @@ The following contracts must be proved through the owning Core policy and actual
 
 Automatic mailbox categorisation and email matching await the single combined research decision in [open decisions](open-decisions.md). Tests must not invent that policy.
 
-Image association stays conservative when evidence is not definitive. Inspection address accepts confirmed physical data or the exact value `Image Based Assessment` without inferring precedence. `0.1.0-alpha.1` email operations remain explicitly unsupported unless required. Reversible EVA wire mapping is an owning integration contract validated with operator acceptance, not an unresolved product rule.
+Image association stays conservative when evidence is not definitive. Inspection address accepts confirmed physical data, or the exact value `Image Based Assessment` autofilled from the accepted Principal's inspection-mode setting with provider-setting provenance; no address text is ever inferred from a provider, spreadsheet, geocoder or model, and a physical-address Principal fails closed without confirmed address evidence. `0.1.0-alpha.1` email operations remain explicitly unsupported unless required. Reversible EVA wire mapping is an owning integration contract validated with operator acceptance, not an unresolved product rule.
 
 ## Monitoring and diagnosis
 
@@ -818,21 +844,30 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   accepted), FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard
   LRS storage accounts, distinct Web/Worker managed identities, a Pegasus Key
   Vault, Log Analytics, and Application Insights.
-- **Deployed evidence (2026-08-02):** Web source revision `94997dd0…` on an
-  immutable image digest; health endpoints returned 200 after predecessor
-  retirement; Graph Inbox/Sent processing live-verified through the production
-  Worker (83 successful executions, zero exceptions in the final readback).
+- **Deployed evidence:** release 2 executed 2026-08-03 through the same
+  authorised-terminal route — Web source revision `836db05c…` on immutable
+  digest `sha256:90e5e1e1…` (single healthy revision), Worker package
+  redeployed with all nine functions, production smoke passed (health, exact
+  version/SHA, anonymous-`/Cases` denial). Release 1 (2026-08-02, revision
+  `94997dd0…`) live-verified Graph Inbox/Sent processing through the
+  production Worker (83 successful executions, zero exceptions).
 - **Integrations:** Graph via the Worker managed identity scoped by Exchange
   Application RBAC to `instructions@collisionengineers.co.uk`; Box production
-  custody deployed with root folder `392761581105` — the decided root is
-  `405543781910` ("pegasus") and applies at the next approved deployment;
+  custody rooted at the pegasus folder `405543781910` (applied by release 2);
+  from the composition-fix deployment Box is reached by both hosts — the
+  Worker for intake-source custody and Web for the staff document surface and
+  managed document content — through the one root-fenced client;
   official DVLA VES v1.2 and DVSA MOT History v1; EVA remains the accepted
   manual JSON/image handoff.
 - **Secrets:** the adopted predecessor vaults `cespkboxkvv76a47` and
   `cespkenrichkvgi62sd` remain (intentionally retained inside
   `rg-collisionspike-dev`); secret-level access only for the identities and
   exact secrets that call them. The three obsolete vaults are soft-deleted with
-  platform purge scheduled 2026-08-09.
+  platform purge scheduled 2026-08-09. From the composition-fix deployment the Web container app declares Key
+  Vault secret references for `Box:ConfigJson` and `Box:ClientSecret` resolved
+  through the Web managed identity, so that identity needs the same secret-level
+  read the Worker has before the next deployment; without it the Web revision
+  fails to start rather than starting without custody.
 - **Predecessor retirement:** executed through the exact verified manifest;
   eight resource batches completed, 30 delete-classified role assignments
   removed, 7 retained; the archive manifest hash is recorded in the runbook
@@ -965,7 +1000,9 @@ Malware scanning has no activation path. There is no scanner port, fixture, clie
 Repository visibility was explicitly authorised as public on 2026-07-27. The tracked history and documentation, including [operator notes](operator-notes.md) and supplied reference material, are publicly readable. Never commit secrets, personal/case material, or anything not approved for public source control.
 
 Work tracking uses no GitHub issues, labels, milestones, or project boards.
-[`NOW.md`](../NOW.md) is the only work tracker, the
+[`NOW.md`](../NOW.md) is the only work tracker and the multi-agent task
+queue — agents claim task lines and work them in worktrees under the
+[task workflow](engineering.md#task-workflow) — the
 [capability inventory](capabilities.md) is the roadmap, and
 [open decisions](open-decisions.md) holds unresolved questions
 (see the [repository instructions](../AGENTS.md)). Allocation, activation,

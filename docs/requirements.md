@@ -403,6 +403,7 @@ Receipt/staging and accepted case custody are different states.
 - A closed case and its files are application-level read-only. A new version, revision, logical removal, move, copy, share, or other mutation requires a reasoned reopen first; no Box operation bypasses that gate, and the alpha infers no general move/copy/share/delete authority.
 - Default local alpha work must not mutate any Outlook mailbox or Box location. The separately approved Box integration-test profile and explicitly approved non-production test deployments may create and update controlled non-corpus artifacts only in the approved disposable test subtree recorded in [operations](operations.md#approved-box-integration-test-target); they must not delete, move, copy, or share Box content. Outlook tests use immutable local copies or an explicitly approved test mailbox and operation.
 - A custody transition records source identity, content hash, target identity/version, actor/caller, time, and failure/retry state without deleting the source proof prematurely.
+
 ## Vehicle and engineering evidence
 
 Vehicle identity, registration, location, valuation, repair evidence,
@@ -414,17 +415,25 @@ reviewable.
 **Settled operator truth:** the report records either the physical vehicle/repairer location, when that
 location is explicitly supplied or operator-confirmed, or the exact value
 `Image Based Assessment`. Collision Engineers performs desktop assessments
-only. For an always-image-based Principal, `Image Based Assessment` is
-autofilled at Case creation even when a physical location appears in the
-instruction; authorised staff may override it to the explicitly supplied or
-confirmed location. For other Principals a provider setting may suggest a mode
-but cannot overwrite explicit evidence or operator confirmation. The current
-provider-domain reference package contains no address or address-mode default,
-so none may be inferred from a provider or domain match.
+only. The inspection mode is determined by the Principal's persisted
+inspection-mode setting ([ADR-0018](adr/0018-provider-inspection-mode-database-setting.md)),
+not derived from instruction text: instruction documents never contain the
+literal value. For an always-image-based Principal (QDOS is seeded so),
+`Image Based Assessment` is autofilled at Case creation even when a physical
+location appears in the instruction; authorised staff may override it on the
+specific Case to the explicitly supplied or confirmed location with an
+attributed reason. For a physical-address Principal the location is extracted
+from the instruction and operator-confirmed; the provider setting determines
+the default mode but never invents or selects a physical address. The
+provider-domain reference package contains no address or address-mode default;
+the setting lives on the Principal record, and no address is ever inferred
+from a provider or domain match.
 
-A manual selection of `Image Based Assessment` requires an attributed staff
-reason in permanent Case history; the always-image-based autofill records its
-route-policy provenance. Neither is inferred from a corpus row or domain match.
+A manual selection of `Image Based Assessment`, and any override of the
+autofilled mode, requires an attributed staff reason in permanent Case
+history; the always-image-based autofill records its provider-setting
+provenance and a permanent Case-history event. Neither the mode default nor
+any address is inferred from a corpus row or domain match.
 
 When `DATA-02` activates, its separately approved reference-data pipeline
 accepts only reviewed full addresses, retaining each complete display address
@@ -457,7 +466,7 @@ Generated or synthetic vehicle imagery is not acceptance evidence, and no recogn
 
 Pegasus retains every source image. An automated VRM or colour result may only suggest that an image depicts another vehicle; it does not exclude the image from Case-vehicle, EVA-export, or future report-selection pools. An authorised staff member must confirm the different-vehicle finding before the retained source is categorised and excluded as third-party vehicle evidence. Without that confirmation it remains visible as unmatched-vehicle evidence. Neither outcome deletes source evidence or turns an automated assessment into accepted Case fact.
 
-When activated, an AI-assisted image readiness assessment runs automatically whenever current Case images are added, replaced, or removed. It returns a source- and version-labelled advisory on whether the set contains a registration overview, at least one damage close-up, and a reflected image. An accepted always-image-based Principal route policy waives only the reflection advisory.
+When activated, an AI-assisted image readiness assessment runs automatically whenever current Case images are added, replaced, or removed. It returns a source- and version-labelled advisory on whether the set contains a registration overview, at least one damage close-up, and a reflected image. An always-image-based Principal inspection-mode setting waives only the reflection advisory.
 
 The assessment may run before market valuation and neither creates nor returns an AI Proposal. Its result does not affect Case/PO allocation, Case state, Review, Engineers-queue eligibility, due work, chasing, or staff discretion. Source images remain retained, and report-image selection continues to exclude images showing a person's reflection.
 
@@ -519,6 +528,7 @@ human own accepted facts, economics, findings, outcome, legal use, and approval.
 A skill, prompt, model, workspace, external schema, or imported reference never
 becomes current OEM instruction, repair policy, valuation authority, legal
 advice, Engineer approval, or product policy merely by existing.
+
 ## EVA and external engineering handoff
 
 ### Focused EVA manual handoff
@@ -607,6 +617,7 @@ the manual export or used to authorize an EVA call.
 Audatex remains a separate estimating-system role unless an accepted capability
 and integration contract establish otherwise. Guided-capture providers are
 candidates/evidence, not active routes.
+
 ## Email, mailbox, and background processing
 
 The target product covers the approved mailbox estate and full source messages; the focused alpha mailbox is only the first caller. Mailbox inventory and current-system roles remain in [operator notes](operator-notes.md).
@@ -826,6 +837,7 @@ none may be inferred from provider-domain evidence.
 No provider route is active until its exact capability allocation, accepted
 contract, credentials/scopes, failure and recovery proof, real caller, and
 operator acceptance exist.
+
 ## MCP automation and actor boundary
 
 MCP is a management/development-controlled ingress for one named,
@@ -913,6 +925,7 @@ approves, or sends autonomously.
 
 Signatures embedded in governed renderer documents are provenance-sensitive
 document assets, not Web decorative imagery.
+
 ## Operator experience
 
 The selected alpha direction is Operations-first. The UI must provide:
@@ -963,6 +976,7 @@ configured work as completed, delivered, deployed, or accepted.
 
 The durable interaction, visual, component, and source/runtime rules are owned
 by [design](../design/README.md).
+
 ## Quality, capacity, security, and evidence
 
 Pegasus is designed for the observed office workload of roughly 1,000–1,200 matters per month and a 2,000-per-month capacity target. These are observed workload and design capacity, not throughput proof.
@@ -982,6 +996,7 @@ Required qualities:
 - local development on a supported platform, and supported-browser accessibility proof on Windows with Microsoft Edge Stable and Narrator;
 - independently buildable source workspaces with no application reference, dynamic load, dependency hoist, or deployment inclusion;
 - explicit test/evidence scope and limits rather than evergreen counts.
+
 ## Permanent boundaries
 
 The `Not planned` capability rows are boundaries, not backlog. They receive no activation issue or release target. They include permanently excluded or intentionally unsupported behaviors identified in the capability inventory. In particular:

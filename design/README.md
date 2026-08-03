@@ -16,9 +16,10 @@ Intended, planned, implemented, caller-proved, deployed and accepted are distinc
 The implemented offline QDOS-alpha surface assigns authenticated manual receipt/list/detail/source work to `/Intake`, `/Intake/{id}`, and `/Intake/{id}/Source`, and exposes token-bound public request submission only at `/Uploads/{token}`; the desktop evaluator is separately owned ([ADR-0016](../docs/adr/0016-standalone-desktop-email-evaluator.md)). Implementation is not deployment, accessibility acceptance, or operator acceptance evidence.
 
 Detailed durable product-design owners are the
-[operator-experience requirements](product/requirements.md),
-[capability traceability matrix](product/traceability-matrix.md), and
-[UI specification](product/ui-spec.md).
+[operator-experience requirements](product/requirements.md) and
+[UI specification](product/ui-spec.md). Per-capability ownership and
+activation boundaries are owned by the
+[capability inventory](../docs/capabilities.md#capabilities) alone.
 
 
 ## Product direction
@@ -44,7 +45,7 @@ The common hierarchy is:
 4. named workflow, evidence, lease or exception state and consequential action;
 5. provenance, external identity, permanent business history and limitations.
 
-Capabilities allocated beyond `0.1.0-alpha.1` have no alpha navigation, control, workflow or placeholder. Their exact first-introduction releases remain owned by the [capability inventory](../docs/capabilities.md#capabilities) and are mirrored ID by ID in the [traceability matrix](product/traceability-matrix.md). Every deferred UI capability must re-enter specification, alternatives, independent review, explicit approval, visual generation and manual visual review before implementation.
+Capabilities allocated beyond `0.1.0-alpha.1` have no alpha navigation, control, workflow or placeholder. Their exact first-introduction releases remain owned by the [capability inventory](../docs/capabilities.md#capabilities). Every deferred UI capability must re-enter specification, alternatives, independent review, explicit approval, visual generation and manual visual review before implementation.
 
 ## Design principles
 
@@ -178,6 +179,7 @@ The upstream source directory may be absent from a clean checkout. The checksum-
  | Asset | Upstream source & SHA-256 | Web runtime destination & SHA-256 | Mapping & usage |
  | --- | --- | --- | --- |
  | Primary logo | `design/brand/logos/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | `src/Pegasus.Web/wwwroot/images/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | Byte-for-byte copy embedded in `_Layout.cshtml` header navbar link. Replaces fake `CE` mark and unproven favicon link. |
+
 ### Icons
 
 Lucide is the only approved Web/UI icon system:
@@ -216,6 +218,7 @@ The checksummed Lucide sprite is delivered at `src/Pegasus.Web/wwwroot/images/lu
  | `arrow-right` | `D8B246C7FDBAB41053F2016892C0664BB64C0C6D1ED4594C9D80470C1B219C70` | Action transition and external link indicator |
  | `upload` | `EE63E95EFECDAF141338475D367A54EF891E337491993DCDC1F3ED7936A42660` | Intake manual upload action icon |
  | `lock` | `1F0A0861A3752428E1D5CABDAC22608E645A008229EF58415EC0C0E112F5BF2D` | Case edit lease indicator icon |
+
 ### Imagery and evidence
 
 No brand or decorative imagery is needed for the internal Web application. Upstream marketing photography is excluded.
@@ -380,7 +383,7 @@ Only the first table describes exercised components. Planned contracts do not cr
 | State action | One current Case and one named Core action; prerequisites, consequence, reason where required, recovery and history link; never a generic Close, bulk edit or external edit |
 | Identity header | Read-only Case/PO, principal, registration, type/secondary Audit identity, workflow state, `Due by`/overdue state and EVA proxy limitation |
 | Due/chaser panel | Missing-material reason, next chase, most recent recorded channel/outcome, optional note and next permitted action together; preparation/copy is not sent or delivered |
-| Inspection address | Explicit physical vehicle/repairer location or exact `Image Based Assessment`; physical address fields appear only for the first mode and never imply attendance |
+| Inspection address | Provider-determined default: the Principal's inspection-mode setting autofills exact `Image Based Assessment` or requires an explicit physical vehicle/repairer location; reasoned per-Case staff override; physical address fields appear only for the physical mode and never imply attendance |
 | Engineering findings | Separate Roadworthiness and Assessment controls; accepted and superseded versions, reasoned correction, reopen requirement and no inferred fee/invoice mutation |
 | Evidence/document panel | Original/source/version, logical removal and closed lock; Box/external state; issued report versions; exact Outlook evidence with separate discovery, link and sent times |
 | Lease/conflict | One current Case; holder, expiry, renew/release/reacquire state and read-only alternative; current conflict and preserved proposed values; no forced Administrator takeover |
@@ -451,7 +454,9 @@ Case work includes:
   distinction;
 - DVLA/DVSA and MOT/mileage observations with source/version/age and
   supplied/external/estimated classification;
-- explicit physical vehicle/repairer location or exact `Image Based Assessment`;
+- provider-determined inspection mode: explicit physical vehicle/repairer
+  location or exact `Image Based Assessment` autofilled from the Principal's
+  setting, with reasoned per-Case override;
 - separate Roadworthiness and Assessment findings plus correction history;
 - tasks and reminders;
 - `Due by`, missing-material reason, next chase, last channel/outcome, optional
@@ -574,7 +579,7 @@ Each visible capability/state also needs authenticated Web-caller and named Core
 
 ## Deferred and absent UI seams
 
-Exact horizon and first-introduction release remain owned by the [capability inventory](../docs/capabilities.md#capabilities). The [ID-by-ID design mapping](product/traceability-matrix.md) mirrors those allocations. No future allocation creates an alpha route, control, workflow, placeholder or dormant implementation.
+Exact horizon and first-introduction release remain owned by the [capability inventory](../docs/capabilities.md#capabilities). No future allocation creates an alpha route, control, workflow, placeholder or dormant implementation.
 
 ### Deferred integration and intake surfaces
 

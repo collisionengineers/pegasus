@@ -33,7 +33,8 @@ public sealed record PrincipalAdministrationSummary(
     Guid? SuccessorId,
     bool IsActive,
     long Version,
-    int AllocatedCaseCount);
+    int AllocatedCaseCount,
+    CaseInspectionMode InspectionMode = CaseInspectionMode.PhysicalAddress);
 
 public sealed record OrganizationListItem(
     Guid Id,
@@ -318,13 +319,15 @@ public static class OrganizationAdministrationPolicy
         Guid sequenceLineageId,
         Organization organization,
         string code,
-        bool codeAlreadyExists)
+        bool codeAlreadyExists,
+        CaseInspectionMode inspectionMode = CaseInspectionMode.PhysicalAddress)
     {
         RequireIdentifier(principalId, nameof(principalId));
         RequireIdentifier(sequenceLineageId, nameof(sequenceLineageId));
         ArgumentNullException.ThrowIfNull(organization);
         RequireOrganizationCanOwnPrincipals(organization);
         RequireUniquePrincipalCode(codeAlreadyExists);
+        RequireDefinedInspectionMode(inspectionMode);
         return new(
             principalId,
             organization.Id,
@@ -333,7 +336,8 @@ public static class OrganizationAdministrationPolicy
             null,
             null,
             true,
-            0);
+            0,
+            inspectionMode);
     }
 
     public static PrincipalReplacementPlan PlanPrincipalReplacement(
@@ -382,7 +386,8 @@ public static class OrganizationAdministrationPolicy
                 predecessor.Id,
                 null,
                 true,
-                0));
+                0,
+                predecessor.InspectionMode));
     }
 
     public static void RequireOrganizationCanOwnPrincipals(Organization organization)
@@ -445,6 +450,7 @@ public static class OrganizationAdministrationPolicy
         ArgumentNullException.ThrowIfNull(request);
         RequireAdministrator(request.Actor);
         RequireIdentifier(request.OrganizationId, nameof(request.OrganizationId));
+        RequireDefinedInspectionMode(request.InspectionMode);
         return request with
         {
             Code = NormalizePrincipalCode(request.Code),
@@ -544,6 +550,16 @@ public static class OrganizationAdministrationPolicy
             throw new ArgumentException(
                 "A stable identifier is required.",
                 parameterName);
+        }
+    }
+
+    private static void RequireDefinedInspectionMode(CaseInspectionMode mode)
+    {
+        if (!Enum.IsDefined(mode))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(mode),
+                "The principal inspection mode is invalid.");
         }
     }
 
