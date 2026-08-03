@@ -125,8 +125,11 @@ The classification architecture is fixed:
   established review outcome.
 - No generic rule engine or transport-specific second classifier is to be
   added.
-- QDOS direct sender identity is the exact `@qdosassist.co.uk` suffix. That
-  suffix alone does not classify message type, associate a case, or apply to an
+- QDOS direct sender identity is the operator-accepted three-domain set
+  (decision 2026-08-03): exact whole-domain equality against
+  `qdosassist.co.uk`, `qdoslaw.co.uk`, or `qdosassists.co.uk`, with no suffix
+  or subdomain widening (`qdos_mail_route` v3). An accepted sender domain
+  alone does not classify message type, associate a case, or apply to an
   identified intermediary.
 - The Mapped Principals spreadsheet at the opaque source citation
   `../reference/imp-docs/requirementsdocs/provider-extra-info/Mapped%20Principals.xlsx`
@@ -145,6 +148,19 @@ predicates, exclusions, and ambiguity outcome accepted under this section, and
 is a deliberate change to a named, versioned matcher — the Production
 composition test pins the inactive matcher so it can never be activated as a
 side effect of composition.
+
+Accepted for the QDOS direct route only (operator decision 2026-08-03,
+[ADR-0020](adr/0020-accepted-qdos-case-association-predicates.md)): the
+automatic incoming-case matching predicates and their conservative outcomes —
+label-anchored claim-token, client-VRM, and surname+initial keys; incident
+date as an eliminator only; one survivor associates, ambiguity fails closed to
+`Needs sorting` with candidates visible; `Created in error` redirects to its
+replacement. This closes the first row's question for that one matcher and
+pulls the QDOS-direct subset of `MAIL-09` to `Now / 0.1.0-alpha.1`. The
+multi-rule precedence and confidence questions below stay open for
+classification and for every other route, matcher, and surface; the QDOS
+classification policy still records simultaneous category matches as the
+ambiguity outcome with no invented winner.
 
 The first additional-provider route cohort is allocated to `0.2.0`; the broader
 classified-email workspace and email MCP cohort is allocated to `0.3.0`.

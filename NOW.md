@@ -7,23 +7,6 @@
 Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 <agent>)`. Nothing is in flight unless it is claimed here on `origin/dev`.
 
-- QDOS email identification, classification, and case matching: build the
-  shared Core classification foundation — the settled Received/Sent families
-  and subtypes, Reply as mirrored context, validated `Other` name and reason,
-  versioned policy key, decision evidence, explicit ambiguity outcome, and
-  the acceptance cohort, keeping category separate from queue, Triage
-  routing, and Outlook destination (MAIL-21/22); split the QDOS policy into
-  route and extraction parts, activate the operator-accepted three-domain
-  QDOS route set (`qdos_mail_route` v3), and add operator-accepted QDOS
-  automatic case matching and association — eliminator predicates over claim
-  reference, VRM, and claimant name with incident-date elimination, pulling
-  the MAIL-09 QDOS-direct subset forward (operator decisions 2026-08-03,
-  recorded by ADR in the task PR); still no confidence scores or generic
-  rule engine (the multi-rule precedence open decision stays open beyond the
-  accepted QDOS predicates), no evaluator surface (EVAL-01–05, MAIL-20,
-  OPS-22 are separately owned), no folder move, mailbox mutation, or AI
-  classifier (branch task/qdos-email-classification, taken 2026-08-03, by
-  claude).
 - UI alpha design pass: build the visual/interaction layer for the
   Operations-first `0.1.0-alpha.1` shell against fixture data only — UI-01
   (Operations dashboard), UI-02 (Not ready/Review/Held queues), UI-03
