@@ -6,6 +6,41 @@ functionality into Pegasus as the replacement for the `.mcpb`/stdio
 implementation. The Core-owned render port itself is designed in the parallel
 seam plan and is treated here as a stated dependency and assumption.
 
+## Operator decision, 2026-08-03 — parity first, then delete
+
+Open question 1 below was answered: **build the Pegasus `/mcp` render tools
+first, keep the `.mcpb` working until parity is demonstrated, then delete.**
+
+Amendments to this plan:
+
+- Section 6's deletion inventory becomes a **second-phase** action. Nothing under
+  `CollisionRenderer.Mcp/` is deleted until parity is signed off.
+- **"Parity" needs a definition before it can gate anything.** It cannot mean
+  seven-tool parity, because four of the seven are dropped on ADR-0011 and
+  security grounds. Proposed definition, for operator confirmation: *the three
+  retained tools — template list, validate, render — produce byte-identical PDFs
+  for the same payload through the Pegasus port as through the stdio host, on the
+  same machine and the same pinned browser build.* Byte identity is the right bar
+  here precisely because both sides run on one machine; the workspace's own
+  guidance that byte identity must not be promised *across* environments does not
+  apply to a same-machine comparison.
+- The external valuation connector keeps working throughout. Its long-term fate
+  is **not** resolved: Pegasus renders for a Case and the connector has no Case,
+  so the two-artifact valuation contract still has no Pegasus home. Open question
+  7 stays live.
+- **This collides with the Stage 1 decision to retire the workspace.** The stdio
+  host is built from `CollisionRenderer.Mcp`, which references
+  `CollisionRenderer.Core` — both inside the tree Stage 1 deletes. Three options
+  are set out as open question B6 in the consolidated questions document; the
+  recommendation there is to build the `.mcpb` once from the current commit,
+  hand the frozen artefact to whoever runs the valuation connector, and delete
+  the source. That is the only option that neither duplicates the engine nor adds
+  a fifth project.
+
+Separately, the Scriban decision recorded in the consolidated questions document
+removes this plan's dependency-provenance concern in section 9.4: Scriban is
+upgraded to a clean release rather than carried with suppressed advisories.
+
 ## 1. Target design
 
 ### 1.1 The decision

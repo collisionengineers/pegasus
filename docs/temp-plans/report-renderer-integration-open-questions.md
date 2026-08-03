@@ -17,9 +17,46 @@ the end so they are not re-asked.
 
 Each question names the plan that raised it and what it blocks.
 
-## Blocking
+## Blocking — all four answered 2026-08-03
+
+The four blocking questions were put to the operator on 2026-08-03 and answered.
+Their original text is retained below for the reasoning; each now carries its
+decision and the consequences that follow. The consequences are the live work.
 
 ### B1. Which renderer lineage is the accepted design?
+
+> **DECIDED 2026-08-03: the C# `CollisionRenderer` is authoritative.**
+> `DESIGN_SPEC.md` is superseded evidence, not a requirement.
+>
+> Consequences, stated plainly because they are not all comfortable:
+>
+> - `docs/reference/rendererref1/` keeps exactly the role
+>   `docs/reference/README.md:3-14` already assigns it — supplied evidence, not
+>   a requirement, implementation proof or authorization. Nothing is imported
+>   from it. The four sample PDFs remain immutable visual reference.
+> - The templates plan's gap analysis stops being a work list and becomes a
+>   **record of what the C# renderer does not do**. No
+>   `AssessmentReportDocument`, no `assessment_report.scriban`, no four-preset
+>   family, no composed-narrative engine is built from `DESIGN_SPEC`.
+> - **The RPT capability outcomes do not change, and the C# renderer as it
+>   stands does not satisfy them.** It performs no arithmetic at all beyond a
+>   fee-note sum in `HtmlComposer`; two template IDs cover three or four
+>   outcomes; there is no conservative/maximised specification pair for RPT-03;
+>   there is no versioned amendment identity for RPT-05. So RPT-01's "computes
+>   each figure once" and RPT-02's "four outcome variants" still need an
+>   implementation — this decision removes `DESIGN_SPEC` as their
+>   *specification*, not the work itself.
+> - That specification must therefore come later, from accepted `CASE-31` /
+>   `ENG-01` / `ENG-02` data plus operator decisions. It is not written by this
+>   task and cannot be.
+> - **Net effect on Stage 1: templates are untouched.** The four `.scriban`
+>   bodies and `report.css` move as-is. This materially shrinks Stage 1 and
+>   removes the whole templates work stream from the near-term critical path.
+> - Questions H5, H6, M5, M8, M9 and M10 below were all raised by the templates
+>   plan against `DESIGN_SPEC`. They are **deferred, not answered** — they
+>   return when the RPT specification is written.
+
+### B1 (original text)
 
 *Raised by: templates. Blocks: every template decision, and the value of the
 `rendererref1` reference set.*
@@ -68,6 +105,30 @@ replace it: Pegasus renders for a Case, and the valuation connector has no Case.
 **Recommendation if you have no strong view:** (b). It is the only reading that
 does not break an external workflow on the day the host is deleted.
 
+> **DECIDED 2026-08-03: (b) — parity first, then delete.**
+>
+> Consequences:
+>
+> - The `.mcpb` stdio host stays working until the Pegasus `/mcp` render tools
+>   demonstrate parity. The MCP plan's section 6 deletion inventory becomes a
+>   **second-phase** action, not a first-phase one.
+> - "Parity" needs a definition before it can gate anything. It cannot mean
+>   seven-tool parity, because four of the seven are dropped on ADR-0011 and
+>   security grounds (`install_browser`, `render_health`, `open_valuation_output`,
+>   `render_valuation_outputs`). Proposed definition, for operator confirmation:
+>   *the three retained tools — template list, validate, render — produce
+>   byte-identical PDFs for the same payload through the Pegasus port as through
+>   the stdio host, on the same machine and browser build.*
+> - The external valuation connector keeps working throughout. Its eventual
+>   fate is **not** resolved by this decision and stays open as M7a below:
+>   Pegasus renders for a Case and the connector has no Case, so the two-artifact
+>   valuation contract has no Pegasus home.
+> - The workspace therefore **cannot be fully retired in Stage 1** while the
+>   stdio host must keep running. Either the workspace survives in reduced form
+>   until parity, or the host is republished from the relocated engine. This is
+>   a direct conflict with the docs-migration plan's single-deletion commit and
+>   is raised as B6 below.
+
 ### B3. Relocation now, or wait for the data prerequisites?
 
 *Raised by: seam, templates, docs-migration. Blocks: the sequencing of everything.*
@@ -88,6 +149,46 @@ wait until CASE-31/ENG-01/ENG-02 exist?
 **Note:** Stage 1 has real standalone value — it retires a parallel build,
 dependency surface and ADR store — but it also puts unaccepted report wording and
 provenance-sensitive signature images into the production assembly (see B4, H2).
+
+> **DECIDED 2026-08-03: Stage 1 now, no activation.**
+>
+> Consequences:
+>
+> - The seam plan's Stage 1 is authorised: relocate source, land both Core ports,
+>   register the fail-closed renderer and the preview composer, edit the
+>   architecture tests, extend the CI build-path pattern, file the ADR.
+> - **No capability identifier advances.** The Stage A capability-note wording in
+>   the docs-migration plan is the wording to use, and review must reject any PR
+>   that claims more.
+> - Combined with B1, Stage 1 is smaller than first planned: no template work at
+>   all, and the four `.scriban` bodies move unchanged.
+> - H2 (unaccepted wording and signature images in the binary) is **not**
+>   resolved by this decision and still needs an answer before the asset move.
+
+### B6. New — "parity first" conflicts with retiring the workspace in Stage 1
+
+*Raised by: the B2 and B3 decisions together. Blocks: the deletion commit.*
+
+B3 authorises Stage 1, whose stated outcome is that
+`workspaces/report-renderer/` is deleted. B2 requires the `.mcpb` stdio host to
+keep working until parity is demonstrated. The stdio host is built from
+`CollisionRenderer.Mcp`, which references `CollisionRenderer.Core` — both inside
+the workspace being deleted.
+
+The two decisions cannot both be executed in one change set. Three ways out:
+
+| Option | Effect |
+| --- | --- |
+| **(i) Reduced workspace survives to parity** | Stage 1 relocates the engine into `src/` and deletes only `.Cli`, `.Api`, `.Gui`. `CollisionRenderer.Core` + `.Mcp` remain in `workspaces/` until parity, then go. Cost: the engine exists in two places for the duration, which is exactly the duplicate-implementation stop condition |
+| **(ii) Republish the host from the relocated engine** | The stdio host is rebuilt as a thin console project consuming the relocated Infrastructure adapter. Cost: a fifth project, needing the ADR proof that the existing boundary cannot carry it — and it would be a Windows-only, unauthenticated stdio host inside the product tree |
+| **(iii) Freeze the existing `.mcpb` artefact** | Build the bundle once from the current commit, hand it to whoever runs the valuation connector, and delete the workspace. The connector keeps working on a frozen binary; no source survives. Cost: the frozen bundle receives no fixes |
+
+**Recommendation: (iii).** It is the only option that neither duplicates the
+engine nor adds a project. It also matches what the bundle already is — a
+manually built, unversioned, Windows-only artefact that no workflow produces.
+
+**Question.** Which option? This is now the gating question for the deletion
+commit.
 
 ### B4. Are the Scriban security advisories re-accepted for a production assembly?
 
@@ -114,6 +215,52 @@ Three options, one rejected outright:
 application **is** a new trust boundary description, so revisiting it is required
 by the decision's own terms — this is not optional diligence.
 
+> **DECIDED 2026-08-03: check for a clean release first. The check was run and a
+> clean release exists.**
+>
+> Measured on 2026-08-03 with
+> `dotnet list package --vulnerable --include-transitive`:
+>
+> | Version | Result |
+> | --- | --- |
+> | **Scriban 5.12.1** (the current pin) | **14 advisories: 1 Critical, 9 High, 4 Moderate** |
+> | **Scriban 7.2.6** (current stable, `net10.0`) | **No vulnerable packages** |
+>
+> The Critical is `GHSA-5wr9-m6jw-xx44`, CVSS 9.1, patched in **7.0.0**: a
+> sandbox escape where `TemplateContext` caches type accessors by `Type` only,
+> built from the *then-current* `MemberFilter`, so a reused context with a
+> tightened filter keeps exposing previously hidden members.
+>
+> **That advisory is not theoretical for this code.** `HtmlComposer` caches
+> parsed templates in a `ConcurrentDictionary` and reuses composition state
+> across renders. Whether it reuses a `TemplateContext` across renders with
+> differing member exposure must be read before anyone argues the advisory is
+> inapplicable.
+>
+> Consequences:
+>
+> - **The suppression question disappears.** No `NoWarn` is added anywhere —
+>   not root, not project-scoped, not item-scoped. Root
+>   `TreatWarningsAsErrors=true` applies unmodified.
+> - Workspace ADR-0010's disposition changes from **promote** to **retire as
+>   obsolete** in the docs-migration plan's ADR table. There is no advisory
+>   acceptance left to carry forward. The new root ADR records that the
+>   acceptance was resolved by upgrade, not inherited.
+> - The seam plan's risk R8 is closed, and its stop condition 1 and open
+>   question 1 are struck.
+> - **New work appears, and it is not free.** 5.12.1 → 7.2.6 crosses two major
+>   versions. There will be breaking changes affecting `Templating/HtmlComposer.cs`
+>   and possibly the `.scriban` bodies. The uplift plan listed a Scriban upgrade
+>   as an explicit non-goal; that non-goal is now reversed, and the upgrade needs
+>   its own render-parity evidence — the rasterised before/after comparison
+>   described in the uplift plan's verification section, run against the 5.12.1
+>   baseline.
+> - **Sequencing:** do the Scriban upgrade and prove parity **before** the code
+>   move, while the workspace still has its own relaxed build settings and its
+>   own visual-regression script. Doing it after the move means debugging a
+>   two-major-version template-engine upgrade under
+>   `TreatWarningsAsErrors=true` in a tree that has just changed shape.
+
 ### B5. Where do the third-party licence conclusions live?
 
 *Raised by: docs-migration. Blocks: the documentation fold.*
@@ -130,6 +277,26 @@ file as an exception to the one-file-per-question rule?
 
 Two of the conclusions currently read "No conclusion stated in the retained
 notice" (PDFsharp, ModelContextProtocol) and need verification regardless.
+
+## Deferred by the B1 decision
+
+These were raised by the templates plan against `DESIGN_SPEC`. With the C#
+renderer authoritative they are **not answered and not live**. They return
+verbatim when the RPT specification is eventually written against accepted
+`CASE-31` / `ENG-01` / `ENG-02` data.
+
+- **H5** the four blocked report wordings, plus the missing Category S text
+- **H6** the vehicle history check provider
+- **M5** report kinds and superseded template IDs
+- **M8** the design tokens `report.css` lacks
+- **M9** the six schema and spec contradictions
+- **M10** sample-data handling
+
+One of them keeps a live edge and is restated here rather than deferred:
+`docs/open-decisions.md:222` "Report wording" remains an **open decision in the
+canonical documentation** regardless of which lineage is authoritative. Deferring
+these questions does not close that entry, and the wording gate in the Core
+contract still defaults closed.
 
 ## High
 
@@ -395,6 +562,10 @@ Recorded so these are not re-asked.
 
 | Decision | Date | Source |
 | --- | --- | --- |
+| The C# `CollisionRenderer` is the authoritative design; `DESIGN_SPEC.md` is superseded evidence (B1) | 2026-08-03 | Operator, this task |
+| `.mcpb` replacement means parity first, then delete (B2) | 2026-08-03 | Operator, this task |
+| Stage 1 proceeds now, advancing no capability (B3) | 2026-08-03 | Operator, this task |
+| Scriban is upgraded rather than suppressed; 7.2.6 is clean, 5.12.1 carries 14 advisories including one Critical (B4) | 2026-08-03 | Operator decision plus measured evidence, this task |
 | The HTML preview is wanted. `PreviewComposer` is retained and separated from the GUI, not deleted with it | 2026-08-03 | Operator, this task |
 | The desktop/UI elements of the renderer are removed | 2026-08-03 | Operator, this task; pre-authorised by `design/README.md:237` |
 | The renderer workspace is retired and its documents integrated into the main repository | 2026-08-03 | Operator, this task |

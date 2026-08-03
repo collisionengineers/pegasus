@@ -7,6 +7,40 @@ activates no capability. Every line reference was read in the working tree at
 the time of writing and should be re-checked against the branch before editing,
 because line numbers move.
 
+## Operator decisions, 2026-08-03
+
+Three decisions amend this plan.
+
+**Scriban is upgraded, not suppressed.** The check this plan called for was run:
+Scriban 5.12.1 carries **14 advisories, one Critical** (`GHSA-5wr9-m6jw-xx44`,
+CVSS 9.1, patched in 7.0.0); Scriban 7.2.6 reports **no vulnerable packages**.
+Consequently:
+
+- In section 2's ADR disposition table, **workspace ADR-0010 changes from
+  *promote* to *retire as obsolete*.** There is no advisory acceptance left to
+  carry forward; the promoted root ADR records that it was resolved by upgrade.
+- The whole `NoWarn NU1901–NU1904` call-out becomes a **historical explanation
+  of why no suppression is carried**, not a live decision. Option B is not taken.
+  Root `TreatWarningsAsErrors=true` applies unmodified.
+- **Stop condition S2 is closed.** Open question 1 is struck.
+
+**The C# renderer is the authoritative design.** `DESIGN_SPEC.md` is superseded
+evidence. This does not change any edit in section 3 —
+`docs/reference/README.md:22` is reworded exactly as planned, and the fourteen
+files under `docs/reference/rendererref1/` stay — but it does mean the reworded
+description must not imply the folder specifies anything. "Evidence only" is the
+operative phrase and is already in the proposed wording.
+
+**Stage 1 proceeds now.** The Stage A capability-note wording in section 5 is the
+wording to use.
+
+**One conflict this plan cannot resolve.** Section 7 sequences a single deletion
+commit that removes `workspaces/report-renderer/` wholesale. The parity-first MCP
+decision requires the `.mcpb` stdio host — built from `CollisionRenderer.Mcp` and
+`CollisionRenderer.Core`, both inside that tree — to keep working until parity is
+demonstrated. **Commit 4 is therefore blocked** until open question B6 in the
+consolidated questions document is answered. Commits 1, 2, 3 and 5 are unaffected.
+
 ## Verification status of the working assumptions
 
 Confirmed by reading the files:

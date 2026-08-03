@@ -52,6 +52,57 @@ Consequences carried through this plan:
      content security policy, and must never interpolate composed preview HTML
      into a Razor page. Carried in the risk register as R13.
 
+## Operator decisions, 2026-08-03 — Stage 1 authorised; Scriban upgraded
+
+Two further decisions amend this plan.
+
+**Stage 1 proceeds now, advancing no capability.** The staging route in this plan
+is authorised as written: relocate source, land both Core ports, register the
+fail-closed renderer and the preview composer, edit the architecture tests,
+extend the CI build-path pattern, file the ADR. Review must reject any PR that
+claims more than the honest one-line status this plan already states.
+
+**Scriban is upgraded, not suppressed.** The check this plan called for was run on
+2026-08-03 with `dotnet list package --vulnerable --include-transitive`:
+
+| Version | Result |
+| --- | --- |
+| Scriban 5.12.1 (the current pin) | **14 advisories: 1 Critical, 9 High, 4 Moderate** |
+| Scriban 7.2.6 (current stable, `net10.0`) | **No vulnerable packages** |
+
+The Critical is `GHSA-5wr9-m6jw-xx44`, CVSS 9.1, patched in 7.0.0 — a sandbox
+escape where `TemplateContext` caches type accessors by `Type` only, built from
+the then-current `MemberFilter`, so a reused context with a tightened filter keeps
+exposing previously hidden members. **That is not obviously inapplicable here:**
+`HtmlComposer` caches parsed templates in a `ConcurrentDictionary` and reuses
+composition state across renders. Read whether it reuses a `TemplateContext`
+across renders with differing member exposure before anyone argues the advisory
+does not apply.
+
+Amendments:
+
+- **No `NoWarn` is added anywhere** — not root, not project-scoped, not
+  item-scoped. Root `TreatWarningsAsErrors=true` applies unmodified. The
+  paragraph in "Infrastructure adapter shape and registration" that specifies an
+  item-scoped `NoWarn` is struck.
+- `Pegasus.Infrastructure` takes **`Scriban 7.2.6`**, not 5.12.1.
+- **Risk R8 is closed.** Stop condition 1 and open question 1 are struck.
+- New work, and it is not free: 5.12.1 → 7.2.6 crosses two major versions and
+  will produce breaking changes in `Templating/HtmlComposer.cs` and possibly the
+  `.scriban` bodies. **Sequence the upgrade and its render-parity proof before
+  the code move**, while the workspace still has its relaxed build settings and
+  its own visual-regression script.
+
+**Templates are untouched by Stage 1.** The operator decided the C# renderer is
+the authoritative design, so the four `.scriban` bodies and `report.css` relocate
+unchanged and no template work enters this task.
+
+**One conflict is unresolved.** This plan's Stage 1 deletes
+`workspaces/report-renderer/`; the parity-first MCP decision requires the stdio
+host — built from projects inside that tree — to keep working until parity. See
+open question B6 in the consolidated questions document. It gates the deletion
+commit, not the relocation.
+
 ## Verified basis
 
 | Claim | Verification |

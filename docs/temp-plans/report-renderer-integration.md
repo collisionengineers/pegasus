@@ -29,6 +29,38 @@ slug prefix, so that the orphan rule and the post-merge deletion still work
 on the whole set. The supporting files are listed under
 [Plan set](#plan-set).
 
+## Operator decisions, 2026-08-03
+
+Five decisions were taken during planning. They are recorded here because they
+change what the supporting plans mean; the full reasoning and consequences are in
+`report-renderer-integration-open-questions.md`.
+
+| # | Decision |
+| --- | --- |
+| 1 | The HTML preview is retained and separated from the GUI, not deleted with it |
+| 2 | The C# `CollisionRenderer` is the authoritative design; `DESIGN_SPEC.md` is superseded evidence |
+| 3 | `.mcpb` replacement means parity first, then delete — the stdio host keeps working until the Pegasus tools prove parity |
+| 4 | Stage 1 proceeds now: relocate source and land the contract, advancing no capability identifier |
+| 5 | Scriban is upgraded rather than suppressed |
+
+Decision 5 was taken as "check for a clean release first". The check was run:
+`dotnet list package --vulnerable` reports **14 advisories against the pinned
+Scriban 5.12.1 — one Critical (CVSS 9.1 sandbox escape, `GHSA-5wr9-m6jw-xx44`),
+nine High, four Moderate** — and **no vulnerable packages** against 7.2.6. So the
+suppression is not carried into `src/` in any form, and a two-major-version
+upgrade with its own render-parity evidence enters scope ahead of the code move.
+
+Two consequences reshape the task materially:
+
+- **Decision 2 removes the whole templates work stream from Stage 1.** The four
+  `.scriban` bodies and `report.css` move unchanged. The RPT capability outcomes
+  are untouched and still unimplemented; their specification now has to come from
+  accepted `CASE-31`/`ENG-01`/`ENG-02` data, later, not from `DESIGN_SPEC`.
+- **Decisions 3 and 4 conflict.** Stage 1's stated outcome is that the workspace
+  is deleted; parity-first requires the stdio host — built from projects inside
+  that workspace — to keep working. This is unresolved and is now the gating
+  question for the deletion commit (open question B6).
+
 ## Capability inventory
 
 Every capability ID that governs the renderer, its integration, or what

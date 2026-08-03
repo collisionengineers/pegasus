@@ -7,6 +7,42 @@ does not activate a capability, does not change accepted requirements, and
 does not decide any operator question. Nothing here authorises a Pegasus
 caller for `workspaces/report-renderer/`.
 
+## Superseded by operator decision, 2026-08-03
+
+**The operator decided on 2026-08-03 that the C# `CollisionRenderer` is the
+authoritative design and `DESIGN_SPEC.md` is superseded evidence.** This plan was
+written before that decision and its central tension is resolved against
+`DESIGN_SPEC`.
+
+What that means for this document:
+
+- **It is retained as analysis, not as a work plan.** Sections 1 and 6 — the gap
+  analysis and the reconciliation against existing Pegasus owners — are the
+  durable value: they record precisely what the C# renderer does *not* do, and
+  which spec items collided with owners Pegasus already has. Keep reading those.
+- **Sections 2, 3, 4, 5, 7 and 9 do not describe work that will be done.** No
+  `AssessmentReportDocument`, no `assessment_report.scriban`, no four-preset
+  family, no composed-narrative engine, no computed-once figure engine derived
+  from `DESIGN_SPEC`, no new design tokens. Nothing is imported from
+  `docs/reference/rendererref1/`, which keeps its registered role as evidence.
+- **The RPT capability outcomes are unchanged, and the C# renderer does not
+  satisfy them.** It performs no arithmetic beyond a fee-note sum in
+  `HtmlComposer`; two template IDs cover three or four outcomes; there is no
+  conservative/maximised pair for RPT-03 and no versioned amendment identity for
+  RPT-05. The decision removes `DESIGN_SPEC` as the *specification* for that
+  work, not the work itself. A specification must come later from accepted
+  `CASE-31`/`ENG-01`/`ENG-02` data plus operator decisions.
+- **Stage 1 touches no template.** The four `.scriban` bodies and `report.css`
+  relocate unchanged.
+- Open questions 1–12 below are **deferred, not answered**. They return when the
+  RPT specification is written. One keeps a live edge:
+  `docs/open-decisions.md:222` "Report wording" stays open in canonical
+  documentation regardless of lineage, and the Core contract's wording gate still
+  defaults closed.
+
+The rest of this document is preserved unedited so the analysis and its evidence
+remain readable.
+
 ## Terminology note: "blueprint"
 
 The word **blueprint** appears nowhere in Pegasus canonical documentation

@@ -6,6 +6,43 @@ repository's `net10.0` target, and deciding whether that runtime is supportable
 there. It is not the integration plan, the desktop-removal plan, the MCP
 consolidation plan, or the relocation plan.
 
+## Operator decision, 2026-08-03 — the Scriban non-goal is reversed
+
+This plan lists "upgrading Scriban off 5.12.1" as an explicit non-goal, on the
+basis that the pin has an accepted, documented reason. **That non-goal is
+reversed.** The operator directed a check for a clean release, the check was run,
+and one exists.
+
+Measured on 2026-08-03 with `dotnet list package --vulnerable --include-transitive`:
+
+| Version | Result |
+| --- | --- |
+| Scriban 5.12.1 (the current pin) | **14 advisories: 1 Critical, 9 High, 4 Moderate** |
+| Scriban 7.2.6 (current stable, `net10.0`) | **No vulnerable packages** |
+
+The Critical is `GHSA-5wr9-m6jw-xx44`, CVSS 9.1, patched in 7.0.0 — a
+`TemplateContext` sandbox escape via type accessors cached by `Type` alone,
+ignoring a later-tightened `MemberFilter`. `HtmlComposer` caches parsed templates
+and reuses composition state, so applicability must be read, not assumed.
+
+Amendments to this plan:
+
+- **Add a Scriban upgrade step, 5.12.1 → 7.2.6.** It crosses two major versions,
+  so expect breaking changes in `Templating/HtmlComposer.cs` and possibly the
+  `.scriban` bodies.
+- **Sequence it before the TFM change, not after.** The upgrade needs the
+  rasterised before/after parity proof this plan already describes, and that proof
+  is cleanest against an otherwise unchanged tree. Running two changes that can
+  both alter PDF output in one step makes a parity failure unattributable.
+- The revised commit sequence within this task becomes: (0) Scriban upgrade plus
+  parity proof; (1) TFM + SDK + packages + Dockerfile + scripts; (2) determinism
+  seam; (3) strictness; (4) lock files; (5) documentation and ADR.
+- Workspace ADR-0010's advisory acceptance is resolved by upgrade rather than
+  inherited, so the documentation-migration plan retires it as obsolete instead
+  of promoting it. This plan's open question 5 is struck.
+- Note the interaction with `--locked-mode` and lock files (step 10): if lock
+  files are added, they must be generated *after* the Scriban bump, not before.
+
 ## Verdict
 
 **Supported. Uplift to `net10.0` is feasible for every remaining project, and
