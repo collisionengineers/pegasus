@@ -275,6 +275,20 @@ internal sealed class ConfiguredWebApplicationFactory(
     string environment,
     IReadOnlyDictionary<string, string?> settings) : WebApplicationFactory<Program>
 {
+    internal const string TestBoxConfigJson = """
+    {
+      "boxAppSettings": {
+        "clientID": "test-client-id",
+        "appAuth": {
+          "publicKeyID": "test-key-id",
+          "privateKey": "test-private-key",
+          "passphrase": "test-passphrase"
+        }
+      },
+      "enterpriseID": "test-enterprise-id"
+    }
+    """;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         var effectiveSettings = new Dictionary<string, string?>(StringComparer.Ordinal)
@@ -288,7 +302,15 @@ internal sealed class ConfiguredWebApplicationFactory(
             ["AzureIdentity:WebClientId"] = "10213243-5465-7687-98a9-bacbdcedfe0f",
             ["TransportStorage:AccountName"] = "pegasustransporttest",
             ["CustodyStorage:AccountName"] = "pegasuscustodytest",
-            ["CustodyStorage:ServiceUri"] = "https://pegasuscustodytest.blob.core.windows.net/"
+            ["CustodyStorage:ServiceUri"] = "https://pegasuscustodytest.blob.core.windows.net/",
+            // The Production profile composes Box-backed custody, so a host needs
+            // Box settings to start. These are inert test credentials; no Box call
+            // is made by composing them.
+            ["Box:BaseUri"] = "https://api.box.com/2.0/",
+            ["Box:UploadUri"] = "https://upload.box.com/api/2.0/",
+            ["Box:RootFolderId"] = "405543781910",
+            ["Box:ConfigJson"] = TestBoxConfigJson,
+            ["Box:ClientSecret"] = "test-client-secret"
         };
         foreach (var setting in settings)
         {

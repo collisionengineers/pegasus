@@ -20,7 +20,7 @@ public sealed class EvaHandoffStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     ICaseDataQueries caseDataQueries,
     IVehicleEvidenceQueries vehicleEvidenceQueries,
-    LocalDocumentContentStore contentStore,
+    IDocumentContentStore contentStore,
     IEvaHandoffProxy proxy,
     EvaMappingAcceptance mappingAcceptance,
     TimeProvider timeProvider) : IEvaHandoffQueries, IGenerateEvaHandoff

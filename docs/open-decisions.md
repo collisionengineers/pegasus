@@ -24,6 +24,18 @@ folders are created only under it (owner:
 [operations](operations.md#approved-box-integration-test-target); the deployed
 configuration applies the decided root at the next approved deployment).
 
+Open within that root: where managed document versions (reports, correspondence,
+staff-added documents) are placed. The implemented layout is
+`cases/{caseId}/managed/{versionId}/content`, mirroring the local content store
+so one version resolves to one object, because the content-store boundary is
+keyed by case and version identity and does not carry the Case/PO. Retained
+intake sources continue to land in the operator-legible
+`{reference}-{caseId}/documents/` case folder. Whether operators require managed
+documents inside that same named case folder is not decided; moving them there
+means carrying the Case/PO through the content-store boundary and migrating any
+content already written. Accept the layout from operator review before the
+document surface carries real case work.
+
 ## QDOS alpha activation details (migrated from the retired delivery plan)
 
 Still-open questions preserved from the deleted
@@ -103,6 +115,15 @@ The classification architecture is fixed:
 The available evidence establishes review-visible uncertainty, but not an
 accepted numeric confidence score, threshold, or alternative confidence
 display. None should be inferred.
+
+The QDOS intake-to-Triage matcher remains the inactive
+`NoAcceptedIntakeTriageMatcher`: the downstream behavior is complete (accepted
+match evidence creates exactly one replay-safe Triage and multiple matches fail
+closed), so only the match predicates are missing. Activation needs the named
+predicates, exclusions, and ambiguity outcome accepted under this section, and
+is a deliberate change to a named, versioned matcher — the Production
+composition test pins the inactive matcher so it can never be activated as a
+side effect of composition.
 
 The first additional-provider route cohort is allocated to `0.2.0`; the broader
 classified-email workspace and email MCP cohort is allocated to `0.3.0`.

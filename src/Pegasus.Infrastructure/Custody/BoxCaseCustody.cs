@@ -125,116 +125,21 @@ internal sealed class BoxJwtAuthorizationHeaderProvider(BoxCustodyOptions option
     }
 }
 
-internal sealed class BoxCaseCustody(
+/// <summary>
+/// The shared, root-fenced Box object primitives. Every Box caller goes through
+/// this type so the approved-root descendant check and the duplicate-child and
+/// trashed-object failures are proved in exactly one place.
+/// </summary>
+internal sealed class BoxContentClient(
     BoxCustodyOptions options,
-    IIntakeArtifactStore artifactStore,
     HttpClient httpClient,
-    IBoxAuthorizationHeaderProvider authorizationHeaderProvider) : ICaseCustody
+    IBoxAuthorizationHeaderProvider authorizationHeaderProvider)
 {
-    public async Task<CaseCustodyRoot> CreateCaseRootAsync(
-        Guid caseId,
-        string caseReference,
-        string operationKey,
-        CancellationToken cancellationToken)
-    {
-        ValidateCase(caseId, caseReference);
-        ValidateOperation(operationKey);
-        var folderName = CaseFolderName(caseId, caseReference);
-        var folder = await FindChildAsync(options.RootFolderId, folderName, "folder", cancellationToken)
-            ?? await CreateFolderAsync(options.RootFolderId, folderName, cancellationToken);
-        await EnsureDescendantAsync(folder.Id, cancellationToken);
-        return new(caseId, folder.Id, caseReference);
-    }
+    internal sealed record BoxItem(string Id, string Name, string Type, string? ETag);
 
-    public async Task<CaseCustodyRoot> GetExistingCaseRootAsync(
-        Guid caseId,
-        string caseReference,
-        CancellationToken cancellationToken)
-    {
-        ValidateCase(caseId, caseReference);
-        var folder = await FindChildAsync(
-            options.RootFolderId,
-            CaseFolderName(caseId, caseReference),
-            "folder",
-            cancellationToken)
-            ?? throw new InvalidOperationException("The case custody root has not been created.");
-        await EnsureDescendantAsync(folder.Id, cancellationToken);
-        return new(caseId, folder.Id, caseReference);
-    }
+    public string RootFolderId => options.RootFolderId;
 
-    public async Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
-        CaseCustodyRoot root,
-        IntakeSourceCustodyReference source,
-        string operationKey,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(root);
-        ArgumentNullException.ThrowIfNull(source);
-        ValidateOperation(operationKey);
-        await ValidateRootAsync(root, cancellationToken);
-        var content = await artifactStore.ReadAsync(source.SourceObjectKey, cancellationToken)
-            ?? throw new FileNotFoundException("The retained intake source is unavailable.");
-        var actualHash = Convert.ToHexString(SHA256.HashData(content.Span));
-        if (!actualHash.Equals(source.SourceHash, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidDataException("The retained intake source failed its custody integrity check.");
-        }
-
-        var documents = await GetOrCreateFolderAsync(root.RemoteId, "documents", cancellationToken);
-        var receipt = await GetOrCreateFolderAsync(documents.Id, source.IntakeReceiptId.ToString("N"), cancellationToken);
-        var fileName = $"{actualHash.ToLowerInvariant()}-{SafeName(source.SourceFileName)}";
-        var existing = await FindChildAsync(receipt.Id, fileName, "file", cancellationToken);
-        BoxItem file;
-        if (existing is null)
-        {
-            file = await UploadAsync(receipt.Id, fileName, content, source.MediaType, cancellationToken);
-        }
-        else
-        {
-            await EnsureDescendantAsync(existing.Id, cancellationToken, isFile: true);
-            var retained = await DownloadAsync(existing.Id, cancellationToken);
-            if (!SHA256.HashData(retained).AsSpan().SequenceEqual(SHA256.HashData(content.Span)))
-            {
-                throw new InvalidDataException("An existing Box custody file has different content.");
-            }
-            file = existing;
-        }
-        return new(root.CaseId, file.Id, actualHash, file.ETag ?? actualHash);
-    }
-
-    public async Task<string> CreateAuditReferenceFolderAsync(
-        CaseCustodyRoot root,
-        string auditReference,
-        string operationKey,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(root);
-        ArgumentException.ThrowIfNullOrWhiteSpace(auditReference);
-        ValidateOperation(operationKey);
-        await ValidateRootAsync(root, cancellationToken);
-        var auditRoot = await GetOrCreateFolderAsync(root.RemoteId, "audit", cancellationToken);
-        var identity = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(auditReference)))[..24];
-        var folder = await GetOrCreateFolderAsync(auditRoot.Id, $"audit-{identity.ToLowerInvariant()}", cancellationToken);
-        return folder.Id;
-    }
-
-    private async Task ValidateRootAsync(CaseCustodyRoot root, CancellationToken cancellationToken)
-    {
-        ValidateCase(root.CaseId, root.Reference);
-        var expected = await FindChildAsync(
-            options.RootFolderId,
-            CaseFolderName(root.CaseId, root.Reference),
-            "folder",
-            cancellationToken)
-            ?? throw new InvalidOperationException("The case custody root has not been created.");
-        if (!expected.Id.Equals(root.RemoteId, StringComparison.Ordinal))
-        {
-            throw new UnauthorizedAccessException("The custody root does not match the retained case identity.");
-        }
-        await EnsureDescendantAsync(root.RemoteId, cancellationToken);
-    }
-
-    private async Task<BoxItem> GetOrCreateFolderAsync(
+    public async Task<BoxItem> GetOrCreateFolderAsync(
         string parentId,
         string name,
         CancellationToken cancellationToken)
@@ -244,7 +149,7 @@ internal sealed class BoxCaseCustody(
             ?? await CreateFolderAsync(parentId, name, cancellationToken);
     }
 
-    private async Task<BoxItem?> FindChildAsync(
+    public async Task<BoxItem?> FindChildAsync(
         string parentId,
         string name,
         string type,
@@ -268,7 +173,7 @@ internal sealed class BoxCaseCustody(
         };
     }
 
-    private async Task<BoxItem> CreateFolderAsync(
+    public async Task<BoxItem> CreateFolderAsync(
         string parentId,
         string name,
         CancellationToken cancellationToken)
@@ -287,7 +192,7 @@ internal sealed class BoxCaseCustody(
         return folder;
     }
 
-    private async Task<BoxItem> UploadAsync(
+    public async Task<BoxItem> UploadAsync(
         string parentId,
         string name,
         ReadOnlyMemory<byte> content,
@@ -312,7 +217,7 @@ internal sealed class BoxCaseCustody(
         return result;
     }
 
-    private async Task<byte[]> DownloadAsync(string fileId, CancellationToken cancellationToken)
+    public async Task<byte[]> DownloadAsync(string fileId, CancellationToken cancellationToken)
     {
         await EnsureDescendantAsync(fileId, cancellationToken, isFile: true);
         using var response = await SendAsync(
@@ -327,7 +232,23 @@ internal sealed class BoxCaseCustody(
         return await response.Content.ReadAsByteArrayAsync(cancellationToken);
     }
 
-    private async Task EnsureDescendantAsync(
+    public async Task DeleteFileAsync(string fileId, CancellationToken cancellationToken)
+    {
+        await EnsureDescendantAsync(fileId, cancellationToken, isFile: true);
+        using var response = await SendAsync(
+            HttpMethod.Delete,
+            new Uri(options.BaseUri, $"files/{Uri.EscapeDataString(fileId)}"),
+            null,
+            cancellationToken);
+        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.NoContent
+            || response.IsSuccessStatusCode)
+        {
+            return;
+        }
+        throw new HttpRequestException($"Box delete returned {(int)response.StatusCode}.");
+    }
+
+    public async Task EnsureDescendantAsync(
         string itemId,
         CancellationToken cancellationToken,
         bool isFile = false)
@@ -403,6 +324,114 @@ internal sealed class BoxCaseCustody(
         value.TryGetProperty(property, out var result) && result.ValueKind == JsonValueKind.String
             ? result.GetString()
             : null;
+}
+
+internal sealed class BoxCaseCustody(
+    IIntakeArtifactStore artifactStore,
+    BoxContentClient client) : ICaseCustody
+{
+    public async Task<CaseCustodyRoot> CreateCaseRootAsync(
+        Guid caseId,
+        string caseReference,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        ValidateCase(caseId, caseReference);
+        ValidateOperation(operationKey);
+        var folderName = CaseFolderName(caseId, caseReference);
+        var folder = await client.FindChildAsync(client.RootFolderId, folderName, "folder", cancellationToken)
+            ?? await client.CreateFolderAsync(client.RootFolderId, folderName, cancellationToken);
+        await client.EnsureDescendantAsync(folder.Id, cancellationToken);
+        return new(caseId, folder.Id, caseReference);
+    }
+
+    public async Task<CaseCustodyRoot> GetExistingCaseRootAsync(
+        Guid caseId,
+        string caseReference,
+        CancellationToken cancellationToken)
+    {
+        ValidateCase(caseId, caseReference);
+        var folder = await client.FindChildAsync(
+            client.RootFolderId,
+            CaseFolderName(caseId, caseReference),
+            "folder",
+            cancellationToken)
+            ?? throw new InvalidOperationException("The case custody root has not been created.");
+        await client.EnsureDescendantAsync(folder.Id, cancellationToken);
+        return new(caseId, folder.Id, caseReference);
+    }
+
+    public async Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
+        CaseCustodyRoot root,
+        IntakeSourceCustodyReference source,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        ArgumentNullException.ThrowIfNull(source);
+        ValidateOperation(operationKey);
+        await ValidateRootAsync(root, cancellationToken);
+        var content = await artifactStore.ReadAsync(source.SourceObjectKey, cancellationToken)
+            ?? throw new FileNotFoundException("The retained intake source is unavailable.");
+        var actualHash = Convert.ToHexString(SHA256.HashData(content.Span));
+        if (!actualHash.Equals(source.SourceHash, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("The retained intake source failed its custody integrity check.");
+        }
+
+        var documents = await client.GetOrCreateFolderAsync(root.RemoteId, "documents", cancellationToken);
+        var receipt = await client.GetOrCreateFolderAsync(documents.Id, source.IntakeReceiptId.ToString("N"), cancellationToken);
+        var fileName = $"{actualHash.ToLowerInvariant()}-{SafeName(source.SourceFileName)}";
+        var existing = await client.FindChildAsync(receipt.Id, fileName, "file", cancellationToken);
+        BoxContentClient.BoxItem file;
+        if (existing is null)
+        {
+            file = await client.UploadAsync(receipt.Id, fileName, content, source.MediaType, cancellationToken);
+        }
+        else
+        {
+            await client.EnsureDescendantAsync(existing.Id, cancellationToken, isFile: true);
+            var retained = await client.DownloadAsync(existing.Id, cancellationToken);
+            if (!SHA256.HashData(retained).AsSpan().SequenceEqual(SHA256.HashData(content.Span)))
+            {
+                throw new InvalidDataException("An existing Box custody file has different content.");
+            }
+            file = existing;
+        }
+        return new(root.CaseId, file.Id, actualHash, file.ETag ?? actualHash);
+    }
+
+    public async Task<string> CreateAuditReferenceFolderAsync(
+        CaseCustodyRoot root,
+        string auditReference,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        ArgumentException.ThrowIfNullOrWhiteSpace(auditReference);
+        ValidateOperation(operationKey);
+        await ValidateRootAsync(root, cancellationToken);
+        var auditRoot = await client.GetOrCreateFolderAsync(root.RemoteId, "audit", cancellationToken);
+        var identity = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(auditReference)))[..24];
+        var folder = await client.GetOrCreateFolderAsync(auditRoot.Id, $"audit-{identity.ToLowerInvariant()}", cancellationToken);
+        return folder.Id;
+    }
+
+    private async Task ValidateRootAsync(CaseCustodyRoot root, CancellationToken cancellationToken)
+    {
+        ValidateCase(root.CaseId, root.Reference);
+        var expected = await client.FindChildAsync(
+            client.RootFolderId,
+            CaseFolderName(root.CaseId, root.Reference),
+            "folder",
+            cancellationToken)
+            ?? throw new InvalidOperationException("The case custody root has not been created.");
+        if (!expected.Id.Equals(root.RemoteId, StringComparison.Ordinal))
+        {
+            throw new UnauthorizedAccessException("The custody root does not match the retained case identity.");
+        }
+        await client.EnsureDescendantAsync(root.RemoteId, cancellationToken);
+    }
 
     private static void ValidateCase(Guid caseId, string reference)
     {
@@ -434,5 +463,4 @@ internal sealed class BoxCaseCustody(
         return result;
     }
 
-    private sealed record BoxItem(string Id, string Name, string Type, string? ETag);
 }

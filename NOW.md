@@ -4,13 +4,13 @@
 
 ## Doing (max 1)
 
-- Compose the production staff surface: register the document/EVA/upload services under the Production profile with a Box-backed production document content store, lift the `/Intake` 404 for authenticated staff, replace the no-op Triage matcher, and add a production-composition activation test — blocks Path steps 2–6.
+- Open the PR for the production-composition branch so it gets `repository-check` evidence, then merge — the composition fix, the forwarded-headers fix, and the architecture-test parse fix are committed and locally green; the Triage matcher stayed inactive by decision (open-decisions).
 
 ## Next (max 3)
 
-- Release 2 deployment carrying the composition fix, the Box custody root `405543781910`, a forwarded-headers fix (redirects currently emit `http://`), and vault consolidation: copy the Box/DVLA/DVSA secrets into the Pegasus Key Vault, repoint the Worker's references, prove resolution, then retire the two adopted vaults and `rg-collisionspike-dev`.
+- Release 2 deployment carrying the composition fix, the Box custody root `405543781910`, the Web identity's Key Vault Secrets User grant for the two Box secrets the Web container app now references, and vault consolidation: copy the Box/DVLA/DVSA secrets into the Pegasus Key Vault, repoint the Worker's references, prove resolution, then retire the two adopted vaults and `rg-collisionspike-dev`.
 - Assemble the operator-reviewed extraction cohort + untouched holdout and accept the per-field thresholds (INT-21, open-decisions) — blocks Path step 3.
-- Fix `ProjectReferencesFollowTheModularMonolithDirection` backslash parsing and open the PR so the branch gets `repository-check` evidence.
+- Accept the Box managed-document layout from operator review (open-decisions) before the document surface carries real case work.
 
 ## Waiting (max 3 — each line names its unblock condition)
 

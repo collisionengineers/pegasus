@@ -825,14 +825,21 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 - **Integrations:** Graph via the Worker managed identity scoped by Exchange
   Application RBAC to `instructions@collisionengineers.co.uk`; Box production
   custody deployed with root folder `392761581105` — the decided root is
-  `405543781910` ("pegasus") and applies at the next approved deployment;
+  `405543781910` ("pegasus") and applies at the next approved deployment. Box is
+  reached by both hosts from the next deployment: the Worker for intake-source
+  custody and Web for the staff document surface and managed document content,
+  both through the one root-fenced client;
   official DVLA VES v1.2 and DVSA MOT History v1; EVA remains the accepted
   manual JSON/image handoff.
 - **Secrets:** the adopted predecessor vaults `cespkboxkvv76a47` and
   `cespkenrichkvgi62sd` remain (intentionally retained inside
   `rg-collisionspike-dev`); secret-level access only for the identities and
   exact secrets that call them. The three obsolete vaults are soft-deleted with
-  platform purge scheduled 2026-08-09.
+  platform purge scheduled 2026-08-09. The Web container app now declares Key
+  Vault secret references for `Box:ConfigJson` and `Box:ClientSecret` resolved
+  through the Web managed identity, so that identity needs the same secret-level
+  read the Worker has before the next deployment; without it the Web revision
+  fails to start rather than starting without custody.
 - **Predecessor retirement:** executed through the exact verified manifest;
   eight resource batches completed, 30 delete-classified role assignments
   removed, 7 retained; the archive manifest hash is recorded in the runbook
