@@ -7,6 +7,12 @@
 Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 <agent>)`. Nothing is in flight unless it is claimed here on `origin/dev`.
 
+- Delete `design/product/traceability-matrix.md` and repoint its inbound
+  links — capabilities.md and design/README.md already own every rule it
+  restates (operator-decided 2026-08-03); Markdown-only, so it also proves
+  the docs-only CI path (branch task/delete-traceability-matrix, taken
+  2026-08-03, by Claude Fable)
+
 ## Next (ordered queue — take from the top)
 
 - Compose the production staff surface: register the document/EVA/upload
@@ -23,11 +29,6 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   step 3.
 - Fix `ProjectReferencesFollowTheModularMonolithDirection` backslash parsing
   and open the PR so the branch gets `repository-check` evidence.
-- Consolidate `design/product/traceability-matrix.md` into `design/README.md`
-  as ~25 capability-cluster rows (member IDs, role/state, owner/caller,
-  negative rule, UI destination), dropping the copied horizon/target column
-  and deleting the file; as a Markdown-only PR it also proves the docs-only
-  CI path-skip.
 
 ## Waiting (each line names its unblock condition)
 
