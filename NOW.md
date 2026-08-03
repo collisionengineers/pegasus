@@ -56,6 +56,20 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   Vault, repoint the Worker's and Web's references, prove resolution, then
   retire the two adopted vaults and `rg-collisionspike-dev` (branch
   task/vault-consolidation, taken 2026-08-03, by codex).
+- Report renderer integration planning: plan the retirement of the
+  `workspaces/report-renderer/` source import into the monolith — locate the
+  Core render port seam and Infrastructure adapter placement that RPT-01–05
+  and EXT-08 would activate through, fold the workspace's own documentation
+  into the canonical docs, plan the renderer's .NET 8 → repository-TFM
+  uplift, plan the `docs/reference/rendererref1` blueprint and report-template
+  intake, plan promotion of the renderer's pre-existing MCP server as the
+  replacement for the current `.mcpb` packaging (MCP-01–04 follow-ups), and
+  plan removal of any remaining renderer desktop/UI elements. Draft planning
+  documents under `docs/temp-plans/` only: no activation, no `Pegasus.slnx`
+  change, no caller, no workspace deletion, and no acceptance in this task —
+  every integration stays behind the workspace register's activation
+  conditions and needs its own ADR and implementation task (branch
+  task/report-renderer-integration, taken 2026-08-03, by claude).
 ## Next (ordered queue — take from the top)
 
 - Assemble the operator-reviewed extraction cohort + untouched holdout and
