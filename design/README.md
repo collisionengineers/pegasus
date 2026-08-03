@@ -16,9 +16,10 @@ Intended, planned, implemented, caller-proved, deployed and accepted are distinc
 The implemented offline QDOS-alpha surface assigns authenticated manual receipt/list/detail/source work to `/Intake`, `/Intake/{id}`, and `/Intake/{id}/Source`, and exposes token-bound public request submission only at `/Uploads/{token}`; the desktop evaluator is separately owned ([ADR-0016](../docs/adr/0016-standalone-desktop-email-evaluator.md)). Implementation is not deployment, accessibility acceptance, or operator acceptance evidence.
 
 Detailed durable product-design owners are the
-[operator-experience requirements](product/requirements.md),
-[capability traceability matrix](product/traceability-matrix.md), and
-[UI specification](product/ui-spec.md).
+[operator-experience requirements](product/requirements.md) and
+[UI specification](product/ui-spec.md). Per-capability ownership and
+activation boundaries are owned by the
+[capability inventory](../docs/capabilities.md#capabilities) alone.
 
 
 ## Product direction
@@ -44,7 +45,7 @@ The common hierarchy is:
 4. named workflow, evidence, lease or exception state and consequential action;
 5. provenance, external identity, permanent business history and limitations.
 
-Capabilities allocated beyond `0.1.0-alpha.1` have no alpha navigation, control, workflow or placeholder. Their exact first-introduction releases remain owned by the [capability inventory](../docs/capabilities.md#capabilities) and are mirrored ID by ID in the [traceability matrix](product/traceability-matrix.md). Every deferred UI capability must re-enter specification, alternatives, independent review, explicit approval, visual generation and manual visual review before implementation.
+Capabilities allocated beyond `0.1.0-alpha.1` have no alpha navigation, control, workflow or placeholder. Their exact first-introduction releases remain owned by the [capability inventory](../docs/capabilities.md#capabilities). Every deferred UI capability must re-enter specification, alternatives, independent review, explicit approval, visual generation and manual visual review before implementation.
 
 ## Design principles
 
@@ -576,7 +577,7 @@ Each visible capability/state also needs authenticated Web-caller and named Core
 
 ## Deferred and absent UI seams
 
-Exact horizon and first-introduction release remain owned by the [capability inventory](../docs/capabilities.md#capabilities). The [ID-by-ID design mapping](product/traceability-matrix.md) mirrors those allocations. No future allocation creates an alpha route, control, workflow, placeholder or dormant implementation.
+Exact horizon and first-introduction release remain owned by the [capability inventory](../docs/capabilities.md#capabilities). No future allocation creates an alpha route, control, workflow, placeholder or dormant implementation.
 
 ### Deferred integration and intake surfaces
 
