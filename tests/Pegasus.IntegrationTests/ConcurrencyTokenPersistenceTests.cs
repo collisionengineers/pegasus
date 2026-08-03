@@ -8,7 +8,6 @@ using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
-[Collection(LocalDbFixtureDefinition.Name)]
 public sealed class ConcurrencyTokenPersistenceTests
 {
     private const string CaseEntityName = "Pegasus.Infrastructure.Persistence.CaseEntity";

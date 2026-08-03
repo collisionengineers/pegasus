@@ -16,7 +16,6 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.IntegrationTests;
 
 [Trait("Category", "SqlServer")]
-[Collection(LocalDbFixtureDefinition.Name)]
 public sealed class EvaHandoffPersistenceTests
 {
     private static readonly DateTimeOffset Now = new(2031, 5, 1, 12, 0, 0, TimeSpan.Zero);
