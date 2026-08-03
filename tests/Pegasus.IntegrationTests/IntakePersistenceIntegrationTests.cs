@@ -56,7 +56,9 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260730203141_ThirdPartyVehicleEvidenceAndRemoveBootstrap",
                 "20260730203833_RemoveDormantOpenIddict",
                 "20260801220500_GrantWebMigrationHistoryRead",
-                "20260803014608_ProviderInspectionModeSetting"
+                "20260803014608_ProviderInspectionModeSetting",
+                "20260803123935_MailClassificationDecisions",
+                "20260803125915_CaseMatchDecisionsAndAssociationPolicy"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
