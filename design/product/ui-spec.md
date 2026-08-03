@@ -34,7 +34,7 @@ evidence required to activate them.
 | Readiness blocker | Every unmet requirement names its exact field or material, source/provenance, reason, and permitted resolution. The UI has no opaque aggregate blocker; actions enable only from their explicit current prerequisites and no unrelated save resets state. |
 | Identity header | Read-only Case/PO/principal, registration, type/secondary Audit identity, workflow state, `Due by`/overdue state, and EVA proxy limitation. |
 | Due/chaser panel | Missing-material reason, next chase, last recorded channel/outcome, optional note, and next permitted action together. Copy/preparation is not sent or delivered; Triage has no such panel. |
-| Inspection address | Explicit mode choice between physical vehicle/repairer address and exact `Image Based Assessment`; address fields appear only for the physical mode and never imply attendance. |
+| Inspection address | Provider-determined default from the Principal's inspection-mode setting (exact `Image Based Assessment` autofilled, or physical vehicle/repairer address); reasoned per-Case staff override; address fields appear only for the physical mode and never imply attendance. |
 | Engineering findings | Separate Roadworthiness and Assessment controls; accepted and superseded versions; correction reason/history; reopen requirement; no inferred fee/invoice mutation. |
 | Evidence/document panel | Original/source/version/logical removal/closed lock; Box/external state; issued report versions; exact Outlook evidence with separate discovery/link/sent times. |
 | Evidence image preview | Loading and source-preserving enlarged-image states are explicit; opening or closing a preview preserves Case context and does not alter source, category, advisory, or report-image selection. |
@@ -104,9 +104,10 @@ Overview, data, provenance, documents/images, vehicle/MOT, tasks/reminders,
 request-scoped in-house upload token, EVA export, report evidence, and history remain
 focused sections.
 
-Inspection address is one explicit choice: physical vehicle/repairer address
-with address fields, or exact `Image Based Assessment` without fabricated
-address fields. Ordinary-image VRM and vehicle/MOT results show suggestion,
+Inspection address defaults from the Principal's inspection-mode setting:
+exact `Image Based Assessment` without fabricated address fields, or physical
+vehicle/repairer address with address fields; staff may override the default
+on a Case with a reason. Ordinary-image VRM and vehicle/MOT results show suggestion,
 confirmed, unknown/no-result, stale, unavailable, and failed distinctions with
 source/version/age; refresh never overwrites confirmed or last-good data.
 

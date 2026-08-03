@@ -157,7 +157,8 @@ internal static class DevelopmentOfflineInitialization
                 organization.Id,
                 QdosAlphaCaseActivationPolicy.PrincipalCode,
                 actor,
-                "development-qdos-principal"),
+                "development-qdos-principal",
+                CaseInspectionMode.ImageBasedAssessment),
             cancellationToken);
     }
 

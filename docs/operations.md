@@ -402,6 +402,30 @@ Corrections or removals require separately accepted authority and a new explicit
 
 Successful completion proves deterministic authoring bytes only. It does not activate an email route, resolve a provider at intake, prove a migration or caller, or establish release acceptance. Runtime reads only the explicit versioned SQL snapshot and never opens a workbook. Reference ownership is indexed in [reference material](reference/README.md).
 
+## Provider inspection-mode setting
+
+Each Principal row carries an `InspectionMode` setting
+(`physical_address` or `image_based_assessment`) under
+[ADR-0018](adr/0018-provider-inspection-mode-database-setting.md). It is not
+part of the provider-domain reference package above and never will be: that
+package remains domain evidence only. QDOS is seeded `image_based_assessment`
+by migration; principal creation and replacement carry the setting, and a
+successor inherits its predecessor's mode.
+
+Changing an existing Principal's mode in production is a runbook action until
+a dedicated administration operation is justified. With recorded change
+authority, run against the production database:
+
+```sql
+UPDATE [Principals] SET [InspectionMode] = 'image_based_assessment' -- or 'physical_address'
+WHERE [Code] = '<PRINCIPAL-CODE>';
+```
+
+The change affects only cases accepted after it. An acceptance replayed
+across a mode change fails closed with an operation conflict instead of
+deduplicating, and an acceptance in flight during the change is rejected and
+must be retried from a reloaded intake receipt.
+
 ## Local setup and run
 
 Run these commands from PowerShell 7 at the repository root:
@@ -767,7 +791,7 @@ The following contracts must be proved through the owning Core policy and actual
 
 Automatic mailbox categorisation and email matching await the single combined research decision in [open decisions](open-decisions.md). Tests must not invent that policy.
 
-Image association stays conservative when evidence is not definitive. Inspection address accepts confirmed physical data or the exact value `Image Based Assessment` without inferring precedence. `0.1.0-alpha.1` email operations remain explicitly unsupported unless required. Reversible EVA wire mapping is an owning integration contract validated with operator acceptance, not an unresolved product rule.
+Image association stays conservative when evidence is not definitive. Inspection address accepts confirmed physical data, or the exact value `Image Based Assessment` autofilled from the accepted Principal's inspection-mode setting with provider-setting provenance; no address text is ever inferred from a provider, spreadsheet, geocoder or model, and a physical-address Principal fails closed without confirmed address evidence. `0.1.0-alpha.1` email operations remain explicitly unsupported unless required. Reversible EVA wire mapping is an owning integration contract validated with operator acceptance, not an unresolved product rule.
 
 ## Monitoring and diagnosis
 

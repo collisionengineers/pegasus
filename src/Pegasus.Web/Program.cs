@@ -475,6 +475,7 @@ builder.Services.AddScoped<ISecurityEventWriter>(serviceProvider =>
 builder.Services.AddScoped<IActionHistoryWriter>(serviceProvider =>
     serviceProvider.GetRequiredService<EfIdentityAuditStore>());
 builder.Services.AddScoped<ICaseAcceptanceStore, EfCaseAcceptanceStore>();
+builder.Services.AddScoped<IProviderInspectionModeStore, EfProviderInspectionModeStore>();
 builder.Services.AddScoped<IAcceptIntake, AcceptIntake>();
 builder.Services.AddScoped<IInspectionAddressResolutionStore, InspectionAddressResolutionStore>();
 if (requestUploadLimitsFactory is not null)

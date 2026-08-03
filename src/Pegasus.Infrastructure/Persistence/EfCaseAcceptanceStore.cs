@@ -171,6 +171,14 @@ public sealed class EfCaseAcceptanceStore(
                 item => item.Code == principalCode && item.IsActive,
                 cancellationToken)
             ?? throw new InvalidOperationException($"The active principal '{principalCode}' does not exist.");
+        if (!string.Equals(
+                principal.InspectionMode,
+                ProviderInspectionModePolicy.ToCode(request.ProviderInspectionMode),
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "The provider inspection-mode setting changed while the intake was being accepted. Reload and retry.");
+        }
 
         var acceptedAtUtc = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
         var year = TimeZoneInfo.ConvertTime(acceptedAtUtc, LondonTimeZone).Year;
@@ -298,6 +306,22 @@ public sealed class EfCaseAcceptanceStore(
             BeforeVersion = null,
             AfterVersion = 0
         });
+        if (request.ProviderInspectionMode == CaseInspectionMode.ImageBasedAssessment)
+        {
+            context.CaseHistory.Add(new()
+            {
+                Id = Guid.NewGuid(),
+                Case = caseEntity,
+                CaseId = caseId,
+                EventType = "provider_inspection_mode_applied",
+                Actor = request.Actor.SubjectId,
+                Reason = "Provider setting: inspection address autofilled as Image Based Assessment",
+                OccurredAtUtc = acceptedAtUtc,
+                OperationKey = $"provider-mode:{caseId:N}",
+                BeforeVersion = null,
+                AfterVersion = 0
+            });
+        }
         context.ExternalWorkItems.Add(new()
         {
             Id = custodyWorkId,
@@ -503,7 +527,7 @@ public sealed class EfCaseAcceptanceStore(
         string principalCode)
     {
         var materialJson = JsonSerializer.Serialize(new AcceptanceCommandMaterial(
-            3,
+            4,
             request.IntakeReceiptId,
             request.ExpectedIntakeVersion,
             request.Actor.Kind.ToString(),
@@ -520,7 +544,8 @@ public sealed class EfCaseAcceptanceStore(
             request.Completeness.InstructionConfirmedByStaff,
             request.Completeness.ImagesConfirmedByStaff,
             request.StandaloneAuditEvidenceId,
-            request.AcceptedInspectionDeadline));
+            request.AcceptedInspectionDeadline,
+            ProviderInspectionModePolicy.ToCode(request.ProviderInspectionMode)));
         var fingerprint = Convert.ToHexString(
                 SHA256.HashData(Encoding.UTF8.GetBytes(materialJson)))
             .ToLowerInvariant();
@@ -546,7 +571,8 @@ public sealed class EfCaseAcceptanceStore(
         bool InstructionConfirmedByStaff,
         bool ImagesConfirmedByStaff,
         Guid? StandaloneAuditEvidenceId,
-        DateOnly? AcceptedInspectionDeadline);
+        DateOnly? AcceptedInspectionDeadline,
+        string ProviderInspectionMode);
 
     private static string RolesJson(ActionActor actor) =>
         JsonSerializer.Serialize(

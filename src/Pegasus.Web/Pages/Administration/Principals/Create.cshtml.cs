@@ -24,6 +24,9 @@ public sealed class CreateModel(
     public string Code { get; set; } = string.Empty;
 
     [BindProperty]
+    public CaseInspectionMode InspectionMode { get; set; } = CaseInspectionMode.PhysicalAddress;
+
+    [BindProperty]
     public string OperationKey { get; set; } = NewOperationKey();
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
@@ -52,13 +55,17 @@ public sealed class CreateModel(
         {
             ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
         }
+        if (!Enum.IsDefined(InspectionMode))
+        {
+            ModelState.AddModelError(nameof(InspectionMode), "Select an inspection mode.");
+        }
 
         if (ModelState.IsValid)
         {
             try
             {
                 await createPrincipal.ExecuteAsync(
-                    new(OrganizationId, Code, actor, OperationKey),
+                    new(OrganizationId, Code, actor, OperationKey, InspectionMode),
                     cancellationToken);
                 TempData["AdministrationStatus"] = "The principal was created.";
                 return RedirectToPage("Index");
