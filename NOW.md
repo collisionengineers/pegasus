@@ -7,16 +7,6 @@
 Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 <agent>)`. Nothing is in flight unless it is claimed here on `origin/dev`.
 
-- Box Case/PO document custody: remove internal `caseId` values from the Box
-  folder hierarchy; store retained intake sources and managed document versions
-  under the allocated Case/PO-named case folder, reshaping the Core
-  content-store contract rather than duplicating policy in infrastructure;
-  preserve version identity, replay, hash/length verification, and lifecycle
-  gates, with focused local/in-memory custody proof. No Box/Azure read, write,
-  credential/configuration change, or migration of existing Box content without
-  separately approved target and inventory (DOC-02/03) (branch
-  task/box-casepo-document-custody, taken 2026-08-03, by codex).
-
 - Vault consolidation: copy the Box/DVLA/DVSA secrets into the Pegasus Key
   Vault, repoint the Worker's and Web's references, prove resolution, then
   retire the two adopted vaults and `rg-collisionspike-dev` (branch
@@ -55,6 +45,11 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   environment holds an accepted case (CaseMatchIndex ships empty with no
   backfill); if any accepted QDOS case exists, add a one-shot reprojection
   (task/qdos-email-classification review, 2026-08-03).
+- Before the production spine proof: a read-only inventory of the approved
+  Box custody root confirming no pre-existing `{reference}-{caseId}` case
+  folders exist (the Case/PO custody layout fails closed on legacy roots and
+  authorises no migration) (task/box-casepo-document-custody review,
+  2026-08-03).
 - Operator decision: the pre-scrub commits of task/qdos-email-classification
   still carry corpus-derived names/references in GitHub PR refs — decide
   whether to request a history purge; and decide handling of the real staff
