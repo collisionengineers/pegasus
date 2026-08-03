@@ -29,9 +29,11 @@ Retained intake sources and managed document versions (reports,
 correspondence, and staff-added documents) are kept beneath that same root.
 The application may retain Case and version UUIDs as internal identities, but
 neither a separate `cases/{caseId}` tree nor a UUID-derived Box case folder is
-part of the accepted custody layout. No remote content migration is authorised
-by this decision; any existing-content relocation requires a separately
-approved target, inventory, recovery plan, and approval.
+part of the accepted custody layout (owner:
+[requirements](requirements.md#documents-extraction-and-custody)). No remote
+content migration is authorised by this decision; any existing-content
+relocation requires a separately approved target, inventory, recovery plan,
+and approval.
 
 ## QDOS alpha activation details (migrated from the retired delivery plan)
 

@@ -459,17 +459,7 @@ internal sealed class BoxCaseCustody(
         }
     }
 
-    private static string CaseFolderName(string reference) => SafeName(reference);
+    private static string CaseFolderName(string reference) => CustodyNames.SafeName(reference);
 
-    private static string SafeName(string value)
-    {
-        var invalid = Path.GetInvalidFileNameChars().ToHashSet();
-        var result = new string(value.Trim().Select(character => invalid.Contains(character) ? '_' : character).ToArray());
-        if (string.IsNullOrWhiteSpace(result) || result.Length > 180)
-        {
-            throw new ArgumentException("The Box custody name is invalid.", nameof(value));
-        }
-        return result;
-    }
-
+    private static string SafeName(string value) => CustodyNames.SafeName(value);
 }
