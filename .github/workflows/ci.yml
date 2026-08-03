@@ -32,10 +32,11 @@ jobs:
             $head = '${{ github.sha }}'
           }
           # Build/test lanes run only for changes that can affect the built
-          # application: source, tests, the solution, project/lock/config
-          # files, or a script a CI job executes
+          # application or how the lanes themselves run: source, tests, the
+          # solution, project/lock/config files, a script a CI job executes, or
+          # this workflow and the action it shares
           # (docs/engineering.md "Branches and delivery").
-          $buildPattern = '^(src|tests)/|^Pegasus\.slnx$|\.csproj$|\.props$|\.targets$|packages\.lock\.json$|^global\.json$|^nuget\.config$|^scripts/Invoke-QdosAlphaAcceptance\.ps1$'
+          $buildPattern = '^(src|tests)/|^Pegasus\.slnx$|\.csproj$|\.props$|\.targets$|packages\.lock\.json$|^global\.json$|^nuget\.config$|^scripts/Invoke-(QdosAlphaAcceptance|TestShard)\.ps1$|^\.github/workflows/ci\.yml$|^\.github/actions/'
           $build = 'true'
           if ($base -and $base -notmatch '^0+$') {
             $files = @(git diff --name-only "$base...$head")
@@ -45,38 +46,114 @@ jobs:
           }
           "build=$build" >> $env:GITHUB_OUTPUT
 
-  validate:
-    # Historical full runs take 32-43 minutes on windows-latest; the timeout
-    # guards against a hung run, not normal variance. Change sets touching no
-    # build-relevant path run only the documentation link check (docs/engineering.md "Branches and delivery").
-    needs: changes
+  documentation:
+    # The one lane every change set runs, including change sets that touch no
+    # build-relevant path (docs/engineering.md "Branches and delivery"). It
+    # stays on Windows because Test-Path is case-insensitive there and
+    # case-sensitive on Linux, so moving it would quietly change the rule.
     runs-on: windows-latest
-    timeout-minutes: 75
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - name: Documentation links
         shell: pwsh
         run: ./scripts/Test-DocumentationLinks.ps1
-      - uses: actions/setup-dotnet@v6
-        if: needs.changes.outputs.build == 'true'
+
+  unit:
+    # Both projects run whole and unfiltered: neither declares a single test
+    # trait, so no filter can drop one of their tests.
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/dotnet-build
+      - name: Test
+        shell: pwsh
+        # Chained, not two lines: pwsh reports only the last command's exit
+        # code, so a failing first project would otherwise pass the step.
+        run: >
+          dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build &&
+          dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build
+
+  sql-integration:
+    # Every integration test that is not a browser test. `Category=Browser` and
+    # `Category!=Browser` are a complement pair, so this lane and `browser`
+    # together select exactly what the single validate job used to select.
+    # These tests are serialised by their LocalDB collection, so the only way
+    # to overlap them is across runners; the shards divide whole test classes.
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      # One shard's failure must not hide another shard's coverage report.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/dotnet-build
+      - name: Test
+        shell: pwsh
+        run: >
+          ./scripts/Invoke-TestShard.ps1
+          -Project ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj
+          -Filter "Category!=Corpus&Category!=Browser"
+          -Shard ${{ matrix.shard }} -ShardCount 3
+      - name: Retain what this shard enumerated and ran
+        if: always()
+        uses: actions/upload-artifact@v6
         with:
-          dotnet-version: 10.0.x
-      - name: Restore
-        if: needs.changes.outputs.build == 'true'
+          name: test-shard-${{ matrix.shard }}
+          path: artifacts/test-shards/
+          if-no-files-found: error
+
+  sql-integration-coverage:
+    # Proves the shards reassemble into exactly the tests the lane's filter
+    # selects. Without it, a shard filter that quietly matched nothing would
+    # leave the lane green having run less.
+    needs: [changes, sql-integration]
+    # `always()` so a failing shard still gets its coverage reported, but never
+    # when the lane was path-skipped.
+    if: always() && needs.changes.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v6
+        with:
+          pattern: test-shard-*
+          merge-multiple: true
+          path: artifacts/test-shards
+      - name: Every enumerated test ran in exactly one shard
         shell: pwsh
-        run: dotnet restore ./Pegasus.slnx --locked-mode
-      - name: Build
-        if: needs.changes.outputs.build == 'true'
-        shell: pwsh
-        run: dotnet build ./Pegasus.slnx --configuration Release --no-restore
+        run: ./scripts/Invoke-TestShard.ps1 -VerifyPartition -ShardCount 3
+
+  browser:
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/dotnet-build
+      - name: Cache the pinned Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\ms-playwright
+          key: ms-playwright-${{ runner.os }}-${{ hashFiles('tests/Pegasus.IntegrationTests/packages.lock.json') }}
       - name: Install pinned Playwright Chromium
-        if: needs.changes.outputs.build == 'true'
+        # Never gated on a cache hit: the installer is idempotent and repairs a
+        # partial cache, which is what keeps a poisoned cache from being trusted.
         shell: pwsh
         run: pwsh ./tests/Pegasus.IntegrationTests/bin/Release/net10.0/playwright.ps1 install chromium
       - name: Test
-        if: needs.changes.outputs.build == 'true'
         shell: pwsh
-        run: dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"
+        run: >
+          dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj
+          --configuration Release --no-build --filter "Category=Browser&Category!=Corpus"
 
   qdos-pressure:
     # Local deterministic pressure completes in seconds; allow setup variance

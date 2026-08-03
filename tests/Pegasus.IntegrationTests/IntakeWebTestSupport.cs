@@ -69,7 +69,11 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         this.extractionPolicy = extractionPolicy;
         this.useIntegrationTestAuthentication = useIntegrationTestAuthentication;
         this.initializeDevelopmentOffline = initializeDevelopmentOffline;
-        database = LocalDbTestDatabase.CreateAsync(migrate: false).GetAwaiter().GetResult();
+        // Restored from the per-run template rather than migrated here: this
+        // constructor is the suite's most-repeated database lifecycle.
+        // CreateHost still runs DevelopmentOfflineInitialization, whose own
+        // MigrateAsync then finds nothing to apply.
+        database = LocalDbTestDatabase.CreateAsync().GetAwaiter().GetResult();
     }
 
     internal LocalDbTestDatabase Database => database;

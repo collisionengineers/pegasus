@@ -279,6 +279,21 @@ public sealed class LocalDbFixtureDefinition
     public const string Name = "Disposable LocalDB";
 }
 
+/// <summary>
+/// Where a disposable test database's schema came from.
+/// </summary>
+internal enum LocalDbSchemaOrigin
+{
+    /// <summary>No migration was applied.</summary>
+    Empty,
+
+    /// <summary>The migration stream was applied to this database.</summary>
+    Migrated,
+
+    /// <summary>The once-per-run migrated template was restored.</summary>
+    Template
+}
+
 internal sealed class LocalDbTestDatabase : IAsyncDisposable
 {
     private const string Prefix = "Pegasus_Test_";
@@ -359,6 +374,13 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
     public string DatabaseName { get; }
 
     public string ConnectionString { get; }
+
+    /// <summary>
+    /// How this database got its schema. A test that means to exercise the
+    /// template must assert this, or a broken template is a slow pass.
+    /// </summary>
+    public LocalDbSchemaOrigin SchemaOrigin { get; private set; } = LocalDbSchemaOrigin.Empty;
+
     public SqlConnection CreateConnection() => new(ConnectionString);
 
     public AsyncServiceScope CreateAsyncScope() => services.CreateAsyncScope();
@@ -367,7 +389,8 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         bool migrate = true,
         Action<DbContextOptionsBuilder>? configureDatabase = null,
         Func<IServiceProvider, string>? localArtifactRootFactory = null,
-        Action<IServiceCollection>? configureServices = null)
+        Action<IServiceCollection>? configureServices = null,
+        bool useTemplate = true)
     {
         var database = new LocalDbTestDatabase(
             Prefix + Guid.NewGuid().ToString("N"),
@@ -376,10 +399,23 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
             configureServices);
         try
         {
+            // An unmigrated database is what several tests are about, so the
+            // template is only ever a substitute for migrating.
+            var template = migrate && useTemplate
+                ? await LocalDbTemplateDatabase.GetAsync()
+                : null;
+            if (template is not null)
+            {
+                await database.RestoreFromTemplateAsync(template);
+                database.SchemaOrigin = LocalDbSchemaOrigin.Template;
+                return database;
+            }
+
             await database.CreateEmptyDatabaseAsync();
             if (migrate)
             {
                 await database.MigrateAsync();
+                database.SchemaOrigin = LocalDbSchemaOrigin.Migrated;
             }
 
             return database;
@@ -515,7 +551,31 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         await command.ExecuteNonQueryAsync();
     }
 
-    private static string MasterConnectionString() => BuildConnectionString("master");
+    private async Task RestoreFromTemplateAsync(LocalDbTemplateSnapshot template)
+    {
+        // The restore creates the database, so it carries the same name guard
+        // the create path carries.
+        ValidateExactDisposableName(DatabaseName);
+        await using var connection = new SqlConnection(MasterConnectionString());
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            $"RESTORE DATABASE [{DatabaseName}] FROM DISK = @backupPath WITH " +
+            "MOVE @dataLogicalName TO @dataFile, MOVE @logLogicalName TO @logFile, RECOVERY";
+        command.Parameters.AddWithValue("@backupPath", template.BackupPath);
+        command.Parameters.AddWithValue("@dataLogicalName", template.DataLogicalName);
+        command.Parameters.AddWithValue(
+            "@dataFile",
+            LocalDbTemplateDatabase.Combine(template.DataDirectory, DatabaseName + ".mdf"));
+        command.Parameters.AddWithValue("@logLogicalName", template.LogLogicalName);
+        command.Parameters.AddWithValue(
+            "@logFile",
+            LocalDbTemplateDatabase.Combine(template.DataDirectory, DatabaseName + "_log.ldf"));
+        command.CommandTimeout = 300;
+        await command.ExecuteNonQueryAsync();
+    }
+
+    internal static string MasterConnectionString() => BuildConnectionString("master");
 
     private static void ValidateExactDisposableName(string databaseName)
     {
