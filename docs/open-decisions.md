@@ -150,7 +150,7 @@ composition test pins the inactive matcher so it can never be activated as a
 side effect of composition.
 
 Accepted for the QDOS direct route only (operator decision 2026-08-03,
-[ADR-0019](adr/0019-accepted-qdos-case-association-predicates.md)): the
+[ADR-0020](adr/0020-accepted-qdos-case-association-predicates.md)): the
 automatic incoming-case matching predicates and their conservative outcomes —
 label-anchored claim-token, client-VRM, and surname+initial keys; incident
 date as an eliminator only; one survivor associates, ambiguity fails closed to

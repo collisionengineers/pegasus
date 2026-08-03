@@ -1,4 +1,8 @@
-# ADR-0019: Accepted QDOS automatic case-association predicates
+# ADR-0020: Accepted QDOS automatic case-association predicates
+
+(Filed as ADR-0020 to resolve a numbering collision: this body was originally
+headed ADR-0019, taken concurrently with the in-process ONNX VRM recognition
+decision that kept the number.)
 
 - Date: 2026-08-03
 - Status: accepted

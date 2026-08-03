@@ -446,7 +446,7 @@ public sealed class ProcessQueuedIntake(
                 cancellationToken)
                 ?? throw new InvalidDataException(
                     "The completed intake evaluation does not identify a persisted receipt.");
-            await AssociateCaseIfUnambiguousAsync(
+            var replayAssociated = await AssociateCaseIfUnambiguousAsync(
                 completedReceipt,
                 completedEvaluation,
                 cancellationToken);
@@ -454,6 +454,13 @@ public sealed class ProcessQueuedIntake(
                 completedReceipt,
                 completedEvaluation,
                 cancellationToken);
+            if (replayAssociated)
+            {
+                completedReceipt = await receiptQueries.GetAsync(
+                    completedEvaluation.ProcessedReceiptId,
+                    cancellationToken) ?? completedReceipt;
+            }
+
             await ApplyImageIntakeAutomationAsync(completedReceipt, cancellationToken);
             return;
         }
@@ -522,8 +529,16 @@ public sealed class ProcessQueuedIntake(
             stagedReceipt.StorageKey,
             cancellationToken);
 
-        await AssociateCaseIfUnambiguousAsync(processed, evaluation, cancellationToken);
+        var associated = await AssociateCaseIfUnambiguousAsync(processed, evaluation, cancellationToken);
         await CreateTriageIfQualifyingAsync(processed, evaluation, cancellationToken);
+        if (associated)
+        {
+            // The association wrote CurrentCaseId durably; the in-memory
+            // receipt is stale, and image automation must see the associated
+            // state or it would attempt a conflicting auto-link.
+            processed = await receiptQueries.GetAsync(processed.Id, cancellationToken) ?? processed;
+        }
+
         await ApplyImageIntakeAutomationAsync(processed, cancellationToken);
     }
 
@@ -554,7 +569,14 @@ public sealed class ProcessQueuedIntake(
         }
     }
 
-    private async Task AssociateCaseIfUnambiguousAsync(
+    /// <summary>
+    /// Advisory and non-blocking, like image automation: the evaluation and
+    /// its case-match decision are already durable, staff can always link
+    /// manually from the recorded decision, and a redelivered receipt replays
+    /// through the operation key — so a failed association write is never
+    /// allowed to fail the completed receipt.
+    /// </summary>
+    private async Task<bool> AssociateCaseIfUnambiguousAsync(
         IntakeReceipt receipt,
         IntakeEvaluationRevision evaluation,
         CancellationToken cancellationToken)
@@ -562,25 +584,39 @@ public sealed class ProcessQueuedIntake(
         if (receipt.CaseMatchDecision is not
             { Outcome: CaseMatchOutcome.UniqueMatch, MatchedCaseId: { } matchedCaseId } decision)
         {
-            return;
+            return false;
         }
 
         if (receipt.CurrentCaseId is not null)
         {
-            return;
+            return false;
         }
 
-        await caseAssociationStore.AssociateFromMatchAsync(
-            new(
-                receipt.Id,
-                matchedCaseId,
-                decision.PolicyKey,
-                decision.PolicyVersion,
-                SystemActor,
-                $"case-match-association:{evaluation.Id:N}",
-                $"Automatic association from the recorded case-match decision ({decision.PolicyKey} v{decision.PolicyVersion})."),
-            timeProvider.GetUtcNow(),
-            cancellationToken);
+        try
+        {
+            var outcome = await caseAssociationStore.AssociateFromMatchAsync(
+                new(
+                    receipt.Id,
+                    matchedCaseId,
+                    decision.PolicyKey,
+                    decision.PolicyVersion,
+                    SystemActor,
+                    $"case-match-association:{evaluation.Id:N}",
+                    $"Automatic association from the recorded case-match decision ({decision.PolicyKey} v{decision.PolicyVersion})."),
+                timeProvider.GetUtcNow(),
+                cancellationToken);
+            return outcome == AutomaticCaseAssociationOutcome.Associated;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            // A vanished case, an archived case, or a live staff edit lease
+            // yields; the recorded decision stays visible for a staff link.
+            return false;
+        }
     }
 
     private async Task TryDeleteCompletedStagingAsync(

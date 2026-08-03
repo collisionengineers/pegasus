@@ -45,7 +45,7 @@ public sealed class MailboxIntakeIntegrationTests
             CaseMatchOutcome.NoMatch,
             null,
             null,
-            new("46553/1", null, null, null, null),
+            new("12345/1", null, null, null, null),
             [],
             "No case of the provider matches any extracted key.",
             "qdos_case_match",
@@ -105,7 +105,7 @@ public sealed class MailboxIntakeIntegrationTests
                 .ToListAsync());
         Assert.Contains("priorDecisions", reevaluationEvent.DetailsJson, StringComparison.Ordinal);
         Assert.Contains("audit", reevaluationEvent.DetailsJson, StringComparison.Ordinal);
-        Assert.Contains("46553/1", reevaluationEvent.DetailsJson, StringComparison.Ordinal);
+        Assert.Contains("12345/1", reevaluationEvent.DetailsJson, StringComparison.Ordinal);
 
         var reloaded = await scope.ServiceProvider
             .GetRequiredService<IIntakeReceiptQueries>()

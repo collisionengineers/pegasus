@@ -75,7 +75,8 @@ Verified absent from both checkouts: any parsing of `EREF`, any incident-type
 
 What does run over the subject is a loose job-reference regex and a two-tier
 VRM extractor. The job-reference tier is what would capture
-`Our Ref: MFI/AKH/46553/1`, and it is explicitly documented as too loose to
+`Our Ref: ABC/DEF/12345/1` (synthetic; the real reference follows the same
+shape), and it is explicitly documented as too loose to
 mint a case — surfaced as an "about existing work" hint only.
 
 So the templated-subject findings in

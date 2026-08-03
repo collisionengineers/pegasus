@@ -96,17 +96,49 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     StringComparison.Ordinal))
             {
                 migrationBuilder.Sql(
+                    """
+                    IF NOT EXISTS (
+                        SELECT 1
+                        FROM sys.database_principals
+                        WHERE name = N'pegasus_web_runtime_role'
+                          AND [type] = 'R'
+                          AND is_fixed_role = 0
+                          AND owning_principal_id = DATABASE_PRINCIPAL_ID(N'dbo'))
+                        THROW 51000, 'The fixed Pegasus Web runtime role is missing or invalid.', 1;
+                    IF NOT EXISTS (
+                        SELECT 1
+                        FROM sys.database_principals
+                        WHERE name = N'pegasus_worker_runtime_role'
+                          AND [type] = 'R'
+                          AND is_fixed_role = 0
+                          AND owning_principal_id = DATABASE_PRINCIPAL_ID(N'dbo'))
+                        THROW 51000, 'The fixed Pegasus Worker runtime role is missing or invalid.', 1;
+                    """);
+                // The Web keeps DELETE on CaseMatchIndex (the acceptance-path
+                // projector replaces a case's index row in place) and the
+                // Worker keeps DELETE on IntakeCaseMatchDecisions
+                // (re-evaluation replaces the decision row after snapshotting
+                // it to history). Everything else is denied DELETE.
+                migrationBuilder.Sql(
                     "GRANT SELECT, INSERT, UPDATE, DELETE ON OBJECT::[dbo].[CaseMatchIndex] TO [pegasus_web_runtime_role];");
                 migrationBuilder.Sql(
                     "GRANT SELECT ON OBJECT::[dbo].[CaseMatchIndex] TO [pegasus_worker_runtime_role];");
                 migrationBuilder.Sql(
+                    "DENY DELETE ON OBJECT::[dbo].[CaseMatchIndex] TO [pegasus_worker_runtime_role];");
+                migrationBuilder.Sql(
                     "GRANT SELECT ON OBJECT::[dbo].[IntakeCaseMatchDecisions] TO [pegasus_web_runtime_role];");
+                migrationBuilder.Sql(
+                    "DENY DELETE ON OBJECT::[dbo].[IntakeCaseMatchDecisions] TO [pegasus_web_runtime_role];");
                 migrationBuilder.Sql(
                     "GRANT SELECT, INSERT, UPDATE, DELETE ON OBJECT::[dbo].[IntakeCaseMatchDecisions] TO [pegasus_worker_runtime_role];");
                 migrationBuilder.Sql(
                     "GRANT SELECT, INSERT, UPDATE ON OBJECT::[dbo].[IntakeManualAssociations] TO [pegasus_worker_runtime_role];");
                 migrationBuilder.Sql(
+                    "DENY DELETE ON OBJECT::[dbo].[IntakeManualAssociations] TO [pegasus_worker_runtime_role];");
+                migrationBuilder.Sql(
                     "GRANT SELECT, INSERT ON OBJECT::[dbo].[IntakeMutationHistory] TO [pegasus_worker_runtime_role];");
+                migrationBuilder.Sql(
+                    "DENY DELETE ON OBJECT::[dbo].[IntakeMutationHistory] TO [pegasus_worker_runtime_role];");
             }
         }
 

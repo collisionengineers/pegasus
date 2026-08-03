@@ -17,7 +17,7 @@ counts show what exists rather than true frequency.
 QDOS generates its subjects to a fixed shape:
 
 ```
-(EREF8) RTA on 18/06/2026 : Mr Nick Jones (Our Ref: MFI/AKH/46553/1, Vehicle: ...)
+(EREF8) RTA on 18/06/2026 : Mrs J Example (Our Ref: ABC/DEF/12345/1, Vehicle: ...)
  ^^^^^  ^^^ ^^^^^^^^^^^^   ^^^^^^^^^^^^^   ^^^^^^^^^^^^^^^^^^^^^^^
  type   kind  incident date  claimant        claim reference
 ```
@@ -61,17 +61,19 @@ remains a separate step under the existing matching rules.
 ## EREF is the email-type code, and it moves through a case
 
 The same claim carries different EREF codes as work progresses. Claim
-`46913/1`, in order:
+`23456/1`, in order (`sender-1` … `sender-5` are five distinct QDOS mailboxes;
+the real local parts were reviewed but are withheld here, matching
+[the sender-domain inventory](qdos-email-classification-sender-domains.md)):
 
 ```
-EREF5   akhoyer        initial
-EREF6   jmoseley
-EREF9   lbirchenough
-EREF12  nduncombe
-EREF12  engineers      RE: ...
+EREF5   sender-1       initial
+EREF6   sender-2
+EREF9   sender-3
+EREF12  sender-4
+EREF12  sender-5       RE: ...
 ```
 
-And a claim can repeat one code across a thread — claim `46528/1` has seven
+And a claim can repeat one code across a thread — claim `34567/1` has seven
 emails, all `EREF8`, six of them `RE:`.
 
 So `EREF` identifies **what kind of message this is**, not where the case has
@@ -90,8 +92,8 @@ the operator confirms them:
   come from many different senders — consistent with instruction and image
   traffic.
 - Higher codes (21–42) carry only `.pdf` and `.png`, and come largely from
-  `accounts@qdosassist.co.uk` — consistent with billing and post-report
-  correspondence.
+  the provider's accounts role mailbox — consistent with billing and
+  post-report correspondence.
 
 A code-to-category mapping is the single most valuable thing to confirm, and
 confirming it is an operator review, not an inference.
@@ -100,11 +102,11 @@ confirming it is an operator review, not an inference.
 
 Not QDOS's automated template, and they matter:
 
-- 2 from `qdoslaw.co.uk`: `Our ref: ELM/NAK0011 - Mutual Client: … - Vehicle
-  Reg; LT17 UCU` — a different reference format entirely.
-- `Engineer Triage- Our claim Reference : 46684/1 , vehicle registration : …`
+- 2 from `qdoslaw.co.uk`: `Our ref: ABC/DEF0123 - Mutual Client: … - Vehicle
+  Reg; CD34 EFG` — a different reference format entirely.
+- `Engineer Triage- Our claim Reference : 45678/1 , vehicle registration : …`
   — these are Triage requests, matching the separate Triage workflow.
-- Bare `46670/1 - Mohammed Jameel` — claim number with no template at all.
+- Bare `56789/1 - Jane Example` — claim number with no template at all.
 
 These prove the classifier cannot depend on `EREF` alone. The claim-number
 extraction still works on all of them, which is another reason to treat the
@@ -192,7 +194,7 @@ kind of work is being instructed:
 | `…LtrtoAuditEngin….pdf` | Letter to Audit Engineer — **Audit instruction** | 27 |
 | `…LtrtoEngineerInstructionCollisionEngineersLtd….doc` | Letter to Engineer Instruction — **Inspection instruction** | 17 |
 
-Examples: `39980_1_LtrtoAuditEngin.pdf`, `48692_1_LtrtoAuditEngin.pdf`,
+Examples: `67890_1_LtrtoAuditEngin.pdf`, `78901_1_LtrtoAuditEngin.pdf`,
 `1_LtrtoEngineerInstructionCollisionEngineersLtd-V1.doc`. The leading number is
 the claim, so the claim reference appears in attachment names as well as
 subjects.
@@ -327,9 +329,10 @@ repairable examples would be wrong in exactly the case that matters most.
 
 ### Supporting, not decisive
 
-- 26 of the 27 audit-instruction emails come from `nduncombe@qdosassist.co.uk`,
-  the highest-volume sender. Suggestive of a handler specialism, but a person
-  can change role, so this must never decide a category.
+- 26 of the 27 audit-instruction emails come from one named handler mailbox
+  (local part withheld), the highest-volume sender. Suggestive of a handler
+  specialism, but a person can change role, so this must never decide a
+  category.
 - 56 emails attach a third-party or bodyshop engineer's report
   (`Bodyshopreport-V1.pdf` ×21, `Bodyshopsuppreport-V1.pdf` ×17,
   `TPIengineersreportforCLV-V1.pdf`, `EngineersReport-V1.pdf`). Consistent with
@@ -355,7 +358,7 @@ The `audit` mentions are **not** instruction language. They are conversational,
 and mostly chasers for work Collision Engineers owes:
 
 - "Please can you forward your final audit report as soon as possible." —
-  repeated near-verbatim from `accounts@`, the largest cluster
+  repeated near-verbatim from the accounts role mailbox, the largest cluster
 - "Can we do an audit report on this or is this the audit figures"
 - "it was cancelled our end as we couldn't do an audit on it"
 - "See attached initial and AUDIT Pav reports"
@@ -516,8 +519,9 @@ Collision Engineers produces the report being audited.
 4. **Subject prefix** (`RE:`, `FW:`, `Automatic reply:`) — reply and
    auto-reply context; `Automatic reply:` maps to the settled `General` /
    `autoreply` subtype.
-5. **Sender mailbox** — `accounts@` concentrates in chasing and billing;
-   `nduncombe@` in audit instructions. Supporting only, never decisive.
+5. **Sender mailbox** — the accounts role mailbox concentrates in chasing and
+   billing; one named handler mailbox in audit instructions (local parts
+   withheld). Supporting only, never decisive.
 6. **Attachment shape** — images and video versus PDF-only; supporting only.
 
 Body keyword matching is explicitly **not** proposed as a tell. The evidence
@@ -546,11 +550,12 @@ category tells.
 
 ## The corpus is already labelled by case reference
 
-The `test folder` corpus is filed one folder per case, named with Collision
-Engineers' own reference:
+The local corpus is filed one folder per case, and the case folder is named
+with Collision Engineers' own reference (shape shown; the local path and live
+case reference are withheld from this committed document):
 
 ```
-corpus/test folder/test folder/A.QDOS26016/message.eml
+corpus/<provider folder>/<case folder>/message.eml     where <case folder> is e.g. A.QDOS<nnnnn>
 ```
 
 Across the 329 emails there are 233 such folders:
@@ -568,22 +573,26 @@ emails by hand, which directly serves the MAIL-21 acceptance cohort.
 Two cautions before relying on it:
 
 - The folder records what the case **became**, which is not always what a
-  single email in it announced. A chaser filed under `A.QDOS26016` is still a
-  chaser, not an audit instruction.
+  single email in it announced. A chaser filed under an `A.QDOS<nnnnn>` folder
+  is still a chaser, not an audit instruction.
 - No `AP.` case appears here, so the total-loss audit reference form has no
   example in this sample.
 
 ## Worked example: an audit chaser
 
-Operator asked for an exact path. This is the email containing "Please can you
-forward your final audit report as soon as possible":
+Operator asked for an exact path. The email containing "Please can you
+forward your final audit report as soon as possible" sits in the local corpus
+at a path of this shape (the exact path carries a live case reference and is
+withheld from this committed document; it is recoverable locally from
+`artifacts/evaluation/qdos-emails/index.csv`):
 
 ```
-corpus/test folder/test folder/A.QDOS26016/message.eml
+corpus/<provider folder>/A.QDOS<nnnnn>/message.eml
 ```
 
-From `accounts@qdosassist.co.uk`, subject
-`(EREF26) RTA on 20/05/2026 : Mrs Vivien Healey (Our Ref: TG/45497/1)`.
+From the provider's accounts role mailbox, with a subject of this shape
+(synthetic substitutes preserving the real subject's format):
+`(EREF26) RTA on 20/05/2026 : Mrs Jane Example (Our Ref: AB/98765/1)`.
 
 It illustrates the trap: the case reference is an Audit, the body says "audit",
 the claim reference is present — and yet the email is a chase on existing work,
@@ -602,4 +611,8 @@ Read-only scripts over the working copy, with outputs beside it under
 | `subject-parse.csv` | Parsed subject fields: EREF, claim ref, incident kind/date, prefix |
 | `body-analysis.csv` | Decoded body text, attachment name list, keyword hit flags |
 
-Nothing under `corpus/` was modified, and no email content is committed.
+Nothing under `corpus/` was modified. Every identifying token in this document
+— claimant names, claim references, vehicle registrations, sender local parts,
+attachment claim numbers, and case-folder references — is a synthetic
+substitute that preserves only the format of the original token; the tell
+phrases quoted are QDOS's generated template text, not personal data.

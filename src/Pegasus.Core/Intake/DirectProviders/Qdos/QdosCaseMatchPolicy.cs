@@ -7,7 +7,7 @@ namespace Pegasus.Core.Intake;
 /// decision 2026-08-03). Extraction is label-anchored with a required separator — free
 /// text is never scraped, which is what excludes the predecessor's false registrations
 /// (AND2 from an office-address footer, OCTOBER, postcode outward codes). The durable
-/// claim identity is the NNNNN/N tail, so 'MFI/AKH/46553/1' and a bare '46553/1' hit
+/// claim identity is the NNNNN/N tail, so 'ABC/DEF/12345/1' and a bare '12345/1' hit
 /// the same claim; qdoslaw.co.uk references keep their own letters-only grammar under
 /// the same provider. Only the client vehicle is a key: TP-prefixed labels are skipped,
 /// which keeps two claimants from one accident apart.

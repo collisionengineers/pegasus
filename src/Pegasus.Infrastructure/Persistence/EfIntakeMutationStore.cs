@@ -68,50 +68,43 @@ internal sealed class EfIntakeMutationStore(
             return AutomaticCaseAssociationOutcome.AlreadyAssociated;
         }
 
-        var @case = await context.Cases
-            .SingleOrDefaultAsync(item => item.Id == request.CaseId, cancellationToken)
+        var caseWorkflow = await context.CaseWorkflows
+            .Include(item => item.Case)
+            .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
             ?? throw new KeyNotFoundException("The matched case does not exist.");
+        // The accepted eliminator predicates make every lifecycle state
+        // eligible, but that operator decision does not cover an archived
+        // case or one under a live staff edit lease — those yield.
+        ArchivedCaseGuard.RequireNotArchived(caseWorkflow);
+        if (caseWorkflow.EditLeaseExpiresAtUtc is { } leaseExpiresAtUtc
+            && leaseExpiresAtUtc > occurredAtUtc)
+        {
+            throw new IntakeAssociationConflictException(
+                "The case is being edited by a staff member; the automatic association yields.");
+        }
 
+        var @case = caseWorkflow.Case;
         var beforeVersion = receipt.Version;
         var beforeJson = Snapshot(receipt);
         var reason = request.Reason.Trim();
-        if (receipt.ManualAssociation is null)
+        // The any-prior-row guard above means no association row exists here.
+        receipt.ManualAssociation = new IntakeManualAssociationEntity
         {
-            receipt.ManualAssociation = new IntakeManualAssociationEntity
-            {
-                IntakeReceiptId = receipt.Id,
-                IntakeReceipt = receipt,
-                CaseId = @case.Id,
-                Case = @case,
-                IsActive = true,
-                Version = 0,
-                LinkedAtUtc = occurredAtUtc,
-                ActorKind = nameof(ActorKind.SystemWorker),
-                ActorSubjectId = request.Actor.Trim(),
-                ActorRolesJson = "[]",
-                Reason = reason,
-                LastOperationKey = operationKey,
-                MatchPolicyKey = request.MatchPolicyKey.Trim(),
-                MatchPolicyVersion = request.MatchPolicyVersion
-            };
-        }
-        else
-        {
-            var association = receipt.ManualAssociation;
-            association.CaseId = @case.Id;
-            association.Case = @case;
-            association.IsActive = true;
-            association.Version++;
-            association.LinkedAtUtc = occurredAtUtc;
-            association.UnlinkedAtUtc = null;
-            association.ActorKind = nameof(ActorKind.SystemWorker);
-            association.ActorSubjectId = request.Actor.Trim();
-            association.ActorRolesJson = "[]";
-            association.Reason = reason;
-            association.LastOperationKey = operationKey;
-            association.MatchPolicyKey = request.MatchPolicyKey.Trim();
-            association.MatchPolicyVersion = request.MatchPolicyVersion;
-        }
+            IntakeReceiptId = receipt.Id,
+            IntakeReceipt = receipt,
+            CaseId = @case.Id,
+            Case = @case,
+            IsActive = true,
+            Version = 0,
+            LinkedAtUtc = occurredAtUtc,
+            ActorKind = nameof(ActorKind.SystemWorker),
+            ActorSubjectId = request.Actor.Trim(),
+            ActorRolesJson = "[]",
+            Reason = reason,
+            LastOperationKey = operationKey,
+            MatchPolicyKey = request.MatchPolicyKey.Trim(),
+            MatchPolicyVersion = request.MatchPolicyVersion
+        };
 
         receipt.Version++;
         context.IntakeMutationHistory.Add(new IntakeMutationHistoryEntity
@@ -121,7 +114,7 @@ internal sealed class EfIntakeMutationStore(
             IntakeReceipt = receipt,
             CaseId = @case.Id,
             Case = @case,
-            EventType = "intake_case_linked",
+            EventType = "intake_case_linked_automatic",
             ActorKind = nameof(ActorKind.SystemWorker),
             ActorSubjectId = request.Actor.Trim(),
             ActorRolesJson = "[]",
@@ -304,6 +297,11 @@ internal sealed class EfIntakeMutationStore(
                     association.ActorRolesJson = RolesJson(request.Actor);
                     association.Reason = request.Reason.Trim();
                     association.LastOperationKey = request.OperationKey.Trim();
+                    // A staff relink is a staff decision: the automatic
+                    // match-policy stamp from an earlier reversed automatic
+                    // association must not carry onto it.
+                    association.MatchPolicyKey = null;
+                    association.MatchPolicyVersion = null;
                 }
             },
             occurredAtUtc,
