@@ -31,10 +31,12 @@ release-route decision recorded in ADR-0007, not a development-platform
 requirement. Web and Worker packages are `linux-x64` and build identically on
 either platform.
 
-Hosted continuous integration runs `windows-latest` only. Linux development is
-supported by these procedures and is not proved by any automated gate: a Linux
-result is developer evidence, not repository-check evidence, until a Linux job
-exists and passes.
+Hosted continuous integration runs application evidence on `windows-latest`
+only; the `repository-check` `changes` job is a Linux path detector that
+exercises no application code and provides no Linux-development evidence.
+Linux development is supported by these procedures and is not proved by any
+automated gate: a Linux result is developer evidence, not repository-check
+evidence, until a Linux application job exists and passes.
 
 ### Platform capability differences
 
@@ -497,6 +499,7 @@ stops only matching child processes, drops only that LocalDB database, and
 removes only that run directory. A malformed or ambiguous manifest refuses
 action. Never manually repurpose these commands to remove another run,
 `corpus/`, tracked reference files, or an Azure resource.
+
 ## Configuration and secrets
 
 Configuration ownership is:
@@ -966,7 +969,9 @@ Malware scanning has no activation path. There is no scanner port, fixture, clie
 Repository visibility was explicitly authorised as public on 2026-07-27. The tracked history and documentation, including [operator notes](operator-notes.md) and supplied reference material, are publicly readable. Never commit secrets, personal/case material, or anything not approved for public source control.
 
 Work tracking uses no GitHub issues, labels, milestones, or project boards.
-[`NOW.md`](../NOW.md) is the only work tracker, the
+[`NOW.md`](../NOW.md) is the only work tracker and the multi-agent task
+queue — agents claim task lines and work them in worktrees under the
+[task workflow](engineering.md#task-workflow) — the
 [capability inventory](capabilities.md) is the roadmap, and
 [open decisions](open-decisions.md) holds unresolved questions
 (see the [repository instructions](../AGENTS.md)). Allocation, activation,
