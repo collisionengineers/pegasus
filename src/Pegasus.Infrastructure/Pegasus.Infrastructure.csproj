@@ -17,12 +17,23 @@
     <PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1" />
     <PackageReference Include="MimeKit" Version="4.17.0" />
     <PackageReference Include="Microsoft.Graph" Version="6.2.0" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
     <PackageReference Include="PdfPig" Version="0.1.15" />
+    <PackageReference Include="SkiaSharp" Version="3.116.1" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="3.116.1" />
   </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="Persistence\ReferenceData\provider-domains.v1.json"
                       LogicalName="Pegasus.Infrastructure.Persistence.ReferenceData.provider-domains.v1.json" />
+    <EmbeddedResource Include="Vision\Models\yolo-v9-t-384-license-plates-end2end.onnx"
+                      LogicalName="Pegasus.Infrastructure.Vision.Models.yolo-v9-t-384-license-plates-end2end.onnx" />
+    <EmbeddedResource Include="Vision\Models\cct_s_v2_global.onnx"
+                      LogicalName="Pegasus.Infrastructure.Vision.Models.cct_s_v2_global.onnx" />
+    <EmbeddedResource Include="Vision\Models\cct_s_v2_global_plate_config.yaml"
+                      LogicalName="Pegasus.Infrastructure.Vision.Models.cct_s_v2_global_plate_config.yaml" />
+    <EmbeddedResource Include="Vision\Models\vision-models-manifest.json"
+                      LogicalName="Pegasus.Infrastructure.Vision.Models.vision-models-manifest.json" />
   </ItemGroup>
 
   <ItemGroup>

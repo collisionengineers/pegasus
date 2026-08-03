@@ -601,6 +601,7 @@ public sealed partial class DetailsModel(
         IntakeDecision.Unsupported => "Unsupported",
         IntakeDecision.OcrRequired => "Document text required",
         IntakeDecision.TechnicalFailure => "Technical failure",
+        IntakeDecision.ImageIntakeRegistered => "Image intake registered",
         _ => throw new InvalidOperationException($"Unknown intake decision value '{(int)decision}'.")
     };
 
