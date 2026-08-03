@@ -891,30 +891,37 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   accepted), FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard
   LRS storage accounts, distinct Web/Worker managed identities, a Pegasus Key
   Vault, Log Analytics, and Application Insights.
-- **Deployed evidence:** release 2 executed 2026-08-03 through the same
-  authorised-terminal route — Web source revision `836db05c…` on immutable
-  digest `sha256:90e5e1e1…` (single healthy revision), Worker package
-  redeployed with all nine functions, production smoke passed (health, exact
-  version/SHA, anonymous-`/Cases` denial). Release 1 (2026-08-02, revision
-  `94997dd0…`) live-verified Graph Inbox/Sent processing through the
-  production Worker (83 successful executions, zero exceptions).
+- **Deployed evidence:** release 3 executed 2026-08-03 through the same
+  authorised-terminal route — Web source revision `ef987ac4…` on immutable
+  digest `sha256:89165ad5…` (single healthy revision `ef987ac49cb4` at 100%
+  traffic, proving the Key Vault secret references resolved), the
+  inspection-mode migration applied before activation with the runtime-role
+  matrix re-verified, Worker package redeployed with all nine functions, and
+  smoke evidence: health live/ready 200, exact version/SHA match, and
+  anonymous `/Cases` 302 to the **https** sign-in route (the forwarded-headers
+  fix live-verified; earlier releases redirected to `http://`). Release 2
+  (2026-08-03, revision `836db05c…`) applied the Box custody root; release 1
+  (2026-08-02, revision `94997dd0…`) live-verified Graph Inbox/Sent processing
+  through the production Worker (83 successful executions, zero exceptions).
 - **Integrations:** Graph via the Worker managed identity scoped by Exchange
   Application RBAC to `instructions@collisionengineers.co.uk`; Box production
   custody rooted at the pegasus folder `405543781910` (applied by release 2);
-  from the composition-fix deployment Box is reached by both hosts — the
-  Worker for intake-source custody and Web for the staff document surface and
-  managed document content — through the one root-fenced client;
+  since release 3 Box is reached by both hosts — the Worker for intake-source
+  custody and Web for the staff document surface and managed document
+  content — through the one root-fenced client;
   official DVLA VES v1.2 and DVSA MOT History v1; EVA remains the accepted
   manual JSON/image handoff.
 - **Secrets:** the adopted predecessor vaults `cespkboxkvv76a47` and
   `cespkenrichkvgi62sd` remain (intentionally retained inside
   `rg-collisionspike-dev`); secret-level access only for the identities and
   exact secrets that call them. The three obsolete vaults are soft-deleted with
-  platform purge scheduled 2026-08-09. From the composition-fix deployment the Web container app declares Key
-  Vault secret references for `Box:ConfigJson` and `Box:ClientSecret` resolved
-  through the Web managed identity, so that identity needs the same secret-level
-  read the Worker has before the next deployment; without it the Web revision
-  fails to start rather than starting without custody.
+  platform purge scheduled 2026-08-09. Since release 3 the Web container app
+  declares Key Vault secret references for `Box:ConfigJson` and
+  `Box:ClientSecret` resolved through the Web managed identity; the matching
+  secret-scoped `Key Vault Secrets User` grants (mirroring the Worker's) were
+  applied before that deployment, and the healthy revision start is the
+  resolution proof. Without those grants a Web revision fails to start rather
+  than starting without custody.
 - **Predecessor retirement:** executed through the exact verified manifest;
   eight resource batches completed, 30 delete-classified role assignments
   removed, 7 retained; the archive manifest hash is recorded in the runbook
