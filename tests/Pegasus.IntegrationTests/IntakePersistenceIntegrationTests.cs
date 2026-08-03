@@ -316,6 +316,13 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
     private const string UserVariable = "PEGASUS_TEST_SQL_USER";
     private const string PasswordVariable = "PEGASUS_TEST_SQL_PASSWORD";
 
+    /// <summary>
+    /// Whether <c>PEGASUS_TEST_SQL_DATASOURCE</c> points these tests at an
+    /// external SQL Server instead of LocalDB.
+    /// </summary>
+    internal static bool UsesExternalDataSource =>
+        !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(DataSourceVariable));
+
     private readonly ServiceProvider services;
     private bool disposed;
 

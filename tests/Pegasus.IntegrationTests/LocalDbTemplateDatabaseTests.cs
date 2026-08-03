@@ -219,20 +219,21 @@ public sealed class LocalDbTemplateDatabaseTests
 /// </summary>
 /// <remarks>
 /// The template uses server-side <c>BACKUP</c> and <c>RESTORE</c>, which the
-/// LocalDB instance the Windows suite uses always permits. A
-/// <c>PEGASUS_TEST_SQL_DATASOURCE</c> container may run under a login without
-/// those rights, where falling back to migrate-per-test is correct rather than
-/// a defect. No CI job runs that path, so nothing here proves it.
+/// LocalDB instance the Windows suite uses always permits. No CI job runs the
+/// <c>PEGASUS_TEST_SQL_DATASOURCE</c> path, so nothing proves the template
+/// there — and for exactly that reason
+/// <see cref="LocalDbTemplateDatabase"/> never engages against an external
+/// server: it migrates per test instead, which these guards would otherwise
+/// flag as a silent fallback.
 /// </remarks>
 internal sealed class LocalDbTemplateFactAttribute : FactAttribute
 {
     public LocalDbTemplateFactAttribute()
     {
-        if (!string.IsNullOrWhiteSpace(
-                Environment.GetEnvironmentVariable("PEGASUS_TEST_SQL_DATASOURCE")))
+        if (LocalDbTestDatabase.UsesExternalDataSource)
         {
-            Skip = "PEGASUS_TEST_SQL_DATASOURCE points these tests at a SQL Server whose backup " +
-                "rights are unknown; the migrated-template promise is unproved there.";
+            Skip = "PEGASUS_TEST_SQL_DATASOURCE points these tests at an external SQL Server, " +
+                "where the template is disabled until a job proves the backup path.";
         }
     }
 }

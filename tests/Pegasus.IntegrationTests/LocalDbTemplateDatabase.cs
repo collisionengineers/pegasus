@@ -18,11 +18,13 @@ internal sealed record LocalDbTemplateSnapshot(
 /// <remarks>
 /// Migrating a fresh database per test dominated the suite's wall clock. The
 /// schema is instead migrated once, backed up, and restored per test. Backup
-/// and restore are server-side, so LocalDB and the
-/// <c>PEGASUS_TEST_SQL_DATASOURCE</c> container behave identically; a failure
-/// to build the template falls back to migrating each database, and
-/// <see cref="LocalDbTemplateDatabaseTests"/> keeps that fallback from passing
-/// silently.
+/// and restore are server-side, which a
+/// <c>PEGASUS_TEST_SQL_DATASOURCE</c> server could in principle serve too —
+/// but no job proves that path and its guard tests skip themselves there, so
+/// an external server migrates per test instead of running an unverified
+/// template. A failure to build the template falls back to migrating each
+/// database, and <see cref="LocalDbTemplateDatabaseTests"/> keeps that
+/// fallback from passing silently on LocalDB.
 /// </remarks>
 internal static class LocalDbTemplateDatabase
 {
@@ -47,6 +49,14 @@ internal static class LocalDbTemplateDatabase
         // instance with whatever an earlier run abandoned just the same, and
         // the container path is exactly where both are most likely.
         await SweepAbandonedDatabasesAsync();
+        if (LocalDbTestDatabase.UsesExternalDataSource)
+        {
+            // The equivalence guards skip themselves against an external
+            // server, and an unverified template with its watchdog off is
+            // worse than the slow-but-proved migrate-per-test path.
+            return null;
+        }
+
         try
         {
             return await BuildTemplateAsync();
@@ -202,8 +212,11 @@ internal static class LocalDbTemplateDatabase
                 await DropQuietlyAsync(connection, databaseName);
             }
         }
-        catch (SqlException)
+        catch (Exception)
         {
+            // Anything — not just a SqlException; a connection-pool timeout
+            // surfacing here as InvalidOperationException would otherwise
+            // fault the template Lazy and fail every test in the process.
         }
     }
 
@@ -222,7 +235,7 @@ internal static class LocalDbTemplateDatabase
             drop.CommandTimeout = 60;
             await drop.ExecuteNonQueryAsync();
         }
-        catch (SqlException)
+        catch (Exception)
         {
             // Another process may hold it, or may have dropped it already.
         }
