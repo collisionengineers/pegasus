@@ -15,6 +15,7 @@
 ## Waiting (max 3 — each line names its unblock condition)
 
 - Obsolete predecessor vault purge — platform-scheduled 2026-08-09, no action unless it fails.
+- Provider-determined inspection mode PR (CASE-29, EXT-18, ADR-0017) — awaits review and explicit merge authorization.
 
 ## Path (decided 2026-08-02: full QDOS cutover — every new QDOS instruction is worked in Pegasus through to the EVA handoff; EVA keeps engineering and reports. Box custody root decided 2026-08-02: all case folders under the pegasus folder `405543781910` only.)
 
