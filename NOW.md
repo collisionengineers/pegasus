@@ -23,6 +23,11 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   step 3.
 - Fix `ProjectReferencesFollowTheModularMonolithDirection` backslash parsing
   and open the PR so the branch gets `repository-check` evidence.
+- Consolidate `design/product/traceability-matrix.md` into `design/README.md`
+  as ~25 capability-cluster rows (member IDs, role/state, owner/caller,
+  negative rule, UI destination), dropping the copied horizon/target column
+  and deleting the file; as a Markdown-only PR it also proves the docs-only
+  CI path-skip.
 
 ## Waiting (each line names its unblock condition)
 
