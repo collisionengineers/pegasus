@@ -673,9 +673,11 @@ public sealed class ProcessIntakeTests
         IIntakeSourceReader reader,
         IIntakeReceiptStore store,
         IIntakeArtifactStore? artifactStore = null,
-        IInstructionExtractionPolicy? extractionPolicy = null) =>
+        IInstructionExtractionPolicy? extractionPolicy = null,
+        IMailRoutePolicy? mailRoutePolicy = null) =>
         new(reader, store, artifactStore ?? new RecordingArtifactStore(),
             extractionPolicy ?? new QdosInstructionExtractionPolicy(),
+            mailRoutePolicy ?? new QdosMailRoutePolicy(),
             new FixedTimeProvider(ProcessedAtUtc));
 
     private static IntakeSource CreateSource() =>

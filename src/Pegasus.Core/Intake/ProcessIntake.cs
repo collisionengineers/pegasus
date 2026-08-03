@@ -8,6 +8,7 @@ public sealed class ProcessIntake(
     IIntakeReceiptStore receiptStore,
     IIntakeArtifactStore artifactStore,
     IInstructionExtractionPolicy extractionPolicy,
+    IMailRoutePolicy mailRoutePolicy,
     TimeProvider timeProvider)
 {
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
@@ -302,12 +303,6 @@ public sealed class ProcessIntake(
         if (sourceChannel != IntakeSourceChannel.Mailbox)
         {
             return null;
-        }
-
-        if (extractionPolicy is not IMailRoutePolicy mailRoutePolicy)
-        {
-            throw new InvalidOperationException(
-                "Mailbox intake requires the configured extraction policy to implement IMailRoutePolicy.");
         }
 
         var result = mailRoutePolicy.Evaluate(readResult);
