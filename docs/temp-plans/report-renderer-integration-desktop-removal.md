@@ -345,28 +345,52 @@ the workspace.
 | `Core/StarterComposer.cs` (167 lines) | No | `AuthoringCatalog.cs:147` (`StarterComposer.Wash`) | **KEEP** |
 | `Core/PlaceholderScanner.cs` (85 lines) | No | `StarterComposer.cs:14-15`; `Contracts.cs:163`; `Core.Tests/PreviewAndStarterTests.cs:14-36,52` | **KEEP** |
 | `Core/JsonPath.cs` (184 lines) | No | `Api/Program.cs:176,340` (`/v1/render.multipart`); `StarterComposer.cs:80,94,100,117,156,162`; `Core.Tests/JsonPathTests.cs` (whole file) | **KEEP** |
-| `Core/PreviewComposer.cs` + `CollisionRendererFactory.CreatePreviewComposer()` | Production: **yes** | Production: none after the GUI goes. Tests: `Core.Tests/PreviewAndStarterTests.cs:109` (class `PreviewComposerTests`, 5 tests) | **DEFER** |
+| `Core/PreviewComposer.cs` + `CollisionRendererFactory.CreatePreviewComposer()` | Production: **yes** | Production: none after the GUI goes. Tests: `Core.Tests/PreviewAndStarterTests.cs:109` (class `PreviewComposerTests`, 5 tests) | **KEEP AND SEPARATE** — operator decision 2026-08-03 |
 | `Gui/Models/DensityOption.cs` | Yes | None outside the GUI project | **DELETE** |
 
-### Why `PreviewComposer` is deferred, not deleted
+### `PreviewComposer` — operator decision 2026-08-03
 
-`PreviewComposer` is validation-free, Chromium-free HTML composition. After
-the GUI is removed its only remaining exercise is `PreviewComposerTests`. It
-is **production-orphaned but test-covered**.
+The operator directed on 2026-08-03 that the HTML preview is wanted, and is
+to be **integrated and separated out from the GUI** rather than deleted with
+it. This closes what was an open question in the first draft of this plan.
 
-It is deferred rather than deleted for three reasons:
+What that means concretely, and what it does not:
 
-1. It is Core library code, not desktop/UI code. The operator directive is
-   scoped to desktop/UI removal. Deleting a Core public contract
-   (`IPreviewComposer`, `PreviewResult`) plus a factory method plus five
-   tests is a different change with a different review question.
-2. A fast, validation-tolerant HTML preview is a plausible input to the
-   seam/placement plan — a Pegasus Web preview surface would want exactly
-   this and would not want Chromium in the request path.
-3. Keeping it costs nothing at build time and its tests keep passing.
+- `PreviewComposer` is already structurally separate from the desktop app —
+  it lives in `CollisionRenderer.Core`, and the GUI is only a caller that
+  displays the composed HTML in a WebView2 control. Deleting the GUI
+  therefore does not require touching the composer. **This plan deletes the
+  WebView2 host and keeps the composer, its public contract
+  (`IPreviewComposer`, `PreviewResult`), the factory method, and all five
+  `PreviewComposerTests`.**
+- The composer is validation-free and Chromium-free. That is the property
+  that makes it viable in a synchronous request path where the full
+  Chromium PDF render is not. It is a genuinely different seam from the PDF
+  renderer and the seam plan must treat it as one, not as a mode of the
+  renderer.
+- Giving it a Pegasus caller is **not in this plan's scope**. This plan
+  preserves the capability; the seam plan owns where the port lives and the
+  templates plan owns what it previews.
 
-Record the orphaning explicitly in the task PR so the seam/placement plan
-inherits the decision rather than rediscovering it.
+Two constraints the seam plan must carry, neither of which this decision by
+itself resolves:
+
+1. **No capability ID exists for a report preview surface.** Nothing in
+   `docs/capabilities.md` allocates one. A staff-visible preview is a UI
+   capability, and `design/README.md:48` requires every deferred UI
+   capability to re-enter specification, alternatives, independent review,
+   explicit approval, visual generation and manual visual review before
+   implementation. `0.1.0-alpha.1` admits no control, navigation, workflow
+   or placeholder for a deferred capability. So the composer can be kept and
+   integrated at the library and port level now; a staff-facing preview
+   screen needs an allocated ID and the full design route first.
+2. **Composed HTML rendered into a staff browser is an injection surface.**
+   The renderer's `HtmlComposer` encodes through `Format.Enc` / `Format.Attr`
+   and `Format.SafeUrl` blocks `javascript:`, `data:` and `file:` hrefs, but
+   `PreviewComposer` is explicitly the *validation-free* path. Any Web
+   caller must isolate the output — sandboxed frame plus a restrictive
+   content security policy — and must never interpolate composed preview
+   HTML into a Razor page. Carry this into the seam plan's risk register.
 
 ### Api authoring endpoints: dead weight assessment
 
