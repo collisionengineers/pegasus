@@ -69,6 +69,7 @@ public sealed record CaseRequestUploadSummary(
 public sealed record CaseHistoryEntry(
     string EventType,
     string Actor,
+    string ActorKind,
     DateTimeOffset OccurredAtUtc,
     string Reason,
     long BeforeVersion,

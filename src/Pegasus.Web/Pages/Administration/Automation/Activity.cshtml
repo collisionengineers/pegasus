@@ -1,0 +1,76 @@
+@page
+@model Pegasus.Web.Pages.Administration.Automation.ActivityModel
+@{
+    ViewData["Title"] = "Automation activity";
+}
+
+<h1>Automation activity</h1>
+<p><a asp-page="/Administration/Automation/Index">Back to Automation</a></p>
+<p>The consolidated permanent record of the Automation actor: every recorded action and every denied automation request. Each operation carries a correlation identifier, and filtering by it gives this record a stable address.</p>
+
+<form method="get" class="section-gap">
+    <label>
+        Correlation identifier
+        <input name="correlationId" value="@Model.CorrelationId" maxlength="100" />
+    </label>
+    <div class="button-row">
+        <button type="submit" class="secondary-action">Filter</button>
+        @if (!string.IsNullOrEmpty(Model.CorrelationId))
+        {
+            <a asp-page="/Administration/Automation/Activity">Clear filter</a>
+        }
+    </div>
+</form>
+
+<section class="panel section-gap" aria-labelledby="automation-activity-heading">
+    <h2 id="automation-activity-heading" class="section-label">Recorded activity</h2>
+    @if (Model.Result.Records.Count == 0)
+    {
+        <p class="empty-state">No Automation activity is recorded@(string.IsNullOrEmpty(Model.CorrelationId) ? "" : " for this correlation identifier").</p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table>
+                <caption>Automation actions and denied automation requests, most recent first</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">When</th>
+                        <th scope="col">Record</th>
+                        <th scope="col">Event</th>
+                        <th scope="col">Subject</th>
+                        <th scope="col">Outcome</th>
+                        <th scope="col">Target</th>
+                        <th scope="col">Correlation</th>
+                        <th scope="col">Reason</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var record in Model.Result.Records)
+                {
+                    <tr>
+                        <td>@record.OccurredAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</td>
+                        <td>@Pegasus.Web.Pages.Administration.Automation.ActivityModel.RecordTypeLabel(record.RecordType)</td>
+                        <td>@record.EventKind</td>
+                        <td>@record.SubjectId</td>
+                        <td>@record.Outcome</td>
+                        <td>@(record.AggregateId ?? "—")</td>
+                        <td><a asp-page="/Administration/Automation/Activity" asp-route-correlationId="@record.CorrelationId">@record.CorrelationId</a></td>
+                        <td>@(record.Reason ?? "—")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+        <div class="button-row section-gap">
+            @if (Model.Result.HasPreviousPage)
+            {
+                <a asp-page="/Administration/Automation/Activity" asp-route-correlationId="@Model.CorrelationId" asp-route-page="@(Model.CurrentPage - 1)">Previous page</a>
+            }
+            @if (Model.Result.HasMoreRecords)
+            {
+                <a asp-page="/Administration/Automation/Activity" asp-route-correlationId="@Model.CorrelationId" asp-route-page="@(Model.CurrentPage + 1)">Next page</a>
+            }
+        </div>
+    }
+</section>

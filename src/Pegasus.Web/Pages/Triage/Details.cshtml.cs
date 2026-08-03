@@ -230,6 +230,7 @@ public sealed class DetailsModel(
     {
         IntakeSourceChannel.ManualUpload => "Manual upload",
         IntakeSourceChannel.Mailbox => "Approved inbox",
+        IntakeSourceChannel.Automation => "Automation",
         _ => throw new InvalidOperationException(
             $"Unknown intake source channel value '{(int)channel}'.")
     };
