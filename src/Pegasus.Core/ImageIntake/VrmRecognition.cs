@@ -59,9 +59,12 @@ public static class VrmRecognitionProvisionalBar
 {
     /// <summary>
     /// Minimum supplied candidate confidence for a read the pipeline may act
-    /// on automatically.
+    /// on automatically. Set from the full-cohort evaluation of 2026-08-03
+    /// (run 20260803-083635): 0.80 measured an 18.1% wrong-suggestion rate,
+    /// 0.90 measured 7.8% — a wrong automatic registration mints a permanent
+    /// reference, so the bar favours abstention.
     /// </summary>
-    public const double MinimumAutomaticConfidence = 0.80;
+    public const double MinimumAutomaticConfidence = 0.90;
 
     /// <summary>
     /// Automatic registration additionally requires exactly one distinct
