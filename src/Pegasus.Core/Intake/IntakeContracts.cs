@@ -314,7 +314,9 @@ public sealed record IntakeReceipt(
     long Version = 0,
     Guid? AcceptedCaseId = null,
     Guid? ManualLinkedCaseId = null,
-    long? ManualAssociationVersion = null)
+    long? ManualAssociationVersion = null,
+    MailClassificationResult? MailClassificationDecision = null,
+    CaseMatchEvaluationResult? CaseMatchDecision = null)
 {
     public IReadOnlyList<IntakeAssetRecord> AssetRecords => Assets ?? [];
 
@@ -347,7 +349,9 @@ public sealed record IntakeReceiptDraft(
     int? ExtractionPolicyVersion,
     IReadOnlyList<IntakeAssetRecord>? Assets = null,
     IReadOnlyList<ScannedPdfOcrCandidate>? OcrCandidates = null,
-    MailRouteEvaluationResult? MailRouteDecision = null)
+    MailRouteEvaluationResult? MailRouteDecision = null,
+    MailClassificationResult? MailClassificationDecision = null,
+    CaseMatchEvaluationResult? CaseMatchDecision = null)
 {
     public IReadOnlyList<IntakeAssetRecord> AssetRecords => Assets ?? [];
 
