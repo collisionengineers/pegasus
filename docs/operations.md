@@ -841,9 +841,9 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   Application Insights cap, £75 monthly budget notifying
   `digital@collisionengineers.co.uk` at actual 50/80/100% and forecast 100%.
   Alerts never stop resources.
-- **Recovery gate:** the first release launched under an explicit exception —
-  no second production release until the isolated RPO/RTO recovery exercise in
-  [production recovery](#production-recovery) passes.
+- **Recovery:** the OPS-09 recovery proof is deferred and gates no release
+  (removed as a gate 2026-08-03); the procedure remains in
+  [production recovery](#production-recovery).
 
 ### Release artifacts and bootstrap
 
@@ -876,14 +876,13 @@ Apply migrations explicitly before application packages. Application startup mus
 
 Current source provides no application backup/restore executable or
 receipt/artifact deletion route, and no Pegasus recovery, failover, RPO, or
-RTO exercise has completed; the first production release launched under an
-explicit exception, and a second release is blocked until the isolated
-exercise below passes. The production Box custody adapter is deployed behind
-the existing Core port and rooted at the approved custody root (see
-[production environment](#production-environment)); it is not
-recovery-tested or operator-accepted. Test cleanup and migration tests are
-narrower evidence. The procedures below are release gates, not claims that
-recovery or deletion is accepted.
+RTO exercise has completed. The recovery proof is deferred and gates no
+release. The production Box custody adapter is deployed behind the existing
+Core port and rooted at the approved custody root (see
+[production environment](#production-environment)); it is not recovery-tested
+or operator-accepted. Test cleanup and migration tests are narrower evidence.
+The procedures below are the accepted method for a future exercise, not
+claims that recovery or deletion is accepted.
 
 ### Local recovery
 
@@ -913,7 +912,7 @@ A production recovery exercise must:
 
 Automatic schema down-migration and deletion of source evidence or shared cloud resources are not recovery steps.
 
-The allocated [OPS-09](capabilities.md) capability and its [product-quality objectives](requirements.md#quality-capacity-security-and-evidence) are proved after `0.1.0-alpha.1` acceptance and gate any second production release. The isolated exercise must prove:
+The allocated [OPS-09](capabilities.md) capability and its [product-quality objectives](requirements.md#quality-capacity-security-and-evidence) are deferred and gate no release. When the exercise runs, it must prove:
 
 - a 15-minute recovery point objective; and
 - a four-hour restoration path.

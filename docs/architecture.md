@@ -430,7 +430,7 @@ Production recovery is forward-oriented:
 4. restore data through the accepted backup and recovery path;
 5. avoid automatic schema down-migration.
 
-The four-hour restoration and 15-minute recovery-point outcomes remain unproved; the isolated recovery exercise gates any second production release (OPS-09).
+The four-hour restoration and 15-minute recovery-point outcomes remain unproved (OPS-09 — deferred; gates no release).
 
 ## Deployment boundary
 
@@ -454,8 +454,7 @@ This route executed on 2026-08-02. The current production state — deployed
 resources, revisions, integrations, and their qualifications — is owned
 exclusively by [operations § Production environment](operations.md#production-environment);
 the full runbook and hashes are in git history. Deployment does not prove an
-untested provider outcome, and the isolated recovery exercise remains a
-mandatory gate before a second release.
+untested provider outcome.
 
 Bicep compilation proves syntax and type consistency only.
 
