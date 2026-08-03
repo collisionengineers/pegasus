@@ -10,7 +10,8 @@ production environment in `rg-pegasus-prod` using Azure Container Apps
 Consumption, Flex Consumption, and a separate production Basic ACR. The
 predecessor test estate has been retired through the exact manifest; only its
 two adopted Key Vaults remain in `rg-collisionspike-dev`. The isolated recovery
-exercise remains a mandatory gate before a second production release. The exact
+exercise is deferred and gates no release (OPS-09 removed as a gate 2026-08-03;
+owned by [operations](../docs/operations.md)). The exact
 executed evidence and hashes are in the retired runbook (git history,
 `azure-production-replacement-plan.md`).**
 
