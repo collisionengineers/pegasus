@@ -17,7 +17,7 @@ QDOS instruction email through intake, review, Case/PO allocation, Box custody,
 and the EVA handoff bundle. [`NOW.md`](../NOW.md) "Path" owns the ordered
 critical path, the non-blocking capability set, and the acceptance boundary
 (OPS-23/OPS-25 close `0.1.0-alpha.1`). The remaining evidence gate on that
-path is item 4 (extraction
+path is item 3 (extraction
 thresholds) below. The Box production custody boundary was decided 2026-08-02:
 folder `405543781910` ("pegasus") is the production custody root and all case
 folders are created only under it (owner:
@@ -41,24 +41,23 @@ Still-open questions preserved from the deleted
 `research-and-planning/qdos-full-alpha-delivery-plan.md`; each blocks only the
 step it names.
 
-1. **VRM recognition engine (`INT-17`)** — Which recognition mechanism, if any,
-   does alpha adopt: in-process model bytes (reviewed origin/licence/hash/RIDs,
-   no Python service or runtime download) or one guarded external adapter (with
-   an image-egress/credential/retention/latency/cost contract)? A frozen genuine
-   labelled cohort + untouched holdout and preaccepted accuracy/abstention gates
-   come first; if nothing meets the gate the capability blocks rather than
-   falls back.
-2. **`INT-31` upload-link limits** — Exact token lifetime, aggregate and
+The former item 1 (`INT-17` VRM recognition thresholds) closed 2026-08-03:
+the operator accepted the full-cohort evaluation at the **0.80** bar with the
+accepted match rules. The
+[ADR-0019 index entry](adr/README.md#architecture-decision-records) and the
+`INT-17` capability row own the accepted numbers and their qualification.
+
+1. **`INT-31` upload-link limits** — Exact token lifetime, aggregate and
    per-file byte limits, file count, allowed content types, per-token/per-IP
    rate, one-time vs reuse, and revocation/expiry error contract. Interim bound:
    the existing aggregate 10 MB intake limit; hashed 256-bit token; anonymous
    `/Uploads/{token}` form; no case disclosure.
-3. **External credential ownership** — For each credential (Box, DVLA/DVSA, any
+2. **External credential ownership** — For each credential (Box, DVLA/DVSA, any
    VRM service, the Exchange application RBAC grant): the named operations owner
    and the provider-specific issue/rotate/revoke/emergency-disable procedure.
    The contract shape (Key Vault URI/version only, prove-then-cut-over, no
    local fallback) is settled.
-4. **QDOS extractor acceptance thresholds (`INT-21`)** — Per-field
+3. **QDOS extractor acceptance thresholds (`INT-21`)** — Per-field
    accuracy/coverage thresholds and truth representation for the ten fields
    (Claimant Name, Claim Number, VRM, Make, Model, Mileage, Accident
    Circumstances, Incident Date, Instruction Date, Inspection Address), from an
@@ -67,11 +66,11 @@ step it names.
    physical-address Principals; an always-image-based Principal's Cases take
    the exact `Image Based Assessment` value from the provider setting
    (ADR-0018), not from extraction.
-5. **Telemetry sampling and daily cap** — Exact sampling rate and daily
+4. **Telemetry sampling and daily cap** — Exact sampling rate and daily
    ingestion cap (31-day interactive retention is settled), accepted from
    measured alpha workload and cost evidence; the deployed adaptive sampling
    and 0.1 GB/day cap are interim.
-6. **Azure budget wiring** — Billing scope, notification contacts/Action Group,
+5. **Azure budget wiring** — Billing scope, notification contacts/Action Group,
    and budget start/end dates were wired in the executed release (£75/month
    alert-only monitoring; see
    [operations](operations.md#production-environment)). Still open: a refreshed
@@ -79,7 +78,27 @@ step it names.
    ceiling or accepted spend range exists
    ([operator notes](operator-notes.md)); material variance from forecast needs
    a named expenditure owner's sign-off.
-7. **Performance dataset ownership** — Who supplies and approves the immutable
+   First measured evidence (2026-08-03, operator-commanded subscription
+   cost reads; no resource was created or changed): `rg-pegasus-prod`'s
+   first ~2 days cost £1.71 (Functions Flex worker £0.73, Storage £0.40,
+   ACR Basic £0.31, Container Apps web £0.22, Monitor £0.05); SQL S0 had
+   not yet billed (list ≈ £12/month — the only 24/7-provisioned line;
+   every other resource is consumption or bottom tier, and the web app is
+   0.5 vCPU/1 GiB scale-to-zero, max 1 replica). Trailing 30 days totalled
+   £85.78, of which £85.40 was `rg-collisionspike-dev` compute/AI already
+   removed by the 2026-08-02 runbook (Foundry Models £40.17, Functions
+   £28.22, Storage £9.47); that group's residual cost is two Key Vaults at
+   effectively £0. Projected steady state ≈ £30–35/month at alpha
+   staff-hours usage, inside the £75 alert. `INT-17` needs no new
+   resource: the engine runs in-process on the existing scale-to-zero web
+   container, and the cheapest non-impacting headroom change, if ONNX
+   sessions pressure 1 GiB, is 2 GiB memory on the same Consumption
+   billing — not a dedicated plan or external service. Watch items: the
+   worker's £0.36/day near-idle Flex baseline (verify no always-ready
+   instance is configured), and the web app still resolves its Box
+   secrets from the legacy `cespkboxkvv76a47` vault — evidence for the
+   queued vault-consolidation prerequisite.
+6. **Performance dataset ownership** — Who supplies and approves the immutable
    2,000-case performance dataset, observed document/source distribution, and
    measured peak burst that the capacity gate needs (fabricated domain data is
    forbidden; absence blocks the gate).

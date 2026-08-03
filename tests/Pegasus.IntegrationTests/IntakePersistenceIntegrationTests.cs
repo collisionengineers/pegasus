@@ -9,7 +9,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Pegasus.IntegrationTests;
 
-[Collection(LocalDbFixtureDefinition.Name)]
 [Trait("Category", "SqlServer")]
 public sealed class IntakePersistenceIntegrationTests
 {
@@ -56,10 +55,17 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260730203141_ThirdPartyVehicleEvidenceAndRemoveBootstrap",
                 "20260730203833_RemoveDormantOpenIddict",
                 "20260801220500_GrantWebMigrationHistoryRead",
-                "20260803014608_ProviderInspectionModeSetting"
+                "20260803014608_ProviderInspectionModeSetting",
+                "20260803071539_ImageIntakeRegistration"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'ImageIntakes'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'ImageIntakeSequences'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'ImageVrmSuggestions'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'IntakeReceipts'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
@@ -274,15 +280,35 @@ public sealed class IntakePersistenceIntegrationTests
         decision == IntakeDecision.DraftReady ? QdosInstructionExtractionPolicy.Version : null);
 }
 
-[CollectionDefinition(Name, DisableParallelization = true)]
-public sealed class LocalDbFixtureDefinition
+/// <summary>
+/// Where a disposable test database's schema came from.
+/// </summary>
+internal enum LocalDbSchemaOrigin
 {
-    public const string Name = "Disposable LocalDB";
+    /// <summary>No migration was applied.</summary>
+    Empty,
+
+    /// <summary>The migration stream was applied to this database.</summary>
+    Migrated,
+
+    /// <summary>The once-per-run migrated template was restored.</summary>
+    Template
 }
 
 internal sealed class LocalDbTestDatabase : IAsyncDisposable
 {
-    private const string Prefix = "Pegasus_Test_";
+    internal const string Prefix = "Pegasus_Test_";
+
+    /// <summary>
+    /// How long a database-lifecycle statement may take.
+    /// </summary>
+    /// <remarks>
+    /// CREATE, RESTORE, BACKUP and DROP all queue behind one another on the
+    /// instance, so with test classes running in parallel the 30-second
+    /// default turns load into a failure that looks like a timeout. One
+    /// number, because they contend for the same thing.
+    /// </remarks>
+    internal const int LifecycleCommandTimeoutSeconds = 300;
 
     /// <summary>
     /// Overrides the data source for the SQL Server instance these tests use.
@@ -296,6 +322,13 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
     private const string DataSourceVariable = "PEGASUS_TEST_SQL_DATASOURCE";
     private const string UserVariable = "PEGASUS_TEST_SQL_USER";
     private const string PasswordVariable = "PEGASUS_TEST_SQL_PASSWORD";
+
+    /// <summary>
+    /// Whether <c>PEGASUS_TEST_SQL_DATASOURCE</c> points these tests at an
+    /// external SQL Server instead of LocalDB.
+    /// </summary>
+    internal static bool UsesExternalDataSource =>
+        !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(DataSourceVariable));
 
     private readonly ServiceProvider services;
     private bool disposed;
@@ -360,6 +393,13 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
     public string DatabaseName { get; }
 
     public string ConnectionString { get; }
+
+    /// <summary>
+    /// How this database got its schema. A test that means to exercise the
+    /// template must assert this, or a broken template is a slow pass.
+    /// </summary>
+    public LocalDbSchemaOrigin SchemaOrigin { get; private set; } = LocalDbSchemaOrigin.Empty;
+
     public SqlConnection CreateConnection() => new(ConnectionString);
 
     public AsyncServiceScope CreateAsyncScope() => services.CreateAsyncScope();
@@ -368,7 +408,8 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         bool migrate = true,
         Action<DbContextOptionsBuilder>? configureDatabase = null,
         Func<IServiceProvider, string>? localArtifactRootFactory = null,
-        Action<IServiceCollection>? configureServices = null)
+        Action<IServiceCollection>? configureServices = null,
+        bool useTemplate = true)
     {
         var database = new LocalDbTestDatabase(
             Prefix + Guid.NewGuid().ToString("N"),
@@ -377,10 +418,23 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
             configureServices);
         try
         {
+            // An unmigrated database is what several tests are about, so the
+            // template is only ever a substitute for migrating.
+            var template = migrate && useTemplate
+                ? await LocalDbTemplateDatabase.GetAsync()
+                : null;
+            if (template is not null)
+            {
+                await database.RestoreFromTemplateAsync(template);
+                database.SchemaOrigin = LocalDbSchemaOrigin.Template;
+                return database;
+            }
+
             await database.CreateEmptyDatabaseAsync();
             if (migrate)
             {
                 await database.MigrateAsync();
+                database.SchemaOrigin = LocalDbSchemaOrigin.Migrated;
             }
 
             return database;
@@ -497,6 +551,7 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
                 $"ALTER DATABASE [{DatabaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; " +
                 $"DROP DATABASE [{DatabaseName}]; END";
             drop.Parameters.AddWithValue("@databaseName", DatabaseName);
+            drop.CommandTimeout = LifecycleCommandTimeoutSeconds;
             await drop.ExecuteNonQueryAsync();
         }
 
@@ -513,17 +568,53 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
         command.CommandText = $"CREATE DATABASE [{DatabaseName}]";
+        command.CommandTimeout = LifecycleCommandTimeoutSeconds;
         await command.ExecuteNonQueryAsync();
     }
 
-    private static string MasterConnectionString() => BuildConnectionString("master");
-
-    private static void ValidateExactDisposableName(string databaseName)
+    private async Task RestoreFromTemplateAsync(LocalDbTemplateSnapshot template)
     {
-        Assert.StartsWith(Prefix, databaseName, StringComparison.Ordinal);
-        Assert.Equal(Prefix.Length + 32, databaseName.Length);
-        Assert.True(Guid.TryParseExact(databaseName[Prefix.Length..], "N", out _));
+        // The restore creates the database, so it carries the same name guard
+        // the create path carries.
+        ValidateExactDisposableName(DatabaseName);
+        await using var connection = new SqlConnection(MasterConnectionString());
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            $"RESTORE DATABASE [{DatabaseName}] FROM DISK = @backupPath WITH " +
+            "MOVE @dataLogicalName TO @dataFile, MOVE @logLogicalName TO @logFile, RECOVERY";
+        command.Parameters.AddWithValue("@backupPath", template.BackupPath);
+        command.Parameters.AddWithValue("@dataLogicalName", template.DataLogicalName);
+        command.Parameters.AddWithValue(
+            "@dataFile",
+            LocalDbTemplateDatabase.Combine(template.DataDirectory, DatabaseName + ".mdf"));
+        command.Parameters.AddWithValue("@logLogicalName", template.LogLogicalName);
+        command.Parameters.AddWithValue(
+            "@logFile",
+            LocalDbTemplateDatabase.Combine(template.DataDirectory, DatabaseName + "_log.ldf"));
+        command.CommandTimeout = LifecycleCommandTimeoutSeconds;
+        await command.ExecuteNonQueryAsync();
     }
+
+    internal static string MasterConnectionString() => BuildConnectionString("master");
+
+    /// <summary>
+    /// The exact shape of a disposable test database's name.
+    /// </summary>
+    /// <remarks>
+    /// One definition, because every create, restore, and drop is guarded by
+    /// it. Anything failing this rule belongs to someone else and is never
+    /// touched.
+    /// </remarks>
+    internal static bool IsDisposableName(string databaseName) =>
+        databaseName.StartsWith(Prefix, StringComparison.Ordinal)
+        && databaseName.Length == Prefix.Length + 32
+        && Guid.TryParseExact(databaseName[Prefix.Length..], "N", out _);
+
+    private static void ValidateExactDisposableName(string databaseName) =>
+        Assert.True(
+            IsDisposableName(databaseName),
+            $"'{databaseName}' is not a disposable test database name.");
 }
 
 internal sealed record PersistedReceiptEvent(

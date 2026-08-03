@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<!-- saved from url=(0058)file:///C:/Users/Alex/Downloads/send-to-claude-button.html -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<title>Send to Claude — button restyle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com/">
+<link href="./sendtoclaudeexample_files/css2" rel="stylesheet">
+<style>
+  :root{
+    --dark:#141413; --light:#faf9f5; --mid-gray:#b0aea5; --light-gray:#e8e6dc;
+    --orange:#d97757; --orange-deep:#b85f3d; --orange-hi:#e8956d;
+    --blue:#6a9bcc; --green:#788c5d;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:56px 24px 80px; min-height:100vh;
+    background:
+      radial-gradient(circle at 18% 12%, rgba(217,119,87,.06), transparent 40%),
+      radial-gradient(circle at 82% 88%, rgba(106,155,204,.06), transparent 40%),
+      var(--light);
+    font-family:'Lora',Georgia,serif; color:var(--dark);
+    display:flex; flex-direction:column; align-items:center; gap:64px;
+  }
+  .intro{ text-align:center; max-width:560px; }
+  .intro .kicker{
+    font-family:'Poppins',Arial,sans-serif; font-weight:700; font-size:11.5px;
+    letter-spacing:.16em; text-transform:uppercase; color:var(--orange); margin:0 0 10px;
+  }
+  .intro h1{ font-family:'Poppins',Arial,sans-serif; font-weight:600; font-size:26px; margin:0 0 10px; color:var(--dark); }
+  .intro p{ font-size:15px; line-height:1.6; color:#4a4a47; margin:0; }
+
+  .stage{ display:flex; flex-direction:column; align-items:center; gap:16px; }
+  .stage-label{
+    font-family:'Poppins',Arial,sans-serif; font-weight:600; font-size:12px;
+    letter-spacing:.14em; text-transform:uppercase; color:var(--mid-gray);
+  }
+
+  /* ---------- shared sparkle glyph ---------- */
+  .sparkle{ width:18px; height:18px; flex:0 0 auto; position:relative; z-index:2;
+    filter:drop-shadow(0 0 5px rgba(255,255,255,.6)); animation:sparkle-breathe 4.5s ease-in-out infinite; }
+  @keyframes sparkle-breathe{ 0%,100%{transform:rotate(0deg) scale(1);} 50%{transform:rotate(16deg) scale(1.1);} }
+
+  /* ---------- primary Claude CTA ---------- */
+  .btn-claude{
+    position:relative; overflow:hidden; isolation:isolate; cursor:pointer; border:none;
+    display:inline-flex; align-items:center; gap:10px; white-space:nowrap;
+    font-family:'Poppins',Arial,sans-serif; font-weight:600; font-size:15px; color:var(--light);
+    background:linear-gradient(135deg, var(--orange-hi) 0%, var(--orange) 48%, var(--orange-deep) 100%);
+    border-radius:12px; padding:13px 22px;
+    box-shadow:0 2px 5px rgba(20,20,19,.2), 0 0 0 1px rgba(184,95,61,.45) inset;
+    transition:transform .18s ease, box-shadow .28s ease;
+  }
+  .btn-claude canvas{ position:absolute; inset:0; z-index:1; opacity:.95; pointer-events:none; mix-blend-mode:screen; }
+  .btn-claude span, .btn-claude svg{ position:relative; z-index:2; }
+  .btn-claude:hover{ transform:translateY(-2px);
+    box-shadow:0 12px 28px -8px rgba(217,119,87,.6), 0 0 0 1px rgba(184,95,61,.55) inset; }
+  .btn-claude:active{ transform:translateY(0px); }
+  .btn-claude:focus-visible{ outline:2px solid var(--blue); outline-offset:3px; }
+  .btn-claude.full{ width:100%; justify-content:center; }
+
+  /* ---------- secondary / cancel ---------- */
+  .btn-secondary{
+    font-family:'Poppins',Arial,sans-serif; font-weight:500; font-size:15px;
+    background:transparent; color:var(--dark); border:1px solid var(--light-gray);
+    border-radius:12px; padding:13px 20px; cursor:pointer;
+    transition:background .15s ease, border-color .15s ease;
+  }
+  .btn-secondary:hover{ background:var(--light-gray); border-color:var(--mid-gray); }
+
+  /* ---------- modal dialog variant ---------- */
+  .modal-card{
+    width:430px; max-width:92vw; background:#fff; border-radius:18px; padding:30px 30px 24px;
+    border:1px solid var(--light-gray);
+    box-shadow:0 24px 64px -22px rgba(20,20,19,.4), 0 1px 0 rgba(20,20,19,.04);
+  }
+  .modal-card h2{ font-family:'Poppins',Arial,sans-serif; font-weight:600; font-size:19px; margin:0 0 10px; }
+  .modal-card p{ font-size:14.5px; line-height:1.6; color:#3a3a38; margin:0 0 24px; }
+  .modal-actions{ display:flex; justify-content:flex-end; gap:10px; }
+
+  /* ---------- sidebar panel variant ---------- */
+  .sidebar-card{
+    width:300px; max-width:92vw; background:#fff; border-radius:16px; padding:20px;
+    border:1px solid var(--light-gray); box-shadow:0 10px 30px -16px rgba(20,20,19,.28);
+  }
+  .sidebar-eyebrow{
+    font-family:'Poppins',Arial,sans-serif; font-weight:700; font-size:11.5px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--orange); margin:0 0 12px; display:flex; align-items:center; gap:7px;
+  }
+  .sidebar-eyebrow .sparkle{ width:14px; height:14px; }
+  .sidebar-card p{ font-size:14px; line-height:1.55; color:#3a3a38; margin:0 0 18px; }
+
+  footer{ font-family:'Poppins',Arial,sans-serif; font-size:12px; color:var(--mid-gray); text-align:center; max-width:480px; line-height:1.6; }
+</style>
+</head>
+<body>
+
+  <div class="intro">
+    <div class="kicker">Before / after</div>
+    <h1>A CTA that reads as Claude on sight</h1>
+    <p>Anthropic's palette (terracotta accent, warm neutrals, Poppins/Lora) plus a small seeded-particle
+      "spark" animation behind the icon — a quiet nod to something generative happening, not just a flat button.</p>
+  </div>
+
+  <!-- MODAL VARIANT -->
+  <div class="stage">
+    <div class="stage-label">Dialog variant</div>
+    <div class="modal-card">
+      <h2>Send this assessment to Claude?</h2>
+      <p>The assessment content is sent for review. Nothing on this case changes until you accept a suggestion, and you can stop before then.</p>
+      <div class="modal-actions">
+        <button class="btn-secondary">Cancel</button>
+        <button class="btn-claude" data-spark=""><canvas width="181" height="45"></canvas>
+          <svg class="sparkle" viewBox="0 0 24 24" fill="none"><path d="M12 1.5c.6 4.6 1.9 7.6 4.2 9.9 2.3 2.3 5.3 3.6 9.9 4.2-4.6.6-7.6 1.9-9.9 4.2-2.3 2.3-3.6 5.3-4.2 9.9-.6-4.6-1.9-7.6-4.2-9.9C5.5 17.5 2.5 16.2 -2 15.6c4.6-.6 7.6-1.9 9.9-4.2C10.1 9.1 11.4 6.1 12 1.5Z" fill="#fff"></path></svg>
+          <span>Send to Claude</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIDEBAR VARIANT -->
+  <div class="stage">
+    <div class="stage-label">Sidebar panel variant</div>
+    <div class="sidebar-card">
+      <div class="sidebar-eyebrow">
+        <svg class="sparkle" viewBox="0 0 24 24" fill="none"><path d="M12 1.5c.6 4.6 1.9 7.6 4.2 9.9 2.3 2.3 5.3 3.6 9.9 4.2-4.6.6-7.6 1.9-9.9 4.2-2.3 2.3-3.6 5.3-4.2 9.9-.6-4.6-1.9-7.6-4.2-9.9C5.5 17.5 2.5 16.2 -2 15.6c4.6-.6 7.6-1.9 9.9-4.2C10.1 9.1 11.4 6.1 12 1.5Z" fill="#d97757"></path></svg>
+        Send to Claude
+      </div>
+      <p>Assessment content is sent for review. Nothing on this case changes until you accept a suggestion.</p>
+      <button class="btn-claude full" data-spark=""><canvas width="258" height="44"></canvas>
+        <svg class="sparkle" viewBox="0 0 24 24" fill="none"><path d="M12 1.5c.6 4.6 1.9 7.6 4.2 9.9 2.3 2.3 5.3 3.6 9.9 4.2-4.6.6-7.6 1.9-9.9 4.2-2.3 2.3-3.6 5.3-4.2 9.9-.6-4.6-1.9-7.6-4.2-9.9C5.5 17.5 2.5 16.2 -2 15.6c4.6-.6 7.6-1.9 9.9-4.2C10.1 9.1 11.4 6.1 12 1.5Z" fill="#fff"></path></svg>
+        <span>Send to Claude</span>
+      </button>
+    </div>
+  </div>
+
+  <footer>
+    Colours and type from Anthropic's brand guidelines; the ember field behind each icon uses a seeded PRNG
+    (mulberry32) so the motion is reproducible and calm rather than random noise — same spirit as the
+    algorithmic-art seeded-randomness pattern, scaled down to a UI-sized flourish.
+  </footer>
+
+<script>
+// Seeded PRNG (mulberry32) — deterministic "ember" particles per button instance.
+function mulberry32(seed){
+  return function(){
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+const PALETTE = ['#ffd9c2', '#a9c7e8', '#c3d1ad']; // warm orange-hi / blue / green, screen-blended
+
+function attachSparkField(btn, seed){
+  const canvas = document.createElement('canvas');
+  btn.prepend(canvas);
+  const ctx = canvas.getContext('2d');
+  const rand = mulberry32(seed);
+
+  function size(){
+    const r = btn.getBoundingClientRect();
+    canvas.width = r.width; canvas.height = r.height;
+  }
+  size();
+  window.addEventListener('resize', size);
+
+  const N = 10;
+  const particles = Array.from({length:N}, (_,i) => ({
+    baseX: rand() * 1,
+    baseY: rand() * 1,
+    r: 1.1 + rand()*1.6,
+    speed: 0.4 + rand()*0.5,
+    phase: rand()*Math.PI*2,
+    color: PALETTE[i % PALETTE.length],
+  }));
+
+  let t = 0;
+  let hover = false;
+  btn.addEventListener('mouseenter', () => hover = true);
+  btn.addEventListener('mouseleave', () => hover = false);
+
+  function draw(){
+    t += hover ? 0.028 : 0.012;
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0,0,w,h);
+    particles.forEach(p => {
+      const x = (p.baseX * w) + Math.sin(t*p.speed + p.phase) * (w*0.06);
+      const y = (p.baseY * h) + Math.cos(t*p.speed*1.3 + p.phase) * (h*0.22);
+      const alpha = 0.35 + 0.25 * Math.sin(t*2 + p.phase);
+      ctx.beginPath();
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = Math.max(0, alpha);
+      ctx.shadowBlur = 6;
+      ctx.shadowColor = p.color;
+      ctx.arc(x, y, p.r, 0, Math.PI*2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+document.querySelectorAll('[data-spark]').forEach((btn, i) => attachSparkField(btn, 90210 + i));
+</script>
+
+
+</body></html>
