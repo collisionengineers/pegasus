@@ -15,7 +15,8 @@ public enum IntakeDecision
     BlockedIntake,
     Unsupported,
     OcrRequired,
-    TechnicalFailure
+    TechnicalFailure,
+    ImageIntakeRegistered
 }
 
 public enum IntakeEvidenceSource
@@ -636,6 +637,20 @@ public sealed record ReverseIntakeLinkRequest(
     string OperationKey,
     string Reason);
 
+/// <summary>
+/// The pipeline's automatic Image-intake association: a system-worker actor,
+/// no staff edit lease, and the same serializable replay-protected
+/// association write as the manual link. The store must enforce Image-intake
+/// case eligibility inside the transaction.
+/// </summary>
+public sealed record AutomaticIntakeLinkRequest(
+    Guid ReceiptId,
+    Guid CaseId,
+    long ExpectedCaseVersion,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason);
+
 public interface IIntakeMutationStore
 {
     Task<IntakeReceipt> ResolveAsync(
@@ -655,6 +670,11 @@ public interface IIntakeMutationStore
 
     Task ReverseLinkAsync(
         ReverseIntakeLinkRequest request,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken);
+
+    Task AutoLinkAsync(
+        AutomaticIntakeLinkRequest request,
         DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken);
 }
