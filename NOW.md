@@ -14,6 +14,16 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   operator decision, unblocking INT-17/28/32; no vendor selection,
   credential, or automatic-matching activation without operator sign-off
   (branch task/image-led-intake, taken 2026-08-03, by claude).
+- QDOS email identification and classification: build the shared Core
+  classification foundation — the settled Received/Sent families and
+  subtypes, Reply as mirrored context, validated `Other` name and reason,
+  versioned policy key, decision evidence, explicit ambiguity outcome, and
+  the acceptance cohort, keeping category separate from queue, Triage
+  routing, and Outlook destination (MAIL-21/22); no rule-precedence or
+  confidence-threshold invention (open decision: mailbox rule activation),
+  no evaluator surface (EVAL-01–05, MAIL-20, OPS-22 are separately owned),
+  no folder move, mailbox mutation, or AI classifier (branch
+  task/qdos-email-classification, taken 2026-08-03, by claude).
 
 ## Next (ordered queue — take from the top)
 
