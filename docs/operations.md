@@ -235,8 +235,7 @@ Install-Module ExchangeOnlineManagement -Scope CurrentUser -RequiredVersion 3.10
 ### Approved Box custody root
 
 Box folder `405543781910` ("pegasus") is the production custody root: all case
-folders are created only under it. The deployed configuration applies this
-root from the next approved deployment (it currently carries `392761581105`).
+folders are created only under it, and the deployed configuration carries it.
 Folder `392761581105` is the only eligible controlled integration-test
 boundary, confined to an approved disposable test subtree; neither folder
 grants standing write authority. Before any non-production invocation, obtain
@@ -821,14 +820,16 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   accepted), FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard
   LRS storage accounts, distinct Web/Worker managed identities, a Pegasus Key
   Vault, Log Analytics, and Application Insights.
-- **Deployed evidence (2026-08-02):** Web source revision `94997dd0…` on an
-  immutable image digest; health endpoints returned 200 after predecessor
-  retirement; Graph Inbox/Sent processing live-verified through the production
-  Worker (83 successful executions, zero exceptions in the final readback).
+- **Deployed evidence:** release 2 executed 2026-08-03 through the same
+  authorised-terminal route — Web source revision `836db05c…` on immutable
+  digest `sha256:90e5e1e1…` (single healthy revision), Worker package
+  redeployed with all nine functions, production smoke passed (health, exact
+  version/SHA, anonymous-`/Cases` denial). Release 1 (2026-08-02, revision
+  `94997dd0…`) live-verified Graph Inbox/Sent processing through the
+  production Worker (83 successful executions, zero exceptions).
 - **Integrations:** Graph via the Worker managed identity scoped by Exchange
   Application RBAC to `instructions@collisionengineers.co.uk`; Box production
-  custody deployed with root folder `392761581105` — the decided root is
-  `405543781910` ("pegasus") and applies at the next approved deployment;
+  custody rooted at the pegasus folder `405543781910` (applied by release 2);
   official DVLA VES v1.2 and DVSA MOT History v1; EVA remains the accepted
   manual JSON/image handoff.
 - **Secrets:** the adopted predecessor vaults `cespkboxkvv76a47` and
