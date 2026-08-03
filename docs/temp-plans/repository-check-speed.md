@@ -185,7 +185,76 @@ browser lane only. The install step stays unconditional — it is idempotent and
 repairs a partial cache — so nothing is ever gated on `cache-hit`. This saves
 about 20 seconds and is the smallest item in the task line.
 
-### 4. Documentation
+### 4. Parallel test execution
+
+Brought into this task by operator decision after the CI measurement showed
+the SQL lane still dominating. Note what the change actually is: the 45
+`[Collection(LocalDbFixtureDefinition.Name)]` attributes are removed and the
+now-unreferenced marker deleted. Setting `DisableParallelization = false` alone
+would have done nothing, because xunit parallelises across collections and
+never within one, and every SQL class shared a single collection.
+
+Concurrency is capped at four in
+`tests/Pegasus.IntegrationTests/xunit.runner.json`, carried to the output by an
+explicit `Content Include` — `xunit.core` ships no handling for that file, so
+without it the cap is silently ignored. Four is half this workstation's cores
+and a CI runner's whole complement; several agents run suites at once against
+one LocalDB instance, and the cap is what bounds the concurrent restores. The
+browser lane halves it again on the command line, because each browser test
+starts a Chromium and a loopback host beside its own database.
+`parallelAlgorithm` stays at its default `conservative`: `aggressive` installs
+a fixed-thread synchronization context, and `IntakeWebApplicationFactory`
+constructs its host synchronously, which together deadlock.
+
+Three prerequisites landed first, so any breakage was attributable before
+concurrency entered the picture:
+
+- **Ephemeral data protection** in `IntakeWebApplicationFactory`. `Program.cs`
+  configures data protection only on the Production branch, so every
+  Development host shared the machine-global key ring under one discriminator
+  — the suite's one genuinely shared OS resource once hosts are built
+  concurrently. `ConfiguredWebApplicationFactory` already did this.
+- **One command-timeout rule.** `CREATE DATABASE` and the `ALTER`/`DROP`
+  teardown inherited the 30-second default while `RESTORE` and `BACKUP` had
+  300 — exactly the statements that queue behind concurrent restores. All four
+  now share `LifecycleCommandTimeoutSeconds`. The sweep's own drop stays at 60
+  deliberately: it is best-effort cleanup of another run's leftovers, and
+  waiting five minutes on a database someone else holds is worse than retrying
+  next run.
+- The synchronous `GetAwaiter().GetResult()` in the web factory is **left
+  alone**. `WebApplicationFactory` constructs synchronously, so removing it
+  would mean an async factory method and converting 123 call sites across 26
+  files — larger than this whole task, for no measured benefit. Under
+  `conservative` it costs thread-pool ramp, not correctness.
+
+Since the shared LocalDB is the resource everything contends for, this is also
+what makes the shard matrix unnecessary — see below.
+
+### 5. Removing the shard matrix
+
+With the lane at roughly five minutes, three sharded runners cost three
+checkouts, three restores, three builds, and three template builds to save
+about two minutes of wall clock, and they carry a 182-line script, an artifact
+round-trip, and a coverage job. The plan's own rule was to decline the
+machinery below roughly eight minutes, so `scripts/Invoke-TestShard.ps1`,
+`sql-integration-coverage`, and the matrix are deleted and `sql-integration`
+runs the lane whole.
+
+Worth being explicit about what is lost. `sql-integration-coverage` compared
+the shards to each other, not to any baseline, so it would have gone green if
+every shard had lost the same tests. The count-invariance evidence below is a
+stricter guard than the job it replaces.
+
+But one guard is genuinely given up: the shard script threw when enumeration
+returned nothing, and `dotnet test` does not. Measured — a filter matching no
+test prints "No test matches the given testcase filter" and **exits 0**. So a
+mistyped lane filter would leave that lane green having run nothing. This is
+an accepted residual risk, mitigated only by the recorded arithmetic (309 + 14
+against 323 at the time of the split, 320 + 14 against 334 now) and by the
+fact that both lane filters are complement halves of one expression rather
+than independent lists. Anyone editing those filters must re-check the counts.
+
+### 6. Documentation
 
 `docs/engineering.md` "Branches and delivery" names the current three jobs, the
 single `validate` step list, and the 75-minute timeout; it is rewritten to name
@@ -238,7 +307,18 @@ it:
 - Each lane's filter run on its own, with the executed counts summing to the
   canonical run's. Measured before merging `origin/dev`: 284 in the SQL lane
   and 14 in the browser lane against 298 for the whole non-corpus project;
-  after the merge, 309 and 14 against 323.
+  after the merge and the tests this task adds, 320 and 14 against 334.
+- Parallel execution, five consecutive runs plus two adversarial ones: every
+  run reported an identical TRX total, executed, passed, and zero failures
+  (320 / 319 / 319 / 0), which is the guard against silently running fewer
+  tests. Times 4.6–6.2 minutes against 17 m 28 s serial. The adversarial pair
+  ran two suites simultaneously against the one LocalDB instance, one of them
+  deliberately oversubscribed to eight threads; both green, same counts. Zero
+  databases were left attached after any of them. The thread cap was proved to
+  be honoured rather than assumed: the same subset takes 2 m 38 s at the
+  configured cap and 3 m 37 s forced to one thread, against a 3 m 47 s serial
+  baseline — which also proves the browser lane's command-line override is not
+  decorative.
 - `./scripts/Test-DocumentationLinks.ps1` and
   `./scripts/Invoke-QdosAlphaAcceptance.ps1 -Profile CiPressure`.
 
@@ -290,8 +370,6 @@ operation, or operator acceptance. This changes verification lanes only.
   and 10 m 45 s of a possible 9 m. Assigning by observed duration, or simply
   using more shards, would pull the critical path down further and is the
   obvious next increment.
-- Removing `DisableParallelization = true` is potentially the largest remaining
-  win and is deliberately not attempted: the flag is load-bearing for shared
-  temp roots and LocalDB contention, the task line does not ask for it, and a
-  flaky suite is worse than a slow one. It is recorded here as a candidate, not
-  taken.
+- Parallel execution was the largest remaining win and, on the operator's
+  decision, is now taken — see below. A flaky suite is worse than a slow one,
+  so the evidence for it is stated rather than assumed.

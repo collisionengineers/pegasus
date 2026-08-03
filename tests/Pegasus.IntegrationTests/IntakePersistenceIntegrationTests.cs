@@ -9,7 +9,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Pegasus.IntegrationTests;
 
-[Collection(LocalDbFixtureDefinition.Name)]
 [Trait("Category", "SqlServer")]
 public sealed class IntakePersistenceIntegrationTests
 {
@@ -274,12 +273,6 @@ public sealed class IntakePersistenceIntegrationTests
         decision == IntakeDecision.DraftReady ? QdosInstructionExtractionPolicy.Version : null);
 }
 
-[CollectionDefinition(Name, DisableParallelization = true)]
-public sealed class LocalDbFixtureDefinition
-{
-    public const string Name = "Disposable LocalDB";
-}
-
 /// <summary>
 /// Where a disposable test database's schema came from.
 /// </summary>
@@ -298,6 +291,17 @@ internal enum LocalDbSchemaOrigin
 internal sealed class LocalDbTestDatabase : IAsyncDisposable
 {
     internal const string Prefix = "Pegasus_Test_";
+
+    /// <summary>
+    /// How long a database-lifecycle statement may take.
+    /// </summary>
+    /// <remarks>
+    /// CREATE, RESTORE, BACKUP and DROP all queue behind one another on the
+    /// instance, so with test classes running in parallel the 30-second
+    /// default turns load into a failure that looks like a timeout. One
+    /// number, because they contend for the same thing.
+    /// </remarks>
+    internal const int LifecycleCommandTimeoutSeconds = 300;
 
     /// <summary>
     /// Overrides the data source for the SQL Server instance these tests use.
@@ -533,6 +537,7 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
                 $"ALTER DATABASE [{DatabaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; " +
                 $"DROP DATABASE [{DatabaseName}]; END";
             drop.Parameters.AddWithValue("@databaseName", DatabaseName);
+            drop.CommandTimeout = LifecycleCommandTimeoutSeconds;
             await drop.ExecuteNonQueryAsync();
         }
 
@@ -549,6 +554,7 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
         command.CommandText = $"CREATE DATABASE [{DatabaseName}]";
+        command.CommandTimeout = LifecycleCommandTimeoutSeconds;
         await command.ExecuteNonQueryAsync();
     }
 
@@ -572,7 +578,7 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         command.Parameters.AddWithValue(
             "@logFile",
             LocalDbTemplateDatabase.Combine(template.DataDirectory, DatabaseName + "_log.ldf"));
-        command.CommandTimeout = 300;
+        command.CommandTimeout = LifecycleCommandTimeoutSeconds;
         await command.ExecuteNonQueryAsync();
     }
 

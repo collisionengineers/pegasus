@@ -100,7 +100,7 @@ internal static class LocalDbTemplateDatabase
             $"BACKUP DATABASE [{template.DatabaseName}] TO DISK = @backupPath " +
             "WITH INIT, FORMAT, COPY_ONLY";
         command.Parameters.AddWithValue("@backupPath", backupPath);
-        command.CommandTimeout = 300;
+        command.CommandTimeout = LocalDbTestDatabase.LifecycleCommandTimeoutSeconds;
         await command.ExecuteNonQueryAsync();
     }
 
@@ -211,6 +211,10 @@ internal static class LocalDbTemplateDatabase
             drop.CommandText =
                 $"ALTER DATABASE [{databaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; " +
                 $"DROP DATABASE [{databaseName}];";
+            // Deliberately shorter than a lifecycle statement's budget: this is
+            // a best-effort sweep of someone else's leftovers, and waiting five
+            // minutes on a database another process still holds is worse than
+            // giving up and trying again next run.
             drop.CommandTimeout = 60;
             await drop.ExecuteNonQueryAsync();
         }

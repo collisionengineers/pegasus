@@ -313,8 +313,18 @@ their union with the two unit projects is exactly the canonical selection:
 dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build
 dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build
 dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category!=Corpus&Category!=Browser"
-dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category=Browser&Category!=Corpus"
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category=Browser&Category!=Corpus" -- xUnit.MaxParallelThreads=2
 ```
+
+Test classes run in parallel. The integration project caps concurrency at four
+in `tests/Pegasus.IntegrationTests/xunit.runner.json`, which is both half this
+kind of workstation's cores and a CI runner's whole complement: several agents
+run suites at once against one LocalDB instance, and the cap is what bounds the
+concurrent restores. The browser lane halves it again on the command line,
+because each of its tests starts a Chromium and a loopback host beside its own
+database. Leave `parallelAlgorithm` at its default `conservative`; `aggressive`
+installs a fixed-thread synchronization context, and the web factory builds its
+host synchronously, which together deadlock.
 
 Each test-run process migrates one template database once and restores every
 disposable test database from its backup instead of migrating each one. A
