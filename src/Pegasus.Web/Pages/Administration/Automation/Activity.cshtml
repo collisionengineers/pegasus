@@ -2,11 +2,16 @@
 @model Pegasus.Web.Pages.Administration.Automation.ActivityModel
 @{
     ViewData["Title"] = "Automation activity";
+    ViewData["Eyebrow"] = "Administration";
+    ViewData["Lede"] = "The consolidated permanent record of the Automation actor: every recorded action and every denied automation request. Each operation carries a correlation identifier, and filtering by it gives this record a stable address.";
 }
 
-<h1>Automation activity</h1>
-<p><a asp-page="/Administration/Automation/Index">Back to Automation</a></p>
-<p>The consolidated permanent record of the Automation actor: every recorded action and every denied automation request. Each operation carries a correlation identifier, and filtering by it gives this record a stable address.</p>
+<a class="back-link" asp-page="/Administration/Automation/Index">
+    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+    Back to Automation
+</a>
+
+<partial name="Shared/_PageHeader" />
 
 <form method="get" class="section-gap">
     <label>
