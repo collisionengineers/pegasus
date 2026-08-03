@@ -157,9 +157,11 @@ public interface IImageIntakeOriginResolver
 
 /// <summary>
 /// Eligible pre-report instructed Cases whose confirmed vehicle registration
-/// matches a normalised VRM — candidates for a reasoned staff pick and for the
-/// automatic unambiguous match. Eligibility (editable pre-report state, no
-/// report-sent evidence, not archived) is enforced by the query.
+/// matches a normalised read under <see cref="VrmRegistrationMatching"/>
+/// (exact, or the read missing exactly one character of the confirmed value) —
+/// candidates for a reasoned staff pick and for the automatic unambiguous
+/// match. Eligibility (editable pre-report state, no report-sent evidence,
+/// not archived) is enforced by the query.
 /// </summary>
 public interface IImageIntakeCaseCandidates
 {
@@ -171,4 +173,5 @@ public interface IImageIntakeCaseCandidates
 public sealed record ImageIntakeCaseCandidate(
     Guid CaseId,
     string CaseReference,
-    long CaseVersion);
+    long CaseVersion,
+    string ConfirmedRegistration);

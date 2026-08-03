@@ -76,15 +76,22 @@ public sealed class VrmRecognitionCorpusEvaluationTests
                         && outcome.BestRegistration is not null
                         && outcome.BestConfidence >= threshold)
                     .ToArray();
-                // A wrong suggestion splits by edit distance from the
-                // case-level label: distance 1-2 is a near-miss (a genuine
-                // misread of the case vehicle — the dangerous kind), while
-                // distance 3+ is almost certainly a correctly read
+                // Match rule (operator-directed 2026-08-03): exact, or the
+                // read missing exactly one character of the label — a case's
+                // confirmed registration completes a truncated read, so the
+                // pipeline treats it as a match. Remaining wrong suggestions
+                // split by edit distance: distance 1-2 is a near-miss (a
+                // genuine misread of the case vehicle — the dangerous kind),
+                // while distance 3+ is almost certainly a correctly read
                 // third-party registration in a multi-vehicle photo, which
                 // case-level attribution cannot credit as correct.
+                var oneCharacterMissingMatches = suggested.Count(outcome =>
+                    VrmRegistrationMatching.IsOneCharacterMissing(
+                        outcome.BestRegistration!,
+                        outcome.Label));
                 var wrong = suggested
                     .Where(outcome =>
-                        !string.Equals(outcome.BestRegistration, outcome.Label, StringComparison.Ordinal))
+                        !VrmRegistrationMatching.IsMatch(outcome.BestRegistration!, outcome.Label))
                     .Select(outcome => new
                     {
                         outcome.Label,
@@ -100,12 +107,14 @@ public sealed class VrmRecognitionCorpusEvaluationTests
                 {
                     threshold,
                     evaluated = outcomes.Count,
+                    matchRule = "exact or one missing character",
                     suggestionRate = Rate(suggested.Length, outcomes.Count),
                     wrongSuggestionRate = Rate(wrong.Length, suggested.Length),
                     nearMissRate = Rate(nearMisses, suggested.Length),
                     differentRegistrationRate = Rate(differentRegistrations, suggested.Length),
                     abstentionRate = Rate(outcomes.Count - suggested.Length, outcomes.Count),
                     suggestions = suggested.Length,
+                    oneCharacterMissingMatches,
                     wrongSuggestions = wrong.Length,
                     nearMisses,
                     differentRegistrations,

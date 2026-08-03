@@ -537,9 +537,12 @@ public sealed class EfImageIntakeCaseCandidates(
             return [];
         }
 
-        var vrm = normalizedVehicleRegistration.Trim().ToUpperInvariant();
+        var read = normalizedVehicleRegistration.Trim().ToUpperInvariant();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var candidates = await (
+        // The one-missing-character rule cannot translate to SQL; the
+        // eligible pre-report set is small, so match in memory over the
+        // normalised confirmed registrations.
+        var eligible = await (
             from workflow in context.CaseWorkflows.AsNoTracking()
             join caseEntity in context.Cases.AsNoTracking()
                 on workflow.CaseId equals caseEntity.Id
@@ -549,16 +552,32 @@ public sealed class EfImageIntakeCaseCandidates(
                 && workflow.ReportSentEvidenceId == null
                 && workflow.ArchivedAtUtc == null
                 && draft.VehicleRegistration != null
-                && draft.VehicleRegistration
-                    .Replace(" ", "")
-                    .Replace("-", "") == vrm
             orderby caseEntity.Reference
-            select new ImageIntakeCaseCandidate(
+            select new
+            {
                 caseEntity.Id,
                 caseEntity.Reference,
-                workflow.Version))
+                workflow.Version,
+                Registration = draft.VehicleRegistration!
+            })
             .ToArrayAsync(cancellationToken);
-        return candidates;
+        return eligible
+            .Select(candidate => new
+            {
+                candidate,
+                Normalized = new string(candidate.Registration
+                    .ToUpperInvariant()
+                    .Where(character => char.IsAsciiLetterUpper(character) || char.IsAsciiDigit(character))
+                    .ToArray())
+            })
+            .Where(item => item.Normalized.Length > 0
+                && VrmRegistrationMatching.IsMatch(read, item.Normalized))
+            .Select(item => new ImageIntakeCaseCandidate(
+                item.candidate.Id,
+                item.candidate.Reference,
+                item.candidate.Version,
+                item.Normalized))
+            .ToArray();
     }
 }
 

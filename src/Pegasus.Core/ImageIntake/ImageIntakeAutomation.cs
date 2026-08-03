@@ -200,7 +200,7 @@ public sealed class ImageIntakeAutomation(
 
     private async Task<IntakeReceipt?> TryRegisterAndAssociateAsync(
         IntakeReceipt receipt,
-        string registration,
+        string read,
         IReadOnlyList<ImageVrmSuggestion> suggestions,
         Activity? activity,
         CancellationToken cancellationToken)
@@ -215,17 +215,62 @@ public sealed class ImageIntakeAutomation(
                 return null;
             }
 
+            // Candidate selection before registration: an exact confirmed
+            // registration wins; otherwise a single one-missing-character
+            // candidate completes the truncated read with its confirmed
+            // value (operator-directed 2026-08-03) — the case's
+            // instruction-supplied registration is the registered identity,
+            // never the incomplete read. Ambiguity of any kind means no
+            // automatic association.
+            var candidates = receipt.CurrentCaseId is null
+                ? await caseCandidates.FindEligibleByRegistrationAsync(read, cancellationToken)
+                : [];
+            activity?.SetTag("image_intake.case_candidates", candidates.Count);
+            var exactMatches = candidates
+                .Where(candidate => string.Equals(
+                    candidate.ConfirmedRegistration,
+                    read,
+                    StringComparison.Ordinal))
+                .ToArray();
+            var target = exactMatches.Length == 1
+                ? exactMatches[0]
+                : exactMatches.Length == 0 && candidates.Count == 1
+                    ? candidates[0]
+                    : null;
+            var registration = target?.ConfirmedRegistration ?? read;
+            var reason = target is not null
+                && !string.Equals(registration, read, StringComparison.Ordinal)
+                ? $"Automatic registration: the confident read {read} matches case {target.CaseReference}'s confirmed registration with one character missing; registered with the confirmed value."
+                : "Automatic registration from a confident vehicle-registration read on the retained image evidence.";
             var record = await registerImageIntake.ExecuteAsync(
                 new(
                     origin,
                     registration,
                     actor,
                     $"image-intake-register:{receipt.Id:N}",
-                    "Automatic registration from a confident vehicle-registration read on the retained image evidence."),
+                    reason),
                 cancellationToken);
             activity?.SetTag("image_intake.reference", record.ImageIntakeReference);
-            await ConfirmUsedSuggestionsAsync(suggestions, registration, actor, cancellationToken);
-            await TryAssociateAsync(receipt, record, actor, activity, cancellationToken);
+            await ConfirmUsedSuggestionsAsync(
+                suggestions,
+                record.NormalizedVehicleRegistration,
+                actor,
+                cancellationToken);
+            if (target is not null)
+            {
+                await TryAssociateAsync(receipt, target, actor, activity, cancellationToken);
+            }
+            else if (receipt.CurrentCaseId is not null)
+            {
+                activity?.SetTag("image_intake.association", "already_associated");
+            }
+            else
+            {
+                activity?.SetTag(
+                    "image_intake.association",
+                    candidates.Count == 0 ? "no_candidate" : "ambiguous");
+            }
+
             return await receiptQueries.GetAsync(receipt.Id, cancellationToken);
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
@@ -244,7 +289,8 @@ public sealed class ImageIntakeAutomation(
         foreach (var suggestion in suggestions)
         {
             if (suggestion.Outcome != VrmRecognitionOutcomeKind.Suggested
-                || !string.Equals(suggestion.SuggestedRegistration, registration, StringComparison.Ordinal)
+                || suggestion.SuggestedRegistration is null
+                || !VrmRegistrationMatching.IsMatch(suggestion.SuggestedRegistration, registration)
                 || suggestion.Confidence < VrmRecognitionProvisionalBar.MinimumAutomaticConfidence)
             {
                 continue;
@@ -271,38 +317,19 @@ public sealed class ImageIntakeAutomation(
 
     /// <summary>
     /// The automatic association runs at most once per receipt (its operation
-    /// key is receipt-scoped): exactly one eligible pre-report Case with the
-    /// confirmed registration and no prior association. Later changes are
-    /// reasoned staff decisions and are never re-run automatically.
+    /// key is receipt-scoped) against the single unambiguous eligible
+    /// candidate selected before registration. Later changes are reasoned
+    /// staff decisions and are never re-run automatically.
     /// </summary>
     private async Task TryAssociateAsync(
         IntakeReceipt receipt,
-        ImageIntakeRecord record,
+        ImageIntakeCaseCandidate candidate,
         ActionActor actor,
         Activity? activity,
         CancellationToken cancellationToken)
     {
-        if (receipt.CurrentCaseId is not null)
-        {
-            activity?.SetTag("image_intake.association", "already_associated");
-            return;
-        }
-
         try
         {
-            var candidates = await caseCandidates.FindEligibleByRegistrationAsync(
-                record.NormalizedVehicleRegistration,
-                cancellationToken);
-            activity?.SetTag("image_intake.case_candidates", candidates.Count);
-            if (candidates.Count != 1)
-            {
-                activity?.SetTag(
-                    "image_intake.association",
-                    candidates.Count == 0 ? "no_candidate" : "ambiguous");
-                return;
-            }
-
-            var candidate = candidates[0];
             await intakeMutationStore.AutoLinkAsync(
                 new(
                     receipt.Id,

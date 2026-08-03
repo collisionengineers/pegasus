@@ -456,7 +456,13 @@ bar may automatically register the pre-Case Image intake (allocating its Image
 Intake Reference) and, where exactly one eligible pre-report instructed Case
 carries that confirmed registration with no contradictory identity evidence,
 automatically associate it under the settled matching rules; both actions are
-recorded with system attribution and remain reasonedly reversible by staff.
+recorded with system attribution and remain reasonedly reversible by staff. A
+read missing exactly one character of a candidate's confirmed registration
+counts as that unambiguous match (operator-directed 2026-08-03): the confirmed
+registration completes the read and is the registered identity — a truncated
+read is never registered as its own value when a confirmed registration
+completes it, a substituted character is never a match, and any second
+consistent candidate makes the read ambiguous.
 
 The operator surface distinguishes a suggestion from no readable result or an
 unknown result, an unavailable dependency, and a technical failure. It never
