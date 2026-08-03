@@ -8,66 +8,112 @@
         .ToArray();
 }
 
+<a class="back-link" asp-page="Index">
+    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+    Back to Principals
+</a>
+
+@* Defensive only: the handler returns 404 when the principal or its
+   organization is absent, so the not-found surface is owned by the error page. *@
 @if (Model.Organization is not null && Model.Predecessor is not null)
 {
-    <h1>Replace @Model.Predecessor.Code</h1>
-    <p><a asp-page="Index">Back to Principals</a></p>
+    <div class="page-heading">
+        <div>
+            <p class="eyebrow">Administration</p>
+            <h1>Replace @Model.Predecessor.Code</h1>
+            <p class="lede">The existing code, principal row, cases, references, and reference ownership will not be edited. Replacement disables this predecessor, links a new active successor, and continues the same sequence lineage.</p>
+        </div>
+        <div class="page-heading-actions">
+            <partial name="Shared/_StatusChip" model="@(Model.Predecessor.IsActive ? "Active" : "Disabled")" />
+        </div>
+    </div>
 
-    <dl>
-        <dt>Organization</dt><dd>@Model.Organization.Name</dd>
-        <dt>Status</dt><dd>@(Model.Predecessor.IsActive ? "Active" : "Disabled")</dd>
-        <dt>Version</dt><dd>@Model.Predecessor.Version</dd>
-        <dt>Sequence lineage</dt><dd>@Model.Predecessor.SequenceLineageId</dd>
-        <dt>Allocated cases</dt><dd>@Model.Predecessor.AllocatedCaseCount</dd>
-    </dl>
+    <div class="split-main">
+        <section aria-labelledby="predecessor-heading">
+            <h2 id="predecessor-heading" class="section-label">Predecessor</h2>
+            <div class="panel">
+                <dl class="detail-list">
+                    <div>
+                        <dt>Organization</dt>
+                        <dd>@Model.Organization.Name</dd>
+                    </div>
+                    <div>
+                        <dt>Status</dt>
+                        <dd>@(Model.Predecessor.IsActive ? "Active" : "Disabled")</dd>
+                    </div>
+                    <div>
+                        <dt>Version</dt>
+                        <dd class="tabular">@Model.Predecessor.Version</dd>
+                    </div>
+                    <div>
+                        <dt>Sequence lineage</dt>
+                        <dd>@Model.Predecessor.SequenceLineageId</dd>
+                    </div>
+                    <div>
+                        <dt>Allocated cases</dt>
+                        <dd class="tabular">@Model.Predecessor.AllocatedCaseCount</dd>
+                    </div>
+                </dl>
+            </div>
+        </section>
 
-    <p>The existing code, principal row, cases, references, and reference ownership will not be edited. Replacement disables this predecessor, links a new active successor, and continues the same sequence lineage.</p>
-
-    @if (!Model.Predecessor.IsActive || Model.Predecessor.SuccessorId is not null)
-    {
-        <p>This principal has no replacement action because it is disabled or already linked to a successor.</p>
-    }
-    else if (workProviders.Length == 0)
-    {
-        <p>No Work Provider organization is available for the successor.</p>
-    }
-    else
-    {
-        <form method="post"
-              asp-page-handler="Replace"
-              asp-route-organizationId="@Model.Organization.Id"
-              asp-route-principalId="@Model.Predecessor.Id">
-            <div asp-validation-summary="ModelOnly"></div>
-            <input asp-for="ExpectedVersion" type="hidden" />
-            <input asp-for="OperationKey" type="hidden" />
-            <div>
-                <label asp-for="SuccessorOrganizationId">Successor Work Provider organization</label>
-                <select asp-for="SuccessorOrganizationId">
-                    <option value="">Select an organization</option>
-                    @foreach (var organization in workProviders)
-                    {
-                        <option value="@organization.Id">@organization.Name</option>
-                    }
-                </select>
-                <span asp-validation-for="SuccessorOrganizationId"></span>
-            </div>
-            <div>
-                <label asp-for="SuccessorCode">Successor principal code</label>
-                <input asp-for="SuccessorCode" autocomplete="off" />
-                <span asp-validation-for="SuccessorCode"></span>
-                <p>Use letters and numbers only. The new code is normalized to uppercase and is immutable.</p>
-            </div>
-            <div>
-                <label asp-for="Reason">Reason for replacement</label>
-                <textarea asp-for="Reason" rows="3"></textarea>
-                <span asp-validation-for="Reason"></span>
-            </div>
-            <button type="submit">Disable predecessor and create successor</button>
-        </form>
-    }
+        <section aria-labelledby="successor-heading">
+            <h2 id="successor-heading" class="section-label">Successor</h2>
+            @if (!Model.Predecessor.IsActive || Model.Predecessor.SuccessorId is not null)
+            {
+                <div class="status-card status-card--attention" role="status">
+                    <p>This principal has no replacement action because it is disabled or already linked to a successor.</p>
+                </div>
+            }
+            else if (workProviders.Length == 0)
+            {
+                <div class="status-card status-card--attention" role="status">
+                    <p>No Work Provider organization is available for the successor.</p>
+                </div>
+            }
+            else
+            {
+                <div class="panel form-panel form-panel--wide">
+                    <form method="post"
+                          asp-page-handler="Replace"
+                          asp-route-organizationId="@Model.Organization.Id"
+                          asp-route-principalId="@Model.Predecessor.Id">
+                        <div asp-validation-summary="ModelOnly"></div>
+                        <input asp-for="ExpectedVersion" type="hidden" />
+                        <input asp-for="OperationKey" type="hidden" />
+                        <div>
+                            <label asp-for="SuccessorOrganizationId">Successor Work Provider organization</label>
+                            <select asp-for="SuccessorOrganizationId">
+                                <option value="">Select an organization</option>
+                                @foreach (var organization in workProviders)
+                                {
+                                    <option value="@organization.Id">@organization.Name</option>
+                                }
+                            </select>
+                            <span asp-validation-for="SuccessorOrganizationId"></span>
+                        </div>
+                        <div>
+                            <label asp-for="SuccessorCode">Successor principal code</label>
+                            <input asp-for="SuccessorCode" autocomplete="off" />
+                            <span asp-validation-for="SuccessorCode"></span>
+                            <small class="empty-state">Letters and numbers only. The new code is normalized to uppercase and is immutable.</small>
+                        </div>
+                        <div>
+                            <label asp-for="Reason">Reason for replacement</label>
+                            <textarea asp-for="Reason" rows="3"></textarea>
+                            <span asp-validation-for="Reason"></span>
+                        </div>
+                        <div class="button-row">
+                            <button type="submit" class="primary-action">Disable predecessor and create successor</button>
+                        </div>
+                    </form>
+                </div>
+            }
+        </section>
+    </div>
 
     @if (Model.Organizations.HasMoreOrganizations)
     {
-        <p>The organization selector is bounded. Confirm an organization that is not shown in the Organizations workspace.</p>
+        <p class="empty-state">The organization selector is bounded. Confirm an organization that is not shown in the Organizations workspace.</p>
     }
 }

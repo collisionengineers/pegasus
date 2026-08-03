@@ -125,9 +125,10 @@ The classification architecture is fixed:
   established review outcome.
 - No generic rule engine or transport-specific second classifier is to be
   added.
-- QDOS direct sender identity is the exact `@qdosassist.co.uk` suffix. That
-  suffix alone does not classify message type, associate a case, or apply to an
-  identified intermediary.
+- QDOS direct sender identity is owned by
+  [ADR-0020](adr/0020-accepted-qdos-case-association-predicates.md) decision 1
+  (`qdos_mail_route` v3, the accepted three-domain set); an accepted domain
+  alone classifies and associates nothing.
 - The Mapped Principals spreadsheet at the opaque source citation
   `../reference/imp-docs/requirementsdocs/provider-extra-info/Mapped%20Principals.xlsx`
   identifies additional principals and route candidates beyond QDOS. Every
@@ -145,6 +146,16 @@ predicates, exclusions, and ambiguity outcome accepted under this section, and
 is a deliberate change to a named, versioned matcher — the Production
 composition test pins the inactive matcher so it can never be activated as a
 side effect of composition.
+
+The QDOS-direct automatic incoming-case matching predicates and their
+conservative outcomes are accepted and owned by
+[ADR-0020](adr/0020-accepted-qdos-case-association-predicates.md) (operator
+decision 2026-08-03). This closes the first row's question for that one matcher
+and pulls the QDOS-direct subset of `MAIL-09` to `Now / 0.1.0-alpha.1`. The
+multi-rule precedence and confidence questions below stay open for
+classification and for every other route, matcher, and surface; the QDOS
+classification policy still records simultaneous category matches as the
+ambiguity outcome with no invented winner.
 
 The first additional-provider route cohort is allocated to `0.2.0`; the broader
 classified-email workspace and email MCP cohort is allocated to `0.3.0`.

@@ -488,7 +488,7 @@ internal static class IntakeTestEvidence
     public static TestEmail CreateEmail(string fileName, string body)
     {
         var message = new MimeMessage();
-        message.From.Add(new MailboxAddress("QDOS Alpha", "engineers@qdosassist.co.uk"));
+        message.From.Add(new MailboxAddress("QDOS Alpha", "instructions@qdosassist.co.uk"));
         message.To.Add(new MailboxAddress("Pegasus Intake", "intake@example.test"));
         message.Subject = "QDOS test instruction";
         message.Body = new TextPart("plain") { Text = body };

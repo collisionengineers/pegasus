@@ -57,6 +57,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260801220500_GrantWebMigrationHistoryRead",
                 "20260803014608_ProviderInspectionModeSetting",
                 "20260803071539_ImageIntakeRegistration",
+                "20260803123935_MailClassificationDecisions",
+                "20260803125915_CaseMatchDecisionsAndAssociationPolicy",
                 "20260803151159_AutomationActorOpenIddict"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
