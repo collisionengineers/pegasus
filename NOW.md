@@ -31,6 +31,10 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   step 3.
 - Fix `ProjectReferencesFollowTheModularMonolithDirection` backslash parsing
   and open the PR so the branch gets `repository-check` evidence.
+- Cut `repository-check` wall clock (agreed 2026-08-03): shard validate into
+  parallel unit / SQL-integration / browser jobs, replace migrate-per-test
+  LocalDB setup with a per-run migrated template database, and cache NuGet
+  packages and the pinned Playwright Chromium.
 
 ## Waiting (each line names its unblock condition)
 
