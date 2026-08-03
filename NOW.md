@@ -56,18 +56,20 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   Vault, repoint the Worker's and Web's references, prove resolution, then
   retire the two adopted vaults and `rg-collisionspike-dev` (branch
   task/vault-consolidation, taken 2026-08-03, by codex).
-- MCP Automation Actor ingress: build the management/development-controlled
-  MCP ingress for one named, vendor-neutral Automation Actor invoking
-  existing Core use cases through its own authentication and identity
-  (ADR-0011/ADR-0013) — Case actions, intake-queue actions, and document
-  actions (MCP-01/02/03/04); reuse the existing ActionActor/ExecuteAsync/
-  IActionHistoryWriter pattern rather than the deleted per-staff-OAuth MCP
-  surface; no per-staff MCP access, no Administrator/config/credential/
-  cloud/release/deletion authority, no AI proposal transport (AI-09 stays
-  separate), MCP-05's broader email-workspace actions out of scope pending
-  the email workspace itself (branch task/mcp-automation-actor, taken
-  2026-08-03, by claude).
-
+- Report renderer integration planning: plan the retirement of the
+  `workspaces/report-renderer/` source import into the monolith — locate the
+  Core render port seam and Infrastructure adapter placement that RPT-01–05
+  and EXT-08 would activate through, fold the workspace's own documentation
+  into the canonical docs, plan the renderer's .NET 8 → repository-TFM
+  uplift, plan the `docs/reference/rendererref1` blueprint and report-template
+  intake, plan promotion of the renderer's pre-existing MCP server as the
+  replacement for the current `.mcpb` packaging (MCP-01–04 follow-ups), and
+  plan removal of any remaining renderer desktop/UI elements. Draft planning
+  documents under `docs/temp-plans/` only: no activation, no `Pegasus.slnx`
+  change, no caller, no workspace deletion, and no acceptance in this task —
+  every integration stays behind the workspace register's activation
+  conditions and needs its own ADR and implementation task (branch
+  task/report-renderer-integration, taken 2026-08-03, by claude).
 ## Next (ordered queue — take from the top)
 
 - Assemble the operator-reviewed extraction cohort + untouched holdout and
@@ -82,6 +84,14 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   is now swallowed, so confirm abandoned Pegasus_Test_* databases and .bak
   files still get reclaimed rather than accumulating
   (task/repository-check-speed review, 2026-08-03).
+- Record the MCP Automation Actor tier-5 evidence: a real external client
+  (Claude Code over a bearer token) against the locally enabled `/mcp`
+  surface, evidence recorded per operations.md, before any activation claim
+  (task/mcp-automation-actor review, 2026-08-03).
+- Promote the settled Automation Actor identity/authentication/tool-inventory
+  contract to an ADR — with the temp plan deleted it is owned only by
+  architecture.md/operations.md prose
+  (task/mcp-automation-actor review, 2026-08-03).
 
 ## Waiting (each line names its unblock condition)
 

@@ -808,6 +808,7 @@ public sealed class EfCaseDataStore(
     {
         "manual_upload" => IntakeSourceChannel.ManualUpload,
         "mailbox" => IntakeSourceChannel.Mailbox,
+        "automation" => IntakeSourceChannel.Automation,
         _ => throw new InvalidDataException(
             $"Unknown persisted intake source channel '{value}'.")
     };

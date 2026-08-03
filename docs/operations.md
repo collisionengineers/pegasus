@@ -698,7 +698,8 @@ Run policy tests first, adapter contracts second, persistence/transaction tests 
 | Document Intelligence | Candidate-routing and response-contract tests with controlled non-corpus fixtures | OCR accuracy, confidence, API drift, cost, throttling, identity; licensed disconnected containers are not the default emulator |
 | DVLA/DVSA | Deterministic contracts, invalid identifiers, retries, unavailable-service outcomes | Entitlement, identity, real response behavior |
 | EVA | Exact local JSON/image-bundle contract and reconciliation metadata | Operator drag/drop acceptance and any later authorised API sandbox |
-| Provider API / Automation MCP | Not implemented: no endpoint, client, credential, or caller | Settled actor/client/authentication contract, real caller evidence, and separately approved activation |
+| Provider API | Not implemented: no endpoint, client, credential, or caller | Settled actor/client/authentication contract, real caller evidence, and separately approved activation |
+| Automation MCP | Implemented but composition-gated off by default; enabled only in DevelopmentOffline evidence runs with a configuration-supplied client secret; integration tests drive token issuance, denial, tool calls, and the kill switch over HTTP | Real external client evidence, production certificate/transport decisions, and separately approved activation |
 | Direct authorised-terminal deployment | Bicep compile/lint and local configuration checks | Approved preflight, package/migration identity, deployment, health smoke, rollback |
 | Backup/recovery | LocalDB backup/restore into a new disposable database | Azure SQL PITR and the one-time alpha RPO/RTO exercise |
 
@@ -706,21 +707,38 @@ Managed identity itself is unavailable locally. LocalDB does not prove Azure SQL
 
 Graph Sent-item evidence does not prove recipient delivery or automatic case matching.
 
-### Automation MCP remains a deferred ingress
+### Automation MCP is implemented but gated off
 
-No Automation MCP endpoint, OAuth client, metadata route, staff impersonation
-path, credential, or application caller is implemented. Migration
-`20260729150000_DocumentCustodyAndRequests` created the dormant OpenIddict
-tables that a later client contract would use; schema presence is not an
-implemented ingress. ADR-0013 leaves the Automation Actor identity and
-authentication/client contract open. The current application therefore fails
-closed by exposing no such ingress.
+The Automation Actor ingress (MCP-01–04) is implemented inside `Pegasus.Web`
+and composition-gated off by default: unless `Features:AutomationMcp` is
+enabled, no `/mcp` endpoint, `/connect/token` route, or resource-metadata
+document exists and the application keeps failing closed by exposing no such
+ingress. The flag is accepted only in the DevelopmentOffline runtime profile;
+enabling it anywhere else fails startup. Migration
+`20260803151159_AutomationActorOpenIddict` re-created the OpenIddict tables
+(the dormant set from `20260729150000_DocumentCustodyAndRequests` had been
+dropped by `20260730203833_RemoveDormantOpenIddict`) with the Web-only
+least-privilege grants, and they now back the single seeded Automation
+client-credentials registration.
 
-Activation requires an accepted contract naming the durable actor identity,
-authentication and client custody, approved tools and scopes, action-history
-attribution, revocation behaviour, actual HTTP caller evidence, and the exact
-deployment/security approval. A staff browser identity is not a substitute for
-that actor.
+When enabled, the ingress issues short-lived scoped access tokens
+(`automation.cases`, `automation.intake`, `automation.documents`) for exactly
+one vendor-neutral Automation client whose identifier and secret come from
+configuration/user-secrets and are never tracked or displayed. Every tool
+invocation is permanent action history attributed to the Automation actor
+with a correlation identifier; denials write `automation_*` security events;
+Administrators review both in the Administration Automation activity view and
+hold an immediate kill switch (disable refuses new tokens outright and
+rejects already-issued tokens within seconds). A staff browser identity is
+not a substitute for that actor and is never accepted on `/mcp`.
+
+Local evidence so far is tier 2–4: green build plus focused integration
+tests driving token issuance, transport and scope denials, tool calls with
+action-history proof, and the kill switch over real HTTP against the
+composed application. Tier-5 evidence from an external real client (for
+example Claude Code presenting a bearer token), production
+certificate/transport decisions, deployment, and live activation remain
+separately approved work.
 
 ## Live-operation approval matrix
 
@@ -793,7 +811,7 @@ DOC and MSG automatic extraction remain deferred until safe local parsing fixtur
 
 Release allocation does not waive technical prerequisites. [Delivery dependencies](requirements.md#delivery-dependencies) owns current precedence. The predecessor delivery roadmap (git history) preserved the prerequisite, parallel-branch, and rejoin route; revalidate any of its claims against current canonical owners before use.
 
-Operationally, do not run later caller or release gates before the revalidated spine has supplied relational intake state, trusted staff identity/action history, principal/configuration data, durable custody and the allocator, definitive acceptance, then case files/editing/lifecycle/UI, the real Worker and Triage, vehicle/EVA, and finally Azure migration/recovery and operator acceptance. An Automation MCP caller remains a separately deferred ingress. A local check, generated package, Bicep file, or deployment cannot advance a missing predecessor gate.
+Operationally, do not run later caller or release gates before the revalidated spine has supplied relational intake state, trusted staff identity/action history, principal/configuration data, durable custody and the allocator, definitive acceptance, then case files/editing/lifecycle/UI, the real Worker and Triage, vehicle/EVA, and finally Azure migration/recovery and operator acceptance. The Automation MCP ingress stays composition-gated off outside local evidence runs, and its live caller remains a separately approved activation. A local check, generated package, Bicep file, or deployment cannot advance a missing predecessor gate.
 
 ## Release validation rules
 
