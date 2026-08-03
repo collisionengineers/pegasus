@@ -115,9 +115,8 @@ Operator acceptance remains outstanding.
 
 Web production composition registers Box-backed case custody and managed
 document content, the staff document and EVA handoff surface, and Azure Blob
-intake artifact stores behind one storage profile. These are **Implemented**
-(merged), not yet **Deployed**; the composition reaches production only with
-the composition-fix release recorded in
+intake artifact stores behind one storage profile. These are **Deployed**
+(release 3); the current production state is owned by
 [operations § Production environment](operations.md#production-environment).
 
 The following remain planned or absent, not merely unverified:
