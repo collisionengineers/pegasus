@@ -7,13 +7,6 @@
 Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 <agent>)`. Nothing is in flight unless it is claimed here on `origin/dev`.
 
-- Image-led intake: build the pre-Case Image intake record (manual VRM entry,
-  manual link/unlink/relink to a Case, origin preservation, search by Image
-  Intake Reference — INT-13/27/29/30, UI-07), and research open decision 1
-  (VRM recognition engine) to write an evidence-backed recommendation for
-  operator decision, unblocking INT-17/28/32; no vendor selection,
-  credential, or automatic-matching activation without operator sign-off
-  (branch task/image-led-intake, taken 2026-08-03, by claude).
 - QDOS email identification and classification: build the shared Core
   classification foundation — the settled Received/Sent families and
   subtypes, Reply as mirrored context, validated `Other` name and reason,
