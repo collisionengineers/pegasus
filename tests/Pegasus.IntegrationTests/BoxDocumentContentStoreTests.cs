@@ -23,6 +23,7 @@ public sealed class BoxDocumentContentStoreTests
 
     private static readonly Guid CaseId = Guid.Parse("10213243-5465-7687-98a9-bacbdcedfe0f");
     private static readonly Guid VersionId = Guid.Parse("20314253-6475-8697-a8b9-cadbecfd0e1f");
+    private const string CaseReference = "QDOS31001";
 
     [Fact]
     public async Task StoreThenOpenReadRoundTripsThroughTheManagedLayout()
@@ -32,13 +33,13 @@ public sealed class BoxDocumentContentStoreTests
         var content = Encoding.UTF8.GetBytes("managed document content");
         var hash = Sha256(content);
 
-        await store.StoreAsync(CaseId, VersionId, content, hash, CancellationToken.None);
+        await store.StoreAsync(CaseId, CaseReference, VersionId, content, hash, CancellationToken.None);
 
-        var expectedPath = $"cases/{CaseId:N}/managed/{VersionId:N}/content";
+        var expectedPath = $"{CaseReference}/managed/{VersionId:N}/content";
         Assert.True(box.PathExists(expectedPath), $"Expected Box path {expectedPath} to exist.");
 
         await using var stream = await store.OpenReadAsync(
-            CaseId, VersionId, hash, content.Length, CancellationToken.None);
+            CaseId, CaseReference, VersionId, hash, content.Length, CancellationToken.None);
         using var buffer = new MemoryStream();
         await stream.CopyToAsync(buffer);
         Assert.Equal(content, buffer.ToArray());
@@ -52,9 +53,9 @@ public sealed class BoxDocumentContentStoreTests
         var content = Encoding.UTF8.GetBytes("replayed content");
         var hash = Sha256(content);
 
-        await store.StoreAsync(CaseId, VersionId, content, hash, CancellationToken.None);
+        await store.StoreAsync(CaseId, CaseReference, VersionId, content, hash, CancellationToken.None);
         var uploadsAfterFirst = box.UploadCount;
-        await store.StoreAsync(CaseId, VersionId, content, hash, CancellationToken.None);
+        await store.StoreAsync(CaseId, CaseReference, VersionId, content, hash, CancellationToken.None);
 
         Assert.Equal(1, uploadsAfterFirst);
         Assert.Equal(1, box.UploadCount);
@@ -69,7 +70,7 @@ public sealed class BoxDocumentContentStoreTests
         var wrongHash = Sha256(Encoding.UTF8.GetBytes("different content"));
 
         await Assert.ThrowsAsync<InvalidDataException>(() =>
-            store.StoreAsync(CaseId, VersionId, content, wrongHash, CancellationToken.None));
+            store.StoreAsync(CaseId, CaseReference, VersionId, content, wrongHash, CancellationToken.None));
         Assert.Equal(0, box.UploadCount);
     }
 
@@ -80,12 +81,12 @@ public sealed class BoxDocumentContentStoreTests
         var store = CreateStore(box);
         var content = Encoding.UTF8.GetBytes("original content");
         var hash = Sha256(content);
-        await store.StoreAsync(CaseId, VersionId, content, hash, CancellationToken.None);
+        await store.StoreAsync(CaseId, CaseReference, VersionId, content, hash, CancellationToken.None);
 
-        box.CorruptFile($"cases/{CaseId:N}/managed/{VersionId:N}/content");
+        box.CorruptFile($"{CaseReference}/managed/{VersionId:N}/content");
 
         await Assert.ThrowsAsync<InvalidDataException>(() => store.OpenReadAsync(
-            CaseId, VersionId, hash, content.Length, CancellationToken.None));
+            CaseId, CaseReference, VersionId, hash, content.Length, CancellationToken.None));
     }
 
     [Fact]
@@ -95,35 +96,34 @@ public sealed class BoxDocumentContentStoreTests
         var store = CreateStore(box);
         var content = Encoding.UTF8.GetBytes("deletable content");
         var hash = Sha256(content);
-        await store.StoreAsync(CaseId, VersionId, content, hash, CancellationToken.None);
+        await store.StoreAsync(CaseId, CaseReference, VersionId, content, hash, CancellationToken.None);
 
-        await store.DeleteAsync(CaseId, VersionId, CancellationToken.None);
-        await store.DeleteAsync(CaseId, VersionId, CancellationToken.None);
+        await store.DeleteAsync(CaseId, CaseReference, VersionId, CancellationToken.None);
+        await store.DeleteAsync(CaseId, CaseReference, VersionId, CancellationToken.None);
 
-        Assert.False(box.PathExists($"cases/{CaseId:N}/managed/{VersionId:N}/content"));
+        Assert.False(box.PathExists($"{CaseReference}/managed/{VersionId:N}/content"));
         await Assert.ThrowsAsync<FileNotFoundException>(() => store.OpenReadAsync(
-            CaseId, VersionId, hash, content.Length, CancellationToken.None));
+            CaseId, CaseReference, VersionId, hash, content.Length, CancellationToken.None));
     }
 
     [Fact]
     public async Task ChildLookupPaginatesBeyondOneBoxPage()
     {
-        // The flat cases/ folder grows by one child per case forever, so the
-        // lookup must keep paging past Box's 1000-item page rather than
-        // silently missing later children.
+        // The approved Box root grows by one Case/PO folder per case forever,
+        // so the lookup must keep paging past Box's 1000-item page rather than
+        // silently missing a later Case/PO.
         var box = new InMemoryBox();
         var store = CreateStore(box);
-        var casesFolder = box.CreateFolderPath("cases");
         for (var i = 0; i < 1000; i++)
         {
-            box.AddFolder(casesFolder, $"aaaa-decoy-case-{i:D4}");
+            box.AddFolder(ApprovedRootId, $"aaaa-decoy-case-{i:D4}");
         }
         var content = Encoding.UTF8.GetBytes("second page content");
         var hash = Sha256(content);
-        await store.StoreAsync(CaseId, VersionId, content, hash, CancellationToken.None);
+        await store.StoreAsync(CaseId, CaseReference, VersionId, content, hash, CancellationToken.None);
 
         await using var stream = await store.OpenReadAsync(
-            CaseId, VersionId, hash, content.Length, CancellationToken.None);
+            CaseId, CaseReference, VersionId, hash, content.Length, CancellationToken.None);
         using var buffer = new MemoryStream();
         await stream.CopyToAsync(buffer);
 
