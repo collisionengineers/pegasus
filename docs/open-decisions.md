@@ -52,33 +52,34 @@ step it names.
    bar from the first evaluation; acceptance of the reviewed numbers still
    closes this item, and if nothing meets the accepted bar the capability
    blocks rather than falls back.
-   Full-cohort evaluation evidence (2026-08-03, run `20260803-091427`,
+   Full-cohort evaluation evidence (2026-08-03, run `20260803-092906`,
    superseding the earlier runs): 3,523 case-attributed labelled corpus
    images; deterministic cohort 2,818 (all evaluated) / untouched holdout
    705; zero technical failures. Candidate confidence is the weakest
    per-character probability capped by the detection score. Scoring uses
-   the operator-directed match rule: exact, or the read missing exactly
-   one character of the confirmed registration (the confirmed value
-   completes a truncated read and is the registered identity;
-   substitutions never match; a second consistent candidate is
-   ambiguous). Remaining wrong suggestions split by edit distance:
-   distance 1–2 is a near-miss — a genuine misread of the case vehicle,
-   the dangerous kind — while distance 3+ is almost certainly a correctly
-   read third-party registration in a multi-vehicle photo that
-   case-level attribution cannot credit. Measured: **0.80 bar** → 315
-   suggestions (11.2% of images), wrong 54 (17.1%) = **11 near-misses
-   (3.5%)** + 43 different registrations (13.7%); **0.90 bar** → 64
-   suggestions (2.3%), wrong 5 (7.8%) = 4 near-misses + 1 different
-   registration; 97.7% abstention. Remaining near-miss shapes are mostly
-   an inserted `1` (plate furniture read as a character), two-character
-   truncations, and single-character substitutions. The implemented
-   provisional bar is **0.90** (conservative); at 0.80 the true-misread
-   rate is ~3.5% with five times the coverage, so the accepted bar is a
-   genuine operator trade between coverage and misread risk — the local
-   report `artifacts/vrm-recognition-eval/20260803-091427/report.json`
-   lists every wrong pair for that review. Operator acceptance of the
-   reviewed numbers (and one-time holdout confirmation at the accepted
-   bar via `PEGASUS_VRM_EVAL_HOLDOUT=1`) closes this item.
+   the operator-directed match rules: exact; the read missing exactly one
+   character of the confirmed registration (the confirmed value completes
+   a truncated read and is the registered identity); or an
+   eight-character read with a fifth-position `1` retried without it
+   (plate furniture read as an inserted character). Substitutions never
+   match and a second consistent candidate is ambiguous. Remaining wrong
+   suggestions split by edit distance: distance 1–2 is a near-miss — a
+   genuine misread of the case vehicle, the dangerous kind — while
+   distance 3+ is almost certainly a correctly read third-party
+   registration in a multi-vehicle photo that case-level attribution
+   cannot credit. Measured: **0.80 bar** → 315 suggestions (11.2% of
+   images), wrong 53 (16.8%) = **10 near-misses (3.2%)** + 43 different
+   registrations (13.7%); **0.90 bar** → 64 suggestions (2.3%), wrong 4
+   (6.2%) = 3 near-misses + 1 different registration; 97.7% abstention.
+   Remaining near-miss shapes are two-character truncations and
+   single-character substitutions. The implemented provisional bar is
+   **0.90** (conservative); at 0.80 the true-misread rate is ~3.2% with
+   five times the coverage, so the accepted bar is a genuine operator
+   trade between coverage and misread risk — the local report
+   `artifacts/vrm-recognition-eval/20260803-092906/report.json` lists
+   every wrong pair for that review. Operator acceptance of the reviewed
+   numbers (and one-time holdout confirmation at the accepted bar via
+   `PEGASUS_VRM_EVAL_HOLDOUT=1`) closes this item.
 2. **`INT-31` upload-link limits** — Exact token lifetime, aggregate and
    per-file byte limits, file count, allowed content types, per-token/per-IP
    rate, one-time vs reuse, and revocation/expiry error contract. Interim bound:
