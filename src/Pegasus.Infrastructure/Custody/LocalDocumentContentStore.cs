@@ -165,12 +165,7 @@ public sealed class LocalDocumentContentStore(string rootPath) : IDocumentConten
 
     private static string SafeCaseFolderName(string value)
     {
-        var invalid = Path.GetInvalidFileNameChars().ToHashSet();
-        var result = new string(value.Trim().Select(character => invalid.Contains(character) ? '_' : character).ToArray());
-        if (string.IsNullOrWhiteSpace(result) || result.Length > 180)
-        {
-            throw new ArgumentException("The local custody name is invalid.", nameof(value));
-        }
+        var result = CustodyNames.SafeName(value);
 
         return result;
     }

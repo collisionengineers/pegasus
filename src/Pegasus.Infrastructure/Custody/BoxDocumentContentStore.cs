@@ -5,10 +5,12 @@ namespace Pegasus.Infrastructure.Custody;
 
 /// <summary>
 /// Production managed-document content storage in the approved Box custody
-/// root. The layout mirrors <see cref="LocalDocumentContentStore"/> —
-/// <c>{caseReference}/managed/{versionId:N}/content</c> — so both profiles
-/// resolve one version to one object, and every Box call is fenced to the
-/// approved root by <see cref="BoxContentClient"/>.
+/// root, at <c>{caseReference}/managed/{versionId:N}/content</c> under the
+/// same Case/PO folder as retained intake sources.
+/// <see cref="LocalDocumentContentStore"/> resolves the same identity under
+/// its local <c>cases/</c> prefix, so both profiles resolve one version to
+/// one object; every Box call is fenced to the approved root by
+/// <see cref="BoxContentClient"/>.
 /// </summary>
 internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocumentContentStore
 {
@@ -167,12 +169,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
 
     private static string SafeCaseFolderName(string value)
     {
-        var invalid = Path.GetInvalidFileNameChars().ToHashSet();
-        var result = new string(value.Trim().Select(character => invalid.Contains(character) ? '_' : character).ToArray());
-        if (string.IsNullOrWhiteSpace(result) || result.Length > 180)
-        {
-            throw new ArgumentException("The Box custody name is invalid.", nameof(value));
-        }
+        var result = CustodyNames.SafeName(value);
 
         return result;
     }
