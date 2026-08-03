@@ -52,7 +52,10 @@ step it names.
    (Claimant Name, Claim Number, VRM, Make, Model, Mileage, Accident
    Circumstances, Incident Date, Instruction Date, Inspection Address), from an
    operator-reviewed cohort + untouched holdout. Zero false case creation is
-   invariant.
+   invariant. Inspection Address extraction is meaningful only for
+   physical-address Principals; an always-image-based Principal's Cases take
+   the exact `Image Based Assessment` value from the provider setting
+   (ADR-0017), not from extraction.
 5. **Telemetry sampling and daily cap** — Exact sampling rate and daily
    ingestion cap (31-day interactive retention is settled), accepted from
    measured alpha workload and cost evidence; the deployed adaptive sampling
