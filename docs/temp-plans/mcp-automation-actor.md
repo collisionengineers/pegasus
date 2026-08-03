@@ -202,18 +202,34 @@ claim, vehicle, accident, contact, inspection) can be exposed as
 lease-guarded Actor tools, and generating the manual EVA bundle
 (EXT-03/CASE-21) is likewise an ordinary operational action. Both are
 therefore inventory candidates for the 1.10(d) approval question:
-`pegasus_case_update_details` and `pegasus_eva_bundle_generate`. What
-ADR-0011 does **not** cover, and other authorities forbid regardless of
-inventory: issuing or altering the professional findings
-(Roadworthiness / Assessment are Engineer-owned, and a permanent
-boundary bars any model or external source from issuing an accepted
-case, engineering, economic, legal, or report outcome), report
-approval or sending, and report generation itself — report preparation
-is EVA-owned through `0.1.0-alpha.1`, Pegasus-owned rendering is
-`1.0.0`/`1.1.0` work, and the AI route into a repair specification is
-proposal-only with named-Engineer review (AI-09, ENG-01). ADR-0011's
-closing clause requires a new accepted decision for any authority
-expansion beyond the ordinary operational surface.
+`pegasus_case_update_details` and `pegasus_eva_bundle_generate`.
+
+The only thing outside every inventory is **autonomous acceptance**:
+no model output becomes an accepted finding, report, or sent artifact
+without an authorised human's review — "proposals … remain proposals
+until the authorised human accepts or rejects them through Core"; "no
+AI caller mutates, approves, or sends autonomously." The intended
+workflow (Claude completes the assessment work; a human always reviews
+before anything is accepted or sent) fits inside that boundary, in two
+lanes:
+
+- **Available under this task's inventory**: Claude produces the draft
+  assessment or report content and it enters the Case as a
+  provenance-labelled draft artifact through the ordinary document
+  tools; the Engineer reviews it and personally records the accepted
+  finding (CASE-28) or uses the draft in report preparation. Nothing
+  is accepted, approved, or sent by the model.
+- **The structured lane**: a typed proposal the Engineer accepts with
+  one action, applied by Core with the accepting Engineer attributed —
+  that is AI-09's proposal/lease/review contract (`1.3.0`; ENG-01's
+  "approved AI proposal" repair-specification route at `1.0.0`).
+  Pulling it forward is an operator allocation decision, not an
+  ADR-0011 change — the ADR's boundary already anticipates it.
+
+Report **sending** keeps its own evidence contract in every lane
+(exact approved-mailbox Sent-item evidence; MAIL-17 later), and
+Pegasus-owned rendering remains `1.0.0`/`1.1.0` work — in the alpha
+the report itself is prepared in EVA from the exported bundle.
 
 ### 1.7 Attribution, history, and telemetry
 
