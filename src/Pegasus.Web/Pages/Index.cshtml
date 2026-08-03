@@ -3,19 +3,21 @@
 @inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment Environment
 @{
     ViewData["Title"] = "Operations";
+
+    // Queues whose Core query is not composed yet. They keep a tile so the shell
+    // stays the approved shape, but the tile states the absence rather than
+    // standing in a zero.
+    const string Absent = "Unavailable";
 }
 
 <header class="page-heading">
     <div>
-        <p class="eyebrow">Operations</p>
         <h1>Operations</h1>
-        <p class="lede">Live queues from the authenticated Pegasus workflow.</p>
-    </div>
-    <div class="updated">
-        Updated
-        <time datetime="@Model.LoadedAtUtc.ToString("O")">@Model.LoadedAtUtc.ToLocalTime().ToString("HH:mm")</time>
+        <p class="lede">Every current queue for the office, with the exact filter behind each count.</p>
     </div>
 </header>
+
+<partial name="Shared/_FreshnessBanner" model="(DateTimeOffset?)Model.LoadedAtUtc" />
 
 @if (Environment.IsDevelopment())
 {
@@ -25,143 +27,212 @@
     </section>
 }
 
-<section class="section-gap" aria-labelledby="operations-workspaces-title">
-    <h2 id="operations-workspaces-title" class="section-label">Operations workspaces</h2>
-    <div class="queue-grid">
-        <a class="queue-card queue-card--unavailable" asp-page="/Operations/Email" data-queue-state="unavailable">
-            <span class="queue-icon" aria-hidden="true">E</span>
-            <div><strong>Unavailable</strong><span>Email: Received and Sent</span><small>Open the operations route for mailbox outcomes and owned retries; no dashboard aggregate is available.</small></div>
-            <span class="arrow" aria-hidden="true">›</span>
-        </a>
-        <a class="queue-card queue-card--unavailable" asp-page="/Operations/Requests" data-queue-state="unavailable">
-            <span class="queue-icon" aria-hidden="true">R</span>
-            <div><strong>Unavailable</strong><span>Requests: Box and Pegasus</span><small>Open the operations route for request-link, upload, and external-work outcomes; no dashboard aggregate is available.</small></div>
-            <span class="arrow" aria-hidden="true">›</span>
-        </a>
-    </div>
-</section>
-
 <section aria-labelledby="case-queues-title">
     <h2 id="case-queues-title" class="section-label">Case and intake queues</h2>
-    <div class="queue-grid">
-        <article class="queue-card queue-card--unavailable" data-queue-state="unavailable">
-            <span class="queue-icon" aria-hidden="true">!</span>
-            <div><strong>—</strong><span>Not ready</span><small>Case query unavailable</small></div>
-        </article>
-        <a class="queue-card queue-card--blue" asp-page="/Intake/Index" asp-route-decision="draft_ready" data-queue-state="current">
-            <span class="queue-icon" aria-hidden="true">R</span>
-            <div><strong>@Model.Counts.DraftReady</strong><span>Review</span><small>Current intake drafts</small></div>
-            <span class="arrow" aria-hidden="true">›</span>
+    <div class="metric-strip">
+        <div class="metric" data-queue-state="unavailable">
+            <span class="metric__label">
+                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                Not ready
+            </span>
+            <span class="metric__absent"><partial name="Shared/_StatusChip" model="@Absent" /></span>
+        </div>
+        <a class="metric" data-queue-state="current" data-state="review" asp-page="/Intake/Index" asp-route-decision="draft_ready">
+            <span class="metric__label">
+                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-info" /></svg>
+                Review
+            </span>
+            <strong class="metric__value">@Model.Counts.DraftReady</strong>
         </a>
-        <article class="queue-card queue-card--unavailable" data-queue-state="unavailable">
-            <span class="queue-icon" aria-hidden="true">!</span>
-            <div><strong>—</strong><span>Held</span><small>Case query unavailable</small></div>
-        </article>
-        <a class="queue-card queue-card--amber" asp-page="/Intake/Index" asp-route-decision="needs_sorting" data-queue-state="current">
-            <span class="queue-icon" aria-hidden="true">!</span>
-            <div><strong>@Model.Counts.NeedsSorting</strong><span>Needs sorting</span><small>Current intake receipts</small></div>
-            <span class="arrow" aria-hidden="true">›</span>
+        <div class="metric" data-queue-state="unavailable">
+            <span class="metric__label">
+                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-clock" /></svg>
+                Held
+            </span>
+            <span class="metric__absent"><partial name="Shared/_StatusChip" model="@Absent" /></span>
+        </div>
+        <a class="metric" data-queue-state="current" data-state="needs-sorting" asp-page="/Intake/Index" asp-route-decision="needs_sorting">
+            <span class="metric__label">
+                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                Needs sorting
+            </span>
+            <strong class="metric__value">@Model.Counts.NeedsSorting</strong>
         </a>
-        <a class="queue-card queue-card--amber" asp-page="/Intake/Index" asp-route-decision="blocked_intake" data-queue-state="current">
-            <span class="queue-icon" aria-hidden="true">!</span>
-            <div><strong>@Model.Counts.BlockedIntake</strong><span>Blocked intake</span><small>Receipts requiring an explicit resolution</small></div>
-            <span class="arrow" aria-hidden="true">›</span>
+        <a class="metric" data-queue-state="current" data-state="blocked" asp-page="/Intake/Index" asp-route-decision="blocked_intake">
+            <span class="metric__label">
+                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-alert-circle" /></svg>
+                Blocked intake
+            </span>
+            <strong class="metric__value">@Model.Counts.BlockedIntake</strong>
         </a>
-        <a class="queue-card queue-card--blue" asp-page="/Triage/Index" data-queue-state="current">
-            <span class="queue-icon" aria-hidden="true">T</span>
-            <div><strong>@Model.TriageCount</strong><span>Triage</span><small>All current triage records</small></div>
-            <span class="arrow" aria-hidden="true">›</span>
+        @* Triage is a distinct pre-case workspace and due work is a schedule, so
+           neither borrows a Case-state tone. Their label and count carry them. *@
+        <a class="metric" data-queue-state="current" asp-page="/Triage/Index">
+            <span class="metric__label">
+                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-filter" /></svg>
+                Triage
+            </span>
+            <strong class="metric__value">@Model.TriageCount</strong>
+        </a>
+        <a class="metric" data-queue-state="current" href="#due-work-list">
+            <span class="metric__label">
+                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-calendar" /></svg>
+                Due case work
+            </span>
+            <strong class="metric__value">@Model.DueWork.Count</strong>
         </a>
     </div>
 </section>
 
 <section aria-labelledby="time-queues-title">
     <h2 id="time-queues-title" class="section-label">Today and this week</h2>
-    <div class="queue-grid queue-grid--time">
-        <a class="queue-card queue-card--blue" href="#due-work-list" data-queue-state="current">
-            <div><strong>@Model.DueWork.Count</strong><span>Due case work</span><small>Scheduled chases due at the last refresh</small></div>
-            <span class="arrow" aria-hidden="true">›</span>
-        </a>
-        <article class="queue-card queue-card--unavailable" data-queue-state="unavailable">
-            <div><strong>—</strong><span>In today</span><small>Case creation query unavailable</small></div>
-        </article>
-        <article class="queue-card queue-card--unavailable" data-queue-state="unavailable">
-            <div><strong>—</strong><span>Sent to Engineer today</span><small>EVA generation query unavailable</small></div>
-        </article>
-        <article class="queue-card queue-card--unavailable" data-queue-state="unavailable">
-            <div><strong>—</strong><span>Sent to Engineer this week</span><small>EVA generation query unavailable</small></div>
-        </article>
-        <article class="queue-card queue-card--unavailable" data-queue-state="unavailable">
-            <div><strong>—</strong><span>Reports sent today</span><small>Report evidence query unavailable</small></div>
-        </article>
-        <article class="queue-card queue-card--unavailable" data-queue-state="unavailable">
-            <div><strong>—</strong><span>Reports sent this week</span><small>Report evidence query unavailable</small></div>
-        </article>
+    <div class="metric-strip metric-strip--secondary">
+        <div class="metric" data-queue-state="unavailable">
+            <span class="metric__label">
+                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-file-text" /></svg>
+                New cases today
+            </span>
+            <span class="metric__absent"><partial name="Shared/_StatusChip" model="@Absent" /></span>
+        </div>
+        <div class="metric" data-queue-state="unavailable">
+            <span class="metric__label">
+                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                Sent to Engineer today
+            </span>
+            <span class="metric__absent"><partial name="Shared/_StatusChip" model="@Absent" /></span>
+        </div>
+        <div class="metric" data-queue-state="unavailable">
+            <span class="metric__label">
+                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                Sent to Engineer this week
+            </span>
+            <span class="metric__absent"><partial name="Shared/_StatusChip" model="@Absent" /></span>
+        </div>
+        <div class="metric" data-queue-state="unavailable">
+            <span class="metric__label">
+                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-upload" /></svg>
+                Reports sent today
+            </span>
+            <span class="metric__absent"><partial name="Shared/_StatusChip" model="@Absent" /></span>
+        </div>
+        <div class="metric" data-queue-state="unavailable">
+            <span class="metric__label">
+                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-upload" /></svg>
+                Reports sent this week
+            </span>
+            <span class="metric__absent"><partial name="Shared/_StatusChip" model="@Absent" /></span>
+        </div>
     </div>
 </section>
 
-<section id="due-work-list" class="section-gap" aria-labelledby="due-work-title">
-    <h2 id="due-work-title" class="section-label">Due case work</h2>
-    @if (Model.DueWork.Count == 0)
-    {
-        <div class="panel empty-state">No scheduled case work is due.</div>
-    }
-    else
-    {
-        <div class="panel queue-list">
-            @foreach (var item in Model.DueWork)
-            {
-                <a asp-page="/Cases/Details" asp-route-id="@item.CaseId">
-                    <span>
-                        <strong>Open case</strong>
-                        <small>@item.MissingMaterialReason</small>
-                    </span>
-                    <span>
-                        <strong>@item.State</strong>
-                        @if (item.NextChaseAtUtc is { } nextChaseAtUtc)
-                        {
-                            <small>Due <time datetime="@nextChaseAtUtc.ToString("O")">@nextChaseAtUtc.ToString("u")</time></small>
-                        }
-                    </span>
-                </a>
-            }
-        </div>
-    }
+<section aria-labelledby="operations-workspaces-title">
+    <h2 id="operations-workspaces-title" class="section-label">Operations workspaces</h2>
+    <div class="queue-grid">
+        <a class="queue-card queue-card--unavailable" asp-page="/Operations/Email" data-queue-state="unavailable">
+            <span class="queue-icon" aria-hidden="true">
+                <svg class="icon icon--lg"><use href="#icon-file-text" /></svg>
+            </span>
+            <div>
+                <span>Email: Received and Sent</span>
+                <partial name="Shared/_StatusChip" model="@Absent" />
+                <small>Mailbox outcomes and owned retries. No dashboard aggregate exists for this route.</small>
+            </div>
+            <span class="arrow" aria-hidden="true">
+                <svg class="icon"><use href="#icon-chevron-right" /></svg>
+            </span>
+        </a>
+        <a class="queue-card queue-card--unavailable" asp-page="/Operations/Requests" data-queue-state="unavailable">
+            <span class="queue-icon" aria-hidden="true">
+                <svg class="icon icon--lg"><use href="#icon-upload" /></svg>
+            </span>
+            <div>
+                <span>Requests: Box and Pegasus</span>
+                <partial name="Shared/_StatusChip" model="@Absent" />
+                <small>Request-link, upload and external-work outcomes. No dashboard aggregate exists for this route.</small>
+            </div>
+            <span class="arrow" aria-hidden="true">
+                <svg class="icon"><use href="#icon-chevron-right" /></svg>
+            </span>
+        </a>
+    </div>
 </section>
 
-<section class="section-gap" aria-labelledby="staged-artifacts-title">
-    <h2 id="staged-artifacts-title" class="section-label">Staged intake artifacts</h2>
-    <p>
-        Bounded inventory from the latest refresh:
-        @Model.StagedArtifacts.Pending pending,
-        @Model.StagedArtifacts.Failed failed,
-        @Model.StagedArtifacts.Orphans orphaned,
-        @Model.StagedArtifacts.Unmatched unmatched.
-    </p>
-    @if (Model.StagedArtifacts.Items.Count == 0)
-    {
-        <div class="panel empty-state">No staged artifacts require retention or reconciliation.</div>
-    }
-    else
-    {
-        <div class="panel queue-list">
-            @foreach (var item in Model.StagedArtifacts.Items)
-            {
-                <article>
-                    <span>
-                        <strong>@item.Disposition</strong>
-                        <small>@item.StorageKey</small>
-                    </span>
-                    <span>
-                        <strong>@item.ContentLength bytes</strong>
-                        <small>
-                            First seen
-                            <time datetime="@item.FirstSeenAtUtc.ToString("O")">@item.FirstSeenAtUtc.ToString("u")</time>
-                            · SHA-256 @item.ContentHash
-                        </small>
-                    </span>
-                </article>
-            }
-        </div>
-    }
-</section>
+<div class="dashboard-grid section-gap">
+    <section id="due-work-list" aria-labelledby="due-work-title">
+        <h2 id="due-work-title" class="section-label">Due case work</h2>
+        @if (Model.DueWork.Count == 0)
+        {
+            <div class="panel empty-state">No scheduled case work is due.</div>
+        }
+        else
+        {
+            <div class="panel queue-list">
+                @foreach (var item in Model.DueWork)
+                {
+                    <a asp-page="/Cases/Details" asp-route-id="@item.CaseId">
+                        <span>
+                            <strong>Open case</strong>
+                            <small>@item.MissingMaterialReason</small>
+                        </span>
+                        <span>
+                            <partial name="Shared/_StatusChip" model="@item.State.ToString()" />
+                            @if (item.NextChaseAtUtc is { } nextChaseAtUtc)
+                            {
+                                <small>
+                                    Next chase
+                                    <time datetime="@nextChaseAtUtc.ToString("O")">@nextChaseAtUtc.ToString("d MMM yyyy HH:mm")</time>
+                                </small>
+                            }
+                        </span>
+                    </a>
+                }
+            </div>
+        }
+    </section>
+
+    <section aria-labelledby="staged-artifacts-title">
+        <h2 id="staged-artifacts-title" class="section-label">Staged intake artifacts</h2>
+        @if (Model.StagedArtifacts.Items.Count == 0)
+        {
+            <div class="panel empty-state">
+                <p>No staged artifacts require retention or reconciliation.</p>
+                <p class="tabular">
+                    @Model.StagedArtifacts.Pending pending ·
+                    @Model.StagedArtifacts.Failed failed ·
+                    @Model.StagedArtifacts.Orphans orphaned ·
+                    @Model.StagedArtifacts.Unmatched unmatched
+                </p>
+            </div>
+        }
+        else
+        {
+            <div class="panel">
+                <p class="tabular">
+                    Bounded inventory from the latest refresh:
+                    @Model.StagedArtifacts.Pending pending ·
+                    @Model.StagedArtifacts.Failed failed ·
+                    @Model.StagedArtifacts.Orphans orphaned ·
+                    @Model.StagedArtifacts.Unmatched unmatched
+                </p>
+                <div class="queue-list">
+                    @foreach (var item in Model.StagedArtifacts.Items)
+                    {
+                        <article>
+                            <span>
+                                <strong>@item.Disposition</strong>
+                                <small>@item.StorageKey</small>
+                            </span>
+                            <span>
+                                <strong class="tabular">@item.ContentLength bytes</strong>
+                                <small>
+                                    First seen
+                                    <time datetime="@item.FirstSeenAtUtc.ToString("O")">@item.FirstSeenAtUtc.ToString("d MMM yyyy HH:mm")</time>
+                                </small>
+                            </span>
+                        </article>
+                    }
+                </div>
+            </div>
+        }
+    </section>
+</div>

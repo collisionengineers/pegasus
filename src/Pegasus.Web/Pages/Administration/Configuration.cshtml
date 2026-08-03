@@ -2,63 +2,93 @@
 @model Pegasus.Web.Pages.Administration.ConfigurationModel
 @{
     ViewData["Title"] = "Workflow configuration";
+    ViewData["Eyebrow"] = "Administration";
+    ViewData["Lede"] = "These versioned gates control whether a case can be assigned to an Engineer. This page contains no credentials, secrets, or cloud controls.";
 }
 
-<h1>Workflow configuration</h1>
-<p><a asp-page="/Administration/Index">Back to Administration</a></p>
-<p>These versioned gates control whether a case can be assigned to an Engineer. This page contains no credentials, secrets, or cloud controls.</p>
+<a class="back-link" asp-page="/Administration/Index">
+    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+    Back to Administration
+</a>
+
+<partial name="Shared/_PageHeader" />
 
 @if (TempData["AdministrationStatus"] is string status)
 {
-    <div role="status">@status</div>
+    <div class="status-card" role="status">@status</div>
 }
 
-<section aria-labelledby="current-workflow-configuration-heading">
-    <h2 id="current-workflow-configuration-heading">Current configuration</h2>
-    <dl>
-        <dt>Policy</dt>
-        <dd>@Model.Configuration.PolicyKey</dd>
-        <dt>Version</dt>
-        <dd>@Model.Configuration.PolicyVersion</dd>
-        <dt>Complete instructions before Engineer assignment</dt>
-        <dd>@(Model.Configuration.RequireCompleteInstructionsBeforeEngineerAssignment ? "Required" : "Not required")</dd>
-        <dt>Complete images before Engineer assignment</dt>
-        <dd>@(Model.Configuration.RequireCompleteImagesBeforeEngineerAssignment ? "Required" : "Not required")</dd>
-        <dt>Staff instruction review before Engineer assignment</dt>
-        <dd>@(Model.Configuration.RequireStaffInstructionReviewBeforeEngineerAssignment ? "Required" : "Not required")</dd>
-        <dt>Staff image review before Engineer assignment</dt>
-        <dd>@(Model.Configuration.RequireStaffImageReviewBeforeEngineerAssignment ? "Required" : "Not required")</dd>
-    </dl>
-</section>
+<div class="split-main">
+    <section aria-labelledby="current-workflow-configuration-heading">
+        <h2 id="current-workflow-configuration-heading" class="section-label">Current configuration</h2>
+        <div class="panel">
+            <dl class="detail-list">
+                <div>
+                    <dt>Policy</dt>
+                    <dd>@Model.Configuration.PolicyKey</dd>
+                </div>
+                <div>
+                    <dt>Version</dt>
+                    <dd class="tabular">@Model.Configuration.PolicyVersion</dd>
+                </div>
+                <div>
+                    <dt>Complete instructions before Engineer assignment</dt>
+                    <dd>@(Model.Configuration.RequireCompleteInstructionsBeforeEngineerAssignment ? "Required" : "Not required")</dd>
+                </div>
+                <div>
+                    <dt>Complete images before Engineer assignment</dt>
+                    <dd>@(Model.Configuration.RequireCompleteImagesBeforeEngineerAssignment ? "Required" : "Not required")</dd>
+                </div>
+                <div>
+                    <dt>Staff instruction review before Engineer assignment</dt>
+                    <dd>@(Model.Configuration.RequireStaffInstructionReviewBeforeEngineerAssignment ? "Required" : "Not required")</dd>
+                </div>
+                <div>
+                    <dt>Staff image review before Engineer assignment</dt>
+                    <dd>@(Model.Configuration.RequireStaffImageReviewBeforeEngineerAssignment ? "Required" : "Not required")</dd>
+                </div>
+            </dl>
+        </div>
+    </section>
 
-<section aria-labelledby="update-workflow-configuration-heading">
-    <h2 id="update-workflow-configuration-heading">Update assignment gates</h2>
-    <form method="post" asp-page="/Administration/Configuration">
-        <div asp-validation-summary="All"></div>
-        <input asp-for="ExpectedVersion" type="hidden" />
-        <input asp-for="OperationKey" type="hidden" />
-        <fieldset>
-            <legend>Required before Engineer assignment</legend>
-            <label>
-                <input asp-for="RequireCompleteInstructionsBeforeEngineerAssignment" />
-                Instructions are complete
-            </label>
-            <label>
-                <input asp-for="RequireCompleteImagesBeforeEngineerAssignment" />
-                Images are complete
-            </label>
-            <label>
-                <input asp-for="RequireStaffInstructionReviewBeforeEngineerAssignment" />
-                A staff member reviewed the instructions
-            </label>
-            <label>
-                <input asp-for="RequireStaffImageReviewBeforeEngineerAssignment" />
-                A staff member reviewed the images
-            </label>
-        </fieldset>
-        <label asp-for="Reason">Reason for this configuration change</label>
-        <textarea asp-for="Reason" required maxlength="1000" rows="3"></textarea>
-        <span asp-validation-for="Reason"></span>
-        <button type="submit">Save workflow configuration</button>
-    </form>
-</section>
+    <section aria-labelledby="update-workflow-configuration-heading">
+        <h2 id="update-workflow-configuration-heading" class="section-label">Update assignment gates</h2>
+        <div class="panel form-panel form-panel--wide">
+            <form method="post" asp-page="/Administration/Configuration">
+                @* A rejected save is most often a stale version: another administrator
+                   changed the policy since this page loaded. The summary carries that
+                   exact outcome and the recovery is to reload and reapply. *@
+                <div asp-validation-summary="All"></div>
+                <input asp-for="ExpectedVersion" type="hidden" />
+                <input asp-for="OperationKey" type="hidden" />
+                <fieldset class="role-choices role-choices--stacked">
+                    <legend>Required before Engineer assignment</legend>
+                    <label class="choice">
+                        <input asp-for="RequireCompleteInstructionsBeforeEngineerAssignment" />
+                        <span>Instructions are complete</span>
+                    </label>
+                    <label class="choice">
+                        <input asp-for="RequireCompleteImagesBeforeEngineerAssignment" />
+                        <span>Images are complete</span>
+                    </label>
+                    <label class="choice">
+                        <input asp-for="RequireStaffInstructionReviewBeforeEngineerAssignment" />
+                        <span>A staff member reviewed the instructions</span>
+                    </label>
+                    <label class="choice">
+                        <input asp-for="RequireStaffImageReviewBeforeEngineerAssignment" />
+                        <span>A staff member reviewed the images</span>
+                    </label>
+                </fieldset>
+                <div>
+                    <label asp-for="Reason">Reason for this configuration change</label>
+                    <textarea asp-for="Reason" required maxlength="1000" rows="3"></textarea>
+                    <span asp-validation-for="Reason"></span>
+                </div>
+                <div class="button-row">
+                    <button type="submit" class="primary-action">Save workflow configuration</button>
+                </div>
+            </form>
+        </div>
+    </section>
+</div>

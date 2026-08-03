@@ -4,19 +4,25 @@
     ViewData["Title"] = "Sign in";
 }
 
-<h1>Sign in to Pegasus</h1>
-<form method="post">
-    <div asp-validation-summary="ModelOnly"></div>
-    <input asp-for="ReturnUrl" type="hidden" />
-    <div>
-        <label asp-for="UserName">Username</label>
-        <input asp-for="UserName" autocomplete="username" autofocus />
-        <span asp-validation-for="UserName"></span>
+<div class="auth-panel">
+    <div class="panel">
+        <p class="eyebrow">Collision Engineers</p>
+        <h1>Sign in to Pegasus</h1>
+        <p class="lede">Use the staff account issued to you. Contact an administrator if your access has changed.</p>
+        <form method="post">
+            <div asp-validation-summary="ModelOnly"></div>
+            <input asp-for="ReturnUrl" type="hidden" />
+            <label asp-for="UserName">
+                Username
+                <input asp-for="UserName" autocomplete="username" autofocus />
+            </label>
+            <span asp-validation-for="UserName"></span>
+            <label asp-for="Password">
+                Password
+                <input asp-for="Password" autocomplete="current-password" />
+            </label>
+            <span asp-validation-for="Password"></span>
+            <button type="submit" class="primary-action">Sign in</button>
+        </form>
     </div>
-    <div>
-        <label asp-for="Password">Password</label>
-        <input asp-for="Password" autocomplete="current-password" />
-        <span asp-validation-for="Password"></span>
-    </div>
-    <button type="submit">Sign in</button>
-</form>
+</div>

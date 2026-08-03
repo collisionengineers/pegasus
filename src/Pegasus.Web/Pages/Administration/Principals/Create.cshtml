@@ -3,55 +3,69 @@
 @using Pegasus.Core.Cases
 @{
     ViewData["Title"] = "Create principal";
+    ViewData["Eyebrow"] = "Administration";
+    ViewData["Lede"] = "A principal code becomes an immutable identity. Later correction uses a linked successor rather than editing this code or moving existing cases and references.";
     var workProviders = Model.Organizations.Organizations
         .Where(organization => organization.Roles.Contains(OrganizationRole.WorkProvider))
         .ToArray();
 }
 
-<h1>Create principal</h1>
-<p><a asp-page="Index">Back to Principals</a></p>
-<p>A principal code becomes an immutable identity. Later correction uses a linked successor rather than editing this code or moving existing cases and references.</p>
+<a class="back-link" asp-page="Index">
+    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+    Back to Principals
+</a>
+
+<partial name="Shared/_PageHeader" />
 
 @if (workProviders.Length == 0)
 {
-    <p>No Work Provider organization is available. Create or update an organization before creating a principal.</p>
+    <div class="status-card status-card--attention" role="status">
+        <p>No Work Provider organization is available. Create or update an organization before creating a principal.</p>
+        <div class="button-row">
+            <a class="secondary-action" asp-page="/Administration/Organizations/Index">Go to Organizations</a>
+        </div>
+    </div>
 }
 else
 {
-    <form method="post" asp-page-handler="Create">
-        <div asp-validation-summary="ModelOnly"></div>
-        <input asp-for="OperationKey" type="hidden" />
-        <div>
-            <label asp-for="OrganizationId">Work Provider organization</label>
-            <select asp-for="OrganizationId">
-                <option value="">Select an organization</option>
-                @foreach (var organization in workProviders)
-                {
-                    <option value="@organization.Id">@organization.Name</option>
-                }
-            </select>
-            <span asp-validation-for="OrganizationId"></span>
-        </div>
-        <div>
-            <label asp-for="Code">Principal code</label>
-            <input asp-for="Code" autocomplete="off" />
-            <span asp-validation-for="Code"></span>
-            <p>Use letters and numbers only. The code is normalized to uppercase and cannot be edited.</p>
-        </div>
-        <div>
-            <label asp-for="InspectionMode">Inspection mode</label>
-            <select asp-for="InspectionMode">
-                <option value="@CaseInspectionMode.PhysicalAddress">Physical address</option>
-                <option value="@CaseInspectionMode.ImageBasedAssessment">Image Based Assessment</option>
-            </select>
-            <span asp-validation-for="InspectionMode"></span>
-            <p>Image Based Assessment autofills the inspection address on every new case for this principal; staff may override it on a specific case with a reason.</p>
-        </div>
-        <button type="submit">Create principal</button>
-    </form>
+    <div class="panel form-panel">
+        <form method="post" asp-page-handler="Create">
+            <div asp-validation-summary="ModelOnly"></div>
+            <input asp-for="OperationKey" type="hidden" />
+            <div>
+                <label asp-for="OrganizationId">Work Provider organization</label>
+                <select asp-for="OrganizationId">
+                    <option value="">Select an organization</option>
+                    @foreach (var organization in workProviders)
+                    {
+                        <option value="@organization.Id">@organization.Name</option>
+                    }
+                </select>
+                <span asp-validation-for="OrganizationId"></span>
+            </div>
+            <div>
+                <label asp-for="Code">Principal code</label>
+                <input asp-for="Code" autocomplete="off" />
+                <span asp-validation-for="Code"></span>
+                <small class="empty-state">Letters and numbers only. The code is normalized to uppercase and cannot be edited.</small>
+            </div>
+            <div>
+                <label asp-for="InspectionMode">Inspection mode</label>
+                <select asp-for="InspectionMode">
+                    <option value="@CaseInspectionMode.PhysicalAddress">Physical address</option>
+                    <option value="@CaseInspectionMode.ImageBasedAssessment">Image Based Assessment</option>
+                </select>
+                <span asp-validation-for="InspectionMode"></span>
+                <small class="empty-state">Image Based Assessment autofills the inspection address on every new case for this principal; staff may override it on a specific case with a reason.</small>
+            </div>
+            <div class="button-row">
+                <button type="submit" class="primary-action">Create principal</button>
+            </div>
+        </form>
+    </div>
 }
 
 @if (Model.Organizations.HasMoreOrganizations)
 {
-    <p>The organization selector is bounded. Use the Organizations workspace to confirm an organization that is not shown.</p>
+    <p class="empty-state">The organization selector is bounded. Use the Organizations workspace to confirm an organization that is not shown.</p>
 }

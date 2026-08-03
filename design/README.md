@@ -85,6 +85,39 @@ The upstream token source was `styles/colors_and_type.css` in the provided `coll
  Amber incomplete/pending (`#7A3E00`/`#FFF4D6`/`#A15C00`) and navy **Review** (`#143A5E`/`#EAF1F8`/`#365F87`) are approved Pegasus state tokens implemented across `site.css` and status partials. Green must not represent progress, availability or a generic positive action; it is reserved for confirmed completion.
 Excluded marketing tokens include WhatsApp green/pills, large display scales, CTA shadows, document red and brand-font declarations.
 
+#### Reviewed divergence: the `Send to Claude` control
+
+Authorised by the operator on 2026-08-03 and scoped to the single
+`.send-action` control on the Engineer assessment surface. The action carries
+the provider's own identity so it reads as Claude on sight and is never
+mistaken for a Collision Engineers action.
+
+Every value below is declared as a local custom property on the control
+itself, not added to `:root`, so no other surface can inherit it. The rest of
+the application keeps the approved palette, the 2px radius and the red focus
+ring.
+
+| Divergence | Value | Why it is confined here |
+| --- | --- | --- |
+| Terracotta gradient | `#E8956D` → `#D97757` → `#B85F3D` at 135° | The provider's accent. Not added to the colour table and used by no other rule. |
+| Corner radius | `12px` | Matches the provider's control shape. The approved `2px` remains the only radius elsewhere. |
+| Type | `Poppins` first, falling back to the approved system stack | The face is requested, never loaded. No font bundle, file or external stylesheet is added, so a workstation without Poppins renders the approved stack. |
+| Raised shadow and hover lift | `0 2px 5px` at rest, `0 12px 28px -8px` and `translateY(-2px)` on hover | The one lift in the product. Removed under reduced motion. |
+| Focus ring | `2px solid #6A9BCC` | The approved red ring all but disappears on terracotta. This is the only control that does not use it. |
+| Sparkle glyph | Inline four-point star | Not a Lucide glyph and deliberately **not** added to the checksummed sprite, which is unchanged at 16 glyphs. |
+| Ember canvas | Ten particles from a seeded generator | Decoration drawn beneath the label. It reads no page data, starts only when motion is welcome, and stops when the control leaves the document. |
+
+Reduced motion removes the lift, the sparkle animation and the canvas; forced
+colours discards the gradient and restores a `ButtonText` border. The control
+keeps its 44px target and its accessible name in every mode.
+
+**Known shortfall, recorded rather than hidden:** `#FAF9F5` on this gradient
+measures about 2.3:1 at the light stop, 3.0:1 at the middle and 4.2:1 at the
+deep stop, against the 4.5:1 this size and weight require. The gradient is the
+provider's own and was adopted as given. Resolving it means either deepening
+the ramp or taking dark text, and that is an operator decision, not a
+design-pass one.
+
 ### Typography
 
 Use this system stack for all application text:
@@ -113,7 +146,7 @@ The shorter fallback stack currently used by `src/Pegasus.Web/wwwroot/css/site.c
 | Keyboard focus ring | `3px rgba(219,8,22,.38)` |
 | Depth | Border-first; rare soft shadows |
 
-The current Development CSS uses 3px geometry in places. That is divergence evidence, not approval of a second radius.
+The 3px geometry that previously appeared in the Development CSS is resolved: `src/Pegasus.Web/wwwroot/css/site.css` now uses the approved 2px radius throughout. There is no second approved radius.
 
 ### Spacing and layout
 
@@ -169,7 +202,7 @@ Rules:
 - Never extract it from a screenshot.
 - Never recolour the master or invent another mark.
 - Copy or optimise it for a runtime only through a reviewed source-to-runtime mapping with checksum proof.
-- The former `CE` text mark was replaced by the mapped logo in `_Layout.cshtml`; the leftover `.brand-mark` CSS rule in `site.css` is dead styling, not an approved logo variant.
+- The former `CE` text mark was replaced by the mapped logo in `_Layout.cshtml`; the leftover `.brand-mark` CSS rule has been deleted from `site.css`. No second logo variant exists.
 
 The upstream source directory may be absent from a clean checkout. The checksum-pinned repository copy is the durable source.
 
@@ -192,7 +225,11 @@ Lucide is the only approved Web/UI icon system:
 
 Do not use emoji, Unicode dingbats, hand-drawn icons or infrastructure symbols.
 
-The checksummed Lucide sprite is delivered at `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg` (see the mapping below), but no page references a glyph from it yet — glyph usage remains unexercised. A selected implementation must map every used glyph and provide accessible labels whenever an icon is not decorative. `src/Pegasus.Web/wwwroot/favicon.ico` has unrecorded provenance and is not icon-system authority.
+The checksummed Lucide sprite is delivered at `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg` (see the mapping below). Glyph usage is now exercised: `src/Pegasus.Web/Pages/Shared/_LucideSprite.cshtml` inlines the same sixteen glyph vectors once per page from `_Layout.cshtml`, and pages reference them as `<svg class="icon"><use href="#icon-…"/></svg>`.
+
+The inline partial is the runtime delivery of the checksummed asset, not a second icon set. It carries the identical glyph vectors and differs only in wrapper element: each glyph is a `<symbol viewBox="0 0 24 24">` rather than a `<g>`, because `<use>` does not inherit a `viewBox` from a `<g>` and consuming elements would render clipped. The approved 2px stroke and round caps are applied by the `.icon` rule in `site.css`, since a `<use>` clone does not inherit presentation attributes from the sprite root. No glyph was added, removed, or redrawn.
+
+Every icon rendered today is decorative and paired with a visible text label, so each carries `aria-hidden="true"`; any future icon that is not decorative needs its own accessible label. `src/Pegasus.Web/wwwroot/favicon.ico` has unrecorded provenance and is not icon-system authority.
 
 
  #### Lucide icons source-to-runtime mapping
@@ -366,8 +403,12 @@ Only the first table describes exercised components. Planned contracts do not cr
 
 | Component | Purpose and states | Runtime owner |
 | --- | --- | --- |
-| Development shell/navigation | Identify the current proof and reach Development routes; normal, hover and focus; local-intake link is conditional | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` |
-| Queue/metric card | Show persisted Development intake counts and open the exact list; empty/value links are exercised; stale/unavailable is planned but unimplemented | `src/Pegasus.Web/Pages/Index.cshtml`, `src/Pegasus.Web/wwwroot/css/site.css` |
+| Development shell/navigation | Identify the current proof and reach Development routes; normal, hover and focus; the current route carries `aria-current="page"` with a weight and underline change so it is not signalled by colour alone; local-intake link is conditional | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` |
+| Queue/metric card | Show persisted Development intake counts and open the exact list; value and unavailable states are both exercised, an unavailable tile stating its absence rather than substituting a zero; stale and partial remain planned | `src/Pegasus.Web/Pages/Index.cshtml`, `src/Pegasus.Web/wwwroot/css/site.css` |
+| Status chip | The single place a business or query state selects its tone and Lucide glyph; always paired with its text label | `src/Pegasus.Web/Pages/Shared/_StatusChip.cshtml` |
+| Freshness and manual refresh | Last-good Europe/London time, current refresh state, and a manual refresh that reruns the same filter with start feedback and double-submit protection | `src/Pegasus.Web/Pages/Shared/_FreshnessBanner.cshtml` |
+| Page header | Eyebrow, title, lede and optional primary action, shared by the Operations, Cases, Intake, Triage and Administration surfaces | `src/Pegasus.Web/Pages/Shared/_PageHeader.cshtml` |
+| Administration workspaces | Authorised Administration entry cards; one accessible link per card with the whole card as the pointer target | `src/Pegasus.Web/Pages/Administration/Index.cshtml` |
 | Intake receipt and upload | Submit one bounded authenticated source through `ReceiveIntake`; list retained receipts; inspect provenance and decisions; download the retained source only as an authorised safe attachment | `src/Pegasus.Web/Pages/Intake/{Index,Details,Source}.cshtml(.cs)` |
 | Triage queue/detail | List and filter triage records and execute the Core-owned detail commands without adding due/chaser controls | `src/Pegasus.Web/Pages/Triage/{Index,Details}.cshtml(.cs)` |
 | Anonymous request upload | Token-bound `/Uploads/{token}` form and immediate result; antiforgery, idempotent operation key, generic non-disclosing outcomes | `src/Pegasus.Web/Pages/Uploads/Request.cshtml(.cs)` |
@@ -620,6 +661,15 @@ There is no alpha control, route or placeholder for:
 
 Deferred AI may propose but must not mutate, accept or send autonomously. Future deterministic outputs must use one accepted structured case/engineering record, validate accepted data, calculate once and avoid duplicate truth owners or output-specific source forks.
 
+One recorded exception (operator widening, 2026-08-03): the Engineer
+assessment workbench (UI-15) and its `Send to Claude` surface (AI-09) exist as
+design markup under `src/Pegasus.Web/Pages/Cases/Assessment/` — routeless
+files with no `@page` directive, no PageModel, no form, every field empty, and
+no link from any navigation or case surface. They are review artifacts
+satisfying the rule that a deferred UI capability re-enters specification and
+review before implementation; activating a route, binding, or transport for
+them remains forbidden until that re-entry approval.
+
 ### Not planned
 
 The following are permanent absences, not backlog placeholders:
@@ -659,7 +709,7 @@ A supported desktop reflow does not alter the permanent mobile-product boundary.
 | Engineering procedure | [Engineering](../docs/engineering.md) | Reviewed implementation and verification; `.agents/skills/` routes remain subject to it |
 | Design authority | This file | Approved Web tokens, assets, components and patterns |
 | Current Web shell | This file’s approved direction; current code is evidence only | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` |
-| Current Web tokens/layout | This file | `src/Pegasus.Web/wwwroot/css/site.css`, currently divergent |
+| Current Web tokens/layout | This file | `src/Pegasus.Web/wwwroot/css/site.css`, conforming: approved colour, spacing, 2px radius, 1px border and focus ring, with no unapproved literal and no new token |
 | Current dashboard | Current exercised component map | `src/Pegasus.Web/Pages/Index.cshtml` |
 | Current intake caller | Current Development pattern | `src/Pegasus.Web/Pages/Intake/` → Core `ProcessIntake` |
 | Master logo | `design/brand/logos/logo_no_margin.png`, checksum above | Renderer Core, temporary renderer GUI, and the checksummed Web copy embedded by `_Layout.cshtml` |
