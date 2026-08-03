@@ -38,7 +38,7 @@ public sealed record VrmRecognitionResult(
     string? FailureReason = null);
 
 /// <summary>
-/// The in-process ADR-0018 recognition port: image bytes in, a recognition
+/// The in-process ADR-0019 recognition port: image bytes in, a recognition
 /// result out. The engine never mutates anything, never uploads an image
 /// anywhere, and fails toward abstention rather than a guessed registration.
 /// </summary>
@@ -50,21 +50,21 @@ public interface IVrmRecognitionEngine
 }
 
 /// <summary>
-/// The provisional automatic-action bar, pending open decision 1. The first
-/// local corpus evaluation proposes these numbers for operator review;
-/// acceptance of the reviewed numbers closes the decision. Below the bar the
-/// pipeline records suggestions only and staff paths take over.
+/// The operator-accepted automatic-action bar (2026-08-03, closing open
+/// decision 1 from the full-cohort evaluation run 20260803-092906). Below
+/// the bar the pipeline records suggestions only and staff paths take over.
 /// </summary>
 public static class VrmRecognitionProvisionalBar
 {
     /// <summary>
     /// Minimum supplied candidate confidence for a read the pipeline may act
-    /// on automatically. Set from the full-cohort evaluation of 2026-08-03
-    /// (run 20260803-083635): 0.80 measured an 18.1% wrong-suggestion rate,
-    /// 0.90 measured 7.8% — a wrong automatic registration mints a permanent
-    /// reference, so the bar favours abstention.
+    /// on automatically. Operator-accepted at 0.80 (2026-08-03): with the
+    /// accepted match rules the full cohort measured a 3.2% bounded
+    /// genuine-misread rate among suggestions at five times the coverage of
+    /// 0.90; third-party reads in multi-vehicle photos account for the rest
+    /// and ambiguity always abstains.
     /// </summary>
-    public const double MinimumAutomaticConfidence = 0.90;
+    public const double MinimumAutomaticConfidence = 0.80;
 
     /// <summary>
     /// Automatic registration additionally requires exactly one distinct

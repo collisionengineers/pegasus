@@ -141,7 +141,7 @@ public sealed class VrmRecognitionCorpusEvaluationTests
         var report = new
         {
             runId,
-            engine = "fast-alpr-onnx v1 (ADR-0018)",
+            engine = "fast-alpr-onnx v1 (ADR-0019)",
             corpusImages = samples.Count,
             cohortSize = cohort.Length,
             holdoutSize = holdout.Length,

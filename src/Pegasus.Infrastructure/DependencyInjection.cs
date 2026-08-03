@@ -72,6 +72,7 @@ public static class DependencyInjection
         services.AddScoped<IVrmSuggestionStore, EfImageVrmSuggestionStore>();
         services.TryAddSingleton<IVrmRecognitionEngine, OnnxVrmRecognitionEngine>();
         services.AddScoped<IImageIntakeAutomation, ImageIntakeAutomation>();
+        services.AddScoped<IImageIntakeCasePairing, ImageIntakeCasePairing>();
         services.AddScoped<EfTriageStore>();
         services.AddScoped<ITriageStore>(provider => provider.GetRequiredService<EfTriageStore>());
         services.AddScoped<ITriageQueries>(provider => provider.GetRequiredService<EfTriageStore>());

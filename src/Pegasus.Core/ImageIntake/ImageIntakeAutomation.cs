@@ -31,7 +31,7 @@ public sealed class ImageIntakeAutomation(
     IVrmSuggestionStore suggestionStore,
     IIntakeArtifactStore artifactStore,
     IImageIntakeOriginResolver originResolver,
-    IImageIntakeQueries imageIntakeQueries,
+    IImageIntakeStore imageIntakeStore,
     IRegisterImageIntake registerImageIntake,
     IImageIntakeCaseCandidates caseCandidates,
     IIntakeMutationStore intakeMutationStore,
@@ -55,11 +55,23 @@ public sealed class ImageIntakeAutomation(
         using var activity = Telemetry.StartActivity("image_intake_automation");
         activity?.SetTag("intake.receipt_id", receipt.Id);
 
-        var existing = await imageIntakeQueries.GetByOriginReceiptAsync(receipt.Id, cancellationToken);
+        var existing = await imageIntakeStore.GetByOriginReceiptAsync(receipt.Id, cancellationToken);
         if (existing is not null)
         {
             activity?.SetTag("image_intake.outcome", "already_registered");
-            return receipt;
+            try
+            {
+                // A policy re-evaluation recomputes the decision without
+                // knowledge of the permanent registration; re-assert it.
+                await imageIntakeStore.EnsureRegisteredReceiptDecisionAsync(
+                    receipt.Id,
+                    cancellationToken);
+                return await receiptQueries.GetAsync(receipt.Id, cancellationToken) ?? receipt;
+            }
+            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+            {
+                return receipt;
+            }
         }
 
         var suggestions = await ScanAsync(receipt, cancellationToken);

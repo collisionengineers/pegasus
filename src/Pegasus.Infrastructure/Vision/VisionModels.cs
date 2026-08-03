@@ -5,7 +5,7 @@ using System.Text.Json;
 namespace Pegasus.Infrastructure.Vision;
 
 /// <summary>
-/// The vendored ADR-0018 model set: embedded bytes verified against the
+/// The vendored ADR-0019 model set: embedded bytes verified against the
 /// hash-pinned manifest before any session is created. A hash mismatch makes
 /// the engine `Unavailable`; nothing is ever downloaded at runtime.
 /// </summary>

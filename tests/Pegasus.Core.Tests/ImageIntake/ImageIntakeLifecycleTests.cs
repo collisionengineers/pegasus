@@ -227,5 +227,9 @@ public sealed class ImageIntakeLifecycleTests
             string normalizedVehicleRegistration,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ImageIntakeSummary>>([]);
+
+        public Task EnsureRegisteredReceiptDecisionAsync(
+            Guid intakeReceiptId,
+            CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }
