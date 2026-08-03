@@ -107,7 +107,7 @@ internal sealed class CaseMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Searches cases with the same filters as the staff case list. Results are paginated; page size is capped at 50 to respect client result-size limits.")]
+    [Description("Searches cases by free text, reference, registration, claimant, claim number, principal, and lifecycle state. Results are paginated; page size is capped at 50 to respect client result-size limits.")]
     public async Task<CaseSearchToolResult> SearchAsync(
         [Description("Free-text query over reference, registration, claimant, and claim number.")] string? query = null,
         [Description("Exact or partial case reference filter.")] string? caseReference = null,
