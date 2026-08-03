@@ -173,6 +173,33 @@ public sealed class ProviderInspectionModeAcceptanceTests
             () => harness.AcceptIntake.ExecuteAsync(request, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task MidFlightSettingFlipIsRejectedInsideTheAcceptanceTransaction()
+    {
+        await using var harness = await Harness.CreateAsync();
+
+        var staleModeAcceptance = new CaseAcceptanceRequest(
+            harness.ReceiptId,
+            0,
+            harness.StaffActor,
+            "accept-image-based-5",
+            "Accepted image-based provider case",
+            CaseType.Inspection,
+            "QDOS",
+            new(true, true, false, false),
+            CaseCompletenessPolicy.Evaluate(
+                new(true, true, false, false),
+                await new FixedConfiguration().GetCurrentAsync(CancellationToken.None)),
+            CaseInspectionMode.PhysicalAddress,
+            AcceptedInspectionDeadline: FixtureInspectionDate);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => harness.AcceptanceStore.AcceptAsync(
+                staleModeAcceptance,
+                CancellationToken.None));
+        Assert.Contains("inspection-mode setting changed", exception.Message);
+    }
+
     private sealed class Harness : IAsyncDisposable
     {
         private readonly LocalDbTestDatabase database;
@@ -186,6 +213,7 @@ public sealed class ProviderInspectionModeAcceptanceTests
             ActionActor staffActor,
             InspectionAddressResolutionStore addressStore,
             EfCaseDataStore dataStore,
+            EfCaseAcceptanceStore acceptanceStore,
             AcceptIntake acceptIntake,
             SaveCase saveCase,
             AcquireCaseEditLease acquireLease)
@@ -196,6 +224,7 @@ public sealed class ProviderInspectionModeAcceptanceTests
             StaffActor = staffActor;
             AddressStore = addressStore;
             DataStore = dataStore;
+            AcceptanceStore = acceptanceStore;
             AcceptIntake = acceptIntake;
             SaveCase = saveCase;
             this.acquireLease = acquireLease;
@@ -205,6 +234,7 @@ public sealed class ProviderInspectionModeAcceptanceTests
         public ActionActor StaffActor { get; }
         public InspectionAddressResolutionStore AddressStore { get; }
         public EfCaseDataStore DataStore { get; }
+        public EfCaseAcceptanceStore AcceptanceStore { get; }
         public AcceptIntake AcceptIntake { get; }
         public SaveCase SaveCase { get; }
 
@@ -236,6 +266,7 @@ public sealed class ProviderInspectionModeAcceptanceTests
                     staffActor,
                     new InspectionAddressResolutionStore(factory, timeProvider),
                     dataStore,
+                    acceptanceStore,
                     acceptIntake,
                     new SaveCase(dataStore),
                     new AcquireCaseEditLease(workflowStore));
