@@ -115,7 +115,7 @@ Required outcomes:
 
 Intake may begin through staff-forwarded email, a staff-created request-scoped upload link, provider material, manually supplied files, images, correspondence, or a future approved API route. Receipt is not case creation.
 
-Image-only material with a usable normalised VRM creates a pre-Case Image intake with an Image Intake Reference; it is not `Needs sorting` merely because it lacks a formal instruction or accepted Principal. Image material without a usable normalised VRM remains `Needs sorting`. An Image intake is never allocated a Case/PO or promoted into a Case merely because images arrived.
+Image-only material with a usable normalised VRM creates a pre-Case Image intake with an Image Intake Reference; it is not `Needs sorting` merely because it lacks a formal instruction or accepted Principal. A usable normalised VRM is a staff-confirmed registration or an automatic engine read that meets the accepted recognition bar (operator-accepted 2026-08-03; the ADR-0019 index entry owns the accepted numbers). Image material without a usable normalised VRM remains `Needs sorting`. An Image intake is never allocated a Case/PO or promoted into a Case merely because images arrived.
 
 Every intake path must:
 
@@ -449,8 +449,31 @@ spreadsheet import, route, or caller before its separate acceptance evidence.
 suggestion-first. Every result remains attached to one retained source-image
 occurrence; staff confirmation creates the provisional vehicle identity. Before
 confirmation, a suggestion must not create or identify a case, allocate a
-reference, overwrite a confirmed registration, select an EVA image, satisfy a
-readiness gate, or mutate workflow.
+Case/PO reference, overwrite a confirmed registration, select an EVA image,
+satisfy a readiness gate, or mutate case workflow. By operator direction
+(2026-08-03), a confident unambiguous read at the current accepted recognition
+bar may automatically register the pre-Case Image intake (allocating its Image
+Intake Reference) and, where exactly one eligible pre-report instructed Case
+carries that confirmed registration with no contradictory identity evidence,
+automatically associate it under the settled matching rules; both actions are
+recorded with system attribution and remain reasonedly reversible by staff. A
+read missing exactly one character of a candidate's confirmed registration
+counts as that unambiguous match (operator-directed 2026-08-03): the confirmed
+registration completes the read and is the registered identity — a truncated
+read is never registered as its own value when a confirmed registration
+completes it, a substituted character is never a match, and any second
+consistent candidate makes the read ambiguous, except that a read exactly
+equal to one candidate's confirmed registration is unambiguous regardless of
+additional near-miss candidates. Likewise a read one character
+longer than the standard seven-character registration whose fifth character is
+a `1` is retried without that character (plate furniture is commonly read as an
+inserted `1`); a match found that way assumes the confirmed registration is
+correct (operator-directed 2026-08-03). Pairing also runs in reverse on case
+acceptance, where a newly accepted eligible case associates a waiting
+unassociated Image intake only on exact equality with its registered
+identity: the registered identity is immutable, so the completion rules
+cannot apply after registration, and a near-miss in this direction stays a
+reasoned staff suggestion.
 
 The operator surface distinguishes a suggestion from no readable result or an
 unknown result, an unavailable dependency, and a technical failure. It never

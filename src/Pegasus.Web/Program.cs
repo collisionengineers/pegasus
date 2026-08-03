@@ -23,6 +23,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
+using Pegasus.Web.Mcp;
 using Pegasus.Web.Pages.Uploads;
 using Azure.Identity;
 using Azure.Storage.Blobs;
@@ -221,6 +222,13 @@ if ((localDocumentCustodyConfigured || productionProfile)
 }
 
 
+// The Automation MCP ingress is composition-gated off by default: when the
+// flag is absent nothing below registers and no /mcp or /connect/token route
+// exists. Enabling it outside the DevelopmentOffline profile throws.
+var automationMcpOptions = AutomationMcpOptions.TryCreate(
+    builder.Configuration,
+    developmentOfflineProfile);
+
 builder.Services.AddRazorPages();
 builder.Services
     .AddIdentity<PegasusIdentityUser, IdentityRole<Guid>>(options =>
@@ -241,11 +249,17 @@ builder.Services.AddRateLimiter(options =>
     options.OnRejected = (context, cancellationToken) =>
     {
         context.HttpContext.Response.Headers.RetryAfter = "60";
-        var reasonCode = context.HttpContext.Request.Path.Equals(
+        var rejectedPath = context.HttpContext.Request.Path;
+        var reasonCode = rejectedPath.Equals(
             "/Account/SignIn",
             StringComparison.OrdinalIgnoreCase)
             ? "sign_in_rate_limited"
-            : "authentication_rate_limited";
+            : rejectedPath.StartsWithSegments(AutomationMcp.McpEndpointPath)
+                || rejectedPath.Equals(
+                    AutomationMcp.TokenEndpointPath,
+                    StringComparison.OrdinalIgnoreCase)
+                ? "automation_rate_limited"
+                : "authentication_rate_limited";
         return new ValueTask(AppendRateLimitedSecurityEventAsync(
             context.HttpContext,
             reasonCode,
@@ -259,6 +273,17 @@ builder.Services.AddRateLimiter(options =>
             {
                 AutoReplenishment = true,
                 PermitLimit = StaffSessionPolicy.SignInAttemptsPerClientPerMinute,
+                QueueLimit = 0,
+                Window = TimeSpan.FromMinutes(1)
+            }));
+    options.AddPolicy(
+        AutomationMcp.RateLimitPolicy,
+        context => RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = AutomationMcp.RequestsPerClientPerMinute,
                 QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1)
             }));
@@ -422,6 +447,26 @@ static Task AppendSignInSecurityEventAsync(
         context.RequestAborted);
 }
 
+static Task AppendAutomationDeniedSecurityEventAsync(
+    HttpContext context,
+    bool tokenEndpoint)
+{
+    var writer = context.RequestServices.GetRequiredService<ISecurityEventWriter>();
+    var occurredAtUtc = context.RequestServices.GetRequiredService<TimeProvider>().GetUtcNow();
+    var subjectId = context.User.FindFirst(
+        System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "anonymous";
+    return writer.AppendAsync(
+        new SecurityEvent(
+            Guid.NewGuid(),
+            SecurityEventType.Token,
+            SecurityEventOutcome.Denied,
+            subjectId,
+            occurredAtUtc,
+            context.TraceIdentifier,
+            tokenEndpoint ? "automation_token_rejected" : "automation_access_denied"),
+        CancellationToken.None);
+}
+
 static Task AppendRateLimitedSecurityEventAsync(
     HttpContext context,
     string reasonCode,
@@ -514,6 +559,14 @@ builder.Services.AddScoped<ReceiveIntake>();
 builder.Services.AddScoped<ProcessQueuedIntake>();
 builder.Services.AddScoped<IIntakeSubmission>(serviceProvider =>
     serviceProvider.GetRequiredService<ReceiveIntake>());
+// The consolidated Automation activity read model backs the Administration
+// view in every profile; the ingress itself stays behind the composition gate.
+builder.Services.AddScoped<IAutomationActivityQueries, EfAutomationActivityStore>();
+builder.Services.AddScoped<IListAutomationActivity, ListAutomationActivity>();
+if (automationMcpOptions is not null)
+{
+    builder.Services.AddPegasusAutomationMcp(automationMcpOptions, productVersion);
+}
 
 var app = builder.Build();
 var runtimeProfile = app.Configuration["Runtime:Profile"]
@@ -675,6 +728,49 @@ app.Use(async (context, next) =>
 });
 
 app.UseRateLimiter();
+if (automationMcpOptions is not null)
+{
+    app.Use(async (context, next) =>
+    {
+        var automationPath = context.Request.Path;
+        var isTokenEndpoint = automationPath.Equals(
+            AutomationMcp.TokenEndpointPath,
+            StringComparison.OrdinalIgnoreCase);
+        var isMcpEndpoint = automationPath.StartsWithSegments(
+            AutomationMcp.McpEndpointPath);
+        if (!isTokenEndpoint && !isMcpEndpoint)
+        {
+            await next(context);
+            return;
+        }
+
+        if (isTokenEndpoint && HttpMethods.IsPost(context.Request.Method))
+        {
+            // Seed/reconcile the single Automation client registration before
+            // OpenIddict authenticates the caller against it.
+            await context.RequestServices
+                .GetRequiredService<AutomationClientRegistry>()
+                .EnsureRegisteredAsync(context.RequestAborted);
+        }
+
+        await next(context);
+
+        // Transport-level denials on the automation surface are material and
+        // become attributable security events. Tool-level denials (scope,
+        // kill switch) are written by the actor resolver instead.
+        var status = context.Response.StatusCode;
+        var isDenied = isTokenEndpoint
+            ? status is StatusCodes.Status400BadRequest
+                or StatusCodes.Status401Unauthorized
+                or StatusCodes.Status403Forbidden
+            : status is StatusCodes.Status401Unauthorized
+                or StatusCodes.Status403Forbidden;
+        if (isDenied)
+        {
+            await AppendAutomationDeniedSecurityEventAsync(context, isTokenEndpoint);
+        }
+    });
+}
 app.UseAuthentication();
 app.Use(async (context, next) =>
 {
@@ -762,6 +858,10 @@ app.MapGet("/diagnostics/version", () => Results.Ok(new
 })).AllowAnonymous();
 app.MapRazorPages()
    .WithStaticAssets();
+if (automationMcpOptions is not null)
+{
+    app.MapPegasusAutomationMcp();
+}
 
 app.Run();
 

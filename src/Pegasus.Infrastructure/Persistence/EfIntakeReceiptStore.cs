@@ -971,6 +971,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         IntakeDecision.Unsupported => "unsupported",
         IntakeDecision.OcrRequired => "ocr_required",
         IntakeDecision.TechnicalFailure => "technical_failure",
+        IntakeDecision.ImageIntakeRegistered => "image_intake_registered",
         _ => throw UnknownEnum(value)
     };
 
@@ -982,6 +983,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         "unsupported" => IntakeDecision.Unsupported,
         "ocr_required" => IntakeDecision.OcrRequired,
         "technical_failure" => IntakeDecision.TechnicalFailure,
+        "image_intake_registered" => IntakeDecision.ImageIntakeRegistered,
         _ => throw UnknownCode("decision", value)
     };
 
@@ -989,6 +991,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
     {
         IntakeSourceChannel.ManualUpload => "manual_upload",
         IntakeSourceChannel.Mailbox => "mailbox",
+        IntakeSourceChannel.Automation => "automation",
         _ => throw UnknownEnum(value)
     };
 
@@ -996,6 +999,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
     {
         "manual_upload" => IntakeSourceChannel.ManualUpload,
         "mailbox" => IntakeSourceChannel.Mailbox,
+        "automation" => IntakeSourceChannel.Automation,
         _ => throw UnknownCode("source channel", value)
     };
 

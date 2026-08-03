@@ -6,6 +6,7 @@ using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Tasks;
@@ -52,9 +53,12 @@ public sealed partial class DetailsModel(
     IRevokeBoxFileRequest revokeBoxFileRequest,
     ICreateRequestUploadLink createRequestUploadLink,
     IRevokeRequestUploadLink revokeRequestUploadLink,
+    IImageIntakeQueries imageIntakeQueries,
     TimeProvider timeProvider,
     ILogger<DetailsModel> logger) : PageModel
 {
+    public IReadOnlyList<ImageIntakeSummary> ImageIntakes { get; private set; } = [];
+
     private const long MaximumStaffUploadBytes = 10 * 1024 * 1024;
     private const string LeaseTokenKey = "CaseLeaseToken";
     private const string LeaseCaseIdKey = "CaseLeaseCaseId";
@@ -101,6 +105,7 @@ public sealed partial class DetailsModel(
             {
                 return NotFound();
             }
+            ImageIntakes = await imageIntakeQueries.ListForCaseAsync(id, cancellationToken);
             RestoreLeaseState(id, actor);
             ManualChaseAttemptedAtUtc = timeProvider.GetUtcNow();
             return Page();

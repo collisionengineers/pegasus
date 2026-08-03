@@ -15,3 +15,5 @@ design/assets/report-renderer/**/*.scriban text eol=lf
 *.xls binary
 *.xlsx binary
 *.zip binary
+*.onnx binary
+src/Pegasus.Infrastructure/Vision/Models/*.yaml binary

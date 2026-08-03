@@ -577,6 +577,7 @@ public sealed class ProcessIntake(
     {
         IntakeSourceChannel.ManualUpload => "manual_upload",
         IntakeSourceChannel.Mailbox => "mailbox",
+        IntakeSourceChannel.Automation => "automation",
         _ => throw new InvalidOperationException($"Unknown intake source channel value '{(int)channel}'.")
     };
 
@@ -596,6 +597,7 @@ public sealed class ProcessIntake(
         IntakeDecision.Unsupported => "unsupported",
         IntakeDecision.OcrRequired => "ocr_required",
         IntakeDecision.TechnicalFailure => "technical_failure",
+        IntakeDecision.ImageIntakeRegistered => "image_intake_registered",
         _ => throw new InvalidOperationException($"Unknown intake decision value '{(int)decision}'.")
     };
 

@@ -7,18 +7,6 @@
 Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 <agent>)`. Nothing is in flight unless it is claimed here on `origin/dev`.
 
-- Image-led intake: build the pre-Case Image intake record (manual VRM entry,
-  manual link/unlink/relink to a Case, origin preservation, search by Image
-  Intake Reference — INT-13/27/29/30, UI-07), and research open decision 1
-  (VRM recognition engine) to write an evidence-backed recommendation for
-  operator decision, unblocking INT-17/28/32; no vendor selection,
-  credential, or automatic-matching activation without operator sign-off
-  (branch task/image-led-intake, taken 2026-08-03, by claude).
-- Cut `repository-check` wall clock (agreed 2026-08-03): shard validate into
-  parallel unit / SQL-integration / browser jobs, replace migrate-per-test
-  LocalDB setup with a per-run migrated template database, and cache NuGet
-  packages and the pinned Playwright Chromium (branch
-  task/repository-check-speed, taken 2026-08-03, by claude).
 - UI alpha design pass: build the visual/interaction layer for the
   Operations-first `0.1.0-alpha.1` shell against fixture data only — UI-01
   (Operations dashboard), UI-02 (Not ready/Review/Held queues), UI-03
@@ -51,23 +39,28 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   Vault, repoint the Worker's and Web's references, prove resolution, then
   retire the two adopted vaults and `rg-collisionspike-dev` (branch
   task/vault-consolidation, taken 2026-08-03, by codex).
-- MCP Automation Actor ingress: build the management/development-controlled
-  MCP ingress for one named, vendor-neutral Automation Actor invoking
-  existing Core use cases through its own authentication and identity
-  (ADR-0011/ADR-0013) — Case actions, intake-queue actions, and document
-  actions (MCP-01/02/03/04); reuse the existing ActionActor/ExecuteAsync/
-  IActionHistoryWriter pattern rather than the deleted per-staff-OAuth MCP
-  surface; no per-staff MCP access, no Administrator/config/credential/
-  cloud/release/deletion authority, no AI proposal transport (AI-09 stays
-  separate), MCP-05's broader email-workspace actions out of scope pending
-  the email workspace itself (branch task/mcp-automation-actor, taken
-  2026-08-03, by claude).
-
 ## Next (ordered queue — take from the top)
 
 - Assemble the operator-reviewed extraction cohort + untouched holdout and
   accept the per-field thresholds (INT-21, open-decisions) — blocks Path
   step 3.
+- Prove the per-run template database's server-side BACKUP/RESTORE against a
+  PEGASUS_TEST_SQL_DATASOURCE container (Linux workstation or a CI job) and
+  lift the review gate that disables the template for external servers
+  (task/repository-check-speed review, 2026-08-03).
+- After task/repository-check-speed merges, observe the hardened
+  abandoned-database sweep on a shared LocalDB instance: every sweep failure
+  is now swallowed, so confirm abandoned Pegasus_Test_* databases and .bak
+  files still get reclaimed rather than accumulating
+  (task/repository-check-speed review, 2026-08-03).
+- Record the MCP Automation Actor tier-5 evidence: a real external client
+  (Claude Code over a bearer token) against the locally enabled `/mcp`
+  surface, evidence recorded per operations.md, before any activation claim
+  (task/mcp-automation-actor review, 2026-08-03).
+- Promote the settled Automation Actor identity/authentication/tool-inventory
+  contract to an ADR — with the temp plan deleted it is owned only by
+  architecture.md/operations.md prose
+  (task/mcp-automation-actor review, 2026-08-03).
 
 ## Waiting (each line names its unblock condition)
 
