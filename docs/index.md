@@ -1,11 +1,12 @@
 # Repository documentation
 
 One file per question. Edit these files in place; new Markdown files are
-created only as ADRs under [docs/adr/](adr/README.md).
+created only as ADRs under [docs/adr/](adr/README.md) or as transient task
+plans under [docs/temp-plans/](temp-plans/README.md).
 
 | Question | File |
 | --- | --- |
-| What am I doing right now? | [`NOW.md`](../NOW.md) (repo root) |
+| What is in flight and what can I take? | [`NOW.md`](../NOW.md) (repo root; authoritative copy is `origin/dev`'s) |
 | What must Pegasus do? | [Requirements](requirements.md) |
 | What does the product do, in what order? | [Capabilities](capabilities.md) — the roadmap: 228 stable IDs with release targets |
 | What is undecided? | [Open decisions](open-decisions.md) |
@@ -24,7 +25,8 @@ created only as ADRs under [docs/adr/](adr/README.md).
 
 operator-notes.md (business fact) > requirements.md (intent) >
 capabilities.md (schedule) > ADRs (technical decisions) > architecture.md and
-operations.md (current state). Code plus passing tests beat any document about
+operations.md (current state) > engineering.md and design/README.md (working
+rules within their scopes). Code plus passing tests beat any document about
 current state. On conflict: fix the losing document in the same commit you
 notice it; if the conflict is material and you cannot resolve it, put one line
 in [open decisions](open-decisions.md) and stop the affected work.

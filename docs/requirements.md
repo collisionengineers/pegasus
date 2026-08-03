@@ -403,6 +403,7 @@ Receipt/staging and accepted case custody are different states.
 - A closed case and its files are application-level read-only. A new version, revision, logical removal, move, copy, share, or other mutation requires a reasoned reopen first; no Box operation bypasses that gate, and the alpha infers no general move/copy/share/delete authority.
 - Default local alpha work must not mutate any Outlook mailbox or Box location. The separately approved Box integration-test profile and explicitly approved non-production test deployments may create and update controlled non-corpus artifacts only in the approved disposable test subtree recorded in [operations](operations.md#approved-box-integration-test-target); they must not delete, move, copy, or share Box content. Outlook tests use immutable local copies or an explicitly approved test mailbox and operation.
 - A custody transition records source identity, content hash, target identity/version, actor/caller, time, and failure/retry state without deleting the source proof prematurely.
+
 ## Vehicle and engineering evidence
 
 Vehicle identity, registration, location, valuation, repair evidence,
@@ -415,7 +416,7 @@ reviewable.
 location is explicitly supplied or operator-confirmed, or the exact value
 `Image Based Assessment`. Collision Engineers performs desktop assessments
 only. The inspection mode is determined by the Principal's persisted
-inspection-mode setting ([ADR-0017](adr/0017-provider-inspection-mode-database-setting.md)),
+inspection-mode setting ([ADR-0018](adr/0018-provider-inspection-mode-database-setting.md)),
 not derived from instruction text: instruction documents never contain the
 literal value. For an always-image-based Principal (QDOS is seeded so),
 `Image Based Assessment` is autofilled at Case creation even when a physical
@@ -527,6 +528,7 @@ human own accepted facts, economics, findings, outcome, legal use, and approval.
 A skill, prompt, model, workspace, external schema, or imported reference never
 becomes current OEM instruction, repair policy, valuation authority, legal
 advice, Engineer approval, or product policy merely by existing.
+
 ## EVA and external engineering handoff
 
 ### Focused EVA manual handoff
@@ -615,6 +617,7 @@ the manual export or used to authorize an EVA call.
 Audatex remains a separate estimating-system role unless an accepted capability
 and integration contract establish otherwise. Guided-capture providers are
 candidates/evidence, not active routes.
+
 ## Email, mailbox, and background processing
 
 The target product covers the approved mailbox estate and full source messages; the focused alpha mailbox is only the first caller. Mailbox inventory and current-system roles remain in [operator notes](operator-notes.md).
@@ -834,6 +837,7 @@ none may be inferred from provider-domain evidence.
 No provider route is active until its exact capability allocation, accepted
 contract, credentials/scopes, failure and recovery proof, real caller, and
 operator acceptance exist.
+
 ## MCP automation and actor boundary
 
 MCP is a management/development-controlled ingress for one named,
@@ -921,6 +925,7 @@ approves, or sends autonomously.
 
 Signatures embedded in governed renderer documents are provenance-sensitive
 document assets, not Web decorative imagery.
+
 ## Operator experience
 
 The selected alpha direction is Operations-first. The UI must provide:
@@ -971,6 +976,7 @@ configured work as completed, delivered, deployed, or accepted.
 
 The durable interaction, visual, component, and source/runtime rules are owned
 by [design](../design/README.md).
+
 ## Quality, capacity, security, and evidence
 
 Pegasus is designed for the observed office workload of roughly 1,000–1,200 matters per month and a 2,000-per-month capacity target. These are observed workload and design capacity, not throughput proof.
@@ -990,6 +996,7 @@ Required qualities:
 - local development on a supported platform, and supported-browser accessibility proof on Windows with Microsoft Edge Stable and Narrator;
 - independently buildable source workspaces with no application reference, dynamic load, dependency hoist, or deployment inclusion;
 - explicit test/evidence scope and limits rather than evergreen counts.
+
 ## Permanent boundaries
 
 The `Not planned` capability rows are boundaries, not backlog. They receive no activation issue or release target. They include permanently excluded or intentionally unsupported behaviors identified in the capability inventory. In particular:
