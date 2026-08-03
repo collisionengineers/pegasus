@@ -34,10 +34,23 @@ inside `CreateHost` via `DevelopmentOfflineInitialization`. That is roughly
 170 `CREATE DATABASE` + migrate + `DROP DATABASE` cycles in series.
 
 Sharding alone therefore moves almost nothing: the unit lane is one second and
-the browser lane is nine tests. The template database is what makes the SQL
-lane shrink; sharding is what converts that saving into wall clock. A local
-baseline TRX is captured before any edit so each step is judged against a
-measurement, not an estimate.
+the browser lane is 14 tests. The template database is what makes the SQL lane
+shrink; sharding is what converts that saving into wall clock. Each step was
+judged against a local measurement rather than an estimate.
+
+Measured on this workstation, `Pegasus.IntegrationTests` with
+`--filter "Category!=Corpus"`:
+
+| Revision | Tests | Elapsed |
+| --- | --- | --- |
+| `origin/dev` baseline | 295 | 22 m 41 s |
+| Template restore, web factory included | 298 | 17 m 28 s |
+
+That is a 23% cut for about 1.9 seconds saved on each of roughly 170 database
+lifecycles. What remains per lifecycle is host construction and identity
+seeding, not migration. A 17-minute lane is well above the eight-minute
+threshold this plan set for declining the shard machinery, so the SQL lane is
+matrix-sharded three ways.
 
 ## What this changes
 
@@ -99,8 +112,13 @@ current shape.
 | --- | --- | --- | --- |
 | `documentation` | windows-latest | always | `./scripts/Test-DocumentationLinks.ps1` |
 | `unit` | windows-latest | `build == 'true'` | `Pegasus.Core.Tests` and `Pegasus.ArchitectureTests`, whole projects |
-| `sql-integration` | windows-latest | `build == 'true'` | `--filter "Category!=Corpus&Category!=Browser"` |
+| `sql-integration` | windows-latest, 3-shard matrix | `build == 'true'` | `Invoke-TestShard.ps1` over `--filter "Category!=Corpus&Category!=Browser"` |
+| `sql-integration-coverage` | ubuntu-latest | `build == 'true'` | `Invoke-TestShard.ps1 -VerifyPartition` |
 | `browser` | windows-latest | `build == 'true'` | `--filter "Category=Browser&Category!=Corpus"` |
+
+The three lanes share `.github/actions/dotnet-build`, a composite action
+holding the SDK setup, the NuGet cache key, the locked restore, and the
+Release build, so the cache key cannot drift between lanes.
 
 `documentation` is split out because the doc-link check is the only thing that
 runs today when no build-relevant path changed, and it must keep running for
@@ -124,18 +142,16 @@ in parallel and, once NuGet is cached, is well under the saving. Passing `bin`
 and `obj` between jobs as artifacts is hundreds of megabytes per hop and is not
 expected to beat a 116-second rebuild.
 
-Whether the SQL lane is further split by a matrix is decided from its measured
-time once the template database and the caches are in. If the lane comes in
-under roughly eight minutes, the sharding machinery is not worth its failure
-modes and this plan records that it was declined. If it is split, it is split
-by a `scripts/Invoke-TestShard.ps1` that enumerates tests with `--list-tests`,
-fails closed when nothing parses, assigns whole classes (the collection pins
-classes together), asserts executed equals assigned from the TRX counters, and
-is accompanied by a job that proves the shards' union equals the full listed
-set and that they are pairwise disjoint. Adding that script also requires
-adding it to the `buildPattern` at `.github/workflows/ci.yml:38`, which today
-names `Invoke-QdosAlphaAcceptance.ps1` explicitly — otherwise editing it would
-trigger no lane.
+`scripts/Invoke-TestShard.ps1` enumerates the lane's tests with
+`--list-tests`, fails closed when nothing parses, assigns whole classes (the
+LocalDB collection pins a class's tests together), and asserts that the TRX
+counter equals the count it assigned. Each shard uploads what it enumerated and
+what it was assigned, and `sql-integration-coverage` fails unless every shard
+enumerated the same set, the assignments are pairwise disjoint, and their union
+is that set. Locally the three shards take 69, 111, and 104 of 284 tests and
+verify clean. The `buildPattern` in `.github/workflows/ci.yml` gains the new
+script, `ci.yml` itself, and `.github/actions/`, so a change to how the lanes
+run is exercised by the lanes rather than path-skipped into a false green.
 
 ### 3. Caches
 
@@ -187,26 +203,36 @@ dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category
 The canonical command must still pass and still report the same totals. Around
 it:
 
-- A TRX baseline of the integration project captured before any edit, and the
-  same run after the template change and again after the web-factory change,
-  compared on total elapsed and per-test durations.
+- A TRX baseline of the integration project captured before any edit and the
+  same run after the change, compared on total elapsed (22 m 41 s → 17 m 28 s;
+  TRX files under the ignored `artifacts/ci-speed-baseline/`).
+- Each lane timed on its own: unit 0.6 s for 252 tests, browser 1 m 42 s for
+  14, and the largest SQL shard 6 m 28 s for its 111, with the shard script's
+  executed-equals-assigned check passing and `-VerifyPartition` confirming
+  69 + 111 + 104 = 284 with no test in two shards and none in none.
 - New `LocalDbTemplateDatabaseTests` proving a template-derived database is
   indistinguishable from a freshly migrated one: identical ordered applied
   migrations, equal to the compiled `Database.GetMigrations()` list and
-  non-empty; an ordered structural comparison over `INFORMATION_SCHEMA.COLUMNS`
-  and `sys.indexes` / `sys.index_columns` / `sys.foreign_keys` /
-  `sys.check_constraints` / `sys.default_constraints`; zero application rows;
-  and `SchemaOrigin == Template`, which turns a silent fallback into a red test
-  rather than a slow green one.
+  non-empty, with no pending migrations or model changes; and an ordered
+  comparison of every column, index, foreign key, check constraint, default,
+  database principal, role membership, permission, and table row count. Row
+  counts are compared between the two databases rather than asserted empty,
+  because the migration stream seeds provider reference data. It also asserts
+  `SchemaOrigin == Template`, which turns a silent fallback into a red test
+  rather than a slow green one, that two restores do not share a database, and
+  that `migrate: false` is never served from the template.
 - Each lane's filter run on its own, with the executed counts summing to the
-  canonical run's.
+  canonical run's. Measured: 284 in the SQL lane and 14 in the browser lane
+  against 298 for the whole non-corpus project.
 - `./scripts/Test-DocumentationLinks.ps1` and
   `./scripts/Invoke-QdosAlphaAcceptance.ps1 -Profile CiPressure`.
 
 In CI, one `repository-check` run on the PR head with every job green or
-path-skipped, the per-job durations, the summed executed test count equal to
-the pre-change run's 559 with one skip, and a second run on unchanged lock
-files showing NuGet and Playwright cache hits.
+path-skipped, the per-job durations, `sql-integration-coverage` green, the
+summed executed test count matching the local canonical run, and a second run
+on unchanged lock files showing NuGet and Playwright cache hits. Local timings
+put the critical path at roughly three minutes of restore and build plus the
+slowest SQL shard, against a 28-minute single `validate` job.
 
 Left unproved: the `PEGASUS_TEST_SQL_DATASOURCE` container path, since no
 Linux CI job exists — server-side `BACKUP`/`RESTORE` there and its
@@ -217,10 +243,10 @@ operation, or operator acceptance. This changes verification lanes only.
 ## Risks and stop conditions
 
 - A filter that drops tests from every lane would leave CI green with less
-  running. Guarded by the complement-pair argument, by the summed-count gate
-  against 559, and — if the SQL lane is sharded — by fail-closed test
-  enumeration, an executed-equals-assigned TRX check, and a union/disjointness
-  job.
+  running. Guarded by the complement-pair argument, by the measured
+  284 + 14 = 298 lane split, by fail-closed test enumeration, by the
+  executed-equals-assigned TRX check in each shard, and by
+  `sql-integration-coverage`.
 - A silently failing template would leave CI green and slow. Guarded by the
   `SchemaOrigin == Template` assertion.
 - Template schema drift would weaken 300 tests at once. Guarded by the

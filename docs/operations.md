@@ -305,6 +305,27 @@ dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category
 
 These commands are identical on both platforms; `pwsh` runs them either way.
 
+CI splits that last command across parallel lanes rather than changing it. The
+focused forms are below; the two integration filters are a complement pair, so
+their union with the two unit projects is exactly the canonical selection:
+
+```powershell
+dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build
+dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category!=Corpus&Category!=Browser"
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category=Browser&Category!=Corpus"
+```
+
+Each test-run process migrates one template database once and restores every
+disposable test database from its backup instead of migrating each one. A
+process that cannot build the template says so on standard error and falls back
+to migrating each database; `LocalDbTemplateDatabaseTests` fails rather than
+letting that fallback pass quietly. The backup is deleted on process exit and
+stray `Pegasus_Test_*.bak` files older than a day are swept from the server's
+data directory on the next run; on Windows that directory is
+`%USERPROFILE%\AppData\Local\Microsoft\Microsoft SQL Server Local DB\Instances\MSSQLLocalDB`,
+and stray files there can be deleted by hand at any time.
+
 **Platform delta.** The `SqlServer` test lane needs a reachable SQL Server. On
 Windows that is LocalDB and needs no configuration. On Linux, point the tests at
 a SQL Server container before running them:
@@ -318,7 +339,10 @@ $env:PEGASUS_TEST_SQL_PASSWORD = '<password>'
 Leaving `PEGASUS_TEST_SQL_DATASOURCE` unset keeps the LocalDB default, so the
 Windows command is unchanged. Without it on Linux, exclude the lane with
 `--filter "Category!=Corpus&Category!=SqlServer"` and record that the lane did
-not run.
+not run. The template database uses server-side `BACKUP` and `RESTORE`, so it
+works the same way against the container when the login may back up; the
+template tests skip themselves when `PEGASUS_TEST_SQL_DATASOURCE` is set,
+because no CI job exercises that path and nothing proves it there.
 
 These commands prove repository compilation and the selected non-corpus tests only. Genuine corpus, browser, LocalDB/Azurite/Functions, cloud, recovery, and operator evidence are separate caller-specific gates.
 

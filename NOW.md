@@ -24,11 +24,6 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   no evaluator surface (EVAL-01–05, MAIL-20, OPS-22 are separately owned),
   no folder move, mailbox mutation, or AI classifier (branch
   task/qdos-email-classification, taken 2026-08-03, by claude).
-- Cut `repository-check` wall clock (agreed 2026-08-03): shard validate into
-  parallel unit / SQL-integration / browser jobs, replace migrate-per-test
-  LocalDB setup with a per-run migrated template database, and cache NuGet
-  packages and the pinned Playwright Chromium (branch
-  task/repository-check-speed, taken 2026-08-03, by claude).
 
 ## Next (ordered queue — take from the top)
 
