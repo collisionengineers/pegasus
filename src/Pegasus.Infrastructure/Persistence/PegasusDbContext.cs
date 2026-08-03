@@ -126,6 +126,9 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        // Registers the OpenIddict application/authorization/scope/token
+        // entities backing the Automation Actor client-credentials ingress.
+        builder.UseOpenIddict();
         CustodyModelConfiguration.Configure(builder);
         MailboxModelConfiguration.Configure(builder);
         AuditIdentityModelConfiguration.Configure(builder);

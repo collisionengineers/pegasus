@@ -23,7 +23,8 @@ public enum ActorKind
 {
     Staff,
     SystemWorker,
-    RequestLink
+    RequestLink,
+    Automation
 }
 
 public sealed class ActionActor
@@ -73,6 +74,9 @@ public sealed class ActionActor
 
     public static ActionActor SystemWorker(string workerId) =>
         CreateNonStaff(ActorKind.SystemWorker, workerId, nameof(workerId));
+
+    public static ActionActor Automation(string actorId) =>
+        CreateNonStaff(ActorKind.Automation, actorId, nameof(actorId));
 
     public static ActionActor RequestLink(Guid requestId)
     {
