@@ -95,8 +95,8 @@ internal sealed class DocumentMcpTools(
         [Description("The case version observed by the caller; a stale value fails closed.")] long expectedCaseVersion,
         [Description("The active edit lease token from pegasus_case_edit_begin.")] string editLeaseToken,
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
-        [Description("Optional durable source-occurrence identity prefixed 'automation:'; reusing an identity records a new version of the same document. Defaults to one derived from the operation key.")] string? sourceOccurrenceIdentity,
-        CancellationToken cancellationToken)
+        [Description("Optional durable source-occurrence identity prefixed 'automation:'; reusing an identity records a new version of the same document. Defaults to one derived from the operation key.")] string? sourceOccurrenceIdentity = null,
+        CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.DocumentsScope, cancellationToken);
         var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
@@ -186,8 +186,8 @@ internal sealed class DocumentMcpTools(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case-scoped document occurrence identifier.")] Guid occurrenceId,
         [Description("The exact immutable document-version identifier.")] Guid versionId,
-        [Description("Largest content size returned inline, in bytes; 0 selects the default of 65536.")] int maxInlineBytes,
-        CancellationToken cancellationToken)
+        [Description("Largest content size returned inline, in bytes; 0 selects the default of 65536.")] int maxInlineBytes = 0,
+        CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.DocumentsScope, cancellationToken);
         var operationKey = $"mcp:document-download:{Guid.NewGuid():N}";
@@ -265,8 +265,8 @@ internal sealed class DocumentMcpTools(
         [Description("The case version observed by the caller; a stale value fails closed.")] long expectedCaseVersion,
         [Description("The active edit lease token from pegasus_case_edit_begin.")] string editLeaseToken,
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
-        [Description("Largest archive size returned inline, in bytes; 0 selects the default of 65536.")] int maxInlineBytes,
-        CancellationToken cancellationToken)
+        [Description("Largest archive size returned inline, in bytes; 0 selects the default of 65536.")] int maxInlineBytes = 0,
+        CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.DocumentsScope, cancellationToken);
         var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);

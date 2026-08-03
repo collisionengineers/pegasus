@@ -45,8 +45,14 @@ public static class AutomationMcpExtensions
                 // not survive a restart, which suits local evidence runs.
                 server.AddEphemeralEncryptionKey();
                 server.AddEphemeralSigningKey();
+                // The gate restricts this surface to the DevelopmentOffline
+                // profile where the local host may terminate on plain HTTP
+                // (and the in-process integration test server always does).
+                // Production activation is separately approved work and would
+                // revisit transport requirements with real certificates.
                 server.UseAspNetCore()
-                    .EnableTokenEndpointPassthrough();
+                    .EnableTokenEndpointPassthrough()
+                    .DisableTransportSecurityRequirement();
             })
             .AddValidation(validation =>
             {
