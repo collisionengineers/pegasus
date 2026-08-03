@@ -21,20 +21,6 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   Vault, repoint the Worker's and Web's references, prove resolution, then
   retire the two adopted vaults and `rg-collisionspike-dev` (branch
   task/vault-consolidation, taken 2026-08-03, by codex).
-- Report renderer integration planning: plan the retirement of the
-  `workspaces/report-renderer/` source import into the monolith — locate the
-  Core render port seam and Infrastructure adapter placement that RPT-01–05
-  and EXT-08 would activate through, fold the workspace's own documentation
-  into the canonical docs, plan the renderer's .NET 8 → repository-TFM
-  uplift, plan the `docs/reference/rendererref1` blueprint and report-template
-  intake, plan promotion of the renderer's pre-existing MCP server as the
-  replacement for the current `.mcpb` packaging (MCP-01–04 follow-ups), and
-  plan removal of any remaining renderer desktop/UI elements. Draft planning
-  documents under `docs/temp-plans/` only: no activation, no `Pegasus.slnx`
-  change, no caller, no workspace deletion, and no acceptance in this task —
-  every integration stays behind the workspace register's activation
-  conditions and needs its own ADR and implementation task (branch
-  task/report-renderer-integration, taken 2026-08-03, by claude).
 - AI-09 Send to AI round trip and the Automation Actor assessment toolset:
   implement `docs/temp-plans/mcp-assessment-toolset.md` and
   `docs/temp-plans/send-to-claude-channel-integration.md` under the
@@ -88,11 +74,77 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   contract to an ADR — with the temp plan deleted it is owned only by
   architecture.md/operations.md prose
   (task/mcp-automation-actor review, 2026-08-03).
+- Upgrade the renderer workspace's Scriban 5.12.1 to 7.2.6 with rasterised
+  render-parity evidence. Measured 2026-08-03: 5.12.1 carries 14 advisories —
+  one Critical (`GHSA-5wr9-m6jw-xx44`, CVSS 9.1, a `TemplateContext` sandbox
+  escape from type accessors cached by `Type` alone, patched in 7.0.0) — and
+  7.2.6 reports none. Two major versions, so it needs its own parity proof;
+  do it before any relocation, while the workspace still has its relaxed
+  build settings and its own visual-regression script. This retires the
+  `NoWarn NU1901-NU1904` suppression rather than carrying it into `src/`
+  (task/report-renderer-integration, 2026-08-03).
+- Remove the renderer's WinUI 3 desktop host (22 tracked files) and its 12
+  package assets under `design/assets/report-renderer/gui/` — pre-authorised
+  by `design/README.md`'s renderer boundary table. Keep `PreviewComposer` and
+  its tests (operator decision 2026-08-03: the HTML preview is wanted,
+  separated from the GUI), and keep every template, stylesheet, logo and
+  signature asset (task/report-renderer-integration, 2026-08-03).
+- Uplift the renderer workspace to `net10.0` after the desktop host is
+  removed, and repair the Dockerfile: its runtime base
+  `mcr.microsoft.com/playwright/dotnet:v1.61.0-jammy` is a tag that does not
+  exist — jammy publication stops at v1.59.0 — so the container build is
+  already broken. `v1.61.0-noble` is SDK-10-based and is both the fix and the
+  uplift enabler (task/report-renderer-integration, 2026-08-03).
+- Fix `docs/operations.md`'s Windows-only capability row, which states that
+  `scripts/email-eval-desktop` and `CollisionRenderer.Gui` both target
+  `net10.0-windows`. Only the first does; the renderer GUI is
+  `net8.0-windows10.0.19041.0`
+  (task/report-renderer-integration, 2026-08-03).
+- Reconcile the report-renderer MCP plan with `task/send-to-ai-round-trip`:
+  that task adds an `automation.assessment` scope, five Automation Actor
+  tools and the Automation Actor ADR, so the renderer plan's assumed 9-tool
+  inventory and its recommendation to write that ADR are both superseded. Any
+  later render tool joins the inventory that task leaves behind
+  (task/report-renderer-integration, 2026-08-03).
+- Capability-inventory questions raised by the renderer planning, each needing
+  an operator answer before the work it gates can start: RPT-02 requires a
+  four-member outcome enum that no accepted source defines (requirements name
+  two Assessment findings); ENG-01's "one canonical repair specification"
+  contradicts RPT-03's conservative-and-maximised pair, and resolving it
+  changes what ENG-01 must build; four new rows are proposed for the five
+  templates that map to no capability, and two templates are proposed for
+  retirement; and RPT-03 has no renderer template at all
+  (task/report-renderer-integration, 2026-08-03).
+- Lifecycle defect found while planning the renderer consumer chain:
+  correcting a sent report requires reopening to `ReportPreparation`, which is
+  exactly the state in which `UnlinkReportEvidence` becomes permitted, so a
+  correction makes final send evidence unlinkable — contradicting the rule
+  that the report-sent event stays final. Nothing hits it today because no
+  workflow returns a post-report case to report preparation. Sits inside the
+  CASE-23 open decision (task/report-renderer-integration, 2026-08-03).
 
 ## Waiting (each line names its unblock condition)
 
 - Obsolete predecessor vault purge — platform-scheduled 2026-08-09, no action
   unless it fails.
+- Report-renderer relocation into the monolith — blocked on three operator
+  decisions recorded in the task's plan set: whether the `.mcpb` stdio host is
+  frozen as a built artefact, kept in a reduced workspace, or republished,
+  since parity-first and workspace retirement cannot both be executed at once;
+  where rendering executes in production, given there is no Web Dockerfile and
+  the default `aspnet:10.0` base has neither Chromium nor the Liberation fonts
+  and `PublishContainer` cannot install them; and whether unaccepted report
+  wording and the three provenance-sensitive signature images may ship in the
+  production assembly behind a closed gate. The Core render contract, the
+  ADR and the staged route are drafted and waiting
+  (task/report-renderer-integration, 2026-08-03).
+- Report rendering capabilities RPT-01–05 and EXT-08 — blocked on accepted
+  CASE-31, ENG-01 and ENG-02 data, which requirements sequences ahead of them
+  and none of which exists, and on the open report-wording decision. With
+  `DESIGN_SPEC` superseded by the 2026-08-03 operator decision, the RPT
+  specification must now come from those three capabilities plus operator
+  answers; the field-level contract the renderer will demand of them is
+  drafted (task/report-renderer-integration, 2026-08-03).
 
 ## Path (decided 2026-08-02: full QDOS cutover — every new QDOS instruction is worked in Pegasus through to the EVA handoff; EVA keeps engineering and reports. Box custody root decided 2026-08-02: all case folders under the pegasus folder `405543781910` only.)
 
