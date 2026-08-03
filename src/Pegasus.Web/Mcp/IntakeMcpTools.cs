@@ -57,10 +57,10 @@ internal sealed class IntakeMcpTools(
         UseStructuredContent = true)]
     [Description("Lists intake receipts with the same decision filters as the staff intake queue: draft_ready, needs_sorting, blocked_intake, unsupported, ocr_required, technical_failure, or no filter for all. Page size is capped at 50.")]
     public async Task<IntakeQueueToolResult> ListAsync(
-        [Description("Optional decision filter code; omit for every decision.")] string? decision,
-        [Description("1-based page number.")] int page,
-        [Description("Page size between 1 and 50; 0 selects the default of 25.")] int pageSize,
-        CancellationToken cancellationToken)
+        [Description("Optional decision filter code; omit for every decision.")] string? decision = null,
+        [Description("1-based page number.")] int page = 1,
+        [Description("Page size between 1 and 50; 0 selects the default of 25.")] int pageSize = 0,
+        CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
         return await auditor.RecordAsync(
@@ -130,7 +130,7 @@ internal sealed class IntakeMcpTools(
         [Description("The complete source content encoded as base64.")] string contentBase64,
         [Description("The durable source-occurrence identity for this exact submission, at most 200 characters.")] string externalReceiptToken,
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
         var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);

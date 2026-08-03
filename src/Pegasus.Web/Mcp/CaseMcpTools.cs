@@ -109,16 +109,16 @@ internal sealed class CaseMcpTools(
         UseStructuredContent = true)]
     [Description("Searches cases with the same filters as the staff case list. Results are paginated; page size is capped at 50 to respect client result-size limits.")]
     public async Task<CaseSearchToolResult> SearchAsync(
-        [Description("Free-text query over reference, registration, claimant, and claim number.")] string? query,
-        [Description("Exact or partial case reference filter.")] string? caseReference,
-        [Description("Vehicle registration filter.")] string? registration,
-        [Description("Claimant name filter.")] string? claimant,
-        [Description("Claim number filter.")] string? claimNumber,
-        [Description("Principal code filter.")] string? principal,
-        [Description("Lifecycle state filter using the CaseLifecycleState name.")] string? state,
-        [Description("1-based page number.")] int page,
-        [Description("Page size between 1 and 50; 0 selects the default of 25.")] int pageSize,
-        CancellationToken cancellationToken)
+        [Description("Free-text query over reference, registration, claimant, and claim number.")] string? query = null,
+        [Description("Exact or partial case reference filter.")] string? caseReference = null,
+        [Description("Vehicle registration filter.")] string? registration = null,
+        [Description("Claimant name filter.")] string? claimant = null,
+        [Description("Claim number filter.")] string? claimNumber = null,
+        [Description("Principal code filter.")] string? principal = null,
+        [Description("Lifecycle state filter using the CaseLifecycleState name.")] string? state = null,
+        [Description("1-based page number.")] int page = 1,
+        [Description("Page size between 1 and 50; 0 selects the default of 25.")] int pageSize = 0,
+        CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
         return await auditor.RecordAsync(
@@ -184,7 +184,7 @@ internal sealed class CaseMcpTools(
     [Description("Returns one case as a bounded projection: summary, current version, active edit lease, document inventory (capped at 200 entries), and the most recent history entries. Document content is retrieved with pegasus_document_download.")]
     public async Task<CaseGetToolResult> GetAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
         return await auditor.RecordAsync(
@@ -256,7 +256,7 @@ internal sealed class CaseMcpTools(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key returns the same lease claim.")] string operationKey,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
         var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
@@ -296,7 +296,7 @@ internal sealed class CaseMcpTools(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The lease token returned by pegasus_case_edit_begin.")] string leaseToken,
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
         var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
