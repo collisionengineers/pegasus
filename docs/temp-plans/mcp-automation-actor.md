@@ -184,9 +184,15 @@ Inventory rules:
   size/type limits the Web upload path enforces; oversized content fails
   closed with a typed error, no partial custody. Download/export results
   also respect client-side tool-result caps (Claude Code defaults to
-  ~25k tokens per tool result; claude.ai/Desktop ~150k characters), so
-  large content returns a bounded summary plus a retrieval handle rather
-  than overflowing silently.
+  25k tokens per tool result, raisable via `MAX_MCP_OUTPUT_TOKENS` or
+  per-tool via `_meta["anthropic/maxResultSizeChars"]` up to 500k chars;
+  claude.ai/Desktop ~150k characters), so large content returns a
+  bounded summary plus a retrieval handle rather than overflowing
+  silently.
+- Tool annotations use the C# SDK's verified `[McpServerTool]` attribute
+  properties — `ReadOnly`, `Destructive`, `Idempotent`, `OpenWorld`,
+  plus `UseStructuredContent` for typed results — which the SDK maps
+  onto the MCP `ToolAnnotations` hints.
 
 ### 1.7 Attribution, history, and telemetry
 
@@ -254,9 +260,10 @@ b. **Client registration path** — Administrator UI surface now, or
    visibility now; full register/revoke UI as a follow-up line.
 c. **Initial evidence client** — recommended: Claude Code. Its
    documented `--header "Authorization: Bearer …"` and `headersHelper`
-   (a script run at connection time that exchanges the client id/secret
-   for a short-lived token, re-run automatically on 401) fit a machine
-   credential exactly, with no beta gate. Research finding: claude.ai /
+   (a script run fresh at each connection that exchanges the client
+   id/secret for a short-lived token; from Claude Code v2.1.193 a
+   401/403 automatically re-runs the helper, reconnects, and retries
+   once) fit a machine credential exactly, with no beta gate. Research finding: claude.ai /
    Claude Desktop custom connectors explicitly do **not** support the
    client-credentials grant ("every connection requires user consent");
    their non-OAuth option (`static_headers`, admin-entered bearer) is
