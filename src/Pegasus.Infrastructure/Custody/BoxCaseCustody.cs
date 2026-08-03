@@ -156,16 +156,26 @@ internal sealed class BoxContentClient(
         CancellationToken cancellationToken)
     {
         await EnsureDescendantAsync(parentId, cancellationToken);
-        var uri = new Uri(options.BaseUri,
-            $"folders/{Uri.EscapeDataString(parentId)}/items?fields=id,name,type,etag&limit=1000");
-        using var response = await SendAsync(HttpMethod.Get, uri, null, cancellationToken);
-        using var document = await ReadSuccessJsonAsync(response, cancellationToken);
-        var matches = document.RootElement.GetProperty("entries")
-            .EnumerateArray()
-            .Where(item => ReadString(item, "name") == name && ReadString(item, "type") == type)
-            .Select(ParseItem)
-            .ToArray();
-        return matches.Length switch
+        const int pageLimit = 1000;
+        var offset = 0;
+        var matches = new List<BoxItem>();
+        while (true)
+        {
+            var uri = new Uri(options.BaseUri,
+                $"folders/{Uri.EscapeDataString(parentId)}/items?fields=id,name,type,etag&limit={pageLimit}&offset={offset}");
+            using var response = await SendAsync(HttpMethod.Get, uri, null, cancellationToken);
+            using var document = await ReadSuccessJsonAsync(response, cancellationToken);
+            var entries = document.RootElement.GetProperty("entries").EnumerateArray().ToArray();
+            matches.AddRange(entries
+                .Where(item => ReadString(item, "name") == name && ReadString(item, "type") == type)
+                .Select(ParseItem));
+            if (entries.Length < pageLimit)
+            {
+                break;
+            }
+            offset += entries.Length;
+        }
+        return matches.Count switch
         {
             0 => null,
             1 => matches[0],

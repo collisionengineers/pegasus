@@ -7,8 +7,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
+using Pegasus.Core.Custody;
+using Pegasus.Core.Documents;
+using Pegasus.Core.Eva;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
+using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Intake;
 
 namespace Pegasus.IntegrationTests;
@@ -39,6 +43,27 @@ public sealed class WebCompositionTests
             scope.ServiceProvider.GetRequiredService<IIntakeArtifactStore>());
         Assert.IsType<GetOperationsSnapshot>(
             scope.ServiceProvider.GetRequiredService<IGetOperationsSnapshot>());
+    }
+
+    [Fact]
+    public void ProductionHostComposesBoxCustodyAndTheStaffDocumentSurface()
+    {
+        // ProductionCompositionTests wire AddPegasusInfrastructure directly, so
+        // only a real-host resolution proves Program.cs still passes the
+        // production storage profile through to composition.
+        using var factory = new ConfiguredWebApplicationFactory(
+            "Production",
+            new Dictionary<string, string?>());
+        using var scope = factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+
+        Assert.IsType<BoxCaseCustody>(services.GetRequiredService<ICaseCustody>());
+        Assert.IsType<BoxDocumentContentStore>(
+            services.GetRequiredService<IDocumentContentStore>());
+        Assert.NotNull(services.GetRequiredService<IAddCaseDocument>());
+        Assert.NotNull(services.GetRequiredService<IDownloadCaseDocument>());
+        Assert.NotNull(services.GetRequiredService<IExportCaseDocuments>());
+        Assert.NotNull(services.GetRequiredService<IGenerateEvaHandoff>());
     }
 }
 
