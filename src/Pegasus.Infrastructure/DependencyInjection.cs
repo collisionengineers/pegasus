@@ -92,6 +92,7 @@ public static class DependencyInjection
         services.AddScoped<ReplaySentEmailEvidence>();
         services.AddScoped<IProviderReferenceCatalog, EfProviderReferenceCatalog>();
         services.TryAddSingleton<IIntakeTriageMatcher, NoAcceptedIntakeTriageMatcher>();
+        services.AddSingleton<IMailRoutePolicy, QdosMailRoutePolicy>();
         services.AddSingleton<IInstructionExtractionPolicy>(provider =>
             new QdosInstructionExtractionPolicy(
                 provider.GetRequiredService<IIntakeTriageMatcher>()));
