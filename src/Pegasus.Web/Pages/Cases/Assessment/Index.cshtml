@@ -1,5 +1,3 @@
-@page "/Cases/{id:guid}/Assessment"
-@model Pegasus.Web.Pages.Cases.Assessment.IndexModel
 @*
     Engineers assessment screen — design only.
 
@@ -9,17 +7,18 @@
     a form: this pass owns arrangement, labelling and copy, and the save path
     belongs to the task that wires it.
 
-    This surface is deliberately not linked from _Layout navigation or from the
-    case record. design/README.md § Deferred casework and advanced surfaces
-    forbids an alpha route, control or placeholder for an Engineer workbench,
-    so it stays reachable by direct URL only, pending approval.
+    This file deliberately carries no @page directive: design/README.md
+    § Deferred casework and advanced surfaces forbids an alpha route, control
+    or placeholder for an Engineer workbench, and the 2026-08-03 widening
+    authorized markup that activates no route. The artifact is reviewed in
+    source; restoring the route is part of the wiring task's re-entry approval.
 *@
 @{
     ViewData["Title"] = "Assessment";
     ViewData["Eyebrow"] = "Case";
     ViewData["Lede"] = "Record the engineering assessment and the content the report is written from.";
 
-    var caseId = RouteData.Values["id"]?.ToString() ?? string.Empty;
+    var caseId = ViewContext.RouteData.Values["id"]?.ToString() ?? string.Empty;
     var assessmentUrl = $"/Cases/{caseId}/Assessment";
 
     var sections = new (string Key, string Label)[]
@@ -33,7 +32,7 @@
         ("report", "Report content"),
     };
 
-    var requested = Request.Query["section"].ToString().Trim();
+    var requested = Context.Request.Query["section"].ToString().Trim();
     var current = "vehicle";
     foreach (var candidate in sections)
     {

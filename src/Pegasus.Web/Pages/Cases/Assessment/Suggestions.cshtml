@@ -1,7 +1,8 @@
-@page "/Cases/{id:guid}/Assessment/Suggestions/{suggestionId:guid}"
-@model Pegasus.Web.Pages.Cases.Assessment.SuggestionsModel
 @*
-    Returned suggestions — design only.
+    Returned suggestions — design only. Like the assessment screen, this file
+    deliberately carries no @page directive — no route activates until the
+    deferred-capability re-entry approval (design/README.md § Deferred
+    casework and advanced surfaces).
 
     Field names below come from the assessment's own vocabulary, not from a case.
     Every recorded and proposed value renders empty: this pass must not invent
@@ -19,7 +20,7 @@
     ViewData["Eyebrow"] = "Assessment";
     ViewData["Lede"] = "Decide on each suggestion. Nothing reaches the case until you apply what you have accepted.";
 
-    var caseId = RouteData.Values["id"]?.ToString() ?? string.Empty;
+    var caseId = ViewContext.RouteData.Values["id"]?.ToString() ?? string.Empty;
 
     // Field label, the section it belongs to, and whether it is a professional
     // decision that must be taken on its own.

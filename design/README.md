@@ -661,6 +661,15 @@ There is no alpha control, route or placeholder for:
 
 Deferred AI may propose but must not mutate, accept or send autonomously. Future deterministic outputs must use one accepted structured case/engineering record, validate accepted data, calculate once and avoid duplicate truth owners or output-specific source forks.
 
+One recorded exception (operator widening, 2026-08-03): the Engineer
+assessment workbench (UI-15) and its `Send to Claude` surface (AI-09) exist as
+design markup under `src/Pegasus.Web/Pages/Cases/Assessment/` — routeless
+files with no `@page` directive, no PageModel, no form, every field empty, and
+no link from any navigation or case surface. They are review artifacts
+satisfying the rule that a deferred UI capability re-enters specification and
+review before implementation; activating a route, binding, or transport for
+them remains forbidden until that re-entry approval.
+
 ### Not planned
 
 The following are permanent absences, not backlog placeholders:
