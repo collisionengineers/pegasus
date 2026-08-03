@@ -21,8 +21,7 @@ path is item 4 (extraction
 thresholds) below. The Box production custody boundary was decided 2026-08-02:
 folder `405543781910` ("pegasus") is the production custody root and all case
 folders are created only under it (owner:
-[operations](operations.md#approved-box-integration-test-target); the deployed
-configuration applies the decided root at the next approved deployment).
+[operations](operations.md#approved-box-integration-test-target)).
 
 ## QDOS alpha activation details (migrated from the retired delivery plan)
 
