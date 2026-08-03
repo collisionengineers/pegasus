@@ -229,12 +229,23 @@ it:
 - `./scripts/Test-DocumentationLinks.ps1` and
   `./scripts/Invoke-QdosAlphaAcceptance.ps1 -Profile CiPressure`.
 
-In CI, one `repository-check` run on the PR head with every job green or
-path-skipped, the per-job durations, `sql-integration-coverage` green, the
-summed executed test count matching the local canonical run, and a second run
-on unchanged lock files showing NuGet and Playwright cache hits. Local timings
-put the critical path at roughly three minutes of restore and build plus the
-slowest SQL shard, against a 28-minute single `validate` job.
+In CI, run `30792948456` on the PR head. Attempt 1, with both caches cold, was
+green in every job: **14 m 53 s** against the 28-minute `validate` baseline,
+with the slowest shard at 13 m 55 s (4 m 28 s of checkout, restore, and build
+plus 9 m 04 s of tests), `browser` 6 m 33 s, `unit` 4 m 05 s, and
+`sql-integration-coverage` green, so the shards provably reassembled the
+enumerated set exactly once.
+
+Attempt 3, re-run on the same commit with both caches warm, was green again:
+the slowest shard fell to 12 m 04 s as its setup dropped from 4 m 28 s to
+2 m 48 s, and the Playwright install fell from 20 s to 1 s after a 7-second
+cache restore. Its whole-workflow number is 15 m 15 s only because the
+`changes` job took 2 m 09 s rather than its usual 20 s.
+
+Attempt 2 was cancelled: `actions/checkout` in `changes` stalled in
+`git fetch` for that job's whole five-minute timeout, which skipped every
+dependent lane. Nothing in this change touches that checkout, and the same
+step took 20 seconds on attempt 1.
 
 Left unproved: the `PEGASUS_TEST_SQL_DATASOURCE` container path, since no
 Linux CI job exists — server-side `BACKUP`/`RESTORE` there and its
@@ -257,6 +268,15 @@ operation, or operator acceptance. This changes verification lanes only.
 - Cache poisoning. Guarded by `--locked-mode` over every project once the two
   unlocked test projects gain lock files, and by never gating a restore or an
   install on `cache-hit`.
+- `changes` now gates six lanes rather than two, so a stall in its
+  full-history checkout skips the entire run — observed once on this PR, where
+  `git fetch` hung for the job's whole five-minute timeout. Pre-existing and
+  untouched here, but more consequential than it was, and worth either more
+  headroom or a shallower diff strategy in its own task.
+- The shards are balanced by class count, not by cost: 13 m 55 s, 12 m 29 s,
+  and 10 m 45 s of a possible 9 m. Assigning by observed duration, or simply
+  using more shards, would pull the critical path down further and is the
+  obvious next increment.
 - Removing `DisableParallelization = true` is potentially the largest remaining
   win and is deliberately not attempted: the flag is load-bearing for shared
   temp roots and LocalDB contention, the task line does not ask for it, and a
