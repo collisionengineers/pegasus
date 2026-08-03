@@ -3,6 +3,7 @@ using Pegasus.Core.Actors;
 using Pegasus.Core.Address;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Cases;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 using Microsoft.AspNetCore.Mvc;
@@ -20,9 +21,24 @@ public sealed partial class DetailsModel(
     IAcceptIntake acceptIntake,
     IConfirmStandaloneAuditEvidence confirmStandaloneAuditEvidence,
     IStandaloneAuditEvidenceQueries standaloneAuditEvidenceQueries,
+    IImageIntakeQueries imageIntakeQueries,
+    IImageIntakeOriginResolver imageIntakeOriginResolver,
+    IRegisterImageIntake registerImageIntake,
+    IVrmSuggestionStore vrmSuggestionStore,
+    IImageIntakeCaseCandidates imageIntakeCaseCandidates,
     ILogger<DetailsModel> logger,
     IInspectionAddressResolutionStore addressResolutionStore) : PageModel
 {
+    public ImageIntakeDetail? ImageIntake { get; private set; }
+
+    public IReadOnlyList<ImageVrmSuggestion> VrmSuggestions { get; private set; } = [];
+
+    public IReadOnlyList<ImageIntakeCaseCandidate> AssociationCandidates { get; private set; } = [];
+
+    public bool CanRegisterImageIntake { get; private set; }
+
+    public string RegistrationPrefill { get; private set; } = string.Empty;
+
 
     public IntakeReceipt Receipt { get; private set; } = null!;
 
@@ -827,8 +843,133 @@ public sealed partial class DetailsModel(
             null,
             null);
         PrepareAddressCommand();
+        await LoadImageIntakeAsync(cancellationToken);
         return null;
     }
+
+    private async Task LoadImageIntakeAsync(CancellationToken cancellationToken)
+    {
+        ImageIntake = await imageIntakeQueries.GetByOriginReceiptAsync(Receipt.Id, cancellationToken);
+        var isImageOnly = Receipt.InstructionDraft is null
+            && Receipt.Fields.Count == 0
+            && Receipt.AssetRecords.Count > 0
+            && Receipt.AssetRecords.All(asset =>
+                asset.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase));
+        if (isImageOnly)
+        {
+            VrmSuggestions = await vrmSuggestionStore.ListForReceiptAsync(Receipt.Id, cancellationToken);
+        }
+
+        CanRegisterImageIntake = isImageOnly
+            && ImageIntake is null
+            && Receipt.Decision == IntakeDecision.NeedsSorting;
+        RegistrationPrefill = VrmSuggestions
+            .Where(suggestion => suggestion.Outcome == VrmRecognitionOutcomeKind.Suggested
+                && suggestion.Disposition == ImageVrmSuggestionDisposition.Pending
+                && suggestion.SuggestedRegistration is not null)
+            .OrderByDescending(suggestion => suggestion.Confidence ?? 0)
+            .Select(suggestion => suggestion.SuggestedRegistration!)
+            .FirstOrDefault() ?? string.Empty;
+        AssociationCandidates = ImageIntake is { AssociatedCaseId: null } detail
+            ? await imageIntakeCaseCandidates.FindEligibleByRegistrationAsync(
+                detail.Record.NormalizedVehicleRegistration,
+                cancellationToken)
+            : [];
+    }
+
+    public async Task<IActionResult> OnPostRegisterImageIntakeAsync(
+        Guid id,
+        string? vehicleRegistration,
+        string operationKey,
+        string reason,
+        CancellationToken cancellationToken = default) =>
+        await ExecuteCommandAsync(
+            id,
+            async actor =>
+            {
+                var normalized = new string((vehicleRegistration ?? string.Empty)
+                    .ToUpperInvariant()
+                    .Where(character => char.IsAsciiLetterUpper(character) || char.IsAsciiDigit(character))
+                    .ToArray());
+                var origin = await imageIntakeOriginResolver.ResolveOriginAsync(id, cancellationToken)
+                    ?? throw new InvalidOperationException(
+                        "The intake receipt has no completed evaluation to register from.");
+                var record = await registerImageIntake.ExecuteAsync(
+                    new(origin, normalized, actor, operationKey, reason),
+                    cancellationToken);
+                await ConfirmMatchingSuggestionsAsync(record, actor, cancellationToken);
+            },
+            "The Image intake was registered with its permanent reference.",
+            cancellationToken);
+
+    public async Task<IActionResult> OnPostDismissSuggestionAsync(
+        Guid id,
+        Guid suggestionId,
+        string operationKey,
+        string reason,
+        CancellationToken cancellationToken = default) =>
+        await ExecuteCommandAsync(
+            id,
+            actor => vrmSuggestionStore.SetDispositionAsync(
+                new(
+                    suggestionId,
+                    ImageVrmSuggestionDisposition.Dismissed,
+                    actor,
+                    reason,
+                    operationKey),
+                cancellationToken),
+            "The registration suggestion was dismissed with the recorded reason.",
+            cancellationToken);
+
+    private async Task ConfirmMatchingSuggestionsAsync(
+        ImageIntakeRecord record,
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        var suggestions = await vrmSuggestionStore.ListForReceiptAsync(
+            record.Origin.ReceiptId,
+            cancellationToken);
+        foreach (var suggestion in suggestions)
+        {
+            if (suggestion.Disposition != ImageVrmSuggestionDisposition.Pending
+                || suggestion.Outcome != VrmRecognitionOutcomeKind.Suggested
+                || !string.Equals(
+                    suggestion.SuggestedRegistration,
+                    record.NormalizedVehicleRegistration,
+                    StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            try
+            {
+                await vrmSuggestionStore.SetDispositionAsync(
+                    new(
+                        suggestion.Id,
+                        ImageVrmSuggestionDisposition.Confirmed,
+                        actor,
+                        "The staff registration used this suggested registration.",
+                        $"vrm-confirm:{suggestion.Id:N}"),
+                    cancellationToken);
+            }
+            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+            {
+                // Confirmation is bookkeeping over an already-recorded
+                // suggestion; the registration itself has already committed.
+            }
+        }
+    }
+
+    public static string SuggestionOutcomeLabel(ImageVrmSuggestion suggestion) => suggestion.Outcome switch
+    {
+        VrmRecognitionOutcomeKind.Suggested =>
+            $"Suggested {suggestion.SuggestedRegistration} ({suggestion.Confidence:P0} confidence)",
+        VrmRecognitionOutcomeKind.NoReadableResult => "No readable registration",
+        VrmRecognitionOutcomeKind.TechnicalFailure => "Technical failure",
+        VrmRecognitionOutcomeKind.Unavailable => "Recognition unavailable",
+        _ => throw new InvalidOperationException(
+            $"Unknown recognition outcome value '{(int)suggestion.Outcome}'.")
+    };
 
     [LoggerMessage(
         EventId = 1200,
