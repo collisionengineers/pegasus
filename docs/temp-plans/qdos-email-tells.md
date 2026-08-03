@@ -110,6 +110,78 @@ These prove the classifier cannot depend on `EREF` alone. The claim-number
 extraction still works on all of them, which is another reason to treat the
 claim reference as the primary key and `EREF` as the type hint.
 
+## Complete letter inventory — corrects the counts below
+
+An initial pass matched only the full filenames `LtrtoAuditEngin` and
+`LtrtoEngineerInstruction…` and found 44 letters. That undercounted badly.
+**QDOS truncates generated filenames to 15 characters**, so a large family was
+missed because `LtrtoEngineerIn` is not matched by a pattern looking for
+`LtrtoEngineerInstruction`.
+
+Matching on the `Ltrto` stem instead finds **198 letter documents**. Every one
+was opened and its text read:
+
+| Filename stem | Format | Title inside the document | Docs |
+| --- | --- | --- | ---: |
+| `LtrtoEngineerIn` | PDF | `ENGINEER NOTIFICATION (REPORT + AUDIT REPORT)` | 141 |
+| `LtrtoAuditEngin` | PDF | `AUDIT REPORT NOTIFICATION` | 27 |
+| `LtrtoEngineerInstructionCollisionEngineersLtd` | DOC | `ENGINEER NOTIFICATION (REPORT + AUDIT REPORT)` | 17 |
+| `LtrtoEngineerSendvehicleimagestoengineerfortriage…` | DOC | `Triage Only Request` | 9 |
+| `LtrtoEngineerSe` | PDF | `Triage Only Request` | 3 |
+| `LtrtoEngineerRequestcommentsonclientevidence…` | DOC | none | 1 |
+
+**Filename and document title agree in all 198 cases.** No mismatches, no
+exceptions.
+
+Two structural facts fall out:
+
+- **Truncation tracks format.** Every truncated 15-character name is a PDF and
+  every full-length name is a DOC. These are two generation paths for the same
+  letter, and the PDF path truncates. A rule keyed on the full filename will
+  silently miss the larger PDF population, which is exactly what happened here.
+- **`LtrtoEngineerIn` is ambiguous by construction.** It is a truncation of
+  `LtrtoEngineerInstruction…`, but nothing in the truncated string guarantees
+  that. It is only safe because the document title inside confirms it — which
+  is the argument for treating the title as the authority and the filename as
+  a pre-filter.
+
+### The plain-Inspection gap is now much stronger evidence
+
+All **158** non-audit instruction letters — 141 PDF plus 17 DOC — carry
+`(REPORT + AUDIT REPORT)`. Not one is a bare `ENGINEER NOTIFICATION`.
+
+At 44 documents this looked like a possible sampling gap. At 158 with zero
+exceptions it needs an explanation: either QDOS instructs report and audit
+together as standard, or this corpus is drawn from audit-heavy filing and
+plain Inspection lives elsewhere. The operator expects plain Inspection to be
+the common case in practice, which sits directly against this evidence. Worth
+resolving before any rule is written, because the two readings imply very
+different defaults.
+
+### A fifth letter type: post-report valuation dispute
+
+`LtrtoEngineerRequestcommentsonclientevidence…` carries no notification title
+and reads:
+
+> The client has confirmed that they do not agree with the figure for the
+> pre-accident value of their vehicle … Please review the documents attached
+> and return to us within the next 7 days.
+
+That is post-report dispute correspondence, not an instruction. It belongs to
+the settled `post-report-emails` Received family and to `CASE-23`, which is
+allocated `Next` / `0.4.0`. One example only.
+
+Note it has a 7-day response expectation stated in the letter, which is a
+due-date signal rather than a category signal.
+
+### Only work types get an upper-case title
+
+Of the five letter types, just two announce themselves in capitals — the audit
+and the report-plus-audit notifications. Triage and the valuation dispute use
+ordinary prose. So the upper-case notification title is specifically a
+**work-type** marker, not a general letter marker, and the classifier cannot
+expect one on every letter.
+
 ## The Audit tell is in the attachment filename, not the subject
 
 QDOS attaches a generated instruction letter, and its filename states which
