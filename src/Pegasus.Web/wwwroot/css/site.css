@@ -926,22 +926,106 @@ textarea:focus-visible,
    otherwise win and leave the save control tight against the block above. */
 .workbench-grid .button-row.section-gap { margin-top: var(--sp-6); }
 
-/* The Send control is the rail's own action and must not read as a Cancel.
-   Collision red is reserved for the section's save, so this takes the approved
-   navy channel — distinct in tone, still a 1px border and the 2px radius, with
-   no gradient, shadow, lift or motion, all of which design/README.md excludes.
-   Full width follows the reference's sidebar treatment: in a 320px rail a
-   centred inline button reads as an afterthought. */
+/* ---------------------------------------------------------------------------
+   Send to Claude — a deliberate, recorded divergence from design/README.md,
+   authorised by the repo owner and scoped to this one control.
+
+   The button carries the provider's own identity so it reads as Claude on
+   sight and is never mistaken for a Collision Engineers action. Nothing here
+   escapes the button: the tokens below are local custom properties, not
+   additions to :root, so no other surface can pick them up. The rest of the
+   application keeps the approved palette, the 2px radius and the red focus
+   ring untouched.
+
+   Divergences, each confined to `.send-action`: the terracotta gradient, the
+   12px radius, the Poppins-first stack, the raised shadow, the hover lift, the
+   blue focus ring, the sparkle glyph, and the ember canvas.
+   --------------------------------------------------------------------------- */
+
 .send-action {
-  border-color: var(--navy-line);
-  background: var(--navy-bg);
-  color: var(--navy-fg);
+  --claude-orange-hi: #e8956d;
+  --claude-orange: #d97757;
+  --claude-orange-deep: #b85f3d;
+  --claude-light: #faf9f5;
+  --claude-focus: #6a9bcc;
+
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  gap: 10px;
+  padding: 13px 22px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--claude-orange-hi) 0%, var(--claude-orange) 48%, var(--claude-orange-deep) 100%);
+  box-shadow: 0 2px 5px rgba(20, 20, 19, .2), 0 0 0 1px rgba(184, 95, 61, .45) inset;
+  color: var(--claude-light);
+  font-family: "Poppins", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: transform .18s ease, box-shadow .28s ease;
 }
 
-.send-action:hover { border-color: var(--navy-fg); background: var(--navy-bg); }
-.send-action .icon { color: var(--navy-line); }
+/* The label and glyph ride above the ember canvas. */
+.send-action > span,
+.send-action > svg { position: relative; z-index: 2; }
+
+.send-action:hover {
+  background: linear-gradient(135deg, var(--claude-orange-hi) 0%, var(--claude-orange) 48%, var(--claude-orange-deep) 100%);
+  box-shadow: 0 12px 28px -8px rgba(217, 119, 87, .6), 0 0 0 1px rgba(184, 95, 61, .55) inset;
+  transform: translateY(-2px);
+}
+
+.send-action:active { transform: translateY(0); }
+
+/* The app's red focus ring would sit on terracotta and all but vanish, so this
+   control takes the reference's blue. It is the only such exception. */
+.send-action:focus-visible {
+  outline: 2px solid var(--claude-focus);
+  outline-offset: 3px;
+}
+
+.send-action__sparkle {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, .6));
+  animation: send-action-breathe 4.5s ease-in-out infinite;
+}
+
+@keyframes send-action-breathe {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(16deg) scale(1.1); }
+}
+
+/* Seeded ember field. Drawn by script only when motion is welcome. */
+.send-action canvas {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  opacity: .95;
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
 /* Full width only in the rail; in the dialog it sits beside Cancel. */
-.workbench-grid .send-action { width: 100%; }
+.workbench-grid .send-action { width: 100%; justify-content: center; }
+
+/* The whole flourish is decoration. Under reduced motion the button keeps its
+   identity and loses every moving part, including the canvas the script
+   declines to start. */
+@media (prefers-reduced-motion: reduce) {
+  .send-action { transition: none; }
+  .send-action:hover { transform: none; }
+  .send-action__sparkle { animation: none; }
+  .send-action canvas { display: none; }
+}
+
+/* Forced colours discards the gradient entirely, so restore a visible edge. */
+@media (forced-colors: active) {
+  .send-action { border: 1px solid ButtonText; }
+  .send-action canvas { display: none; }
+}
 
 /* Buttons had no disabled treatment, so an unavailable action still read as
    available. Matches the recessed ground disabled inputs already use. */
