@@ -378,6 +378,22 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
           identity: webIdentity.id
         }
       ]
+      // Web composes Box-backed case custody and managed document content, so it
+      // needs the same Box credentials the Worker uses. Container Apps resolves
+      // these through the web identity, which needs Key Vault Secrets User on the
+      // vault holding the referenced secrets.
+      secrets: [
+        {
+          name: 'box-config-json'
+          keyVaultUrl: boxConfigJsonSecretUri
+          identity: webIdentity.id
+        }
+        {
+          name: 'box-client-secret'
+          keyVaultUrl: boxClientSecretSecretUri
+          identity: webIdentity.id
+        }
+      ]
     }
     template: {
       revisionSuffix: webRevisionSuffix
@@ -399,6 +415,11 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             { name: 'CustodyStorage__ServiceUri', value: custodyStorage.properties.primaryEndpoints.blob }
             { name: 'AZURE_CLIENT_ID', value: webIdentity.properties.clientId }
             { name: 'AzureIdentity__WebClientId', value: webIdentity.properties.clientId }
+            { name: 'Box__BaseUri', value: 'https://api.box.com/2.0/' }
+            { name: 'Box__UploadUri', value: 'https://upload.box.com/api/2.0/' }
+            { name: 'Box__RootFolderId', value: '405543781910' }
+            { name: 'Box__ConfigJson', secretRef: 'box-config-json' }
+            { name: 'Box__ClientSecret', secretRef: 'box-client-secret' }
           ]
           resources: {
             cpu: json('0.5')

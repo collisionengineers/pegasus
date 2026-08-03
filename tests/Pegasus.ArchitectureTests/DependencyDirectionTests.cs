@@ -394,7 +394,10 @@ public sealed class DependencyDirectionTests
 
         return document
             .Descendants("ProjectReference")
-            .Select(element => Path.GetFileNameWithoutExtension((string?)element.Attribute("Include")))
+            .Select(element => (string?)element.Attribute("Include"))
+            // MSBuild Include paths use backslashes, which are not path separators
+            // on Linux; normalize before taking the file name so both platforms agree.
+            .Select(include => Path.GetFileNameWithoutExtension(include?.Replace('\\', '/')))
             .Where(name => name is not null)
             .Cast<string>()
             .Order(StringComparer.Ordinal)

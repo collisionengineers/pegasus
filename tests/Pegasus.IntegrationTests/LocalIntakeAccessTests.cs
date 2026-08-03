@@ -102,6 +102,45 @@ public sealed class LocalIntakeAccessTests
         Assert.Equal(expectedMessage, configurationException.Message);
     }
 
+    [Theory]
+    [InlineData("Box:BaseUri")]
+    [InlineData("Box:UploadUri")]
+    [InlineData("Box:RootFolderId")]
+    [InlineData("Box:ConfigJson")]
+    [InlineData("Box:ClientSecret")]
+    public void ProductionFailsClosedWithoutTheBoxCustodyConfigurationItComposes(string missingKey)
+    {
+        // Production now composes Box-backed custody and managed document content,
+        // so a missing Box setting must stop startup rather than silently leaving
+        // the staff document surface unavailable.
+        var configuration = new Dictionary<string, string?>
+        {
+            ["Runtime:Profile"] = "Production",
+            ["ConnectionStrings:Pegasus"] =
+                $"Server=(localdb)\\MSSQLLocalDB;Database=Pegasus_MissingBox_{Guid.NewGuid():N};" +
+                "Integrated Security=true;Encrypt=false",
+            ["AzureIdentity:WebClientId"] = Guid.NewGuid().ToString("D"),
+            ["TransportStorage:AccountName"] = "pegasustransport",
+            ["CustodyStorage:AccountName"] = "pegasuscustody",
+            ["CustodyStorage:ServiceUri"] = "https://pegasuscustody.blob.core.windows.net/",
+            ["Box:BaseUri"] = "https://api.box.com/2.0/",
+            ["Box:UploadUri"] = "https://upload.box.com/api/2.0/",
+            ["Box:RootFolderId"] = "405543781910",
+            ["Box:ConfigJson"] = "{}",
+            ["Box:ClientSecret"] = "client-secret"
+        };
+        configuration[missingKey] = null;
+
+        using var factory = new ConfiguredWebApplicationFactory("Production", configuration);
+
+        var exception = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
+        var configurationException = Assert.IsType<InvalidOperationException>(exception.GetBaseException());
+
+        Assert.Equal(
+            $"{missingKey} is required for the Production runtime profile.",
+            configurationException.Message);
+    }
+
     private static async Task<long> CountRowsIfPresentAsync(DbConnection connection, DatabaseTable table)
     {
         await using var existenceCommand = connection.CreateCommand();

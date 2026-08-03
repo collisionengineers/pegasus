@@ -53,8 +53,60 @@ internal static class CaseDataSnapshotFactory
         AddProviderFact(snapshot, receipt);
         AddInstructionSuggestions(snapshot, receipt);
         AddResolvedInspection(snapshot, receipt);
+        AddProviderInspectionMode(snapshot, request, acceptedAtUtc);
         AddAcceptedDeadline(snapshot, receipt, request, acceptedAtUtc);
         return snapshot;
+    }
+
+    private static void AddProviderInspectionMode(
+        CaseDataSnapshotEntity snapshot,
+        CaseAcceptanceRequest request,
+        DateTimeOffset acceptedAtUtc)
+    {
+        if (request.ProviderInspectionMode != CaseInspectionMode.ImageBasedAssessment)
+        {
+            return;
+        }
+
+        // The provider setting determines the mode even when the instruction
+        // carried a physical location or staff resolved one at intake; those
+        // remain as suggestion rows and staff may still override on the case.
+        snapshot.Fields.RemoveAll(item =>
+            item.FieldName is CaseDataFieldNames.InspectionAddress or CaseDataFieldNames.InspectionMode
+            && item.ValueKind == CaseDataCodes.Confirmed);
+        var sourceLabel = $"provider setting:{request.PrincipalCode}";
+        snapshot.Fields.Add(new()
+        {
+            CaseId = snapshot.CaseId,
+            Snapshot = snapshot,
+            FieldName = CaseDataFieldNames.InspectionAddress,
+            ValueKind = CaseDataCodes.Confirmed,
+            ValueType = CaseDataCodes.Text,
+            Value = Ext18InspectionAddressPolicy.ImageBasedAssessment,
+            SourceKind = CaseDataCodes.ProviderSetting,
+            SourceIdentity = snapshot.OriginIntakeReceiptId.ToString("D"),
+            SourceLabel = sourceLabel,
+            PolicyKey = ProviderInspectionModePolicy.PolicyKey,
+            PolicyVersion = ProviderInspectionModePolicy.PolicyVersion,
+            ConfirmedByActor = request.Actor.SubjectId,
+            ConfirmedAtUtc = acceptedAtUtc
+        });
+        snapshot.Fields.Add(new()
+        {
+            CaseId = snapshot.CaseId,
+            Snapshot = snapshot,
+            FieldName = CaseDataFieldNames.InspectionMode,
+            ValueKind = CaseDataCodes.Confirmed,
+            ValueType = CaseDataCodes.InspectionMode,
+            Value = ProviderInspectionModePolicy.ImageBasedAssessmentCode,
+            SourceKind = CaseDataCodes.ProviderSetting,
+            SourceIdentity = snapshot.OriginIntakeReceiptId.ToString("D"),
+            SourceLabel = sourceLabel,
+            PolicyKey = ProviderInspectionModePolicy.PolicyKey,
+            PolicyVersion = ProviderInspectionModePolicy.PolicyVersion,
+            ConfirmedByActor = request.Actor.SubjectId,
+            ConfirmedAtUtc = acceptedAtUtc
+        });
     }
 
     private static void AddProviderFact(

@@ -14,23 +14,34 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   operator decision, unblocking INT-17/28/32; no vendor selection,
   credential, or automatic-matching activation without operator sign-off
   (branch task/image-led-intake, taken 2026-08-03, by claude).
+- QDOS email identification and classification: build the shared Core
+  classification foundation — the settled Received/Sent families and
+  subtypes, Reply as mirrored context, validated `Other` name and reason,
+  versioned policy key, decision evidence, explicit ambiguity outcome, and
+  the acceptance cohort, keeping category separate from queue, Triage
+  routing, and Outlook destination (MAIL-21/22); no rule-precedence or
+  confidence-threshold invention (open decision: mailbox rule activation),
+  no evaluator surface (EVAL-01–05, MAIL-20, OPS-22 are separately owned),
+  no folder move, mailbox mutation, or AI classifier (branch
+  task/qdos-email-classification, taken 2026-08-03, by claude).
+- Cut `repository-check` wall clock (agreed 2026-08-03): shard validate into
+  parallel unit / SQL-integration / browser jobs, replace migrate-per-test
+  LocalDB setup with a per-run migrated template database, and cache NuGet
+  packages and the pinned Playwright Chromium (branch
+  task/repository-check-speed, taken 2026-08-03, by claude).
 
 ## Next (ordered queue — take from the top)
 
-- Compose the production staff surface: register the document/EVA/upload
-  services under the Production profile with a Box-backed production document
-  content store, lift the `/Intake` 404 for authenticated staff, replace the
-  no-op Triage matcher, and add a production-composition activation test —
-  blocks Path steps 2–6.
-- Ship with the composition-fix release: a forwarded-headers fix (redirects
-  currently emit `http://`) and vault consolidation (copy the Box/DVLA/DVSA
-  secrets into the Pegasus Key Vault, repoint the Worker's references, prove
-  resolution, then retire the two adopted vaults and `rg-collisionspike-dev`).
+- Ship with the composition-fix release: the Web identity's Key Vault Secrets
+  User grant for the two Box secrets the Web container app references from
+  that release, and vault consolidation (copy the Box/DVLA/DVSA secrets into
+  the Pegasus Key Vault, repoint the Worker's references, prove resolution,
+  then retire the two adopted vaults and `rg-collisionspike-dev`).
 - Assemble the operator-reviewed extraction cohort + untouched holdout and
   accept the per-field thresholds (INT-21, open-decisions) — blocks Path
   step 3.
-- Fix `ProjectReferencesFollowTheModularMonolithDirection` backslash parsing
-  and open the PR so the branch gets `repository-check` evidence.
+- Accept the Box managed-document layout from operator review
+  (open-decisions) before the document surface carries real case work.
 
 ## Waiting (each line names its unblock condition)
 

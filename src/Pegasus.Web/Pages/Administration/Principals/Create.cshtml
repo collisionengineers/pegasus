@@ -38,6 +38,15 @@ else
             <span asp-validation-for="Code"></span>
             <p>Use letters and numbers only. The code is normalized to uppercase and cannot be edited.</p>
         </div>
+        <div>
+            <label asp-for="InspectionMode">Inspection mode</label>
+            <select asp-for="InspectionMode">
+                <option value="@CaseInspectionMode.PhysicalAddress">Physical address</option>
+                <option value="@CaseInspectionMode.ImageBasedAssessment">Image Based Assessment</option>
+            </select>
+            <span asp-validation-for="InspectionMode"></span>
+            <p>Image Based Assessment autofills the inspection address on every new case for this principal; staff may override it on a specific case with a reason.</p>
+        </div>
         <button type="submit">Create principal</button>
     </form>
 }

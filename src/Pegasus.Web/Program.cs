@@ -27,6 +27,8 @@ using Pegasus.Web.Pages.Uploads;
 using Azure.Identity;
 using Azure.Storage.Blobs;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
+using Pegasus.Infrastructure.Custody;
 
 const string OriginalIssueClaim = "pegasus:original-issued-at";
 const string DevelopmentOfflineProfile = "DevelopmentOffline";
@@ -113,6 +115,7 @@ if (!developmentOfflineProfile && !productionProfile)
     throw new InvalidOperationException(
         $"Unsupported Runtime:Profile '{configuredRuntimeProfile}' for environment '{builder.Environment.EnvironmentName}'.");
 }
+BoxCustodyOptions? productionBoxCustodyOptions = null;
 if (productionProfile)
 {
     if (!builder.Environment.IsProduction())
@@ -126,7 +129,12 @@ if (productionProfile)
         "AzureIdentity:WebClientId",
         "TransportStorage:AccountName",
         "CustodyStorage:AccountName",
-        "CustodyStorage:ServiceUri"
+        "CustodyStorage:ServiceUri",
+        "Box:BaseUri",
+        "Box:UploadUri",
+        "Box:RootFolderId",
+        "Box:ConfigJson",
+        "Box:ClientSecret"
     })
     {
         if (string.IsNullOrWhiteSpace(builder.Configuration[key]))
@@ -164,14 +172,22 @@ if (productionProfile)
     builder.Services.AddSingleton(
         new BlobServiceClient(custodyServiceUri, credential)
             .GetBlobContainerClient("transient-intake"));
-    builder.Services.AddSingleton<IIntakeArtifactStore, AzureBlobIntakeArtifactStore>();
+    productionBoxCustodyOptions = BoxCustodyOptions.Create(
+        builder.Configuration["Box:BaseUri"],
+        builder.Configuration["Box:UploadUri"],
+        builder.Configuration["Box:RootFolderId"],
+        builder.Configuration["Box:ConfigJson"],
+        builder.Configuration["Box:ClientSecret"]);
 }
 var localDocumentCustodyConfigured =
     builder.Configuration.GetValue<bool>("Features:LocalDocumentCustody");
 Func<IServiceProvider, RequestUploadLimits>? requestUploadLimitsFactory = null;
 var acceptedRequestLimitsVersion =
     builder.Configuration["DocumentRequests:AcceptedLimitsVersion"];
-if (localDocumentCustodyConfigured
+// INT-31 upload links stay inactive until their limits are accepted
+// (docs/open-decisions.md). Production composes document custody but sets no
+// accepted limits version, so the upload-link services stay unavailable there.
+if ((localDocumentCustodyConfigured || productionProfile)
     && !string.IsNullOrWhiteSpace(acceptedRequestLimitsVersion))
 {
     requestUploadLimitsFactory = serviceProvider =>
@@ -463,7 +479,14 @@ evaMappingAcceptanceFactory: serviceProvider =>
         configuration["Eva:AcceptedMapping:Key"],
         configuration.GetValue<int?>("Eva:AcceptedMapping:Version"),
         configuration["Eva:AcceptedMapping:EvidenceReference"]);
-});
+},
+documentStorage: productionBoxCustodyOptions is null
+    ? null
+    : (Action<IServiceCollection>)(registrations => registrations.AddProductionDocumentStorage(
+        provider => provider.GetRequiredService<BlobContainerClient>(),
+        // Web never provisions the container; the Worker owns that.
+        static _ => false,
+        productionBoxCustodyOptions)));
 if (developmentOfflineProfile)
 {
     builder.Services.AddSingleton(VehicleLookupAvailability.DevelopmentOfflineReplay);
@@ -475,6 +498,7 @@ builder.Services.AddScoped<ISecurityEventWriter>(serviceProvider =>
 builder.Services.AddScoped<IActionHistoryWriter>(serviceProvider =>
     serviceProvider.GetRequiredService<EfIdentityAuditStore>());
 builder.Services.AddScoped<ICaseAcceptanceStore, EfCaseAcceptanceStore>();
+builder.Services.AddScoped<IProviderInspectionModeStore, EfProviderInspectionModeStore>();
 builder.Services.AddScoped<IAcceptIntake, AcceptIntake>();
 builder.Services.AddScoped<IInspectionAddressResolutionStore, InspectionAddressResolutionStore>();
 if (requestUploadLimitsFactory is not null)
@@ -502,8 +526,10 @@ var developmentOffline = runtimeProfile.Equals(
     DevelopmentOfflineProfile,
     StringComparison.Ordinal);
 var localIntakeConfigured = app.Configuration.GetValue<bool>("Features:LocalIntake");
-var localDocumentCustodyEnabled =
-    developmentOffline && localDocumentCustodyConfigured;
+// The document surface follows composed custody, not the Development-only feature
+// flag: Production composes Box-backed custody and must serve the staff pages.
+var documentCustodyEnabled =
+    (developmentOffline && localDocumentCustodyConfigured) || productionProfile;
 
 if (developmentOffline && !app.Environment.IsDevelopment())
 {
@@ -536,6 +562,7 @@ if (bootstrapProductionAdministrator)
 }
 
 var localIntakeEnabled = developmentOffline && localIntakeConfigured;
+var intakeSurfaceEnabled = localIntakeEnabled || productionProfile;
 if (migrateDevelopment)
 {
     await using var scope = app.Services.CreateAsyncScope();
@@ -554,6 +581,22 @@ if (initializeDevelopment)
 
 
 
+if (productionProfile)
+{
+    // Container Apps ingress terminates TLS and forwards the original scheme in
+    // X-Forwarded-Proto. Without this, Kestrel sees http, UseHttpsRedirection
+    // loops, and every generated redirect and sign-in callback emits http://.
+    // It must run before UseHsts and UseHttpsRedirection.
+    // The ingress is not on a known network, so the proxy allow-lists are cleared.
+    var forwardedHeadersOptions = new ForwardedHeadersOptions
+    {
+        ForwardedHeaders = ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedFor
+    };
+    forwardedHeadersOptions.KnownIPNetworks.Clear();
+    forwardedHeadersOptions.KnownProxies.Clear();
+    app.UseForwardedHeaders(forwardedHeadersOptions);
+}
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error");
@@ -567,11 +610,40 @@ if (!app.Environment.IsDevelopment())
     });
 }
 
-if (!localIntakeEnabled)
+// Staff read the intake list, detail, and retained source wherever intake is
+// composed. Manual local upload (POST /Intake?handler=ReceiveIntake) stays a
+// DevelopmentOffline-only capability and keeps returning 404 in Production.
+if (!intakeSurfaceEnabled)
 {
     app.Use(async (context, next) =>
     {
         if (context.Request.Path.StartsWithSegments("/Intake"))
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        await next(context);
+    });
+}
+else if (!localIntakeEnabled)
+{
+    // Only the manual upload handler on the intake index is Development-only. The
+    // /Intake/{id} review actions — accept, correct draft, block, link case — are
+    // the production staff path to Case/PO allocation and must stay reachable.
+    app.Use(async (context, next) =>
+    {
+        var path = context.Request.Path;
+        var isIntakeIndex = path.Equals("/Intake", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("/Intake/", StringComparison.OrdinalIgnoreCase);
+        var isReceiveIntakeHandler = string.Equals(
+            context.Request.Query["handler"],
+            "ReceiveIntake",
+            StringComparison.OrdinalIgnoreCase);
+        if (path.StartsWithSegments("/Intake")
+            && !HttpMethods.IsGet(context.Request.Method)
+            && !HttpMethods.IsHead(context.Request.Method)
+            && (isIntakeIndex || isReceiveIntakeHandler))
         {
             context.Response.StatusCode = StatusCodes.Status404NotFound;
             return;
@@ -634,7 +706,7 @@ app.Use(async (context, next) =>
     await next(context);
 });
 app.UseAuthorization();
-if (!localDocumentCustodyEnabled)
+if (!documentCustodyEnabled)
 {
     app.Use(async (context, next) =>
     {
@@ -654,9 +726,15 @@ if (!localDocumentCustodyEnabled)
 }
 else if (requestUploadLimitsFactory is null)
 {
+    // Without accepted limits the upload-link services are the unavailable store,
+    // whose staff commands throw. INT-31 is off the alpha path, so keep the whole
+    // request surface absent in Production rather than offering a failing action.
+    // DevelopmentOffline keeps its existing narrower gate.
     app.Use(async (context, next) =>
     {
-        if (context.Request.Path.StartsWithSegments("/uploads"))
+        var path = context.Request.Path;
+        if (path.StartsWithSegments("/uploads")
+            || (productionProfile && path.StartsWithSegments("/requests")))
         {
             context.Response.StatusCode = StatusCodes.Status404NotFound;
             return;

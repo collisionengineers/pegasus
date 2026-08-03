@@ -343,7 +343,10 @@ public sealed class CaseDataCompletenessPersistenceTests
 
                 var configuration = new FixedConfiguration();
                 var acceptanceStore = new EfCaseAcceptanceStore(factory, timeProvider);
-                var accept = new AcceptIntake(acceptanceStore, configuration);
+                var accept = new AcceptIntake(
+                    acceptanceStore,
+                    configuration,
+                    new EfProviderInspectionModeStore(factory));
                 var outcome = await accept.ExecuteAsync(
                     new(
                         receiptId,
