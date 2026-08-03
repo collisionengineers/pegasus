@@ -45,6 +45,7 @@ evidence required to activate them.
 | Lease/conflict | Holder/expiry/recovery, read-only alternative, current conflict and preserved proposed values. |
 | History | Business mutation/accepted evidence/export/material business failure only; no routine views, polling, retry, lease heartbeat or telemetry. |
 | Reason dialog | Named requirement/consequence, labelled reason, confirmation/cancel, initial focus, focus containment, Escape where safe and focus return to the invoking control. |
+
 ## Presentation responsibilities
 
 Product requirements own business gates and outcomes; this specification owns
@@ -142,6 +143,7 @@ Routine refresh audit belongs to content-safe telemetry. When staff accept,
 reject, link, or change an external fact during reconciliation, show the
 source/version, prior and new value, actor, time, outcome, and required reason
 in permanent history.
+
 ## UI-07 exact search and filters
 
 Case/PO, Image Intake Reference, registration, claimant, claim number, principal, state, Engineer, received/instruction dates and range, and origin.
