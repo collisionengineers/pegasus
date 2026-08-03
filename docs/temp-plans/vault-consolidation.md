@@ -54,8 +54,19 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandArgumentPassing = 'Standard'
 $AzCommand = (Get-Command az -CommandType Application -ErrorAction Stop |
   Select-Object -First 1).Path
+$AzPython = $null
+if ([IO.Path]::GetExtension($AzCommand) -eq '.cmd') {
+  $AzPython = Join-Path (Split-Path -Parent $AzCommand) '..\python.exe'
+  if (-not (Test-Path -LiteralPath $AzPython -PathType Leaf)) {
+    throw "Azure CLI Python runtime was not found beside $AzCommand."
+  }
+}
 function az {
-  & $AzCommand @args
+  if ($null -eq $AzPython) {
+    & $AzCommand @args
+  } else {
+    & $AzPython -IBm azure.cli @args
+  }
   if ($LASTEXITCODE -ne 0) {
     throw "Azure CLI failed with exit code $LASTEXITCODE."
   }
