@@ -39,7 +39,8 @@ shrink; sharding is what converts that saving into wall clock. Each step was
 judged against a local measurement rather than an estimate.
 
 Measured on this workstation, `Pegasus.IntegrationTests` with
-`--filter "Category!=Corpus"`:
+`--filter "Category!=Corpus"`, both runs on the same tree before
+`origin/dev` was merged in:
 
 | Revision | Tests | Elapsed |
 | --- | --- | --- |
@@ -222,8 +223,9 @@ it:
   rather than a slow green one, that two restores do not share a database, and
   that `migrate: false` is never served from the template.
 - Each lane's filter run on its own, with the executed counts summing to the
-  canonical run's. Measured: 284 in the SQL lane and 14 in the browser lane
-  against 298 for the whole non-corpus project.
+  canonical run's. Measured before merging `origin/dev`: 284 in the SQL lane
+  and 14 in the browser lane against 298 for the whole non-corpus project;
+  after the merge, 309 and 14 against 323.
 - `./scripts/Test-DocumentationLinks.ps1` and
   `./scripts/Invoke-QdosAlphaAcceptance.ps1 -Profile CiPressure`.
 
