@@ -1,7 +1,13 @@
 # Proposed task: split the QDOS policy into generic and QDOS parts
 
-Not claimed. This is a proposal for a future `NOW.md` task line, written while
-scoping [`qdos-email-classification`](qdos-email-classification.md).
+**Delivered on `task/qdos-email-classification`** (operator decision
+2026-08-03 folded this into that branch): the generic field engine is
+`InstructionFieldEngine`, route evaluation is `QdosMailRoutePolicy`,
+`ProcessIntake` takes `IMailRoutePolicy` at the composition root (the
+cast-and-throw is gone), and stored policy keys kept their meaning
+(`qdos_instruction` v1; `qdos_mail_route` bumped to v3 only for the accepted
+three-domain behaviour change). The sections below are the original proposal,
+kept for its reasoning until this file's normal post-merge deletion.
 
 ## The problem in one paragraph
 
