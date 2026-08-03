@@ -863,7 +863,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   `cespkenrichkvgi62sd` remain (intentionally retained inside
   `rg-collisionspike-dev`); secret-level access only for the identities and
   exact secrets that call them. The three obsolete vaults are soft-deleted with
-  platform purge scheduled 2026-08-09. The Web container app now declares Key
+  platform purge scheduled 2026-08-09. From the composition-fix deployment the Web container app declares Key
   Vault secret references for `Box:ConfigJson` and `Box:ClientSecret` resolved
   through the Web managed identity, so that identity needs the same secret-level
   read the Worker has before the next deployment; without it the Web revision

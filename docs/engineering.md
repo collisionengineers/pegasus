@@ -33,9 +33,10 @@ procedures and evidence in [operations](operations.md), and current work in
   (`Invoke-QdosAlphaAcceptance.ps1 -Profile CiPressure` with evidence
   upload). The build/test steps and `qdos-pressure` run only when a
   build-relevant path changed — `src/`, `tests/`, `Pegasus.slnx`,
-  project/props/targets/lock/`global.json`/`nuget.config` files, or a
-  CI-executed script; every other change set runs only the documentation
-  link check. `.github/workflows/workspaces.yml` separately gates
+  project/props/targets/lock/`global.json`/`nuget.config` files, or the
+  CI-executed acceptance script (`scripts/Invoke-QdosAlphaAcceptance.ps1`);
+  every other change set runs only the documentation link check, which runs
+  on every change regardless. `.github/workflows/workspaces.yml` separately gates
   `workspaces/**` changes.
 
 ## Task workflow
