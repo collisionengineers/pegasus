@@ -36,6 +36,13 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   repo. Everything composition-gated DevelopmentOffline-only; estimate
   derivation stays D2-gated; no activation or tier-5 claim (branch
   task/send-to-ai-round-trip, taken 2026-08-03, by claude).
+- Production CSP inline-style hotfix: the deployed CSP (`default-src 'self'`,
+  no `style-src`) discards every inline `style` attribute, so the Lucide
+  sprite's `display:none` is ignored and a ~1,900px sprite pushes every
+  page's content below the fold on the live deploy (found in release-4 live
+  checks). Replace all nine static inline styles with site.css classes —
+  sprite first. Inline `<script>` blocks are a separate queued decision
+  (branch task/csp-inline-style-hotfix, taken 2026-08-04, by claude).
 ## Next (ordered queue — take from the top)
 
 - Assemble the operator-reviewed extraction cohort + untouched holdout and
