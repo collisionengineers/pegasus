@@ -30,19 +30,11 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   packages and the pinned Playwright Chromium (branch
   task/repository-check-speed, taken 2026-08-03, by claude).
 
-- Release-3 record: update the deployed evidence in operations.md, fix the
-  production smoke script's redirect-following anonymous-denial check, retire
-  the stale RPO/RTO second-deployment gate in .azure/deployment-plan.md, and
-  reduce the shipped release item (branch task/release-3-record, taken
-  2026-08-03, by claude-main).
-
 ## Next (ordered queue — take from the top)
 
-- Ship with the composition-fix release: the Web identity's Key Vault Secrets
-  User grant for the two Box secrets the Web container app references from
-  that release, and vault consolidation (copy the Box/DVLA/DVSA secrets into
-  the Pegasus Key Vault, repoint the Worker's references, prove resolution,
-  then retire the two adopted vaults and `rg-collisionspike-dev`).
+- Vault consolidation: copy the Box/DVLA/DVSA secrets into the Pegasus Key
+  Vault, repoint the Worker's and Web's references, prove resolution, then
+  retire the two adopted vaults and `rg-collisionspike-dev`.
 - Assemble the operator-reviewed extraction cohort + untouched holdout and
   accept the per-field thresholds (INT-21, open-decisions) — blocks Path
   step 3.
