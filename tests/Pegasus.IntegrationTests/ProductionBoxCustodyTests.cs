@@ -179,13 +179,16 @@ public sealed class ProductionBoxCustodyTests
     }
 
     private static BoxCaseCustody Create(DelegateHandler handler, IIntakeArtifactStore? artifactStore = null) => new(
+        artifactStore ?? new EmptyArtifactStore(),
+        CreateClient(handler));
+
+    private static BoxContentClient CreateClient(DelegateHandler handler) => new(
         BoxCustodyOptions.Create(
             "https://api.box.com/2.0/",
             "https://upload.box.com/api/2.0/",
             "405543781910",
             BoxConfigJson,
             "client-secret"),
-        artifactStore ?? new EmptyArtifactStore(),
         new HttpClient(handler),
         new RecordingAuthorizationHeaderProvider());
 
