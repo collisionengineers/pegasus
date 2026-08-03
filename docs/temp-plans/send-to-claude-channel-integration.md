@@ -1,5 +1,13 @@
 # Send to Claude channel integration
 
+Status: implemented by `task/send-to-ai-round-trip` (2026-08-03) under the
+operator's "implement full" instruction: stages A–F shipped (stage F's review
+presentation of unconfirmed values stays with the UI-15 activation task, and
+the ratio line of the PAV slider names its missing costed total until D2);
+stage G is the queued tier-5 round-trip evidence run. The still-open
+decisions moved to `docs/open-decisions.md`. The original plan text below is
+retained unedited as the review record.
+
 Completion plan for the `Send to Claude` channels connector: the remaining
 hardening that closes out `pegasus-claude-channel` development, the
 Pegasus-side wiring that gives the Engineers assessment surface a real

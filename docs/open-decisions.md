@@ -237,23 +237,26 @@ adapters.
 | Mandatory global vehicle checks | Global requirements are settled as vehicle identity/specification, vehicle-history/risk, and market valuation. All three require a result or explicit exception before Engineers-queue eligibility. The authorised staff reviewer records each exception as a named, reasoned Case action. Each provider/route still needs its exact source, required result, and unavailable/failure contract. | A Case could proceed to an Engineer without a globally required result, or a provider-specific behavior could silently override the common baseline. | Preserve the global checks; use source-labelled `Unavailable` or approved local replay while live callers are unaccepted; retain unmet checks as `Not ready` rather than inventing a result. | What unavailable/failure contract applies to each global check for each provider/route? |
 | Report wording | Accepted wording for salvage Categories N, A, B, and N/A; recovery and storage; the final statement of truth; and named qualifications. | Reports could contain incomplete, unauthorized, or inconsistent statements. | Keep the affected wording review-gated and do not invent missing text or qualifications. | Has the complete wording and qualification set been accepted for report generation? |
 
-## Send-to-AI transport experiment (`1.3.0` / `AI-09`)
+## Send-to-AI transport and assessment toolset (`AI-09` / `MCP-06`)
 
-`AI-09` is allocated to `1.3.0` and preserves one Core-owned work-request,
-proposal, and review contract. The target does not activate a transport; any
-transport must conform to that contract rather than weakening the queue.
+`AI-09` and the Automation Actor assessment toolset are implemented gated
+(ADR-0021, 2026-08-03): the direct-write model with logging parity replaced
+the earlier proposal-only reading, the channel hand-off carries a pointer
+only, and automation-recorded values stay unconfirmed until the engineer the
+case is manually assigned to reviews them. The channels transport is a
+research preview and carries local evidence runs only; production activation
+needs a separate non-preview transport decision. Microsoft Foundry remains
+the intended candidate, pending evaluation, for the later `1.3.0` AI
+query-response proposals (`AI-07`/`AI-08`), which stay proposals.
 
-The current direction distinguishes these tracks:
-
-1. one named, vendor-neutral Automation Actor performing ordinary operational Core actions through approved MCP tools, with Pegasus attribution and history; Claude Desktop may supply the initial client evidence without owning that actor identity;
-2. a user-triggered domain action `Send to AI` that may return only a proposed repair specification, never a report document or direct Case mutation; Claude is the current provider candidate, but provider-specific UI wording does not redefine the action; and
-3. Microsoft Foundry as the intended candidate, pending evaluation, for later AI query-response proposals.
-
-Direct Anthropic or other model API integration is neither an assumed implementation nor a fallback. Any `Send to AI` transport must satisfy the Core work-request, proposal, review, identity, recovery, and cost contract. A later provider change must not change the `Send to AI` domain action or stored identity.
+Still open after the 2026-08-03 implementation:
 
 | Evidence needed | Impact | Recommended default | Decision question |
 |---|---|---|---|
-| Actual supported automation client and Foundry support; authentication and Automation Actor identity; the exact approved operational MCP inventory; user-triggered assessment selection and current provider label; leasing, cancellation, recovery, proposal return, cost, model evaluation, and named Engineer review. | An unsupported client or model could weaken actor accountability, queue recovery, proposal review, or create an unintended direct-model dependency. | Retain one vendor-neutral Core contract; permit only the documented operational MCP and proposal paths; do not activate either AI transport until it proves that contract. | Which specific client and Foundry model/transport choices prove the complete Core contract with acceptable identity, recovery, proposal return, evaluation, and cost? |
+| Rate-card ownership and accepted derivation formulas (EXT-09): who owns published rate cards, and acceptance of WU÷10×rate, sundry percentages, material bands, and the VAT rule as Core policy. | Without accepted authority no estimate total, report worklist, or repair-cost-to-PAV ratio can be derived; the PAV slider names the missing costed total instead. | Keep derivation absent; raw line writes continue. | Which rate-card owner and derivation formulas are accepted for EXT-09? |
+| Assessment markup ambiguities recorded rather than guessed: betterment semantics, the estimate `guide` code meaning, approved signatory-list ownership, whether fee fields stay in the assessment record given EXT-11 is `1.2.0`, and where guide/external valuation figures are stored (EXT-10/EXT-13; the valuation API contract should name which figures it supplies). | Guessing any of these would invent business semantics the screens deliberately left unstated. | Store free text where shipped today; decide each with its owning capability. | What are the accepted semantics for each recorded ambiguity, and where do valuation-service figures land when EXT-10/EXT-13 are contracted? |
+| The Suggestions screen's fate and the PAV slider's parameters at the UI-15 re-entry review: repurpose the built Suggestions markup as a read-only automation-change review or retire it; confirm slider placement and step/rounding; resolve the recorded `.send-action` contrast shortfall (2.3–4.2:1 vs 4.5:1) before any activation puts the control in front of staff; ratio basis and threshold source (per-principal or per-instruction; QDOS 80% is the only evidenced example). | Unresolved presentation decisions block staff-facing activation, not gated local work. | Decide at the UI-15 re-entry review; keep the slider a review aid that writes nothing. | What does the UI-15 re-entry review accept for the Suggestions screen, the slider, the contrast fix, and the threshold source? |
+| Tier-5 external-client evidence: one recorded DevelopmentOffline round-trip run — real Claude Code channel session, send → channel event → Actor read → attributed write → reply → Completed on reconcile — over the full fourteen-tool inventory, plus the connector JSONL evidence-log retention rule beyond local-only/gitignored. | Without it no activation claim can be made; the surface stays composition-gated. | Fold into the queued tier-5 MCP evidence run. | When is the recorded round-trip run performed and where is its evidence filed? |
 
 ## Future custom assessor
 
