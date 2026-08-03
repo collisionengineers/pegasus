@@ -46,7 +46,7 @@ public sealed partial class QdosCaseMatchPolicy : IProviderCaseMatchPolicy
 
         claimTokens.AddRange(
             BareClaimTokenRegex().Matches(subject)
-                .Select(match => CompactWhitespace(match.Value)));
+                .Select(match => WhitespaceRegex().Replace(match.Value, string.Empty)));
 
         var vrms = new List<string>();
         var names = new List<(string Surname, string Initial)>();

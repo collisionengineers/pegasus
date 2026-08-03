@@ -87,6 +87,22 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             throw new IntakeArtifactIntegrityException();
         }
 
+        // The originals of the three versioned decision records are preserved in the
+        // re-evaluation event before the in-place replacement below: a rule change never
+        // silently erases the decision history it supersedes.
+        var priorDecisions = new
+        {
+            MailRoute = receipt.MailRouteDecision is null
+                ? null
+                : MapMailRouteDecision(receipt.MailRouteDecision),
+            MailClassification = receipt.MailClassificationDecision is null
+                ? null
+                : MapMailClassificationDecision(receipt.MailClassificationDecision),
+            CaseMatch = receipt.CaseMatchDecision is null
+                ? null
+                : MapCaseMatchDecision(receipt.CaseMatchDecision)
+        };
+
         receipt.ProcessedAtUtc = draft.ProcessedAtUtc;
         receipt.SourceReaderKey = draft.SourceReaderKey;
         receipt.SourceReaderVersion = draft.SourceReaderVersion;
@@ -118,7 +134,8 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 Decision = receipt.Decision,
                 receipt.Version,
                 receipt.ExtractionPolicyKey,
-                receipt.ExtractionPolicyVersion
+                receipt.ExtractionPolicyVersion,
+                PriorDecisions = priorDecisions
             })
         });
 

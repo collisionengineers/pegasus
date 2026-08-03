@@ -36,6 +36,23 @@ public sealed class QdosCaseMatchPolicyTests
     }
 
     [Fact]
+    public void SpacedBareClaimTokenNormalizesToTheSameDurableToken()
+    {
+        var keys = Extract(subject: "46670 / 1 - Mohammed Jameel");
+
+        Assert.Equal("46670/1", keys.DurableClaimToken);
+    }
+
+    [Fact]
+    public void SpacedAndCompactFormsOfTheSameTokenAreOneDistinctValue()
+    {
+        var keys = Extract(
+            subject: "46670 / 1 - Mohammed Jameel (Our Ref: TG/46670/1)");
+
+        Assert.Equal("46670/1", keys.DurableClaimToken);
+    }
+
+    [Fact]
     public void QdosLawReferenceGrammarIsItsOwnDurableToken()
     {
         var keys = Extract(

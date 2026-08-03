@@ -48,7 +48,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 migrationBuilder.Sql(
                     "GRANT SELECT ON OBJECT::[dbo].[IntakeMailClassificationDecisions] TO [pegasus_web_runtime_role];");
                 migrationBuilder.Sql(
-                    "GRANT SELECT, INSERT ON OBJECT::[dbo].[IntakeMailClassificationDecisions] TO [pegasus_worker_runtime_role];");
+                    "GRANT SELECT, INSERT, UPDATE, DELETE ON OBJECT::[dbo].[IntakeMailClassificationDecisions] TO [pegasus_worker_runtime_role];");
             }
         }
 

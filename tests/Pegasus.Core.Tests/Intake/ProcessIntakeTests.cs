@@ -335,6 +335,80 @@ public sealed class ProcessIntakeTests
     }
 
     [Fact]
+    public async Task AmbiguousCaseMatchForcesNeedsSortingOnAnOtherwiseDraftReadyMessage()
+    {
+        var caseA = Guid.NewGuid();
+        var caseB = Guid.NewGuid();
+        var readResult = Readable(
+            transportEvidence:
+            [
+                new(
+                    IntakeEvidenceSource.Sender,
+                    "instructions@qdosassist.co.uk",
+                    IntakeSenderIdentityKind.Transport,
+                    "outer message")
+            ],
+            content:
+            [
+                new(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "QDOS instruction\nClaimant Name: Review Claimant\nClaim Number: 46553/1")
+            ]);
+        var store = new RecordingStore();
+        var evaluator = new EvaluateIntakeCaseMatch(
+            [new FixedKeysMatchPolicy(new("46553/1", "AB12CDE", null, null, null))],
+            new FixedCandidatesQueries(
+            [
+                new(caseA, "QDOS", "46553/1", null, null, null, null,
+                    Pegasus.Core.Workflow.CaseLifecycleState.Review, null),
+                new(caseB, "QDOS", null, "AB12CDE", null, null, null,
+                    Pegasus.Core.Workflow.CaseLifecycleState.Review, null)
+            ]));
+        var sut = CreateSut(new StubReader(readResult), store, caseMatchEvaluator: evaluator);
+        var source = CreateSource() with
+        {
+            FileName = "ambiguous-match.eml",
+            MediaType = "message/rfc822",
+            SourceIdentity = new(IntakeSourceChannel.Mailbox, "mailbox-ambiguous-match")
+        };
+
+        var result = await sut.ExecuteAsync(source);
+
+        Assert.Equal(IntakeDecision.NeedsSorting, result.Decision);
+        var match = Assert.IsType<CaseMatchEvaluationResult>(result.CaseMatchDecision);
+        Assert.Equal(CaseMatchOutcome.Ambiguous, match.Outcome);
+        Assert.Null(match.MatchedCaseId);
+        Assert.Equal(2, match.Candidates.Count);
+        Assert.Contains("Competing candidate cases", result.DecisionReason, StringComparison.Ordinal);
+    }
+
+    private sealed class FixedKeysMatchPolicy(CaseMatchKeys keys) : IProviderCaseMatchPolicy
+    {
+        public string WorkProviderCode => "QDOS";
+        public string PolicyKey => "qdos_case_match";
+        public int PolicyVersion => 1;
+        public CaseMatchKeys ExtractMatchKeys(IntakeSourceReadResult readResult) => keys;
+        public CaseMatchIndexKeys DeriveIndexKeys(CaseMatchSourceData caseData) =>
+            new(null, null, null, null, null);
+    }
+
+    private sealed class FixedCandidatesQueries(IReadOnlyList<CaseMatchCandidate> candidates)
+        : ICaseMatchCandidateQueries
+    {
+        public Task<IReadOnlyList<CaseMatchCandidate>> FindByAnyKeyAsync(
+            string workProviderCode,
+            CaseMatchKeys keys,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(candidates);
+
+        public Task<CaseMatchCandidate?> FindByCaseIdAsync(
+            Guid caseId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(candidates.FirstOrDefault(item => item.CaseId == caseId));
+    }
+
+    [Fact]
     public async Task MailboxStaffForwardWithAmbiguousOriginalsFailsBeforeInstructionExtraction()
     {
         var readResult = Readable(
@@ -690,6 +764,11 @@ public sealed class ProcessIntakeTests
             CaseMatchKeys keys,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<CaseMatchCandidate>>([]);
+
+        public Task<CaseMatchCandidate?> FindByCaseIdAsync(
+            Guid caseId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CaseMatchCandidate?>(null);
     }
 
     private static IntakeSource CreateSource() =>
@@ -820,7 +899,9 @@ public sealed class ProcessIntakeTests
                 draft.SourceReaderVersion,
                 draft.ExtractionPolicyKey,
                 draft.ExtractionPolicyVersion,
-                MailRouteDecision: draft.MailRouteDecision);
+                MailRouteDecision: draft.MailRouteDecision,
+                MailClassificationDecision: draft.MailClassificationDecision,
+                CaseMatchDecision: draft.CaseMatchDecision);
     }
 
     private sealed class RecordingArtifactStore(int failuresBeforeSuccess = 0) : IIntakeArtifactStore

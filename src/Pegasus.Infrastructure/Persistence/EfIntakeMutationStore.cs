@@ -48,8 +48,11 @@ internal sealed class EfIntakeMutationStore(
 
         var receipt = await LoadReceiptAsync(context, request.IntakeReceiptId, cancellationToken)
             ?? throw new KeyNotFoundException("The intake receipt does not exist.");
-        if (receipt.ManualAssociation is { IsActive: true })
+        if (receipt.ManualAssociation is not null)
         {
+            // Any prior association row — active, or deliberately reversed by staff —
+            // stops the automatic write: a staff unlink must never be silently re-linked
+            // by a later evaluation. Relinking stays the staff LinkIntake path.
             return AutomaticCaseAssociationOutcome.AlreadyAssociated;
         }
 
@@ -614,7 +617,42 @@ internal sealed class EfIntakeMutationStore(
                 receipt.ManualAssociation.IsActive,
                 receipt.ManualAssociation.Version,
                 receipt.ManualAssociation.LinkedAtUtc,
-                receipt.ManualAssociation.UnlinkedAtUtc
+                receipt.ManualAssociation.UnlinkedAtUtc,
+                receipt.ManualAssociation.MatchPolicyKey,
+                receipt.ManualAssociation.MatchPolicyVersion
+            },
+        MailRouteDecision = receipt.MailRouteDecision is null
+            ? null
+            : new
+            {
+                receipt.MailRouteDecision.Disposition,
+                receipt.MailRouteDecision.WorkProviderCode,
+                receipt.MailRouteDecision.PolicyKey,
+                receipt.MailRouteDecision.PolicyVersion,
+                receipt.MailRouteDecision.Reason
+            },
+        MailClassificationDecision = receipt.MailClassificationDecision is null
+            ? null
+            : new
+            {
+                receipt.MailClassificationDecision.Outcome,
+                receipt.MailClassificationDecision.Family,
+                receipt.MailClassificationDecision.Subtype,
+                receipt.MailClassificationDecision.IsReplyContext,
+                receipt.MailClassificationDecision.PolicyKey,
+                receipt.MailClassificationDecision.PolicyVersion,
+                receipt.MailClassificationDecision.Reason
+            },
+        CaseMatchDecision = receipt.CaseMatchDecision is null
+            ? null
+            : new
+            {
+                receipt.CaseMatchDecision.Outcome,
+                receipt.CaseMatchDecision.MatchedCaseId,
+                receipt.CaseMatchDecision.RedirectedFromCaseId,
+                receipt.CaseMatchDecision.PolicyKey,
+                receipt.CaseMatchDecision.PolicyVersion,
+                receipt.CaseMatchDecision.Reason
             }
     });
 
