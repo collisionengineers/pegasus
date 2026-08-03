@@ -31,7 +31,7 @@ jobs:
           }
           $docsOnly = 'false'
           if ($base -and $base -notmatch '^0+$') {
-            $files = @(git diff --name-only "$base" "$head")
+            $files = @(git diff --name-only "$base...$head")
             if ($files.Count -gt 0 -and -not ($files | Where-Object { $_ -notmatch '\.md$' })) {
               $docsOnly = 'true'
             }
