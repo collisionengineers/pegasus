@@ -297,7 +297,7 @@ internal enum LocalDbSchemaOrigin
 
 internal sealed class LocalDbTestDatabase : IAsyncDisposable
 {
-    private const string Prefix = "Pegasus_Test_";
+    internal const string Prefix = "Pegasus_Test_";
 
     /// <summary>
     /// Overrides the data source for the SQL Server instance these tests use.
@@ -578,12 +578,23 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
 
     internal static string MasterConnectionString() => BuildConnectionString("master");
 
-    private static void ValidateExactDisposableName(string databaseName)
-    {
-        Assert.StartsWith(Prefix, databaseName, StringComparison.Ordinal);
-        Assert.Equal(Prefix.Length + 32, databaseName.Length);
-        Assert.True(Guid.TryParseExact(databaseName[Prefix.Length..], "N", out _));
-    }
+    /// <summary>
+    /// The exact shape of a disposable test database's name.
+    /// </summary>
+    /// <remarks>
+    /// One definition, because every create, restore, and drop is guarded by
+    /// it. Anything failing this rule belongs to someone else and is never
+    /// touched.
+    /// </remarks>
+    internal static bool IsDisposableName(string databaseName) =>
+        databaseName.StartsWith(Prefix, StringComparison.Ordinal)
+        && databaseName.Length == Prefix.Length + 32
+        && Guid.TryParseExact(databaseName[Prefix.Length..], "N", out _);
+
+    private static void ValidateExactDisposableName(string databaseName) =>
+        Assert.True(
+            IsDisposableName(databaseName),
+            $"'{databaseName}' is not a disposable test database name.");
 }
 
 internal sealed record PersistedReceiptEvent(

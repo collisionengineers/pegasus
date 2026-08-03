@@ -83,11 +83,20 @@ path is untouched — 13 call sites depend on an empty database, and
 `__EFMigrationsHistory` table.
 
 `ValidateExactDisposableName` runs first in the restore path exactly as it does
-in `CreateEmptyDatabaseAsync`, and `DisposeAsync` is unchanged. The template
-uses a different prefix (`Pegasus_Template_`) that fails that shape check by
-construction, so a template can never be dropped as a disposable test
-database. The `.bak` is deleted on process exit, best effort, with an
-age-based sweep of stray files from killed runs.
+in `CreateEmptyDatabaseAsync`, and `DisposeAsync` is unchanged. The `.bak` is
+deleted on process exit, best effort, with an age-based sweep of stray files
+from killed runs.
+
+The same sweep also drops disposable *databases* an earlier run abandoned. A
+run killed before its tests dispose — Ctrl-C, a CI timeout, a crash — leaves
+its databases attached, and nothing else removed them: 32 of them, 512 MB, had
+accumulated on this workstation from before this task. Dropping is server-side,
+so unlike the backup sweep it works on the container path too. Two guards make
+it safe, and both are tested: only names matching the exact disposable shape
+are ever considered, and only databases older than a day, which keeps a suite
+running right now — including one in another worktree against the same LocalDB
+instance — far out of range. The name-shape rule now has one definition,
+`IsDisposableName`, used by both the sweep and the create/restore/drop guard.
 
 Then `tests/Pegasus.IntegrationTests/IntakeWebTestSupport.cs:72` moves from
 `CreateAsync(migrate: false)` to the template path. That is where most of the
@@ -222,6 +231,10 @@ it:
   `SchemaOrigin == Template`, which turns a silent fallback into a red test
   rather than a slow green one, that two restores do not share a database, and
   that `migrate: false` is never served from the template.
+- The abandoned-database sweep proved not to drop a database that is live, and
+  `IsDisposableName` pinned by ten cases covering wrong prefix, wrong length,
+  a non-GUID suffix, and `master`. The drop statement is the one `DisposeAsync`
+  already issues on every test.
 - Each lane's filter run on its own, with the executed counts summing to the
   canonical run's. Measured before merging `origin/dev`: 284 in the SQL lane
   and 14 in the browser lane against 298 for the whole non-corpus project;
