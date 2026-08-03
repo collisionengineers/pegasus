@@ -46,6 +46,17 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   Vault, repoint the Worker's and Web's references, prove resolution, then
   retire the two adopted vaults and `rg-collisionspike-dev` (branch
   task/vault-consolidation, taken 2026-08-03, by codex).
+- MCP Automation Actor ingress: build the management/development-controlled
+  MCP ingress for one named, vendor-neutral Automation Actor invoking
+  existing Core use cases through its own authentication and identity
+  (ADR-0011/ADR-0013) — Case actions, intake-queue actions, and document
+  actions (MCP-01/02/03/04); reuse the existing ActionActor/ExecuteAsync/
+  IActionHistoryWriter pattern rather than the deleted per-staff-OAuth MCP
+  surface; no per-staff MCP access, no Administrator/config/credential/
+  cloud/release/deletion authority, no AI proposal transport (AI-09 stays
+  separate), MCP-05's broader email-workspace actions out of scope pending
+  the email workspace itself (branch task/mcp-automation-actor, taken
+  2026-08-03, by claude).
 
 ## Next (ordered queue — take from the top)
 
