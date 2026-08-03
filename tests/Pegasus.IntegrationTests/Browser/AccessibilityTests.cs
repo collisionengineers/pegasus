@@ -15,6 +15,7 @@ public sealed class AccessibilityTests
     {
         "/",
         "/Intake",
+        "/ImageIntake",
         "/Triage",
         "/Cases",
         "/Search",

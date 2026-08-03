@@ -10,6 +10,19 @@ and no change to PageModel query or command logic.
 Capability IDs: UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-08, UI-09,
 UI-11, UI-13 ([capabilities.md](../capabilities.md)).
 
+Widened on 2026-08-03 by operator decision to also carry the **design route
+for UI-15** (Engineer assessment workbench, `Later / 1.0.0`) and its
+**`Send to Claude` action surface** (AI-09, `Later / 1.3.0`). The claim line
+on `origin/dev` records the same widening.
+
+That addition is design and markup only. `design/README.md` § Deferred
+casework allows no alpha route, control or placeholder for an Engineer
+workbench or for `Send to AI` work, and requires every deferred UI capability
+to re-enter specification and review before implementation. This is that
+artifact: the surface is built **unlinked** — absent from `_Layout`
+navigation and from the Case workspace — and activates no route, Core field
+or transport. It must not be linked without that approval.
+
 Excluded and why:
 
 - UI-07 (search/filter) — in flight under `task/image-led-intake`.
@@ -97,6 +110,45 @@ the icon decorates that; the label carries the meaning, so reduced motion
 loses nothing. This is the only animation in the product and no duration or
 easing token was introduced.
 
+**UI-15 assessment surface.** Two routes under
+`src/Pegasus.Web/Pages/Cases/Assessment/`: the workbench, with seven freely
+reachable sections chosen by `?section=`, and the returned-suggestions review.
+Both PageModels are `[Authorize]` plus an empty `OnGet`.
+
+The arrangement follows the report's required sections rather than EVA's
+twelve-step wizard, which `capabilities.md` UI-15 excludes copying. A case
+header and a permanent readiness rail sit beside the section, so what is still
+outstanding is never a step the operator has to walk to. The estimate is
+entered line by line — type, code, description, work units, price, part
+number, betterment, status and evidence label — with the category totals shown
+as derived and the arithmetic printed beside each row; the report's three name
+lists are grouped from those lines rather than typed. Rates come from a chosen
+rate card displayed with its own dates and caveat: no rate figure is written
+into the page, because `AGENTS.md` holds that a protected external skill
+package never becomes an application policy owner. Valuation keeps guide
+figures as read-only evidence, visually separate from the three figures that
+reach the report. Every field renders empty — no case, claimant, registration,
+staff name or rate figure is invented anywhere in the markup.
+
+**`Send to Claude`.** Recorded in [design/README.md](../../design/README.md)
+§ Tokens as a reviewed divergence authorised by the operator and scoped to the
+single `.send-action` control. Every value is a local custom property on that
+control rather than an addition to `:root`: the gradient and the 12px radius
+each appear once in the stylesheet, the other 23 radius rules still resolve to
+the approved 2px, the icon sprite is unchanged at 16 glyphs, and no font file,
+bundle or external stylesheet is added. Reduced motion removes the lift, the
+sparkle animation and the ember canvas, which the script then declines to
+start; forced colours drops the gradient and restores a `ButtonText` border.
+The divergence record states the one thing it does not solve — white on that
+gradient measures about 2.3:1, 3.0:1 and 4.2:1 across the three stops against
+the 4.5:1 this size and weight require. The gradient is the provider's own and
+was adopted as given; the remedy is an operator decision.
+
+**`_ReasonDialog` defects fixed.** It referenced an undefined `var(--red)`, so
+the required-field marker took an inherited colour, and it had no initial
+focus, focus containment, focus return or Escape handling — all four required
+by `design/README.md` § Component map.
+
 ## Deliberate deviations from the approved plan
 
 - **Typed partial models were not added.** The plan proposed converting the
@@ -127,12 +179,19 @@ easing token was introduced.
   confirming the union equals the full discovered set in both directions.
   One test (`InstructionDraftWebTests.SameManualUploadTokenWithDifferentBytes…`)
   matches two chunk filters and therefore ran twice; no test ran zero times.
-- `AccessibilityTests` extended from 6 authenticated routes to 18, adding
-  every Administration sub-route plus Search, both Operations routes and
-  `/Account/AccessDenied`. All pass: zero axe violations, exactly one
-  `<main>` and one `<h1>` per route, no horizontal overflow at 1024×768 or
-  512×768, forced-colours and reduced-motion renders clean, and queue state
-  not conveyed by colour alone.
+- `AccessibilityTests` extended from 6 authenticated routes to 19, adding
+  every Administration sub-route, Search, both Operations routes,
+  `/Account/AccessDenied`, and `/ImageIntake` (introduced by `origin/dev`
+  during this task and therefore inside this styling). All 26 browser tests
+  pass after the merge: zero axe violations, exactly one `<main>` and one
+  `<h1>` per route, no horizontal overflow at 1024×768 or 512×768,
+  forced-colours and reduced-motion renders clean, and queue state not
+  conveyed by colour alone.
+- The two assessment routes are **not** in that theory: they take a case id,
+  and no seeded case exists in the browser fixture. They were verified by
+  hand instead — both return 200, one `<h1>` and one `<main>` each, all
+  controls labelled, and the reduced-motion guard confirmed live (the canvas
+  never attaches and the sparkle animation resolves to `none`).
 - Manual review at 1280, 1024 and 512 against the running Development
   caller, with before/after captures of Operations, Administration, Cases
   and Staff accounts.
