@@ -3,6 +3,11 @@
 Task line: shared Core classification foundation and the settled mailbox
 taxonomy — MAIL-21 and MAIL-22. Branch `task/qdos-email-classification`.
 
+Supporting evidence:
+[sender-domain inventory](qdos-email-classification-sender-domains.md), which
+records the operator-accepted three-domain QDOS route set and the non-QDOS
+provider domains held as inventory only.
+
 ## Scope
 
 MAIL-21 and MAIL-22 are the only QDOS-deliverable classification allocations
