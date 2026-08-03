@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.WebUtilities;
@@ -69,7 +70,11 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         this.extractionPolicy = extractionPolicy;
         this.useIntegrationTestAuthentication = useIntegrationTestAuthentication;
         this.initializeDevelopmentOffline = initializeDevelopmentOffline;
-        database = LocalDbTestDatabase.CreateAsync(migrate: false).GetAwaiter().GetResult();
+        // Restored from the per-run template rather than migrated here: this
+        // constructor is the suite's most-repeated database lifecycle.
+        // CreateHost still runs DevelopmentOfflineInitialization, whose own
+        // MigrateAsync then finds nothing to apply.
+        database = LocalDbTestDatabase.CreateAsync().GetAwaiter().GetResult();
     }
 
     internal LocalDbTestDatabase Database => database;
@@ -123,6 +128,14 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         });
         builder.ConfigureServices(services =>
         {
+            // Program.cs configures data protection only on the Production
+            // branch, so a Development host would otherwise fall back to the
+            // machine-global key ring under
+            // %LOCALAPPDATA%\ASP.NET\DataProtection-Keys under one
+            // discriminator — the suite's only genuinely shared OS resource
+            // once hosts are built concurrently. ConfiguredWebApplicationFactory
+            // already does this.
+            services.AddDataProtection().UseEphemeralDataProtectionProvider();
             if (useIntegrationTestAuthentication)
             {
                 services.AddAuthentication(options =>

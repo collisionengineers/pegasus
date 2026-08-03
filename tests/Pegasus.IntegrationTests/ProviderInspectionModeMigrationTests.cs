@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Pegasus.IntegrationTests;
 
-[Collection(LocalDbFixtureDefinition.Name)]
 [Trait("Category", "SqlServer")]
 public sealed class ProviderInspectionModeMigrationTests
 {

@@ -31,11 +31,6 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   OPS-22 are separately owned), no folder move, mailbox mutation, or AI
   classifier (branch task/qdos-email-classification, taken 2026-08-03, by
   claude).
-- Cut `repository-check` wall clock (agreed 2026-08-03): shard validate into
-  parallel unit / SQL-integration / browser jobs, replace migrate-per-test
-  LocalDB setup with a per-run migrated template database, and cache NuGet
-  packages and the pinned Playwright Chromium (branch
-  task/repository-check-speed, taken 2026-08-03, by claude).
 - UI alpha design pass: build the visual/interaction layer for the
   Operations-first `0.1.0-alpha.1` shell against fixture data only — UI-01
   (Operations dashboard), UI-02 (Not ready/Review/Held queues), UI-03
