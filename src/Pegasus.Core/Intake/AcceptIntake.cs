@@ -1,5 +1,6 @@
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Intake;
@@ -11,7 +12,8 @@ namespace Pegasus.Core.Intake;
 public sealed class AcceptIntake(
     ICaseAcceptanceStore acceptanceStore,
     ICaseWorkflowConfiguration configuration,
-    IProviderInspectionModeStore inspectionModeStore) : IAcceptIntake
+    IProviderInspectionModeStore inspectionModeStore,
+    IImageIntakeCasePairing? imageIntakeCasePairing = null) : IAcceptIntake
 {
     public async Task<CaseAcceptanceOutcome> ExecuteAsync(
         AcceptIntakeRequest request,
@@ -101,6 +103,21 @@ public sealed class AcceptIntake(
 
         var outcome = await acceptanceStore.AcceptAsync(acceptance, cancellationToken);
         _ = CaseInitialWorkflowState.From(outcome.InitialState);
+        if (!outcome.IsDuplicate && imageIntakeCasePairing is not null)
+        {
+            try
+            {
+                await imageIntakeCasePairing.PairAcceptedCaseAsync(
+                    outcome.Identity.CaseId,
+                    cancellationToken);
+            }
+            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+            {
+                // Reverse image-intake pairing is advisory: the accepted case
+                // stands and staff pairing remains available.
+            }
+        }
+
         return outcome;
     }
 }
