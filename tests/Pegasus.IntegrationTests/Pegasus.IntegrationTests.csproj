@@ -24,6 +24,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- xunit.core ships no handling for this file, so without an explicit
+         copy it is silently ignored and the suite runs at the default thread
+         count instead of the cap it declares. -->
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Pegasus.Web\Pegasus.Web.csproj" />
     <ProjectReference Include="..\..\src\Pegasus.Infrastructure\Pegasus.Infrastructure.csproj" />
   </ItemGroup>

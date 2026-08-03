@@ -268,6 +268,7 @@ public sealed class ReceiveIntake(
         {
             IntakeSourceChannel.ManualUpload => true,
             IntakeSourceChannel.Mailbox => true,
+            IntakeSourceChannel.Automation => true,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(source),
                 source.SourceIdentity.Channel,
@@ -408,7 +409,9 @@ public sealed class ProcessQueuedIntake(
     ProcessIntake processIntake,
     IIntakeReceiptQueries receiptQueries,
     ICreateTriageFromIntake createTriage,
-    TimeProvider timeProvider)
+    IAutomaticCaseAssociationStore caseAssociationStore,
+    TimeProvider timeProvider,
+    Pegasus.Core.ImageIntake.IImageIntakeAutomation? imageIntakeAutomation = null)
 {
     private const string SystemActor = "system-worker:intake-processing";
     private static readonly TimeSpan ProcessingLeaseDuration = TimeSpan.FromMinutes(5);
@@ -443,10 +446,22 @@ public sealed class ProcessQueuedIntake(
                 cancellationToken)
                 ?? throw new InvalidDataException(
                     "The completed intake evaluation does not identify a persisted receipt.");
+            var replayAssociated = await AssociateCaseIfUnambiguousAsync(
+                completedReceipt,
+                completedEvaluation,
+                cancellationToken);
             await CreateTriageIfQualifyingAsync(
                 completedReceipt,
                 completedEvaluation,
                 cancellationToken);
+            if (replayAssociated)
+            {
+                completedReceipt = await receiptQueries.GetAsync(
+                    completedEvaluation.ProcessedReceiptId,
+                    cancellationToken) ?? completedReceipt;
+            }
+
+            await ApplyImageIntakeAutomationAsync(completedReceipt, cancellationToken);
             return;
         }
 
@@ -514,7 +529,94 @@ public sealed class ProcessQueuedIntake(
             stagedReceipt.StorageKey,
             cancellationToken);
 
+        var associated = await AssociateCaseIfUnambiguousAsync(processed, evaluation, cancellationToken);
         await CreateTriageIfQualifyingAsync(processed, evaluation, cancellationToken);
+        if (associated)
+        {
+            // The association wrote CurrentCaseId durably; the in-memory
+            // receipt is stale, and image automation must see the associated
+            // state or it would attempt a conflicting auto-link.
+            processed = await receiptQueries.GetAsync(processed.Id, cancellationToken) ?? processed;
+        }
+
+        await ApplyImageIntakeAutomationAsync(processed, cancellationToken);
+    }
+
+    /// <summary>
+    /// Image-intake automation runs after the evaluation revision is durably
+    /// recorded (registration binds to that revision) and is advisory and
+    /// non-blocking: the persisted receipt stands regardless of any
+    /// automation failure, and every operation key is receipt-scoped so a
+    /// reprocessed receipt replays instead of duplicating.
+    /// </summary>
+    private async Task ApplyImageIntakeAutomationAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        if (imageIntakeAutomation is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _ = await imageIntakeAutomation.ApplyAsync(receipt, cancellationToken);
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            // Non-blocking by design; suggestions and receipt state carry the
+            // visible outcome.
+        }
+    }
+
+    /// <summary>
+    /// Advisory and non-blocking, like image automation: the evaluation and
+    /// its case-match decision are already durable, staff can always link
+    /// manually from the recorded decision, and a redelivered receipt replays
+    /// through the operation key — so a failed association write is never
+    /// allowed to fail the completed receipt.
+    /// </summary>
+    private async Task<bool> AssociateCaseIfUnambiguousAsync(
+        IntakeReceipt receipt,
+        IntakeEvaluationRevision evaluation,
+        CancellationToken cancellationToken)
+    {
+        if (receipt.CaseMatchDecision is not
+            { Outcome: CaseMatchOutcome.UniqueMatch, MatchedCaseId: { } matchedCaseId } decision)
+        {
+            return false;
+        }
+
+        if (receipt.CurrentCaseId is not null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var outcome = await caseAssociationStore.AssociateFromMatchAsync(
+                new(
+                    receipt.Id,
+                    matchedCaseId,
+                    decision.PolicyKey,
+                    decision.PolicyVersion,
+                    SystemActor,
+                    $"case-match-association:{evaluation.Id:N}",
+                    $"Automatic association from the recorded case-match decision ({decision.PolicyKey} v{decision.PolicyVersion})."),
+                timeProvider.GetUtcNow(),
+                cancellationToken);
+            return outcome == AutomaticCaseAssociationOutcome.Associated;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            // A vanished case, an archived case, or a live staff edit lease
+            // yields; the recorded decision stays visible for a staff link.
+            return false;
+        }
     }
 
     private async Task TryDeleteCompletedStagingAsync(

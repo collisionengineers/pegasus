@@ -36,7 +36,7 @@ flowchart LR
     Infra -. target .-> EVA[EVA]
 ```
 
-The current repository exposes an ASP.NET Core Razor Pages host and a .NET 10 isolated Azure Functions Worker. The Worker has timer and queue-trigger callers that translate bounded work into Core use cases. Any provider API or Automation MCP caller remains separately gated.
+The current repository exposes an ASP.NET Core Razor Pages host and a .NET 10 isolated Azure Functions Worker. The Worker has timer and queue-trigger callers that translate bounded work into Core use cases. Any provider API caller remains separately gated. The Automation MCP ingress is implemented inside `Pegasus.Web` behind a composition gate that is off by default; when the gate is off no automation route exists, and live activation remains separately approved.
 
 The repository identifies its package and release target as `0.1.0-alpha.1`. Pegasus is deployed to its sole production environment; the current production state is owned exclusively by [operations § Production environment](operations.md#production-environment) and is not restated here. Operator acceptance remains outstanding.
 
@@ -86,6 +86,7 @@ than attempts.
 
 - `GET /Intake` calls Core `ListIntake`; the `ReceiveIntake` POST handler submits one bounded authenticated manual source and preserves the selected filter/page through PRG. `GET /Intake/{id}` calls `GetIntake`, and its mutations call the named Core intake commands with a server-derived actor, expected versions or case lease, operation key, and reason as applicable.
 - `GET /Intake/{id}/Source` calls Core `DownloadIntakeSource`, which authorises the current staff actor, resolves the receipt-owned source, validates retained length and SHA-256, and returns only a no-sniff attachment with a safe filename and content type.
+- `GET /ImageIntake` calls Core `IImageIntakeQueries` for the association-filtered image-intake receipt list and the exact Image Intake Reference lookup. `GET /ImageIntake/{id}` calls the same detail query plus the receipt's VRM suggestions and, while the record holds no case association, the registration-matched eligible-case candidates; both are read-only authenticated staff pages.
 - `/Triage` and `/Triage/{id}` are the physical list/detail owners for Core triage queries and commands. The former Development web evaluator is not an application caller; the separately owned desktop evaluator remains outside the Web runtime.
 - Anonymous request submission exists only at `/Uploads/{token}`. The PageModel calls `GetRequestUpload` and one `UploadToRequest` command, uses antiforgery and an idempotent operation key, and presents generic non-disclosing outcomes through PRG.
 - The Case documents surface still implements Box File Request create/revoke (`src/Pegasus.Web/Pages/Cases/Shared/_CaseDocuments.cshtml`). That mechanism is superseded by the operator decision in favour of request-scoped upload links (INT-31) and is pending removal; it must gain no new callers.
@@ -115,20 +116,23 @@ Operator acceptance remains outstanding.
 
 Web production composition registers Box-backed case custody and managed
 document content, the staff document and EVA handoff surface, and Azure Blob
-intake artifact stores behind one storage profile. These are **Implemented**
-(merged), not yet **Deployed**; the composition reaches production only with
-the composition-fix release recorded in
+intake artifact stores behind one storage profile. These are **Deployed**
+(release 3); the current production state is owned by
 [operations § Production environment](operations.md#production-environment).
+
+In-process ONNX vehicle-registration recognition (ADR-0019) is implemented
+in `src/Pegasus.Infrastructure/Vision/` behind the Core `ImageIntake`
+automation; the ADR-0019 index entry owns the accepted evaluation numbers.
+Implementation is not live-caller acceptance.
 
 The following remain planned or absent, not merely unverified:
 
 - broad Graph mailbox categorisation or any Graph mutation;
 - Document Intelligence OCR;
 - automated legacy DOC and MSG extraction;
-- vehicle-registration OCR or VLM recognition;
 - EVA export;
 - provider API, which is deferred to the exact target owned by the [capability inventory](capabilities.md);
-- a vendor-neutral Automation MCP, allocated but non-blocking for `0.1.0-alpha.1` and separately gated pending its actor contract;
+- live activation of the vendor-neutral Automation MCP: the ingress, actor contract, and tools are implemented but composition-gated off outside DevelopmentOffline evidence runs, non-blocking for `0.1.0-alpha.1`;
 - an in-process Web telemetry exporter (the Worker exports Application Insights telemetry; the Web host does not).
 
 ## Current intake and extraction boundary
@@ -189,7 +193,7 @@ The current reader can:
 
 SQL stores metadata and opaque artifact keys, not file bytes.
 
-Legacy DOC and MSG are retained but routed to `Needs sorting` without a reference; their automated extraction remains deferred. Ordinary images are review evidence and are not sent to OCR.
+Legacy DOC and MSG are retained but routed to `Needs sorting` without a reference; their automated extraction remains deferred. Ordinary images are retained review evidence; they are scanned by the in-process ONNX VRM engine (ADR-0019) and are never sent to an external OCR or vision service.
 
 For PDFs, only low-text pages with a dominant raster are marked as scan-like OCR candidates. No OCR service is currently called. Document- and attachment-level OCR-required state is visible during review.
 
@@ -375,11 +379,13 @@ The current QDOS extraction policy must not be reinterpreted as mailbox categori
 
 ### OCR and recognition
 
-A first Document Intelligence caller may submit only persisted scan-like PDF page candidates. Ordinary images and vehicle photographs are outside that slice. Vehicle-registration OCR/VLM recognition remains absent. DVLA/DVSA adapters are implemented, but live entitlement, enabled Worker caller evidence, and acceptance remain separate gates.
+A first Document Intelligence caller may submit only persisted scan-like PDF page candidates. Ordinary images and vehicle photographs are outside that slice. Vehicle-registration recognition is implemented as the in-process ONNX engine selected by ADR-0019, scanning image-only intake automatically; it performs no image egress and no external OCR call. Document Intelligence OCR for scan-like PDFs remains absent. DVLA/DVSA adapters are implemented, but live entitlement, enabled Worker caller evidence, and acceptance remain separate gates.
 
 ### Provider API and Automation MCP
 
-Provider API and Automation MCP are separate Web ingress boundaries. They must invoke the same Core business actions as staff UI or Worker callers rather than introducing parallel policy engines. Their exact client, actor, authentication, and activation evidence remain separately gated.
+Provider API and Automation MCP are separate Web ingress boundaries. They must invoke the same Core business actions as staff UI or Worker callers rather than introducing parallel policy engines. The provider API's exact client, actor, authentication, and activation evidence remain separately gated.
+
+The Automation MCP ingress is implemented in `Pegasus.Web` per ADR-0011 and ADR-0013 clause 10: `ActorKind.Automation` is a Core actor granted exactly the ordinary casework surface (every administration, system-work, and request-upload right is denied and unknown rights fail closed), one seeded OpenIddict client-credentials registration authenticates the single vendor-neutral Automation client, and a streamable-HTTP MCP endpoint at `/mcp` exposes nine tools wrapping existing Core case, intake-queue, and document use cases with per-area scopes (`automation.cases`, `automation.intake`, `automation.documents`). Case mutations present the same edit lease and version guard as staff saves; every tool invocation and material denial is attributable permanent history. The whole surface registers only when `Features:AutomationMcp` enables it in the DevelopmentOffline profile; production exposure and any live caller remain separately approved activation work.
 
 ### EVA and case lifecycle
 
@@ -496,10 +502,15 @@ The manual-upload intake handler is deny-by-default: it returns `404` unless bot
 | --- | --- |
 | Core intake receipt/query/command use cases | `src/Pegasus.Core/Intake/` |
 | Core source-download contract and policy | `src/Pegasus.Core/Intake/DownloadIntakeSource.cs`, `src/Pegasus.Core/Intake/IntakeContracts.cs` |
-| QDOS extraction policy | `src/Pegasus.Core/Intake/QdosInstructionExtractionPolicy.cs` |
+| QDOS extraction policy | `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs` |
+| QDOS mail route (`qdos_mail_route` v3), classification, and case-match policies | `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailRoutePolicy.cs`, `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailClassificationPolicy.cs`, `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosCaseMatchPolicy.cs` |
+| Core case-match evaluator and `CaseMatchIndex` read model | `src/Pegasus.Core/Intake/CaseMatching/`, `src/Pegasus.Infrastructure/Persistence/CaseMatchEntities.cs` |
+| Core image-intake registration, pairing, and lifecycle use cases | `src/Pegasus.Core/ImageIntake/` |
+| In-process ONNX VRM recognition engine (ADR-0019) | `src/Pegasus.Infrastructure/Vision/` |
 | Multi-format source adapter | `src/Pegasus.Infrastructure/Intake/MimeKitPdfPigOpenXmlIntakeSourceReader.cs` |
 | Local artifact adapter | `src/Pegasus.Infrastructure/Intake/FileSystemIntakeArtifactStore.cs` |
 | EF receipt, current-association and action-history persistence | `src/Pegasus.Infrastructure/Persistence/EfIntakeReceiptStore.cs`, `src/Pegasus.Infrastructure/Persistence/EfIntakeMutationStore.cs`, `src/Pegasus.Infrastructure/Persistence/EfCaseAcceptanceStore.cs` |
+| EF image-intake persistence | `src/Pegasus.Infrastructure/Persistence/EfImageIntakeStore.cs` |
 | Database model and migrations | `src/Pegasus.Infrastructure/Persistence/PegasusDbContext.cs`, `src/Pegasus.Infrastructure/Persistence/Migrations/` |
 | Web composition, feature gates and route safety | `src/Pegasus.Web/Program.cs` |
 | Canonical Intake callers | `src/Pegasus.Web/Pages/Intake/Index.cshtml.cs`, `src/Pegasus.Web/Pages/Intake/Details.cshtml.cs`, `src/Pegasus.Web/Pages/Intake/Source.cshtml.cs` |

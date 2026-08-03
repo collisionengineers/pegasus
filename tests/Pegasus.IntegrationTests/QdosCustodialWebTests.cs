@@ -11,7 +11,6 @@ using Pegasus.Core.Identity;
 
 namespace Pegasus.IntegrationTests;
 
-[Collection(LocalDbFixtureDefinition.Name)]
 [Trait("Category", "SqlServer")]
 public sealed class QdosCustodialWebTests
 {

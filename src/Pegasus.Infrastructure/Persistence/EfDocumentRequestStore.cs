@@ -227,6 +227,7 @@ internal sealed class EfDocumentRequestStore(
         {
             return Unavailable();
         }
+        var caseReference = workflow.Case.Reference;
 
         var receiptId = Guid.NewGuid();
         var documentId = Guid.NewGuid();
@@ -279,6 +280,7 @@ internal sealed class EfDocumentRequestStore(
 
         await contentStore.StoreAsync(
             entity.CaseId,
+            caseReference,
             versionId,
             command.File.Content,
             authorization.ContentHash!,
@@ -318,6 +320,7 @@ internal sealed class EfDocumentRequestStore(
                     dbContextFactory,
                     contentStore,
                     entity.CaseId,
+                    caseReference,
                     versionId,
                     exception);
             }
@@ -406,6 +409,7 @@ internal sealed class EfDocumentRequestStore(
         }
 
         return await context.CaseWorkflows
+            .Include(value => value.Case)
             .SingleOrDefaultAsync(value => value.CaseId == caseId, cancellationToken)
             ?? throw new InvalidOperationException("The case is unavailable.");
     }

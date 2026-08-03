@@ -15,7 +15,8 @@ public enum IntakeDecision
     BlockedIntake,
     Unsupported,
     OcrRequired,
-    TechnicalFailure
+    TechnicalFailure,
+    ImageIntakeRegistered
 }
 
 public enum IntakeEvidenceSource
@@ -59,7 +60,8 @@ public enum IntakeSourceReadStatus
 public enum IntakeSourceChannel
 {
     ManualUpload,
-    Mailbox
+    Mailbox,
+    Automation
 }
 
 public enum InstructionPolicyApplicability
@@ -312,7 +314,9 @@ public sealed record IntakeReceipt(
     long Version = 0,
     Guid? AcceptedCaseId = null,
     Guid? ManualLinkedCaseId = null,
-    long? ManualAssociationVersion = null)
+    long? ManualAssociationVersion = null,
+    MailClassificationResult? MailClassificationDecision = null,
+    CaseMatchEvaluationResult? CaseMatchDecision = null)
 {
     public IReadOnlyList<IntakeAssetRecord> AssetRecords => Assets ?? [];
 
@@ -345,7 +349,9 @@ public sealed record IntakeReceiptDraft(
     int? ExtractionPolicyVersion,
     IReadOnlyList<IntakeAssetRecord>? Assets = null,
     IReadOnlyList<ScannedPdfOcrCandidate>? OcrCandidates = null,
-    MailRouteEvaluationResult? MailRouteDecision = null)
+    MailRouteEvaluationResult? MailRouteDecision = null,
+    MailClassificationResult? MailClassificationDecision = null,
+    CaseMatchEvaluationResult? CaseMatchDecision = null)
 {
     public IReadOnlyList<IntakeAssetRecord> AssetRecords => Assets ?? [];
 
@@ -636,6 +642,20 @@ public sealed record ReverseIntakeLinkRequest(
     string OperationKey,
     string Reason);
 
+/// <summary>
+/// The pipeline's automatic Image-intake association: a system-worker actor,
+/// no staff edit lease, and the same serializable replay-protected
+/// association write as the manual link. The store must enforce Image-intake
+/// case eligibility inside the transaction.
+/// </summary>
+public sealed record AutomaticIntakeLinkRequest(
+    Guid ReceiptId,
+    Guid CaseId,
+    long ExpectedCaseVersion,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason);
+
 public interface IIntakeMutationStore
 {
     Task<IntakeReceipt> ResolveAsync(
@@ -655,6 +675,11 @@ public interface IIntakeMutationStore
 
     Task ReverseLinkAsync(
         ReverseIntakeLinkRequest request,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken);
+
+    Task AutoLinkAsync(
+        AutomaticIntakeLinkRequest request,
         DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken);
 }

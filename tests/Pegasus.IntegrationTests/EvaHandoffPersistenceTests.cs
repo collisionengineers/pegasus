@@ -16,7 +16,6 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.IntegrationTests;
 
 [Trait("Category", "SqlServer")]
-[Collection(LocalDbFixtureDefinition.Name)]
 public sealed class EvaHandoffPersistenceTests
 {
     private static readonly DateTimeOffset Now = new(2031, 5, 1, 12, 0, 0, TimeSpan.Zero);
@@ -327,7 +326,7 @@ public sealed class EvaHandoffPersistenceTests
             $"INSERT INTO DocumentOccurrences (Id, CaseId, DocumentId, VersionId, SemanticRole, Source, SourceOccurrenceIdentity, RecordedAtUtc, OperationKey, ThirdPartyVehicleConfirmedAtUtc, ThirdPartyVehicleConfirmationReason, ThirdPartyVehicleConfirmationOperationKey) VALUES ({occurrenceId}, {caseId}, {documentId}, {versionId}, {"Image"}, {"StaffUpload"}, {$"fixture:{fileName}"}, {recordedAtUtc}, {$"fixture:{fileName}"}, {(thirdPartyVehicleConfirmed ? recordedAtUtc : null)}, {(thirdPartyVehicleConfirmed ? "Staff confirmed this is third-party vehicle evidence." : null)}, {(thirdPartyVehicleConfirmed ? "fixture:third-party-vehicle" : null)})");
         if (!thirdPartyVehicleConfirmed)
         {
-            await contentStore.StoreAsync(caseId, versionId, content, sha256, CancellationToken.None);
+            await contentStore.StoreAsync(caseId, "QDOS001", versionId, content, sha256, CancellationToken.None);
         }
 
         return new(occurrenceId, versionId);

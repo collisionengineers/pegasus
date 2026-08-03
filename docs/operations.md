@@ -263,20 +263,36 @@ The intended application staff accounts are Pegasus Identity accounts. The Devel
 post-provision, post-migration user/role operation. It creates only the fixed
 external-user aliases from the Web/Worker managed-identity client-ID SIDs,
 rejects broad roles or direct DDL, and compares the live object permission set
-with the exhaustive migration-defined grant and `DELETE`-denial matrix. It is
-not an automatic `azure.yaml` hook. It ran against production on 2026-08-02 as
-part of the executed release and verified the exhaustive matrix; any further
-execution is a separately approved exact-target cloud write.
+with the exhaustive grant and `DELETE`-denial matrix defined across every
+grant-carrying migration (the 2026-07-29 reconciliation plus the four
+2026-08-03 migrations below). It is not an automatic `azure.yaml` hook. It ran
+against production on 2026-08-02 as part of the executed release and verified
+the then-current matrix; any further execution is a separately approved
+exact-target cloud write.
 
 Migration `20260729176000_AzureSqlRuntimeLeastPrivilege` creates and owns the
 fixed custom roles `pegasus_web_runtime_role` and
 `pegasus_worker_runtime_role`. Role-reconciliation migration
 `20260729199000_RuntimeRoleReconciliation` first removes every direct
 object-level DML permission for those roles across the complete application
-table census, then grants the exhaustive caller-derived matrix. It explicitly
-denies `DELETE` on every table except the four Web workflows that require it
-(`AspNetUserRoles`, `CaseDataFields`, `OrganizationRoles`, and
-`TriageResponseEvidenceLinks`); Worker has no `DELETE` grant. Neither role
+table census, then grants the exhaustive caller-derived matrix. As of the 2026-07-29
+reconciliation migration it explicitly denies `DELETE` on every table except
+the four Web workflows that require it (`AspNetUserRoles`, `CaseDataFields`,
+`OrganizationRoles`, and `TriageResponseEvidenceLinks`); Worker has no
+`DELETE` grant. Later migrations extend the matrix: `ImageIntakeRegistration`
+grants both roles the image-intake tables with `DELETE` denied;
+`MailClassificationDecisions` grants the Worker `SELECT/INSERT/UPDATE/DELETE`
+on `IntakeMailClassificationDecisions` (re-evaluation replaces the decision
+row after snapshotting it to history) and the Web read-only with `DELETE`
+denied;
+`CaseMatchDecisionsAndAssociationPolicy` grants the Web
+`SELECT/INSERT/UPDATE/DELETE` on `CaseMatchIndex` (the acceptance-path
+projector replaces index rows in place), the Worker
+`SELECT/INSERT/UPDATE/DELETE` on `IntakeCaseMatchDecisions` (the same
+replace-after-snapshot reason), the opposite role read-only on each with
+`DELETE` denied, and the Worker insert/update association and insert-only
+history writes with `DELETE` denied; `AutomationActorOpenIddict` grants the
+Web the four OpenIddict tables with `DELETE` denied to both roles. Neither role
 receives DDL, schema-wide access, `db_datareader`, `db_datawriter`, or
 `db_owner`. Web owns staff identity and administration, case editing,
 document-custody, request-upload, and operator intake persistence. Worker owns
@@ -305,6 +321,50 @@ dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category
 
 These commands are identical on both platforms; `pwsh` runs them either way.
 
+CI splits that last command across parallel lanes rather than changing it. The
+focused forms are below; the two integration filters are a complement pair, so
+their union with the two unit projects is exactly the canonical selection:
+
+```powershell
+dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build
+dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category!=Corpus&Category!=Browser"
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category=Browser&Category!=Corpus" -- xUnit.MaxParallelThreads=2
+```
+
+Test classes run in parallel. The integration project caps concurrency at four
+in `tests/Pegasus.IntegrationTests/xunit.runner.json`, which is both half this
+kind of workstation's cores and a CI runner's whole complement: several agents
+run suites at once against one LocalDB instance, and the cap is what bounds the
+concurrent restores. The browser lane halves it again on the command line,
+because each of its tests starts a Chromium and a loopback host beside its own
+database. Leave `parallelAlgorithm` at its default `conservative`; `aggressive`
+installs a fixed-thread synchronization context, and the web factory builds its
+host synchronously, which together deadlock.
+
+Each test-run process migrates one template database once and restores every
+disposable test database from its backup instead of migrating each one. A
+process that cannot build the template says so on standard error and falls back
+to migrating each database; `LocalDbTemplateDatabaseTests` fails rather than
+letting that fallback pass quietly. The backup is deleted on process exit and
+stray `Pegasus_Test_*.bak` files older than a day are swept from the server's
+data directory on the next run.
+
+A run killed before its tests dispose leaves its databases attached, so the
+same sweep also drops `Pegasus_Test_*` databases older than a day. Both guards
+matter: only the exact disposable name shape is eligible, and the one-day floor
+keeps a suite running now — including one in another worktree against the same
+LocalDB instance — out of range. To see what is attached without changing
+anything:
+
+```powershell
+$pipe = (sqllocaldb info MSSQLLocalDB | Select-String 'Instance pipe name:').ToString().Split(':', 2)[1].Trim()
+sqlcmd -S $pipe -Q "SELECT name, create_date FROM sys.databases WHERE name LIKE 'Pegasus[_]Test[_]%' ORDER BY create_date"
+```
+
+Never drop a test database that a running suite may own; the sweep's one-day
+floor exists for exactly that reason.
+
 **Platform delta.** The `SqlServer` test lane needs a reachable SQL Server. On
 Windows that is LocalDB and needs no configuration. On Linux, point the tests at
 a SQL Server container before running them:
@@ -318,7 +378,10 @@ $env:PEGASUS_TEST_SQL_PASSWORD = '<password>'
 Leaving `PEGASUS_TEST_SQL_DATASOURCE` unset keeps the LocalDB default, so the
 Windows command is unchanged. Without it on Linux, exclude the lane with
 `--filter "Category!=Corpus&Category!=SqlServer"` and record that the lane did
-not run.
+not run. The template database never engages when
+`PEGASUS_TEST_SQL_DATASOURCE` is set: no CI job exercises that path, its
+guard tests skip themselves there, and an unverified template is worse than
+the slower migrate-per-test path the container falls back to.
 
 These commands prove repository compilation and the selected non-corpus tests only. Genuine corpus, browser, LocalDB/Azurite/Functions, cloud, recovery, and operator evidence are separate caller-specific gates.
 
@@ -651,7 +714,8 @@ Run policy tests first, adapter contracts second, persistence/transaction tests 
 | Document Intelligence | Candidate-routing and response-contract tests with controlled non-corpus fixtures | OCR accuracy, confidence, API drift, cost, throttling, identity; licensed disconnected containers are not the default emulator |
 | DVLA/DVSA | Deterministic contracts, invalid identifiers, retries, unavailable-service outcomes | Entitlement, identity, real response behavior |
 | EVA | Exact local JSON/image-bundle contract and reconciliation metadata | Operator drag/drop acceptance and any later authorised API sandbox |
-| Provider API / Automation MCP | Not implemented: no endpoint, client, credential, or caller | Settled actor/client/authentication contract, real caller evidence, and separately approved activation |
+| Provider API | Not implemented: no endpoint, client, credential, or caller | Settled actor/client/authentication contract, real caller evidence, and separately approved activation |
+| Automation MCP | Implemented but composition-gated off by default; enabled only in DevelopmentOffline evidence runs with a configuration-supplied client secret; integration tests drive token issuance, denial, tool calls, and the kill switch over HTTP | Real external client evidence, production certificate/transport decisions, and separately approved activation |
 | Direct authorised-terminal deployment | Bicep compile/lint and local configuration checks | Approved preflight, package/migration identity, deployment, health smoke, rollback |
 | Backup/recovery | LocalDB backup/restore into a new disposable database | Azure SQL PITR and the one-time alpha RPO/RTO exercise |
 
@@ -659,21 +723,38 @@ Managed identity itself is unavailable locally. LocalDB does not prove Azure SQL
 
 Graph Sent-item evidence does not prove recipient delivery or automatic case matching.
 
-### Automation MCP remains a deferred ingress
+### Automation MCP is implemented but gated off
 
-No Automation MCP endpoint, OAuth client, metadata route, staff impersonation
-path, credential, or application caller is implemented. Migration
-`20260729150000_DocumentCustodyAndRequests` created the dormant OpenIddict
-tables that a later client contract would use; schema presence is not an
-implemented ingress. ADR-0013 leaves the Automation Actor identity and
-authentication/client contract open. The current application therefore fails
-closed by exposing no such ingress.
+The Automation Actor ingress (MCP-01–04) is implemented inside `Pegasus.Web`
+and composition-gated off by default: unless `Features:AutomationMcp` is
+enabled, no `/mcp` endpoint, `/connect/token` route, or resource-metadata
+document exists and the application keeps failing closed by exposing no such
+ingress. The flag is accepted only in the DevelopmentOffline runtime profile;
+enabling it anywhere else fails startup. Migration
+`20260803151159_AutomationActorOpenIddict` re-created the OpenIddict tables
+(the dormant set from `20260729150000_DocumentCustodyAndRequests` had been
+dropped by `20260730203833_RemoveDormantOpenIddict`) with the Web-only
+least-privilege grants, and they now back the single seeded Automation
+client-credentials registration.
 
-Activation requires an accepted contract naming the durable actor identity,
-authentication and client custody, approved tools and scopes, action-history
-attribution, revocation behaviour, actual HTTP caller evidence, and the exact
-deployment/security approval. A staff browser identity is not a substitute for
-that actor.
+When enabled, the ingress issues short-lived scoped access tokens
+(`automation.cases`, `automation.intake`, `automation.documents`) for exactly
+one vendor-neutral Automation client whose identifier and secret come from
+configuration/user-secrets and are never tracked or displayed. Every tool
+invocation is permanent action history attributed to the Automation actor
+with a correlation identifier; denials write `automation_*` security events;
+Administrators review both in the Administration Automation activity view and
+hold an immediate kill switch (disable refuses new tokens outright and
+rejects already-issued tokens within seconds). A staff browser identity is
+not a substitute for that actor and is never accepted on `/mcp`.
+
+Local evidence so far is tier 2–4: green build plus focused integration
+tests driving token issuance, transport and scope denials, tool calls with
+action-history proof, and the kill switch over real HTTP against the
+composed application. Tier-5 evidence from an external real client (for
+example Claude Code presenting a bearer token), production
+certificate/transport decisions, deployment, and live activation remain
+separately approved work.
 
 ## Live-operation approval matrix
 
@@ -746,7 +827,7 @@ DOC and MSG automatic extraction remain deferred until safe local parsing fixtur
 
 Release allocation does not waive technical prerequisites. [Delivery dependencies](requirements.md#delivery-dependencies) owns current precedence. The predecessor delivery roadmap (git history) preserved the prerequisite, parallel-branch, and rejoin route; revalidate any of its claims against current canonical owners before use.
 
-Operationally, do not run later caller or release gates before the revalidated spine has supplied relational intake state, trusted staff identity/action history, principal/configuration data, durable custody and the allocator, definitive acceptance, then case files/editing/lifecycle/UI, the real Worker and Triage, vehicle/EVA, and finally Azure migration/recovery and operator acceptance. An Automation MCP caller remains a separately deferred ingress. A local check, generated package, Bicep file, or deployment cannot advance a missing predecessor gate.
+Operationally, do not run later caller or release gates before the revalidated spine has supplied relational intake state, trusted staff identity/action history, principal/configuration data, durable custody and the allocator, definitive acceptance, then case files/editing/lifecycle/UI, the real Worker and Triage, vehicle/EVA, and finally Azure migration/recovery and operator acceptance. The Automation MCP ingress stays composition-gated off outside local evidence runs, and its live caller remains a separately approved activation. A local check, generated package, Bicep file, or deployment cannot advance a missing predecessor gate.
 
 ## Release validation rules
 
@@ -789,7 +870,7 @@ The following contracts must be proved through the owning Core policy and actual
 - no local result is relabelled deployed, live verified, or accepted;
 - repository consistency and product behavior are reported separately.
 
-Automatic mailbox categorisation and email matching await the single combined research decision in [open decisions](open-decisions.md). Tests must not invent that policy.
+Automatic mailbox categorisation and email matching await the single combined research decision in [open decisions](open-decisions.md), except the accepted QDOS-direct case-association predicates and recorded-only classification of [ADR-0020](adr/0020-accepted-qdos-case-association-predicates.md). Tests must not invent policy beyond that acceptance.
 
 Image association stays conservative when evidence is not definitive. Inspection address accepts confirmed physical data, or the exact value `Image Based Assessment` autofilled from the accepted Principal's inspection-mode setting with provider-setting provenance; no address text is ever inferred from a provider, spreadsheet, geocoder or model, and a physical-address Principal fails closed without confirmed address evidence. `0.1.0-alpha.1` email operations remain explicitly unsupported unless required. Reversible EVA wire mapping is an owning integration contract validated with operator acceptance, not an unresolved product rule.
 
@@ -844,30 +925,37 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   accepted), FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard
   LRS storage accounts, distinct Web/Worker managed identities, a Pegasus Key
   Vault, Log Analytics, and Application Insights.
-- **Deployed evidence:** release 2 executed 2026-08-03 through the same
-  authorised-terminal route — Web source revision `836db05c…` on immutable
-  digest `sha256:90e5e1e1…` (single healthy revision), Worker package
-  redeployed with all nine functions, production smoke passed (health, exact
-  version/SHA, anonymous-`/Cases` denial). Release 1 (2026-08-02, revision
-  `94997dd0…`) live-verified Graph Inbox/Sent processing through the
-  production Worker (83 successful executions, zero exceptions).
+- **Deployed evidence:** release 3 executed 2026-08-03 through the same
+  authorised-terminal route — Web source revision `ef987ac4…` on immutable
+  digest `sha256:89165ad5…` (single healthy revision `ef987ac49cb4` at 100%
+  traffic, proving the Key Vault secret references resolved), the
+  inspection-mode migration applied before activation with the runtime-role
+  matrix re-verified, Worker package redeployed with all nine functions, and
+  smoke evidence: health live/ready 200, exact version/SHA match, and
+  anonymous `/Cases` 302 to the **https** sign-in route (the forwarded-headers
+  fix live-verified; earlier releases redirected to `http://`). Release 2
+  (2026-08-03, revision `836db05c…`) applied the Box custody root; release 1
+  (2026-08-02, revision `94997dd0…`) live-verified Graph Inbox/Sent processing
+  through the production Worker (83 successful executions, zero exceptions).
 - **Integrations:** Graph via the Worker managed identity scoped by Exchange
   Application RBAC to `instructions@collisionengineers.co.uk`; Box production
   custody rooted at the pegasus folder `405543781910` (applied by release 2);
-  from the composition-fix deployment Box is reached by both hosts — the
-  Worker for intake-source custody and Web for the staff document surface and
-  managed document content — through the one root-fenced client;
+  since release 3 Box is reached by both hosts — the Worker for intake-source
+  custody and Web for the staff document surface and managed document
+  content — through the one root-fenced client;
   official DVLA VES v1.2 and DVSA MOT History v1; EVA remains the accepted
   manual JSON/image handoff.
 - **Secrets:** the adopted predecessor vaults `cespkboxkvv76a47` and
   `cespkenrichkvgi62sd` remain (intentionally retained inside
   `rg-collisionspike-dev`); secret-level access only for the identities and
   exact secrets that call them. The three obsolete vaults are soft-deleted with
-  platform purge scheduled 2026-08-09. From the composition-fix deployment the Web container app declares Key
-  Vault secret references for `Box:ConfigJson` and `Box:ClientSecret` resolved
-  through the Web managed identity, so that identity needs the same secret-level
-  read the Worker has before the next deployment; without it the Web revision
-  fails to start rather than starting without custody.
+  platform purge scheduled 2026-08-09. Since release 3 the Web container app
+  declares Key Vault secret references for `Box:ConfigJson` and
+  `Box:ClientSecret` resolved through the Web managed identity; the matching
+  secret-scoped `Key Vault Secrets User` grants (mirroring the Worker's) were
+  applied before that deployment, and the healthy revision start is the
+  resolution proof. Without those grants a Web revision fails to start rather
+  than starting without custody.
 - **Predecessor retirement:** executed through the exact verified manifest;
   eight resource batches completed, 30 delete-classified role assignments
   removed, 7 retained; the archive manifest hash is recorded in the runbook
@@ -886,11 +974,19 @@ The release scripts are `Build-ReleaseArtifacts.ps1` (immutable packages from
 a clean tree at an exact HEAD), `Test-AzureDeploymentPlan.ps1` (local, artifact,
 pre-upload, and pre-migration validation), `Invoke-AzureDatabaseBootstrap.ps1`
 and `Invoke-ProductionAdministratorBootstrap.ps1` (manifest-SHA-gated), and
-`Invoke-ProductionSmoke.ps1` (health and exact version/SHA assertions). The
+`Invoke-ProductionSmoke.ps1` (health, exact version/SHA, anonymous-denial, and
+https-redirect assertions). The
 executed 2026-08-02 sequence and its evidence gates are recorded in the retired
 runbook (git history, `azure-production-replacement-plan.md`). The one-off
 predecessor archive/retirement scripts completed their purpose in that run and
 are also recoverable from git history.
+
+The next release is the first whose Web and Worker packages load native ONNX
+Runtime and SkiaSharp binaries on the deployed Linux runtimes
+(`Microsoft.ML.OnnxRuntime`, SkiaSharp with the `NoDependencies` Linux native
+asset, models embedded in the Infrastructure assembly). Until a deployed
+vision path is exercised, native load on the deployed runtime is unverified
+evidence.
 
 ### Azure activation remains fail-closed
 
