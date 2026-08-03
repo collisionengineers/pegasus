@@ -36,6 +36,50 @@ step it names.
    labelled cohort + untouched holdout and preaccepted accuracy/abstention gates
    come first; if nothing meets the gate the capability blocks rather than
    falls back.
+
+   Evidence gathered 2026-08-03 (web, Microsoft Learn, local corpus; the
+   selection itself remains open):
+
+   - Operator direction 2026-08-03: licence compatibility is not a selection
+     constraint. Context: Pegasus is staff-only and external portals are a
+     permanent boundary (`BND-06`), so AGPL/GPL network-clause obligations
+     reduce to offering source to Collision Engineers' own staff. Origin,
+     hash-pinning, and RID review remain required.
+   - In-process (ONNX via `Microsoft.ML.OnnxRuntime`, MIT, RID-native
+     binaries, no Python service, no runtime download): lead candidate is
+     the fast-alpr component stack — a YOLOv9-based plate detector
+     (GPL-3.0-provenance weights) plus the fast-plate-ocr global CCT
+     recogniser (MIT repository; weight licence unstated). Release assets
+     are static and SHA-256 pinnable. No credible published UK-plate
+     benchmark exists for any open stack; only the cohort gate decides.
+     Fallback: fine-tune an Apache-2.0 detector (D-FINE / RT-DETRv2 /
+     YOLOX) with PP-OCR (Apache-2.0) recognition. OpenALPR is rejected on
+     technical age (classical-CV era, frozen since Rekor commercialised).
+   - External ANPR clouds egress to the USA: Plate Recognizer Snapshot
+     (Linode/AWS US; 30-day rolling image retention; free to 2,500
+     lookups/month then USD 50/month; UK plates with damaged/blurry-plate
+     claims; API-token auth) and Rekor CarCheck (AWS US; retention
+     unstated; ~USD 125/month at this volume).
+   - UK-resident external option: Azure AI Vision Read from a UK South
+     resource — in-region processing, inputs deleted within 24 hours and
+     used for nothing else, Entra managed-identity auth (no custodied
+     credential), roughly USD 7.50–30/month at 2,000–20,000 reads. It is
+     generic OCR: Core must parse and validate candidates against VRM
+     format rules. Learn pages conflict on whether Image Analysis 4.0 Read
+     is offered in UK South (the 3.2 Read API is); verify at provisioning.
+   - Third shape: Plate Recognizer's on-premise SDK container (zero image
+     egress, ANPR-specific, USD 50/month) — a licensed sidecar service,
+     i.e. a new runtime/deployment unit requiring an accepted ADR, and it
+     calls home for licence verification.
+   - Cohort feasibility: the local immutable corpus holds ~7,000 genuine
+     case images with case-level VRM attribution in filenames (plus
+     visible non-vehicle noise). A frozen labelled cohort and untouched
+     holdout are buildable from genuine material; per-image
+     plate-legibility truth still requires operator review.
+   - Boundary consequence: any external route requires the operator to
+     consciously amend `INT-17`'s "no external upload" note and the
+     recorded personal-data/vehicle-image retention rules before
+     activation; the in-process route leaves both intact.
 2. **`INT-31` upload-link limits** — Exact token lifetime, aggregate and
    per-file byte limits, file count, allowed content types, per-token/per-IP
    rate, one-time vs reuse, and revocation/expiry error contract. Interim bound:
