@@ -46,6 +46,7 @@ inventory and then fail closed if an expected singleton is not found.
 
 ```powershell
 $ErrorActionPreference = 'Stop'
+$PSNativeCommandArgumentPassing = 'Standard'
 $PegasusSubscription = 'e6076573-23a5-46a8-acef-7e22d264e5db'
 $PegasusProductionResourceGroup = 'rg-pegasus-prod'
 $PredecessorResourceGroup = 'rg-collisionspike-dev'
