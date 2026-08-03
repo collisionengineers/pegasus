@@ -149,16 +149,16 @@ approval naming those values and the two source-vault IDs before continuing.
 ```powershell
 $WorkerSettings = @(az functionapp config appsettings list `
   --resource-group $PegasusProductionResourceGroup --name $Worker.name `
-  --query "[?contains(['Box__ConfigJson','Box__ClientSecret','Dvla__ApiKey','Dvsa__ClientId','Dvsa__ClientSecret','Dvsa__ApiKey'],name)].{name:name,value:value}" `
-  --output json | ConvertFrom-Json)
+  --query "[?name=='Box__ConfigJson' || name=='Box__ClientSecret' || name=='Dvla__ApiKey' || name=='Dvsa__ClientId' || name=='Dvsa__ClientSecret' || name=='Dvsa__ApiKey']" `
+  --output json | ConvertFrom-Json | Select-Object name,value)
 if ($WorkerSettings.Count -ne $WorkerSettingNames.Count) {
   throw 'The Worker does not expose exactly the six approved references.'
 }
 
 $WebSecrets = @(az containerapp secret list `
   --resource-group $PegasusProductionResourceGroup --name $Web.name `
-  --query "[?contains(['box-config-json','box-client-secret'],name)].{name:name,keyVaultUrl:keyVaultUrl,identity:identity}" `
-  --output json | ConvertFrom-Json)
+  --query "[?name=='box-config-json' || name=='box-client-secret']" `
+  --output json | ConvertFrom-Json | Select-Object name,keyVaultUrl,identity)
 if ($WebSecrets.Count -ne $WebSecretNames.Count) {
   throw 'The Web does not expose exactly its two approved Key Vault secrets.'
 }
@@ -378,8 +378,8 @@ az functionapp config appsettings set `
 function Get-UnresolvedWorkerKeyVaultReferences {
   $CurrentWorkerSettings = @(az functionapp config appsettings list `
     --resource-group $PegasusProductionResourceGroup --name $Worker.name `
-    --query "[?contains(['Box__ConfigJson','Box__ClientSecret','Dvla__ApiKey','Dvsa__ClientId','Dvsa__ClientSecret','Dvsa__ApiKey'],name)].{name:name,value:value}" `
-    --output json | ConvertFrom-Json)
+    --query "[?name=='Box__ConfigJson' || name=='Box__ClientSecret' || name=='Dvla__ApiKey' || name=='Dvsa__ClientId' || name=='Dvsa__ClientSecret' || name=='Dvsa__ApiKey']" `
+    --output json | ConvertFrom-Json | Select-Object name,value)
   $WorkerReferenceStatus = az rest --method GET --uri (
     "https://management.azure.com$($Worker.id)/config/configreferences/appsettings?api-version=2025-03-01"
   ) --output json | ConvertFrom-Json
@@ -447,8 +447,8 @@ az containerapp secret set `
 
 $CurrentWebSecrets = @(az containerapp secret list `
   --resource-group $PegasusProductionResourceGroup --name $Web.name `
-  --query "[?contains(['box-config-json','box-client-secret'],name)].{name:name,keyVaultUrl:keyVaultUrl,identity:identity}" `
-  --output json | ConvertFrom-Json)
+  --query "[?name=='box-config-json' || name=='box-client-secret']" `
+  --output json | ConvertFrom-Json | Select-Object name,keyVaultUrl,identity)
 if ($CurrentWebSecrets.Count -ne $WebSecretNames.Count) {
   throw 'The Web does not expose exactly its two approved Key Vault secrets after update.'
 }
@@ -551,8 +551,8 @@ Assert-ExactSecretUserScopes -PrincipalId $WebPrincipalId `
 
 $CurrentWebSecrets = @(az containerapp secret list `
   --resource-group $PegasusProductionResourceGroup --name $Web.name `
-  --query "[?contains(['box-config-json','box-client-secret'],name)].{name:name,keyVaultUrl:keyVaultUrl,identity:identity}" `
-  --output json | ConvertFrom-Json)
+  --query "[?name=='box-config-json' || name=='box-client-secret']" `
+  --output json | ConvertFrom-Json | Select-Object name,keyVaultUrl,identity)
 if ($CurrentWebSecrets.Count -ne $WebSecretNames.Count) {
   throw 'Web does not expose exactly the two approved Key Vault secrets at final readback.'
 }
