@@ -82,7 +82,7 @@ than attempts.
 
 ## Current callers and entry points
 
-### Offline QDOS-alpha Web callers
+### Staff Web callers
 
 - `GET /Intake` calls Core `ListIntake`; the `ReceiveIntake` POST handler submits one bounded authenticated manual source and preserves the selected filter/page through PRG. `GET /Intake/{id}` calls `GetIntake`, and its mutations call the named Core intake commands with a server-derived actor, expected versions or case lease, operation key, and reason as applicable.
 - `GET /Intake/{id}/Source` calls Core `DownloadIntakeSource`, which authorises the current staff actor, resolves the receipt-owned source, validates retained length and SHA-256, and returns only a no-sniff attachment with a safe filename and content type.
@@ -113,6 +113,13 @@ state is owned by
 [operations § Production environment](operations.md#production-environment).
 Operator acceptance remains outstanding.
 
+Web production composition registers Box-backed case custody and managed
+document content, the staff document and EVA handoff surface, and Azure Blob
+intake artifact stores behind one storage profile. These are **Implemented**
+(merged), not yet **Deployed**; the composition reaches production only with
+the composition-fix release recorded in
+[operations § Production environment](operations.md#production-environment).
+
 The following remain planned or absent, not merely unverified:
 
 - broad Graph mailbox categorisation or any Graph mutation;
@@ -134,7 +141,7 @@ full MVP, a second provider, or operator acceptance.
 This is implementation evidence toward [INT-01, INT-08–13, INT-18–20, and INT-23](capabilities.md); the inventory owns allocation only, and each broader capability contract remains unproved.
 
 ```text
-Development-only Razor Page
+Staff Intake Razor Page
   -> Core ProcessIntake
   -> QDOS IInstructionExtractionPolicy
   -> MimeKit/PdfPig/Open XML source reader
@@ -186,7 +193,7 @@ Legacy DOC and MSG are retained but routed to `Needs sorting` without a referenc
 
 For PDFs, only low-text pages with a dominant raster are marked as scan-like OCR candidates. No OCR service is currently called. Document- and attachment-level OCR-required state is visible during review.
 
-The reader constructs no network client, launches no process, and does not retrieve external links, images, relationships, keys, or other remote content. Graph, Box, Blob, OCR, DVLA/DVSA, EVA, workspace extractors, and any other external service remain outside the reader; bounded production adapters attach only at the Worker composition root.
+The reader constructs no network client, launches no process, and does not retrieve external links, images, relationships, keys, or other remote content. Graph, Box, Blob, OCR, DVLA/DVSA, EVA, workspace extractors, and any other external service remain outside the reader; bounded production adapters attach only at the Web and Worker composition roots.
 
 ### QDOS applicability and drafts
 
@@ -289,7 +296,7 @@ artifacts/local-development/default/intake
 
 This is local development evidence, not production Blob staging, Box custody, backup, or accepted recovery.
 
-There is no supported non-Development intake or production filesystem fallback: when the two Development gates are not active, every `/Intake` route returns `404`. The current artifact port exposes store and read operations only; Pegasus has no receipt/artifact deletion API, backup command, or proved restore path. Test-harness cleanup and manual removal of an owned ignored run directory are not application deletion or recovery evidence.
+There is no supported non-Development filesystem fallback: outside the DevelopmentOffline profile, intake artifacts live in Azure Blob, never on the local filesystem. The staff `/Intake` routes are served wherever intake is composed, including the Production runtime profile (composition merged; deployed state is owned by [operations § Production environment](operations.md#production-environment)); only the manual `ReceiveIntake` upload POST still requires the two Development gates and returns `404` otherwise. The current artifact port exposes store and read operations only; Pegasus has no receipt/artifact deletion API, backup command, or proved restore path. Test-harness cleanup and manual removal of an owned ignored run directory are not application deletion or recovery evidence.
 
 The application retains the original source before recording a reviewable receipt:
 
@@ -481,7 +488,7 @@ Development configuration selects:
 
 The `--migrate-development` process validates the local-only profile, applies the committed migration stream, prints completion, and exits. The Web host must then be started separately.
 
-The Intake routes are deny-by-default and return `404` unless both the DevelopmentOffline runtime profile and local-intake feature gate are active.
+The manual-upload intake handler is deny-by-default: it returns `404` unless both the DevelopmentOffline runtime profile and local-intake feature gate are active. The staff `/Intake` routes themselves are served wherever intake is composed.
 
 ## Implementation map
 

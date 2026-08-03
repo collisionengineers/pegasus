@@ -7,8 +7,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
+using Pegasus.Core.Custody;
+using Pegasus.Core.Documents;
+using Pegasus.Core.Eva;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
+using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Intake;
 
 namespace Pegasus.IntegrationTests;
@@ -39,6 +43,27 @@ public sealed class WebCompositionTests
             scope.ServiceProvider.GetRequiredService<IIntakeArtifactStore>());
         Assert.IsType<GetOperationsSnapshot>(
             scope.ServiceProvider.GetRequiredService<IGetOperationsSnapshot>());
+    }
+
+    [Fact]
+    public void ProductionHostComposesBoxCustodyAndTheStaffDocumentSurface()
+    {
+        // ProductionCompositionTests wire AddPegasusInfrastructure directly, so
+        // only a real-host resolution proves Program.cs still passes the
+        // production storage profile through to composition.
+        using var factory = new ConfiguredWebApplicationFactory(
+            "Production",
+            new Dictionary<string, string?>());
+        using var scope = factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+
+        Assert.IsType<BoxCaseCustody>(services.GetRequiredService<ICaseCustody>());
+        Assert.IsType<BoxDocumentContentStore>(
+            services.GetRequiredService<IDocumentContentStore>());
+        Assert.NotNull(services.GetRequiredService<IAddCaseDocument>());
+        Assert.NotNull(services.GetRequiredService<IDownloadCaseDocument>());
+        Assert.NotNull(services.GetRequiredService<IExportCaseDocuments>());
+        Assert.NotNull(services.GetRequiredService<IGenerateEvaHandoff>());
     }
 }
 
@@ -275,6 +300,20 @@ internal sealed class ConfiguredWebApplicationFactory(
     string environment,
     IReadOnlyDictionary<string, string?> settings) : WebApplicationFactory<Program>
 {
+    internal const string TestBoxConfigJson = """
+    {
+      "boxAppSettings": {
+        "clientID": "test-client-id",
+        "appAuth": {
+          "publicKeyID": "test-key-id",
+          "privateKey": "test-private-key",
+          "passphrase": "test-passphrase"
+        }
+      },
+      "enterpriseID": "test-enterprise-id"
+    }
+    """;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         var effectiveSettings = new Dictionary<string, string?>(StringComparer.Ordinal)
@@ -288,7 +327,15 @@ internal sealed class ConfiguredWebApplicationFactory(
             ["AzureIdentity:WebClientId"] = "10213243-5465-7687-98a9-bacbdcedfe0f",
             ["TransportStorage:AccountName"] = "pegasustransporttest",
             ["CustodyStorage:AccountName"] = "pegasuscustodytest",
-            ["CustodyStorage:ServiceUri"] = "https://pegasuscustodytest.blob.core.windows.net/"
+            ["CustodyStorage:ServiceUri"] = "https://pegasuscustodytest.blob.core.windows.net/",
+            // The Production profile composes Box-backed custody, so a host needs
+            // Box settings to start. These are inert test credentials; no Box call
+            // is made by composing them.
+            ["Box:BaseUri"] = "https://api.box.com/2.0/",
+            ["Box:UploadUri"] = "https://upload.box.com/api/2.0/",
+            ["Box:RootFolderId"] = "405543781910",
+            ["Box:ConfigJson"] = TestBoxConfigJson,
+            ["Box:ClientSecret"] = "test-client-secret"
         };
         foreach (var setting in settings)
         {

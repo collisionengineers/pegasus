@@ -269,3 +269,31 @@ public interface IRevokeBoxFileRequest
         RevokeBoxFileRequestCommand command,
         CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Durable content storage for managed case document versions, keyed by the
+/// immutable case and document-version identities. Implementations verify the
+/// SHA-256 and length on both write and read, and treat a store of identical
+/// content as a successful replay rather than a conflict.
+/// </summary>
+public interface IDocumentContentStore
+{
+    Task StoreAsync(
+        Guid caseId,
+        Guid versionId,
+        ReadOnlyMemory<byte> content,
+        string expectedSha256,
+        CancellationToken cancellationToken);
+
+    Task<Stream> OpenReadAsync(
+        Guid caseId,
+        Guid versionId,
+        string expectedSha256,
+        long expectedLength,
+        CancellationToken cancellationToken);
+
+    Task DeleteAsync(
+        Guid caseId,
+        Guid versionId,
+        CancellationToken cancellationToken);
+}

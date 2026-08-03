@@ -32,9 +32,10 @@ jobs:
             $head = '${{ github.sha }}'
           }
           # Build/test lanes run only for changes that can affect the built
-          # application or how the lanes themselves run: source, tests, the
-          # solution, project/lock/config files, a script a CI job executes, or
-          # this workflow and the action it shares
+          # application or how those lanes run: source, tests, the solution,
+          # project/lock/config files, the acceptance or shard script, this
+          # workflow, or the action it shares. Test-DocumentationLinks.ps1 is
+          # deliberately excluded because the documentation job always runs
           # (docs/engineering.md "Branches and delivery").
           $buildPattern = '^(src|tests)/|^Pegasus\.slnx$|\.csproj$|\.props$|\.targets$|packages\.lock\.json$|^global\.json$|^nuget\.config$|^scripts/Invoke-(QdosAlphaAcceptance|TestShard)\.ps1$|^\.github/workflows/ci\.yml$|^\.github/actions/'
           $build = 'true'

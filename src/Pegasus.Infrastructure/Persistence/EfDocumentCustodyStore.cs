@@ -10,7 +10,7 @@ namespace Pegasus.Infrastructure.Persistence;
 
 internal sealed class EfDocumentCustodyStore(
     IDbContextFactory<PegasusDbContext> dbContextFactory,
-    LocalDocumentContentStore contentStore,
+    IDocumentContentStore contentStore,
     TimeProvider timeProvider) :
     IAddCaseDocument,
     IDownloadCaseDocument,

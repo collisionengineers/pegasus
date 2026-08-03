@@ -27,7 +27,9 @@ procedures and evidence in [operations](operations.md), and current work in
   runs seven jobs. `changes` is a path-detection job on a Linux runner that
   inspects only the diff, exercises no application code, and provides no
   Linux-development evidence. `documentation` (`windows-latest`, 10 minutes)
-  runs the documentation link check for every change set. The remaining lanes
+  runs the documentation link check for every change set, so
+  `scripts/Test-DocumentationLinks.ps1` is deliberately not a build-relevant
+  path. The remaining lanes
   run in parallel and only when a build-relevant path changed; the three
   `windows-latest` test lanes each do their own locked restore and Release
   build through the shared `.github/actions/dotnet-build` composite action.
