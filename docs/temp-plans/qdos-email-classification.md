@@ -1,7 +1,17 @@
-# QDOS email identification and classification
+# QDOS email identification, classification, and case matching
 
 Task line: shared Core classification foundation and the settled mailbox
 taxonomy — MAIL-21 and MAIL-22. Branch `task/qdos-email-classification`.
+
+**Scope widened by operator decisions 2026-08-03** (recorded in
+[ADR-0019](../adr/0019-accepted-qdos-case-association-predicates.md) and the
+re-scoped `NOW.md` claim): this branch also delivers the route/extraction
+policy split from [the split proposal](split-qdos-extraction-policy.md), the
+operator-accepted three-domain route set (`qdos_mail_route` v3, from the
+[sender-domain inventory](qdos-email-classification-sender-domains.md)), and
+the operator-accepted QDOS automatic case matching and association — the
+QDOS-direct subset of MAIL-09 pulled forward. The original scope sections
+below stand for the MAIL-21/22 half.
 
 Supporting evidence:
 [sender-domain inventory](qdos-email-classification-sender-domains.md), which

@@ -130,6 +130,19 @@ is a deliberate change to a named, versioned matcher — the Production
 composition test pins the inactive matcher so it can never be activated as a
 side effect of composition.
 
+Accepted for the QDOS direct route only (operator decision 2026-08-03,
+[ADR-0019](adr/0019-accepted-qdos-case-association-predicates.md)): the
+automatic incoming-case matching predicates and their conservative outcomes —
+label-anchored claim-token, client-VRM, and surname+initial keys; incident
+date as an eliminator only; one survivor associates, ambiguity fails closed to
+`Needs sorting` with candidates visible; `Created in error` redirects to its
+replacement. This closes the first row's question for that one matcher and
+pulls the QDOS-direct subset of `MAIL-09` to `Now / 0.1.0-alpha.1`. The
+multi-rule precedence and confidence questions below stay open for
+classification and for every other route, matcher, and surface; the QDOS
+classification policy still records simultaneous category matches as the
+ambiguity outcome with no invented winner.
+
 The first additional-provider route cohort is allocated to `0.2.0`; the broader
 classified-email workspace and email MCP cohort is allocated to `0.3.0`.
 Neither target closes this evidence gate.

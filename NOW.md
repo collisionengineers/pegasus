@@ -14,23 +14,6 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   operator decision, unblocking INT-17/28/32; no vendor selection,
   credential, or automatic-matching activation without operator sign-off
   (branch task/image-led-intake, taken 2026-08-03, by claude).
-- QDOS email identification, classification, and case matching: build the
-  shared Core classification foundation — the settled Received/Sent families
-  and subtypes, Reply as mirrored context, validated `Other` name and reason,
-  versioned policy key, decision evidence, explicit ambiguity outcome, and
-  the acceptance cohort, keeping category separate from queue, Triage
-  routing, and Outlook destination (MAIL-21/22); split the QDOS policy into
-  route and extraction parts, activate the operator-accepted three-domain
-  QDOS route set (`qdos_mail_route` v3), and add operator-accepted QDOS
-  automatic case matching and association — eliminator predicates over claim
-  reference, VRM, and claimant name with incident-date elimination, pulling
-  the MAIL-09 QDOS-direct subset forward (operator decisions 2026-08-03,
-  recorded by ADR in the task PR); still no confidence scores or generic
-  rule engine (the multi-rule precedence open decision stays open beyond the
-  accepted QDOS predicates), no evaluator surface (EVAL-01–05, MAIL-20,
-  OPS-22 are separately owned), no folder move, mailbox mutation, or AI
-  classifier (branch task/qdos-email-classification, taken 2026-08-03, by
-  claude).
 - Cut `repository-check` wall clock (agreed 2026-08-03): shard validate into
   parallel unit / SQL-integration / browser jobs, replace migrate-per-test
   LocalDB setup with a per-run migrated template database, and cache NuGet
