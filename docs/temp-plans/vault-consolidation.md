@@ -35,6 +35,9 @@ does not replace that record.
   repository, or included in telemetry. The Key Vault backup blobs are kept
   outside the repository and removed only after the approved retirement
   succeeds.
+- A `Key Vault Secrets Officer` assignment created solely for this migration is
+  removed after the restored versions have been independently verified; the
+  pre-existing `Key Vault Reader` assignment remains metadata-only.
 
 ## Exact command sequence
 
@@ -71,6 +74,7 @@ $WorkerSettingNames = @(
 )
 $WebSecretNames = @('box-config-json', 'box-client-secret')
 $KeyVaultSecretsUserRoleId = '4633458b-17de-408a-b874-0445c86b69e6'
+$KeyVaultSecretsOfficerRoleId = 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7'
 
 az account set --subscription $PegasusSubscription
 $Account = az account show --output json | ConvertFrom-Json
@@ -267,13 +271,56 @@ approved target secret is allowed. A soft-deleted approved name, an unverified
 copy, or an unrelated existing target-vault secret remains out of scope. This
 lets a stopped run resume without overwriting, recovering, or purging a secret. Obtain a
 second, specific approval before copying any secret. That approval must also confirm
-that the executing principal already has `secrets/backup` on each source vault
-and `secrets/restore` on the target vault; the plan never grants those highly
-privileged data-plane permissions.
+that the executing principal already has `secrets/backup` on each source vault.
+For this approved run only, the plan creates `Key Vault Secrets Officer` for the
+signed-in operator at the single target-vault resource scope to obtain
+`secrets/restore`, then removes that assignment immediately after restored
+metadata is verified. The role covers all secret data operations at that vault;
+there is no narrower built-in backup/restore role. It must never be assigned at
+the subscription or resource-group scope.
 
 This phase also requires `secrets/list` metadata access to each source and the
 target vault. A rejected CLI call is a stop condition, never evidence that a
 vault has no matching secret or deleted-secret metadata.
+
+### 2a. Grant the approved, temporary target-vault restore role
+
+```powershell
+$OperatorPrincipalId = az ad signed-in-user show --query 'id' --output tsv
+if ([string]::IsNullOrWhiteSpace($OperatorPrincipalId)) {
+  throw 'The signed-in Azure CLI user ID is unavailable.'
+}
+$ExistingTargetSecretsOfficerAssignments = @(az role assignment list `
+  --assignee-object-id $OperatorPrincipalId --scope $TargetVaultProperties.id `
+  --role $KeyVaultSecretsOfficerRoleId --fill-principal-name false `
+  --fill-role-definition-name false --query '[].id' --output json |
+  ConvertFrom-Json)
+$CreatedTargetSecretsOfficerAssignmentId = $null
+if ($ExistingTargetSecretsOfficerAssignments.Count -eq 0) {
+  $CreatedTargetSecretsOfficerAssignment = az role assignment create `
+    --assignee-object-id $OperatorPrincipalId --assignee-principal-type User `
+    --role $KeyVaultSecretsOfficerRoleId --scope $TargetVaultProperties.id `
+    --only-show-errors --output json | ConvertFrom-Json
+  $CreatedTargetSecretsOfficerAssignmentId =
+    $CreatedTargetSecretsOfficerAssignment.id
+} elseif ($ExistingTargetSecretsOfficerAssignments.Count -ne 1) {
+  throw 'Expected zero or one exact target Key Vault Secrets Officer assignment.'
+}
+
+$TargetSecretsOfficerAssignments = @(az role assignment list `
+  --assignee-object-id $OperatorPrincipalId --scope $TargetVaultProperties.id `
+  --role $KeyVaultSecretsOfficerRoleId --fill-principal-name false `
+  --fill-role-definition-name false --query '[].id' --output json |
+  ConvertFrom-Json)
+if ($TargetSecretsOfficerAssignments.Count -ne 1) {
+  throw 'Target Key Vault Secrets Officer readback was not an exact singleton.'
+}
+```
+
+This is deliberately not a runtime access grant. The source backup permission
+is already supplied by its predecessor-group `Key Vault Secrets Officer`
+assignment; the temporary target role exists only until the copied versions
+have passed the following metadata verification.
 
 ### 3. Copy each complete secret history without exposing a value
 
@@ -299,6 +346,19 @@ foreach ($Binding in $Bindings) {
     throw "The referenced source version was not restored as an enabled target version for $($Binding.SecretName)."
   }
   $Binding | Add-Member -NotePropertyName TargetUri -NotePropertyValue $ExpectedTargetUri
+}
+
+if ($null -ne $CreatedTargetSecretsOfficerAssignmentId) {
+  az role assignment delete --ids $CreatedTargetSecretsOfficerAssignmentId `
+    --only-show-errors
+  $RemovedTargetSecretsOfficerAssignments = @(az role assignment list `
+    --assignee-object-id $OperatorPrincipalId --scope $TargetVaultProperties.id `
+    --role $KeyVaultSecretsOfficerRoleId --fill-principal-name false `
+    --fill-role-definition-name false --query '[].id' --output json |
+    ConvertFrom-Json)
+  if ($RemovedTargetSecretsOfficerAssignments.Count -ne 0) {
+    throw 'The temporary target Key Vault Secrets Officer assignment remains.'
+  }
 }
 ```
 
