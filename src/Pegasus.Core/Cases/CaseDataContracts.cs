@@ -17,7 +17,8 @@ public enum CaseDataSourceKind
     MailRoute,
     CaseAcceptance,
     StaffCorrection,
-    VehicleLookup
+    VehicleLookup,
+    ProviderSetting
 }
 
 public enum CaseInspectionMode

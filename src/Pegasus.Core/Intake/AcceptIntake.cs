@@ -10,7 +10,8 @@ namespace Pegasus.Core.Intake;
 /// </summary>
 public sealed class AcceptIntake(
     ICaseAcceptanceStore acceptanceStore,
-    ICaseWorkflowConfiguration configuration) : IAcceptIntake
+    ICaseWorkflowConfiguration configuration,
+    IProviderInspectionModeStore inspectionModeStore) : IAcceptIntake
 {
     public async Task<CaseAcceptanceOutcome> ExecuteAsync(
         AcceptIntakeRequest request,
@@ -79,6 +80,10 @@ public sealed class AcceptIntake(
         var completenessEvaluation = CaseCompletenessPolicy.EvaluateAcceptanceCommand(
             request.Completeness,
             await configuration.GetCurrentAsync(cancellationToken));
+        var providerInspectionMode = await inspectionModeStore.GetForPrincipalAsync(
+                principalCode,
+                cancellationToken)
+            ?? CaseInspectionMode.PhysicalAddress;
 
         var acceptance = new CaseAcceptanceRequest(
             request.ReceiptId,
@@ -90,6 +95,7 @@ public sealed class AcceptIntake(
             principalCode,
             request.Completeness,
             completenessEvaluation,
+            providerInspectionMode,
             request.StandaloneAuditEvidenceId,
             request.AcceptedInspectionDeadline);
 

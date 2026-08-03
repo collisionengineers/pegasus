@@ -99,4 +99,5 @@ internal static class CaseDataCodes
     public const string CaseAcceptance = "case_acceptance";
     public const string StaffCorrection = "staff_correction";
     public const string VehicleLookup = "vehicle_lookup";
+    public const string ProviderSetting = "provider_setting";
 }
