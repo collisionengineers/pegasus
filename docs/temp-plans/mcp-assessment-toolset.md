@@ -1,10 +1,11 @@
 # MCP assessment toolset (Automation Actor tranche 2)
 
-Status: planning stage, for operator review. Nothing in this document is
-implemented, claimed, or activated by its existence. Implementation starts
-only after the decisions in [Open decisions](#open-decisions-for-the-operator)
-are made; several slices are additionally gated on capability allocation as
-stated in [Sequencing](#sequencing-and-slices).
+Status: implemented by `task/send-to-ai-round-trip` (2026-08-03) under the
+operator's "implement full" instruction: slices 1–3 shipped (ADR-0021 carries
+the contract and the AI-09 rewording), slice 4 remains the separate UI-15
+activation task, slice 5 stays D2-gated, and slice 6 is the queued tier-5
+run. The still-open decisions moved to `docs/open-decisions.md`. The original
+plan text below is retained unedited as the review record.
 
 ## Goal and scope boundary
 
