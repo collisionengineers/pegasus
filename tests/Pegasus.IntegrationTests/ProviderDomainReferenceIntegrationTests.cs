@@ -3,6 +3,7 @@ using System.Data.Common;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Pegasus.Core.Intake;
 using Pegasus.Core.ReferenceData;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Persistence;
@@ -50,6 +51,22 @@ public sealed class ProviderDomainReferenceIntegrationTests
                 .ToArray());
     }
 
+
+    [Fact]
+    public void CoreAcceptedQdosRouteSetMatchesTheReferenceSnapshotExactly()
+    {
+        var package = DeserializePackage(LoadEmbeddedPackageBytes());
+        var qdos = Assert.Single(package.Providers, provider => provider.Code == "QDOS");
+
+        Assert.Equal(
+            qdos.DomainSuffixes
+                .Select(suffix => suffix.TrimStart('@'))
+                .OrderBy(domain => domain, StringComparer.Ordinal)
+                .ToArray(),
+            QdosMailRoutePolicy.AcceptedDirectDomains
+                .OrderBy(domain => domain, StringComparer.Ordinal)
+                .ToArray());
+    }
 
     [Fact]
     public async Task MigrationSeedsExactPackageAndCatalogUsesOneBoundedQuery()

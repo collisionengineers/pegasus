@@ -4,12 +4,10 @@ using System.Text.RegularExpressions;
 namespace Pegasus.Core.Intake;
 
 public sealed partial class QdosInstructionExtractionPolicy(
-    IIntakeTriageMatcher? triageMatcher = null) : IInstructionExtractionPolicy, IMailRoutePolicy
+    IIntakeTriageMatcher? triageMatcher = null) : IInstructionExtractionPolicy
 {
     public const string Key = "qdos_instruction";
     public const int Version = 1;
-    public const string MailRouteKey = QdosMailRoutePolicy.Key;
-    public const int MailRouteVersion = QdosMailRoutePolicy.Version;
     private const string PrincipalCode = "QDOS";
     private static readonly QdosMailRoutePolicy RoutePolicy = new();
     private readonly IIntakeTriageMatcher triageMatcher =
@@ -30,14 +28,11 @@ public sealed partial class QdosInstructionExtractionPolicy(
         new("Inspection date", ["Inspection Date", "Date of Inspection", "Inspection Deadline", "Due By"], IsRequired: false)
     ];
 
-    public MailRouteEvaluationResult Evaluate(IntakeSourceReadResult readResult) =>
-        RoutePolicy.Evaluate(readResult);
-
     public InstructionExtractionResult Extract(
         IntakeSourceReadResult readResult,
         DateTimeOffset processedAtUtc)
     {
-        var route = Evaluate(readResult);
+        var route = RoutePolicy.Evaluate(readResult);
         var evidence = new List<IntakeEvidence>();
         var confirmingFragments = new List<IntakeContentFragment>();
         foreach (var fragment in readResult.Content)
