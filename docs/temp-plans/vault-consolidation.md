@@ -331,7 +331,7 @@ New-Item -ItemType Directory -Path $BackupRoot -ErrorAction Stop | Out-Null
 foreach ($Binding in @($Bindings | Where-Object { $_.CopyRequired })) {
   $BackupPath = Join-Path $BackupRoot "$($Binding.SecretName).backup"
   az keyvault secret backup --vault-name $Binding.SourceVaultName `
-    --name $Binding.SecretName --file $BackupPath --only-show-errors
+    --name $Binding.SecretName --file $BackupPath --only-show-errors --output none
   az keyvault secret restore --vault-name $TargetVault.name `
     --file $BackupPath --only-show-errors --output none
 }
