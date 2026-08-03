@@ -16,7 +16,7 @@ public sealed partial class QdosInstructionExtractionPolicy(
     private readonly IIntakeTriageMatcher triageMatcher =
         triageMatcher ?? new NoAcceptedIntakeTriageMatcher();
 
-    private static readonly FieldDefinition[] FieldDefinitions =
+    private static readonly InstructionFieldEngine.FieldDefinition[] FieldDefinitions =
     [
         new("Claimant name", ["Claimant Name", "Claimant"]),
         new("Claim number", ["Claim Number", "Claim No", "Claim Reference"]),
@@ -205,7 +205,7 @@ public sealed partial class QdosInstructionExtractionPolicy(
         foreach (var fragment in readResult.Content)
         {
             var labelsFound = FieldDefinitions.Count(definition =>
-                definition.Labels.Any(label => ContainsLabel(fragment.Text, label)));
+                definition.Labels.Any(label => InstructionFieldEngine.ContainsLabel(fragment.Text, label)));
             var hasQdos = QdosMarkerRegex().IsMatch(fragment.Text);
 
             if (hasQdos)
@@ -238,7 +238,10 @@ public sealed partial class QdosInstructionExtractionPolicy(
 
         if (confirmingFragments.Count > 0)
         {
-            var (fields, missingFields, fieldEvidence) = ExtractFields(readResult.Content, processedAtUtc);
+            var (fields, missingFields, fieldEvidence) = InstructionFieldEngine.ExtractFields(
+                readResult.Content,
+                FieldDefinitions,
+                processedAtUtc);
             evidence.AddRange(fieldEvidence);
             var draft = CreateInstructionDraft(fields);
             var triageMatches = triageMatcher.Match(readResult, draft);
@@ -295,17 +298,17 @@ public sealed partial class QdosInstructionExtractionPolicy(
             StringComparer.Ordinal);
         return new(
             PrincipalCode,
-            TypedString(values["Claimant name"], 300),
-            TypedString(values["Claim number"], 100),
-            NormalizeRegistration(values["Vehicle registration"]),
-            TypedString(values["Vehicle make"], 100),
-            TypedString(values["Vehicle model"], 100),
-            ParseMileage(values["Vehicle mileage"]),
-            TypedString(values["Accident circumstances"], 2000),
-            ParseDate(values["Date of incident"]),
-            ParseDate(values["Instruction date"]),
-            TypedString(values["Inspection address"], 1000),
-            ParseDate(values["Inspection date"]));
+            InstructionFieldEngine.TypedString(values["Claimant name"], 300),
+            InstructionFieldEngine.TypedString(values["Claim number"], 100),
+            InstructionFieldEngine.NormalizeRegistration(values["Vehicle registration"]),
+            InstructionFieldEngine.TypedString(values["Vehicle make"], 100),
+            InstructionFieldEngine.TypedString(values["Vehicle model"], 100),
+            InstructionFieldEngine.ParseMileage(values["Vehicle mileage"]),
+            InstructionFieldEngine.TypedString(values["Accident circumstances"], 2000),
+            InstructionFieldEngine.ParseDate(values["Date of incident"]),
+            InstructionFieldEngine.ParseDate(values["Instruction date"]),
+            InstructionFieldEngine.TypedString(values["Inspection address"], 1000),
+            InstructionFieldEngine.ParseDate(values["Inspection date"]));
     }
 
     private static void AddTransportEvidence(
@@ -413,78 +416,6 @@ public sealed partial class QdosInstructionExtractionPolicy(
         return true;
     }
 
-    private static (IReadOnlyList<InstructionReviewField> Fields, IReadOnlyList<string> Missing, IReadOnlyList<IntakeEvidence> Evidence)
-        ExtractFields(IReadOnlyList<IntakeContentFragment> fragments, DateTimeOffset processedAtUtc)
-    {
-        var fields = new List<InstructionReviewField>();
-        var missing = new List<string>();
-        var evidence = new List<IntakeEvidence>();
-
-        foreach (var definition in FieldDefinitions)
-        {
-            var candidates = fragments
-                .SelectMany(fragment => FindCandidates(fragment, definition))
-                .DistinctBy(candidate => candidate.Value, StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-
-            if (candidates.Length == 0 && definition.Name == "Instruction date")
-            {
-                var defaultValue = DateOnly.FromDateTime(processedAtUtc.UtcDateTime)
-                    .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-                var defaultCandidate = new InstructionFieldCandidate(
-                    defaultValue,
-                    IntakeEvidenceSource.SystemDefault,
-                    "Receipt date");
-                fields.Add(new(definition.Name, defaultValue, [defaultCandidate], true, false));
-                evidence.Add(new(
-                    IntakeEvidenceSource.SystemDefault,
-                    IntakeEvidenceStrength.Strong,
-                    IntakeEvidenceFinding.ExtractedField,
-                    "instruction-date-defaulted",
-                    "Instruction date was absent and was defaulted from the injected clock."));
-                continue;
-            }
-
-            if (candidates.Length == 0)
-            {
-                fields.Add(new(definition.Name, null, [], false, false));
-                if (definition.IsRequired)
-                {
-                    missing.Add(definition.Name);
-                    evidence.Add(new(
-                        IntakeEvidenceSource.SystemDefault,
-                        IntakeEvidenceStrength.Strong,
-                        IntakeEvidenceFinding.MissingField,
-                        definition.Name,
-                        $"No {definition.Name.ToLowerInvariant()} suggestion was found."));
-                }
-                continue;
-            }
-
-            if (candidates.Length > 1)
-            {
-                fields.Add(new(definition.Name, null, candidates, false, true));
-                evidence.Add(new(
-                    candidates[0].Source,
-                    IntakeEvidenceStrength.Strong,
-                    IntakeEvidenceFinding.ConflictingField,
-                    definition.Name,
-                    $"Conflicting {definition.Name.ToLowerInvariant()} candidates require operator review."));
-                continue;
-            }
-
-            fields.Add(new(definition.Name, candidates[0].Value, candidates, false, false));
-            evidence.Add(new(
-                candidates[0].Source,
-                IntakeEvidenceStrength.Strong,
-                IntakeEvidenceFinding.ExtractedField,
-                definition.Name,
-                $"{definition.Name} was suggested from {candidates[0].SourceLabel}."));
-        }
-
-        return (fields, missing, evidence);
-    }
-
     private static void ValidateTriageMatch(IntakeTriageMatch match)
     {
         ArgumentNullException.ThrowIfNull(match);
@@ -493,123 +424,6 @@ public sealed partial class QdosInstructionExtractionPolicy(
         ArgumentException.ThrowIfNullOrWhiteSpace(match.MatcherKey);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(match.MatcherVersion);
     }
-
-    private static IEnumerable<InstructionFieldCandidate> FindCandidates(
-        IntakeContentFragment fragment,
-        FieldDefinition definition)
-    {
-        var lines = fragment.Text
-            .Replace("\r\n", "\n", StringComparison.Ordinal)
-            .Replace('\r', '\n')
-            .Split('\n', StringSplitOptions.TrimEntries);
-
-        for (var index = 0; index < lines.Length; index++)
-        {
-            foreach (var label in definition.Labels)
-            {
-                var match = Regex.Match(
-                    lines[index],
-                    $@"(?i)(?:^|\s){Regex.Escape(label)}\s*(?::|-)?\s*(?<value>.*)$",
-                    RegexOptions.CultureInvariant,
-                    TimeSpan.FromMilliseconds(100));
-                if (!match.Success)
-                {
-                    continue;
-                }
-
-                var value = match.Groups["value"].Value.Trim(' ', ':', '-', '|');
-                if (string.IsNullOrWhiteSpace(value))
-                {
-                    var nextLine = lines
-                        .Skip(index + 1)
-                        .FirstOrDefault(candidate => !string.IsNullOrWhiteSpace(candidate));
-                    value = nextLine is not null && !StartsWithKnownFieldLabel(nextLine)
-                        ? nextLine
-                        : string.Empty;
-                }
-
-                value = WhitespaceRegex().Replace(value, " ").Trim();
-                if (!string.IsNullOrWhiteSpace(value))
-                {
-                    yield return new(value, fragment.Source, fragment.SourceLabel);
-                }
-
-                break;
-            }
-        }
-    }
-
-    private static string? TypedString(string? value, int maximumLength) =>
-        !string.IsNullOrWhiteSpace(value) && value.Length <= maximumLength ? value : null;
-
-    private static string? NormalizeRegistration(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var normalized = Regex.Replace(value, @"[\s-]", string.Empty, RegexOptions.CultureInvariant)
-            .ToUpperInvariant();
-        return normalized.Length <= 20 && RegistrationRegex().IsMatch(normalized) ? normalized : null;
-    }
-
-    private static DateOnly? ParseDate(string? value)
-    {
-        if (DateOnly.TryParseExact(
-                value,
-                "yyyy-MM-dd",
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.None,
-                out var exactDate))
-        {
-            return exactDate;
-        }
-
-        return DateOnly.TryParse(
-            value,
-            CultureInfo.GetCultureInfo("en-GB"),
-            DateTimeStyles.AllowWhiteSpaces,
-            out var date)
-            ? date
-            : null;
-    }
-
-    private static long? ParseMileage(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value) || !MileageRegex().IsMatch(value))
-        {
-            return null;
-        }
-
-        var normalized = Regex.Replace(
-            value,
-            @"(?i)\s*(?:miles?|mi)\s*$",
-            string.Empty,
-            RegexOptions.CultureInvariant);
-        return long.TryParse(
-            normalized,
-            NumberStyles.AllowThousands,
-            CultureInfo.InvariantCulture,
-            out var mileage)
-            ? mileage
-            : null;
-    }
-
-    private static bool StartsWithKnownFieldLabel(string line) =>
-        FieldDefinitions.Any(definition => definition.Labels.Any(label =>
-            Regex.IsMatch(
-                line,
-                $@"(?i)^{Regex.Escape(label)}(?:\s*(?::|-|\|)\s*|\s+|$)",
-                RegexOptions.CultureInvariant,
-                TimeSpan.FromMilliseconds(100))));
-
-    private static bool ContainsLabel(string text, string label) =>
-        Regex.IsMatch(
-            text,
-            $@"(?i)\b{Regex.Escape(label)}\b",
-            RegexOptions.CultureInvariant,
-            TimeSpan.FromMilliseconds(100));
 
     private static string DisplaySource(IntakeEvidenceSource source) => source switch
     {
@@ -622,18 +436,4 @@ public sealed partial class QdosInstructionExtractionPolicy(
 
     [GeneratedRegex(@"\bQDOS\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex QdosMarkerRegex();
-
-    [GeneratedRegex(@"\s+", RegexOptions.CultureInvariant)]
-    private static partial Regex WhitespaceRegex();
-
-    [GeneratedRegex(@"^\s*(?:\d+|\d{1,3}(?:,\d{3})+)\s*(?:miles?|mi)?\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex MileageRegex();
-
-    [GeneratedRegex("^[A-Z0-9]+$", RegexOptions.CultureInvariant)]
-    private static partial Regex RegistrationRegex();
-
-    private sealed record FieldDefinition(
-        string Name,
-        string[] Labels,
-        bool IsRequired = true);
 }
