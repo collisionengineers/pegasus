@@ -34,9 +34,9 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 
 - Ship with the composition-fix release: the Web identity's Key Vault Secrets
   User grant for the two Box secrets the Web container app references from
-  that release, and vault consolidation (copy the Box/DVLA/DVSA secrets into the Pegasus
-  Key Vault, repoint the Worker's references, prove resolution, then retire
-  the two adopted vaults and `rg-collisionspike-dev`).
+  that release, and vault consolidation (copy the Box/DVLA/DVSA secrets into
+  the Pegasus Key Vault, repoint the Worker's references, prove resolution,
+  then retire the two adopted vaults and `rg-collisionspike-dev`).
 - Assemble the operator-reviewed extraction cohort + untouched holdout and
   accept the per-field thresholds (INT-21, open-decisions) — blocks Path
   step 3.
