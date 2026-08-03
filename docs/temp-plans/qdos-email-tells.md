@@ -326,10 +326,57 @@ and are spread across EREF 2, 5, 7, 9, 10, 11 and 15. Some are `RE:` replies,
 one is `URGENT PLEASE - (EREF10) …`. Nothing in the subject marks them.
 
 That is 11% of the corpus, and Triage is a separate pre-case workflow
-(`TRI-01`, `TRI-02`) with its own record, states, and no case creation. Without
-the body phrase these would read as ordinary instructions and would be
-routed as work. This single phrase is the difference between two entirely
-different destinations.
+(`TRI-01`, `TRI-02`) with its own record, states, and no case creation.
+
+#### Triage really is an instruction, and uses a different convention
+
+A Triage email **is** a genuine instruction — it is a Collision Engineers
+letter with the full instruction field set (`Our Client`, `Our Client's
+Vehicle`, `Registration`, `Date of Accident`) instructing work. What it
+instructs is a triage assessment rather than an inspection or an audit:
+
+> Triage Only Request. Please find attached our client's images. Please will
+> you provide an initial assessment to confirm if this vehicle is roadworthy
+> and repairable as soon as possible.
+
+So it reads as an instruction because it is one. The difference is that Triage
+does **not** use an upper-case notification title. Where the three work types
+announce themselves as `AUDIT REPORT NOTIFICATION` or
+`ENGINEER NOTIFICATION (REPORT + AUDIT REPORT)`, Triage uses the Title Case
+phrase `Triage Only Request` inline in the letter text. **The all-caps
+notification-title convention does not extend to Triage**, which is precisely
+why it needs its own rule rather than a fourth title.
+
+#### A third instruction-letter filename exists
+
+`…LtrtoEngineerSendvehicleimagestoengineerfortriageCollisionEngineersLtd-V1.doc`
+— "letter to engineer, send vehicle images to engineer for triage". Seven of
+the 37 carry it. So the letter-filename family has three members, not two:
+audit, engineer instruction, and triage.
+
+#### Correcting an earlier statement in this document
+
+An earlier draft claimed that without the body phrase these emails "would read
+as ordinary instructions and be routed as work". That is wrong under the
+decision rule recorded here. **None of the 37 carries an audit or inspection
+instruction letter** — zero of 37 — so they cannot match rules 2, 3 or 4 and
+would instead fall through rule 5 to "not a work instruction".
+
+That is still a defect, just a different one: falling through would drop a
+genuine instruction rather than misroute it. The attachment profile shows why
+they would look like something else entirely — 25 of the 37 carry images and
+no documents at all, and 3 carry nothing:
+
+| Attachments | Emails |
+| --- | ---: |
+| Images only, no documents | 25 |
+| Documents and images | 9 |
+| Neither | 3 |
+
+An images-only email with an instruction-shaped subject is exactly the shape of
+ordinary image delivery on an existing case. So the realistic failure without
+the phrase is Triage being absorbed into image handling, not into case
+creation.
 
 ## The decision rule this produces
 
