@@ -66,7 +66,7 @@ Use semantic landmarks/headings/tables, labels and associated errors, keyboard o
 
 The contained visual boundary is warm off-white ground, white panels, warm-charcoal navigation, near-black text, CE-red primary/urgent accents, amber incomplete/pending, restrained navy Review and green only confirmed completion. Use system-sans 14–16px body text, sharp 2–3px corners, rare shadows and Lucide-style line icons. Each semantic action or state uses one consistent icon everywhere; decorative or generated replacement icons are prohibited. Do not expose Azure, OCR, AI, queues or implementation mechanics in operator copy.
 
-Evaluation and operator review use approved genuine local immutable material only. Do not invent operational inputs. Every deferred `Next` or `Later` capability carries its exact target in the [capability inventory](../../docs/capabilities.md#capabilities) and has no `0.1.0-alpha.1` control, navigation, workflow, or placeholder; [traceability](traceability-matrix.md) mirrors that allocation. Every later UI change must re-enter the complete design route.
+Evaluation and operator review use approved genuine local immutable material only. Do not invent operational inputs. Every deferred `Next` or `Later` capability carries its exact target in the [capability inventory](../../docs/capabilities.md#capabilities) and has no `0.1.0-alpha.1` control, navigation, workflow, or placeholder. Every later UI change must re-enter the complete design route.
 
 ## Selected shell and open gates
 
@@ -74,4 +74,4 @@ Operations-first is selected for the `0.1.0-alpha.1` landing and navigation stra
 
 ## Historical material
 
-The selected Operations-first direction and the rejected Worklist-first and Case-first comparisons are preserved in [traceability](traceability-matrix.md). Their obsolete planning files are retired; the [Operations-first](../references/mockups/candidate-a-operations-first.png), [Worklist-first](../references/mockups/candidate-b-worklist-first.png), and [Case-first](../references/mockups/candidate-c-case-first.png) rasters remain immutable selection evidence. The current design route is [design](../README.md), with interaction detail in [ui-spec.md](ui-spec.md).
+The selected Operations-first direction and the rejected Worklist-first and Case-first comparisons are recorded in the [design authority](../README.md) (product direction, and rejected alternatives retained as evidence). Their obsolete planning files are retired; the [Operations-first](../references/mockups/candidate-a-operations-first.png), [Worklist-first](../references/mockups/candidate-b-worklist-first.png), and [Case-first](../references/mockups/candidate-c-case-first.png) rasters remain immutable selection evidence. The current design route is [design](../README.md), with interaction detail in [ui-spec.md](ui-spec.md).
