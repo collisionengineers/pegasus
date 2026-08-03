@@ -14,7 +14,9 @@ namespace Pegasus.Infrastructure.Persistence;
 
 public sealed class EfLinkedCaseReplacementStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider) : ILinkedCaseReplacementStore
+    TimeProvider timeProvider,
+    IEnumerable<Pegasus.Core.Intake.IProviderCaseMatchPolicy>? caseMatchPolicies = null)
+    : ILinkedCaseReplacementStore
 {
     private static readonly TimeZoneInfo LondonTimeZone =
         TimeZoneInfo.FindSystemTimeZoneById("Europe/London");
@@ -162,8 +164,19 @@ public sealed class EfLinkedCaseReplacementStore(
             Version = 0
         };
         context.Cases.Add(replacementCase);
-        context.CaseDataSnapshots.Add(
-            CloneCaseDataSnapshot(originalCaseData, replacementCase));
+        var replacementCaseData = CloneCaseDataSnapshot(originalCaseData, replacementCase);
+        context.CaseDataSnapshots.Add(replacementCaseData);
+        // The replacement case must be matchable in its own right: the Created in error
+        // original's index row stays (redirects resolve through it), and the replacement
+        // gets its own row in this same transaction.
+        CaseMatchIndexProjector.Apply(
+            context,
+            existing: null,
+            CaseMatchIndexProjector.Project(
+                replacementCase,
+                replacementCaseData.Fields,
+                caseMatchPolicies ?? [],
+                now));
 
 
         var replacementWorkflow = new CaseWorkflowEntity
