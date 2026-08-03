@@ -305,6 +305,50 @@ dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category
 
 These commands are identical on both platforms; `pwsh` runs them either way.
 
+CI splits that last command across parallel lanes rather than changing it. The
+focused forms are below; the two integration filters are a complement pair, so
+their union with the two unit projects is exactly the canonical selection:
+
+```powershell
+dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build
+dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category!=Corpus&Category!=Browser"
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category=Browser&Category!=Corpus" -- xUnit.MaxParallelThreads=2
+```
+
+Test classes run in parallel. The integration project caps concurrency at four
+in `tests/Pegasus.IntegrationTests/xunit.runner.json`, which is both half this
+kind of workstation's cores and a CI runner's whole complement: several agents
+run suites at once against one LocalDB instance, and the cap is what bounds the
+concurrent restores. The browser lane halves it again on the command line,
+because each of its tests starts a Chromium and a loopback host beside its own
+database. Leave `parallelAlgorithm` at its default `conservative`; `aggressive`
+installs a fixed-thread synchronization context, and the web factory builds its
+host synchronously, which together deadlock.
+
+Each test-run process migrates one template database once and restores every
+disposable test database from its backup instead of migrating each one. A
+process that cannot build the template says so on standard error and falls back
+to migrating each database; `LocalDbTemplateDatabaseTests` fails rather than
+letting that fallback pass quietly. The backup is deleted on process exit and
+stray `Pegasus_Test_*.bak` files older than a day are swept from the server's
+data directory on the next run.
+
+A run killed before its tests dispose leaves its databases attached, so the
+same sweep also drops `Pegasus_Test_*` databases older than a day. Both guards
+matter: only the exact disposable name shape is eligible, and the one-day floor
+keeps a suite running now — including one in another worktree against the same
+LocalDB instance — out of range. To see what is attached without changing
+anything:
+
+```powershell
+$pipe = (sqllocaldb info MSSQLLocalDB | Select-String 'Instance pipe name:').ToString().Split(':', 2)[1].Trim()
+sqlcmd -S $pipe -Q "SELECT name, create_date FROM sys.databases WHERE name LIKE 'Pegasus[_]Test[_]%' ORDER BY create_date"
+```
+
+Never drop a test database that a running suite may own; the sweep's one-day
+floor exists for exactly that reason.
+
 **Platform delta.** The `SqlServer` test lane needs a reachable SQL Server. On
 Windows that is LocalDB and needs no configuration. On Linux, point the tests at
 a SQL Server container before running them:
@@ -318,7 +362,10 @@ $env:PEGASUS_TEST_SQL_PASSWORD = '<password>'
 Leaving `PEGASUS_TEST_SQL_DATASOURCE` unset keeps the LocalDB default, so the
 Windows command is unchanged. Without it on Linux, exclude the lane with
 `--filter "Category!=Corpus&Category!=SqlServer"` and record that the lane did
-not run.
+not run. The template database never engages when
+`PEGASUS_TEST_SQL_DATASOURCE` is set: no CI job exercises that path, its
+guard tests skip themselves there, and an unverified template is worse than
+the slower migrate-per-test path the container falls back to.
 
 These commands prove repository compilation and the selected non-corpus tests only. Genuine corpus, browser, LocalDB/Azurite/Functions, cloud, recovery, and operator evidence are separate caller-specific gates.
 
@@ -844,30 +891,37 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   accepted), FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard
   LRS storage accounts, distinct Web/Worker managed identities, a Pegasus Key
   Vault, Log Analytics, and Application Insights.
-- **Deployed evidence:** release 2 executed 2026-08-03 through the same
-  authorised-terminal route — Web source revision `836db05c…` on immutable
-  digest `sha256:90e5e1e1…` (single healthy revision), Worker package
-  redeployed with all nine functions, production smoke passed (health, exact
-  version/SHA, anonymous-`/Cases` denial). Release 1 (2026-08-02, revision
-  `94997dd0…`) live-verified Graph Inbox/Sent processing through the
-  production Worker (83 successful executions, zero exceptions).
+- **Deployed evidence:** release 3 executed 2026-08-03 through the same
+  authorised-terminal route — Web source revision `ef987ac4…` on immutable
+  digest `sha256:89165ad5…` (single healthy revision `ef987ac49cb4` at 100%
+  traffic, proving the Key Vault secret references resolved), the
+  inspection-mode migration applied before activation with the runtime-role
+  matrix re-verified, Worker package redeployed with all nine functions, and
+  smoke evidence: health live/ready 200, exact version/SHA match, and
+  anonymous `/Cases` 302 to the **https** sign-in route (the forwarded-headers
+  fix live-verified; earlier releases redirected to `http://`). Release 2
+  (2026-08-03, revision `836db05c…`) applied the Box custody root; release 1
+  (2026-08-02, revision `94997dd0…`) live-verified Graph Inbox/Sent processing
+  through the production Worker (83 successful executions, zero exceptions).
 - **Integrations:** Graph via the Worker managed identity scoped by Exchange
   Application RBAC to `instructions@collisionengineers.co.uk`; Box production
   custody rooted at the pegasus folder `405543781910` (applied by release 2);
-  from the composition-fix deployment Box is reached by both hosts — the
-  Worker for intake-source custody and Web for the staff document surface and
-  managed document content — through the one root-fenced client;
+  since release 3 Box is reached by both hosts — the Worker for intake-source
+  custody and Web for the staff document surface and managed document
+  content — through the one root-fenced client;
   official DVLA VES v1.2 and DVSA MOT History v1; EVA remains the accepted
   manual JSON/image handoff.
 - **Secrets:** the adopted predecessor vaults `cespkboxkvv76a47` and
   `cespkenrichkvgi62sd` remain (intentionally retained inside
   `rg-collisionspike-dev`); secret-level access only for the identities and
   exact secrets that call them. The three obsolete vaults are soft-deleted with
-  platform purge scheduled 2026-08-09. From the composition-fix deployment the Web container app declares Key
-  Vault secret references for `Box:ConfigJson` and `Box:ClientSecret` resolved
-  through the Web managed identity, so that identity needs the same secret-level
-  read the Worker has before the next deployment; without it the Web revision
-  fails to start rather than starting without custody.
+  platform purge scheduled 2026-08-09. Since release 3 the Web container app
+  declares Key Vault secret references for `Box:ConfigJson` and
+  `Box:ClientSecret` resolved through the Web managed identity; the matching
+  secret-scoped `Key Vault Secrets User` grants (mirroring the Worker's) were
+  applied before that deployment, and the healthy revision start is the
+  resolution proof. Without those grants a Web revision fails to start rather
+  than starting without custody.
 - **Predecessor retirement:** executed through the exact verified manifest;
   eight resource batches completed, 30 delete-classified role assignments
   removed, 7 retained; the archive manifest hash is recorded in the runbook

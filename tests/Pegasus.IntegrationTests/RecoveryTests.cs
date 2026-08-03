@@ -3,7 +3,6 @@ using Pegasus.Core.Intake;
 
 namespace Pegasus.IntegrationTests;
 
-[Collection(LocalDbFixtureDefinition.Name)]
 [Trait("Category", "SqlServer")]
 public sealed class RecoveryTests
 {
