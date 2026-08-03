@@ -141,6 +141,17 @@ public interface IImageIntakeStore : IImageIntakeQueries
     Task<ImageIntakeRecord> RegisterAsync(
         RegisterImageIntakeRequest request,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Re-asserts `ImageIntakeRegistered` on a receipt that carries a
+    /// registered Image intake but has fallen back to `Needs sorting` (a
+    /// policy re-evaluation recomputes the decision without knowledge of the
+    /// registration). Any other decision — including a reasoned staff block —
+    /// stands untouched.
+    /// </summary>
+    Task EnsureRegisteredReceiptDecisionAsync(
+        Guid intakeReceiptId,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>

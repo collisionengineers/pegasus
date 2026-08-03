@@ -1,4 +1,4 @@
-# ADR-0018: In-process ONNX VRM recognition engine
+# ADR-0019: In-process ONNX VRM recognition engine
 
 - Date: 2026-08-03
 - Status: accepted

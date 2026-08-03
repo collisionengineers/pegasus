@@ -184,6 +184,71 @@ public sealed class EfImageIntakeStore(
         return Map(entity);
     }
 
+    public async Task EnsureRegisteredReceiptDecisionAsync(
+        Guid intakeReceiptId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var registration = await context.ImageIntakes
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                item => item.OriginReceiptId == intakeReceiptId,
+                cancellationToken);
+        if (registration is null)
+        {
+            return;
+        }
+
+        var receipt = await context.IntakeReceipts.SingleOrDefaultAsync(
+            item => item.Id == intakeReceiptId,
+            cancellationToken);
+        if (receipt is null
+            || receipt.Decision != EfIntakeReceiptStore.ToCode(IntakeDecision.NeedsSorting))
+        {
+            return;
+        }
+
+        var beforeVersion = receipt.Version;
+        var beforeJson = Snapshot(receipt);
+        receipt.Decision = EfIntakeReceiptStore.ToCode(IntakeDecision.ImageIntakeRegistered);
+        receipt.DecisionReason =
+            $"Image intake {registration.ImageIntakeReference} remains registered for this image-only material.";
+        receipt.FailureCode = null;
+        receipt.FailureReason = null;
+        receipt.Version++;
+        context.IntakeMutationHistory.Add(new IntakeMutationHistoryEntity
+        {
+            Id = Guid.NewGuid(),
+            IntakeReceiptId = receipt.Id,
+            IntakeReceipt = receipt,
+            EventType = "image_intake_registration_reasserted",
+            ActorKind = "SystemWorker",
+            ActorSubjectId = "image-intake-automation",
+            ActorRolesJson = "[]",
+            Reason = "The receipt decision was re-asserted after a policy re-evaluation; the registration is permanent.",
+            OperationKey = $"image-intake-reassert:{Guid.NewGuid():N}",
+            RequestFingerprint = registration.RequestFingerprint,
+            OccurredAtUtc = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow(),
+            ExpectedIntakeVersion = beforeVersion,
+            BeforeIntakeVersion = beforeVersion,
+            AfterIntakeVersion = receipt.Version,
+            BeforeJson = beforeJson,
+            AfterJson = Snapshot(receipt)
+        });
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new IntakeVersionConflictException();
+        }
+    }
+
     public async Task<IReadOnlyList<ImageIntakeSummary>> ListAsync(
         bool? associated,
         CancellationToken cancellationToken)

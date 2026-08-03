@@ -17,7 +17,7 @@ QDOS instruction email through intake, review, Case/PO allocation, Box custody,
 and the EVA handoff bundle. [`NOW.md`](../NOW.md) "Path" owns the ordered
 critical path, the non-blocking capability set, and the acceptance boundary
 (OPS-23/OPS-25 close `0.1.0-alpha.1`). The remaining evidence gate on that
-path is item 4 (extraction
+path is item 3 (extraction
 thresholds) below. The Box production custody boundary was decided 2026-08-02:
 folder `405543781910` ("pegasus") is the production custody root and all case
 folders are created only under it (owner:
@@ -41,56 +41,23 @@ Still-open questions preserved from the deleted
 `research-and-planning/qdos-full-alpha-delivery-plan.md`; each blocks only the
 step it names.
 
-1. **VRM recognition thresholds (`INT-17`)** — The recognition mechanism was
-   decided 2026-08-03: the in-process ONNX engine of
-   [ADR-0018](adr/0018-in-process-onnx-vrm-recognition.md), operator-selected
-   from the candidate evidence recorded in that ADR and this register's
-   history. Still open here: the accepted accuracy/abstention thresholds
-   from the operator-reviewed frozen genuine cohort + untouched holdout.
-   The operator additionally directed on 2026-08-03 that automatic
-   registration and unambiguous-match association run at the provisional
-   bar from the first evaluation; acceptance of the reviewed numbers still
-   closes this item, and if nothing meets the accepted bar the capability
-   blocks rather than falls back.
-   Full-cohort evaluation evidence (2026-08-03, run `20260803-092906`,
-   superseding the earlier runs): 3,523 case-attributed labelled corpus
-   images; deterministic cohort 2,818 (all evaluated) / untouched holdout
-   705; zero technical failures. Candidate confidence is the weakest
-   per-character probability capped by the detection score. Scoring uses
-   the operator-directed match rules: exact; the read missing exactly one
-   character of the confirmed registration (the confirmed value completes
-   a truncated read and is the registered identity); or an
-   eight-character read with a fifth-position `1` retried without it
-   (plate furniture read as an inserted character). Substitutions never
-   match and a second consistent candidate is ambiguous. Remaining wrong
-   suggestions split by edit distance: distance 1–2 is a near-miss — a
-   genuine misread of the case vehicle, the dangerous kind — while
-   distance 3+ is almost certainly a correctly read third-party
-   registration in a multi-vehicle photo that case-level attribution
-   cannot credit. Measured: **0.80 bar** → 315 suggestions (11.2% of
-   images), wrong 53 (16.8%) = **10 near-misses (3.2%)** + 43 different
-   registrations (13.7%); **0.90 bar** → 64 suggestions (2.3%), wrong 4
-   (6.2%) = 3 near-misses + 1 different registration; 97.7% abstention.
-   Remaining near-miss shapes are two-character truncations and
-   single-character substitutions. The implemented provisional bar is
-   **0.90** (conservative); at 0.80 the true-misread rate is ~3.2% with
-   five times the coverage, so the accepted bar is a genuine operator
-   trade between coverage and misread risk — the local report
-   `artifacts/vrm-recognition-eval/20260803-092906/report.json` lists
-   every wrong pair for that review. Operator acceptance of the reviewed
-   numbers (and one-time holdout confirmation at the accepted bar via
-   `PEGASUS_VRM_EVAL_HOLDOUT=1`) closes this item.
-2. **`INT-31` upload-link limits** — Exact token lifetime, aggregate and
+The former item 1 (`INT-17` VRM recognition thresholds) closed 2026-08-03:
+the operator accepted the full-cohort evaluation at the **0.80** bar with the
+accepted match rules. The
+[ADR-0019 index entry](adr/README.md#architecture-decision-records) and the
+`INT-17` capability row own the accepted numbers and their qualification.
+
+1. **`INT-31` upload-link limits** — Exact token lifetime, aggregate and
    per-file byte limits, file count, allowed content types, per-token/per-IP
    rate, one-time vs reuse, and revocation/expiry error contract. Interim bound:
    the existing aggregate 10 MB intake limit; hashed 256-bit token; anonymous
    `/Uploads/{token}` form; no case disclosure.
-3. **External credential ownership** — For each credential (Box, DVLA/DVSA, any
+2. **External credential ownership** — For each credential (Box, DVLA/DVSA, any
    VRM service, the Exchange application RBAC grant): the named operations owner
    and the provider-specific issue/rotate/revoke/emergency-disable procedure.
    The contract shape (Key Vault URI/version only, prove-then-cut-over, no
    local fallback) is settled.
-4. **QDOS extractor acceptance thresholds (`INT-21`)** — Per-field
+3. **QDOS extractor acceptance thresholds (`INT-21`)** — Per-field
    accuracy/coverage thresholds and truth representation for the ten fields
    (Claimant Name, Claim Number, VRM, Make, Model, Mileage, Accident
    Circumstances, Incident Date, Instruction Date, Inspection Address), from an
@@ -99,11 +66,11 @@ step it names.
    physical-address Principals; an always-image-based Principal's Cases take
    the exact `Image Based Assessment` value from the provider setting
    (ADR-0018), not from extraction.
-5. **Telemetry sampling and daily cap** — Exact sampling rate and daily
+4. **Telemetry sampling and daily cap** — Exact sampling rate and daily
    ingestion cap (31-day interactive retention is settled), accepted from
    measured alpha workload and cost evidence; the deployed adaptive sampling
    and 0.1 GB/day cap are interim.
-6. **Azure budget wiring** — Billing scope, notification contacts/Action Group,
+5. **Azure budget wiring** — Billing scope, notification contacts/Action Group,
    and budget start/end dates were wired in the executed release (£75/month
    alert-only monitoring; see
    [operations](operations.md#production-environment)). Still open: a refreshed
@@ -111,7 +78,7 @@ step it names.
    ceiling or accepted spend range exists
    ([operator notes](operator-notes.md)); material variance from forecast needs
    a named expenditure owner's sign-off.
-7. **Performance dataset ownership** — Who supplies and approves the immutable
+6. **Performance dataset ownership** — Who supplies and approves the immutable
    2,000-case performance dataset, observed document/source distribution, and
    measured peak burst that the capacity gate needs (fabricated domain data is
    forbidden; absence blocks the gate).

@@ -452,9 +452,28 @@ public sealed class AutomaticImageIntakeTests
             CancellationToken cancellationToken) => Task.FromResult(Origin);
     }
 
-    private sealed class FakeImageIntakeQueries : IImageIntakeQueries
+    private sealed class FakeImageIntakeQueries : IImageIntakeStore
     {
         public ImageIntakeDetail? Existing { get; set; }
+
+        public int EnsureRegisteredCalls { get; private set; }
+
+        public Task<ImageIntakeOperationReplay?> ProbeRegisterReplayAsync(
+            RegisterImageIntakeRequest request,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<ImageIntakeOperationReplay?>(null);
+
+        public Task<ImageIntakeRecord> RegisterAsync(
+            RegisterImageIntakeRequest request,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task EnsureRegisteredReceiptDecisionAsync(
+            Guid intakeReceiptId,
+            CancellationToken cancellationToken)
+        {
+            EnsureRegisteredCalls++;
+            return Task.CompletedTask;
+        }
 
         public Task<IReadOnlyList<ImageIntakeSummary>> ListAsync(
             bool? associated,

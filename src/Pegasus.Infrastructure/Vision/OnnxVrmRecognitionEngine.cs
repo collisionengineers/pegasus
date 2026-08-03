@@ -5,7 +5,7 @@ using SkiaSharp;
 namespace Pegasus.Infrastructure.Vision;
 
 /// <summary>
-/// The in-process ADR-0018 engine: vendored hash-verified ONNX plate
+/// The in-process ADR-0019 engine: vendored hash-verified ONNX plate
 /// detection and recognition, bytes in and a result out. It performs no I/O
 /// beyond the supplied bytes, never uploads an image anywhere, and fails
 /// toward abstention: an unusable model set is `Unavailable`, an undecodable

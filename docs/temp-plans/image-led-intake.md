@@ -4,7 +4,7 @@ Branch `task/image-led-intake`, claimed in `NOW.md` on `origin/dev`.
 
 Scope notes:
 
-- The operator decided open decision 1's mechanism on 2026-08-03 (ADR-0018,
+- The operator decided open decision 1's mechanism on 2026-08-03 (ADR-0019,
   in-process ONNX engine) and added full implementation of that engine to
   this task. Threshold acceptance (open decision 1's remainder) stays open:
   this task produces the first local evaluation evidence and the provisional
@@ -57,7 +57,7 @@ Scope notes:
 - Claim commit and initial plan (`e9a74ad`, `5a6832f`).
 - `e84097d` — decision-1 candidate evidence appended to
   `docs/open-decisions.md` item 1.
-- `b165860` — `docs/adr/0018-in-process-onnx-vrm-recognition.md` accepted,
+- `b165860` — `docs/adr/0019-in-process-onnx-vrm-recognition.md` accepted,
   plus the `docs/open-decisions.md` item-1 rewrite and the
   `docs/capabilities.md` `INT-17` row update.
 - `4ed2c67` — `src/Pegasus.Core/ImageIntake/ImageIntakeContracts.cs` and
@@ -106,7 +106,7 @@ Scope notes:
 ### Step 2 — Core: engine port and the automatic scan-register-associate flow
 
 New `src/Pegasus.Core/ImageIntake/VrmRecognition.cs` (Core owns the port
-per ADR-0018; peer precedent `IVehicleLookupAdapter`):
+per ADR-0019; peer precedent `IVehicleLookupAdapter`):
 
 - `IVrmRecognitionEngine`: image bytes + retained source-image identity in;
   `VrmRecognitionOutcome` out — closed taxonomy `Suggested` (candidates
@@ -235,7 +235,7 @@ registrations at ~line 58-77): `EfImageIntakeStore` scoped with
 `EfImageVrmSuggestionStore` scoped. Worker DI mirrors what the durable
 intake path needs.
 
-### Step 4 — Infrastructure: ONNX engine (ADR-0018)
+### Step 4 — Infrastructure: ONNX engine (ADR-0019)
 
 New `src/Pegasus.Infrastructure/Vision/`:
 
@@ -331,7 +331,7 @@ image-intake results are an additive lookup beside it.
   to current scope with the activation note (automatic register+associate
   at the provisional bar, operator-directed 2026-08-03); `INT-17` row note
   gains "automatic in-pipeline scan".
-- `docs/adr/README.md` ADR-0018 index row: dated status note that the
+- `docs/adr/README.md` ADR-0019 index row: dated status note that the
   operator exercised the separate `INT-28`/`INT-32` gate on 2026-08-03
   (automatic register+associate at the provisional bar; body unchanged).
 - `docs/open-decisions.md` item 1: record that automatic actions run at the
@@ -425,7 +425,7 @@ worktree and branch are removed.
 - The receipt manual-association mechanism keeps its contract; it gains
   only the Image-intake eligibility guard and a system-actor entry point.
 - No external call, credential, or image egress of any kind; the engine is
-  in-process only, per ADR-0018.
+  in-process only, per ADR-0019.
 - An Image intake is never allocated a Case/PO and never becomes a Case;
   `EfCaseAcceptanceStore` and Case identity allocation are untouched.
 - `CaseSearchFilters`/`EfCaseQueryStore` case-search schema is unchanged;
@@ -481,7 +481,7 @@ review.
   is banned: CI proves loading, hash pinning, abstention, contract, and
   (via the fake engine) the full auto pipeline — accuracy evidence is
   exclusively the local corpus run.
-- The corpus's case-level VRM attribution format is asserted by ADR-0018
+- The corpus's case-level VRM attribution format is asserted by ADR-0019
   but unverified until the local run; cohort/holdout preparation may need
   a local mapping step.
 - `--locked-mode` restore fails CI instantly if any `packages.lock.json`
