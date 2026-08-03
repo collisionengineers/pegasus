@@ -3,9 +3,10 @@
 ## Goal
 
 Remove the internal `caseId` from the Box case-file hierarchy.  One allocated
-Case/PO owns one operator-legible Box case folder, which contains both retained
-intake sources and application-managed document versions.  The UUID remains an
-internal identity; it must not select or name the Box case folder.
+Case/PO owns one operator-legible Box case folder whose name is exactly the
+safe Case/PO, with no UUID prefix or suffix.  That folder contains both
+retained intake sources and application-managed document versions.  The UUID
+remains an internal identity; it must not select or name a Box case folder.
 
 ## Current boundary and defect
 
@@ -23,10 +24,11 @@ name.
    content.  The policy and lookup remain in Core/persistence; the Box adapter
    must not reimplement Case/PO allocation or derive it from UI input.
 2. Change `BoxCaseCustody` to create, locate, and validate its root by the safe
-   Case/PO folder name alone.  Make `BoxDocumentContentStore` resolve managed
-   content beneath that same root rather than a separate `cases/{caseId}` tree.
-   Keep document-version identity, replay behavior, SHA-256/length checks, and
-   root fencing intact.
+   Case/PO folder name alone: the literal root name is the Case/PO with no UUID
+   prefix or suffix.  Make `BoxDocumentContentStore` resolve managed content
+   beneath that same root rather than a separate `cases/{caseId}` tree.  Keep
+   document-version identity, replay behavior, SHA-256/length checks, and root
+   fencing intact.
 3. Make the local document-content implementation mirror the revised contract
    so local behavior cannot hide a production-only layout.  Preserve internal
    IDs as application/storage identities, not Case/PO folder names.
@@ -62,6 +64,7 @@ operator acceptance.
 ## Review questions
 
 An independent reviewer must confirm that the implementation removes every
-Case-ID-derived Box case-folder path, retains one Case/PO root for both source
-and managed custody, and does not broaden into a remote migration or a new
+Case-ID-derived Box case-folder path; names each Box case root exactly by its
+Case/PO (with no UUID prefix or suffix); retains one such root for both source
+and managed custody; and does not broaden into a remote migration or a new
 document lifecycle policy.
