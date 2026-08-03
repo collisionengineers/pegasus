@@ -32,3 +32,14 @@ public static class ProviderInspectionModePolicy
             $"Unknown provider inspection-mode code '{code}'.")
     };
 }
+
+/// <summary>
+/// Reads the persisted inspection-mode setting of an active Principal.
+/// Returns null when no active Principal carries the code.
+/// </summary>
+public interface IProviderInspectionModeStore
+{
+    Task<CaseInspectionMode?> GetForPrincipalAsync(
+        string principalCode,
+        CancellationToken cancellationToken);
+}
