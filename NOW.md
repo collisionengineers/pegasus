@@ -29,17 +29,12 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   LocalDB setup with a per-run migrated template database, and cache NuGet
   packages and the pinned Playwright Chromium (branch
   task/repository-check-speed, taken 2026-08-03, by claude).
-- Docs accuracy pass after the release-2/inspection-mode/composition merges:
-  correct architecture.md's stale `/Intake` 404 and Worker-only production
-  adapter claims, operations.md's premature "now declares" Key Vault wording,
-  and the engineering.md/ci.yml allowlist phrasing (branch
-  task/docs-accuracy-pass, taken 2026-08-03, by claude-main).
 
 ## Next (ordered queue — take from the top)
 
 - Ship with the composition-fix release: the Web identity's Key Vault Secrets
-  User grant for the two Box secrets the Web container app now references,
-  and vault consolidation (copy the Box/DVLA/DVSA secrets into the Pegasus
+  User grant for the two Box secrets the Web container app references from
+  that release, and vault consolidation (copy the Box/DVLA/DVSA secrets into the Pegasus
   Key Vault, repoint the Worker's references, prove resolution, then retire
   the two adopted vaults and `rg-collisionspike-dev`).
 - Assemble the operator-reviewed extraction cohort + untouched holdout and
