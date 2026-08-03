@@ -32,7 +32,12 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
         var subject = readResult.TransportEvidence
             .FirstOrDefault(item => item.Source == IntakeEvidenceSource.Subject)?.Value ?? string.Empty;
         var bodyTexts = Texts(readResult, IntakeEvidenceSource.EmailBody);
-        var documentTexts = Texts(readResult, IntakeEvidenceSource.DocumentContent);
+        var documentTexts = readResult.Content
+            .Where(fragment => fragment.Source
+                is IntakeEvidenceSource.DocumentContent
+                or IntakeEvidenceSource.PdfContent)
+            .Select(fragment => fragment.Text)
+            .ToArray();
 
         var isAutomaticReply = AutomaticReplyRegex().IsMatch(subject);
         var isReplyPrefixed = ReplyPrefixRegex().IsMatch(subject);
