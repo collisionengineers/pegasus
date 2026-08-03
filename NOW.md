@@ -42,11 +42,13 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   (`Not planned`) (branch task/ui-alpha-design-pass, taken 2026-08-03, by
   claude).
 
-## Next (ordered queue — take from the top)
-
 - Vault consolidation: copy the Box/DVLA/DVSA secrets into the Pegasus Key
   Vault, repoint the Worker's and Web's references, prove resolution, then
-  retire the two adopted vaults and `rg-collisionspike-dev`.
+  retire the two adopted vaults and `rg-collisionspike-dev` (branch
+  task/vault-consolidation, taken 2026-08-03, by codex).
+
+## Next (ordered queue — take from the top)
+
 - Assemble the operator-reviewed extraction cohort + untouched holdout and
   accept the per-field thresholds (INT-21, open-decisions) — blocks Path
   step 3.
