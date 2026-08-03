@@ -1,17 +1,18 @@
+@page "/Cases/{id:guid}/Assessment"
+@model Pegasus.Web.Pages.Cases.Assessment.IndexModel
+@using Pegasus.Core.AiWork
+@using Pegasus.Core.Assessment
 @*
-    Engineers assessment screen — design only.
+    Engineers assessment screen.
 
-    Every control is rendered empty and unbound. Field `name` attributes follow
-    the report job definition under docs/reference/rendererref1/, so the sibling
-    worktree can bind them without renaming anything here. No control is inside
-    a form: this pass owns arrangement, labelling and copy, and the save path
-    belongs to the task that wires it.
-
-    This file deliberately carries no @page directive: design/README.md
-    § Deferred casework and advanced surfaces forbids an alpha route, control
-    or placeholder for an Engineer workbench, and the 2026-08-03 widening
-    authorized markup that activates no route. The artifact is reviewed in
-    source; restoring the route is part of the wiring task's re-entry approval.
+    The route, case-identity header, readiness rail, Send to Claude panel,
+    and PAV slider are wired by the AI-09 Send to AI task
+    (docs/temp-plans/send-to-claude-channel-integration.md, stage D/F) — that
+    plan is the re-entry specification design/README.md § Deferred casework
+    requires, and the page stays unlinked from navigation. Every section form
+    below remains empty and unbound: field `name` attributes follow the
+    report job definition under docs/reference/rendererref1/, and the staff
+    save paths belong to the UI-15 activation task.
 *@
 @{
     ViewData["Title"] = "Assessment";
@@ -32,7 +33,7 @@
         ("report", "Report content"),
     };
 
-    var requested = Context.Request.Query["section"].ToString().Trim();
+    var requested = Model.Request.Query["section"].ToString().Trim();
     var current = "vehicle";
     foreach (var candidate in sections)
     {
@@ -50,32 +51,59 @@
 
 <partial name="Shared/_PageHeader" />
 
+@if (TempData["AssessmentStatus"] is string assessmentStatus)
+{
+    <div role="status" class="status-card">@assessmentStatus</div>
+}
+@if (TempData["AssessmentError"] is string assessmentError)
+{
+    <div role="status" class="status-card status-card--error">@assessmentError</div>
+}
+
 <section class="panel" aria-labelledby="case-identity-title">
     <h2 id="case-identity-title" class="section-label">Case identity</h2>
     <dl class="detail-list">
         <div>
             <dt>Case/PO</dt>
-            <dd><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></dd>
+            <dd>@Model.Case!.Summary.Reference</dd>
         </div>
         <div>
             <dt>Principal</dt>
-            <dd><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></dd>
+            <dd>@Model.Case.Summary.Principal</dd>
         </div>
         <div>
             <dt>Registration</dt>
-            <dd><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></dd>
+            <dd>
+                @if (Model.Case.Summary.Registration is { } registration)
+                {
+                    @registration
+                }
+                else
+                {
+                    <span aria-hidden="true">&#8212;</span><span class="vh">No value</span>
+                }
+            </dd>
         </div>
         <div>
             <dt>Case type</dt>
-            <dd><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></dd>
+            <dd>@Model.Case.Summary.CaseType</dd>
         </div>
         <div>
             <dt>Workflow state</dt>
-            <dd><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></dd>
+            <dd>@Model.Case.Summary.State</dd>
         </div>
         <div>
             <dt>Due by</dt>
-            <dd><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></dd>
+            <dd>
+                @if (Model.Case.Workflow.DueWork?.DueBy is { } dueBy)
+                {
+                    <span class="tabular">@dueBy.ToString("yyyy-MM-dd")</span>
+                }
+                else
+                {
+                    <span aria-hidden="true">&#8212;</span><span class="vh">No value</span>
+                }
+            </dd>
         </div>
     </dl>
 </section>
@@ -93,37 +121,88 @@
     <aside aria-label="Assessment readiness">
         <section class="panel" aria-labelledby="readiness-title">
             <h2 id="readiness-title" class="section-label">Readiness</h2>
-            <p class="empty-state">No outstanding requirements are listed.</p>
-            <ul class="blocker-list" hidden>
-                <li class="blocker" data-state="not-ready">
-                    <strong>Requirement</strong>
-                    <small>Where the value comes from, why it is outstanding, and how to resolve it.</small>
-                </li>
-            </ul>
+            @if (Model.Assessment is { Readiness.Count: > 0 } assessment)
+            {
+                <ul class="blocker-list">
+                    @foreach (var item in assessment.Readiness)
+                    {
+                        <li class="blocker" data-state="not-ready">
+                            <strong>@item.Requirement</strong>
+                            <small>@item.Source. @item.WhyOutstanding @item.HowToResolve</small>
+                        </li>
+                    }
+                </ul>
+            }
+            else
+            {
+                <p class="empty-state">No outstanding requirements are listed.</p>
+            }
         </section>
 
         <section class="panel" aria-labelledby="send-title">
             <h2 id="send-title" class="section-label">Send to Claude</h2>
-            <p>Assessment content is sent for review. Nothing on this case changes until you accept a suggestion.</p>
+            <p>Claude works on this case directly. Every change is recorded with its author, and the values it records stay unconfirmed until you review them.</p>
 
-            <div class="button-row" data-send-available>
-                <button type="button" class="secondary-action send-action" data-send-open>
-                    <svg class="send-action__sparkle" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 1.5c.6 4.6 1.9 7.6 4.2 9.9 2.3 2.3 5.3 3.6 9.9 4.2-4.6.6-7.6 1.9-9.9 4.2-2.3 2.3-3.6 5.3-4.2 9.9-.6-4.6-1.9-7.6-4.2-9.9C5.5 17.5 2.5 16.2-2 15.6c4.6-.6 7.6-1.9 9.9-4.2C10.1 9.1 11.4 6.1 12 1.5Z" fill="currentColor" /></svg>
-                    <span>Send to Claude</span>
-                </button>
-            </div>
+            @if (Model.PanelState == "available")
+            {
+                <form id="send-to-claude-form" method="post" asp-page-handler="Send" asp-route-id="@caseId">
+                    <input type="hidden" name="operationKey" value="@Model.SendOperationKey" />
+                    <div class="button-row" data-send-available>
+                        <button type="button" class="secondary-action send-action" data-send-open>
+                            <svg class="send-action__sparkle" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 1.5c.6 4.6 1.9 7.6 4.2 9.9 2.3 2.3 5.3 3.6 9.9 4.2-4.6.6-7.6 1.9-9.9 4.2-2.3 2.3-3.6 5.3-4.2 9.9-.6-4.6-1.9-7.6-4.2-9.9C5.5 17.5 2.5 16.2-2 15.6c4.6-.6 7.6-1.9 9.9-4.2C10.1 9.1 11.4 6.1 12 1.5Z" fill="currentColor" /></svg>
+                            <span>Send to Claude</span>
+                        </button>
+                    </div>
+                </form>
+            }
 
             <div role="status" aria-live="polite">
                 <p class="empty-state" data-send-state="in-flight" hidden>Sending.</p>
-                <p class="empty-state" data-send-state="sent" hidden>Sent. Suggestions appear here when they return.</p>
-                <div class="status-card status-card--attention" data-send-state="unavailable" hidden>
-                    <h3>Not available</h3>
-                    <p>Sending is not available for this case. The readiness list above names what is outstanding.</p>
-                </div>
-                <div class="status-card status-card--error" data-send-state="failed" hidden>
-                    <h3>Nothing was sent</h3>
-                    <p>The case is unchanged. You can try again.</p>
-                </div>
+                @if (Model.PanelState == "sent")
+                {
+                    <p class="empty-state" data-send-state="sent">Sent. Changes will appear on this case for your review.</p>
+                    <form method="post" asp-page-handler="Reconcile" asp-route-id="@caseId">
+                        <input type="hidden" name="requestId" value="@Model.LatestRequest!.RequestId" />
+                        <input type="hidden" name="operationKey" value="@Model.ReconcileOperationKey" />
+                        <div class="button-row">
+                            <button type="submit" class="secondary-action">Check for completion</button>
+                        </div>
+                    </form>
+                }
+                @if (Model.PanelState == "completed")
+                {
+                    <div class="status-card" data-send-state="completed">
+                        <h3>Claude has finished</h3>
+                        <p>Review the changes on this case. Every change is listed in the <a href="/Cases/@caseId">case history</a>.</p>
+                    </div>
+                }
+                @if (Model.PanelState == "unavailable")
+                {
+                    <div class="status-card status-card--attention" data-send-state="unavailable">
+                        <h3>Not available</h3>
+                        @if (Model.UnavailableReasons.Count > 0)
+                        {
+                            <p>@string.Join(" ", Model.UnavailableReasons)</p>
+                        }
+                        else
+                        {
+                            <p>Sending is not available for this case. The readiness list above names what is outstanding.</p>
+                        }
+                    </div>
+                }
+                @if (Model.PanelState == "failed")
+                {
+                    <div class="status-card status-card--error" data-send-state="failed">
+                        <h3>Nothing was sent</h3>
+                        <p>The case is unchanged. You can try again.@(Model.FailureReason is { } failure ? " " + failure : string.Empty)</p>
+                    </div>
+                    <form method="post" asp-page-handler="Send" asp-route-id="@caseId">
+                        <input type="hidden" name="operationKey" value="@Model.SendOperationKey" />
+                        <div class="button-row">
+                            <button type="submit" class="secondary-action">Try again</button>
+                        </div>
+                    </form>
+                }
             </div>
         </section>
     </aside>
@@ -777,8 +856,8 @@
 
 <div id="send-confirm" class="reason-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="send-confirm-title" aria-describedby="send-confirm-body" hidden>
     <div class="reason-dialog">
-        <h2 id="send-confirm-title">Send this assessment to Claude?</h2>
-        <p id="send-confirm-body">The assessment content is sent for review. Nothing on this case changes until you accept a suggestion, and you can stop before then.</p>
+        <h2 id="send-confirm-title">Send this case to Claude?</h2>
+        <p id="send-confirm-body">Claude reads the case and records its working values directly. Every change is attributed and stays unconfirmed until you review it; nothing is ever sent outward on your behalf.</p>
         <div class="button-row">
             <button type="button" class="secondary-action" data-send-cancel>Cancel</button>
             <button type="button" class="secondary-action send-action" data-send-confirm>
@@ -954,6 +1033,8 @@
                     close();
                     if (available) { available.hidden = true; }
                     if (inFlight) { inFlight.hidden = false; }
+                    var form = document.getElementById('send-to-claude-form');
+                    if (form) { form.submit(); }
                 });
             }
         }());
