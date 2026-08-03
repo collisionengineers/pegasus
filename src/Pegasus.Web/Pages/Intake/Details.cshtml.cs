@@ -865,11 +865,7 @@ public sealed partial class DetailsModel(
     private async Task LoadImageIntakeAsync(CancellationToken cancellationToken)
     {
         ImageIntake = await imageIntakeQueries.GetByOriginReceiptAsync(Receipt.Id, cancellationToken);
-        var isImageOnly = Receipt.InstructionDraft is null
-            && Receipt.Fields.Count == 0
-            && Receipt.AssetRecords.Count > 0
-            && Receipt.AssetRecords.All(asset =>
-                asset.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase));
+        var isImageOnly = ImageIntakeLifecycleRules.IsImageOnlyMaterial(Receipt);
         if (isImageOnly)
         {
             VrmSuggestions = await vrmSuggestionStore.ListForReceiptAsync(Receipt.Id, cancellationToken);

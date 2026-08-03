@@ -6,12 +6,16 @@ namespace Pegasus.Core.ImageIntake;
 /// <summary>
 /// The reverse half of automatic pairing: images commonly arrive before the
 /// instruction, so when a Case is accepted this hook checks every
-/// unassociated Image intake against the new case under the accepted match
-/// rules and associates each one for which the new case is the single
-/// unambiguous eligible candidate. Advisory and non-blocking: acceptance
-/// stands regardless of any pairing failure, and each intake's automatic
-/// association still runs at most once (its operation key is
-/// origin-receipt-scoped across both pairing directions).
+/// unassociated Image intake against the new case and associates each one
+/// whose registered identity exactly equals the new case's confirmed
+/// registration and for which that case is the single eligible candidate.
+/// Exact only: the near-miss completions apply at scan time, where the
+/// confirmed registration becomes the registered identity — an Image
+/// intake's identity is already immutable here, so a near-miss cannot be
+/// completed and stays a reasoned staff suggestion. Advisory and
+/// non-blocking: acceptance stands regardless of any pairing failure, and
+/// each intake's automatic association still runs at most once (its
+/// operation key is origin-receipt-scoped across both pairing directions).
 /// </summary>
 public interface IImageIntakeCasePairing
 {
@@ -42,7 +46,12 @@ public sealed class ImageIntakeCasePairing(
                 var eligible = await caseCandidates.FindEligibleByRegistrationAsync(
                     intake.NormalizedVehicleRegistration,
                     cancellationToken);
-                if (eligible.Count != 1 || eligible[0].CaseId != caseId)
+                if (eligible.Count != 1
+                    || eligible[0].CaseId != caseId
+                    || !string.Equals(
+                        eligible[0].ConfirmedRegistration,
+                        intake.NormalizedVehicleRegistration,
+                        StringComparison.Ordinal))
                 {
                     continue;
                 }

@@ -21,6 +21,17 @@ public sealed class OnnxVrmRecognitionEngine : IVrmRecognitionEngine, IDisposabl
     /// </summary>
     private const double DetectionScoreThreshold = 0.35;
 
+    /// <summary>
+    /// Upper bound on decoded pixels (width × height). Intake caps the
+    /// compressed bytes, but a small compressed image can still declare
+    /// enormous dimensions and demand gigabytes on decode —
+    /// <see cref="OutOfMemoryException"/> is deliberately non-recoverable in
+    /// the intake pipeline, so absurd dimensions are refused from the header
+    /// as a technical failure before any pixel is allocated. Fifty megapixels
+    /// (~200 MB decoded RGBA) clears every ordinary phone photograph.
+    /// </summary>
+    private const long MaximumDecodedPixels = 50_000_000;
+
     private readonly Lazy<EngineState> _state;
 
     public OnnxVrmRecognitionEngine()
@@ -59,7 +70,28 @@ public sealed class OnnxVrmRecognitionEngine : IVrmRecognitionEngine, IDisposabl
 
         try
         {
-            using var bitmap = SKBitmap.Decode(imageBytes.Span);
+            using var imageData = SKData.CreateCopy(imageBytes.Span);
+            using var codec = SKCodec.Create(imageData);
+            if (codec is null)
+            {
+                return Failure(
+                    state,
+                    VrmRecognitionOutcomeKind.TechnicalFailure,
+                    "image_decode_failure",
+                    "The image bytes could not be decoded.");
+            }
+
+            if ((long)codec.Info.Width * codec.Info.Height is <= 0 or > MaximumDecodedPixels)
+            {
+                return Failure(
+                    state,
+                    VrmRecognitionOutcomeKind.TechnicalFailure,
+                    "image_dimensions_excessive",
+                    $"The image declares {codec.Info.Width}x{codec.Info.Height} pixels, " +
+                    $"outside the {MaximumDecodedPixels:N0}-pixel decode bound.");
+            }
+
+            using var bitmap = SKBitmap.Decode(codec);
             if (bitmap is null)
             {
                 return Failure(
