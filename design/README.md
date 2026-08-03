@@ -85,6 +85,39 @@ The upstream token source was `styles/colors_and_type.css` in the provided `coll
  Amber incomplete/pending (`#7A3E00`/`#FFF4D6`/`#A15C00`) and navy **Review** (`#143A5E`/`#EAF1F8`/`#365F87`) are approved Pegasus state tokens implemented across `site.css` and status partials. Green must not represent progress, availability or a generic positive action; it is reserved for confirmed completion.
 Excluded marketing tokens include WhatsApp green/pills, large display scales, CTA shadows, document red and brand-font declarations.
 
+#### Reviewed divergence: the `Send to Claude` control
+
+Authorised by the operator on 2026-08-03 and scoped to the single
+`.send-action` control on the Engineer assessment surface. The action carries
+the provider's own identity so it reads as Claude on sight and is never
+mistaken for a Collision Engineers action.
+
+Every value below is declared as a local custom property on the control
+itself, not added to `:root`, so no other surface can inherit it. The rest of
+the application keeps the approved palette, the 2px radius and the red focus
+ring.
+
+| Divergence | Value | Why it is confined here |
+| --- | --- | --- |
+| Terracotta gradient | `#E8956D` → `#D97757` → `#B85F3D` at 135° | The provider's accent. Not added to the colour table and used by no other rule. |
+| Corner radius | `12px` | Matches the provider's control shape. The approved `2px` remains the only radius elsewhere. |
+| Type | `Poppins` first, falling back to the approved system stack | The face is requested, never loaded. No font bundle, file or external stylesheet is added, so a workstation without Poppins renders the approved stack. |
+| Raised shadow and hover lift | `0 2px 5px` at rest, `0 12px 28px -8px` and `translateY(-2px)` on hover | The one lift in the product. Removed under reduced motion. |
+| Focus ring | `2px solid #6A9BCC` | The approved red ring all but disappears on terracotta. This is the only control that does not use it. |
+| Sparkle glyph | Inline four-point star | Not a Lucide glyph and deliberately **not** added to the checksummed sprite, which is unchanged at 16 glyphs. |
+| Ember canvas | Ten particles from a seeded generator | Decoration drawn beneath the label. It reads no page data, starts only when motion is welcome, and stops when the control leaves the document. |
+
+Reduced motion removes the lift, the sparkle animation and the canvas; forced
+colours discards the gradient and restores a `ButtonText` border. The control
+keeps its 44px target and its accessible name in every mode.
+
+**Known shortfall, recorded rather than hidden:** `#FAF9F5` on this gradient
+measures about 2.3:1 at the light stop, 3.0:1 at the middle and 4.2:1 at the
+deep stop, against the 4.5:1 this size and weight require. The gradient is the
+provider's own and was adopted as given. Resolving it means either deepening
+the ramp or taking dark text, and that is an operator decision, not a
+design-pass one.
+
 ### Typography
 
 Use this system stack for all application text:
