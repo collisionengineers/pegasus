@@ -11,7 +11,6 @@ using Pegasus.Web.Mcp;
 
 namespace Pegasus.IntegrationTests;
 
-[Collection(LocalDbFixtureDefinition.Name)]
 [Trait("Category", "SqlServer")]
 public sealed class AutomationMcpIngressTests
 {

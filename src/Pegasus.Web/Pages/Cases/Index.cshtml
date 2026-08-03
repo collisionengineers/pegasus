@@ -81,6 +81,14 @@
                 <label asp-for="Query">Any case text</label>
                 <input asp-for="Query" maxlength="300" />
             </div>
+            <div>
+                <label for="record-kind">Record type</label>
+                <select id="record-kind" name="kind">
+                    <option value="" selected="@(string.IsNullOrEmpty(Model.RecordKindFilter))">All</option>
+                    <option value="instructions" selected="@(Model.RecordKindFilter == "instructions")">Instructions</option>
+                    <option value="images" selected="@(Model.RecordKindFilter == "images")">Images</option>
+                </select>
+            </div>
         </div>
         <div class="button-row">
             <button type="submit" class="primary-action">Search cases</button>
@@ -96,14 +104,38 @@
         <p>The authorised case query could not be completed. Try again.</p>
     </section>
 }
-else if (Model.Results is { Items.Count: 0 })
+else if (Model.Results is { Items.Count: 0 } && Model.ImageIntakeResults.Count == 0)
 {
     <section class="empty-state" aria-live="polite">
         <h2>No matching cases</h2>
-        <p>No authorised cases match the current filters.</p>
+        <p>No authorised cases or Image intakes match the current filters.</p>
     </section>
 }
-else if (Model.Results is { } results)
+else if (Model.RecordKindFilter == "images" && Model.ImageIntakeResults.Count == 0)
+{
+    <section class="empty-state" aria-live="polite">
+        <h2>No matching Image intakes</h2>
+        <p>No Image intakes match the current filters.</p>
+    </section>
+}
+
+@if (Model.ImageIntakeResults.Count > 0)
+{
+    <section class="panel section-gap" aria-labelledby="image-intake-results-title">
+        <h2 id="image-intake-results-title" class="section-label">Image intakes</h2>
+        <div class="queue-list">
+            @foreach (var item in Model.ImageIntakeResults)
+            {
+                <a asp-page="/ImageIntake/Details" asp-route-id="@item.Id">
+                    <span><strong>@item.ImageIntakeReference</strong><small>@item.NormalizedVehicleRegistration</small></span>
+                    <span><strong>@Pegasus.Web.Pages.Cases.IndexModel.ImageIntakeOutcomeLabel(item)</strong><small>@item.RegisteredAtUtc.ToLocalTime().ToString("dd MMM yyyy") @item.RegisteredAtUtc.ToLocalTime().ToString("HH:mm")</small></span>
+                </a>
+            }
+        </div>
+    </section>
+}
+
+@if (Model.Results is { Items.Count: > 0 } results)
 {
     <section class="panel" aria-labelledby="case-results-title">
         <h2 id="case-results-title" class="section-label">Results</h2>
