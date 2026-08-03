@@ -46,8 +46,23 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   (accessibility); no Core wiring, no real case/reference mutation, no
   business-rule resolution ahead of open decisions; excludes UI-07 (already
   in task/image-led-intake), UI-10 (`Next / 0.3.0`, out of scope), and UI-12
-  (`Not planned`) (branch task/ui-alpha-design-pass, taken 2026-08-03, by
-  claude).
+  (`Not planned`). Widened 2026-08-03 by operator decision to also carry the
+  design route for UI-15 (Engineer assessment workbench, `Later / 1.0.0`)
+  and its `Send to Claude` action surface (AI-09, `Later / 1.3.0`): design
+  and markup only, built unlinked from navigation, satisfying the
+  design/README.md rule that a deferred UI capability re-enters
+  specification and review before implementation — it activates no route,
+  Core field, or transport (branch task/ui-alpha-design-pass, taken
+  2026-08-03, by claude).
+- Box Case/PO document custody: remove internal `caseId` values from the Box
+  folder hierarchy; store retained intake sources and managed document versions
+  under the allocated Case/PO-named case folder, reshaping the Core
+  content-store contract rather than duplicating policy in infrastructure;
+  preserve version identity, replay, hash/length verification, and lifecycle
+  gates, with focused local/in-memory custody proof. No Box/Azure read, write,
+  credential/configuration change, or migration of existing Box content without
+  separately approved target and inventory (DOC-02/03) (branch
+  task/box-casepo-document-custody, taken 2026-08-03, by codex).
 
 - Vault consolidation: copy the Box/DVLA/DVSA secrets into the Pegasus Key
   Vault, repoint the Worker's and Web's references, prove resolution, then
@@ -70,8 +85,6 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 - Assemble the operator-reviewed extraction cohort + untouched holdout and
   accept the per-field thresholds (INT-21, open-decisions) — blocks Path
   step 3.
-- Accept the Box managed-document layout from operator review
-  (open-decisions) before the document surface carries real case work.
 
 ## Waiting (each line names its unblock condition)
 
