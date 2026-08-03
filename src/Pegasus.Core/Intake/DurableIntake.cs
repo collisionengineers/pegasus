@@ -409,7 +409,8 @@ public sealed class ProcessQueuedIntake(
     ProcessIntake processIntake,
     IIntakeReceiptQueries receiptQueries,
     ICreateTriageFromIntake createTriage,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    Pegasus.Core.ImageIntake.IImageIntakeAutomation? imageIntakeAutomation = null)
 {
     private const string SystemActor = "system-worker:intake-processing";
     private static readonly TimeSpan ProcessingLeaseDuration = TimeSpan.FromMinutes(5);
@@ -448,6 +449,7 @@ public sealed class ProcessQueuedIntake(
                 completedReceipt,
                 completedEvaluation,
                 cancellationToken);
+            await ApplyImageIntakeAutomationAsync(completedReceipt, cancellationToken);
             return;
         }
 
@@ -516,6 +518,34 @@ public sealed class ProcessQueuedIntake(
             cancellationToken);
 
         await CreateTriageIfQualifyingAsync(processed, evaluation, cancellationToken);
+        await ApplyImageIntakeAutomationAsync(processed, cancellationToken);
+    }
+
+    /// <summary>
+    /// Image-intake automation runs after the evaluation revision is durably
+    /// recorded (registration binds to that revision) and is advisory and
+    /// non-blocking: the persisted receipt stands regardless of any
+    /// automation failure, and every operation key is receipt-scoped so a
+    /// reprocessed receipt replays instead of duplicating.
+    /// </summary>
+    private async Task ApplyImageIntakeAutomationAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        if (imageIntakeAutomation is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _ = await imageIntakeAutomation.ApplyAsync(receipt, cancellationToken);
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            // Non-blocking by design; suggestions and receipt state carry the
+            // visible outcome.
+        }
     }
 
     private async Task TryDeleteCompletedStagingAsync(

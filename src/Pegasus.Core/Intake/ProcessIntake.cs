@@ -498,6 +498,7 @@ public sealed class ProcessIntake(
         IntakeDecision.Unsupported => "unsupported",
         IntakeDecision.OcrRequired => "ocr_required",
         IntakeDecision.TechnicalFailure => "technical_failure",
+        IntakeDecision.ImageIntakeRegistered => "image_intake_registered",
         _ => throw new InvalidOperationException($"Unknown intake decision value '{(int)decision}'.")
     };
 
