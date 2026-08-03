@@ -14,7 +14,8 @@ namespace Pegasus.Infrastructure.Persistence;
 
 internal sealed class EfVehicleWorkflowStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    IEnumerable<Pegasus.Core.Intake.IProviderCaseMatchPolicy>? caseMatchPolicies = null)
     : IRequestVehicleLookupStore, IAcceptVehicleSuggestionStore, IVehicleEvidenceQueries
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -349,6 +350,39 @@ internal sealed class EfVehicleWorkflowStore(
             command.Actor.SubjectId,
             nowUtc,
             removeWhenMissing: command.Decision == VehicleSuggestionDecision.Correct);
+
+        // A confirmed vehicle value is the projector's preferred kind, so the case-match
+        // index reprojects in this same transaction (drift here would strand the old VRM
+        // as a match key). Queried rows are tracked, so updated values are visible; the
+        // change tracker supplies rows this method just added or removed.
+        var trackedFields = await context.CaseDataFields
+            .Where(item => item.CaseId == command.CaseId)
+            .ToListAsync(cancellationToken);
+        var removedFields = context.ChangeTracker.Entries<CaseDataFieldEntity>()
+            .Where(entry => entry.State == EntityState.Deleted
+                && entry.Entity.CaseId == command.CaseId)
+            .Select(entry => entry.Entity)
+            .ToHashSet();
+        var addedFields = context.ChangeTracker.Entries<CaseDataFieldEntity>()
+            .Where(entry => entry.State == EntityState.Added
+                && entry.Entity.CaseId == command.CaseId)
+            .Select(entry => entry.Entity);
+        var effectiveFields = trackedFields
+            .Where(field => !removedFields.Contains(field))
+            .Concat(addedFields)
+            .ToList();
+        CaseMatchIndexProjector.Apply(
+            context,
+            await context.CaseMatchIndex.SingleOrDefaultAsync(
+                item => item.CaseId == command.CaseId,
+                cancellationToken),
+            CaseMatchIndexProjector.Project(
+                await context.Cases.SingleAsync(
+                    item => item.Id == command.CaseId,
+                    cancellationToken),
+                effectiveFields,
+                caseMatchPolicies ?? [],
+                nowUtc));
 
         var beforeVersion = workflow.Version;
         workflow.Version = checked(workflow.Version + 1);

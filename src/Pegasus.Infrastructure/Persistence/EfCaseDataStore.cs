@@ -14,7 +14,8 @@ namespace Pegasus.Infrastructure.Persistence;
 
 public sealed class EfCaseDataStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider) : ICaseDataStore
+    TimeProvider timeProvider,
+    IEnumerable<IProviderCaseMatchPolicy>? caseMatchPolicies = null) : ICaseDataStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -208,6 +209,16 @@ public sealed class EfCaseDataStore(
 
         var now = UtcNow();
         ApplyEditableData(context, snapshot, data, request.Actor, now);
+        CaseMatchIndexProjector.Apply(
+            context,
+            await context.CaseMatchIndex.SingleOrDefaultAsync(
+                item => item.CaseId == request.CaseId,
+                cancellationToken),
+            CaseMatchIndexProjector.Project(
+                snapshot.Case,
+                snapshot.Fields,
+                caseMatchPolicies ?? [],
+                now));
         snapshot.Case.AcceptedInspectionDeadline = data.InspectionDeadline;
         snapshot.Case.InstructionComplete = false;
         snapshot.Case.InstructionConfirmedByStaff = false;

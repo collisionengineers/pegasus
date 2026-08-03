@@ -335,6 +335,173 @@ public sealed class ProcessIntakeTests
     }
 
     [Fact]
+    public async Task AmbiguousCaseMatchForcesNeedsSortingOnAnOtherwiseDraftReadyMessage()
+    {
+        var caseA = Guid.NewGuid();
+        var caseB = Guid.NewGuid();
+        var readResult = Readable(
+            transportEvidence:
+            [
+                new(
+                    IntakeEvidenceSource.Sender,
+                    "instructions@qdosassist.co.uk",
+                    IntakeSenderIdentityKind.Transport,
+                    "outer message")
+            ],
+            content:
+            [
+                new(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "QDOS instruction\nClaimant Name: Review Claimant\nClaim Number: 12345/1")
+            ]);
+        var store = new RecordingStore();
+        var evaluator = new EvaluateIntakeCaseMatch(
+            [new FixedKeysMatchPolicy(new("12345/1", "AB12CDE", null, null, null))],
+            new FixedCandidatesQueries(
+            [
+                new(caseA, "QDOS", "12345/1", null, null, null, null,
+                    Pegasus.Core.Workflow.CaseLifecycleState.Review, null),
+                new(caseB, "QDOS", null, "AB12CDE", null, null, null,
+                    Pegasus.Core.Workflow.CaseLifecycleState.Review, null)
+            ]));
+        var sut = CreateSut(new StubReader(readResult), store, caseMatchEvaluator: evaluator);
+        var source = CreateSource() with
+        {
+            FileName = "ambiguous-match.eml",
+            MediaType = "message/rfc822",
+            SourceIdentity = new(IntakeSourceChannel.Mailbox, "mailbox-ambiguous-match")
+        };
+
+        var result = await sut.ExecuteAsync(source);
+
+        Assert.Equal(IntakeDecision.NeedsSorting, result.Decision);
+        var match = Assert.IsType<CaseMatchEvaluationResult>(result.CaseMatchDecision);
+        Assert.Equal(CaseMatchOutcome.Ambiguous, match.Outcome);
+        Assert.Null(match.MatchedCaseId);
+        Assert.Equal(2, match.Candidates.Count);
+        Assert.Contains("Competing candidate cases", result.DecisionReason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ClassificationIsRecordedOnlyAndNeverChangesTheIntakeDecision()
+    {
+        // The same message processed with and without the classification
+        // policy must land on the identical decision: a classification is a
+        // recorded observation, never a queue, Triage, or destination change.
+        IntakeSourceReadResult ReadResult() => Readable(
+            transportEvidence:
+            [
+                new(
+                    IntakeEvidenceSource.Sender,
+                    "instructions@qdosassist.co.uk",
+                    IntakeSenderIdentityKind.Transport,
+                    "outer message")
+            ],
+            content:
+            [
+                new(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "Triage Only Request. Please find attached our client's images.")
+            ]);
+        IntakeSource Source(string key) => CreateSource() with
+        {
+            FileName = "classification-separation.eml",
+            MediaType = "message/rfc822",
+            SourceIdentity = new(IntakeSourceChannel.Mailbox, key)
+        };
+
+        var classifiedStore = new RecordingStore();
+        var classified = await CreateSut(new StubReader(ReadResult()), classifiedStore)
+            .ExecuteAsync(Source("classification-separation-on"));
+        var unclassifiedStore = new RecordingStore();
+        var unclassified = await CreateSut(
+                new StubReader(ReadResult()),
+                unclassifiedStore,
+                classificationPolicies: [])
+            .ExecuteAsync(Source("classification-separation-off"));
+
+        var recorded = Assert.IsType<MailClassificationResult>(classified.MailClassificationDecision);
+        Assert.Equal(MailClassificationOutcome.Classified, recorded.Outcome);
+        Assert.Null(unclassified.MailClassificationDecision);
+        Assert.Equal(unclassified.Decision, classified.Decision);
+        Assert.Equal(unclassified.DecisionReason, classified.DecisionReason);
+    }
+
+    [Fact]
+    public async Task AmbiguousClassificationIsRecordedOnlyAndNeverChangesTheIntakeDecision()
+    {
+        IntakeSourceReadResult ReadResult() => Readable(
+            transportEvidence:
+            [
+                new(
+                    IntakeEvidenceSource.Sender,
+                    "instructions@qdosassist.co.uk",
+                    IntakeSenderIdentityKind.Transport,
+                    "outer message")
+            ],
+            content:
+            [
+                new(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "Triage Only Request. Please provide an initial assessment."),
+                new(
+                    IntakeEvidenceSource.DocumentContent,
+                    "attached letter",
+                    "AUDIT REPORT NOTIFICATION\nOur Ref: 12345/1")
+            ]);
+        IntakeSource Source(string key) => CreateSource() with
+        {
+            FileName = "classification-ambiguity-separation.eml",
+            MediaType = "message/rfc822",
+            SourceIdentity = new(IntakeSourceChannel.Mailbox, key)
+        };
+
+        var ambiguousStore = new RecordingStore();
+        var ambiguous = await CreateSut(new StubReader(ReadResult()), ambiguousStore)
+            .ExecuteAsync(Source("classification-ambiguity-on"));
+        var withoutStore = new RecordingStore();
+        var without = await CreateSut(
+                new StubReader(ReadResult()),
+                withoutStore,
+                classificationPolicies: [])
+            .ExecuteAsync(Source("classification-ambiguity-off"));
+
+        var recorded = Assert.IsType<MailClassificationResult>(ambiguous.MailClassificationDecision);
+        Assert.Equal(MailClassificationOutcome.Ambiguous, recorded.Outcome);
+        Assert.Null(without.MailClassificationDecision);
+        Assert.Equal(without.Decision, ambiguous.Decision);
+        Assert.Equal(without.DecisionReason, ambiguous.DecisionReason);
+    }
+
+    private sealed class FixedKeysMatchPolicy(CaseMatchKeys keys) : IProviderCaseMatchPolicy
+    {
+        public string WorkProviderCode => "QDOS";
+        public string PolicyKey => "qdos_case_match";
+        public int PolicyVersion => 1;
+        public CaseMatchKeys ExtractMatchKeys(IntakeSourceReadResult readResult) => keys;
+        public CaseMatchIndexKeys DeriveIndexKeys(CaseMatchSourceData caseData) =>
+            new(null, null, null, null, null);
+    }
+
+    private sealed class FixedCandidatesQueries(IReadOnlyList<CaseMatchCandidate> candidates)
+        : ICaseMatchCandidateQueries
+    {
+        public Task<IReadOnlyList<CaseMatchCandidate>> FindByAnyKeyAsync(
+            string workProviderCode,
+            CaseMatchKeys keys,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(candidates);
+
+        public Task<CaseMatchCandidate?> FindByCaseIdAsync(
+            Guid caseId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(candidates.FirstOrDefault(item => item.CaseId == caseId));
+    }
+
+    [Fact]
     public async Task MailboxStaffForwardWithAmbiguousOriginalsFailsBeforeInstructionExtraction()
     {
         var readResult = Readable(
@@ -673,10 +840,30 @@ public sealed class ProcessIntakeTests
         IIntakeSourceReader reader,
         IIntakeReceiptStore store,
         IIntakeArtifactStore? artifactStore = null,
-        IInstructionExtractionPolicy? extractionPolicy = null) =>
+        IInstructionExtractionPolicy? extractionPolicy = null,
+        IMailRoutePolicy? mailRoutePolicy = null,
+        EvaluateIntakeCaseMatch? caseMatchEvaluator = null,
+        IReadOnlyList<IMailClassificationPolicy>? classificationPolicies = null) =>
         new(reader, store, artifactStore ?? new RecordingArtifactStore(),
             extractionPolicy ?? new QdosInstructionExtractionPolicy(),
+            mailRoutePolicy ?? new QdosMailRoutePolicy(),
+            classificationPolicies ?? [new QdosMailClassificationPolicy()],
+            caseMatchEvaluator ?? new EvaluateIntakeCaseMatch([], new NoCaseMatchCandidates()),
             new FixedTimeProvider(ProcessedAtUtc));
+
+    private sealed class NoCaseMatchCandidates : ICaseMatchCandidateQueries
+    {
+        public Task<IReadOnlyList<CaseMatchCandidate>> FindByAnyKeyAsync(
+            string workProviderCode,
+            CaseMatchKeys keys,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<CaseMatchCandidate>>([]);
+
+        public Task<CaseMatchCandidate?> FindByCaseIdAsync(
+            Guid caseId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CaseMatchCandidate?>(null);
+    }
 
     private static IntakeSource CreateSource() =>
         new(
@@ -806,7 +993,9 @@ public sealed class ProcessIntakeTests
                 draft.SourceReaderVersion,
                 draft.ExtractionPolicyKey,
                 draft.ExtractionPolicyVersion,
-                MailRouteDecision: draft.MailRouteDecision);
+                MailRouteDecision: draft.MailRouteDecision,
+                MailClassificationDecision: draft.MailClassificationDecision,
+                CaseMatchDecision: draft.CaseMatchDecision);
     }
 
     private sealed class RecordingArtifactStore(int failuresBeforeSuccess = 0) : IIntakeArtifactStore

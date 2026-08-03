@@ -89,6 +89,15 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<IntakeMailRouteDecisionEntity> IntakeMailRouteDecisions =>
         Set<IntakeMailRouteDecisionEntity>();
 
+    internal DbSet<IntakeMailClassificationDecisionEntity> IntakeMailClassificationDecisions =>
+        Set<IntakeMailClassificationDecisionEntity>();
+
+    internal DbSet<CaseMatchIndexEntity> CaseMatchIndex =>
+        Set<CaseMatchIndexEntity>();
+
+    internal DbSet<IntakeCaseMatchDecisionEntity> IntakeCaseMatchDecisions =>
+        Set<IntakeCaseMatchDecisionEntity>();
+
 
 
 
@@ -134,6 +143,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         AuditIdentityModelConfiguration.Configure(builder);
         AdministrationPolicyModelConfiguration.Configure(builder);
         CaseDataModelConfiguration.Configure(builder);
+        CaseMatchModelConfiguration.Configure(builder);
         VehicleModelConfiguration.Configure(builder);
         EvaHandoffModelConfiguration.Configure(builder);
 
@@ -463,6 +473,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.ActorRolesJson).IsRequired();
             entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
             entity.Property(item => item.LastOperationKey).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.MatchPolicyKey).HasMaxLength(100);
             entity.HasIndex(item => item.CaseId);
             entity.HasIndex(item => item.LastOperationKey).IsUnique();
             entity.HasOne(item => item.IntakeReceipt)
@@ -941,6 +952,8 @@ internal sealed class IntakeManualAssociationEntity
     public required string ActorRolesJson { get; set; }
     public required string Reason { get; set; }
     public required string LastOperationKey { get; set; }
+    public string? MatchPolicyKey { get; set; }
+    public int? MatchPolicyVersion { get; set; }
 }
 
 internal sealed class IntakeMutationHistoryEntity
@@ -1164,6 +1177,8 @@ internal sealed class IntakeReceiptEntity
     public required string OcrCandidatesJson { get; set; }
     public InstructionDraftEntity? InstructionDraft { get; set; }
     public IntakeMailRouteDecisionEntity? MailRouteDecision { get; set; }
+    public IntakeMailClassificationDecisionEntity? MailClassificationDecision { get; set; }
+    public IntakeCaseMatchDecisionEntity? CaseMatchDecision { get; set; }
     public IntakeManualAssociationEntity? ManualAssociation { get; set; }
     public List<IntakeAssetEntity> Assets { get; set; } = [];
 }
