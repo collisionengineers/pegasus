@@ -17,7 +17,7 @@ public sealed class AutomaticImageIntakeTests
         harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
         harness.CaseCandidates.Candidates =
         [
-            new(Guid.NewGuid(), "QDS26001", 3)
+            new(Guid.NewGuid(), "QDS26001", 3, "AB12CDE")
         ];
 
         await harness.ApplyAsync();
@@ -55,8 +55,8 @@ public sealed class AutomaticImageIntakeTests
         harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
         harness.CaseCandidates.Candidates =
         [
-            new(Guid.NewGuid(), "QDS26001", 1),
-            new(Guid.NewGuid(), "QDS26002", 1)
+            new(Guid.NewGuid(), "QDS26001", 1, "AB12CDE"),
+            new(Guid.NewGuid(), "QDS26002", 1, "AB12CDE")
         ];
 
         await harness.ApplyAsync();
@@ -120,11 +120,72 @@ public sealed class AutomaticImageIntakeTests
     {
         var harness = new Harness(manualLinkedCaseId: Guid.NewGuid());
         harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
-        harness.CaseCandidates.Candidates = [new(Guid.NewGuid(), "QDS26001", 1)];
+        harness.CaseCandidates.Candidates = [new(Guid.NewGuid(), "QDS26001", 1, "AB12CDE")];
 
         await harness.ApplyAsync();
 
         Assert.Single(harness.Register.Requests);
+        Assert.Empty(harness.MutationStore.AutoLinks);
+    }
+
+    [Fact]
+    public async Task TruncatedReadCompletesFromTheSingleCandidatesConfirmedRegistration()
+    {
+        var harness = new Harness();
+        harness.Engine.Enqueue(Suggested("BX69YL", 0.95));
+        harness.CaseCandidates.Candidates =
+        [
+            new(Guid.NewGuid(), "QDS26003", 2, "BX69YLM")
+        ];
+
+        await harness.ApplyAsync();
+
+        var registration = Assert.Single(harness.Register.Requests);
+        Assert.Equal("BX69YLM", registration.NormalizedVehicleRegistration);
+        var link = Assert.Single(harness.MutationStore.AutoLinks);
+        Assert.Equal(harness.CaseCandidates.Candidates[0].CaseId, link.CaseId);
+        Assert.Contains(
+            harness.SuggestionStore.Dispositions,
+            disposition => disposition.Disposition == ImageVrmSuggestionDisposition.Confirmed);
+    }
+
+    [Fact]
+    public async Task ExactCandidateBeatsAOneCharacterMissingCandidate()
+    {
+        var harness = new Harness();
+        harness.Engine.Enqueue(Suggested("BX69YLM", 0.95));
+        var exactCaseId = Guid.NewGuid();
+        harness.CaseCandidates.Candidates =
+        [
+            new(exactCaseId, "QDS26004", 1, "BX69YLM"),
+            new(Guid.NewGuid(), "QDS26005", 1, "BX69YLMA")
+        ];
+
+        await harness.ApplyAsync();
+
+        var registration = Assert.Single(harness.Register.Requests);
+        Assert.Equal("BX69YLM", registration.NormalizedVehicleRegistration);
+        var link = Assert.Single(harness.MutationStore.AutoLinks);
+        Assert.Equal(exactCaseId, link.CaseId);
+    }
+
+    [Fact]
+    public async Task TwoOneCharacterMissingCandidatesAreAmbiguous()
+    {
+        var harness = new Harness();
+        harness.Engine.Enqueue(Suggested("BX69YL", 0.95));
+        harness.CaseCandidates.Candidates =
+        [
+            new(Guid.NewGuid(), "QDS26006", 1, "BX69YLM"),
+            new(Guid.NewGuid(), "QDS26007", 1, "BX69YLP")
+        ];
+
+        await harness.ApplyAsync();
+
+        // Registration proceeds with the read itself; no association and no
+        // guessed completion between the two candidates.
+        var registration = Assert.Single(harness.Register.Requests);
+        Assert.Equal("BX69YL", registration.NormalizedVehicleRegistration);
         Assert.Empty(harness.MutationStore.AutoLinks);
     }
 

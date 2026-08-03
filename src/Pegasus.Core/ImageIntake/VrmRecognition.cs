@@ -73,6 +73,55 @@ public static class VrmRecognitionProvisionalBar
     public const int RequiredDistinctRegistrations = 1;
 }
 
+/// <summary>
+/// The operator-directed match rule (2026-08-03): a read matches a confirmed
+/// registration exactly, or with exactly one character missing (a truncated
+/// read such as `BX69YL` for `BX69YLM` — the confirmed value supplies the
+/// missing character). A substituted character is never a match: only the
+/// confirmed registration can complete a read, not correct one.
+/// </summary>
+public static class VrmRegistrationMatching
+{
+    public static bool IsMatch(string read, string confirmedRegistration)
+    {
+        ArgumentNullException.ThrowIfNull(read);
+        ArgumentNullException.ThrowIfNull(confirmedRegistration);
+        return string.Equals(read, confirmedRegistration, StringComparison.Ordinal)
+            || IsOneCharacterMissing(read, confirmedRegistration);
+    }
+
+    public static bool IsOneCharacterMissing(string read, string confirmedRegistration)
+    {
+        ArgumentNullException.ThrowIfNull(read);
+        ArgumentNullException.ThrowIfNull(confirmedRegistration);
+        if (read.Length != confirmedRegistration.Length - 1 || read.Length == 0)
+        {
+            return false;
+        }
+
+        var readIndex = 0;
+        var skipped = false;
+        for (var confirmedIndex = 0; confirmedIndex < confirmedRegistration.Length; confirmedIndex++)
+        {
+            if (readIndex < read.Length
+                && read[readIndex] == confirmedRegistration[confirmedIndex])
+            {
+                readIndex++;
+                continue;
+            }
+
+            if (skipped)
+            {
+                return false;
+            }
+
+            skipped = true;
+        }
+
+        return readIndex == read.Length;
+    }
+}
+
 public enum ImageVrmSuggestionDisposition
 {
     Pending,
