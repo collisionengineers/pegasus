@@ -31,9 +31,10 @@ either lands or is rejected, atomically.
    deployment. `dev` and `main` are never rebased, reset, or force-pushed.
 3. A claim is a commit that edits only `NOW.md` — moving the task line into
    `Doing` with branch name, date, and agent — pushed directly to `dev`. A
-   rejected push means `dev` moved: fetch, discard the unpushed claim commit,
-   re-read `Doing`, and re-apply. Maintenance pushes to `dev` are limited to
-   `NOW.md` task-line changes and `docs/temp-plans/` deletions.
+   rejected push means `dev` moved: fetch, reset the task worktree to the
+   new `origin/dev` (discarding the unpushed claim commit), re-read `Doing`,
+   and re-commit. Maintenance pushes to `dev` are limited to `NOW.md`
+   task-line changes and `docs/temp-plans/` deletions.
 4. Task worktrees live at `../pegasus-worktrees/<task-slug>` on branch
    `task/<task-slug>`. The authoritative copy of `NOW.md` is the one on
    `origin/dev` after a fetch.
@@ -50,8 +51,10 @@ either lands or is rejected, atomically.
    perform that merge. `MERGE AUTH GRANTED` from the operator is required
    only for merging `dev` into `main`. Enforcement is by rule, not branch
    protection.
-7. Markdown-only changes never require the build/test CI jobs; the
-   documentation link check still runs on PRs.
+7. The build/test CI jobs run only when a build-relevant path changes —
+   application source, tests, the solution, project/lock/configuration
+   files, or a CI-executed script; the documentation link check still runs
+   on every PR.
 
 `docs/engineering.md` owns the full protocol text; this record fixes the
 decisions only.

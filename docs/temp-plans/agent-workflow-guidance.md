@@ -25,8 +25,14 @@ correct guidance that no longer matches reality.
 - `docs/index.md`: temp-plans carve-out, NOW.md row rewording,
   engineering.md and design/README.md ranked in the authority chain.
 - `docs/operations.md`: work-tracking paragraph updated.
-- `.github/workflows/ci.yml`: `changes` job detects Markdown-only change
-  sets; build/test steps and `qdos-pressure` path-skip on them.
+- `.github/workflows/ci.yml`: `changes` job (Linux path detector, no
+  application evidence) gates the build/test steps and `qdos-pressure` on a
+  build-relevant allowlist — `src/`, `tests/`, `Pegasus.slnx`,
+  project/props/targets/lock/config files, CI-executed scripts; everything
+  else runs only the documentation link check.
+- Review fixes (Codex + operator-approved): claim retry and abandonment
+  reset to `origin/dev` instead of re-pushing a stale tip; three-job CI
+  description in engineering.md/operations.md/ADR-0017.
 - `scripts/Test-DocumentationLinks.ps1`: excludes `docs/temp-plans/` (except
   its README).
 - `.gitignore`: ignores `/.claude/`.

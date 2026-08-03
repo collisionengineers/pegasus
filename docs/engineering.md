@@ -24,13 +24,19 @@ procedures and evidence in [operations](operations.md), and current work in
   [docs/adr/](adr/README.md). Everything else is a commit message.
 - Green means every `repository-check` job for the PR's head revision
   succeeded or was path-skipped. The workflow (`.github/workflows/ci.yml`)
-  runs two jobs on `windows-latest`: `validate` (documentation link check
-  first, then locked restore, Release build, pinned Playwright Chromium
-  install, and the non-corpus test suite; 75-minute timeout) and
-  `qdos-pressure` (`Invoke-QdosAlphaAcceptance.ps1 -Profile CiPressure` with
-  evidence upload). Markdown-only PRs run the documentation link check and
-  path-skip the build/test steps and `qdos-pressure`.
-  `.github/workflows/workspaces.yml` separately gates `workspaces/**` changes.
+  runs three jobs: `changes`, a path-detection job on a Linux runner that
+  inspects only the diff, exercises no application code, and provides no
+  Linux-development evidence; `validate` on `windows-latest` (documentation
+  link check first, then locked restore, Release build, pinned Playwright
+  Chromium install, and the non-corpus test suite; 75-minute timeout); and
+  `qdos-pressure` on `windows-latest`
+  (`Invoke-QdosAlphaAcceptance.ps1 -Profile CiPressure` with evidence
+  upload). The build/test steps and `qdos-pressure` run only when a
+  build-relevant path changed — `src/`, `tests/`, `Pegasus.slnx`,
+  project/props/targets/lock/`global.json`/`nuget.config` files, or a
+  CI-executed script; every other change set runs only the documentation
+  link check. `.github/workflows/workspaces.yml` separately gates
+  `workspaces/**` changes.
 
 ## Task workflow
 
@@ -51,8 +57,9 @@ checkout you happen to be in.
    the task line into `Doing` with branch, date, and agent — then
    `git push origin HEAD:dev`. A rejected push means `dev` moved (a claim, a
    merge, or maintenance — not necessarily your task being taken): fetch,
-   discard your own unpushed claim commit, re-read `Doing`, and re-apply —
-   the same line if still free, another task if not.
+   reset your worktree to `origin/dev` (discarding only your own unpushed
+   claim commit), re-read `Doing`, and re-commit — the same line if still
+   free, another task if not.
 4. **Plan.** Write `docs/temp-plans/<slug>.md` on the task branch: what the
    task will change and how it will be verified
    ([contract](temp-plans/README.md)).
@@ -66,10 +73,12 @@ checkout you happen to be in.
    from the plan. Merge only after that review passes and CI is green.
 7. **Release.** After merge: one maintenance push to `dev` deletes
    `docs/temp-plans/<slug>.md`, then remove the worktree and delete the
-   branch. Abandoning instead: a maintenance push removing the claim line
-   and plan file, then delete branch and worktree — only the claiming agent
-   abandons its own claim. Stale claims fall under `NOW.md`'s staleness
-   ladder and are removable by anyone.
+   branch. Abandoning instead: reset your worktree to fresh `origin/dev`,
+   commit only your claim-line removal, and push it as a maintenance push —
+   the plan file exists only on your task branch and dies with it — then
+   delete branch and worktree; only the claiming agent abandons its own
+   claim. Stale claims fall under `NOW.md`'s staleness ladder and are
+   removable by anyone.
 
 Git safety inside this workflow: never touch work that is not yours.
 Allowed: discarding your own unpushed commits in your own task worktree,

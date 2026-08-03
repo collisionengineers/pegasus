@@ -31,10 +31,12 @@ release-route decision recorded in ADR-0007, not a development-platform
 requirement. Web and Worker packages are `linux-x64` and build identically on
 either platform.
 
-Hosted continuous integration runs `windows-latest` only. Linux development is
-supported by these procedures and is not proved by any automated gate: a Linux
-result is developer evidence, not repository-check evidence, until a Linux job
-exists and passes.
+Hosted continuous integration runs application evidence on `windows-latest`
+only; the `repository-check` `changes` job is a Linux path detector that
+exercises no application code and provides no Linux-development evidence.
+Linux development is supported by these procedures and is not proved by any
+automated gate: a Linux result is developer evidence, not repository-check
+evidence, until a Linux application job exists and passes.
 
 ### Platform capability differences
 
