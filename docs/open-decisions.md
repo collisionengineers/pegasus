@@ -23,17 +23,15 @@ folder `405543781910` ("pegasus") is the production custody root and all case
 folders are created only under it (owner:
 [operations](operations.md#approved-box-integration-test-target)).
 
-Open within that root: where managed document versions (reports, correspondence,
-staff-added documents) are placed. The implemented layout is
-`cases/{caseId}/managed/{versionId}/content`, mirroring the local content store
-so one version resolves to one object, because the content-store boundary is
-keyed by case and version identity and does not carry the Case/PO. Retained
-intake sources continue to land in the operator-legible
-`{reference}-{caseId}/documents/` case folder. Whether operators require managed
-documents inside that same named case folder is not decided; moving them there
-means carrying the Case/PO through the content-store boundary and migrating any
-content already written. Accept the layout from operator review before the
-document surface carries real case work.
+Decided 2026-08-03 by operator direction: every allocated Case/PO has one Box
+case root named exactly by its safe Case/PO, with no `caseId` prefix or suffix.
+Retained intake sources and managed document versions (reports,
+correspondence, and staff-added documents) are kept beneath that same root.
+The application may retain Case and version UUIDs as internal identities, but
+neither a separate `cases/{caseId}` tree nor a UUID-derived Box case folder is
+part of the accepted custody layout. No remote content migration is authorised
+by this decision; any existing-content relocation requires a separately
+approved target, inventory, recovery plan, and approval.
 
 ## QDOS alpha activation details (migrated from the retired delivery plan)
 

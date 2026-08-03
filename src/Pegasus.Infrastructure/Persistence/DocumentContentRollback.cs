@@ -9,6 +9,7 @@ internal static class DocumentContentRollback
         IDbContextFactory<PegasusDbContext> dbContextFactory,
         IDocumentContentStore contentStore,
         Guid caseId,
+        string caseReference,
         Guid versionId,
         Exception databaseFailure)
     {
@@ -40,7 +41,7 @@ internal static class DocumentContentRollback
 
         try
         {
-            await contentStore.DeleteAsync(caseId, versionId, CancellationToken.None);
+            await contentStore.DeleteAsync(caseId, caseReference, versionId, CancellationToken.None);
         }
         catch (Exception cleanupFailure)
         {

@@ -348,7 +348,7 @@ internal sealed class BoxCaseCustody(
     {
         ValidateCase(caseId, caseReference);
         ValidateOperation(operationKey);
-        var folderName = CaseFolderName(caseId, caseReference);
+        var folderName = CaseFolderName(caseReference);
         var folder = await client.FindChildAsync(client.RootFolderId, folderName, "folder", cancellationToken)
             ?? await client.CreateFolderAsync(client.RootFolderId, folderName, cancellationToken);
         await client.EnsureDescendantAsync(folder.Id, cancellationToken);
@@ -363,7 +363,7 @@ internal sealed class BoxCaseCustody(
         ValidateCase(caseId, caseReference);
         var folder = await client.FindChildAsync(
             client.RootFolderId,
-            CaseFolderName(caseId, caseReference),
+            CaseFolderName(caseReference),
             "folder",
             cancellationToken)
             ?? throw new InvalidOperationException("The case custody root has not been created.");
@@ -432,7 +432,7 @@ internal sealed class BoxCaseCustody(
         ValidateCase(root.CaseId, root.Reference);
         var expected = await client.FindChildAsync(
             client.RootFolderId,
-            CaseFolderName(root.CaseId, root.Reference),
+            CaseFolderName(root.Reference),
             "folder",
             cancellationToken)
             ?? throw new InvalidOperationException("The case custody root has not been created.");
@@ -459,8 +459,7 @@ internal sealed class BoxCaseCustody(
         }
     }
 
-    private static string CaseFolderName(Guid caseId, string reference) =>
-        $"{SafeName(reference)}-{caseId:N}";
+    private static string CaseFolderName(string reference) => SafeName(reference);
 
     private static string SafeName(string value)
     {
