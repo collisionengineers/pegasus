@@ -106,8 +106,11 @@ The classification architecture is fixed:
   established review outcome.
 - No generic rule engine or transport-specific second classifier is to be
   added.
-- QDOS direct sender identity is the exact `@qdosassist.co.uk` suffix. That
-  suffix alone does not classify message type, associate a case, or apply to an
+- QDOS direct sender identity is the operator-accepted three-domain set
+  (decision 2026-08-03): exact whole-domain equality against
+  `qdosassist.co.uk`, `qdoslaw.co.uk`, or `qdosassists.co.uk`, with no suffix
+  or subdomain widening (`qdos_mail_route` v3). An accepted sender domain
+  alone does not classify message type, associate a case, or apply to an
   identified intermediary.
 - The Mapped Principals spreadsheet at the opaque source citation
   `../reference/imp-docs/requirementsdocs/provider-extra-info/Mapped%20Principals.xlsx`

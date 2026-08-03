@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Pegasus.Core.Intake;
 
 /// <summary>
@@ -9,10 +11,17 @@ namespace Pegasus.Core.Intake;
 public sealed class QdosMailRoutePolicy : IMailRoutePolicy
 {
     public const string Key = "qdos_mail_route";
-    public const int Version = 2;
+    public const int Version = 3;
     private const string PrincipalCode = "QDOS";
-    private const string AcceptedDirectDomain = "qdosassist.co.uk";
     private const string StaffTransportDomain = "collisionengineers.co.uk";
+
+    /// <summary>
+    /// The operator-accepted QDOS direct route set (decision 2026-08-03, from the
+    /// provider-domain reference snapshot's QDOS entry). Exact whole-domain equality per
+    /// domain — no suffix or subdomain widening.
+    /// </summary>
+    public static readonly ImmutableArray<string> AcceptedDirectDomains =
+        ["qdosassist.co.uk", "qdoslaw.co.uk", "qdosassists.co.uk"];
 
     public MailRouteEvaluationResult Evaluate(IntakeSourceReadResult readResult)
     {
@@ -52,11 +61,11 @@ public sealed class QdosMailRoutePolicy : IMailRoutePolicy
         var effectiveDomain = string.Empty;
         var hasValidEffectiveSender = effectiveSender is not null
             && TryGetMailboxDomain(effectiveSender.Address, out effectiveDomain);
-        var matchesDirectQdosDomain = hasValidEffectiveSender
-            && string.Equals(
-                effectiveDomain,
-                AcceptedDirectDomain,
-                StringComparison.OrdinalIgnoreCase);
+        var matchedDirectDomain = hasValidEffectiveSender
+            ? AcceptedDirectDomains.FirstOrDefault(domain =>
+                string.Equals(effectiveDomain, domain, StringComparison.OrdinalIgnoreCase))
+            : null;
+        var matchesDirectQdosDomain = matchedDirectDomain is not null;
 
         MailRoutePredicateResult[] predicates =
         [
@@ -88,8 +97,8 @@ public sealed class QdosMailRoutePolicy : IMailRoutePolicy
                 "direct.qdos-domain",
                 matchesDirectQdosDomain,
                 matchesDirectQdosDomain
-                    ? "The effective sender uses the accepted direct QDOS domain."
-                    : "The effective sender does not use the accepted direct QDOS domain."),
+                    ? $"The effective sender uses the accepted direct QDOS domain '{matchedDirectDomain}'."
+                    : "The effective sender does not use an accepted direct QDOS domain."),
             new(
                 "intermediary.accepted-policy",
                 false,
