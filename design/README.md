@@ -377,10 +377,11 @@ must not invent aliases.
 | `OcrRequired` | Document text required | Yes | No |
 | `TechnicalFailure` | Technical failure | Yes | No |
 | `Unsupported` | Unsupported | Yes | No |
+| `ImageIntakeRegistered` | Image intake registered | Yes | No Case/PO; allocates the pre-Case Image Intake Reference |
 
-`Document text required` records a fail-closed outcome; it does not prove that deferred OCR capability is implemented.
+`Document text required` records a fail-closed outcome; it does not prove that deferred OCR capability is implemented. The intake list also derives the display outcome `Associated with Case` for receipts holding an active case association.
 
-Validation or refusal before an accepted intake receipt must not be described as case creation. The current Development path never creates a case/reference, regardless of its receipt outcome.
+Validation or refusal before an accepted intake receipt must not be described as case creation. The current Development path never creates a Case/PO, regardless of receipt outcome; an `ImageIntakeRegistered` receipt allocates only the pre-Case Image Intake Reference.
 
 ### Planned case-creation mapping
 
@@ -410,6 +411,7 @@ Only the first table describes exercised components. Planned contracts do not cr
 | Page header | Eyebrow, title, lede and optional primary action, shared by the Operations, Cases, Intake, Triage and Administration surfaces | `src/Pegasus.Web/Pages/Shared/_PageHeader.cshtml` |
 | Administration workspaces | Authorised Administration entry cards; one accessible link per card with the whole card as the pointer target | `src/Pegasus.Web/Pages/Administration/Index.cshtml` |
 | Intake receipt and upload | Submit one bounded authenticated source through `ReceiveIntake`; list retained receipts; inspect provenance and decisions; download the retained source only as an authorised safe attachment | `src/Pegasus.Web/Pages/Intake/{Index,Details,Source}.cshtml(.cs)` |
+| Image intake list/detail | List image-intake receipts filtered by association state and look up an exact Image Intake Reference; the detail presents the record, its VRM suggestions and, while unassociated, registration-matched eligible-case candidates, all read-only | `src/Pegasus.Web/Pages/ImageIntake/{Index,Details}.cshtml(.cs)` |
 | Triage queue/detail | List and filter triage records and execute the Core-owned detail commands without adding due/chaser controls | `src/Pegasus.Web/Pages/Triage/{Index,Details}.cshtml(.cs)` |
 | Anonymous request upload | Token-bound `/Uploads/{token}` form and immediate result; antiforgery, idempotent operation key, generic non-disclosing outcomes | `src/Pegasus.Web/Pages/Uploads/Request.cshtml(.cs)` |
 
@@ -557,6 +559,7 @@ Each Case has at most one authorised staff editor at a time through the [Core le
 The exact UI-07 fields are:
 
 - Case/PO;
+- Image Intake Reference;
 - registration;
 - claimant;
 - claim number;
@@ -629,14 +632,13 @@ There is no alpha control, route or placeholder for:
 - additional provider activation beyond the alpha source policy;
 - `desk@`, `engineers@` or `info@` automatic ingestion;
 - legacy DOC, MSG or scan-like PDF OCR extraction;
-- automatic image-led/instruction-led matching;
+- automatic matching beyond the operator-directed INT-28/INT-32 image/instruction pairing at the accepted ADR-0019 bar;
 - broader mailbox identity, taxonomy mapping, folder recommendation/move, suggested actions, case association or mailbox browsing;
 - Receiving work, Queries, Other or a full email-management workspace;
 - post-report query/dispute work;
 - provider submission/status/result APIs;
 - broader classified-email MCP actions;
 - AI/vision assistance for vehicle images or damage evidence;
-- separate-age instruction/image pairing and readiness notification;
 - spreadsheet preparation of future inspection-address/repairer reference data.
 
 Provider APIs and MCP are non-browser boundaries and do not create staff-shell destinations.

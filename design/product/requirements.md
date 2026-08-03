@@ -4,13 +4,13 @@ Status: **Planned `0.1.0-alpha.1` requirements with Operations-first shell selec
 
 ## Evidence state and scope
 
-The implemented offline QDOS-alpha route allocation is authenticated `/Intake`, `/Intake/{id}`, and `/Intake/{id}/Source`, and anonymous token-bound `/Uploads/{token}` with generic non-disclosing terminal outcomes; the desktop evaluator is separately owned ([ADR-0016](../../docs/adr/0016-standalone-desktop-email-evaluator.md)). This implementation state does not by itself prove deployment or operator acceptance.
+The implemented route set is owned by [architecture — current callers](../../docs/architecture.md); the alpha shell spans intake, image intake, cases, triage, search, operations, and administration; the desktop evaluator is separately owned ([ADR-0016](../../docs/adr/0016-standalone-desktop-email-evaluator.md)). This implementation state does not by itself prove deployment or operator acceptance.
 
 The intended setting is a small office of approximately eight users. Staff accounts use Pegasus-managed usernames and passwords; authenticated Web callers derive the actor and roles server-side, while implementation does not itself prove deployed session behavior. Core owns the exact [staff role access matrix](../../docs/requirements.md#staff-role-access-matrix), automated-actor boundary, and [case edit authority and recovery](../../docs/requirements.md#case-edit-authority-and-recovery); this design must not create broader permissions or a second role policy.
 
 | Actor | Planned UI boundary |
 | --- | --- |
-| Administrator | Staff shell plus Administration surfaces for accounts/access/roles, principals, configuration, and approved mailbox allowlist. |
+| Administrator | Staff shell plus Administration surfaces for accounts/access/roles, principals, configuration, approved mailbox allowlist, and the Automation client registration and activity review (enable/disable kill switch and permanent activity records addressable by correlation identifier; no secret display). |
 | Engineer, User | Staff shell without Administration surfaces. The ordinary case/action controls are the same for both roles. |
 | Automated processing | No UI account or interactive control. |
 | Provider API client ([API-01–API-04, `Next / 0.4.0`](../../docs/capabilities.md#capabilities)) | No staff shell or Administration surface. |
@@ -64,9 +64,9 @@ The UI presents the [Core-owned permanent action history](../../docs/requirement
 
 Use semantic landmarks/headings/tables, labels and associated errors, keyboard operation, visible focus, screen-reader announcements, practical 44px targets, forced-colours and reduced-motion support; state is never colour-only. At 1280px+ use dense multi-pane desktop. At 1024–1279px and 200% zoom, reorder essential desktop content into labelled tabs/drawers/sections without loss. Mobile staff UI is **Not planned**; a supported-device notice is only for genuinely unsupported devices, never a CSS-width substitute.
 
-The contained visual boundary is warm off-white ground, white panels, warm-charcoal navigation, near-black text, CE-red primary/urgent accents, amber incomplete/pending, restrained navy Review and green only confirmed completion. Use system-sans 14–16px body text, sharp 2–3px corners, rare shadows and Lucide-style line icons. Each semantic action or state uses one consistent icon everywhere; decorative or generated replacement icons are prohibited. Do not expose Azure, OCR, AI, queues or implementation mechanics in operator copy.
+The contained visual boundary is warm off-white ground, white panels, warm-charcoal navigation, near-black text, CE-red primary/urgent accents, amber incomplete/pending, restrained navy Review and green only confirmed completion. Use system-sans 14–16px body text, sharp 2px corners, rare shadows and Lucide-style line icons. Each semantic action or state uses one consistent icon everywhere; decorative or generated replacement icons are prohibited. Do not expose Azure, OCR, AI, queues or implementation mechanics in operator copy.
 
-Evaluation and operator review use approved genuine local immutable material only. Do not invent operational inputs. Every deferred `Next` or `Later` capability carries its exact target in the [capability inventory](../../docs/capabilities.md#capabilities) and has no `0.1.0-alpha.1` control, navigation, workflow, or placeholder. Every later UI change must re-enter the complete design route.
+Evaluation and operator review use approved genuine local immutable material only. Do not invent operational inputs. Every deferred `Next` or `Later` capability carries its exact target in the [capability inventory](../../docs/capabilities.md#capabilities) and has no `0.1.0-alpha.1` control, navigation, workflow, or placeholder — except the recorded routeless UI-15/AI-09 review artifacts, owned by [design § Deferred casework and advanced surfaces](../README.md#deferred-casework-and-advanced-surfaces). Every later UI change must re-enter the complete design route.
 
 ## Selected shell and open gates
 
