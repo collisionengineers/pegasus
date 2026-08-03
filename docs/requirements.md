@@ -462,7 +462,11 @@ counts as that unambiguous match (operator-directed 2026-08-03): the confirmed
 registration completes the read and is the registered identity — a truncated
 read is never registered as its own value when a confirmed registration
 completes it, a substituted character is never a match, and any second
-consistent candidate makes the read ambiguous.
+consistent candidate makes the read ambiguous. Likewise a read one character
+longer than the standard seven-character registration whose fifth character is
+a `1` is retried without that character (plate furniture is commonly read as an
+inserted `1`); a match found that way assumes the confirmed registration is
+correct (operator-directed 2026-08-03).
 
 The operator surface distinguishes a suggestion from no readable result or an
 unknown result, an unavailable dependency, and a technical failure. It never

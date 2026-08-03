@@ -75,19 +75,49 @@ public static class VrmRecognitionProvisionalBar
 
 /// <summary>
 /// The operator-directed match rule (2026-08-03): a read matches a confirmed
-/// registration exactly, or with exactly one character missing (a truncated
-/// read such as `BX69YL` for `BX69YLM` — the confirmed value supplies the
-/// missing character). A substituted character is never a match: only the
-/// confirmed registration can complete a read, not correct one.
+/// registration exactly; with exactly one character missing (a truncated read
+/// such as `BX69YL` for `BX69YLM` — the confirmed value supplies the missing
+/// character); or when a read one character longer than the standard
+/// seven-character registration carries a `1` in the fifth position and
+/// matches once that character is dropped (`PK201YHR` for `PK20YHR` — plate
+/// furniture such as a screw or divider is commonly read as an inserted `1`).
+/// A substituted character is never a match: only the confirmed registration
+/// can complete or de-noise a read, not correct one.
 /// </summary>
 public static class VrmRegistrationMatching
 {
+    private const int StandardRegistrationLength = 7;
+    private const int InsertedMarkIndex = 4;
+    private const char InsertedMarkCharacter = '1';
+
     public static bool IsMatch(string read, string confirmedRegistration)
     {
         ArgumentNullException.ThrowIfNull(read);
         ArgumentNullException.ThrowIfNull(confirmedRegistration);
         return string.Equals(read, confirmedRegistration, StringComparison.Ordinal)
-            || IsOneCharacterMissing(read, confirmedRegistration);
+            || IsOneCharacterMissing(read, confirmedRegistration)
+            || IsFifthCharacterInsertionMatch(read, confirmedRegistration);
+    }
+
+    /// <summary>
+    /// A read one character longer than a standard registration whose fifth
+    /// character is a `1` is retried without that character; if the result
+    /// matches (exactly or with one character missing), the confirmed
+    /// registration is assumed correct.
+    /// </summary>
+    public static bool IsFifthCharacterInsertionMatch(string read, string confirmedRegistration)
+    {
+        ArgumentNullException.ThrowIfNull(read);
+        ArgumentNullException.ThrowIfNull(confirmedRegistration);
+        if (read.Length != StandardRegistrationLength + 1
+            || read[InsertedMarkIndex] != InsertedMarkCharacter)
+        {
+            return false;
+        }
+
+        var withoutInsertedMark = read.Remove(InsertedMarkIndex, 1);
+        return string.Equals(withoutInsertedMark, confirmedRegistration, StringComparison.Ordinal)
+            || IsOneCharacterMissing(withoutInsertedMark, confirmedRegistration);
     }
 
     public static bool IsOneCharacterMissing(string read, string confirmedRegistration)
