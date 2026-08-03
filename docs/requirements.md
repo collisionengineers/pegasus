@@ -977,7 +977,7 @@ Required qualities:
 - no secrets in source, logs, proof artifacts, URLs, or client-rendered configuration;
 - immutable source and action provenance;
 - structured diagnostics without source-content leakage;
-- a 15-minute database recovery-point objective and four-hour restoration objective, proved through the operator-run [production recovery procedure](operations.md#production-recovery) executed after `0.1.0-alpha.1` acceptance and gating any second production release (OPS-09; [capabilities](capabilities.md) owns the gate);
+- a 15-minute database recovery-point objective and four-hour restoration objective, proved through the operator-run [production recovery procedure](operations.md#production-recovery) (OPS-09 — deferred; gates no release);
 - reasoned recovery, restore, and replay proof without duplicate case/reference allocation;
 - local development on a supported platform, and supported-browser accessibility proof on Windows with Microsoft Edge Stable and Narrator;
 - independently buildable source workspaces with no application reference, dynamic load, dependency hoist, or deployment inclusion;

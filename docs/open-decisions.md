@@ -16,8 +16,8 @@ Decided 2026-08-02: the first live journey is the full QDOS cutover — a genuin
 QDOS instruction email through intake, review, Case/PO allocation, Box custody,
 and the EVA handoff bundle. [`NOW.md`](../NOW.md) "Path" owns the ordered
 critical path, the non-blocking capability set, and the acceptance boundary
-(OPS-23/OPS-25 close `0.1.0-alpha.1`; the RPO/RTO exercise gates the second
-release). The remaining evidence gate on that path is item 4 (extraction
+(OPS-23/OPS-25 close `0.1.0-alpha.1`). The remaining evidence gate on that
+path is item 4 (extraction
 thresholds) below. The Box production custody boundary was decided 2026-08-02:
 folder `405543781910` ("pegasus") is the production custody root and all case
 folders are created only under it (owner:
