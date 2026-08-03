@@ -34,7 +34,7 @@ select a provider or authorise account creation, provisioning, deployment, or pa
 ## Selection boundary
 
 Free services are prototype candidates only. Before selecting a reference host, complete the sizing
-worksheet in [requirements](../requirements.md), run a labelled retrieval benchmark, document the
+worksheet in [provider evaluation](../provider-evaluation.md), run a labelled retrieval benchmark, document the
 target account and region, set a hard spending cap where the provider supports one, and prove
 export/import and deletion. Production requires a separate paid-tier, resilience, security, support,
 and data-residency decision.

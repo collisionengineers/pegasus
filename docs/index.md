@@ -7,7 +7,7 @@ created only as ADRs under [docs/adr/](adr/README.md).
 | --- | --- |
 | What am I doing right now? | [`NOW.md`](../NOW.md) (repo root) |
 | What must Pegasus do? | [Requirements](requirements.md) |
-| What does the product do, in what order? | [Capabilities](capabilities.md) — the roadmap: 229 stable IDs with release targets |
+| What does the product do, in what order? | [Capabilities](capabilities.md) — the roadmap: 228 stable IDs with release targets |
 | What is undecided? | [Open decisions](open-decisions.md) |
 | What did Collision Engineers actually say? | [Operator notes](operator-notes.md) |
 | What exists now? | [Architecture](architecture.md) |
@@ -16,7 +16,7 @@ created only as ADRs under [docs/adr/](adr/README.md).
 | What durable technical decisions apply? | [Decision index](adr/README.md) (ADR bodies are immutable) |
 | What raw supplied evidence exists? | [Reference evidence](reference/README.md) |
 | What are the UI rules? | [Design](../design/README.md) |
-| What is the Azure production state? | [Operations § Production environment](operations.md#production-environment) and `.azure/deployment-plan.md` |
+| What is the Azure production state? | [Operations § Production environment](operations.md#production-environment) — the sole current-state owner; `.azure/deployment-plan.md` is the immutable 2026-08-02 execution record |
 | What do the imported source workspaces own? | [Workspaces](../workspaces/README.md) |
 | What do domain terms mean? | [`CONTEXT.md`](../CONTEXT.md) (repo root) |
 

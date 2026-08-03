@@ -18,7 +18,7 @@ Keep these evidence states distinct:
 - **Deployed** requires deployment evidence.
 - **Accepted** requires the applicable product, architecture, security, operational, and business approvals.
 
-Current rules belong in the canonical documentation. Rationale belongs in [decision records](../../docs/adr/README.md), and historical change evidence belongs in [change records](../../docs/changes/README.md). Neither history nor a decision record by itself proves implementation, a caller, deployment, or acceptance.
+Current rules belong in the canonical documentation. Rationale belongs in [decision records](../../docs/adr/README.md), and historical change evidence belongs in git history. Neither history nor a decision record by itself proves implementation, a caller, deployment, or acceptance.
 
 The imported delivery plan was last marked **21 July 2026** and remains sequencing and research for this source workspace, not an activated Pegasus caller.
 
@@ -32,13 +32,13 @@ The imported delivery plan was last marked **21 July 2026** and remains sequenci
 | Unresolved allocations and choices | [Open decisions](../../docs/open-decisions.md) |
 | System, runtime, and desktop boundaries | [Architecture](docs/architecture.md) |
 | Data, security, release, and service procedures | [Operations](../../docs/operations.md) |
-| Development and evaluation practice | [Installed repository-development skills](../../.agents/skills/ask-matt/SKILL.md) |
+| Development and evaluation practice | [Engineering workflow](../../docs/engineering.md) |
 | Human operation and approval | [Operator notes](../../docs/operator-notes.md) |
 | Architecture and policy rationale | [Decision records](../../docs/adr/README.md) |
-| Historical change evidence | [Change records](../../docs/changes/README.md) |
+| Historical change evidence | Git history |
 | Durable visual authority | [Root design](../../design/README.md) |
 | Qualified reference material | [Reference index](../../docs/reference/README.md) |
-| Azure-specific guidance | [Azure guidance](../../docs/azure/README.md) |
+| Azure-specific guidance | [Operations](../../docs/operations.md#production-environment) |
 | Repository workspace allocation | [Workspace map](../README.md) |
 | ML research, governance, and sequencing | [ML operations](ml-ops/README.md) |
 | Self-contained reusable skills | [Skills](skills/README.md) |
@@ -70,6 +70,10 @@ The long-term composition is:
 5. proposed outputs return to an evidence and approval surface before any professional or external action.
 
 The first production slice is intentionally narrower than “an agent that does everything”: it must prove one safe end-to-end case workflow with traceable evidence and measurable engineer benefit.
+
+Only `docs/`, `ml-ops/`, `services/`, and `skills/` exist in this imported
+tree today. The remaining areas below are retained intent with no directory;
+none may be created without the gates this README records.
 
 | Area | Runtime meaning and boundary |
 |---|---|

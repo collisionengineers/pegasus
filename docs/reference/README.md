@@ -26,22 +26,11 @@ authority.
 These reports remain source-labelled evidence and accepted-decision provenance.
 Their current product clauses are centralized in
 [requirements](../requirements.md); retention does not make predecessor
-implementation or raw source rows authoritative.
+implementation or raw source rows authoritative. Reports overtaken by current
+documentation are removed; git history retains them.
 
-- [Case/PO decision](reports/case-po-info.md)
-- [Repairer identity and case-party roles](reports/repairer-identity-and-case-party-roles.md)
 - [Collision Engineers administrative workflow observations](reports/collision_engineers_admin_overview.md)
-- [EVA API preference and manual-handoff findings](reports/eva-api-preference-and-focused-qdos-alpha-json-handoff.md)
-- [Historical correspondence boundary](reports/historical-correspondence-without-case-reconstruction.md)
-- [Manual chaser history and channel boundaries](reports/manual-chaser-action-history-and-channel-boundaries.md)
-- [Parser boundary and version provenance](reports/parser-boundary-and-version-provenance.md)
-- [Provider API intake finding](reports/provider-api-intake-already-covered.md)
-- [Report delivery and post-report lifecycle](reports/report-delivery-and-post-report-lifecycle.md)
-- [Repository data authority](reports/repository-data-authority.md)
-- [Suggestion-first image analysis and VRM recognition](reports/suggestion-first-image-analysis-and-vrm-recognition.md)
-- [UI required fields, options, and settings](reports/ui-required-fields-options-and-settings.md)
 - [UI/UX interaction findings](reports/ui-ux.md)
-- [VRM correlation and source deduplication](reports/vrm-correlation-and-source-deduplication.md)
 
 ## Handling rules
 

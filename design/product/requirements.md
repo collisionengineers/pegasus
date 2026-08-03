@@ -4,7 +4,7 @@ Status: **Planned `0.1.0-alpha.1` requirements with Operations-first shell selec
 
 ## Evidence state and scope
 
-The prior dated caller proof covered the now-retired Development-only `/Intake/Upload` pre-case slice. The implemented offline QDOS-alpha route allocation is authenticated `/Intake`, `/Intake/{id}`, and `/Intake/{id}/Source`, Development-only `/Development/EmailEvaluation`, and anonymous token-bound `/Uploads/{token}` with generic non-disclosing terminal outcomes. This implementation state does not by itself prove deployment or operator acceptance.
+The implemented offline QDOS-alpha route allocation is authenticated `/Intake`, `/Intake/{id}`, and `/Intake/{id}/Source`, and anonymous token-bound `/Uploads/{token}` with generic non-disclosing terminal outcomes; the desktop evaluator is separately owned ([ADR-0016](../../docs/adr/0016-standalone-desktop-email-evaluator.md)). This implementation state does not by itself prove deployment or operator acceptance.
 
 The intended setting is a small office of approximately eight users. Staff accounts use Pegasus-managed usernames and passwords; authenticated Web callers derive the actor and roles server-side, while implementation does not itself prove deployed session behavior. Core owns the exact [staff role access matrix](../../docs/requirements.md#staff-role-access-matrix), automated-actor boundary, and [case edit authority and recovery](../../docs/requirements.md#case-edit-authority-and-recovery); this design must not create broader permissions or a second role policy.
 
@@ -34,7 +34,7 @@ Case/PO, Image Intake Reference, registration, claimant, claim number, principal
 
 ## Operations and state boundaries
 
-Operations shows Not ready, Review, Held, Needs sorting, exact `Blocked intake`, separate Triage, Due today, New cases today, Sent to Engineer today/week, and Reports sent today/week. It uses Europe/London midnight days and Monday-week boundaries. `New cases today` has the exact Case-creation definition in the [requirements](../../docs/requirements.md#dashboard-freshness-and-reconciliation). Counts open their exact filtered queues; zero is distinct from stale/unavailable; last updated and manual refresh are visible. Receiving work, Queries and Other are `Next / 0.3.0` in the [capability inventory](../../docs/capabilities.md#capabilities), with no `0.1.0-alpha.1` surface. |
+Operations shows Not ready, Review, Held, Needs sorting, exact `Blocked intake`, separate Triage, Due today, New cases today, Sent to Engineer today/week, and Reports sent today/week. It uses Europe/London midnight days and Monday-week boundaries. `New cases today` has the exact Case-creation definition in the [requirements](../../docs/requirements.md#dashboard-freshness-and-reconciliation). Counts open their exact filtered queues; zero is distinct from stale/unavailable; last updated and manual refresh are visible. Receiving work, Queries and Other are `Next / 0.3.0` in the [capability inventory](../../docs/capabilities.md#capabilities), with no `0.1.0-alpha.1` surface.
 
 An intake row always presents received date above received time and its precise processing outcome. At constrained desktop width, long Case/PO or Image Intake Reference text moves to a labelled second line; it must not overlap the received timestamp or another row field.
 

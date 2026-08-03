@@ -1,12 +1,17 @@
 # Azure deployment plan
 
-Status: **Pegasus `0.1.0-alpha.1` is deployed to the sole Azure production
-environment in `rg-pegasus-prod` using Azure Container Apps Consumption, Flex
-Consumption, and a separate production Basic ACR. The predecessor test estate
-has been retired through the exact manifest; only its two adopted Key Vaults
-remain in `rg-collisionspike-dev`. The isolated recovery exercise remains a
-mandatory gate before a second production release. The exact executed
-evidence and hashes are in the retired runbook (git history,
+> **Immutable execution record — 2026-08-02.** This file records the executed
+> `0.1.0-alpha.1` production release and is never updated. The current
+> production state is owned exclusively by
+> [operations § Production environment](../docs/operations.md#production-environment).
+
+Status at execution: **Pegasus `0.1.0-alpha.1` is deployed to the sole Azure
+production environment in `rg-pegasus-prod` using Azure Container Apps
+Consumption, Flex Consumption, and a separate production Basic ACR. The
+predecessor test estate has been retired through the exact manifest; only its
+two adopted Key Vaults remain in `rg-collisionspike-dev`. The isolated recovery
+exercise remains a mandatory gate before a second production release. The exact
+executed evidence and hashes are in the retired runbook (git history,
 `azure-production-replacement-plan.md`).**
 
 Last reviewed: 2026-08-02, Europe/London.
@@ -73,9 +78,11 @@ Before provisioning, recheck:
 
 ## Executed production route
 
-Issue #311 owns the production-only infrastructure, release-artifact builder,
-deployment-plan validator, migration operation, interactive first-Administrator
-bootstrap, smoke route, archive, and exact-ID retirement commands. The deployed
+The retired production runbook (git history,
+`azure-production-replacement-plan.md`) owns the production-only
+infrastructure, release-artifact builder, deployment-plan validator, migration
+operation, interactive first-Administrator bootstrap, smoke route, archive, and
+exact-ID retirement commands. The deployed
 Web source revision is `94997dd036a48cde23fce0f960b159a2b4a921c0`; its active
 image digest is
 `sha256:da11059f89e42d74d93ea7ed732d6b7ed8faca7ceb106ecb68875e5d5d8eda75`.

@@ -10,7 +10,7 @@ Provider comparison evidence and its first-party source register are retained in
 
 ## Evidence boundary
 
-The latest repository evidence is dated **2026-07-29**.
+The latest repository evidence is dated **2026-07-30** (the comparative provider-evaluation snapshot); the local checks below are dated **2026-07-29**.
 
 Repository-present code, local verification, caller proof, hosted deployment, production selection, and acceptance are distinct states. Current evidence establishes the repository scope and the local checks recorded below; it does not establish a Pegasus caller, hosted deployment, or acceptance.
 

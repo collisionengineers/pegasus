@@ -11,6 +11,7 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.IntegrationTests;
 
 [Collection(LocalDbFixtureDefinition.Name)]
+[Trait("Category", "SqlServer")]
 public sealed class CasesIndexWebTests
 {
     [Fact]

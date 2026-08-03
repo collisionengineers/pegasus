@@ -10,7 +10,7 @@ Use these evidence states literally and independently:
 
 Compilation, registration, mocks, local execution, deployment, live-service observation, and operator acceptance are different conclusions. Describe code as **Implemented** only when source exists and is connected as claimed; reserve **Called** for a genuine input traversing a real Web or Worker entry point. Direct dependency-injection resolution, registration, host startup, an emulator, source workspace, or benchmark harness is not caller proof.
 
-`/Intake/Upload` through `ProcessIntake` is the only retained Development-only HTTP intake entry point. The Worker has implemented timer and queue-triggered callers for intake dispatch, inbox polling, due work, sent evidence, staged-artifact reconciliation, and external work. Those source-level callers are not deployment, live traffic, or acceptance evidence; starting a Functions host alone remains host evidence only.
+The authenticated `/Intake` `ReceiveIntake` POST handler through `ProcessIntake` is the manual HTTP intake entry point. The Worker has implemented timer and queue-triggered callers for intake dispatch, inbox polling, due work, sent evidence, staged-artifact reconciliation, and external work. Those source-level callers are not deployment, live traffic, or acceptance evidence; starting a Functions host alone remains host evidence only.
 
 Every external read, mutation, billed call, data transfer, credential change, deployment, recovery exercise, or resource retirement requires explicit approval after showing the exact target, scope, operation, data class, cost exposure, and rollback path. Installed tools, repository configuration, credentials, and authentication never grant authority by themselves.
 
@@ -50,7 +50,7 @@ What Linux gives this project that Windows does not:
 | `poppler-utils` (`pdftoppm`) | Already required by `workspaces/report-renderer/scripts/visual-regression.ps1`, and packaged on Linux. |
 | `fonts-liberation` and `fonts-dejavu-core` | The exact fonts the renderer's container image installs, so local PDF glyph metrics match the deployed container. |
 | `perf` and `lldb` beside `dotnet-trace`, `dotnet-counters`, `dotnet-dump` and `dotnet-gcdump` | Deeper diagnosis for the `Performance` evidence profile. |
-| No long-path constraint | The tracked 235-character relative path needs no configuration. |
+| No long-path constraint | The repository's longest tracked relative path (about 122 characters) needs no configuration. |
 
 What Windows gives this project that Linux does not:
 
@@ -73,16 +73,17 @@ These vendor facts can drift. Refresh them before changing the SDK, target frame
 
 ### Checkout path
 
-The repository contains a tracked 235-character relative path.
+The repository's longest tracked relative path is about 122 characters, and
+build output nests further beneath project directories.
 
 #### On Windows
 
 Before cloning, either:
 
 1. enable Windows long-path support and configure Git for long paths; or
-2. choose a checkout root with an absolute path no longer than 23 characters, such as `C:\src\pegasus`.
+2. choose a reasonably short checkout root, such as `C:\src\pegasus` — roots up to about 130 characters leave headroom for the tracked tree, though generated build paths benefit from shorter roots.
 
-A longer root can exceed the traditional 260-character Windows limit before a repository command can run.
+A very long root can exceed the traditional 260-character Windows limit before a repository command can run.
 
 Read-only checks:
 
@@ -95,7 +96,7 @@ For a longer checkout root, the first command must return `1` and the Git settin
 
 #### On Linux
 
-No configuration is required. The path limit is 4096 characters, so the tracked path imposes no constraint on the checkout root.
+No configuration is required. The path limit is 4096 characters, so the tracked paths impose no constraint on the checkout root.
 
 ## Offline development profile
 
@@ -231,12 +232,15 @@ Install-Module ExchangeOnlineManagement -Scope CurrentUser -RequiredVersion 3.10
 
 ### Approved Box custody root
 
-Box folder `392761581105` is the exact root for the production custody adapter
-and the only eligible controlled integration-test boundary; it grants no
-standing write authority. Before any pre-activation invocation, obtain explicit
-approval naming the exact target folder/object and create or controlled-update
-operation. The activated production caller remains confined to case-scoped
-objects under that root. No caller may delete, move, copy, or share Box content,
+Box folder `405543781910` ("pegasus") is the production custody root: all case
+folders are created only under it. The deployed configuration applies this
+root from the next approved deployment (it currently carries `392761581105`).
+Folder `392761581105` is the only eligible controlled integration-test
+boundary, confined to an approved disposable test subtree; neither folder
+grants standing write authority. Before any non-production invocation, obtain
+explicit approval naming the exact target folder/object and operation. The
+activated production caller remains confined to case-scoped objects under the
+configured root. No caller may delete, move, copy, or share Box content,
 operate outside that folder, or expose credentials in source, configuration,
 command lines, prompts, output, telemetry, or business history. Every invocation
 must verify ancestry and the target/action allowlist and retain stable source and
@@ -250,8 +254,7 @@ refreshes short-lived authorization headers at runtime; a static access token is
 not an accepted setting or deployment input. Secret values remain resolved only
 inside the Worker through Key Vault references.
 
-The intended application staff accounts are Pegasus Identity accounts. The DevelopmentOffline profile authenticates its deterministic local Administrator fixture and enforces its Administrator role; Entra users must not be assumed. Third-party credentials must never enter tracked settings, command-line arguments, prompts that may be retained, terminal output, telemetry, or business history.
-Application staff identity initialization remains a separately controlled application operation; Entra users must not be assumed. Third-party credentials must never enter tracked settings, command-line arguments, prompts that may be retained, terminal output, telemetry, or business history.
+The intended application staff accounts are Pegasus Identity accounts. The DevelopmentOffline profile authenticates its deterministic local Administrator fixture and enforces its Administrator role. Application staff identity initialization remains a separately controlled application operation; Entra users must not be assumed. Third-party credentials must never enter tracked settings, command-line arguments, prompts that may be retained, terminal output, telemetry, or business history.
 
 ### Azure SQL runtime-role bootstrap
 
@@ -260,8 +263,9 @@ post-provision, post-migration user/role operation. It creates only the fixed
 external-user aliases from the Web/Worker managed-identity client-ID SIDs,
 rejects broad roles or direct DDL, and compares the live object permission set
 with the exhaustive migration-defined grant and `DELETE`-denial matrix. It is
-not an automatic `azure.yaml` hook and has not run against Azure. Execution is a
-separately approved exact-target cloud write.
+not an automatic `azure.yaml` hook. It ran against production on 2026-08-02 as
+part of the executed release and verified the exhaustive matrix; any further
+execution is a separately approved exact-target cloud write.
 
 Migration `20260729176000_AzureSqlRuntimeLeastPrivilege` creates and owns the
 fixed custom roles `pegasus_web_runtime_role` and
@@ -290,10 +294,10 @@ cloud write.
 
 ## Locked restore, build, and test
 
-Run focused owning projects while iterating. Before delivery, run the canonical solution commands exactly:
+Run focused owning projects while iterating. Before delivery, run the canonical solution commands exactly (`--locked-mode` enforces the committed package locks, matching CI):
 
 ```powershell
-dotnet restore ./Pegasus.slnx
+dotnet restore ./Pegasus.slnx --locked-mode
 dotnet build ./Pegasus.slnx --configuration Release --no-restore
 dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"
 ```
@@ -420,7 +424,7 @@ restarts a run.
 `Start` prints a generated 32-character run ID. It creates
 `artifacts/local-development/<run-id>/` with its ownership manifest, logs,
 Azurite store, intake/mailbox/case-file roots, dynamic loopback ports, and a
-`PegasusDevelopment_<run-id>` LocalDB database. It starts Azurite first, runs
+`PegasusDevelopment_<run-id>` LocalDB instance. It starts Azurite first, runs
 the explicit Development migration path, waits for Web readiness, and then
 starts and checks the actual Functions host. Normal Web and Worker startup
 never applies migrations.
@@ -517,7 +521,7 @@ Use managed identity and scoped RBAC. Store unavoidable third-party secrets in I
 - A test-only or registered-only path is not a caller.
 - Current SQL persistence contains pre-case receipts, typed drafts, evidence, and events. The application outbox is a release dependency, not current source evidence.
 - When a storage queue is activated, it carries identifiers rather than file content.
-- Delete-after-Box-confirmation is a target transient-Blob invariant; neither Blob staging nor Box custody is a current caller.
+- Delete-after-Box-confirmation is a target transient-Blob invariant.
 - Any future external side effect must be idempotent.
 - Every local run isolates databases, ports, storage state, and ignored artifacts.
 - Cleanup operates only on resources owned by that run.
@@ -581,9 +585,10 @@ This lane proves bounded in-process Web-caller concurrency, latency, antiforgery
 
 `-Profile OfflineCandidate` is deliberately fail closed. It requires the operator-approved immutable 2,000-case dataset and hash, the complete QDOS-owned caller-evidence manifest, and the exact run-owned `artifacts/local-development/<run-id>/run-manifest.json`. That local manifest must identify the same clean source revision and acceptance run ID, remain `Running`, record completed fixed local identity initialization, and contain `Passed` readiness and smoke observations from the current start attempt in timestamp order. The runner also re-hashes the exact Web and Worker runtime paths recorded at initialization, so missing or altered local binaries fail before any acceptance tests execute. The script never promotes this offline evidence to deployed, live-verified, release-accepted, QDOS operator-accepted, or Collision Engineers management-accepted evidence.
 
-Stable planned traits are:
-
-`Unit`, `Integration`, `SqlServer`, `Storage`, `FunctionsHost`, `Browser`, `Corpus`, `Performance`, `Security`, `Recovery`, and `LiveIntegration`.
+Traits currently in use are `SqlServer`, `Browser`, `Corpus`, `QdosPressure`,
+and `QdosAlphaAcceptance`. Additional stable planned traits (unused until their
+lanes exist) are `Unit`, `Integration`, `Storage`, `FunctionsHost`,
+`Performance`, `Security`, `Recovery`, and `LiveIntegration`.
 
 A required but skipped selected trait fails. Optional inactive profiles do not block baseline work.
 
@@ -599,7 +604,7 @@ For each delivered capability, identify the authoritative rule, Core policy owne
 6. **Functions/Azurite caller** — actual timer/queue trigger, Blob staging, identifier-only messages, duplicate/retry/poison/restart behavior, and delete-after-Box-confirmation.
 7. **Browser/accessibility** — authenticated workflows, dashboard/queue agreement, two-session editing, keyboard, focus and error behavior, semantic labels, text-plus-colour states, 200% zoom, and supported-browser coverage. Automated axe results do not replace manual keyboard or assistive-technology review.
 8. **Genuine corpus** — immutable reviewed cohort and untouched holdout through the real caller, including field-level accuracy, conflicts, unreadable pages, and false case/reference outcomes. Detailed evidence remains ignored and local.
-9. **Security/observability** — role matrix, secure cookies, lockout, request forgery, denial before client construction/call, dependency and dynamic scanning, correlation, health, redaction, and bounded failure metrics.
+9. **Security/observability** — role matrix, secure cookies, transient authentication throttling, request forgery, denial before client construction/call, dependency and dynamic scanning, correlation, health, redaction, and bounded failure metrics.
 10. **Performance/concurrency** — eight concurrent operators, 2,000 cases per month, 2–20+ files per case, the one-file 10 MiB limit and 10 MiB-plus-64-KiB multipart envelope, burst/soak behavior, and 48,000–480,000+ annual asset-metadata shapes. Do not invent a release latency threshold without an explicit decision.
 11. **Migration/recovery** — every supported prior schema, idempotent migration scripts, previous-artifact compatibility, restore into a new database, and reconciliation by stable Outlook/Box identities.
 12. **Integrated workflow** — authenticated source receipt through Core, SQL/outbox, actual Worker trigger, adapter outcome, persisted operator view, telemetry, and safe replay. Registration or mock-only paths do not satisfy this tier.
@@ -631,9 +636,12 @@ Graph Sent-item evidence does not prove recipient delivery or automatic case mat
 ### Automation MCP remains a deferred ingress
 
 No Automation MCP endpoint, OAuth client, metadata route, staff impersonation
-path, credential, or application caller is implemented. ADR-0013 leaves the
-Automation Actor identity and authentication/client contract open. The current
-application therefore fails closed by exposing no such ingress.
+path, credential, or application caller is implemented. Migration
+`20260729150000_DocumentCustodyAndRequests` created the dormant OpenIddict
+tables that a later client contract would use; schema presence is not an
+implemented ingress. ADR-0013 leaves the Automation Actor identity and
+authentication/client contract open. The current application therefore fails
+closed by exposing no such ingress.
 
 Activation requires an accepted contract naming the durable actor identity,
 authentication and client custody, approved tools and scopes, action-history
@@ -648,9 +656,9 @@ that actor.
 | Use an Azure service | Subscription, resource group, resource, operation | Explicit mutation/cost approval, fresh inventory, least-privilege identity |
 | Read or change an Outlook mailbox | Tenant, application, mailbox, folder, action | Exchange Application RBAC approval and negative scope test before the Graph call |
 | Use Box or another vendor sandbox | Enterprise/account, folder/project, operation | Credential/data approval and controlled non-corpus input |
-| Use the approved Box integration-test target | Folder `392761581105`; local or explicitly approved non-production deployment; create and update controlled non-corpus artifacts only | Approved disposable test subtree; no delete, move, copy, share, broader folder access, credential exposure, or production activation |
+| Use the approved Box integration-test target | Folder `392761581105`; local or explicitly approved non-production deployment; create and update controlled non-corpus artifacts only | Approved disposable test subtree; no delete, move, copy, share, broader folder access, or credential exposure; production case custody belongs only to the activated production caller under the decided root `405543781910` |
 | Send a document to OCR, vision, AI, or another processor | Service, region, model, input class | Data, licence, cost, and security approval; corpus remains prohibited unless separately authorised |
-| Deploy, restore, fail over, or retire | Exact non-production environment and recoverable target | Explicit operation approval, fresh inventory, rollback path, retained source data |
+| Deploy, restore, fail over, or retire | Exact environment (isolated local development or production only, per ADR-0014) and recoverable target | Explicit operation approval for the exact target, fresh inventory, rollback path, retained source data |
 
 Offline profiles contain no live credentials. A selected live profile must require an allowlisted tenant, subscription, account, mailbox, folder, resource, and action, and reject missing or broader scope before constructing the external client.
 
@@ -697,12 +705,12 @@ dotnet test ./tests/Pegasus.IntegrationTests --filter Category=Corpus
 The retained evidence observations are qualified as follows:
 
 - A 2026-07-23 corpus inventory describes only the observed local scope and safety boundary; it does not prove current contents, extraction accuracy, workflow behavior, deployment, or acceptance.
-- A 2026-07-23 multi-format evaluation used controlled protocol fixtures and pinned genuine samples through the historical Development-only `POST /Intake/Qdos`. The current route is `/Intake/Upload` through `ProcessIntake`. The historical result records sampled QDOS-policy behavior and failure boundaries, not current-caller execution, complete workflow, field-level accuracy, Worker/Graph/Box/Azure behavior, or production acceptance.
+- A 2026-07-23 multi-format evaluation used controlled protocol fixtures and pinned genuine samples through the historical Development-only `POST /Intake/Qdos`. The current route is the authenticated `/Intake` `ReceiveIntake` POST handler through `ProcessIntake`. The historical result records sampled QDOS-policy behavior and failure boundaries, not current-caller execution, complete workflow, field-level accuracy, Worker/Graph/Box/Azure behavior, or production acceptance.
 - A 2026-07-23 embedded-PDF benchmark used 74 unique PDFs and 567 reported pages from an immutable local QDOS cohort through a disposable benchmark harness. It records comparative embedded-text decoding and marker coverage only; it does not prove literal field accuracy, OCR, future layouts, production runtime behavior, or operator acceptance.
 
 ### Planned EML evaluator
 
-The caller-scoped evidence plan allocates local working-copy EML evaluation to `0.0.0-development`. This remains an evaluator boundary, not proof that the current real caller was exercised.
+Local working-copy EML evaluation belongs to the separately owned desktop evaluator ([ADR-0016](adr/0016-standalone-desktop-email-evaluator.md)); its allocation is owned by the [capability inventory](capabilities.md) evaluator boundary. This remains an evaluator boundary, not proof that the current real caller was exercised.
 
 EML contract evidence must cover parsing, provenance, corruption, nesting, cancellation, resource limits, deterministic failures, and content safety. Product-behavior claims require the current Web or later Worker caller; a standalone evaluator or historical endpoint is insufficient.
 
@@ -768,7 +776,7 @@ The Web exposes:
 
 Readiness requires the database and all committed migrations.
 
-Core contains local `ActivitySource` instrumentation, but the current Web host registers no telemetry exporter. The Worker has Application Insights packages and source-level timer/queue callers, but there is no deployed Pegasus telemetry, alert delivery, live incident record, or current recovery/deletion incident evidence; historical predecessor incidents do not establish current Pegasus behavior.
+Core contains local `ActivitySource` instrumentation. The deployed Worker registers and exports Application Insights telemetry (its live executions are observable in the production Application Insights resource), and the production budget/alert wiring is recorded under [production environment](#production-environment). The current Web host registers no in-process telemetry exporter, so correlated Web/Worker telemetry (OPS-07) remains open work; there is no live incident record or current recovery/deletion incident evidence, and historical predecessor incidents do not establish current Pegasus behavior.
 
 A releasable implementation requires correlated Web/Worker telemetry and alerts for:
 
@@ -816,8 +824,10 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   Worker (83 successful executions, zero exceptions in the final readback).
 - **Integrations:** Graph via the Worker managed identity scoped by Exchange
   Application RBAC to `instructions@collisionengineers.co.uk`; Box production
-  custody rooted at folder `392761581105`; official DVLA VES v1.2 and DVSA MOT
-  History v1; EVA remains the accepted manual JSON/image handoff.
+  custody deployed with root folder `392761581105` — the decided root is
+  `405543781910` ("pegasus") and applies at the next approved deployment;
+  official DVLA VES v1.2 and DVSA MOT History v1; EVA remains the accepted
+  manual JSON/image handoff.
 - **Secrets:** the adopted predecessor vaults `cespkboxkvv76a47` and
   `cespkenrichkvgi62sd` remain (intentionally retained inside
   `rg-collisionspike-dev`); secret-level access only for the identities and
@@ -831,9 +841,9 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   Application Insights cap, £75 monthly budget notifying
   `digital@collisionengineers.co.uk` at actual 50/80/100% and forecast 100%.
   Alerts never stop resources.
-- **Recovery gate:** the first release launched under an explicit exception —
-  no second production release until the isolated RPO/RTO recovery exercise in
-  [production recovery](#production-recovery) passes.
+- **Recovery:** the OPS-09 recovery proof is deferred and gates no release
+  (removed as a gate 2026-08-03); the procedure remains in
+  [production recovery](#production-recovery).
 
 ### Release artifacts and bootstrap
 
@@ -866,13 +876,13 @@ Apply migrations explicitly before application packages. Application startup mus
 
 Current source provides no application backup/restore executable or
 receipt/artifact deletion route, and no Pegasus recovery, failover, RPO, or
-RTO exercise has completed; the first production release launched under an
-explicit exception, and a second release is blocked until the isolated
-exercise below passes. A production Box custody adapter is
-implemented behind the existing Core port, but it is not deployed, live
-verified, recovery-tested, or accepted. Test cleanup and migration tests are
-narrower evidence. The procedures below are release gates, not claims that
-recovery or deletion is implemented, deployed, or accepted.
+RTO exercise has completed. The recovery proof is deferred and gates no
+release. The production Box custody adapter is deployed behind the existing
+Core port and rooted at the approved custody root (see
+[production environment](#production-environment)); it is not recovery-tested
+or operator-accepted. Test cleanup and migration tests are narrower evidence.
+The procedures below are the accepted method for a future exercise, not
+claims that recovery or deletion is accepted.
 
 ### Local recovery
 
@@ -902,7 +912,7 @@ A production recovery exercise must:
 
 Automatic schema down-migration and deletion of source evidence or shared cloud resources are not recovery steps.
 
-Before the allocated [OPS-09](capabilities.md) capability, its [product-quality objectives](requirements.md#quality-capacity-security-and-evidence), and `0.1.0-alpha.1` can be accepted, prove:
+The allocated [OPS-09](capabilities.md) capability and its [product-quality objectives](requirements.md#quality-capacity-security-and-evidence) are deferred and gate no release. When the exercise runs, it must prove:
 
 - a 15-minute recovery point objective; and
 - a four-hour restoration path.
@@ -954,49 +964,13 @@ Malware scanning has no activation path. There is no scanner port, fixture, clie
 
 Repository visibility was explicitly authorised as public on 2026-07-27. The tracked history and documentation, including [operator notes](operator-notes.md) and supplied reference material, are publicly readable. Never commit secrets, personal/case material, or anything not approved for public source control.
 
-GitHub work taxonomy and one-way synchronization contract:
-
-| Logical field | Values or rule |
-| --- | --- |
-| Work kind | Feature, Bug, Task, Decision |
-| Type labels | Every workflow-owned issue receives exactly one `type:*` label |
-| Delivery board | `Pegasus Delivery`, user-owned GitHub Project 3, linked to this repository |
-| Delivery status | `Triage`, `Ready`, `In progress`, `In review`, `Done`, `Not planned` |
-| Priority | `P0 Critical`, `P1 High`, `P2 Normal`, `P3 Low` |
-| Horizon | `Now`, `Next`, `Later`, `Not planned` |
-| Capability ID | Stable canonical ID stored in one text field |
-| Target release | `0.1.0-alpha.1`, `0.2.0`, `0.3.0`, `0.4.0`, `0.5.0`, `0.6.0`, `0.7.0`, `1.0.0`, `1.1.0`, `1.2.0`, `1.3.0`, `1.4.0`, then `unallocated` |
-| Milestones | One open, dateless repository milestone per planned target; issues receive the canonical target only when activated |
-
-The [capability inventory](capabilities.md) writes product identity, horizon,
-target, and boundary meaning one way to GitHub. Project fields, draft cards,
-views, issues, and milestones never write product truth back. A keyed planned
-draft is not activation. On an unactivated draft, `In progress` means only
-“included in the active release scope” for the 128 `Now` capabilities;
-implementation begins only through an accepted owning issue/change record.
-Deferred planned drafts use `Triage`. `Not planned` is reserved for permanent
-boundary drafts and never means backlog.
-
-Conversion of a planned draft to an issue requires accepted activation/change
-evidence and the matching milestone. Boundary drafts cannot be converted while
-canonical authority remains `Not planned`; they have no milestone. Allocation,
-activation, implementation, caller proof, deployment, live verification,
-Project presentation, and operator/management acceptance remain distinct.
-
-Synchronisation is keyed by Capability ID and is sequential, idempotent, and
-fail-closed on field, option, title/key, issue-binding, or duplicate ambiguity.
-It may archive duplicate keyed drafts after deterministic reconciliation but
-never deletes cards, closes issues, rewrites repository issue/PR content, or
-modifies unrelated unkeyed items. No committed Project export or second status
-database is permitted.
-
-The Project API mirror contains the keyed capability fields and draft cards, but
-saved-view grouping, filtering, displayed-field configuration, and authenticated
-visual confirmation are not current operating evidence. Current user direction
-on 2026-07-29 stopped Project presentation work in favour of alpha delivery.
-Repository allocation and alpha delivery do not depend on a Project view.
-
-Work tracking lives in [`NOW.md`](../NOW.md); the roadmap in [capabilities](capabilities.md).
+Work tracking uses no GitHub issues, labels, milestones, or project boards.
+[`NOW.md`](../NOW.md) is the only work tracker, the
+[capability inventory](capabilities.md) is the roadmap, and
+[open decisions](open-decisions.md) holds unresolved questions
+(see the [repository instructions](../AGENTS.md)). Allocation, activation,
+implementation, caller proof, deployment, live verification, and
+operator/management acceptance remain distinct states.
 
 ## Maintenance
 

@@ -9,6 +9,7 @@ using MimeKit;
 namespace Pegasus.IntegrationTests;
 
 [Collection(LocalDbFixtureDefinition.Name)]
+[Trait("Category", "SqlServer")]
 public sealed partial class MultiFormatIntakeWebTests
 {
     [Fact]

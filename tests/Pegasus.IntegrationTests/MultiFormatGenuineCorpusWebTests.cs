@@ -14,7 +14,7 @@ public sealed class MultiFormatGenuineCorpusWebTests(ITestOutputHelper output)
     private const string PinnedPngHash = "01039929CBDDFB193D88B155AEE12C9EF144081CA5EFD0BF22371B2813D9B7DA";
     private const string PinnedDocxHash = "05415183569F8B71FCD899E5385B6BE6E24FB5F5AD90D43DAEE107B684D3F7FD";
 
-    [GenuineFormatCorpusFact(".doc")]
+    [GenuineFormatCorpusFact(".doc", PinnedDocHash)]
     [Trait("Category", "Corpus")]
     public async Task GenuineDocIsRetainedInNeedsSortingWithoutReference()
     {
@@ -24,7 +24,7 @@ public sealed class MultiFormatGenuineCorpusWebTests(ITestOutputHelper output)
         WriteAggregate("DOC", receipt.Decision);
     }
 
-    [GenuineFormatCorpusFact(".msg")]
+    [GenuineFormatCorpusFact(".msg", PinnedMsgHash)]
     [Trait("Category", "Corpus")]
     public async Task GenuineMsgIsRetainedInNeedsSortingWithoutReference()
     {
@@ -34,7 +34,7 @@ public sealed class MultiFormatGenuineCorpusWebTests(ITestOutputHelper output)
         WriteAggregate("MSG", receipt.Decision);
     }
 
-    [GenuineFormatCorpusFact(".jpg")]
+    [GenuineFormatCorpusFact(".jpg", PinnedJpegHash)]
     [Trait("Category", "Corpus")]
     public async Task GenuineJpegIsRetainedInNeedsSortingWithoutOcrOrReference()
     {
@@ -44,7 +44,7 @@ public sealed class MultiFormatGenuineCorpusWebTests(ITestOutputHelper output)
         WriteAggregate("JPEG", receipt.Decision);
     }
 
-    [GenuineFormatCorpusFact(".png")]
+    [GenuineFormatCorpusFact(".png", PinnedPngHash)]
     [Trait("Category", "Corpus")]
     public async Task GenuinePngIsRetainedInNeedsSortingWithoutOcrOrReference()
     {
@@ -54,7 +54,7 @@ public sealed class MultiFormatGenuineCorpusWebTests(ITestOutputHelper output)
         WriteAggregate("PNG", receipt.Decision);
     }
 
-    [GenuineFormatCorpusFact(".docx")]
+    [GenuineFormatCorpusFact(".docx", PinnedDocxHash)]
     [Trait("Category", "Corpus")]
     public async Task GenuineDocxReachesReaderAndPersistsNonTechnicalOutcome()
     {
@@ -113,6 +113,9 @@ internal static class GenuineMultiFormatCorpus
 {
     private const long MaximumUploadLength = 10L * 1024 * 1024;
 
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, CorpusCandidate[]>
+        CandidatesByExtension = new(StringComparer.OrdinalIgnoreCase);
+
     public static bool HasCohort(string extension)
     {
         if (!Directory.Exists(CorpusRoot))
@@ -132,18 +135,24 @@ internal static class GenuineMultiFormatCorpus
         }
     }
 
+    public static bool HasPinned(string extension, string pinnedHash)
+    {
+        try
+        {
+            return Candidates(extension).Any(candidate => candidate.Hash == pinnedHash);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
     public static GenuineCorpusSample ReadSelected(string extension, string? expectedHash)
     {
         CorpusCandidate[] candidates;
         try
         {
-            candidates = Directory.EnumerateFiles(CorpusRoot, "*", SearchOption.AllDirectories)
-                .Where(path => Path.GetExtension(path).Equals(extension, StringComparison.OrdinalIgnoreCase))
-                .Select(path => new FileInfo(path))
-                .Where(file => file.Length is > 0 and <= MaximumUploadLength)
-                .Select(file => new CorpusCandidate(file.FullName, HashFile(file.FullName)))
-                .OrderBy(candidate => candidate.Hash, StringComparer.Ordinal)
-                .ToArray();
+            candidates = Candidates(extension);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
@@ -176,6 +185,16 @@ internal static class GenuineMultiFormatCorpus
             MediaType(extension),
             bytes);
     }
+
+    private static CorpusCandidate[] Candidates(string extension) =>
+        CandidatesByExtension.GetOrAdd(extension, key =>
+            Directory.EnumerateFiles(CorpusRoot, "*", SearchOption.AllDirectories)
+                .Where(path => Path.GetExtension(path).Equals(key, StringComparison.OrdinalIgnoreCase))
+                .Select(path => new FileInfo(path))
+                .Where(file => file.Length is > 0 and <= MaximumUploadLength)
+                .Select(file => new CorpusCandidate(file.FullName, HashFile(file.FullName)))
+                .OrderBy(candidate => candidate.Hash, StringComparer.Ordinal)
+                .ToArray());
 
     private static string HashFile(string path)
     {
@@ -213,11 +232,15 @@ internal static class GenuineMultiFormatCorpus
 
 internal sealed class GenuineFormatCorpusFactAttribute : FactAttribute
 {
-    public GenuineFormatCorpusFactAttribute(string extension)
+    public GenuineFormatCorpusFactAttribute(string extension, string pinnedHash)
     {
         if (!GenuineMultiFormatCorpus.HasCohort(extension))
         {
             Skip = $"The ignored local genuine corpus has no {extension} source at or below the 10 MB Web limit.";
+        }
+        else if (!GenuineMultiFormatCorpus.HasPinned(extension, pinnedHash))
+        {
+            Skip = $"This machine's local corpus lacks the pinned {extension} sample; corpora differ per system.";
         }
     }
 }

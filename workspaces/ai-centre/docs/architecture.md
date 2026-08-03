@@ -99,7 +99,7 @@ These controls do not themselves authorise live actions, deployment or model use
 
 ## Deferred desktop direction
 
-The long-term direction permits a Windows-installed shell, local integration and an offline or degraded experience around accepted Pegasus capabilities. It is not implemented or activated, and `apps/desktop/` remains documentation-only.
+The long-term direction permits a Windows-installed shell, local integration and an offline or degraded experience around accepted Pegasus capabilities. It is not implemented or activated; no `apps/` directory exists in this imported tree, and the desktop remains documentation-only intent.
 
 A future desktop composition must reuse:
 
@@ -191,7 +191,9 @@ A narrower case or knowledge-library path must resolve beneath `corpus/ai-centre
 
 Raw files remain immutable. Tests and documentation use synthetic or redacted examples rather than copying operational content into tracked files. Derived datasets must be reproducible from versioned manifests and written outside `corpus/`, normally under root `artifacts/`.
 
-The repository layout is:
+The intended repository layout is (of these, only root `artifacts/` and the
+ignored corpus boundary exist today; `ml-ops/datasets/` and `models/` are
+unrealised intent):
 
 - `corpus/ai-centre/` — ignored, immutable approved development and ML-operations inputs and owner-provisioned bounded evaluation extracts;
 - `ml-ops/datasets/` — versioned recipes, schemas, manifests, cards and synthetic fixtures only;
@@ -234,4 +236,4 @@ Logs should contain hashes, counts, classifications, durations and redacted erro
 
 ## Historical provenance
 
-The imported system proposal and desktop direction remain useful only as historical rationale. The canonical [decision-record index](../../../docs/adr/README.md) retains links to the two unchanged superseded ADRs covering those proposals. Superseded records do not establish current acceptance, implementation, deployment, a Pegasus caller or model activation.
+The imported system proposal and desktop direction remain useful only as historical rationale. The two unchanged superseded workspace ADRs covering those proposals remain under [docs/adr/](adr/) in this workspace; each self-declares its supersession for Pegasus integration by root ADR-0009. Superseded records do not establish current acceptance, implementation, deployment, a Pegasus caller or model activation.

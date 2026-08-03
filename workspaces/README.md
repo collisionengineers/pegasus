@@ -34,14 +34,22 @@ skills row also excludes nested `.github/`, caches, and
 represented under `dev-ref/<skill-name>/`. A manifest proves source identity,
 not application integration, deployment, or acceptance.
 
+Each manifest describes the snapshot **at import time**. The current tracked
+tree differs where post-import repository work has been accepted (for example
+documentation corrections and the Pegasus-authored
+`document-extraction/tracked_files.txt` import inventory, which lists the 202
+imported files and not itself), so current file counts come from
+`git ls-files`, not from these import records.
+
 ## Ownership and activation
 
 The register above is the sole workspace integration-status authority. Local
 workspace READMEs retain implementation, build, test, package, and evidence
 details and link back to their row rather than restating integration status.
 
-- `Pegasus.Core` owns every business rule and accepted case outcome.
-  Infrastructure, Web, and Worker are the application composition roots.
+- `Pegasus.Core` owns every business rule and accepted case outcome. Web and
+  Worker are the application composition roots; Infrastructure implements Core
+  ports.
 - Workspace validation is independent. Application build, publish, and deploy
   must not compile, reference, dynamically load, invoke, or package workspace
   code without the separately accepted contract and actual caller recorded in

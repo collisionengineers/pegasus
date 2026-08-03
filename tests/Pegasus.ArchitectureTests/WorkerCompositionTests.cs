@@ -53,6 +53,17 @@ public sealed class WorkerCompositionTests
                 provider.GetRequiredService<IApprovedSentSource>().GetType().FullName);
             Assert.Null(provider.GetService<LocalApprovedSentOptions>());
             Assert.NotNull(scopedServices.GetRequiredService<PollSentEvidence>());
+            Assert.NotNull(scopedServices.GetRequiredService<ProcessQueuedIntake>());
+
+            Assert.NotNull(ActivatorUtilities.CreateInstance<PendingWorkDispatchFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<IntakeWorkFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<IntakePoisonFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<StagedArtifactReconciliationFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<InboxPollFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<SentEvidencePollFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<DueWorkSweepFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<ExternalWorkFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<ExternalPoisonFunction>(scopedServices));
         }
         finally
         {
@@ -218,7 +229,7 @@ public sealed class WorkerCompositionTests
         ["Graph:SentFolderId"] = "sent-folder-id",
         ["Box:BaseUri"] = "https://api.box.com/2.0/",
         ["Box:UploadUri"] = "https://upload.box.com/api/2.0/",
-        ["Box:RootFolderId"] = "392761581105",
+        ["Box:RootFolderId"] = "405543781910",
         ["Box:ConfigJson"] = "{\"boxAppSettings\":{\"clientID\":\"client-id\",\"appAuth\":{\"publicKeyID\":\"key-id\",\"privateKey\":\"private-key\",\"passphrase\":\"passphrase\"}},\"enterpriseID\":\"enterprise-id\"}",
         ["Box:ClientSecret"] = "resolved-key-vault-reference",
         ["Dvla:BaseUri"] = "https://driver-vehicle-licensing.api.gov.uk/vehicle-enquiry/v1/",
