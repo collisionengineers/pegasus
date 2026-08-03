@@ -298,13 +298,101 @@ Vehicle:`, `Registration:`, `Date of Accident:`. So the same instruction
 content arrives sometimes inline and sometimes as an attached document, and
 extraction must handle both.
 
+## Operator-confirmed guarantees
+
+Stated by the operator on 2026-08-03 and each verified against the 329-email
+corpus. These are guarantees about QDOS's generated output, not inferences, so
+they are exact-string rules rather than heuristics.
+
+| Guarantee | Where | Verified |
+| --- | --- | --- |
+| `AUDIT REPORT NOTIFICATION` — standalone Audit | Extracted attachment text | 26 occurrences, **all upper case**, and only ever in audit-letter documents |
+| `REPORT + AUDIT REPORT` — Inspection + Audit | Extracted attachment text | 17 occurrences, **all upper case**, always as `ENGINEER NOTIFICATION (REPORT + AUDIT REPORT)`, and only ever in inspection-letter documents |
+| `Triage Only Request` — Triage | Email **body** | 37 bodies, in exactly one casing, `Triage Only Request` |
+
+Casing is consistent enough to rely on, but a case-insensitive match costs
+nothing and survives a future template tweak; the value is that the phrase is
+generated rather than typed.
+
+**These live in different places and both must be read.** No email body in the
+corpus contains a notification title — zero of 329. The work-type titles exist
+only inside the attachment. The Triage phrase is the reverse: body only. A
+classifier that reads only one of the two surfaces cannot decide work type.
+
+### Triage is orthogonal to everything else
+
+The 37 `Triage Only Request` emails carry ordinary instruction-shaped subjects
+and are spread across EREF 2, 5, 7, 9, 10, 11 and 15. Some are `RE:` replies,
+one is `URGENT PLEASE - (EREF10) …`. Nothing in the subject marks them.
+
+That is 11% of the corpus, and Triage is a separate pre-case workflow
+(`TRI-01`, `TRI-02`) with its own record, states, and no case creation. Without
+the body phrase these would read as ordinary instructions and would be
+routed as work. This single phrase is the difference between two entirely
+different destinations.
+
+## The decision rule this produces
+
+Work type cannot be read from the subject, the sender, or the EREF code. It
+requires extraction, and only from the two surfaces above:
+
+1. Body contains `Triage Only Request` → **Triage** — the separate pre-case
+   workflow, not a Case.
+2. Attachment text contains `AUDIT REPORT NOTIFICATION` → **standalone Audit**.
+   Then read the attached third-party engineer's report for the verdict:
+   `Repairable …` → `a.`, `Total Loss …` → `ap.`
+3. Attachment text contains `ENGINEER NOTIFICATION (REPORT + AUDIT REPORT)` →
+   **Inspection + Audit**. Begins on the normal Inspection reference; the audit
+   identity is created inside the case later.
+4. Attachment text contains `ENGINEER NOTIFICATION` **without**
+   `REPORT + AUDIT REPORT` → **plain Inspection**.
+5. None of the above → not a work instruction; classify by the other tells.
+
+### Rule 4 has no example in this corpus
+
+Every one of the 17 inspection letters carries the `(REPORT + AUDIT REPORT)`
+parenthetical. Not one is a bare `ENGINEER NOTIFICATION`.
+
+The operator expects plain Inspection to be the most common outcome in
+practice, so its absence here is a property of this sample rather than of the
+business. It still has to be handled as an unseen case: rule 4 must be written
+from the guarantee, not fitted to examples, and it must not be reachable by
+default. An instruction letter whose title matches none of the three known
+forms is an unknown work type and fails closed for staff review — it must never
+fall through to Inspection because Inspection is the common case.
+
+### Audit with no engineer's report attached
+
+Operator decision, 2026-08-03: where the instruction is a standalone Audit and
+no engineer's report is attached, this fails and is flagged to staff as
+**report missing**. It is not an assumption of repairable, and it is not a
+silent hold.
+
+Exactly one of the 27 audit emails is in this state — its only other
+attachment is `Images-V1.pdf`. So the case is real, rare, and now has a defined
+outcome. This matches the requirement that missing or ambiguous audit evidence
+blocks case creation and reference allocation.
+
+Note the asymmetry: a missing report is fatal only for **standalone Audit**.
+For Inspection + Audit there is no third-party report to expect, because
+Collision Engineers produces the report being audited.
+
 ## Proposed tells, in priority order
 
-1. **Claim reference** — primary identity; drives new versus existing. Present
+1. **`Triage Only Request` in the body** — operator-guaranteed; decides Triage
+   before any work-type question is asked.
+2. **Notification title in the extracted attachment text** —
+   operator-guaranteed; decides Audit versus Inspection + Audit versus
+   Inspection.
+3. **Report title in the attached third-party report** — decides the `a.` /
+   `ap.` verdict for a standalone Audit.
+4. **Claim reference** — primary identity; drives new versus existing. Present
    in 326 of 329, in subjects and in attachment filenames.
-2. **Instruction-letter attachment name** — decides Inspection versus Audit.
-   Disjoint, generated by QDOS, and the only clean separator found.
-3. **`EREF` code** — email type for the remaining categories, once the operator
+5. **Instruction-letter attachment name** — corroborates the notification
+   title. Useful as a cheap pre-filter and as a cross-check, but the title
+   inside the document is the authority, since a filename can be changed by
+   whoever forwards the mail.
+6. **`EREF` code** — email type for the remaining categories, once the operator
    confirms the mapping. Not usable for Inspection versus Audit.
 4. **Subject prefix** (`RE:`, `FW:`, `Automatic reply:`) — reply and
    auto-reply context; `Automatic reply:` maps to the settled `General` /
