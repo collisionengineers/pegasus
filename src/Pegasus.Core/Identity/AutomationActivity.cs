@@ -25,6 +25,16 @@ public enum AutomationActivityRecordType
     SecurityEvent
 }
 
+/// <summary>
+/// Shared conventions binding the automation ingress writers to the
+/// consolidated activity reader: ingress security events carry reason codes
+/// with this prefix so denials remain queryable without a parallel store.
+/// </summary>
+public static class AutomationActivityConventions
+{
+    public const string SecurityEventReasonPrefix = "automation_";
+}
+
 public sealed record ListAutomationActivityRequest(
     ActionActor Actor,
     string? CorrelationId = null,
