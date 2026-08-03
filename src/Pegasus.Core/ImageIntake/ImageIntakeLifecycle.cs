@@ -22,69 +22,14 @@ public sealed class RegisterImageIntake(IImageIntakeStore store) : IRegisterImag
     }
 }
 
-public sealed class LinkImageIntakeCase(IImageIntakeStore store) : ILinkImageIntakeCase
-{
-    private readonly IImageIntakeStore _store = store ?? throw new ArgumentNullException(nameof(store));
-
-    public async Task ExecuteAsync(ImageIntakeCaseLinkRequest request, CancellationToken cancellationToken)
-    {
-        ImageIntakeLifecycleRules.ValidateCaseLink(request);
-        var current = await ImageIntakeLifecycleRules.GetRequiredAsync(
-            _store,
-            request.ImageIntakeId,
-            cancellationToken);
-        if (current.Record.LinkedCaseId is not null)
-        {
-            throw new InvalidOperationException(
-                "An image intake has at most one current case association; unlink it first.");
-        }
-
-        await _store.LinkCaseAsync(request, cancellationToken);
-    }
-}
-
-public sealed class UnlinkImageIntakeCase(IImageIntakeStore store) : IUnlinkImageIntakeCase
-{
-    private readonly IImageIntakeStore _store = store ?? throw new ArgumentNullException(nameof(store));
-
-    public async Task ExecuteAsync(ImageIntakeCaseLinkRequest request, CancellationToken cancellationToken)
-    {
-        ImageIntakeLifecycleRules.ValidateCaseLink(request);
-        var current = await ImageIntakeLifecycleRules.GetRequiredAsync(
-            _store,
-            request.ImageIntakeId,
-            cancellationToken);
-        if (current.Record.LinkedCaseId != request.CaseId)
-        {
-            throw new InvalidOperationException(
-                "Only the currently associated case can be unlinked from an image intake.");
-        }
-
-        await _store.UnlinkCaseAsync(request, cancellationToken);
-    }
-}
-
 public static class ImageIntakeLifecycleRules
 {
-    public static async Task<ImageIntakeDetail> GetRequiredAsync(
-        IImageIntakeQueries queries,
-        Guid imageIntakeId,
-        CancellationToken cancellationToken)
-    {
-        if (imageIntakeId == Guid.Empty)
-        {
-            throw new ArgumentException("An image intake identifier is required.", nameof(imageIntakeId));
-        }
-
-        return await queries.GetAsync(imageIntakeId, cancellationToken)
-            ?? throw new KeyNotFoundException($"Image intake '{imageIntakeId}' was not found.");
-    }
-
     /// <summary>
     /// A Case is eligible for Image-intake association only before report
     /// delivery: an editable pre-report workflow state and no retained
     /// report-sent evidence. Terminal and post-report states are never
-    /// eligible.
+    /// eligible. This governs making an association (staff or automatic);
+    /// reasoned reversal of an existing association remains available.
     /// </summary>
     public static bool IsCaseEligibleForAssociation(
         CaseLifecycleState state,
@@ -102,47 +47,25 @@ public static class ImageIntakeLifecycleRules
         ValidateOrigin(request.Origin);
         ValidateNormalizedRegistration(request.NormalizedVehicleRegistration);
         ArgumentNullException.ThrowIfNull(request.Actor, nameof(request));
-        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        RequireRegistrationActor(request.Actor);
         ValidateOperation(request.OperationKey);
         RequireText(request.Reason, "A reason is required.", 500, nameof(request));
     }
 
-    public static void ValidateCaseLink(ImageIntakeCaseLinkRequest request)
+    /// <summary>
+    /// Registration is a reasoned staff casework action or the intake
+    /// pipeline's automatic registration under the system worker actor
+    /// (operator-directed 2026-08-03; the provisional recognition bar governs
+    /// when the pipeline may register).
+    /// </summary>
+    private static void RequireRegistrationActor(ActionActor actor)
     {
-        ArgumentNullException.ThrowIfNull(request);
-        if (request.ImageIntakeId == Guid.Empty)
+        if (actor.Kind == ActorKind.SystemWorker)
         {
-            throw new ArgumentException("An image intake identifier is required.", nameof(request));
+            return;
         }
 
-        if (request.ExpectedImageIntakeVersion < 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(request),
-                "The expected image intake version cannot be negative.");
-        }
-
-        if (request.CaseId == Guid.Empty)
-        {
-            throw new ArgumentException("A case identifier is required.", nameof(request));
-        }
-
-        if (request.ExpectedCaseVersion < 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(request),
-                "The expected case version cannot be negative.");
-        }
-
-        ArgumentNullException.ThrowIfNull(request.Actor);
-        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
-        ValidateOperation(request.OperationKey);
-        RequireText(request.Reason, "A reason is required.", 500, nameof(request));
-        RequireText(
-            request.CaseEditLeaseToken,
-            "An active case edit lease token is required.",
-            128,
-            nameof(request));
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
     }
 
     internal static void ValidateNormalizedRegistration(string registration)

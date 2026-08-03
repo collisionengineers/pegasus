@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
+using Pegasus.Core.ImageIntake;
 
 namespace Pegasus.Core.Intake;
 
@@ -8,7 +9,8 @@ public sealed class ProcessIntake(
     IIntakeReceiptStore receiptStore,
     IIntakeArtifactStore artifactStore,
     IInstructionExtractionPolicy extractionPolicy,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    IImageIntakeAutomation? imageIntakeAutomation = null)
 {
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
 
@@ -187,6 +189,21 @@ public sealed class ProcessIntake(
             RecordFailureTelemetry(activity, "persistence_failure", started);
             throw;
         }
+
+        if (imageIntakeAutomation is not null)
+        {
+            try
+            {
+                receipt = await imageIntakeAutomation.ApplyAsync(receipt, cancellationToken);
+            }
+            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+            {
+                // Image-intake automation is advisory and non-blocking: the
+                // persisted receipt stands regardless of any automation failure.
+                activity?.SetTag("intake.image_intake_automation", "failed");
+            }
+        }
+
         RecordTelemetry(activity, receipt, DecisionCode(receipt.Decision), started);
         return receipt;
     }
@@ -497,6 +514,7 @@ public sealed class ProcessIntake(
         IntakeDecision.Unsupported => "unsupported",
         IntakeDecision.OcrRequired => "ocr_required",
         IntakeDecision.TechnicalFailure => "technical_failure",
+        IntakeDecision.ImageIntakeRegistered => "image_intake_registered",
         _ => throw new InvalidOperationException($"Unknown intake decision value '{(int)decision}'.")
     };
 

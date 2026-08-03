@@ -1,6 +1,5 @@
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
-using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.ImageIntake;
 
@@ -12,16 +11,16 @@ public sealed record ImageIntakeOrigin(
 
 /// <summary>
 /// A durable pre-Case record for image-only material with a usable normalised
-/// VRM. It is never a Case: association with an instructed Case retains both
-/// identities, and the Image Intake Reference remains permanent linked history.
+/// VRM. It is never a Case, carries no case association of its own: whether it
+/// is `Associated with Case` derives from its origin receipt's single current
+/// case association, so record and receipt can never disagree. The Image
+/// Intake Reference is permanent and never reused.
 /// </summary>
 public sealed record ImageIntakeRecord(
     Guid Id,
     ImageIntakeOrigin Origin,
     string NormalizedVehicleRegistration,
-    string ImageIntakeReference,
-    Guid? LinkedCaseId,
-    long Version);
+    string ImageIntakeReference);
 
 /// <summary>
 /// Formats the registration-based identity `{normalised VRM}-{sequence}` with a
@@ -43,25 +42,11 @@ public static class ImageIntakeReferenceFormat
     }
 }
 
-public sealed class ImageIntakeVersionConflictException(
-    Guid imageIntakeId,
-    long expectedVersion,
-    long actualVersion)
+public sealed class ImageIntakeOperationConflictException(Guid originReceiptId, string operationKey)
     : InvalidOperationException(
-        $"Image intake '{imageIntakeId}' is at version {actualVersion}, not expected version {expectedVersion}.")
+        $"Operation '{operationKey}' was already applied to the image intake for receipt '{originReceiptId}' with different inputs.")
 {
-    public Guid ImageIntakeId { get; } = imageIntakeId;
-
-    public long ExpectedVersion { get; } = expectedVersion;
-
-    public long ActualVersion { get; } = actualVersion;
-}
-
-public sealed class ImageIntakeOperationConflictException(Guid imageIntakeId, string operationKey)
-    : InvalidOperationException(
-        $"Operation '{operationKey}' was already applied to image intake '{imageIntakeId}' with different inputs.")
-{
-    public Guid ImageIntakeId { get; } = imageIntakeId;
+    public Guid OriginReceiptId { get; } = originReceiptId;
 
     public string OperationKey { get; } = operationKey;
 }
@@ -80,16 +65,6 @@ public sealed record RegisterImageIntakeRequest(
     string OperationKey,
     string Reason);
 
-public sealed record ImageIntakeCaseLinkRequest(
-    Guid ImageIntakeId,
-    Guid CaseId,
-    long ExpectedImageIntakeVersion,
-    long ExpectedCaseVersion,
-    ActionActor Actor,
-    string OperationKey,
-    string Reason,
-    string CaseEditLeaseToken);
-
 public interface IRegisterImageIntake
 {
     Task<ImageIntakeRecord> ExecuteAsync(
@@ -97,40 +72,20 @@ public interface IRegisterImageIntake
         CancellationToken cancellationToken);
 }
 
-public interface ILinkImageIntakeCase
-{
-    Task ExecuteAsync(ImageIntakeCaseLinkRequest request, CancellationToken cancellationToken);
-}
-
-public interface IUnlinkImageIntakeCase
-{
-    Task ExecuteAsync(ImageIntakeCaseLinkRequest request, CancellationToken cancellationToken);
-}
-
-public sealed record ImageIntakeHistoryEntry(
-    Guid Id,
-    Guid ImageIntakeId,
-    string EventType,
-    string Actor,
-    string Reason,
-    string OperationKey,
-    DateTimeOffset OccurredAtUtc,
-    long BeforeVersion,
-    long AfterVersion,
-    Guid? AfterLinkedCaseId);
-
 public sealed record ImageIntakeSummary(
     Guid Id,
+    Guid OriginReceiptId,
     string ImageIntakeReference,
     string NormalizedVehicleRegistration,
-    Guid? LinkedCaseId,
-    DateTimeOffset RegisteredAtUtc,
-    long Version);
+    Guid? AssociatedCaseId,
+    string? AssociatedCaseReference,
+    DateTimeOffset RegisteredAtUtc);
 
 public sealed record ImageIntakeDetail(
     ImageIntakeRecord Record,
     DateTimeOffset RegisteredAtUtc,
-    IReadOnlyList<ImageIntakeHistoryEntry> History);
+    Guid? AssociatedCaseId,
+    string? AssociatedCaseReference);
 
 public interface IImageIntakeQueries
 {
@@ -143,24 +98,39 @@ public interface IImageIntakeQueries
     Task<ImageIntakeDetail?> GetByReferenceAsync(
         string imageIntakeReference,
         CancellationToken cancellationToken);
+
+    Task<ImageIntakeDetail?> GetByOriginReceiptAsync(
+        Guid intakeReceiptId,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ImageIntakeSummary>> ListByOriginReceiptsAsync(
+        IReadOnlyCollection<Guid> intakeReceiptIds,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ImageIntakeSummary>> ListForCaseAsync(
+        Guid caseId,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ImageIntakeSummary>> SearchByRegistrationAsync(
+        string normalizedVehicleRegistration,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>
-/// The historical post-operation result for an exact committed request. A replay
-/// probe returns <see langword="null"/> only for an unseen operation key; a
-/// committed key with a different request fingerprint throws
+/// The historical result for an exact committed registration. A replay probe
+/// returns <see langword="null"/> only for an unseen operation key; a committed
+/// key with a different request fingerprint throws
 /// <see cref="ImageIntakeOperationConflictException"/>.
 /// </summary>
 public sealed record ImageIntakeOperationReplay(ImageIntakeRecord Result);
 
 /// <summary>
-/// Persists Image-intake registrations and Case associations. Registration
-/// allocates the next per-VRM Image Intake Reference atomically; a reference is
-/// never reused, including after unlink. Link and unlink must enforce the
-/// supplied versions, the active case edit lease, and
-/// <see cref="ImageIntakeLifecycleRules.IsCaseEligibleForAssociation"/> against
-/// the current case workflow state inside the same transaction, and append the
-/// relationship history entry without deleting any prior entry.
+/// Persists Image-intake registrations. Registration allocates the next
+/// per-VRM Image Intake Reference atomically (a reference is never reused),
+/// verifies the origin against the persisted receipt and evaluation revision,
+/// and moves the receipt's decision to `ImageIntakeRegistered` in the same
+/// transaction. An `ImageIntakes` row is immutable after creation; case
+/// association lives exclusively on the origin receipt.
 /// </summary>
 public interface IImageIntakeStore : IImageIntakeQueries
 {
@@ -171,8 +141,34 @@ public interface IImageIntakeStore : IImageIntakeQueries
     Task<ImageIntakeRecord> RegisterAsync(
         RegisterImageIntakeRequest request,
         CancellationToken cancellationToken);
-
-    Task LinkCaseAsync(ImageIntakeCaseLinkRequest request, CancellationToken cancellationToken);
-
-    Task UnlinkCaseAsync(ImageIntakeCaseLinkRequest request, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// Resolves the registration origin for a processed intake receipt: its source
+/// identity, source hash, and latest completed evaluation revision (the
+/// web/pipeline-facing receipt record does not expose the revision).
+/// </summary>
+public interface IImageIntakeOriginResolver
+{
+    Task<ImageIntakeOrigin?> ResolveOriginAsync(
+        Guid intakeReceiptId,
+        CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Eligible pre-report instructed Cases whose confirmed vehicle registration
+/// matches a normalised VRM — candidates for a reasoned staff pick and for the
+/// automatic unambiguous match. Eligibility (editable pre-report state, no
+/// report-sent evidence, not archived) is enforced by the query.
+/// </summary>
+public interface IImageIntakeCaseCandidates
+{
+    Task<IReadOnlyList<ImageIntakeCaseCandidate>> FindEligibleByRegistrationAsync(
+        string normalizedVehicleRegistration,
+        CancellationToken cancellationToken);
+}
+
+public sealed record ImageIntakeCaseCandidate(
+    Guid CaseId,
+    string CaseReference,
+    long CaseVersion);

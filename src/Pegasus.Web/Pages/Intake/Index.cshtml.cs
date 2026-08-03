@@ -157,6 +157,7 @@ public sealed class IndexModel(
         IntakeDecision.OcrRequired => "Document text required",
         IntakeDecision.TechnicalFailure => "Technical failure",
         IntakeDecision.Unsupported => "Unsupported",
+        IntakeDecision.ImageIntakeRegistered => "Image intake registered",
         _ => throw new InvalidOperationException($"Unknown intake decision '{(int)decision}'.")
     };
 
