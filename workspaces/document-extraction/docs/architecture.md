@@ -68,7 +68,7 @@ The installed and pinned development SDK is .NET `10.0.302`; .NET `10.0.300` is 
 
 A possible Pegasus application integration is a `Pegasus.Infrastructure` adapter calling the public extraction library directly. No such adapter or caller is currently proved; activation requires a separately accepted integration contract.
 
-The current Pegasus manual intake path is the authenticated `/Intake` `ReceiveIntake` POST handler calling `Pegasus.Core.Intake.ProcessIntake.ExecuteAsync` (the former Development-only `/Intake/Upload` page is retired); local intake is enabled only when both the `DevelopmentOffline` runtime profile and `Features:LocalIntake` are active, otherwise `/Intake` returns `404`. This is not extractor-caller evidence.
+The current Pegasus manual intake path is the authenticated `/Intake` `ReceiveIntake` POST handler calling `Pegasus.Core.Intake.ProcessIntake.ExecuteAsync` (the former Development-only `/Intake/Upload` page is retired); manual local upload is enabled only when both the `DevelopmentOffline` runtime profile and `Features:LocalIntake` are active, otherwise that handler returns `404`; the staff `/Intake` routes themselves are served wherever intake is composed. This is not extractor-caller evidence.
 
 `Pegasus.Infrastructure` owns current intake registrations, while `Pegasus.Core` owns business policy and ports. The document-extraction workspace:
 
