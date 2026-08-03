@@ -89,6 +89,10 @@ public sealed class VrmRecognitionCorpusEvaluationTests
                     VrmRegistrationMatching.IsOneCharacterMissing(
                         outcome.BestRegistration!,
                         outcome.Label));
+                var insertedOneMatches = suggested.Count(outcome =>
+                    VrmRegistrationMatching.IsFifthCharacterInsertionMatch(
+                        outcome.BestRegistration!,
+                        outcome.Label));
                 var wrong = suggested
                     .Where(outcome =>
                         !VrmRegistrationMatching.IsMatch(outcome.BestRegistration!, outcome.Label))
@@ -107,7 +111,7 @@ public sealed class VrmRecognitionCorpusEvaluationTests
                 {
                     threshold,
                     evaluated = outcomes.Count,
-                    matchRule = "exact or one missing character",
+                    matchRule = "exact, one missing character, or a dropped fifth-position 1",
                     suggestionRate = Rate(suggested.Length, outcomes.Count),
                     wrongSuggestionRate = Rate(wrong.Length, suggested.Length),
                     nearMissRate = Rate(nearMisses, suggested.Length),
@@ -115,6 +119,7 @@ public sealed class VrmRecognitionCorpusEvaluationTests
                     abstentionRate = Rate(outcomes.Count - suggested.Length, outcomes.Count),
                     suggestions = suggested.Length,
                     oneCharacterMissingMatches,
+                    insertedOneMatches,
                     wrongSuggestions = wrong.Length,
                     nearMisses,
                     differentRegistrations,

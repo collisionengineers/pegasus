@@ -170,6 +170,24 @@ public sealed class AutomaticImageIntakeTests
     }
 
     [Fact]
+    public async Task AnInsertedFifthPositionOneCompletesFromTheConfirmedRegistration()
+    {
+        var harness = new Harness();
+        harness.Engine.Enqueue(Suggested("PK201YHR", 0.95));
+        harness.CaseCandidates.Candidates =
+        [
+            new(Guid.NewGuid(), "QDS26008", 2, "PK20YHR")
+        ];
+
+        await harness.ApplyAsync();
+
+        var registration = Assert.Single(harness.Register.Requests);
+        Assert.Equal("PK20YHR", registration.NormalizedVehicleRegistration);
+        var link = Assert.Single(harness.MutationStore.AutoLinks);
+        Assert.Equal(harness.CaseCandidates.Candidates[0].CaseId, link.CaseId);
+    }
+
+    [Fact]
     public async Task TwoOneCharacterMissingCandidatesAreAmbiguous()
     {
         var harness = new Harness();

@@ -27,4 +27,17 @@ public sealed class VrmRegistrationMatchingTests
         Assert.False(VrmRegistrationMatching.IsOneCharacterMissing("KM26UWG", "KM26OWG"));
         Assert.True(VrmRegistrationMatching.IsOneCharacterMissing("KM26WG", "KM26OWG"));
     }
+
+    [Theory]
+    [InlineData("PK201YHR", "PK20YHR", true)]
+    [InlineData("AB121CDE", "AB12CDE", true)]
+    [InlineData("PK201YH", "PK20YHR", false)]
+    [InlineData("PK201HR", "PK20YHR", false)]
+    [InlineData("PK2Y01HR", "PK2Y0HR", false)]
+    [InlineData("PK201YHRX", "PK20YHRX", false)]
+    public void AnEightCharacterReadWithAFifthPositionOneRetriesWithoutIt(
+        string read,
+        string confirmed,
+        bool expected) =>
+        Assert.Equal(expected, VrmRegistrationMatching.IsMatch(read, confirmed));
 }
