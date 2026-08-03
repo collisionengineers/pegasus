@@ -8,12 +8,11 @@ production Worker and Web to versioned target-vault URIs, prove configuration
 resolution, then retire only those two vaults and their now-empty predecessor
 resource group.
 
-This plan is **Planned**. No Azure command below has been run. It does not
-authorise a deployment, a live provider call, an Azure read, a secret-value
-retrieval, an access broadening, a vault purge, or a deletion. Before each
-external phase, the operator must approve the exact subscription, resource
-IDs, identities, secret names, cost scope, and command group produced by the
-preceding read-only phase. Stop on any drift.
+This plan was initially **Planned** and was executed on 2026-08-03 after the
+operator authorised each external phase. It does not authorise a deployment, a
+live provider call, a secret-value retrieval, a vault purge, or work outside
+the exact resources and identities recorded here. The execution record states
+the resulting evidence and the one remaining local-cleanup boundary.
 
 The immutable `.azure/deployment-plan.md` remains the executed 2026-08-02
 release record. This task plan is the repository-required transient plan; it
@@ -687,6 +686,31 @@ created in step 3, not its parent and not a repository path:
 ```powershell
 Remove-Item -LiteralPath $BackupRoot -Recurse -Force
 ```
+
+## Execution record — 2026-08-03
+
+- **Implemented:** restored all history for the six approved secret names into
+  `pegasusprodkv252ow37g`, with the exact live-reference versions enabled.
+  No secret value was queried or recorded.
+- **Access:** `Key Vault Reader` was added for the signed-in operator at the
+  target-vault scope only. A temporary target-vault `Key Vault Secrets
+  Officer` assignment was created for restore and independently removed after
+  verification. The Worker has exactly six and the Web exactly two
+  secret-resource `Key Vault Secrets User` assignments; no broader target
+  scope was found.
+- **Live verified:** all six Worker references are `Resolved` at the target
+  vault. Both Web Box references use the Web identity and target-vault
+  versioned URIs. Revision `pegasus-prod-web-252ow37gij--ef987ac49cb4` is
+  `Provisioned` and `Healthy`; its scale-to-zero readiness endpoint returned
+  HTTP 200.
+- **Retired:** `cespkboxkvv76a47` and `cespkenrichkvgi62sd` were soft-deleted
+  on 2026-08-03, then the empty `rg-collisionspike-dev` resource group was
+  deleted. No purge was attempted. The soft-deleted vault IDs were independently
+  read back from `uksouth`.
+- **Pending local cleanup:** the exact six-file encrypted backup directory was
+  found under the system temporary directory, but its deletion was rejected by
+  the execution environment before it ran. Its path is intentionally not
+  recorded here; no other local path may be removed.
 
 ## Verification and handoff
 
