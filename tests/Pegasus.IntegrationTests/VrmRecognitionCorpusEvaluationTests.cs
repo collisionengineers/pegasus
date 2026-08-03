@@ -76,17 +76,43 @@ public sealed class VrmRecognitionCorpusEvaluationTests
                         && outcome.BestRegistration is not null
                         && outcome.BestConfidence >= threshold)
                     .ToArray();
-                var wrong = suggested.Count(outcome =>
-                    !string.Equals(outcome.BestRegistration, outcome.Label, StringComparison.Ordinal));
+                // A wrong suggestion splits by edit distance from the
+                // case-level label: distance 1-2 is a near-miss (a genuine
+                // misread of the case vehicle — the dangerous kind), while
+                // distance 3+ is almost certainly a correctly read
+                // third-party registration in a multi-vehicle photo, which
+                // case-level attribution cannot credit as correct.
+                var wrong = suggested
+                    .Where(outcome =>
+                        !string.Equals(outcome.BestRegistration, outcome.Label, StringComparison.Ordinal))
+                    .Select(outcome => new
+                    {
+                        outcome.Label,
+                        Suggested = outcome.BestRegistration!,
+                        Distance = EditDistance(outcome.BestRegistration!, outcome.Label),
+                        Confidence = Math.Round(outcome.BestConfidence, 3)
+                    })
+                    .OrderBy(pair => pair.Distance)
+                    .ToArray();
+                var nearMisses = wrong.Count(pair => pair.Distance <= 2);
+                var differentRegistrations = wrong.Length - nearMisses;
                 return new
                 {
                     threshold,
                     evaluated = outcomes.Count,
                     suggestionRate = Rate(suggested.Length, outcomes.Count),
-                    wrongSuggestionRate = Rate(wrong, suggested.Length),
+                    wrongSuggestionRate = Rate(wrong.Length, suggested.Length),
+                    nearMissRate = Rate(nearMisses, suggested.Length),
+                    differentRegistrationRate = Rate(differentRegistrations, suggested.Length),
                     abstentionRate = Rate(outcomes.Count - suggested.Length, outcomes.Count),
                     suggestions = suggested.Length,
-                    wrongSuggestions = wrong
+                    wrongSuggestions = wrong.Length,
+                    nearMisses,
+                    differentRegistrations,
+                    // Local review detail only: this report lives under the
+                    // gitignored artifacts/ and its labels never enter the
+                    // repository or the decision register.
+                    wrongPairs = wrong
                 };
             })
             .ToArray();
@@ -121,6 +147,33 @@ public sealed class VrmRecognitionCorpusEvaluationTests
 
     private static double Rate(int part, int whole) =>
         whole == 0 ? 0 : Math.Round((double)part / whole, 4);
+
+    private static int EditDistance(string left, string right)
+    {
+        var previous = new int[right.Length + 1];
+        var current = new int[right.Length + 1];
+        for (var column = 0; column <= right.Length; column++)
+        {
+            previous[column] = column;
+        }
+
+        for (var row = 1; row <= left.Length; row++)
+        {
+            current[0] = row;
+            for (var column = 1; column <= right.Length; column++)
+            {
+                var substitution = previous[column - 1]
+                    + (left[row - 1] == right[column - 1] ? 0 : 1);
+                current[column] = Math.Min(
+                    substitution,
+                    Math.Min(previous[column] + 1, current[column - 1] + 1));
+            }
+
+            (previous, current) = (current, previous);
+        }
+
+        return previous[right.Length];
+    }
 
     /// <summary>
     /// Case-export file names attribute images to a case-level VRM as
