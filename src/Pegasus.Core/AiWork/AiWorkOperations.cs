@@ -295,7 +295,9 @@ public sealed class ReconcileAiWorkRequest(
             cancellationToken);
         return reply?.Status switch
         {
-            "done" => await _store.TransitionAsync(
+            // The connector's reply enum names the finished state
+            // "completed"; "done" is accepted as its historical synonym.
+            "done" or "completed" => await _store.TransitionAsync(
                 new(
                     record.RequestId,
                     record.Version,
