@@ -13,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using MimeKit;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Web.Authentication;
 
@@ -26,6 +27,7 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     private readonly TimeProvider timeProvider;
     private readonly IIntakeArtifactStore? artifactStore;
     private readonly IInstructionExtractionPolicy? extractionPolicy;
+    private readonly IVrmRecognitionEngine? recognitionEngine;
     private readonly bool useIntegrationTestAuthentication;
     private readonly bool initializeDevelopmentOffline;
     private readonly LocalDbTestDatabase database;
@@ -60,13 +62,15 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         IIntakeArtifactStore? artifactStore = null,
         IInstructionExtractionPolicy? extractionPolicy = null,
         bool useIntegrationTestAuthentication = false,
-        bool initializeDevelopmentOffline = true)
+        bool initializeDevelopmentOffline = true,
+        IVrmRecognitionEngine? recognitionEngine = null)
     {
         this.environment = environment;
         this.localIntakeEnabled = localIntakeEnabled;
         this.timeProvider = timeProvider ?? new TestTimeProvider(FixedUtcNow);
         this.artifactStore = artifactStore;
         this.extractionPolicy = extractionPolicy;
+        this.recognitionEngine = recognitionEngine;
         this.useIntegrationTestAuthentication = useIntegrationTestAuthentication;
         this.initializeDevelopmentOffline = initializeDevelopmentOffline;
         database = LocalDbTestDatabase.CreateAsync(migrate: false).GetAwaiter().GetResult();
@@ -142,6 +146,11 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
             {
                 services.RemoveAll<IInstructionExtractionPolicy>();
                 services.AddSingleton(extractionPolicy);
+            }
+            if (recognitionEngine is not null)
+            {
+                services.RemoveAll<IVrmRecognitionEngine>();
+                services.AddSingleton(recognitionEngine);
             }
         });
     }

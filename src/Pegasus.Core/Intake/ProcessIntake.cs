@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
-using Pegasus.Core.ImageIntake;
 
 namespace Pegasus.Core.Intake;
 
@@ -9,8 +8,7 @@ public sealed class ProcessIntake(
     IIntakeReceiptStore receiptStore,
     IIntakeArtifactStore artifactStore,
     IInstructionExtractionPolicy extractionPolicy,
-    TimeProvider timeProvider,
-    IImageIntakeAutomation? imageIntakeAutomation = null)
+    TimeProvider timeProvider)
 {
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
 
@@ -189,21 +187,6 @@ public sealed class ProcessIntake(
             RecordFailureTelemetry(activity, "persistence_failure", started);
             throw;
         }
-
-        if (imageIntakeAutomation is not null)
-        {
-            try
-            {
-                receipt = await imageIntakeAutomation.ApplyAsync(receipt, cancellationToken);
-            }
-            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-            {
-                // Image-intake automation is advisory and non-blocking: the
-                // persisted receipt stands regardless of any automation failure.
-                activity?.SetTag("intake.image_intake_automation", "failed");
-            }
-        }
-
         RecordTelemetry(activity, receipt, DecisionCode(receipt.Decision), started);
         return receipt;
     }
