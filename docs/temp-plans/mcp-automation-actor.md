@@ -248,6 +248,37 @@ the report itself is prepared in EVA from the exported bundle.
 - MCP registration, tool schema, or endpoint presence is asserted
   nowhere as proof; the evidence plan (1.9) is the only claim route.
 
+**Operator visibility and controls (Admin-scoped).** The data layer
+above records everything; the application must also show it:
+
+- Case-level: Actor actions appear in each Case's existing permanent
+  history with the automation identity rendered distinctly. Operator
+  copy is vendor-neutral ("Automation", not a vendor name) per the
+  design-authority rule against vendor/adapter wording in the staff
+  shell.
+- Admin-level: a consolidated Automation activity view inside the
+  existing Administration route (ACC-07/UI-11 territory; the access
+  matrix already grants Administrators "accepted OAuth-client
+  registration/revocation"): filtered action history for the
+  Automation actor plus security events for denials. Every MCP
+  operation carries a correlation id returned in its tool result, and
+  each activity record is addressable at a stable Admin URL by that
+  id — so a specific operation's record is retrievable/linkable, and a
+  channel reply can cite the exact record it created.
+- Kill switch, two layers: (1) the composition configuration gate
+  (default off) remains the deployment-scoped switch; (2) an
+  Administrator disable action on the client registration takes
+  immediate effect — because bearer JWTs validate locally, the MCP
+  authorization pipeline re-checks the registration's enabled state
+  per request (cached for seconds, not minutes) and access tokens are
+  short-lived, so disable/revoke does not wait for token expiry.
+  Disable and re-enable are attributable Administrator actions in
+  permanent history.
+- No broader settings surface in v1: scopes and rate limits stay in
+  configuration, shown read-only in the Admin view at most. The new
+  Admin controls go through the normal design route like any other
+  UI addition.
+
 ### 1.8 Implementation slices and file-level changes
 
 1. Core actor identity: `IdentityContracts.cs` (`ActorKind.Automation`,
@@ -260,12 +291,17 @@ the report itself is prepared in EVA from the exported bundle.
    approved inventory, `AddMcpServer().WithTools<...>()`,
    `MapMcp("/mcp").RequireAuthorization(...).RequireRateLimiting(...)`,
    package reference + lock-file update.
-4. Tests: Core authorization tests; integration tests driving the MCP
+4. Admin surface: client registration list, enable/disable (the
+   immediate-effect kill switch), and the Automation activity view
+   with per-record URLs — Admin-only, through the normal design route
+   for the new controls.
+5. Tests: Core authorization tests; integration tests driving the MCP
    endpoint over HTTP (handshake, tool list, success call, authorization
-   failure, validation failure, action-history assertion);
+   failure, validation failure, action-history assertion; disable-takes-
+   immediate-effect test);
    `Pegasus.ArchitectureTests` project-reference pin updated for the new
    package (and still excluding `workspaces/*`).
-5. Docs: `docs/architecture.md` and `docs/operations.md` updated from
+6. Docs: `docs/architecture.md` and `docs/operations.md` updated from
    "not implemented" to the implemented-but-gated state, with the exact
    evidence recorded; `docs/capabilities.md` untouched (allocation
    already correct).
@@ -291,10 +327,15 @@ a. **Authentication mechanism** — recommended: OpenIddict client
    flow with a management-held account (rejected as primary: reintroduces
    a user-shaped login for a machine identity; may still be needed for
    specific clients — see 1.10(c)).
-b. **Client registration path** — Administrator UI surface now, or
-   migration/configuration-seeded single registration now with the UI
-   deferred. Recommended: seeded registration + read-only Administrator
-   visibility now; full register/revoke UI as a follow-up line.
+b. **Client registration path and Admin surface depth** — recommended:
+   migration/configuration-seeded single registration, plus the minimal
+   Admin surface from 1.7 (registration list, enable/disable kill
+   switch, Automation activity view with per-record URLs). Full
+   register/rotate UI as a follow-up line. Alternative: defer the whole
+   Admin surface and rely on the configuration gate alone — rejected as
+   recommendation because an Administrator-held immediate kill switch
+   and visible activity records are what make a live automation ingress
+   operable.
 c. **Initial evidence client** — recommended: Claude Code. Its
    documented `--header "Authorization: Bearer …"` and `headersHelper`
    (a script run fresh at each connection that exchanges the client
