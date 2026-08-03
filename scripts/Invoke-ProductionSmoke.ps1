@@ -7,7 +7,13 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$client = [Net.Http.HttpClient]::new()
+# Redirects must surface raw: with auto-redirect on, the anonymous-denial
+# check would follow the sign-in redirect and mistake the login page's 200
+# for anonymous access (it only "passed" before release 3 because the
+# broken http:// redirect could not be followed from https).
+$handler = [Net.Http.HttpClientHandler]::new()
+$handler.AllowAutoRedirect = $false
+$client = [Net.Http.HttpClient]::new($handler)
 $client.Timeout = [TimeSpan]::FromSeconds(30)
 try {
     foreach ($path in @('health/live', 'health/ready')) {
@@ -21,6 +27,9 @@ try {
     $anonymous = $client.GetAsync([uri]::new($BaseUri, 'Cases')).GetAwaiter().GetResult()
     if ($anonymous.StatusCode -notin @([Net.HttpStatusCode]::Redirect, [Net.HttpStatusCode]::Unauthorized, [Net.HttpStatusCode]::Forbidden)) {
         throw "The authenticated Cases surface was anonymously accessible ($([int]$anonymous.StatusCode))."
+    }
+    if ($anonymous.StatusCode -eq [Net.HttpStatusCode]::Redirect -and $anonymous.Headers.Location.Scheme -ne 'https') {
+        throw "The sign-in redirect downgraded to $($anonymous.Headers.Location.Scheme) (forwarded headers are not applied)."
     }
     Write-Output 'Production smoke passed.'
 }
