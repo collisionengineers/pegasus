@@ -27,7 +27,7 @@ public sealed class QdosMailClassificationPolicyTests
     public void AuditNotificationTitleInAnAttachmentClassifiesNewInstructionAudit()
     {
         var result = Classify(document:
-            "AUDIT REPORT NOTIFICATION\nOur Ref: 46553/1\nPlease can you prepare an audit report.");
+            "AUDIT REPORT NOTIFICATION\nOur Ref: 12345/1\nPlease can you prepare an audit report.");
 
         Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
         var category = Assert.IsType<MailCategory>(result.Category);
@@ -36,8 +36,8 @@ public sealed class QdosMailClassificationPolicyTests
     }
 
     [Theory]
-    [InlineData("ENGINEER NOTIFICATION (REPORT + AUDIT REPORT)\nOur Ref: 46913/1")]
-    [InlineData("ENGINEER NOTIFICATION\nOur Ref: 46913/1")]
+    [InlineData("ENGINEER NOTIFICATION (REPORT + AUDIT REPORT)\nOur Ref: 23456/1")]
+    [InlineData("ENGINEER NOTIFICATION\nOur Ref: 23456/1")]
     public void EngineerNotificationTitleClassifiesNewInstructionInspection(string document)
     {
         var result = Classify(document: document);
@@ -63,8 +63,8 @@ public sealed class QdosMailClassificationPolicyTests
     public void ReplyPrefixMirrorsTheUnderlyingCategoryWithReplyContext()
     {
         var result = Classify(
-            subject: "RE: (EREF9) RTA on 18/06/2026 : Mr Nick Jones",
-            document: "AUDIT REPORT NOTIFICATION\nOur Ref: 46553/1");
+            subject: "RE: (EREF9) RTA on 18/06/2026 : Mrs Jane Example",
+            document: "AUDIT REPORT NOTIFICATION\nOur Ref: 12345/1");
 
         Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
         var category = Assert.IsType<MailCategory>(result.Category);
@@ -76,8 +76,8 @@ public sealed class QdosMailClassificationPolicyTests
     public void ForwardPrefixDoesNotSetReplyContext()
     {
         var result = Classify(
-            subject: "FW: (EREF9) RTA on 18/06/2026 : Mr Nick Jones",
-            document: "AUDIT REPORT NOTIFICATION\nOur Ref: 46553/1");
+            subject: "FW: (EREF9) RTA on 18/06/2026 : Mrs Jane Example",
+            document: "AUDIT REPORT NOTIFICATION\nOur Ref: 12345/1");
 
         Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
         Assert.False(Assert.IsType<MailCategory>(result.Category).IsReplyContext);
@@ -87,7 +87,7 @@ public sealed class QdosMailClassificationPolicyTests
     public void AuditChaserBodyWithoutAnInstructionLetterFailsClosed()
     {
         var result = Classify(
-            subject: "(EREF26) RTA on 20/05/2026 : Mrs Vivien Healey (Our Ref: TG/45497/1)",
+            subject: "(EREF26) RTA on 20/05/2026 : Mrs Jane Example (Our Ref: AB/98765/1)",
             body: "Please can you forward your final audit report as soon as possible.");
 
         Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
@@ -99,7 +99,7 @@ public sealed class QdosMailClassificationPolicyTests
     {
         var result = Classify(
             body: "Triage Only Request. Please provide an initial assessment.",
-            document: "AUDIT REPORT NOTIFICATION\nOur Ref: 46553/1");
+            document: "AUDIT REPORT NOTIFICATION\nOur Ref: 12345/1");
 
         Assert.Equal(MailClassificationOutcome.Ambiguous, result.Outcome);
         Assert.Null(result.Category);
@@ -116,6 +116,47 @@ public sealed class QdosMailClassificationPolicyTests
         Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
         Assert.Null(result.Category);
         Assert.Empty(result.AmbiguousCandidates);
+    }
+
+    [Theory]
+    [InlineData("this was a triage only request originally", null)]
+    [InlineData(null, "Please see our audit report notification below.")]
+    [InlineData(null, "The engineer notification was sent last week.")]
+    public void TellsAreCaseExactSoHumanProseNeverMatchesThem(string? body, string? document)
+    {
+        var result = Classify(body: body, document: document);
+
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
+        Assert.Null(result.Category);
+    }
+
+    [Fact]
+    public void TellsInsideAnAttachedMessageNeverClassifyTheCarryingMessage()
+    {
+        // A chaser that carries the original instruction email as an
+        // attachment must classify on its own content, not the original's.
+        var result = new QdosMailClassificationPolicy().Classify(new(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "Please can you provide an update on this instruction."),
+                new(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body, attached email 1",
+                    "Triage Only Request. Please find attached our client's images."),
+                new(
+                    IntakeEvidenceSource.DocumentContent,
+                    "message body, attached email 1, attached letter",
+                    "AUDIT REPORT NOTIFICATION\nOur Ref: 12345/1")
+            ],
+            [new(IntakeEvidenceSource.Subject, "RE: (EREF9) RTA on 18/06/2026")],
+            [],
+            false));
+
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
+        Assert.Null(result.Category);
     }
 
     [Fact]

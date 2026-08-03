@@ -129,7 +129,9 @@ public enum AutomaticCaseAssociationOutcome
 /// <summary>
 /// The durable write for an unambiguous automatic match. Distinct from the staff
 /// LinkIntake path, which demands an edit lease and throws on an active association;
-/// the automatic write is idempotent and no-ops when any active association exists.
+/// the automatic write is idempotent and no-ops when any association row exists —
+/// active, or deliberately reversed by staff, which must never be silently
+/// re-linked. It also yields to an archived case or a live staff edit lease.
 /// Reversal stays the staff ReverseIntakeLink path.
 /// </summary>
 public interface IAutomaticCaseAssociationStore

@@ -36,19 +36,23 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
             .Where(fragment => fragment.Source
                 is IntakeEvidenceSource.DocumentContent
                 or IntakeEvidenceSource.PdfContent)
+            .Where(fragment => !IsNestedMessageContent(fragment))
             .Select(fragment => fragment.Text)
             .ToArray();
 
         var isAutomaticReply = AutomaticReplyRegex().IsMatch(subject);
         var isReplyPrefixed = ReplyPrefixRegex().IsMatch(subject);
+        // The tells are generated text with one recorded casing each; the
+        // casing is part of what makes them discriminating (a human sentence
+        // mentioning "this was a triage only request" is not the tell).
         var hasTriagePhrase = bodyTexts.Any(text =>
-            text.Contains(TriagePhrase, StringComparison.OrdinalIgnoreCase));
+            text.Contains(TriagePhrase, StringComparison.Ordinal));
         var hasAuditTitle = documentTexts.Any(text =>
-            text.Contains(AuditNotificationTitle, StringComparison.OrdinalIgnoreCase));
+            text.Contains(AuditNotificationTitle, StringComparison.Ordinal));
         var hasEngineerTitle = documentTexts.Any(text =>
-            text.Contains(EngineerNotificationTitle, StringComparison.OrdinalIgnoreCase));
+            text.Contains(EngineerNotificationTitle, StringComparison.Ordinal));
         var hasReportPlusAudit = hasEngineerTitle && documentTexts.Any(text =>
-            text.Contains(ReportPlusAuditMarker, StringComparison.OrdinalIgnoreCase));
+            text.Contains(ReportPlusAuditMarker, StringComparison.Ordinal));
 
         MailClassificationPredicateResult[] predicates =
         [
@@ -151,8 +155,19 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
         IntakeEvidenceSource source) =>
         readResult.Content
             .Where(fragment => fragment.Source == source)
+            .Where(fragment => !IsNestedMessageContent(fragment))
             .Select(fragment => fragment.Text)
             .ToArray();
+
+    /// <summary>
+    /// A tell counts only in the received message itself. The reader labels
+    /// every fragment that came out of an attached message — and everything
+    /// beneath it — with an ", attached email N" segment, so a forwarded or
+    /// quoted original instruction inside a chaser never re-classifies the
+    /// chaser as a new instruction.
+    /// </summary>
+    private static bool IsNestedMessageContent(IntakeContentFragment fragment) =>
+        fragment.SourceLabel.Contains(", attached email ", StringComparison.Ordinal);
 
     [GeneratedRegex(@"^\s*Automatic reply\s*:", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex AutomaticReplyRegex();

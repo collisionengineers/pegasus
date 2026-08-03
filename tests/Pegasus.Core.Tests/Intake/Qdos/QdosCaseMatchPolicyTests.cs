@@ -14,15 +14,15 @@ public sealed class QdosCaseMatchPolicyTests
     }
 
     [Theory]
-    [InlineData("Our Ref: MFI/AKH/46553/1", "46553/1")]
-    [InlineData("Our Ref: TG/45497/1", "45497/1")]
-    [InlineData("Claim Reference: 46553/1", "46553/1")]
-    [InlineData("Our claim Reference : 46684/1", "46684/1")]
+    [InlineData("Our Ref: ABC/DEF/12345/1", "12345/1")]
+    [InlineData("Our Ref: AB/98765/1", "98765/1")]
+    [InlineData("Claim Reference: 12345/1", "12345/1")]
+    [InlineData("Our claim Reference : 45678/1", "45678/1")]
     public void HandlerPrefixVariantsNormalizeToTheSameDurableClaimToken(
         string labelled,
         string expected)
     {
-        var keys = Extract(subject: $"(EREF8) RTA on 18/06/2026 : Mr Nick Jones ({labelled})");
+        var keys = Extract(subject: $"(EREF8) RTA on 18/06/2026 : Mrs Jane Example ({labelled})");
 
         Assert.Equal(expected, keys.DurableClaimToken);
     }
@@ -30,42 +30,42 @@ public sealed class QdosCaseMatchPolicyTests
     [Fact]
     public void BareClaimTokenInTheSubjectIsExtracted()
     {
-        var keys = Extract(subject: "46670/1 - Mohammed Jameel");
+        var keys = Extract(subject: "56789/1 - Jane Example");
 
-        Assert.Equal("46670/1", keys.DurableClaimToken);
+        Assert.Equal("56789/1", keys.DurableClaimToken);
     }
 
     [Fact]
     public void SpacedBareClaimTokenNormalizesToTheSameDurableToken()
     {
-        var keys = Extract(subject: "46670 / 1 - Mohammed Jameel");
+        var keys = Extract(subject: "56789 / 1 - Jane Example");
 
-        Assert.Equal("46670/1", keys.DurableClaimToken);
+        Assert.Equal("56789/1", keys.DurableClaimToken);
     }
 
     [Fact]
     public void SpacedAndCompactFormsOfTheSameTokenAreOneDistinctValue()
     {
         var keys = Extract(
-            subject: "46670 / 1 - Mohammed Jameel (Our Ref: TG/46670/1)");
+            subject: "56789 / 1 - Jane Example (Our Ref: AB/56789/1)");
 
-        Assert.Equal("46670/1", keys.DurableClaimToken);
+        Assert.Equal("56789/1", keys.DurableClaimToken);
     }
 
     [Fact]
     public void QdosLawReferenceGrammarIsItsOwnDurableToken()
     {
         var keys = Extract(
-            subject: "Our ref: ELM/NAK0011 - Mutual Client: Mr John Smith - Vehicle Reg; LT17 UCU");
+            subject: "Our ref: ABC/DEF0123 - Mutual Client: Mr John Smith - Vehicle Reg; CD34 EFG");
 
-        Assert.Equal("ELM/NAK0011", keys.DurableClaimToken);
-        Assert.Equal("LT17UCU", keys.NormalizedVrm);
+        Assert.Equal("ABC/DEF0123", keys.DurableClaimToken);
+        Assert.Equal("CD34EFG", keys.NormalizedVrm);
     }
 
     [Fact]
     public void ClaimShapedTokenInBodyProseWithoutALabelIsNotExtracted()
     {
-        var keys = Extract(body: "As discussed the total came to 46553/1 across both parts.");
+        var keys = Extract(body: "As discussed the total came to 12345/1 across both parts.");
 
         Assert.Null(keys.DurableClaimToken);
     }
@@ -74,8 +74,8 @@ public sealed class QdosCaseMatchPolicyTests
     public void TwoDifferentClaimReferencesYieldNoClaimKey()
     {
         var keys = Extract(
-            subject: "(EREF26) RTA (Our Ref: TG/45497/1)",
-            body: "Please also update Our Ref: MFI/AKH/46553/1 while you are there.");
+            subject: "(EREF26) RTA (Our Ref: AB/98765/1)",
+            body: "Please also update Our Ref: ABC/DEF/12345/1 while you are there.");
 
         Assert.Null(keys.DurableClaimToken);
     }
@@ -103,9 +103,9 @@ public sealed class QdosCaseMatchPolicyTests
     [Fact]
     public void ClientRegistrationLabelIsExtractedAndCompacted()
     {
-        var keys = Extract(body: "Registration: LT17 UCU");
+        var keys = Extract(body: "Registration: CD34 EFG");
 
-        Assert.Equal("LT17UCU", keys.NormalizedVrm);
+        Assert.Equal("CD34EFG", keys.NormalizedVrm);
     }
 
     [Fact]
@@ -117,8 +117,8 @@ public sealed class QdosCaseMatchPolicyTests
     }
 
     [Theory]
-    [InlineData("Our Client: Mr Nick Jones", "JONES", "N")]
-    [InlineData("Claimant Name: Mrs Vivien Healey", "HEALEY", "V")]
+    [InlineData("Our Client: Mrs Jane Example", "EXAMPLE", "J")]
+    [InlineData("Claimant Name: Mr Sam Sample", "SAMPLE", "S")]
     [InlineData("Claimant: Dr Sarah Jane O'Neill", "O'NEILL", "S")]
     public void NamesNormalizeToTitleStrippedSurnameAndInitial(
         string labelled,
@@ -142,7 +142,7 @@ public sealed class QdosCaseMatchPolicyTests
     [Fact]
     public void SubjectIncidentDateIsExtractedFromTheTemplate()
     {
-        var keys = Extract(subject: "(EREF8) RTA on 18/06/2026 : Mr Nick Jones");
+        var keys = Extract(subject: "(EREF8) RTA on 18/06/2026 : Mrs Jane Example");
 
         Assert.Equal(new DateOnly(2026, 6, 18), keys.IncidentDate);
     }
@@ -159,15 +159,15 @@ public sealed class QdosCaseMatchPolicyTests
     public void DeriveIndexKeysUsesTheSameGrammarsAsExtraction()
     {
         var index = new QdosCaseMatchPolicy().DeriveIndexKeys(new(
-            "TG/45497/1",
-            "HN18 ABC",
-            "Mrs Vivien Healey",
+            "AB/98765/1",
+            "EF56 GHJ",
+            "Mrs Jane Example",
             new DateOnly(2026, 5, 20)));
 
-        Assert.Equal("45497/1", index.DurableClaimToken);
-        Assert.Equal("HN18ABC", index.NormalizedVrm);
-        Assert.Equal("HEALEY", index.NormalizedSurname);
-        Assert.Equal("V", index.NormalizedFirstInitial);
+        Assert.Equal("98765/1", index.DurableClaimToken);
+        Assert.Equal("EF56GHJ", index.NormalizedVrm);
+        Assert.Equal("EXAMPLE", index.NormalizedSurname);
+        Assert.Equal("J", index.NormalizedFirstInitial);
         Assert.Equal(new DateOnly(2026, 5, 20), index.IncidentDate);
     }
 
@@ -175,9 +175,9 @@ public sealed class QdosCaseMatchPolicyTests
     public void FullTemplatedSubjectYieldsClaimTokenAndDateTogether()
     {
         var keys = Extract(
-            subject: "(EREF8) RTA on 18/06/2026 : Mr Nick Jones (Our Ref: MFI/AKH/46553/1, Vehicle: X)");
+            subject: "(EREF8) RTA on 18/06/2026 : Mrs Jane Example (Our Ref: ABC/DEF/12345/1, Vehicle: X)");
 
-        Assert.Equal("46553/1", keys.DurableClaimToken);
+        Assert.Equal("12345/1", keys.DurableClaimToken);
         Assert.Equal(new DateOnly(2026, 6, 18), keys.IncidentDate);
         Assert.Null(keys.NormalizedVrm);
     }

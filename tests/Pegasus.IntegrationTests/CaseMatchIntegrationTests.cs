@@ -10,7 +10,6 @@ using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
-[Collection(LocalDbFixtureDefinition.Name)]
 [Trait("Category", "SqlServer")]
 public sealed class CaseMatchIntegrationTests
 {
@@ -27,7 +26,7 @@ public sealed class CaseMatchIntegrationTests
 
         var row = await harness.SingleIndexRowAsync(outcome.Identity.CaseId);
         Assert.Equal("QDOS", row.WorkProviderCode);
-        Assert.Equal("46553/1", row.DurableClaimToken);
+        Assert.Equal("12345/1", row.DurableClaimToken);
         Assert.Equal("AB12CDE", row.NormalizedVrm);
         Assert.Equal("EXAMPLE", row.NormalizedSurname);
         Assert.Equal("J", row.NormalizedFirstInitial);
@@ -45,7 +44,7 @@ public sealed class CaseMatchIntegrationTests
 
         foreach (var keys in new CaseMatchKeys[]
         {
-            new("46553/1", null, null, null, null),
+            new("12345/1", null, null, null, null),
             new(null, "AB12CDE", null, null, null),
             new(null, null, "EXAMPLE", "J", null)
         })
@@ -63,7 +62,7 @@ public sealed class CaseMatchIntegrationTests
             CancellationToken.None));
         Assert.Empty(await queries.FindByAnyKeyAsync(
             "PCH",
-            new("46553/1", null, null, null, null),
+            new("12345/1", null, null, null, null),
             CancellationToken.None));
     }
 
@@ -89,7 +88,7 @@ public sealed class CaseMatchIntegrationTests
 
         var row = await harness.SingleIndexRowAsync(caseId);
         Assert.Equal("XY65ZZZ", row.NormalizedVrm);
-        Assert.Equal("46553/1", row.DurableClaimToken);
+        Assert.Equal("12345/1", row.DurableClaimToken);
     }
 
     [Fact]
@@ -134,7 +133,7 @@ public sealed class CaseMatchIntegrationTests
         Assert.Equal(1, association.MatchPolicyVersion);
         Assert.Equal(1, await context.IntakeMutationHistory
             .CountAsync(item => item.IntakeReceiptId == chaserReceiptId
-                && item.EventType == "intake_case_linked"));
+                && item.EventType == "intake_case_linked_automatic"));
     }
 
     [Fact]
@@ -185,7 +184,7 @@ public sealed class CaseMatchIntegrationTests
             CaseMatchOutcome.UniqueMatch,
             matchedCaseId,
             null,
-            new("46553/1", "AB12CDE", "EXAMPLE", "J", new DateOnly(2026, 6, 18)),
+            new("12345/1", "AB12CDE", "EXAMPLE", "J", new DateOnly(2026, 6, 18)),
             [
                 new(
                     matchedCaseId,
@@ -230,7 +229,7 @@ public sealed class CaseMatchIntegrationTests
         Assert.Equal(CaseMatchOutcome.UniqueMatch, audit.Outcome);
         Assert.Equal(matchedCaseId, audit.MatchedCaseId);
         Assert.Null(audit.RedirectedFromCaseId);
-        Assert.Equal("46553/1", audit.Keys.DurableClaimToken);
+        Assert.Equal("12345/1", audit.Keys.DurableClaimToken);
         Assert.Equal(new DateOnly(2026, 6, 18), audit.Keys.IncidentDate);
         var candidate = Assert.Single(audit.Candidates);
         Assert.Equal(["claim-reference", "vehicle-registration"], candidate.HitKeys);
@@ -364,7 +363,7 @@ public sealed class CaseMatchIntegrationTests
             var principalId = Guid.NewGuid();
             var sourceHash = new string('b', 64);
             var fieldsJson =
-                """{"version":1,"data":[{"name":"Claimant name","suggestedValue":"Mrs Jane Example","candidates":[{"value":"Mrs Jane Example","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Claim number","suggestedValue":"MFI/AKH/46553/1","candidates":[{"value":"MFI/AKH/46553/1","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Vehicle registration","suggestedValue":"AB12 CDE","candidates":[{"value":"AB12 CDE","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Date of incident","suggestedValue":"2031-04-01","candidates":[{"value":"2031-04-01","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Inspection address","suggestedValue":"1 Test Street, London","candidates":[{"value":"1 Test Street, London","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Inspection date","suggestedValue":"2031-05-20","candidates":[{"value":"2031-05-20","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false}]}""";
+                """{"version":1,"data":[{"name":"Claimant name","suggestedValue":"Mrs Jane Example","candidates":[{"value":"Mrs Jane Example","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Claim number","suggestedValue":"ABC/DEF/12345/1","candidates":[{"value":"ABC/DEF/12345/1","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Vehicle registration","suggestedValue":"AB12 CDE","candidates":[{"value":"AB12 CDE","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Date of incident","suggestedValue":"2031-04-01","candidates":[{"value":"2031-04-01","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Inspection address","suggestedValue":"1 Test Street, London","candidates":[{"value":"1 Test Street, London","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Inspection date","suggestedValue":"2031-05-20","candidates":[{"value":"2031-05-20","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false}]}""";
             var emptyEnvelope = """{"version":1,"data":[]}""";
 
             await context.Database.ExecuteSqlInterpolatedAsync(
@@ -376,7 +375,7 @@ public sealed class CaseMatchIntegrationTests
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO IntakeReceipts (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel, ExternalReceiptToken, ReceivedAtUtc, ProcessedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, Version, Decision, DecisionReason, EvidenceJson, FieldsJson, OcrCandidatesJson) VALUES ({receiptId}, {"qdos.eml"}, {"message/rfc822"}, {100L}, {sourceHash}, {"mailbox"}, {"case-match-item-1"}, {StartUtc}, {StartUtc}, {"fixture-reader"}, {"1"}, {"qdos_instruction"}, {1}, {0L}, {"draft_ready"}, {"Ready fixture"}, {emptyEnvelope}, {fieldsJson}, {emptyEnvelope})");
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO InstructionDrafts (IntakeReceiptId, SuggestedPrincipalCode, ClaimantName, ClaimNumber, VehicleRegistration, DateOfIncident, InspectionAddress, InspectionDate) VALUES ({receiptId}, {"QDOS"}, {"Mrs Jane Example"}, {"MFI/AKH/46553/1"}, {"AB12CDE"}, {new DateOnly(2031, 4, 1)}, {"1 Test Street, London"}, {FixtureInspectionDate})");
+                $"INSERT INTO InstructionDrafts (IntakeReceiptId, SuggestedPrincipalCode, ClaimantName, ClaimNumber, VehicleRegistration, DateOfIncident, InspectionAddress, InspectionDate) VALUES ({receiptId}, {"QDOS"}, {"Mrs Jane Example"}, {"ABC/DEF/12345/1"}, {"AB12CDE"}, {new DateOnly(2031, 4, 1)}, {"1 Test Street, London"}, {FixtureInspectionDate})");
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO IntakeMailRouteDecisions (IntakeReceiptId, Disposition, RouteOwnerCode, RouteKind, WorkProviderCode, PredicatesJson, Reason, PolicyKey, PolicyVersion, TransportIdentitiesJson, OriginalIdentitiesJson) VALUES ({receiptId}, {"accepted"}, {"QDOS"}, {"direct_work_provider"}, {"QDOS"}, {emptyEnvelope}, {"Accepted QDOS route"}, {"qdos_mail_route"}, {3}, {emptyEnvelope}, {emptyEnvelope})");
         }

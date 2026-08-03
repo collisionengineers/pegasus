@@ -4,7 +4,7 @@ Task line: shared Core classification foundation and the settled mailbox
 taxonomy — MAIL-21 and MAIL-22. Branch `task/qdos-email-classification`.
 
 **Scope widened by operator decisions 2026-08-03** (recorded in
-[ADR-0019](../adr/0019-accepted-qdos-case-association-predicates.md) and the
+[ADR-0020](../adr/0020-accepted-qdos-case-association-predicates.md) and the
 re-scoped `NOW.md` claim): this branch also delivers the route/extraction
 policy split from [the split proposal](split-qdos-extraction-policy.md), the
 operator-accepted three-domain route set (`qdos_mail_route` v3, from the

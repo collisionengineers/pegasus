@@ -13,7 +13,7 @@ public sealed class EvaluateIntakeCaseMatchTests
     public async Task NonAcceptedRouteProducesNoDecision()
     {
         var result = await Execute(
-            Keys(claim: "46553/1"),
+            Keys(claim: "12345/1"),
             [],
             route: Route(MailRouteDisposition.NoMatch, null));
 
@@ -24,7 +24,7 @@ public sealed class EvaluateIntakeCaseMatchTests
     public async Task ProviderWithoutAnAcceptedPolicyProducesNoDecision()
     {
         var sut = new EvaluateIntakeCaseMatch(
-            [new StubPolicy(Keys(claim: "46553/1")) { Provider = "PCH" }],
+            [new StubPolicy(Keys(claim: "12345/1")) { Provider = "PCH" }],
             new StubQueries([]));
 
         var result = await sut.ExecuteAsync(
@@ -48,8 +48,8 @@ public sealed class EvaluateIntakeCaseMatchTests
     public async Task SingleSurvivingCandidateIsAUniqueMatch()
     {
         var result = await Execute(
-            Keys(claim: "46553/1"),
-            [Candidate(CaseA, claim: "46553/1")]);
+            Keys(claim: "12345/1"),
+            [Candidate(CaseA, claim: "12345/1")]);
 
         Assert.Equal(CaseMatchOutcome.UniqueMatch, result!.Outcome);
         Assert.Equal(CaseA, result.MatchedCaseId);
@@ -62,10 +62,10 @@ public sealed class EvaluateIntakeCaseMatchTests
     public async Task ClaimHitOnOneCaseAndVrmHitOnAnotherIsAmbiguousWithNoInventedWinner()
     {
         var result = await Execute(
-            Keys(claim: "46553/1", vrm: "LT17UCU"),
+            Keys(claim: "12345/1", vrm: "CD34EFG"),
             [
-                Candidate(CaseA, claim: "46553/1"),
-                Candidate(CaseB, vrm: "LT17UCU")
+                Candidate(CaseA, claim: "12345/1"),
+                Candidate(CaseB, vrm: "CD34EFG")
             ]);
 
         Assert.Equal(CaseMatchOutcome.Ambiguous, result!.Outcome);
@@ -119,8 +119,8 @@ public sealed class EvaluateIntakeCaseMatchTests
     public async Task VrmContradictionEliminatesAClaimHitCandidate()
     {
         var result = await Execute(
-            Keys(claim: "46553/1", vrm: "AB12CDE"),
-            [Candidate(CaseA, claim: "46553/1", vrm: "XY65ZZZ")]);
+            Keys(claim: "12345/1", vrm: "AB12CDE"),
+            [Candidate(CaseA, claim: "12345/1", vrm: "XY65ZZZ")]);
 
         Assert.Equal(CaseMatchOutcome.NoMatch, result!.Outcome);
         var evaluation = Assert.Single(result.Candidates);
@@ -158,8 +158,8 @@ public sealed class EvaluateIntakeCaseMatchTests
     public async Task NameContradictionEliminatesAClaimHitCandidate()
     {
         var result = await Execute(
-            Keys(claim: "46553/1", surname: "SMITH", initial: "J"),
-            [Candidate(CaseA, claim: "46553/1", surname: "JONES", initial: "B")]);
+            Keys(claim: "12345/1", surname: "SMITH", initial: "J"),
+            [Candidate(CaseA, claim: "12345/1", surname: "JONES", initial: "B")]);
 
         Assert.Equal(CaseMatchOutcome.NoMatch, result!.Outcome);
         Assert.NotEmpty(Assert.Single(result.Candidates).Eliminations);
@@ -182,8 +182,8 @@ public sealed class EvaluateIntakeCaseMatchTests
     public async Task PartialNamePairNeverEliminates()
     {
         var result = await Execute(
-            Keys(claim: "46553/1", surname: "SMITH"),
-            [Candidate(CaseA, claim: "46553/1", surname: "JONES", initial: "B")]);
+            Keys(claim: "12345/1", surname: "SMITH"),
+            [Candidate(CaseA, claim: "12345/1", surname: "JONES", initial: "B")]);
 
         Assert.Equal(CaseMatchOutcome.UniqueMatch, result!.Outcome);
         Assert.Equal(CaseA, result.MatchedCaseId);
@@ -193,15 +193,15 @@ public sealed class EvaluateIntakeCaseMatchTests
     public async Task CreatedInErrorSurvivorRedirectsToItsLinkedReplacementEvaluatedOnItsOwnKeys()
     {
         var result = await Execute(
-            Keys(claim: "46553/1"),
+            Keys(claim: "12345/1"),
             [
                 Candidate(
                     CaseA,
-                    claim: "46553/1",
+                    claim: "12345/1",
                     state: CaseLifecycleState.CreatedInError,
                     replacement: CaseB)
             ],
-            byCaseId: [Candidate(CaseB, claim: "46553/1")]);
+            byCaseId: [Candidate(CaseB, claim: "12345/1")]);
 
         Assert.Equal(CaseMatchOutcome.UniqueMatch, result!.Outcome);
         Assert.Equal(CaseB, result.MatchedCaseId);
@@ -212,15 +212,15 @@ public sealed class EvaluateIntakeCaseMatchTests
     public async Task ReplacementContradictedByTheMessageIsEliminatedNotInherited()
     {
         var result = await Execute(
-            Keys(claim: "46553/1", date: new DateOnly(2026, 6, 18)),
+            Keys(claim: "12345/1", date: new DateOnly(2026, 6, 18)),
             [
                 Candidate(
                     CaseA,
-                    claim: "46553/1",
+                    claim: "12345/1",
                     state: CaseLifecycleState.CreatedInError,
                     replacement: CaseB)
             ],
-            byCaseId: [Candidate(CaseB, claim: "46553/1", date: new DateOnly(2025, 1, 2))]);
+            byCaseId: [Candidate(CaseB, claim: "12345/1", date: new DateOnly(2025, 1, 2))]);
 
         Assert.Equal(CaseMatchOutcome.NoMatch, result!.Outcome);
         Assert.Null(result.MatchedCaseId);
@@ -231,11 +231,11 @@ public sealed class EvaluateIntakeCaseMatchTests
     public async Task ReplacementSharingNoIdentityWithTheMessageFailsClosed()
     {
         var result = await Execute(
-            Keys(claim: "46553/1"),
+            Keys(claim: "12345/1"),
             [
                 Candidate(
                     CaseA,
-                    claim: "46553/1",
+                    claim: "12345/1",
                     state: CaseLifecycleState.CreatedInError,
                     replacement: CaseB)
             ],
@@ -249,11 +249,11 @@ public sealed class EvaluateIntakeCaseMatchTests
     public async Task ReplacementWithoutAnIndexIdentityFailsClosed()
     {
         var result = await Execute(
-            Keys(claim: "46553/1"),
+            Keys(claim: "12345/1"),
             [
                 Candidate(
                     CaseA,
-                    claim: "46553/1",
+                    claim: "12345/1",
                     state: CaseLifecycleState.CreatedInError,
                     replacement: CaseB)
             ],
@@ -269,11 +269,11 @@ public sealed class EvaluateIntakeCaseMatchTests
     public async Task ChainedCreatedInErrorReplacementsResolveToTheLiveCase()
     {
         var result = await Execute(
-            Keys(claim: "46553/1"),
+            Keys(claim: "12345/1"),
             [
                 Candidate(
                     CaseA,
-                    claim: "46553/1",
+                    claim: "12345/1",
                     state: CaseLifecycleState.CreatedInError,
                     replacement: CaseB)
             ],
@@ -281,10 +281,10 @@ public sealed class EvaluateIntakeCaseMatchTests
             [
                 Candidate(
                     CaseB,
-                    claim: "46553/1",
+                    claim: "12345/1",
                     state: CaseLifecycleState.CreatedInError,
                     replacement: CaseC),
-                Candidate(CaseC, claim: "46553/1")
+                Candidate(CaseC, claim: "12345/1")
             ]);
 
         Assert.Equal(CaseMatchOutcome.UniqueMatch, result!.Outcome);
@@ -296,8 +296,8 @@ public sealed class EvaluateIntakeCaseMatchTests
     public async Task CreatedInErrorWithoutAReplacementIsEliminatedWithAReason()
     {
         var result = await Execute(
-            Keys(claim: "46553/1"),
-            [Candidate(CaseA, claim: "46553/1", state: CaseLifecycleState.CreatedInError)]);
+            Keys(claim: "12345/1"),
+            [Candidate(CaseA, claim: "12345/1", state: CaseLifecycleState.CreatedInError)]);
 
         Assert.Equal(CaseMatchOutcome.NoMatch, result!.Outcome);
         Assert.Contains(
@@ -309,11 +309,11 @@ public sealed class EvaluateIntakeCaseMatchTests
     public async Task RedirectTargetAlreadyACandidateDeduplicatesToOneSurvivor()
     {
         var result = await Execute(
-            Keys(claim: "46553/1", vrm: "AB12CDE"),
+            Keys(claim: "12345/1", vrm: "AB12CDE"),
             [
                 Candidate(
                     CaseA,
-                    claim: "46553/1",
+                    claim: "12345/1",
                     state: CaseLifecycleState.CreatedInError,
                     replacement: CaseC),
                 Candidate(CaseC, vrm: "AB12CDE")
@@ -335,8 +335,8 @@ public sealed class EvaluateIntakeCaseMatchTests
         CaseLifecycleState state)
     {
         var result = await Execute(
-            Keys(claim: "46553/1"),
-            [Candidate(CaseA, claim: "46553/1", state: state)]);
+            Keys(claim: "12345/1"),
+            [Candidate(CaseA, claim: "12345/1", state: state)]);
 
         Assert.Equal(CaseMatchOutcome.UniqueMatch, result!.Outcome);
         Assert.Equal(CaseA, result.MatchedCaseId);

@@ -353,14 +353,14 @@ public sealed class ProcessIntakeTests
                 new(
                     IntakeEvidenceSource.EmailBody,
                     "message body",
-                    "QDOS instruction\nClaimant Name: Review Claimant\nClaim Number: 46553/1")
+                    "QDOS instruction\nClaimant Name: Review Claimant\nClaim Number: 12345/1")
             ]);
         var store = new RecordingStore();
         var evaluator = new EvaluateIntakeCaseMatch(
-            [new FixedKeysMatchPolicy(new("46553/1", "AB12CDE", null, null, null))],
+            [new FixedKeysMatchPolicy(new("12345/1", "AB12CDE", null, null, null))],
             new FixedCandidatesQueries(
             [
-                new(caseA, "QDOS", "46553/1", null, null, null, null,
+                new(caseA, "QDOS", "12345/1", null, null, null, null,
                     Pegasus.Core.Workflow.CaseLifecycleState.Review, null),
                 new(caseB, "QDOS", null, "AB12CDE", null, null, null,
                     Pegasus.Core.Workflow.CaseLifecycleState.Review, null)
@@ -381,6 +381,99 @@ public sealed class ProcessIntakeTests
         Assert.Null(match.MatchedCaseId);
         Assert.Equal(2, match.Candidates.Count);
         Assert.Contains("Competing candidate cases", result.DecisionReason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ClassificationIsRecordedOnlyAndNeverChangesTheIntakeDecision()
+    {
+        // The same message processed with and without the classification
+        // policy must land on the identical decision: a classification is a
+        // recorded observation, never a queue, Triage, or destination change.
+        IntakeSourceReadResult ReadResult() => Readable(
+            transportEvidence:
+            [
+                new(
+                    IntakeEvidenceSource.Sender,
+                    "instructions@qdosassist.co.uk",
+                    IntakeSenderIdentityKind.Transport,
+                    "outer message")
+            ],
+            content:
+            [
+                new(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "Triage Only Request. Please find attached our client's images.")
+            ]);
+        IntakeSource Source(string key) => CreateSource() with
+        {
+            FileName = "classification-separation.eml",
+            MediaType = "message/rfc822",
+            SourceIdentity = new(IntakeSourceChannel.Mailbox, key)
+        };
+
+        var classifiedStore = new RecordingStore();
+        var classified = await CreateSut(new StubReader(ReadResult()), classifiedStore)
+            .ExecuteAsync(Source("classification-separation-on"));
+        var unclassifiedStore = new RecordingStore();
+        var unclassified = await CreateSut(
+                new StubReader(ReadResult()),
+                unclassifiedStore,
+                classificationPolicies: [])
+            .ExecuteAsync(Source("classification-separation-off"));
+
+        var recorded = Assert.IsType<MailClassificationResult>(classified.MailClassificationDecision);
+        Assert.Equal(MailClassificationOutcome.Classified, recorded.Outcome);
+        Assert.Null(unclassified.MailClassificationDecision);
+        Assert.Equal(unclassified.Decision, classified.Decision);
+        Assert.Equal(unclassified.DecisionReason, classified.DecisionReason);
+    }
+
+    [Fact]
+    public async Task AmbiguousClassificationIsRecordedOnlyAndNeverChangesTheIntakeDecision()
+    {
+        IntakeSourceReadResult ReadResult() => Readable(
+            transportEvidence:
+            [
+                new(
+                    IntakeEvidenceSource.Sender,
+                    "instructions@qdosassist.co.uk",
+                    IntakeSenderIdentityKind.Transport,
+                    "outer message")
+            ],
+            content:
+            [
+                new(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "Triage Only Request. Please provide an initial assessment."),
+                new(
+                    IntakeEvidenceSource.DocumentContent,
+                    "attached letter",
+                    "AUDIT REPORT NOTIFICATION\nOur Ref: 12345/1")
+            ]);
+        IntakeSource Source(string key) => CreateSource() with
+        {
+            FileName = "classification-ambiguity-separation.eml",
+            MediaType = "message/rfc822",
+            SourceIdentity = new(IntakeSourceChannel.Mailbox, key)
+        };
+
+        var ambiguousStore = new RecordingStore();
+        var ambiguous = await CreateSut(new StubReader(ReadResult()), ambiguousStore)
+            .ExecuteAsync(Source("classification-ambiguity-on"));
+        var withoutStore = new RecordingStore();
+        var without = await CreateSut(
+                new StubReader(ReadResult()),
+                withoutStore,
+                classificationPolicies: [])
+            .ExecuteAsync(Source("classification-ambiguity-off"));
+
+        var recorded = Assert.IsType<MailClassificationResult>(ambiguous.MailClassificationDecision);
+        Assert.Equal(MailClassificationOutcome.Ambiguous, recorded.Outcome);
+        Assert.Null(without.MailClassificationDecision);
+        Assert.Equal(without.Decision, ambiguous.Decision);
+        Assert.Equal(without.DecisionReason, ambiguous.DecisionReason);
     }
 
     private sealed class FixedKeysMatchPolicy(CaseMatchKeys keys) : IProviderCaseMatchPolicy
@@ -749,11 +842,12 @@ public sealed class ProcessIntakeTests
         IIntakeArtifactStore? artifactStore = null,
         IInstructionExtractionPolicy? extractionPolicy = null,
         IMailRoutePolicy? mailRoutePolicy = null,
-        EvaluateIntakeCaseMatch? caseMatchEvaluator = null) =>
+        EvaluateIntakeCaseMatch? caseMatchEvaluator = null,
+        IReadOnlyList<IMailClassificationPolicy>? classificationPolicies = null) =>
         new(reader, store, artifactStore ?? new RecordingArtifactStore(),
             extractionPolicy ?? new QdosInstructionExtractionPolicy(),
             mailRoutePolicy ?? new QdosMailRoutePolicy(),
-            [new QdosMailClassificationPolicy()],
+            classificationPolicies ?? [new QdosMailClassificationPolicy()],
             caseMatchEvaluator ?? new EvaluateIntakeCaseMatch([], new NoCaseMatchCandidates()),
             new FixedTimeProvider(ProcessedAtUtc));
 
