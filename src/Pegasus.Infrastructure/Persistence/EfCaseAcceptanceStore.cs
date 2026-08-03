@@ -147,6 +147,7 @@ public sealed class EfCaseAcceptanceStore(
         var receipt = await context.IntakeReceipts
             .Include(item => item.InstructionDraft)
             .Include(item => item.MailRouteDecision)
+            .Include(item => item.MailClassificationDecision)
             .SingleOrDefaultAsync(item => item.Id == request.IntakeReceiptId, cancellationToken)
             ?? throw new InvalidOperationException("The intake receipt does not exist.");
         if (receipt.Version != request.ExpectedIntakeVersion)

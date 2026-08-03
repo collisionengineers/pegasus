@@ -379,6 +379,7 @@ internal sealed class EfIntakeMutationStore(
             .Include(item => item.Assets)
             .Include(item => item.InstructionDraft)
             .Include(item => item.MailRouteDecision)
+            .Include(item => item.MailClassificationDecision)
             .Include(item => item.ManualAssociation)
             .SingleOrDefaultAsync(item => item.Id == receiptId, cancellationToken);
 

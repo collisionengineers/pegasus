@@ -17,6 +17,120 @@ public sealed class MailboxIntakeIntegrationTests
         new(2031, 7, 8, 9, 10, 0, TimeSpan.Zero);
 
     [Fact]
+    public async Task FullVersionedMailClassificationDecisionReloadsWithoutLosingAuditEvidence()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+
+        var classified = MailClassificationResult.Classified(
+            MailCategory.Received(
+                ReceivedMailFamily.NewInstructionReceived,
+                "audit",
+                isReplyContext: true),
+            [
+                new("body.triage-only-request", false, "No email body contains the phrase."),
+                new("attachment.audit-report-notification", true, "An attached document contains the generated title.")
+            ],
+            "Exactly one accepted classification predicate family matched.",
+            "qdos_mail_classification",
+            1);
+
+        await using (var scope = database.CreateAsyncScope())
+        {
+            var store = scope.ServiceProvider.GetRequiredService<IIntakeReceiptStore>();
+            var stored = await store.StoreAsync(
+                new(
+                    SourceFileName: "classification-audit.eml",
+                    MediaType: "message/rfc822",
+                    SourceLength: 1,
+                    SourceHash: new string('B', 64),
+                    SourceIdentity: new(IntakeSourceChannel.Mailbox, "classification-audit-token"),
+                    ReceivedAtUtc: RecordedAtUtc,
+                    ProcessedAtUtc: RecordedAtUtc,
+                    Actor: "system-worker:approved-inbox-poller",
+                    Decision: IntakeDecision.NeedsSorting,
+                    DecisionReason: "The accepted route did not contain a reviewable instruction.",
+                    Evidence: [],
+                    Fields: [],
+                    InstructionDraft: null,
+                    MissingFields: [],
+                    FailureCode: null,
+                    FailureReason: null,
+                    SourceReaderKey: "protocol_reader",
+                    SourceReaderVersion: "1",
+                    ExtractionPolicyKey: "protocol_policy",
+                    ExtractionPolicyVersion: 1,
+                    MailClassificationDecision: classified),
+                CancellationToken.None);
+
+            var reloaded = await scope.ServiceProvider
+                .GetRequiredService<IIntakeReceiptQueries>()
+                .GetAsync(stored.Id, CancellationToken.None);
+            var audit = Assert.IsType<MailClassificationResult>(reloaded?.MailClassificationDecision);
+            Assert.Equal(MailClassificationOutcome.Classified, audit.Outcome);
+            var category = Assert.IsType<MailCategory>(audit.Category);
+            Assert.Equal(ReceivedMailFamily.NewInstructionReceived, category.ReceivedFamily);
+            Assert.Equal("audit", category.Subtype);
+            Assert.True(category.IsReplyContext);
+            Assert.Equal("qdos_mail_classification", audit.PolicyKey);
+            Assert.Equal(1, audit.PolicyVersion);
+            Assert.Equal(2, audit.Predicates.Count);
+            Assert.Empty(audit.AmbiguousCandidates);
+        }
+    }
+
+    [Fact]
+    public async Task AmbiguousMailClassificationDecisionReloadsItsCandidates()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+
+        var ambiguous = MailClassificationResult.Ambiguous(
+            ["pre-instruction-emails", "new-instruction-received/audit"],
+            [new("body.triage-only-request", true, "An email body contains the phrase.")],
+            "Predicates for more than one category matched simultaneously; no winner is invented.",
+            "qdos_mail_classification",
+            1);
+
+        await using (var scope = database.CreateAsyncScope())
+        {
+            var store = scope.ServiceProvider.GetRequiredService<IIntakeReceiptStore>();
+            var stored = await store.StoreAsync(
+                new(
+                    SourceFileName: "classification-ambiguous.eml",
+                    MediaType: "message/rfc822",
+                    SourceLength: 1,
+                    SourceHash: new string('C', 64),
+                    SourceIdentity: new(IntakeSourceChannel.Mailbox, "classification-ambiguous-token"),
+                    ReceivedAtUtc: RecordedAtUtc,
+                    ProcessedAtUtc: RecordedAtUtc,
+                    Actor: "system-worker:approved-inbox-poller",
+                    Decision: IntakeDecision.NeedsSorting,
+                    DecisionReason: "Competing classification candidates require manual sorting.",
+                    Evidence: [],
+                    Fields: [],
+                    InstructionDraft: null,
+                    MissingFields: [],
+                    FailureCode: null,
+                    FailureReason: null,
+                    SourceReaderKey: "protocol_reader",
+                    SourceReaderVersion: "1",
+                    ExtractionPolicyKey: "protocol_policy",
+                    ExtractionPolicyVersion: 1,
+                    MailClassificationDecision: ambiguous),
+                CancellationToken.None);
+
+            var reloaded = await scope.ServiceProvider
+                .GetRequiredService<IIntakeReceiptQueries>()
+                .GetAsync(stored.Id, CancellationToken.None);
+            var audit = Assert.IsType<MailClassificationResult>(reloaded?.MailClassificationDecision);
+            Assert.Equal(MailClassificationOutcome.Ambiguous, audit.Outcome);
+            Assert.Null(audit.Category);
+            Assert.Equal(
+                ["pre-instruction-emails", "new-instruction-received/audit"],
+                audit.AmbiguousCandidates);
+        }
+    }
+
+    [Fact]
     public async Task FullVersionedMailRouteDecisionReloadsWithoutLosingAuditEvidence()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();

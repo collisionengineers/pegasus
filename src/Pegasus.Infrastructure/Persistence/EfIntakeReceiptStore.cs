@@ -51,6 +51,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             .Include(item => item.Assets)
             .Include(item => item.InstructionDraft)
             .Include(item => item.MailRouteDecision)
+            .Include(item => item.MailClassificationDecision)
             .Include(item => item.ManualAssociation)
             .SingleOrDefaultAsync(
                 item => item.SourceChannel == channelCode
@@ -99,6 +100,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         receipt.FailureReason = draft.FailureReason;
         ApplyInstructionDraft(context, receipt, draft.InstructionDraft);
         ApplyMailRouteDecision(context, receipt, draft.MailRouteDecision);
+        ApplyMailClassificationDecision(context, receipt, draft.MailClassificationDecision);
         AppendNewDerivedAssets(receipt, draft.AssetRecords);
         receipt.Version++;
 
@@ -178,6 +180,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             .Include(item => item.Assets)
             .Include(item => item.InstructionDraft)
             .Include(item => item.MailRouteDecision)
+            .Include(item => item.MailClassificationDecision)
             .Include(item => item.ManualAssociation)
             .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
         if (entity is null)
@@ -204,6 +207,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             .Include(item => item.Assets)
             .Include(item => item.InstructionDraft)
             .Include(item => item.MailRouteDecision)
+            .Include(item => item.MailClassificationDecision)
             .Include(item => item.ManualAssociation)
             .SingleOrDefaultAsync(
                 item => item.SourceChannel == channelCode
@@ -251,6 +255,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             .Include(item => item.Assets)
             .Include(item => item.InstructionDraft)
             .Include(item => item.MailRouteDecision)
+            .Include(item => item.MailClassificationDecision)
             .Include(item => item.ManualAssociation);
         if (context.Database.IsSqlServer())
         {
@@ -265,6 +270,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 .Include(item => item.Assets)
                 .Include(item => item.InstructionDraft)
                 .Include(item => item.MailRouteDecision)
+            .Include(item => item.MailClassificationDecision)
                 .Include(item => item.ManualAssociation);
         }
 
@@ -325,6 +331,12 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         if (draft.MailRouteDecision is not null)
         {
             receipt.MailRouteDecision = MapMailRouteDecision(draft.MailRouteDecision, receipt);
+        }
+
+        if (draft.MailClassificationDecision is not null)
+        {
+            receipt.MailClassificationDecision =
+                MapMailClassificationDecision(draft.MailClassificationDecision, receipt);
         }
 
         receipt.Assets.AddRange(draft.AssetRecords.Select(asset => new IntakeAssetEntity
@@ -399,7 +411,10 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             entity.Version,
             acceptedCaseId,
             entity.ManualAssociation is { IsActive: true } association ? association.CaseId : null,
-            entity.ManualAssociation?.Version);
+            entity.ManualAssociation?.Version,
+            entity.MailClassificationDecision is null
+                ? null
+                : MapMailClassificationDecision(entity.MailClassificationDecision));
     }
 
     private static InstructionDraft MapInstructionDraft(InstructionDraftEntity entity) => new(
@@ -436,6 +451,111 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             EffectiveSenderAddress = decision.EffectiveSender?.Address,
             EffectiveSenderSourceLabel = decision.EffectiveSender?.SourceLabel
         };
+    private static IntakeMailClassificationDecisionEntity MapMailClassificationDecision(
+        MailClassificationResult decision,
+        IntakeReceiptEntity receipt) =>
+        new()
+        {
+            IntakeReceiptId = receipt.Id,
+            IntakeReceipt = receipt,
+            Outcome = ToCode(decision.Outcome),
+            Direction = decision.Category is null ? null : ToCode(decision.Category.Direction),
+            Family = decision.Category is { IsOther: false } category
+                ? category.Name
+                : null,
+            Subtype = decision.Category?.Subtype,
+            IsReplyContext = decision.Category?.IsReplyContext ?? false,
+            OtherName = decision.Category?.OtherName,
+            OtherReasoning = decision.Category?.OtherReasoning,
+            AmbiguousCandidatesJson = SerializeEnvelope(decision.AmbiguousCandidates),
+            PredicatesJson = SerializeEnvelope(decision.Predicates),
+            Reason = decision.Reason,
+            PolicyKey = decision.PolicyKey,
+            PolicyVersion = decision.PolicyVersion
+        };
+
+    private static MailClassificationResult MapMailClassificationDecision(
+        IntakeMailClassificationDecisionEntity entity)
+    {
+        MailCategory? category = null;
+        if (entity.OtherName is not null)
+        {
+            if (entity.Direction is null || entity.OtherReasoning is null)
+            {
+                throw new InvalidDataException(
+                    "The persisted 'Other' classification is incomplete.");
+            }
+
+            category = MailCategory.Other(
+                ParseMailDirection(entity.Direction),
+                entity.OtherName,
+                entity.OtherReasoning);
+        }
+        else if (entity.Family is not null)
+        {
+            if (entity.Direction is null)
+            {
+                throw new InvalidDataException(
+                    "The persisted classification family carries no direction.");
+            }
+
+            category = ParseMailDirection(entity.Direction) == MailDirection.Received
+                ? MailCategory.Received(
+                    MailTaxonomy.ParseReceivedFamily(entity.Family),
+                    entity.Subtype,
+                    entity.IsReplyContext)
+                : MailCategory.Sent(
+                    MailTaxonomy.ParseSentFamily(entity.Family),
+                    entity.IsReplyContext);
+        }
+
+        return new(
+            ParseMailClassificationOutcome(entity.Outcome),
+            category,
+            DeserializeEnvelope<IReadOnlyList<string>>(entity.AmbiguousCandidatesJson) ?? [],
+            DeserializeEnvelope<IReadOnlyList<MailClassificationPredicateResult>>(entity.PredicatesJson),
+            entity.Reason,
+            entity.PolicyKey,
+            entity.PolicyVersion);
+    }
+
+    private static void ApplyMailClassificationDecision(
+        PegasusDbContext context,
+        IntakeReceiptEntity receipt,
+        MailClassificationResult? decision)
+    {
+        if (decision is null)
+        {
+            if (receipt.MailClassificationDecision is not null)
+            {
+                context.Remove(receipt.MailClassificationDecision);
+                receipt.MailClassificationDecision = null;
+            }
+            return;
+        }
+
+        var replacement = MapMailClassificationDecision(decision, receipt);
+        if (receipt.MailClassificationDecision is null)
+        {
+            receipt.MailClassificationDecision = replacement;
+            return;
+        }
+
+        var entity = receipt.MailClassificationDecision;
+        entity.Outcome = replacement.Outcome;
+        entity.Direction = replacement.Direction;
+        entity.Family = replacement.Family;
+        entity.Subtype = replacement.Subtype;
+        entity.IsReplyContext = replacement.IsReplyContext;
+        entity.OtherName = replacement.OtherName;
+        entity.OtherReasoning = replacement.OtherReasoning;
+        entity.AmbiguousCandidatesJson = replacement.AmbiguousCandidatesJson;
+        entity.PredicatesJson = replacement.PredicatesJson;
+        entity.Reason = replacement.Reason;
+        entity.PolicyKey = replacement.PolicyKey;
+        entity.PolicyVersion = replacement.PolicyVersion;
+    }
+
     private static void ApplyInstructionDraft(
         PegasusDbContext context,
         IntakeReceiptEntity receipt,
@@ -684,6 +804,36 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         "no_match" => MailRouteDisposition.NoMatch,
         "needs_sorting" => MailRouteDisposition.NeedsSorting,
         _ => throw UnknownCode("mail-route disposition", value)
+    };
+
+    private static string ToCode(MailClassificationOutcome value) => value switch
+    {
+        MailClassificationOutcome.Classified => "classified",
+        MailClassificationOutcome.Ambiguous => "ambiguous",
+        MailClassificationOutcome.Unclassified => "unclassified",
+        _ => throw UnknownEnum(value)
+    };
+
+    private static MailClassificationOutcome ParseMailClassificationOutcome(string value) => value switch
+    {
+        "classified" => MailClassificationOutcome.Classified,
+        "ambiguous" => MailClassificationOutcome.Ambiguous,
+        "unclassified" => MailClassificationOutcome.Unclassified,
+        _ => throw UnknownCode("mail-classification outcome", value)
+    };
+
+    private static string ToCode(MailDirection value) => value switch
+    {
+        MailDirection.Received => "received",
+        MailDirection.Sent => "sent",
+        _ => throw UnknownEnum(value)
+    };
+
+    private static MailDirection ParseMailDirection(string value) => value switch
+    {
+        "received" => MailDirection.Received,
+        "sent" => MailDirection.Sent,
+        _ => throw UnknownCode("mail direction", value)
     };
 
     private static string ToCode(MailRouteKind value) => value switch
