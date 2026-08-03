@@ -30,6 +30,12 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   packages and the pinned Playwright Chromium (branch
   task/repository-check-speed, taken 2026-08-03, by claude).
 
+- Release-3 record: update the deployed evidence in operations.md, fix the
+  production smoke script's redirect-following anonymous-denial check, retire
+  the stale RPO/RTO second-deployment gate in .azure/deployment-plan.md, and
+  reduce the shipped release item (branch task/release-3-record, taken
+  2026-08-03, by claude-main).
+
 ## Next (ordered queue — take from the top)
 
 - Ship with the composition-fix release: the Web identity's Key Vault Secrets
