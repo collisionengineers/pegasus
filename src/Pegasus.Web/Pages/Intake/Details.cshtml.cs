@@ -21,13 +21,16 @@ public sealed partial class DetailsModel(
     IConfirmStandaloneAuditEvidence confirmStandaloneAuditEvidence,
     IStandaloneAuditEvidenceQueries standaloneAuditEvidenceQueries,
     ILogger<DetailsModel> logger,
-    IInspectionAddressResolutionStore addressResolutionStore) : PageModel
+    IInspectionAddressResolutionStore addressResolutionStore,
+    IProviderInspectionModeStore providerInspectionModeStore) : PageModel
 {
 
     public IntakeReceipt Receipt { get; private set; } = null!;
 
     public bool IsDuplicate { get; private set; }
     public InspectionAddressResolutionSnapshot AddressResolution { get; private set; } = null!;
+
+    public bool ProviderIsImageBased { get; private set; }
 
     public string PrincipalCode { get; set; } = string.Empty;
 
@@ -85,9 +88,10 @@ public sealed partial class DetailsModel(
         PrincipalCode = Receipt.InstructionDraft?.SuggestedPrincipalCode ?? string.Empty;
         InstructionComplete = Receipt.InstructionDraft is not null
             && Receipt.MissingFields.Count == 0
-            && AddressResolution.State is (
-                InspectionAddressResolutionState.Accepted
-                or InspectionAddressResolutionState.Corrected);
+            && (ProviderIsImageBased
+                || AddressResolution.State is (
+                    InspectionAddressResolutionState.Accepted
+                    or InspectionAddressResolutionState.Corrected));
         InstructionConfirmedByStaff = InstructionComplete;
         AcceptanceOperationKey = Guid.NewGuid().ToString("N");
         if (ConfirmedStandaloneAuditEvidence is { } evidence)
@@ -347,14 +351,6 @@ public sealed partial class DetailsModel(
                 nameof(AcceptanceReason),
                 "The acceptance reason must be 500 characters or fewer.");
         }
-        if (AddressResolution.State is not InspectionAddressResolutionState.Accepted
-            and not InspectionAddressResolutionState.Corrected)
-        {
-            ModelState.AddModelError(
-                string.Empty,
-                "Accept or correct the inspection-address suggestion before allocating a case reference.");
-        }
-
         PrincipalCode = PrincipalCode.Trim().ToUpperInvariant();
         if (PrincipalCode.Length == 0)
         {
@@ -376,6 +372,20 @@ public sealed partial class DetailsModel(
             ModelState.AddModelError(
                 nameof(PrincipalCode),
                 "Only the activated QDOS principal can allocate a case in this release.");
+        }
+
+        var postedProviderMode = PrincipalCode.Length == 0
+            ? null
+            : await providerInspectionModeStore.GetForPrincipalAsync(
+                PrincipalCode,
+                cancellationToken);
+        if (postedProviderMode != CaseInspectionMode.ImageBasedAssessment
+            && AddressResolution.State is not InspectionAddressResolutionState.Accepted
+                and not InspectionAddressResolutionState.Corrected)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "Accept or correct the inspection-address suggestion before allocating a case reference.");
         }
 
         if (!Enum.IsDefined(CaseType))
@@ -817,6 +827,11 @@ public sealed partial class DetailsModel(
         ConfirmedStandaloneAuditEvidence =
             await standaloneAuditEvidenceQueries.GetForReceiptAsync(id, cancellationToken);
         Receipt = receipt;
+        var suggestedPrincipalCode = receipt.InstructionDraft?.SuggestedPrincipalCode;
+        ProviderIsImageBased = !string.IsNullOrWhiteSpace(suggestedPrincipalCode)
+            && await providerInspectionModeStore.GetForPrincipalAsync(
+                suggestedPrincipalCode,
+                cancellationToken) == CaseInspectionMode.ImageBasedAssessment;
         AddressResolution = addressResolution ?? new(
             id,
             0,

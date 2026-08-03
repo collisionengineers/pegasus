@@ -31,9 +31,15 @@ public static class DependencyInjection
         Action<IServiceProvider, DbContextOptionsBuilder> configureDatabase,
         Func<IServiceProvider, string>? localArtifactRootFactory = null,
         Func<IServiceProvider, RequestUploadLimits>? requestUploadLimitsFactory = null,
-        Func<IServiceProvider, EvaMappingAcceptance>? evaMappingAcceptanceFactory = null)
+        Func<IServiceProvider, EvaMappingAcceptance>? evaMappingAcceptanceFactory = null,
+        Action<IServiceCollection>? documentStorage = null)
     {
         ArgumentNullException.ThrowIfNull(configureDatabase);
+        if (localArtifactRootFactory is not null && documentStorage is not null)
+        {
+            throw new InvalidOperationException(
+                "A runtime profile supplies either a local artifact root or an external document storage registration, never both.");
+        }
 
         services.AddDbContextFactory<PegasusDbContext>((serviceProvider, options) =>
         {
@@ -90,6 +96,7 @@ public static class DependencyInjection
             new QdosInstructionExtractionPolicy(
                 provider.GetRequiredService<IIntakeTriageMatcher>()));
         services.AddScoped<ICaseAcceptanceStore, EfCaseAcceptanceStore>();
+        services.AddScoped<IProviderInspectionModeStore, EfProviderInspectionModeStore>();
         services.AddScoped<EfStaffAccountAdministration>();
         services.AddScoped<IStaffAccountQueries>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
@@ -243,6 +250,11 @@ public static class DependencyInjection
         services.AddScoped<IArchiveCase, ArchiveCase>();
         services.AddScoped<IRecordManualCaseChase, RecordManualCaseChase>();
 
+        // The document, EVA and custody surface is composed for every profile that
+        // has durable content storage. Only the implementations differ; a profile
+        // must never silently resolve a different service set.
+        var composesDocumentSurface = localArtifactRootFactory is not null || documentStorage is not null;
+
         if (localArtifactRootFactory is not null)
         {
             services.AddSingleton(provider =>
@@ -251,22 +263,39 @@ public static class DependencyInjection
                 provider.GetRequiredService<FileSystemIntakeArtifactStore>());
             services.AddSingleton<IIntakeQuarantineArtifactStore>(provider =>
                 provider.GetRequiredService<FileSystemIntakeArtifactStore>());
-            services.AddScoped<IIntakeSourceReader, MimeKitPdfPigOpenXmlIntakeSourceReader>();
-            services.AddScoped<ProcessIntake>();
 
             services.AddSingleton(provider =>
                 new LocalDocumentContentStore(Path.Combine(localArtifactRootFactory(provider), "custody")));
+            services.AddSingleton<IDocumentContentStore>(provider =>
+                provider.GetRequiredService<LocalDocumentContentStore>());
             services.AddSingleton<IEvaHandoffProxy, LocalEvaHandoffProxy>();
+            services.AddSingleton<ICaseCustody>(provider =>
+                new LocalCaseCustody(
+                    Path.Combine(localArtifactRootFactory(provider), "custody"),
+                    provider.GetRequiredService<IIntakeArtifactStore>()));
+        }
+        else if (documentStorage is not null)
+        {
+            documentStorage(services);
+            services.AddSingleton<IEvaHandoffProxy, LocalEvaHandoffProxy>();
+        }
+        else
+        {
+            services.AddSingleton<ICaseCustody, UnavailableCaseCustody>();
+        }
+
+        services.AddScoped<IProcessQueuedCustody, EfQueuedCustodyProcessor>();
+
+        if (composesDocumentSurface)
+        {
+            services.AddScoped<IIntakeSourceReader, MimeKitPdfPigOpenXmlIntakeSourceReader>();
+            services.AddScoped<ProcessIntake>();
+
             services.AddScoped<EvaHandoffStore>();
             services.AddScoped<IEvaHandoffQueries>(provider =>
                 provider.GetRequiredService<EvaHandoffStore>());
             services.AddScoped<IGenerateEvaHandoff>(provider =>
                 provider.GetRequiredService<EvaHandoffStore>());
-            services.AddSingleton<ICaseCustody>(provider =>
-                new LocalCaseCustody(
-                    Path.Combine(localArtifactRootFactory(provider), "custody"),
-                    provider.GetRequiredService<IIntakeArtifactStore>()));
-            services.AddScoped<IProcessQueuedCustody, EfQueuedCustodyProcessor>();
 
             services.AddScoped<EfDocumentCustodyStore>();
             services.AddScoped<IAddCaseDocument>(provider =>
@@ -287,14 +316,8 @@ public static class DependencyInjection
                 provider.GetRequiredService<EfBoxFileRequestStore>());
             services.AddScoped<IRevokeBoxFileRequest>(provider =>
                 provider.GetRequiredService<EfBoxFileRequestStore>());
-
         }
-        if (localArtifactRootFactory is null)
-        {
-            services.AddSingleton<ICaseCustody, UnavailableCaseCustody>();
-            services.AddScoped<IProcessQueuedCustody, EfQueuedCustodyProcessor>();
-        }
-        if (localArtifactRootFactory is not null
+        if (composesDocumentSurface
             && requestUploadLimitsFactory is not null)
         {
             services.AddSingleton(requestUploadLimitsFactory);
@@ -351,23 +374,80 @@ public static class DependencyInjection
         return services;
     }
 
+    /// <summary>
+    /// The production durable-storage profile: blob-backed intake artifacts plus the
+    /// approved Box custody root for case custody and managed document content. Web
+    /// and Worker both compose this, so both hosts read and write one storage truth.
+    /// </summary>
+    public static IServiceCollection AddProductionDocumentStorage(
+        this IServiceCollection services,
+        Func<IServiceProvider, Azure.Storage.Blobs.BlobContainerClient> intakeContainerFactory,
+        Func<IServiceProvider, bool> allowContainerCreateIfNotExists,
+        BoxCustodyOptions boxOptions)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(intakeContainerFactory);
+        ArgumentNullException.ThrowIfNull(allowContainerCreateIfNotExists);
+
+        services.AddSingleton(provider => new AzureBlobIntakeArtifactStore(
+            intakeContainerFactory(provider),
+            allowContainerCreateIfNotExists(provider)));
+        services.AddSingleton<IIntakeArtifactStore>(provider =>
+            provider.GetRequiredService<AzureBlobIntakeArtifactStore>());
+        services.AddSingleton<IIntakeQuarantineArtifactStore>(provider =>
+            provider.GetRequiredService<AzureBlobIntakeArtifactStore>());
+        return services.AddProductionBoxCustody(boxOptions);
+    }
+
+    /// <summary>
+    /// Registers the approved Box custody root as both the case custody adapter and
+    /// the managed-document content store. Both composition roots call this so Web
+    /// and Worker resolve the same fenced Box client rather than diverging.
+    /// </summary>
+    public static IServiceCollection AddProductionBoxCustody(
+        this IServiceCollection services,
+        BoxCustodyOptions boxOptions)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(boxOptions);
+
+        services.AddSingleton(boxOptions);
+        services.TryAddSingleton(static _ => new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(100)
+        });
+        services.AddSingleton<IBoxAuthorizationHeaderProvider, BoxJwtAuthorizationHeaderProvider>();
+        services.AddSingleton(provider => new BoxContentClient(
+            provider.GetRequiredService<BoxCustodyOptions>(),
+            provider.GetRequiredService<HttpClient>(),
+            provider.GetRequiredService<IBoxAuthorizationHeaderProvider>()));
+        services.AddSingleton<ICaseCustody>(provider => new BoxCaseCustody(
+            provider.GetRequiredService<IIntakeArtifactStore>(),
+            provider.GetRequiredService<BoxContentClient>()));
+        services.AddSingleton<IDocumentContentStore>(provider => new BoxDocumentContentStore(
+            provider.GetRequiredService<BoxContentClient>()));
+        return services;
+    }
+
+    /// <summary>
+    /// The mailbox and vehicle-lookup adapters. Box custody is not registered here —
+    /// it belongs to the storage profile (<see cref="AddProductionBoxCustody"/>) so a
+    /// host can compose custody without also composing mailbox polling.
+    /// </summary>
     public static IServiceCollection AddProductionExternalAdapters(
         this IServiceCollection services,
         GraphApprovedMailboxOptions graphOptions,
-        BoxCustodyOptions boxOptions,
         DvlaDvsaProductionOptions vehicleOptions)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(graphOptions);
-        ArgumentNullException.ThrowIfNull(boxOptions);
         ArgumentNullException.ThrowIfNull(vehicleOptions);
 
         services.AddSingleton(graphOptions);
         services.AddSingleton<IApprovedInboxSourceSettings>(graphOptions);
         services.AddSingleton<IApprovedSentSourceSettings>(graphOptions);
-        services.AddSingleton(boxOptions);
         services.AddSingleton(vehicleOptions);
-        services.AddSingleton(static _ => new HttpClient
+        services.TryAddSingleton(static _ => new HttpClient
         {
             Timeout = TimeSpan.FromSeconds(100)
         });
@@ -381,12 +461,6 @@ public static class DependencyInjection
         services.AddScoped<ISentEvidencePollStore, EfSentEvidencePollStore>();
         services.AddScoped<PollApprovedInbox>();
         services.AddScoped<PollSentEvidence>();
-        services.AddSingleton<IBoxAuthorizationHeaderProvider, BoxJwtAuthorizationHeaderProvider>();
-        services.AddSingleton<ICaseCustody>(provider => new BoxCaseCustody(
-            provider.GetRequiredService<BoxCustodyOptions>(),
-            provider.GetRequiredService<IIntakeArtifactStore>(),
-            provider.GetRequiredService<HttpClient>(),
-            provider.GetRequiredService<IBoxAuthorizationHeaderProvider>()));
         services.AddSingleton(VehicleLookupAvailability.ProductionLive);
         services.AddSingleton<IVehicleLookupAdapter>(provider => new DvlaDvsaProductionAdapter(
             provider.GetRequiredService<DvlaDvsaProductionOptions>(),

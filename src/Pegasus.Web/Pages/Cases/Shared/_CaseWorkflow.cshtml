@@ -144,13 +144,14 @@
                         }
                         @if (data.Inspection.Mode.Confirmed?.Value == CaseInspectionMode.ImageBasedAssessment)
                         {
-                            <option value="ImageBasedAssessment" selected>Image-based assessment</option>
+                            <option value="ImageBasedAssessment" selected>Image Based Assessment</option>
                         }
                         else
                         {
-                            <option value="ImageBasedAssessment">Image-based assessment</option>
+                            <option value="ImageBasedAssessment">Image Based Assessment</option>
                         }
                     </select>
+                    <span>Choosing Image Based Assessment requires the inspection address to read exactly &ldquo;Image Based Assessment&rdquo;.</span>
                 </label>
                 <label class="field-wide">Accident circumstances<textarea name="accidentCircumstances" maxlength="2000">@data.Accident.Circumstances.Confirmed?.Value</textarea></label>
                 <label class="field-wide">Reason<input name="reason" required maxlength="500" /></label>

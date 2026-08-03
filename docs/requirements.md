@@ -415,17 +415,25 @@ reviewable.
 **Settled operator truth:** the report records either the physical vehicle/repairer location, when that
 location is explicitly supplied or operator-confirmed, or the exact value
 `Image Based Assessment`. Collision Engineers performs desktop assessments
-only. For an always-image-based Principal, `Image Based Assessment` is
-autofilled at Case creation even when a physical location appears in the
-instruction; authorised staff may override it to the explicitly supplied or
-confirmed location. For other Principals a provider setting may suggest a mode
-but cannot overwrite explicit evidence or operator confirmation. The current
-provider-domain reference package contains no address or address-mode default,
-so none may be inferred from a provider or domain match.
+only. The inspection mode is determined by the Principal's persisted
+inspection-mode setting ([ADR-0018](adr/0018-provider-inspection-mode-database-setting.md)),
+not derived from instruction text: instruction documents never contain the
+literal value. For an always-image-based Principal (QDOS is seeded so),
+`Image Based Assessment` is autofilled at Case creation even when a physical
+location appears in the instruction; authorised staff may override it on the
+specific Case to the explicitly supplied or confirmed location with an
+attributed reason. For a physical-address Principal the location is extracted
+from the instruction and operator-confirmed; the provider setting determines
+the default mode but never invents or selects a physical address. The
+provider-domain reference package contains no address or address-mode default;
+the setting lives on the Principal record, and no address is ever inferred
+from a provider or domain match.
 
-A manual selection of `Image Based Assessment` requires an attributed staff
-reason in permanent Case history; the always-image-based autofill records its
-route-policy provenance. Neither is inferred from a corpus row or domain match.
+A manual selection of `Image Based Assessment`, and any override of the
+autofilled mode, requires an attributed staff reason in permanent Case
+history; the always-image-based autofill records its provider-setting
+provenance and a permanent Case-history event. Neither the mode default nor
+any address is inferred from a corpus row or domain match.
 
 When `DATA-02` activates, its separately approved reference-data pipeline
 accepts only reviewed full addresses, retaining each complete display address
@@ -458,7 +466,7 @@ Generated or synthetic vehicle imagery is not acceptance evidence, and no recogn
 
 Pegasus retains every source image. An automated VRM or colour result may only suggest that an image depicts another vehicle; it does not exclude the image from Case-vehicle, EVA-export, or future report-selection pools. An authorised staff member must confirm the different-vehicle finding before the retained source is categorised and excluded as third-party vehicle evidence. Without that confirmation it remains visible as unmatched-vehicle evidence. Neither outcome deletes source evidence or turns an automated assessment into accepted Case fact.
 
-When activated, an AI-assisted image readiness assessment runs automatically whenever current Case images are added, replaced, or removed. It returns a source- and version-labelled advisory on whether the set contains a registration overview, at least one damage close-up, and a reflected image. An accepted always-image-based Principal route policy waives only the reflection advisory.
+When activated, an AI-assisted image readiness assessment runs automatically whenever current Case images are added, replaced, or removed. It returns a source- and version-labelled advisory on whether the set contains a registration overview, at least one damage close-up, and a reflected image. An always-image-based Principal inspection-mode setting waives only the reflection advisory.
 
 The assessment may run before market valuation and neither creates nor returns an AI Proposal. Its result does not affect Case/PO allocation, Case state, Review, Engineers-queue eligibility, due work, chasing, or staff discretion. Source images remain retained, and report-image selection continues to exclude images showing a person's reflection.
 
