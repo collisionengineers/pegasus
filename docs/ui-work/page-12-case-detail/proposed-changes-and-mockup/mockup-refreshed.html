@@ -1,0 +1,338 @@
+<!doctype html>
+<!--
+  REFRESHED SYSTEM — divergences from the recorded design authority (design/README.md tokens),
+  per ui-standards-and-review.md §5.2:
+  1. Type scale 22/17/15/13px with 600-weight headings (was the flat existing scale); metrics,
+     references, dates and file sizes carry font-variant-numeric: tabular-nums.
+  2. Cards: 6px radius, 1px hairline plus a soft shadow 0 1px 2px rgb(22 25 29 / 5%)
+     (was 2px radius, hairline only, no shadow).
+  3. Paper #F7F6F4 (was #F5F4F2); panel #FFFFFF unchanged.
+  4. State chips gain a ~10% tinted background behind the existing 1px border; the colour roles
+     are unchanged — amber = pending, navy = Review, green = confirmed completion only,
+     red stays reserved for the single primary commitment.
+  5. Density on an 8px base rhythm with 16/24/32 steps; table rows 40px.
+  6. Uppercase section labels are dropped in favour of 15px sentence-case card headings.
+  7. Top navigation retained — the left-rail option is NOT taken.
+
+  Content and structure are identical to mockup-hardened.html; only the visual system differs.
+  All content is schematic placeholder material.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Case 26001 — Pegasus (refreshed mockup)</title>
+<style>
+  :root{
+    --ce-red:#DB0816; --ce-red-dark:#8F1422; --ink:#16191D; --charcoal:#2C2A27;
+    --paper:#F7F6F4; --panel:#FFFFFF; --line:#E6E4E1; --muted:#6B6B6B;
+    --green:#16833B;
+    --amber-fg:#7A3E00; --amber-line:#A15C00;
+    --navy-fg:#143A5E; --navy-line:#365F87;
+    --shadow:0 1px 2px rgb(22 25 29 / 5%);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);
+    font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  a{color:inherit}
+  :focus-visible{outline:3px solid rgba(219,8,22,.38);outline-offset:1px}
+
+  /* ---- top navigation ---------------------------------------------------- */
+  .topbar{background:var(--panel);border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:24px;padding:0 32px;height:56px}
+  .brand{display:flex;align-items:center;gap:12px;white-space:nowrap}
+  .brand .mark{color:var(--ce-red);font-weight:700;font-size:12px;letter-spacing:.08em}
+  .brand .app{font-weight:600;border-left:1px solid var(--line);padding-left:12px;font-size:15px}
+  nav.primary{display:flex;gap:8px;margin-left:8px}
+  nav.primary a{text-decoration:none;font-size:14px;color:var(--charcoal);padding:6px 12px;border-radius:6px}
+  nav.primary a:hover{background:var(--paper)}
+  nav.primary a[aria-current="page"]{color:var(--ce-red);font-weight:600;
+    box-shadow:inset 0 -2px 0 var(--ce-red);border-radius:6px 6px 0 0}
+  .session{margin-left:auto;display:flex;gap:16px;font-size:13px;color:var(--muted)}
+  .session a{color:var(--charcoal);text-decoration:none}
+
+  /* ---- page frame -------------------------------------------------------- */
+  main{max-width:1120px;margin:0 auto;padding:32px 24px 40px}
+  .crumb{font-size:13px;color:var(--muted);margin-bottom:8px}
+  .crumb a{color:var(--muted)}
+
+  .casehead{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:8px}
+  h1{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
+  .casehead .headactions{margin-left:auto;display:flex;gap:8px}
+  .identity{display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+    font-size:13px;color:var(--muted);margin-bottom:24px;font-variant-numeric:tabular-nums}
+  .identity .dot{color:var(--line)}
+  .identity strong{color:var(--charcoal);font-weight:600}
+
+  /* ---- chips ------------------------------------------------------------- */
+  .chip{display:inline-block;font-size:13px;font-weight:600;border-radius:999px;
+    padding:3px 12px;border:1px solid var(--line);background:rgb(22 25 29 / 4%);color:var(--charcoal)}
+  .chip--review{border-color:var(--navy-line);background:rgb(54 95 135 / 10%);color:var(--navy-fg)}
+  .chip--pending{border-color:var(--amber-line);background:rgb(161 92 0 / 10%);color:var(--amber-fg)}
+  .chip--ok{border-color:var(--green);background:rgb(22 131 59 / 10%);color:var(--green)}
+  .chip--sm{font-size:12px;padding:2px 10px}
+
+  /* ---- section nav ------------------------------------------------------- */
+  .sectionnav{display:flex;gap:8px;border-bottom:1px solid var(--line);margin-bottom:24px;
+    position:sticky;top:0;background:var(--paper);z-index:2}
+  .sectionnav a{text-decoration:none;font-size:14px;color:var(--charcoal);
+    padding:10px 12px;border-radius:6px 6px 0 0}
+  .sectionnav a:hover{background:var(--panel)}
+  .sectionnav a[aria-current="true"]{color:var(--ce-red);font-weight:600;
+    box-shadow:inset 0 -2px 0 var(--ce-red)}
+  .sectionnav .count{color:var(--muted);font-weight:400;font-variant-numeric:tabular-nums}
+  .sectionnav a[aria-current="true"] .count{color:var(--ce-red)}
+
+  /* ---- cards ------------------------------------------------------------- */
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:6px;
+    box-shadow:var(--shadow);padding:24px;margin-bottom:24px}
+  .card h2{font-size:15px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+  .card h2 .tail{margin-left:auto;font-size:13px;font-weight:600}
+  .card h2 .tail a{color:var(--charcoal)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+  .grid2 .card{margin-bottom:24px}
+
+  /* ---- fact grid --------------------------------------------------------- */
+  dl.facts div{display:flex;align-items:baseline;gap:16px;min-height:40px;padding:8px 0;
+    border-bottom:1px solid var(--line);font-size:14px;font-variant-numeric:tabular-nums}
+  dl.facts div:last-child{border-bottom:0;padding-bottom:0}
+  dl.facts dt{flex:0 0 140px;color:var(--muted);font-size:13px}
+  dl.facts dd{font-weight:600}
+  dl.facts dd.quiet{font-weight:400;color:var(--muted)}
+
+  /* ---- case data rows ---------------------------------------------------- */
+  .datarow{display:flex;align-items:center;gap:16px;min-height:40px;padding:8px 0;
+    border-bottom:1px solid var(--line);font-size:14px;font-variant-numeric:tabular-nums}
+  .datarow:last-of-type{border-bottom:0;padding-bottom:0}
+  .datarow .f{flex:0 0 160px;color:var(--muted);font-size:13px}
+  .datarow .v{font-weight:600;flex:0 0 200px}
+  .datarow .v.quiet{font-weight:400;color:var(--muted)}
+  .suggest{font-size:13px;color:var(--charcoal)}
+  .suggest .src{color:var(--muted)}
+  .datarow .act{margin-left:auto}
+  .linkbtn{background:none;border:none;color:var(--ce-red);font:inherit;font-size:13px;
+    font-weight:600;cursor:pointer;text-decoration:underline;padding:4px 2px}
+
+  /* ---- buttons ----------------------------------------------------------- */
+  .btn{display:inline-block;border:1px solid var(--line);border-radius:6px;background:var(--panel);
+    color:var(--charcoal);font:inherit;font-size:14px;font-weight:600;padding:8px 16px;
+    cursor:pointer;text-decoration:none;box-shadow:var(--shadow)}
+  .btn:hover{border-color:var(--charcoal)}
+  .btn--primary{background:var(--ce-red);border-color:var(--ce-red);color:#fff}
+  .btn--primary:hover{background:var(--ce-red-dark);border-color:var(--ce-red-dark)}
+  .btn--sm{font-size:13px;padding:5px 10px}
+
+  /* ---- actions ----------------------------------------------------------- */
+  .actiongroups{display:grid;gap:16px}
+  .agroup{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+    padding-bottom:16px;border-bottom:1px solid var(--line)}
+  .agroup:last-child{padding-bottom:0;border-bottom:0}
+  .agroup .glabel{flex:0 0 96px;font-size:13px;color:var(--muted);font-weight:600}
+  .hint{font-size:13px;color:var(--muted);margin-top:16px}
+
+  /* ---- dialog demo ------------------------------------------------------- */
+  .dialog-demo{border:1px dashed var(--line);border-radius:6px;padding:24px;margin-top:24px;
+    background:var(--paper)}
+  .dialog-demo .demolabel{font-size:13px;color:var(--muted);margin-bottom:16px}
+  .dialog{background:var(--panel);border:1px solid var(--line);border-radius:6px;
+    max-width:460px;padding:24px;box-shadow:0 18px 60px rgb(22 25 29 / 18%)}
+  .dialog h3{font-size:17px;font-weight:600;margin-bottom:16px}
+  .dialog label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:16px 0 8px}
+  .dialog select,.dialog input[type=text]{width:100%;border:1px solid var(--line);border-radius:6px;
+    padding:9px 12px;font:inherit;background:var(--panel)}
+  .dialog .consequence{font-size:13px;color:var(--muted);margin-top:16px}
+  .dialog .foot{display:flex;justify-content:flex-end;gap:8px;margin-top:24px}
+
+  /* ---- tables ------------------------------------------------------------ */
+  table{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+  th{font-size:13px;color:var(--muted);text-align:left;font-weight:600;
+    padding:8px 12px;border-bottom:1px solid var(--line)}
+  td{height:40px;padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+  tbody tr:last-child td{border-bottom:0}
+  td:first-child,th:first-child{padding-left:0}
+  td:last-child,th:last-child{padding-right:0}
+  .num{text-align:right}
+  .toolrow{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+  .abbrev{font-size:13px;color:var(--muted);margin-top:16px}
+
+  footer{max-width:1120px;margin:0 auto;padding:16px 24px 32px;font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <span class="brand"><span class="mark">&#9679; COLLISION ENGINEERS</span><span class="app">Pegasus</span></span>
+  <nav class="primary" aria-label="Main">
+    <a href="#">Dashboard</a>
+    <a href="#">Inbox</a>
+    <a href="#">Upload</a>
+    <a href="#">Queues</a>
+    <a href="#" aria-current="page">Cases</a>
+    <a href="#">Administration</a>
+  </nav>
+  <span class="session">alex <a href="#">Change password</a> <a href="#">Sign out</a></span>
+</header>
+
+<main>
+  <p class="crumb"><a href="#">Cases</a> &rsaquo; 26001</p>
+
+  <div class="casehead">
+    <h1>Case 26001</h1>
+    <span class="chip chip--review">Review</span>
+    <span class="headactions"><button class="btn" type="button">Edit</button></span>
+  </div>
+  <p class="identity">
+    <strong>Principal A</strong><span class="dot">&middot;</span>
+    <strong>AB12 CDE</strong><span class="dot">&middot;</span>
+    Sample Claimant
+  </p>
+
+  <nav class="sectionnav" aria-label="Case sections">
+    <a href="#overview" aria-current="true">Overview</a>
+    <a href="#actions">Actions</a>
+    <a href="#documents">Documents <span class="count">2</span></a>
+    <a href="#history">History <span class="count">3</span></a>
+  </nav>
+
+  <div class="grid2" id="overview">
+    <section class="card" aria-labelledby="case-title">
+      <h2 id="case-title">Case</h2>
+      <dl class="facts">
+        <div><dt>Reference</dt><dd>26001</dd></div>
+        <div><dt>Case type</dt><dd>Inspection</dd></div>
+        <div><dt>Principal</dt><dd>Principal A</dd></div>
+        <div><dt>Engineer</dt><dd class="quiet">Unassigned</dd></div>
+      </dl>
+    </section>
+    <section class="card" aria-labelledby="instr-title">
+      <h2 id="instr-title">Instruction</h2>
+      <dl class="facts">
+        <div><dt>Received</dt><dd>4 Aug 2026 16:30</dd></div>
+        <div><dt>Instruction date</dt><dd>4 Aug 2026</dd></div>
+        <div><dt>Origin</dt><dd>Manual upload</dd></div>
+        <div><dt>Claim number</dt><dd class="quiet">Not recorded</dd></div>
+      </dl>
+    </section>
+  </div>
+
+  <section class="card" aria-labelledby="data-title">
+    <h2 id="data-title">Case data <span class="tail"><a href="#">Show all 18 fields</a></span></h2>
+
+    <div class="datarow">
+      <span class="f">Registration</span>
+      <span class="v">AB12 CDE</span>
+      <span class="chip chip--ok chip--sm">Confirmed</span>
+    </div>
+
+    <div class="datarow">
+      <span class="f">Incident date</span>
+      <span class="v quiet">Not recorded</span>
+      <span class="suggest">Suggested <strong>27 Feb 2025</strong>
+        <span class="src">&mdash; from the instruction PDF</span></span>
+      <span class="act"><button class="linkbtn" type="button">Accept</button></span>
+    </div>
+
+    <div class="datarow">
+      <span class="f">Inspection mode</span>
+      <span class="v">Image-based assessment</span>
+      <span class="chip chip--ok chip--sm">Confirmed</span>
+    </div>
+
+    <div class="datarow">
+      <span class="f">Instruction date</span>
+      <span class="v">4 Aug 2026</span>
+      <span class="suggest src">Suggested from the receipt date</span>
+      <span class="act"><span class="chip chip--pending chip--sm">Not confirmed</span></span>
+    </div>
+  </section>
+
+  <section class="card" id="actions" aria-labelledby="actions-title">
+    <h2 id="actions-title">Actions</h2>
+    <div class="actiongroups">
+      <div class="agroup">
+        <span class="glabel">Progress</span>
+        <button class="btn" type="button">Send to report preparation</button>
+        <button class="btn" type="button">Assign engineer</button>
+      </div>
+      <div class="agroup">
+        <span class="glabel">Hold</span>
+        <button class="btn" type="button">Hold case</button>
+      </div>
+      <div class="agroup">
+        <span class="glabel">Closure</span>
+        <button class="btn" type="button">Close case</button>
+        <button class="btn" type="button">Create linked replacement</button>
+        <button class="btn" type="button">More &#9662;</button>
+      </div>
+    </div>
+    <p class="hint">Each action asks for a reason before it is recorded. Only actions available at
+      the Review stage are shown.</p>
+
+    <div class="dialog-demo">
+      <p class="demolabel">Example dialog &mdash; shown when &ldquo;Close case&rdquo; is chosen
+        (page dims behind it):</p>
+      <div class="dialog" role="dialog" aria-labelledby="close-title" aria-modal="true">
+        <h3 id="close-title">Close case</h3>
+        <label for="outcome">Outcome</label>
+        <select id="outcome">
+          <option>Post-report complete</option>
+          <option>Provider cancelled</option>
+          <option>Collision Engineers rejected</option>
+        </select>
+        <label for="close-reason">Reason</label>
+        <input id="close-reason" type="text">
+        <p class="consequence">Closing ends work on this case. It can be reopened with a reason.</p>
+        <div class="foot">
+          <button class="btn" type="button">Cancel</button>
+          <button class="btn btn--primary" type="button">Close case</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="documents" aria-labelledby="docs-title">
+    <h2 id="docs-title">Documents</h2>
+    <table>
+      <thead><tr><th></th><th>File</th><th>Type</th><th>Custody</th><th class="num">Size</th><th>Added</th><th></th></tr></thead>
+      <tbody>
+        <tr>
+          <td><input type="checkbox" aria-label="Select photos-front.jpg"></td>
+          <td><a href="#">photos-front.jpg</a></td><td>Vehicle image</td>
+          <td><span class="chip chip--ok chip--sm">Confirmed</span></td>
+          <td class="num">2.4 MB</td><td>4 Aug 2026</td>
+          <td class="num"><button class="btn btn--sm" type="button" aria-label="Row actions">&#8942;</button></td>
+        </tr>
+        <tr>
+          <td><input type="checkbox" aria-label="Select instruction.pdf"></td>
+          <td><a href="#">instruction.pdf</a></td><td>Instruction</td>
+          <td><span class="chip chip--ok chip--sm">Confirmed</span></td>
+          <td class="num">1.1 MB</td><td>4 Aug 2026</td>
+          <td class="num"><button class="btn btn--sm" type="button" aria-label="Row actions">&#8942;</button></td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="toolrow">
+      <button class="btn" type="button">Export selected</button>
+      <button class="btn" type="button">Add document</button>
+    </div>
+    <p class="abbrev">Abbreviated in this mockup &mdash; the full section carries the same table with
+      the row menu opened.</p>
+  </section>
+
+  <section class="card" id="history" aria-labelledby="hist-title">
+    <h2 id="hist-title">History</h2>
+    <table>
+      <thead><tr><th>Event</th><th>Actor</th><th>When</th><th>Reason</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Sent to Review</strong></td><td>alex</td><td>4 Aug 2026 16:41</td><td>Instruction reviewed</td></tr>
+        <tr><td><strong>Case data saved</strong></td><td>alex</td><td>4 Aug 2026 16:38</td><td>Confirmed inspection details</td></tr>
+        <tr><td><strong>Case created</strong></td><td><span class="chip chip--sm">Automation</span></td><td>4 Aug 2026 16:30</td><td>Received instruction</td></tr>
+      </tbody>
+    </table>
+    <p class="abbrev">Abbreviated in this mockup &mdash; the full section pages through every
+      recorded event, newest first.</p>
+  </section>
+</main>
+
+<footer>Pegasus &middot; Collision Engineers case management</footer>
+</body>
+</html>

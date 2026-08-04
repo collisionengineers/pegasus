@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Triage record AB12 CDE — Pegasus (hardened mockup)</title>
+<style>
+  :root{
+    --ce-red:#DB0816; --ce-red-dark:#8F1422; --ink:#16191D; --charcoal:#2C2A27;
+    --paper:#F5F4F2; --panel:#FFFFFF; --line:#E6E4E1; --muted:#6B6B6B;
+    --green:#16833B;
+    --amber-fg:#7A3E00; --amber-bg:#FFF4D6; --amber-line:#A15C00;
+    --navy-fg:#143A5E; --navy-bg:#EAF1F8; --navy-line:#365F87;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);
+    font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  a{color:inherit}
+  :focus-visible{outline:3px solid rgba(219,8,22,.38);outline-offset:1px}
+
+  .topbar{background:var(--panel);border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:24px;padding:0 24px;height:56px}
+  .brand{display:flex;align-items:center;gap:12px;white-space:nowrap}
+  .brand .mark{color:var(--ce-red);font-weight:700;font-size:12px;letter-spacing:.08em}
+  .brand .app{font-weight:700;border-left:1px solid var(--line);padding-left:12px}
+  nav.primary{display:flex;gap:4px;margin-left:16px}
+  nav.primary a{text-decoration:none;font-size:14px;color:var(--charcoal);
+    padding:18px 12px 15px;border-bottom:3px solid transparent}
+  nav.primary a[aria-current="page"]{color:var(--ce-red);border-bottom-color:var(--ce-red);font-weight:600}
+  .session{margin-left:auto;display:flex;gap:16px;align-items:center;font-size:14px;color:var(--muted)}
+  .session a{color:var(--charcoal);text-decoration:none}
+
+  main{max-width:1080px;margin:0 auto;padding:24px}
+  .crumb{font-size:13px;color:var(--muted);margin-bottom:8px}
+  .crumb a{color:var(--muted)}
+  .titlerow{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+  h1{font-size:24px;font-weight:700}
+  .assignee{font-size:14px;color:var(--muted)}
+  .titlerow .headactions{margin-left:auto;display:flex;gap:8px}
+
+  .state{display:inline-block;font-size:12.5px;font-weight:600;border-radius:2px;
+    padding:3px 10px;border:1px solid var(--amber-line);background:var(--amber-bg);color:var(--amber-fg)}
+
+  .cols{display:grid;grid-template-columns:1fr 320px;gap:16px;align-items:start}
+  .maincol,.sidecol{display:grid;gap:16px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:2px;padding:16px 20px}
+  .panel h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+    font-weight:600;margin-bottom:12px}
+
+  fieldset{border:0;margin-bottom:14px}
+  legend{font-size:14px;font-weight:600;margin-bottom:6px}
+  .radios{display:flex;gap:16px}
+  .radios label{display:flex;align-items:center;gap:6px;font-size:14px}
+  label.block{display:block;font-size:14px;font-weight:600;margin-bottom:6px}
+  textarea{width:100%;min-height:72px;border:1px solid var(--line);border-radius:2px;
+    padding:8px 10px;font:inherit;resize:vertical}
+
+  .btn{display:inline-block;border:1px solid var(--charcoal);border-radius:2px;background:var(--panel);
+    color:var(--charcoal);font:inherit;font-size:14px;font-weight:600;padding:7px 14px;
+    cursor:pointer;text-decoration:none}
+  .btn[disabled]{border-color:var(--line);color:var(--muted);cursor:not-allowed}
+  .btn--primary{background:var(--ce-red);border-color:var(--ce-red);color:#fff}
+  .btn--primary:hover{background:var(--ce-red-dark)}
+  .mt{margin-top:12px}
+
+  .reply-row{display:flex;align-items:center;gap:16px;padding:10px 0;border-top:1px solid var(--line);font-size:14px}
+  .reply-row .who{font-weight:600}
+  .reply-row .meta{color:var(--muted)}
+  .reply-row .act{margin-left:auto}
+  .guide{font-size:14px;color:var(--charcoal);margin-bottom:4px}
+
+  .histlist{list-style:none}
+  .histlist li{padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .histlist li:last-child{border-bottom:0}
+  .histlist .ev{font-weight:600;display:block}
+  .histlist .meta{color:var(--muted);font-size:13px}
+
+  footer{max-width:1080px;margin:0 auto;padding:16px 24px;font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <span class="brand"><span class="mark">&#9679; COLLISION ENGINEERS</span><span class="app">Pegasus</span></span>
+  <nav class="primary" aria-label="Main">
+    <a href="#">Dashboard</a>
+    <a href="#">Inbox</a>
+    <a href="#">Upload</a>
+    <a href="#">Queues</a>
+    <a href="#" aria-current="page">Cases</a>
+    <a href="#">Administration</a>
+  </nav>
+  <span class="session">alex <a href="#">Change password</a> <a href="#">Sign out</a></span>
+</header>
+
+<main>
+  <p class="crumb"><a href="#">Cases</a> › <a href="#">Triage</a> › AB12 CDE</p>
+  <div class="titlerow">
+    <h1>AB12 CDE</h1>
+    <span class="state">Open</span>
+    <span class="assignee">Assigned to alex</span>
+    <span class="headactions">
+      <button class="btn" type="button" disabled title="Record a finding and link the reply first">Complete</button>
+      <button class="btn" type="button">More &#9662;</button>
+    </span>
+  </div>
+
+  <div class="cols">
+    <div class="maincol">
+      <section class="panel" aria-labelledby="finding-title">
+        <h2 id="finding-title">Finding</h2>
+        <form>
+          <fieldset>
+            <legend>Roadworthiness</legend>
+            <div class="radios">
+              <label><input type="radio" name="road" checked> Roadworthy</label>
+              <label><input type="radio" name="road"> Unroadworthy</label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Assessment</legend>
+            <div class="radios">
+              <label><input type="radio" name="assess" checked> Repairable</label>
+              <label><input type="radio" name="assess"> Total loss</label>
+            </div>
+          </fieldset>
+          <label class="block" for="reason">Reason</label>
+          <textarea id="reason"></textarea>
+          <button class="btn btn--primary mt" type="button">Record finding</button>
+        </form>
+      </section>
+
+      <section class="panel" aria-labelledby="reply-title">
+        <h2 id="reply-title">Reply</h2>
+        <p class="guide">Replies to the finding e-mail appear here automatically. Link the reply that answers this record.</p>
+        <div class="reply-row">
+          <span class="who">principal-claims@sample.example</span>
+          <span class="meta">Re: AB12 CDE assessment · 5 Aug 2026 09:12</span>
+          <span class="act"><button class="btn" type="button">Link this reply</button></span>
+        </div>
+      </section>
+    </div>
+
+    <div class="sidecol">
+      <section class="panel" aria-labelledby="origin-title">
+        <h2 id="origin-title">Origin</h2>
+        <p style="font-size:14px;margin-bottom:4px"><strong>Sample Insurer Ltd</strong></p>
+        <p style="font-size:14px;color:var(--muted);margin-bottom:12px">E-mail received 4 Aug 2026 08:55</p>
+        <a class="btn" href="#">View e-mail</a>
+      </section>
+
+      <section class="panel" aria-labelledby="history-title">
+        <h2 id="history-title">History</h2>
+        <ul class="histlist">
+          <li><span class="ev">Assigned to alex</span><span class="meta">4 Aug 2026 09:00 · alex</span></li>
+          <li><span class="ev">Opened</span><span class="meta">4 Aug 2026 08:56</span></li>
+        </ul>
+      </section>
+    </div>
+  </div>
+</main>
+
+<footer>Pegasus · Collision Engineers case management</footer>
+</body>
+</html>

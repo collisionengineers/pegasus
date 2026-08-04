@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inbox and Upload · Pegasus — hardened mockup</title>
+<!-- Hardened system: current tokens from src/Pegasus.Web/wwwroot/css/site.css, unchanged.
+     Two proposed screens shown in one file: Screen 1 "Inbox", Screen 2 "Upload".
+     Schematic placeholder data only. -->
+<style>
+  :root{
+    --ce-red:#DB0816; --ce-red-dark:#8F1422; --ce-red-tint:rgba(219,8,22,.07);
+    --charcoal:#2C2A27; --ink:#16191D; --paper:#F5F4F2; --panel:#FFFFFF;
+    --line:#E6E4E1; --muted:#6B6B6B;
+    --amber-fg:#7A3E00; --amber-bg:#FFF4D6; --amber-line:#A15C00;
+    --navy-fg:#143A5E; --navy-bg:#EAF1F8; --navy-line:#365F87;
+    --green:#16833B;
+    --radius:2px; --focus:3px solid rgba(219,8,22,.38);
+  }
+  *,*::before,*::after{box-sizing:border-box;}
+  html{font-size:16px;}
+  body{
+    margin:0; background:#DDDBD7; color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+    font-size:.9375rem; line-height:1.45;
+  }
+  a{color:inherit;}
+  a:focus-visible,button:focus-visible{outline:var(--focus); outline-offset:1px;}
+
+  /* Mockup-only divider naming each screen (not part of the product UI) */
+  .screen-divider{
+    background:var(--charcoal); color:#fff; font-size:.75rem; letter-spacing:.12em;
+    text-transform:uppercase; padding:8px 24px;
+  }
+  .screen{background:var(--paper); padding-bottom:56px; min-height:520px;}
+
+  /* Top bar */
+  .topbar{background:var(--panel); border-bottom:1px solid var(--line);}
+  .topbar__inner{
+    max-width:1240px; margin:0 auto; padding:0 24px;
+    display:flex; align-items:center; gap:24px; height:56px;
+  }
+  .brand{display:flex; align-items:baseline; gap:12px; white-space:nowrap;}
+  .brand__mark{color:var(--ce-red); font-weight:700; font-size:.6875rem; letter-spacing:.14em;}
+  .brand__app{font-weight:600; font-size:1rem;}
+  .nav{display:flex; gap:4px; margin-left:auto;}
+  .nav a{
+    display:block; padding:17px 12px 15px; text-decoration:none; font-size:.875rem;
+    color:var(--charcoal); border-bottom:2px solid transparent;
+  }
+  .nav a:hover{color:var(--ink);}
+  .nav a.is-active{color:var(--ce-red); font-weight:600; border-bottom-color:var(--ce-red);}
+  .session{display:flex; align-items:center; gap:16px; font-size:.875rem;}
+  .session__user{color:var(--muted);}
+  .session a{text-decoration:none; color:var(--charcoal);}
+  .session a:hover{text-decoration:underline;}
+
+  .page{max-width:1240px; margin:0 auto; padding:28px 24px 0;}
+  h1{font-size:1.5rem; font-weight:600; margin:0 0 16px;}
+
+  .icon{width:15px; height:15px; flex:none; stroke:currentColor; fill:none;
+    stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
+
+  /* Filter chips */
+  .filters{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;}
+  .filters a{
+    display:inline-flex; align-items:center; gap:6px; padding:5px 12px;
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    text-decoration:none; font-size:.875rem; color:var(--charcoal);
+  }
+  .filters a:hover{border-color:var(--charcoal);}
+  .filters a.is-active{
+    background:var(--charcoal); border-color:var(--charcoal); color:#fff; font-weight:600;
+  }
+  .filters .count{font-variant-numeric:tabular-nums; color:var(--muted); font-size:.8125rem;}
+  .filters a.is-active .count{color:rgba(255,255,255,.75);}
+
+  /* Chips */
+  .chip{
+    display:inline-flex; align-items:center; gap:5px; padding:1px 8px 2px;
+    border:1px solid var(--line); border-radius:var(--radius);
+    font-size:.8125rem; background:var(--paper); color:var(--muted); white-space:nowrap;
+  }
+  .chip--navy{border-color:var(--navy-line); background:var(--navy-bg); color:var(--navy-fg);}
+  .chip--amber{border-color:var(--amber-line); background:var(--amber-bg); color:var(--amber-fg);}
+  .chip--red{border-color:var(--ce-red); background:var(--ce-red-tint); color:var(--ce-red-dark);}
+
+  /* Inbox table */
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);}
+  table{width:100%; border-collapse:collapse;}
+  th{
+    text-align:left; font-size:.75rem; font-weight:600; letter-spacing:.10em;
+    text-transform:uppercase; color:var(--muted); padding:10px 16px;
+    border-bottom:1px solid var(--line);
+  }
+  td{padding:10px 16px; border-bottom:1px solid var(--line); vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:var(--paper); cursor:pointer;}
+  .cell-sender{font-weight:600; white-space:nowrap;}
+  .cell-subject a{text-decoration:none;}
+  .cell-subject a:hover{text-decoration:underline;}
+  .cell-time{white-space:nowrap; color:var(--muted); font-size:.875rem;
+    font-variant-numeric:tabular-nums;}
+
+  .pager{display:flex; align-items:center; gap:16px; margin-top:12px; font-size:.875rem;}
+  .pager a{text-decoration:none; color:var(--charcoal); padding:4px 10px;
+    border:1px solid var(--line); border-radius:var(--radius); background:var(--panel);}
+  .pager a:hover{border-color:var(--charcoal);}
+  .pager span{color:var(--muted);}
+
+  /* Upload screen */
+  .upload-wrap{max-width:640px;}
+  .dropzone{
+    background:var(--panel); border:1px dashed var(--charcoal); border-radius:var(--radius);
+    padding:48px 24px; text-align:center;
+  }
+  .dropzone .icon{width:28px; height:28px; color:var(--charcoal); margin:0 auto 12px; display:block;}
+  .dropzone__title{font-size:1rem; font-weight:600; margin:0 0 4px;}
+  .dropzone__title button{
+    background:none; border:none; padding:0; font:inherit; color:var(--ce-red);
+    text-decoration:underline; cursor:pointer;
+  }
+  .dropzone__hint{font-size:.875rem; color:var(--muted); margin:0;}
+  .upload-actions{margin-top:16px;}
+  .primary-action{
+    display:inline-block; background:var(--ce-red); color:#fff; border:1px solid var(--ce-red);
+    border-radius:var(--radius); padding:9px 24px; font-size:.9375rem; font-weight:600;
+    cursor:pointer;
+  }
+  .primary-action:hover{background:var(--ce-red-dark); border-color:var(--ce-red-dark);}
+
+  /* Outcome status cards */
+  .state-caption{
+    font-size:.75rem; letter-spacing:.10em; text-transform:uppercase; color:var(--muted);
+    margin:28px 0 6px;
+  }
+  .status-card{
+    display:flex; align-items:flex-start; gap:10px;
+    background:var(--panel); border:1px solid var(--line); border-left-width:3px;
+    border-radius:var(--radius); padding:12px 16px; margin-bottom:8px;
+  }
+  .status-card .icon{margin-top:2px;}
+  .status-card__body{flex:1;}
+  .status-card__link{white-space:nowrap; font-size:.875rem;}
+  .status-card--success{border-left-color:var(--green);}
+  .status-card--success .icon{color:var(--green);}
+  .status-card--caution{border-left-color:var(--amber-line);}
+  .status-card--caution .icon{color:var(--amber-fg);}
+  .status-card--failure{border-left-color:var(--ce-red);}
+  .status-card--failure .icon{color:var(--ce-red-dark);}
+</style>
+</head>
+<body>
+
+<!-- ============================== SCREEN 1: INBOX ============================== -->
+<div class="screen-divider">Screen 1 of 2 — Inbox</div>
+<div class="screen">
+  <header class="topbar">
+    <div class="topbar__inner">
+      <span class="brand">
+        <span class="brand__mark">COLLISION&nbsp;ENGINEERS</span>
+        <span class="brand__app">Pegasus</span>
+      </span>
+      <nav class="nav" aria-label="Primary">
+        <a href="#">Dashboard</a>
+        <a href="#inbox" class="is-active" aria-current="page">Inbox</a>
+        <a href="#upload">Upload</a>
+        <a href="#">Queues</a>
+        <a href="#">Cases</a>
+        <a href="#">Administration</a>
+      </nav>
+      <div class="session">
+        <span class="session__user">alex</span>
+        <a href="#">Change password</a>
+        <a href="#">Sign out</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="page" id="inbox">
+    <h1>Inbox</h1>
+
+    <nav class="filters" aria-label="Inbox filters">
+      <a href="#" class="is-active">All <span class="count">9</span></a>
+      <a href="#">Ready to review <span class="count">3</span></a>
+      <a href="#">Needs sorting <span class="count">1</span></a>
+      <a href="#">Blocked <span class="count">1</span></a>
+      <a href="#">Vehicle images <span class="count">2</span></a>
+    </nav>
+
+    <div class="panel">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Sender</th>
+            <th scope="col">Subject</th>
+            <th scope="col">Received</th>
+            <th scope="col">State</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="cell-sender">claims@principal-a.example</td>
+            <td class="cell-subject"><a href="#">Instruction — AB12 CDE</a></td>
+            <td class="cell-time">04 Aug 2026 09:12</td>
+            <td><span class="chip chip--navy">Ready to review</span></td>
+          </tr>
+          <tr>
+            <td class="cell-sender">Sample Sender</td>
+            <td class="cell-subject"><a href="#">Query on Case 26002</a></td>
+            <td class="cell-time">04 Aug 2026 08:41</td>
+            <td><span class="chip chip--amber">Needs sorting</span></td>
+          </tr>
+          <tr>
+            <td class="cell-sender">Manual upload</td>
+            <td class="cell-subject"><a href="#">sample-instruction.pdf</a></td>
+            <td class="cell-time">03 Aug 2026 16:20</td>
+            <td><span class="chip chip--navy">Ready to review</span></td>
+          </tr>
+          <tr>
+            <td class="cell-sender">photos@principal-b.example</td>
+            <td class="cell-subject"><a href="#">Vehicle images — CD34 EFG</a></td>
+            <td class="cell-time">03 Aug 2026 14:05</td>
+            <td><span class="chip">Vehicle images</span></td>
+          </tr>
+          <tr>
+            <td class="cell-sender">unknown@sample.example</td>
+            <td class="cell-subject"><a href="#">Undeliverable notice</a></td>
+            <td class="cell-time">03 Aug 2026 11:57</td>
+            <td><span class="chip chip--red">Blocked</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <nav class="pager" aria-label="Inbox pages">
+      <a href="#">Previous</a>
+      <span>Page 1 of 2</span>
+      <a href="#">Next</a>
+    </nav>
+  </main>
+</div>
+
+<!-- ============================== SCREEN 2: UPLOAD ============================= -->
+<div class="screen-divider">Screen 2 of 2 — Upload</div>
+<div class="screen">
+  <header class="topbar">
+    <div class="topbar__inner">
+      <span class="brand">
+        <span class="brand__mark">COLLISION&nbsp;ENGINEERS</span>
+        <span class="brand__app">Pegasus</span>
+      </span>
+      <nav class="nav" aria-label="Primary">
+        <a href="#">Dashboard</a>
+        <a href="#inbox">Inbox</a>
+        <a href="#upload" class="is-active" aria-current="page">Upload</a>
+        <a href="#">Queues</a>
+        <a href="#">Cases</a>
+        <a href="#">Administration</a>
+      </nav>
+      <div class="session">
+        <span class="session__user">alex</span>
+        <a href="#">Change password</a>
+        <a href="#">Sign out</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="page" id="upload">
+    <h1>Upload</h1>
+
+    <div class="upload-wrap">
+      <div class="dropzone">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 8 12 3 17 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        <p class="dropzone__title">Drag a file here, or <button type="button">browse</button></p>
+        <p class="dropzone__hint">E-mail, document, PDF or image — up to 10 MB</p>
+      </div>
+      <div class="upload-actions">
+        <button type="submit" class="primary-action">Upload</button>
+      </div>
+
+      <p class="state-caption">Designed outcome states</p>
+
+      <div class="status-card status-card--success" role="status">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/><polyline points="8 12.5 11 15.5 16 9.5"/>
+        </svg>
+        <span class="status-card__body">
+          <strong>sample-instruction.pdf</strong> received — Ready to review
+        </span>
+        <a class="status-card__link" href="#">View item</a>
+      </div>
+
+      <div class="status-card status-card--caution" role="status">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12" y2="17"/>
+        </svg>
+        <span class="status-card__body">
+          This file was already received on 3 Aug 2026. No duplicate was created.
+        </span>
+        <a class="status-card__link" href="#">View existing item</a>
+      </div>
+
+      <div class="status-card status-card--failure" role="alert">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/>
+        </svg>
+        <span class="status-card__body">
+          This file is 24.8 MB. Files must be 10 MB or smaller.
+        </span>
+      </div>
+
+      <div class="status-card status-card--failure" role="alert">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/>
+        </svg>
+        <span class="status-card__body">
+          The file could not be processed. Try again, or contact an administrator if it keeps failing.
+        </span>
+      </div>
+    </div>
+  </main>
+</div>
+
+</body>
+</html>
