@@ -39,10 +39,10 @@ credential, external operation, deployment, or acceptance. The
 | 08 | `1.0.0` | Pegasus-owned engineering record/workbench and transfer of EVA assignment, estimating, valuation and report-preparation authority | 13 |
 | 09 | `1.1.0` | Deterministic report and fee-note rendering | 6 |
 | 10 | `1.2.0` | Targeted report distribution, accounts/invoicing and management information | 5 |
-| 11 | `1.3.0` | Engineer-reviewed query proposals and staff-selected AI Assessor | 2 |
+| 11 | `1.3.0` | Engineer-reviewed query proposals, staff-selected AI Assessor, and conditional Automation/Send-to-AI administration | 3 |
 | 12 | `1.4.0` | Conditional capture and domain outcomes after direct promotion decisions | 3 |
 
-The 200 planned capabilities use these twelve targets; 29 permanent boundaries
+The 201 planned capabilities use these twelve targets; 29 permanent boundaries
 remain `Not planned / unallocated`.
 
 Sequence constraints:
@@ -63,7 +63,11 @@ Sequence constraints:
 - `0.7.0` / `EXT-04` is optional and non-blocking, not a prerequisite for
   `1.0.0`;
 - `EXT-16`, `EXT-17`, and `EXT-19` remain non-blocking Triage allocations and
-  prohibited from implementation until their direct promotion decisions.
+  prohibited from implementation until their direct promotion decisions;
+- `MCP-07` (Administration-configurable Send to AI channel connector setup)
+  is conditionally allocated behind a direct decision on exact fields and a
+  secret-custody/rotation contract, and depends on `AI-09`/`MCP-06`'s
+  implemented gated evidence.
 
 All mailbox, WhatsApp, EVA, Box, provider, AI, and other source-specific
 approval gates remain mandatory. A target never authorises an external read or
