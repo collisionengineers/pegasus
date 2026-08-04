@@ -945,17 +945,34 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   content — through the one root-fenced client;
   official DVLA VES v1.2 and DVSA MOT History v1; EVA remains the accepted
   manual JSON/image handoff.
-- **Secrets:** the adopted predecessor vaults `cespkboxkvv76a47` and
-  `cespkenrichkvgi62sd` remain (intentionally retained inside
-  `rg-collisionspike-dev`); secret-level access only for the identities and
-  exact secrets that call them. The three obsolete vaults are soft-deleted with
-  platform purge scheduled 2026-08-09. Since release 3 the Web container app
-  declares Key Vault secret references for `Box:ConfigJson` and
-  `Box:ClientSecret` resolved through the Web managed identity; the matching
-  secret-scoped `Key Vault Secrets User` grants (mirroring the Worker's) were
-  applied before that deployment, and the healthy revision start is the
-  resolution proof. Without those grants a Web revision fails to start rather
-  than starting without custody.
+- **Secrets:** consolidated into the one Pegasus Key Vault
+  `pegasusprodkv252ow37g` on 2026-08-03; `rg-pegasus-prod` holds no other
+  vault. The six live Box/DVLA/DVSA secrets were restored into it and both
+  hosts repointed to versioned target-vault URIs: the Worker's
+  `Box__ConfigJson`, `Box__ClientSecret`, `Dvla__ApiKey`, `Dvsa__ClientId`,
+  `Dvsa__ClientSecret`, and `Dvsa__ApiKey`, and the Web's `box-config-json`
+  and `box-client-secret` Container Apps secrets. Access stays secret-level:
+  exactly six Worker and two Web `Key Vault Secrets User` grants, each scoped
+  to a single secret resource, held through the distinct Web/Worker
+  user-assigned identities. The temporary `Key Vault Secrets Officer` created
+  for the restore was removed; only a metadata-only `Key Vault Reader`
+  remains at vault scope. Without those grants a Web revision fails to start
+  rather than starting without custody.
+
+  Live-verified 2026-08-04 (read-only): all six Worker Key Vault references
+  report `Resolved`, both Web secrets carry the Web identity and target-vault
+  versioned URIs, every referenced secret version exists and is enabled, and
+  the active revision `pegasus-prod-web-252ow37gij--c6571f771aab` is
+  `Provisioned`/`Healthy` (scaled to zero). No secret value was retrieved.
+- **Predecessor vaults:** retired. `cespkboxkvv76a47` and
+  `cespkenrichkvgi62sd` were soft-deleted 2026-08-03 once independent
+  readback proved no live Pegasus reference pointed at either, and the
+  then-empty `rg-collisionspike-dev` was deleted — confirmed absent
+  2026-08-04. Five soft-deleted vaults now await platform purge in `uksouth`
+  on **two** dates: `cespk-pg-kv-dev`, `cespkevakvufa3ci`, and
+  `cespklockva7tzj2` on 2026-08-09, then `cespkboxkvv76a47` and
+  `cespkenrichkvgi62sd` on 2026-08-10. No purge was attempted or authorised;
+  the watch is not clear until both dates pass.
 - **Predecessor retirement:** executed through the exact verified manifest;
   eight resource batches completed, 30 delete-classified role assignments
   removed, 7 retained; the archive manifest hash is recorded in the runbook
@@ -1052,7 +1069,7 @@ Repeat the proof after material persistence or release changes where required. R
 
 A recovery, restore, failover, or retirement exercise requires exact target approval, fresh inventory, a recoverable target, retained source data, and a rollback path.
 
-Predecessor retirement executed on 2026-08-02 through the exact verified manifest. `rg-collisionspike-dev` intentionally remains only as the container for the two adopted Key Vaults; any further action on it requires separately approved exact targets.
+Predecessor retirement executed on 2026-08-02 through the exact verified manifest, and completed on 2026-08-03 by the vault consolidation: once the six live secrets were serving from `pegasusprodkv252ow37g` and independent readback proved no live Pegasus reference pointed at either adopted vault, `cespkboxkvv76a47` and `cespkenrichkvgi62sd` were soft-deleted and the then-empty `rg-collisionspike-dev` was deleted (absence confirmed 2026-08-04). The soft-deleted vaults still hold recoverable secret material until their platform purge dates; a purge, a recovery, or any other action against them requires separately approved exact targets.
 
 ## Deferred capability seams
 
