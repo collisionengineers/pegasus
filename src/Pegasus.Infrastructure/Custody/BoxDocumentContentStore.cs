@@ -5,10 +5,12 @@ namespace Pegasus.Infrastructure.Custody;
 
 /// <summary>
 /// Production managed-document content storage in the approved Box custody
-/// root. The layout mirrors <see cref="LocalDocumentContentStore"/> —
-/// <c>cases/{caseId:N}/managed/{versionId:N}/content</c> — so both profiles
-/// resolve one version to one object, and every Box call is fenced to the
-/// approved root by <see cref="BoxContentClient"/>.
+/// root, at <c>{caseReference}/managed/{versionId:N}/content</c> under the
+/// same Case/PO folder as retained intake sources.
+/// <see cref="LocalDocumentContentStore"/> resolves the same identity under
+/// its local <c>cases/</c> prefix, so both profiles resolve one version to
+/// one object; every Box call is fenced to the approved root by
+/// <see cref="BoxContentClient"/>.
 /// </summary>
 internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocumentContentStore
 {
@@ -17,12 +19,13 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
 
     public async Task StoreAsync(
         Guid caseId,
+        string caseReference,
         Guid versionId,
         ReadOnlyMemory<byte> content,
         string expectedSha256,
         CancellationToken cancellationToken)
     {
-        ValidateIdentifiers(caseId, versionId);
+        ValidateIdentifiers(caseId, caseReference, versionId);
         var normalizedHash = NormalizeSha256(expectedSha256);
         var actualHash = Convert.ToHexString(SHA256.HashData(content.Span)).ToLowerInvariant();
         if (!string.Equals(normalizedHash, actualHash, StringComparison.Ordinal))
@@ -30,7 +33,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             throw new InvalidDataException("Document content does not match its custody hash.");
         }
 
-        var versionFolder = await ResolveVersionFolderAsync(caseId, versionId, create: true, cancellationToken);
+        var versionFolder = await ResolveVersionFolderAsync(caseReference, versionId, create: true, cancellationToken);
         var existing = await client.FindChildAsync(versionFolder!, ContentFileName, "file", cancellationToken);
         if (existing is not null)
         {
@@ -45,13 +48,14 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
 
     public async Task<Stream> OpenReadAsync(
         Guid caseId,
+        string caseReference,
         Guid versionId,
         string expectedSha256,
         long expectedLength,
         CancellationToken cancellationToken)
     {
-        ValidateIdentifiers(caseId, versionId);
-        var versionFolder = await ResolveVersionFolderAsync(caseId, versionId, create: false, cancellationToken);
+        ValidateIdentifiers(caseId, caseReference, versionId);
+        var versionFolder = await ResolveVersionFolderAsync(caseReference, versionId, create: false, cancellationToken);
         if (versionFolder is null)
         {
             throw new FileNotFoundException("The document content is unavailable.");
@@ -66,11 +70,12 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
 
     public async Task DeleteAsync(
         Guid caseId,
+        string caseReference,
         Guid versionId,
         CancellationToken cancellationToken)
     {
-        ValidateIdentifiers(caseId, versionId);
-        var versionFolder = await ResolveVersionFolderAsync(caseId, versionId, create: false, cancellationToken);
+        ValidateIdentifiers(caseId, caseReference, versionId);
+        var versionFolder = await ResolveVersionFolderAsync(caseReference, versionId, create: false, cancellationToken);
         if (versionFolder is null)
         {
             return;
@@ -86,14 +91,35 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
     }
 
     private async Task<string?> ResolveVersionFolderAsync(
-        Guid caseId,
+        string caseReference,
         Guid versionId,
         bool create,
         CancellationToken cancellationToken)
     {
-        string[] segments = ["cases", caseId.ToString("N"), "managed", versionId.ToString("N")];
         var current = client.RootFolderId;
-        foreach (var segment in segments)
+        if (create)
+        {
+            current = (await client.GetOrCreateFolderAsync(
+                current,
+                SafeCaseFolderName(caseReference),
+                cancellationToken)).Id;
+        }
+        else
+        {
+            var existingRoot = await client.FindChildAsync(
+                current,
+                SafeCaseFolderName(caseReference),
+                "folder",
+                cancellationToken);
+            if (existingRoot is null)
+            {
+                return null;
+            }
+
+            current = existingRoot.Id;
+        }
+
+        foreach (var segment in new[] { "managed", versionId.ToString("N") })
         {
             if (create)
             {
@@ -130,12 +156,22 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         }
     }
 
-    private static void ValidateIdentifiers(Guid caseId, Guid versionId)
+    private static void ValidateIdentifiers(Guid caseId, string caseReference, Guid versionId)
     {
-        if (caseId == Guid.Empty || versionId == Guid.Empty)
+        if (caseId == Guid.Empty
+            || versionId == Guid.Empty
+            || string.IsNullOrWhiteSpace(caseReference)
+            || caseReference.Any(char.IsControl))
         {
-            throw new ArgumentException("Case and document version identifiers are required.");
+            throw new ArgumentException("Case, Case/PO, and document version identifiers are required.");
         }
+    }
+
+    private static string SafeCaseFolderName(string value)
+    {
+        var result = CustodyNames.SafeName(value);
+
+        return result;
     }
 
     private static string NormalizeSha256(string value)

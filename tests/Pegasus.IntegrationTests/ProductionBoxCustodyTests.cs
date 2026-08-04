@@ -56,7 +56,7 @@ public sealed class ProductionBoxCustodyTests
     public async Task ExistingCaseRootIsReturnedOnlyAfterAncestryReachesTheApprovedRoot()
     {
         var caseId = Guid.Parse("10213243-5465-7687-98a9-bacbdcedfe0f");
-        var expectedName = $"QDOS31001-{caseId:N}";
+        var expectedName = "QDOS31001";
         var handler = new DelegateHandler(request => request.RequestUri!.AbsolutePath switch
         {
             "/2.0/folders/405543781910/items" => Json($$"""{"entries":[{"id":"case-folder","name":"{{expectedName}}","type":"folder","etag":"1"}]}"""),
@@ -76,7 +76,7 @@ public sealed class ProductionBoxCustodyTests
     public async Task ExistingCaseRootOutsideTheApprovedAncestryIsDenied()
     {
         var caseId = Guid.Parse("10213243-5465-7687-98a9-bacbdcedfe0f");
-        var expectedName = $"QDOS31001-{caseId:N}";
+        var expectedName = "QDOS31001";
         var handler = new DelegateHandler(request => request.RequestUri!.AbsolutePath switch
         {
             "/2.0/folders/405543781910/items" => Json($$"""{"entries":[{"id":"case-folder","name":"{{expectedName}}","type":"folder","etag":"1"}]}"""),
@@ -97,7 +97,7 @@ public sealed class ProductionBoxCustodyTests
         var receiptId = Guid.Parse("20314253-6475-8697-a8b9-cadbecfd0e1f");
         var bytes = Encoding.UTF8.GetBytes("accepted source");
         var hash = Convert.ToHexString(SHA256.HashData(bytes));
-        var expectedCaseName = $"QDOS31001-{caseId:N}";
+        var expectedCaseName = "QDOS31001";
         var expectedFileName = $"{hash.ToLowerInvariant()}-instruction.eml";
         var handler = new DelegateHandler(request =>
         {
