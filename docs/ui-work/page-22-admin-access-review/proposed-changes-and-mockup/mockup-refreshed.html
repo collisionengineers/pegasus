@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  REFRESHED SYSTEM — declared divergences from the recorded design authority
+  (design/README.md tokens), per docs/ui-work/ui-standards-and-review.md §5.2:
+  1. Type scale 22/17/15/13 with 600-weight headings; tabular numerals for metrics.
+  2. Surfaces: paper #F7F6F4; cards #FFFFFF, 6px radius, 1px hairline + shadow
+     0 1px 2px rgb(22 25 29 / 5%).
+  3. Chips keep the amber/navy/green/red role semantics but gain a 10% tinted background.
+  4. 4px base rhythm (8/12/16 steps); 32px table rows; single-line action bars.
+  5. Top navigation retained — no left rail.
+-->
+<title>Access review — Pegasus (refreshed mockup)</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;font-size:14px;line-height:1.5;color:#16191D;background:#F7F6F4}
+  a{color:#16191D}
+  a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid rgba(219,8,22,.38);outline-offset:1px}
+  .masthead{display:flex;align-items:center;gap:16px;padding:0 20px;height:48px;background:#FFFFFF;border-bottom:1px solid #E6E4E1}
+  .brand{display:flex;align-items:baseline;gap:12px;white-space:nowrap}
+  .brand .mark{color:#DB0816;font-weight:700;font-size:11px;letter-spacing:.16em}
+  .brand .app{font-weight:600;font-size:15px}
+  .nav{display:flex;gap:16px;margin-left:auto}
+  .nav a{text-decoration:none;font-size:14px;padding:20px 2px 17px;border-bottom:2px solid transparent}
+  .nav a[aria-current=page]{color:#DB0816;font-weight:600;border-bottom-color:#DB0816}
+  .account{display:flex;gap:16px;align-items:center;border-left:1px solid #E6E4E1;padding-left:24px;font-size:13px}
+  .account .who{color:#6B6B6B}
+  main{max-width:1280px;margin:0 auto;padding:20px}
+  .crumbs{font-size:13px;color:#6B6B6B;margin-bottom:16px}
+  .crumbs a{color:#6B6B6B}
+  .crumbs [aria-current]{color:#16191D}
+  h1{font-size:20px;font-weight:600;margin-bottom:16px}
+  .status-card{border:1px solid rgba(22,131,59,.4);background:rgba(22,131,59,.06);border-radius:6px;padding:12px 16px;margin-bottom:16px}
+  .card{background:#FFFFFF;border:1px solid #E6E4E1;border-radius:6px;box-shadow:0 1px 2px rgb(22 25 29 / 5%)}
+  .table-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse}
+  .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  th{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#6B6B6B;text-align:left;font-weight:600;padding:0 16px;height:32px;border-bottom:1px solid #E6E4E1}
+  td{padding:8px 16px;border-bottom:1px solid #E6E4E1;vertical-align:middle}
+  tbody tr:last-child td{border-bottom:0}
+  time{font-variant-numeric:tabular-nums}
+  .chip{display:inline-block;font-size:13px;font-weight:600;padding:2px 10px;border:1px solid;border-radius:999px}
+  .chip--ok{color:#16833B;border-color:rgba(22,131,59,.4);background:rgba(22,131,59,.1)}
+  .chip--muted{color:#6B6B6B;border-color:rgba(107,107,107,.4);background:rgba(107,107,107,.08)}
+  .chip--amber{color:#7A5200;border-color:rgba(122,82,0,.35);background:rgba(217,183,92,.16)}
+  .muted{color:#6B6B6B}
+  input[type=text]{padding:6px 10px;border:1px solid #B9B6B1;border-radius:6px;font:inherit;background:#FFFFFF;width:200px}
+  .btn-primary{display:inline-block;background:#DB0816;color:#FFFFFF;border:0;border-radius:6px;font:600 14px system-ui;padding:8px 14px;cursor:pointer;white-space:nowrap}
+  .hint{font-size:13px;color:#6B6B6B;margin-top:8px}
+  footer{max-width:1280px;margin:0 auto;padding:12px 20px;color:#6B6B6B;font-size:13px;border-top:1px solid #E6E4E1}
+</style>
+</head>
+<body>
+<header class="masthead">
+  <span class="brand"><span class="mark">COLLISION&nbsp;ENGINEERS</span><span class="app">Pegasus</span></span>
+  <nav class="nav" aria-label="Primary">
+    <a href="#">Dashboard</a>
+    <a href="#">Inbox</a>
+    <a href="#">Upload</a>
+    <a href="#">Queues</a>
+    <a href="#">Cases</a>
+    <a href="#" aria-current="page">Administration</a>
+  </nav>
+  <span class="account"><span class="who">alex</span><a href="#">Change password</a><a href="#">Sign out</a></span>
+</header>
+
+<main>
+  <nav class="crumbs" aria-label="Breadcrumb">
+    <a href="#">Administration</a> / <span aria-current="page">Access review</span>
+  </nav>
+
+  <h1>Access review</h1>
+
+  <div class="status-card" role="status">Review recorded for jane.smith.</div>
+
+  <div class="card table-wrap">
+    <table>
+      <caption class="sr-only">Current staff access and the last recorded review decision</caption>
+      <thead>
+        <tr>
+          <th scope="col">Username</th>
+          <th scope="col">Status</th>
+          <th scope="col">Roles</th>
+          <th scope="col">Last reviewed</th>
+          <th scope="col">Review</th>
+          <th scope="col">Reason</th>
+          <th scope="col"><span class="sr-only">Record review</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>jane.smith</td>
+          <td><span class="chip chip--ok">Enabled</span></td>
+          <td>Administrator</td>
+          <td><time datetime="2026-07-14T09:42:00+01:00">14 Jul 2026 09:42</time></td>
+          <td><span class="chip chip--ok">Reviewed</span></td>
+          <td><label><span class="sr-only">Reason for jane.smith</span><input type="text" required maxlength="1000"></label></td>
+          <td><button type="submit" class="btn-primary">Record reviewed</button></td>
+        </tr>
+        <tr>
+          <td>mark.taylor</td>
+          <td><span class="chip chip--ok">Enabled</span></td>
+          <td>Engineer</td>
+          <td><span class="muted">Not yet reviewed</span></td>
+          <td><span class="chip chip--amber">Due</span></td>
+          <td><label><span class="sr-only">Reason for mark.taylor</span><input type="text" required maxlength="1000"></label></td>
+          <td><button type="submit" class="btn-primary">Record reviewed</button></td>
+        </tr>
+        <tr>
+          <td>sam.reeves</td>
+          <td><span class="chip chip--muted">Disabled</span></td>
+          <td>User</td>
+          <td><time datetime="2026-02-02T16:05:00+00:00">2 Feb 2026 16:05</time></td>
+          <td><span class="chip chip--ok">Reviewed</span></td>
+          <td><label><span class="sr-only">Reason for sam.reeves</span><input type="text" required maxlength="1000"></label></td>
+          <td><button type="submit" class="btn-primary">Record reviewed</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="hint">Reasons are kept on the administration record.</p>
+</main>
+
+<footer>Pegasus · Collision Engineers case management</footer>
+</body>
+</html>

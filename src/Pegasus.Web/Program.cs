@@ -622,6 +622,36 @@ if (bootstrapProductionAdministrator)
     return;
 }
 
+// A named, disposable Administrator used to drive the deployed application
+// through a browser during UI verification. Present only while
+// `Bootstrap:VerificationAccount:UserName` and `:Password` are both configured;
+// with the settings removed the account is deleted on the next start, so
+// retiring it is a configuration change rather than a database chore.
+//
+// Production profile only. DevelopmentOffline authenticates every request as
+// its own local identity, so a password account there would be an unused row
+// that every test fixture then has to know about.
+if (productionProfile
+    && (builder.Configuration["Bootstrap:VerificationAccount:UserName"] is { Length: > 0 }
+        || builder.Configuration["Bootstrap:VerificationAccount:Removed"] is { Length: > 0 }))
+{
+    try
+    {
+        await using var scope = app.Services.CreateAsyncScope();
+        await ReconcileVerificationAccountAsync(scope.ServiceProvider, builder.Configuration);
+    }
+    catch (Exception exception)
+    {
+        // A temporary verification account is never worth refusing to start
+        // over. The database may be unreachable or unmigrated at this point in
+        // startup — both are the deployment's problem to report, not this
+        // block's to escalate into an outage.
+        BootstrapLog.VerificationAccountSkipped(
+            app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Pegasus.Bootstrap"),
+            exception);
+    }
+}
+
 var localIntakeEnabled = developmentOffline && localIntakeConfigured;
 var intakeSurfaceEnabled = localIntakeEnabled || productionProfile;
 if (migrateDevelopment)
@@ -657,6 +687,18 @@ if (productionProfile)
     forwardedHeadersOptions.KnownProxies.Clear();
     app.UseForwardedHeaders(forwardedHeadersOptions);
 }
+
+// Every status code that reaches a browser gets the designed page. Before this,
+// an unknown record URL, a dead public upload link, an oversized upload and a
+// rate-limited sign-in all rendered the browser's own error page — including on
+// the one screen whose audience is outside Collision Engineers.
+//
+// Scoped away from the machine surfaces: health probes, the version endpoint
+// and the automation ingress answer callers that want a status code and a body
+// they can parse, not a card.
+app.UseWhen(
+    context => !IsMachineSurface(context.Request.Path),
+    branch => branch.UseStatusCodePagesWithReExecute("/status/{0}"));
 
 if (!app.Environment.IsDevelopment())
 {
@@ -878,6 +920,106 @@ if (automationMcpOptions is not null)
 app.Run();
 
 
+/// <summary>
+/// Paths whose callers are programs, not people: they want a status code and a
+/// parsable body, and a re-executed HTML card would break them.
+/// </summary>
+static bool IsMachineSurface(PathString path) =>
+    path.StartsWithSegments("/health")
+    || path.StartsWithSegments("/diagnostics")
+    || path.StartsWithSegments(AutomationMcp.McpEndpointPath)
+    || path.Equals(AutomationMcp.TokenEndpointPath, StringComparison.OrdinalIgnoreCase);
+
+/// <summary>
+/// Creates, updates, or removes the disposable UI-verification Administrator.
+/// </summary>
+/// <remarks>
+/// This is not a second bootstrap path: it refuses to run unless an
+/// Administrator already exists, so it can never be the route by which the
+/// first privileged account in a deployment appears. It exists because
+/// verifying the deployed interface means driving it as a real signed-in
+/// operator, and doing that as `alex` would put the owner's own credentials
+/// through an automated browser.
+///
+/// Setting `Bootstrap:VerificationAccount:Removed` (with no username) deletes
+/// the account, so retirement is one configuration change and needs no
+/// database surgery.
+/// </remarks>
+static async Task ReconcileVerificationAccountAsync(
+    IServiceProvider services,
+    IConfiguration configuration)
+{
+    var userName = configuration["Bootstrap:VerificationAccount:UserName"];
+    var password = configuration["Bootstrap:VerificationAccount:Password"];
+    var removed = configuration["Bootstrap:VerificationAccount:Removed"];
+
+    var userManager = services.GetRequiredService<UserManager<PegasusIdentityUser>>();
+    var roleManager = services.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+
+    if (!string.IsNullOrWhiteSpace(removed))
+    {
+        var retired = await userManager.FindByNameAsync(removed.Trim());
+        if (retired is not null)
+        {
+            await userManager.DeleteAsync(retired);
+        }
+
+        return;
+    }
+
+    if (string.IsNullOrWhiteSpace(userName) || string.IsNullOrWhiteSpace(password))
+    {
+        return;
+    }
+
+    // Fail closed rather than minting the first privileged account.
+    if (!await userManager.Users.AnyAsync())
+    {
+        return;
+    }
+
+    if (!await roleManager.RoleExistsAsync(StaffRoleNames.Administrator))
+    {
+        return;
+    }
+
+    var trimmedUserName = userName.Trim();
+    var existing = await userManager.FindByNameAsync(trimmedUserName);
+    if (existing is null)
+    {
+        var created = new PegasusIdentityUser
+        {
+            Id = Guid.NewGuid(),
+            UserName = trimmedUserName,
+            IsEnabled = true,
+            MustChangePassword = false,
+            SecurityStamp = Guid.NewGuid().ToString("N")
+        };
+        var createResult = await userManager.CreateAsync(created, password);
+        if (!createResult.Succeeded)
+        {
+            throw new InvalidOperationException(
+                "Verification account creation failed: "
+                + string.Join(',', createResult.Errors.Select(error => error.Code)));
+        }
+
+        await userManager.AddToRoleAsync(created, StaffRoleNames.Administrator);
+        return;
+    }
+
+    // Converge an existing account on the configured password and role, so a
+    // rotated password in configuration is enough to restore access.
+    existing.IsEnabled = true;
+    existing.MustChangePassword = false;
+    await userManager.UpdateAsync(existing);
+    var resetToken = await userManager.GeneratePasswordResetTokenAsync(existing);
+    await userManager.ResetPasswordAsync(existing, resetToken, password);
+    if (!await userManager.IsInRoleAsync(existing, StaffRoleNames.Administrator))
+    {
+        await userManager.AddToRoleAsync(existing, StaffRoleNames.Administrator);
+    }
+}
+
 static async Task BootstrapProductionAdministratorAsync(IServiceProvider services)
 {
     if (Console.IsInputRedirected)
@@ -969,6 +1111,18 @@ static string ReadSecret()
 
 public partial class Program
 {
+}
+
+internal static class BootstrapLog
+{
+    private static readonly Action<ILogger, Exception?> VerificationAccountSkippedMessage =
+        LoggerMessage.Define(
+            LogLevel.Warning,
+            new EventId(1, nameof(VerificationAccountSkipped)),
+            "The verification account could not be reconciled.");
+
+    public static void VerificationAccountSkipped(ILogger logger, Exception exception) =>
+        VerificationAccountSkippedMessage(logger, exception);
 }
 
 internal sealed class DevelopmentOfflineAuthenticationHandler(

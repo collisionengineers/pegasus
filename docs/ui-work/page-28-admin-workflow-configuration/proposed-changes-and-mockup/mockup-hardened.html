@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workflow configuration — Pegasus (hardened mockup)</title>
+<!-- HARDENED SYSTEM: current identity, fixed. Tokens per design/README.md —
+     content and structure change only (copy per standards §2/§4). Schematic data. -->
+<style>
+  :root{
+    --red:#DB0816; --ink:#16191D; --charcoal:#2C2A27; --paper:#F5F4F2;
+    --panel:#FFFFFF; --line:#E6E4E1; --muted:#6B6B6B; --green:#16833B;
+    --green-bg:#E8F3EC; --green-line:#9FCBAD;
+    --amber:#8A5A00; --amber-bg:#FBF3E2; --amber-line:#E3C98A;
+    --navy:#1F3A5F; --navy-bg:#E9EEF6; --navy-line:#B9C6DA;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;font-size:15px;
+       line-height:1.5;color:var(--ink);background:var(--paper)}
+  a{color:var(--ink)}
+  header{background:var(--panel);border-bottom:1px solid var(--line)}
+  .masthead{max-width:1280px;margin:0 auto;padding:12px 24px;display:flex;align-items:center;gap:16px}
+  .mark{font-weight:700;letter-spacing:.08em;font-size:13px;color:var(--red);white-space:nowrap}
+  .app{font-weight:600;font-size:15px;padding-left:16px;border-left:1px solid var(--line)}
+  nav{display:flex;gap:20px;margin-left:auto}
+  nav a{text-decoration:none;font-size:14px;padding:4px 0;border-bottom:2px solid transparent}
+  nav a.active{color:var(--red);font-weight:600;border-bottom-color:var(--red)}
+  .account{display:flex;gap:16px;align-items:center;font-size:14px;margin-left:24px;
+           padding-left:24px;border-left:1px solid var(--line)}
+  .account .who{color:var(--muted)}
+  .account a{text-decoration:none}
+  main{max-width:1280px;margin:0 auto;padding:16px}
+  .crumb{font-size:13px;color:var(--muted);margin-bottom:16px}
+  .crumb a{color:var(--muted)}
+  h1{font-size:19px;font-weight:700;margin-bottom:16px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:2px;
+         padding:16px;max-width:560px}
+  .last-changed{font-size:13px;color:var(--muted);margin-bottom:16px}
+  fieldset{border:0;margin-bottom:16px}
+  legend{font-weight:600;font-size:14px;margin-bottom:8px}
+  .choice{display:flex;align-items:flex-start;gap:8px;padding:4px 0;font-size:14px}
+  .choice input{accent-color:var(--red);width:16px;height:16px;margin-top:2px}
+  .field{margin-bottom:16px}
+  label.stack{display:block;font-weight:600;font-size:14px;margin-bottom:4px}
+  textarea{width:100%;padding:8px;font:inherit;font-size:14px;
+       border:1px solid var(--charcoal);border-radius:2px;background:var(--panel);color:var(--ink)}
+  textarea:focus,input:focus,button:focus,a:focus{outline:3px solid rgba(219,8,22,.38);outline-offset:1px}
+  .field-hint{display:block;font-size:13px;color:var(--muted);margin-top:4px}
+  .consequence{font-size:13px;color:var(--charcoal);margin:16px 0 8px;
+               padding-top:12px;border-top:1px solid var(--line)}
+  .primary-action{background:var(--red);color:#fff;border:1px solid var(--red);
+       border-radius:2px;font:inherit;font-size:14px;font-weight:600;padding:8px 20px;cursor:pointer}
+  .status-card{border-radius:2px;padding:16px;max-width:560px;margin-bottom:16px}
+  .status-card--attention{border:1px solid var(--amber-line);background:var(--amber-bg)}
+  .status-card--ok{border:1px solid var(--green-line);background:var(--green-bg)}
+  .alt-state{margin-top:24px;padding-top:24px;border-top:1px dashed var(--line)}
+  .alt-label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
+             margin-bottom:12px}
+  footer{border-top:1px solid var(--line);margin-top:24px}
+  footer p{max-width:1280px;margin:0 auto;padding:12px 16px;font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <div class="masthead">
+    <span class="mark">COLLISION ENGINEERS</span>
+    <span class="app">Pegasus</span>
+    <nav aria-label="Primary">
+      <a href="#">Dashboard</a>
+      <a href="#">Inbox</a>
+      <a href="#">Upload</a>
+      <a href="#">Queues</a>
+      <a href="#">Cases</a>
+      <a href="#" class="active" aria-current="page">Administration</a>
+    </nav>
+    <div class="account">
+      <span class="who">alex</span>
+      <a href="#">Change password</a>
+      <a href="#">Sign out</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <p class="crumb"><a href="#">Administration</a> / Workflow configuration</p>
+  <h1>Workflow configuration</h1>
+
+  <div class="panel">
+    <p class="last-changed">Last changed 28 Jul 2026 14:05 by alex</p>
+    <form>
+      <fieldset>
+        <legend>A case cannot be sent to an Engineer until</legend>
+        <label class="choice"><input type="checkbox" checked>
+          <span>Its instructions are complete</span></label>
+        <label class="choice"><input type="checkbox" checked>
+          <span>Its images are complete</span></label>
+        <label class="choice"><input type="checkbox" checked>
+          <span>A staff member has reviewed the instructions</span></label>
+        <label class="choice"><input type="checkbox" checked>
+          <span>A staff member has reviewed the images</span></label>
+      </fieldset>
+      <div class="field">
+        <label class="stack" for="reason">Reason for this change</label>
+        <textarea id="reason" rows="3"></textarea>
+        <span class="field-hint">Recorded permanently with the change.</span>
+      </div>
+      <p class="consequence">Applies to every case not yet sent to an Engineer, from the
+        moment you save.</p>
+      <button type="button" class="primary-action">Save requirements</button>
+    </form>
+  </div>
+
+  <!-- Alternate states, shown here for design reference only. -->
+  <div class="alt-state">
+    <p class="alt-label">Alternate state — another administrator saved first</p>
+    <div class="status-card status-card--attention" role="status">
+      <p>These requirements changed while you had this page open. Reload to see the current
+        settings, then reapply your change.</p>
+    </div>
+  </div>
+
+  <div class="alt-state">
+    <p class="alt-label">Alternate state — saved</p>
+    <div class="status-card status-card--ok" role="status">
+      <p>Requirements saved.</p>
+    </div>
+  </div>
+</main>
+
+<footer><p>Pegasus · Collision Engineers case management</p></footer>
+</body>
+</html>

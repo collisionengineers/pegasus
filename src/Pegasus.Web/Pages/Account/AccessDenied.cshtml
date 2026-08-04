@@ -2,18 +2,17 @@
 @model Pegasus.Web.Pages.Account.AccessDeniedModel
 @{
     ViewData["Title"] = "Access denied";
+    Layout = "Shared/_LayoutAuth";
 }
 
-<div class="auth-panel">
-    <div class="panel">
-        <span class="status-chip status-chip--red">
-            <svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg>
-            <span>Denied</span>
-        </span>
-        <h1>Access denied</h1>
-        <p class="lede">Your current staff role does not authorize this page or action. If your access was changed, sign out and sign in again.</p>
-        <div class="button-row">
-            <a class="secondary-action" asp-page="/Index">Return to Pegasus</a>
-        </div>
+@* No alarm chip. A permission boundary is routine, and the heading already
+   states the fact; a red "Denied" pill beside an "Access denied" heading says
+   the same thing twice and treats a policy outcome as an incident. *@
+<div class="auth-card">
+    <p class="auth-card__mark">COLLISION ENGINEERS</p>
+    <h1>Access denied</h1>
+    <p>Your account does not have access to this page.</p>
+    <div class="auth-card__actions">
+        <a class="secondary-action" asp-page="/Index">Return to Dashboard</a>
     </div>
 </div>

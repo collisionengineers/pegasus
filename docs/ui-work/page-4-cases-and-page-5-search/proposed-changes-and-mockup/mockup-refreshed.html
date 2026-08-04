@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cases · Pegasus — refreshed mockup</title>
+<!--
+  Refreshed system — divergences from design/README.md (per ui-standards-and-review.md §5.2):
+  1. Type scale 22/17/15/13px with 600-weight headings; tabular numerals for times/counts.
+  2. Surface model: paper #F7F6F4; cards #FFFFFF at 6px radius with 1px hairline plus
+     shadow 0 1px 2px rgb(22 25 29 / 5%) — replaces the flat 2px hairline-only card.
+  3. State colour roles unchanged, but chips gain a ~10% tinted background with 1px border.
+  4. Density: 4px base rhythm with 8/12/16 steps; 32px table rows; single-line filter bar
+     with a disclosure for advanced fields.
+  5. Top navigation retained (left rail not taken).
+  Cases absorbs the old Search page. Content is schematic placeholder data only.
+-->
+<style>
+  :root{
+    --ce-red:#DB0816; --ce-red-dark:#8F1422; --ce-red-tint:rgba(219,8,22,.08);
+    --charcoal:#2C2A27; --ink:#16191D; --paper:#F7F6F4; --panel:#FFFFFF;
+    --line:#E6E4E1; --muted:#6B6B6B;
+    --amber-fg:#7A3E00; --amber-tint:rgba(161,92,0,.10); --amber-line:#A15C00;
+    --navy-fg:#143A5E; --navy-tint:rgba(54,95,135,.10); --navy-line:#365F87;
+    --green:#16833B; --green-tint:rgba(22,131,59,.10);
+    --radius:6px; --shadow:0 1px 2px rgba(22,25,29,.05);
+    --focus:3px solid rgba(219,8,22,.38);
+  }
+  *,*::before,*::after{box-sizing:border-box;}
+  html{font-size:16px;}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+    font-size:14px; line-height:1.5;
+  }
+  a{color:inherit;}
+  a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
+    outline:var(--focus); outline-offset:2px;}
+
+  .topbar{background:var(--panel); border-bottom:1px solid var(--line);}
+  .topbar__inner{
+    max-width:1240px; margin:0 auto; padding:0 20px;
+    display:flex; align-items:center; gap:20px; height:48px;
+  }
+  .brand{display:flex; align-items:baseline; gap:12px; white-space:nowrap;}
+  .brand__mark{color:var(--ce-red); font-weight:700; font-size:11px; letter-spacing:.14em;}
+  .brand__app{font-weight:600; font-size:15px;}
+  .nav{display:flex; gap:8px; margin-left:auto;}
+  .nav a{
+    display:block; padding:8px 12px; text-decoration:none; font-size:13px; font-weight:500;
+    color:var(--charcoal); border-radius:var(--radius);
+  }
+  .nav a:hover{background:var(--paper);}
+  .nav a.is-active{color:var(--ce-red); font-weight:600; background:var(--ce-red-tint);}
+  .session{display:flex; align-items:center; gap:16px; font-size:13px;}
+  .session__user{color:var(--muted);}
+  .session a{text-decoration:none; color:var(--charcoal);}
+  .session a:hover{text-decoration:underline;}
+
+  .page{max-width:1240px; margin:0 auto; padding:16px 24px 32px;}
+  h1{font-size:20px; font-weight:600; margin:0 0 20px;}
+
+  /* Compact single-line filter bar */
+  .filter-bar{
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    box-shadow:var(--shadow); padding:12px 16px; margin-bottom:16px;
+  }
+  .filter-bar input[type="search"]{
+    flex:1 1 320px; min-width:240px; padding:8px 12px; font:inherit; font-size:14px;
+    border:1px solid var(--line); border-radius:var(--radius); background:var(--panel);
+  }
+  .filter-bar select{
+    padding:8px 10px; font:inherit; font-size:13px; border:1px solid var(--line);
+    border-radius:var(--radius); background:var(--panel); color:var(--ink);
+  }
+  .disclosure{
+    display:inline-flex; align-items:center; gap:6px; padding:8px 12px;
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    font:inherit; font-size:13px; font-weight:500; color:var(--charcoal); cursor:pointer;
+  }
+  .disclosure:hover{border-color:var(--charcoal);}
+  .primary-action{
+    display:inline-block; background:var(--ce-red); color:#fff; border:1px solid var(--ce-red);
+    border-radius:var(--radius); padding:8px 22px; font-size:13px; font-weight:600;
+    cursor:pointer;
+  }
+  .primary-action:hover{background:var(--ce-red-dark); border-color:var(--ce-red-dark);}
+  .clear-link{font-size:13px; color:var(--charcoal); text-decoration:none; padding:0 4px;}
+  .clear-link:hover{text-decoration:underline;}
+
+  .icon{width:13px; height:13px; flex:none; stroke:currentColor; fill:none;
+    stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
+
+  /* Results table */
+  .panel{
+    background:var(--panel); border:1px solid var(--line);
+    border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden;
+  }
+  .table-wrap{overflow-x:auto;}
+  table{width:100%; border-collapse:collapse; min-width:960px;}
+  th{
+    text-align:left; font-size:13px; font-weight:600; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--muted); padding:10px 14px;
+    border-bottom:1px solid var(--line); white-space:nowrap;
+  }
+  td{height:32px; padding:4px 14px; border-bottom:1px solid var(--line);
+    vertical-align:middle; white-space:nowrap;}
+  tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:var(--paper);}
+  .cell-case a{font-weight:600; text-decoration:none;}
+  .cell-case a:hover{text-decoration:underline;}
+  .cell-time{color:var(--muted); font-size:13px; font-variant-numeric:tabular-nums;}
+  .cell-muted{color:var(--muted);}
+
+  .chip{
+    display:inline-flex; align-items:center; gap:5px; padding:2px 10px 3px;
+    border:1px solid var(--line); border-radius:999px;
+    font-size:13px; font-weight:500; background:var(--paper); color:var(--muted);
+    white-space:nowrap;
+  }
+  .chip--navy{border-color:var(--navy-line); background:var(--navy-tint); color:var(--navy-fg);}
+  .chip--amber{border-color:var(--amber-line); background:var(--amber-tint); color:var(--amber-fg);}
+  .chip--red{border-color:var(--ce-red); background:var(--ce-red-tint); color:var(--ce-red-dark);}
+  .chip--green{border-color:var(--green); background:var(--green-tint); color:var(--green);}
+
+  .pager{display:flex; align-items:center; gap:16px; margin-top:12px; font-size:13px;}
+  .pager a{text-decoration:none; color:var(--charcoal); padding:6px 14px;
+    border:1px solid var(--line); border-radius:var(--radius); background:var(--panel);
+    box-shadow:var(--shadow);}
+  .pager a:hover{border-color:var(--charcoal);}
+  .pager span{color:var(--muted); font-variant-numeric:tabular-nums;}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar__inner">
+    <span class="brand">
+      <span class="brand__mark">COLLISION&nbsp;ENGINEERS</span>
+      <span class="brand__app">Pegasus</span>
+    </span>
+    <nav class="nav" aria-label="Primary">
+      <a href="#">Dashboard</a>
+      <a href="#">Inbox</a>
+      <a href="#">Upload</a>
+      <a href="#">Queues</a>
+      <a href="#" class="is-active" aria-current="page">Cases</a>
+      <a href="#">Administration</a>
+    </nav>
+    <div class="session">
+      <span class="session__user">alex</span>
+      <a href="#">Change password</a>
+      <a href="#">Sign out</a>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+  <h1>Cases</h1>
+
+  <form class="filter-bar" role="search" aria-label="Case filters">
+    <input type="search" aria-label="Search cases"
+           placeholder="Case, PO, registration, claimant or claim number…">
+    <select aria-label="Case stage">
+      <option>All stages</option>
+      <option>Not ready</option>
+      <option>Review</option>
+      <option>Held</option>
+      <option>Report preparation</option>
+      <option>Report complete</option>
+      <option>Rejected</option>
+    </select>
+    <select aria-label="Principal">
+      <option>All principals</option>
+      <option>Principal A</option>
+      <option>Principal B</option>
+    </select>
+    <button type="button" class="disclosure" aria-expanded="false">
+      More filters
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+    <button type="submit" class="primary-action">Search</button>
+    <a href="#" class="clear-link">Clear</a>
+  </form>
+
+  <div class="panel">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Case/PO</th>
+            <th scope="col">Registration</th>
+            <th scope="col">Claimant</th>
+            <th scope="col">Claim number</th>
+            <th scope="col">Principal</th>
+            <th scope="col">Stage</th>
+            <th scope="col">Engineer</th>
+            <th scope="col">Received</th>
+            <th scope="col">Origin</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="cell-case"><a href="#">Case 26001</a></td>
+            <td>AB12 CDE</td>
+            <td>Sample Claimant</td>
+            <td>CLM-0001</td>
+            <td>Principal A</td>
+            <td><span class="chip chip--navy">Review</span></td>
+            <td class="cell-muted">Unassigned</td>
+            <td class="cell-time">01 Aug 2026 14:02</td>
+            <td class="cell-muted">E-mail</td>
+          </tr>
+          <tr>
+            <td class="cell-case"><a href="#">Case 26002</a></td>
+            <td>CD34 EFG</td>
+            <td>Sample Claimant</td>
+            <td>CLM-0002</td>
+            <td>Principal A</td>
+            <td><span class="chip chip--navy">Report preparation</span></td>
+            <td>Sample Engineer</td>
+            <td class="cell-time">31 Jul 2026 09:48</td>
+            <td class="cell-muted">E-mail</td>
+          </tr>
+          <tr>
+            <td class="cell-case"><a href="#">Case 26003</a></td>
+            <td>GH78 JKL</td>
+            <td>Sample Claimant</td>
+            <td>CLM-0003</td>
+            <td>Principal B</td>
+            <td><span class="chip chip--amber">Not ready</span></td>
+            <td class="cell-muted">Unassigned</td>
+            <td class="cell-time">30 Jul 2026 16:15</td>
+            <td class="cell-muted">Upload</td>
+          </tr>
+          <tr>
+            <td class="cell-case"><a href="#">Case 26004</a></td>
+            <td>EF56 GHJ</td>
+            <td>Sample Claimant</td>
+            <td>CLM-0004</td>
+            <td>Principal B</td>
+            <td><span class="chip chip--amber">Held</span></td>
+            <td class="cell-muted">Unassigned</td>
+            <td class="cell-time">29 Jul 2026 11:20</td>
+            <td class="cell-muted">E-mail</td>
+          </tr>
+          <tr>
+            <td class="cell-case"><a href="#">Case 25990</a></td>
+            <td>KL90 MNP</td>
+            <td>Sample Claimant</td>
+            <td>CLM-0005</td>
+            <td>Principal A</td>
+            <td><span class="chip chip--green">Report complete</span></td>
+            <td>Sample Engineer</td>
+            <td class="cell-time">28 Jul 2026 10:05</td>
+            <td class="cell-muted">E-mail</td>
+          </tr>
+          <tr>
+            <td class="cell-case"><a href="#">Case 25987</a></td>
+            <td>MN12 PQR</td>
+            <td>Sample Claimant</td>
+            <td>CLM-0006</td>
+            <td>Principal B</td>
+            <td><span class="chip chip--red">Rejected</span></td>
+            <td class="cell-muted">Unassigned</td>
+            <td class="cell-time">27 Jul 2026 15:41</td>
+            <td class="cell-muted">Upload</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <nav class="pager" aria-label="Case result pages">
+    <a href="#">Previous</a>
+    <span>Page 1</span>
+    <a href="#">Next</a>
+  </nav>
+</main>
+
+</body>
+</html>

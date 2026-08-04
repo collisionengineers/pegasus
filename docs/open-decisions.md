@@ -97,7 +97,12 @@ accepted match rules. The
    worker's £0.36/day near-idle Flex baseline (verify no always-ready
    instance is configured), and the web app still resolves its Box
    secrets from the legacy `cespkboxkvv76a47` vault — evidence for the
-   queued vault-consolidation prerequisite.
+   queued vault-consolidation prerequisite. That second watch item is
+   discharged: the 2026-08-03 vault consolidation repointed both Box
+   secrets to `pegasusprodkv252ow37g` and retired the legacy vault, and
+   `rg-collisionspike-dev` no longer exists, so its residual line is now
+   £0 outright rather than two effectively-free vaults (live-verified
+   read-only 2026-08-04).
 6. **Performance dataset ownership** — Who supplies and approves the immutable
    2,000-case performance dataset, observed document/source distribution, and
    measured peak burst that the capacity gate needs (fabricated domain data is

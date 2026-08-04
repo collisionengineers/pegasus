@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Create principal — Pegasus (hardened mockup)</title>
+<!-- HARDENED SYSTEM: current identity, fixed. Tokens per design/README.md (2px radius,
+     hairlines, no shadows, paper #F5F4F2, red reserved for the primary commitment and the
+     active nav item) — content, structure and density change only. Schematic data.
+     ONE CONTAINER (ui-standards §4 rule 13): header, action bar, body. This screen creates a
+     record rather than showing one, so it carries no state chip and no tabs; the commitment
+     sits in the action bar where it is visible without scrolling. -->
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font:14px/1.45 system-ui,-apple-system,"Segoe UI",Arial,sans-serif;color:#16191D;background:#F5F4F2}
+  a{color:#16191D}
+  a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid rgba(219,8,22,.38);outline-offset:1px}
+
+  .masthead{display:flex;align-items:center;gap:16px;padding:0 20px;height:48px;background:#FFFFFF;border-bottom:1px solid #E6E4E1}
+  .mark{color:#DB0816;font-weight:700;font-size:11px;letter-spacing:.16em}
+  .app{font-weight:700;font-size:14px;border-left:1px solid #E6E4E1;padding-left:12px}
+  nav{display:flex;gap:2px;margin-left:8px}
+  nav a{text-decoration:none;font-size:14px;padding:15px 10px 12px;border-bottom:3px solid transparent}
+  nav a.active{color:#DB0816;font-weight:600;border-bottom-color:#DB0816}
+  .account{display:flex;gap:12px;align-items:center;margin-left:auto;font-size:13px;color:#6B6B6B}
+
+  main{max-width:840px;margin:0 auto;padding:12px 20px 24px}
+  .crumb{font-size:12px;color:#6B6B6B;margin-bottom:8px}
+  .crumb a{color:#6B6B6B}
+
+  .rec{background:#FFFFFF;border:1px solid #E6E4E1;border-radius:2px}
+  .rhead{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#F5F4F2;
+         border-bottom:1px solid #E6E4E1}
+  .rhead h1{font-size:19px;font-weight:700}
+  .rhead .idy{font-size:13px;color:#6B6B6B;padding-left:10px;border-left:1px solid #E6E4E1}
+  .rhead .right{margin-left:auto;display:flex;gap:6px}
+
+  .abar{display:flex;align-items:center;gap:6px;padding:8px 14px;background:#FFFFFF;
+        border-bottom:1px solid #E6E4E1}
+  .abar .spacer{margin-left:auto;display:flex;align-items:center;gap:8px}
+
+  .btn{display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:13px;font-weight:600;
+       border-radius:2px;cursor:pointer;padding:5px 10px;border:1px solid #2C2A27;background:#FFFFFF;
+       color:#2C2A27;text-decoration:none;white-space:nowrap}
+  .btn--primary{background:#DB0816;border-color:#DB0816;color:#fff}
+  .btn--primary:hover{background:#8F1422}
+
+  .body{padding:12px 14px 14px}
+  .field{margin-bottom:12px}
+  label{display:block;font-size:13px;font-weight:600;color:#6B6B6B;margin-bottom:4px}
+  input[type=text],select{width:100%;max-width:420px;padding:6px 9px;border:1px solid #E6E4E1;
+        border-radius:2px;font:inherit;background:#FFFFFF}
+  .field-hint{display:block;font-size:13px;color:#6B6B6B;margin-top:4px}
+  .consequence{font-size:13px;color:#2C2A27;background:#FFF4D6;border:1px solid #A15C00;
+        border-radius:2px;padding:8px 10px;margin-top:12px}
+
+  .alt-state{margin-top:28px;padding-top:20px;border-top:1px dashed #E6E4E1}
+  .alt-label{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#6B6B6B;
+        font-weight:600;margin-bottom:8px}
+  .status-card{background:#FFFFFF;border:1px solid #E6E4E1;border-radius:2px;padding:12px 14px}
+  .button-row{margin-top:10px}
+
+  footer{max-width:840px;margin:0 auto;padding:12px 20px 24px;color:#6B6B6B;font-size:13px}
+</style>
+</head>
+<body>
+<header>
+  <div class="masthead">
+    <span class="mark">COLLISION ENGINEERS</span>
+    <span class="app">Pegasus</span>
+    <nav aria-label="Primary">
+      <a href="#">Dashboard</a><a href="#">Inbox</a><a href="#">Upload</a><a href="#">Queues</a>
+      <a href="#">Cases</a><a href="#" class="active" aria-current="page">Administration</a>
+    </nav>
+    <div class="account"><span>alex</span><a href="#">Change password</a><a href="#">Sign out</a></div>
+  </div>
+</header>
+
+<main>
+  <p class="crumb"><a href="#">Administration</a> / <a href="#">Principals</a> / Create principal</p>
+
+  <div class="rec">
+    <div class="rhead">
+      <h1>Create principal</h1>
+      <span class="idy">A principal belongs to one Work Provider organisation</span>
+      <span class="right"><a class="btn" href="#">Back to Principals</a></span>
+    </div>
+
+    <div class="abar">
+      <a class="btn" href="#">Cancel</a>
+      <span class="spacer">
+        <button class="btn btn--primary" type="button">Create principal</button>
+      </span>
+    </div>
+
+    <div class="body">
+      <form>
+        <div class="field">
+          <label for="org">Work Provider organisation</label>
+          <select id="org">
+            <option>Select an organisation</option>
+            <option>Organisation A</option><option>Organisation B</option><option>Organisation C</option>
+          </select>
+          <span class="field-hint">Showing the first 50 organisations &mdash; search in
+            <a href="#">Organisations</a> to find one that is not listed.</span>
+        </div>
+
+        <div class="field">
+          <label for="code">Principal code</label>
+          <input type="text" id="code" autocomplete="off">
+          <span class="field-hint">Letters and numbers only &mdash; saved in capitals.</span>
+        </div>
+
+        <div class="field">
+          <label for="mode">Inspection mode</label>
+          <select id="mode">
+            <option>Physical address</option>
+            <option selected>Image Based Assessment</option>
+          </select>
+          <span class="field-hint">Fills in the inspection address on every new case for this
+            principal; staff can change it on a case with a reason.</span>
+        </div>
+
+        <p class="consequence">The code is permanent &mdash; a wrong code is corrected by replacing
+          the principal, not by editing it.</p>
+      </form>
+    </div>
+  </div>
+
+  <div class="alt-state">
+    <p class="alt-label">Alternate state &mdash; no Work Provider organisation exists</p>
+    <div class="status-card" role="status">
+      <p>No Work Provider organisation exists yet. Create one before creating a principal.</p>
+      <div class="button-row"><a class="btn" href="#">Go to Organisations</a></div>
+    </div>
+  </div>
+</main>
+
+<footer><p>Pegasus &middot; Collision Engineers case management</p></footer>
+</body>
+</html>
