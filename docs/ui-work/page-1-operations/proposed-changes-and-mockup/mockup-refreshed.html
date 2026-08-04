@@ -12,7 +12,7 @@
   3. State colour roles unchanged, but chips gain a ~10% tinted background with 1px border.
   4. Metric tiles: 28px tabular numerals, label under number, whole tile is the link,
      hover raises the hairline to charcoal.
-  5. Density: 8px base rhythm with 16/24/32 steps; 40px table rows.
+  5. Density: 4px base rhythm with 8/12/16 steps; 32px table rows.
   6. Top navigation retained (left rail not taken).
   Content is schematic placeholder data only.
 -->
@@ -32,7 +32,7 @@
   body{
     margin:0; background:var(--paper); color:var(--ink);
     font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
-    font-size:15px; line-height:1.5;
+    font-size:14px; line-height:1.5;
   }
   a{color:inherit;}
   a:focus-visible,button:focus-visible{outline:var(--focus); outline-offset:2px;}
@@ -40,12 +40,12 @@
   /* Top bar */
   .topbar{background:var(--panel); border-bottom:1px solid var(--line);}
   .topbar__inner{
-    max-width:1240px; margin:0 auto; padding:0 32px;
-    display:flex; align-items:center; gap:32px; height:60px;
+    max-width:1240px; margin:0 auto; padding:0 20px;
+    display:flex; align-items:center; gap:20px; height:48px;
   }
   .brand{display:flex; align-items:baseline; gap:12px; white-space:nowrap;}
   .brand__mark{color:var(--ce-red); font-weight:700; font-size:11px; letter-spacing:.14em;}
-  .brand__app{font-weight:600; font-size:17px;}
+  .brand__app{font-weight:600; font-size:15px;}
   .nav{display:flex; gap:8px; margin-left:auto;}
   .nav a{
     display:block; padding:8px 12px; text-decoration:none; font-size:13px; font-weight:500;
@@ -59,9 +59,9 @@
   .session a:hover{text-decoration:underline;}
 
   /* Page frame */
-  .page{max-width:1240px; margin:0 auto; padding:32px 32px 72px;}
-  .page-head{display:flex; align-items:flex-start; justify-content:space-between; gap:24px;}
-  h1{font-size:22px; font-weight:600; margin:0;}
+  .page{max-width:1240px; margin:0 auto; padding:16px 24px 32px;}
+  .page-head{display:flex; align-items:flex-start; justify-content:space-between; gap:16px;}
+  h1{font-size:20px; font-weight:600; margin:0;}
 
   /* Compact corner freshness element */
   .freshness{
@@ -77,7 +77,7 @@
   .freshness button:hover{border-color:var(--charcoal);}
 
   /* Sections */
-  .section{margin-top:32px;}
+  .section{margin-top:24px;}
   .section-label{
     font-size:13px; font-weight:600; letter-spacing:.10em; text-transform:uppercase;
     color:var(--muted); margin:0 0 12px;
@@ -122,13 +122,13 @@
   }
   .todo{max-width:780px;}
   .todo a{
-    display:flex; align-items:center; gap:16px; min-height:40px; padding:8px 16px;
+    display:flex; align-items:center; gap:16px; min-height:30px; padding:8px 16px;
     text-decoration:none; border-bottom:1px solid var(--line);
   }
   .todo a:last-child{border-bottom:none;}
   .todo a:hover{background:var(--paper);}
   .todo__main{flex:1; min-width:0;}
-  .todo__title{font-weight:600; font-size:15px;}
+  .todo__title{font-weight:600; font-size:14px;}
   .todo__meta{font-size:13px; color:var(--muted);}
   .todo__due{font-size:13px; color:var(--charcoal); white-space:nowrap;
     font-variant-numeric:tabular-nums;}

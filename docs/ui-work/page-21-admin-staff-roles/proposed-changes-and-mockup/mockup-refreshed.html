@@ -10,36 +10,36 @@
   2. Surfaces: paper #F7F6F4; cards #FFFFFF, 6px radius, 1px hairline + shadow
      0 1px 2px rgb(22 25 29 / 5%).
   3. Chips keep the amber/navy/green/red role semantics but gain a 10% tinted background.
-  4. 8px base rhythm (16/24/32 steps); 40px table rows; single-line action bars.
+  4. 4px base rhythm (8/12/16 steps); 32px table rows; single-line action bars.
   5. Top navigation retained — no left rail.
 -->
 <title>Staff roles — Pegasus (refreshed mockup)</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;font-size:15px;line-height:1.5;color:#16191D;background:#F7F6F4}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;font-size:14px;line-height:1.5;color:#16191D;background:#F7F6F4}
   a{color:#16191D}
   a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid rgba(219,8,22,.38);outline-offset:1px}
-  .masthead{display:flex;align-items:center;gap:24px;padding:0 32px;height:60px;background:#FFFFFF;border-bottom:1px solid #E6E4E1}
+  .masthead{display:flex;align-items:center;gap:16px;padding:0 20px;height:48px;background:#FFFFFF;border-bottom:1px solid #E6E4E1}
   .brand{display:flex;align-items:baseline;gap:12px;white-space:nowrap}
   .brand .mark{color:#DB0816;font-weight:700;font-size:11px;letter-spacing:.16em}
-  .brand .app{font-weight:600;font-size:17px}
-  .nav{display:flex;gap:24px;margin-left:auto}
-  .nav a{text-decoration:none;font-size:15px;padding:20px 2px 17px;border-bottom:2px solid transparent}
+  .brand .app{font-weight:600;font-size:15px}
+  .nav{display:flex;gap:16px;margin-left:auto}
+  .nav a{text-decoration:none;font-size:14px;padding:20px 2px 17px;border-bottom:2px solid transparent}
   .nav a[aria-current=page]{color:#DB0816;font-weight:600;border-bottom-color:#DB0816}
   .account{display:flex;gap:16px;align-items:center;border-left:1px solid #E6E4E1;padding-left:24px;font-size:13px}
   .account .who{color:#6B6B6B}
-  main{max-width:1280px;margin:0 auto;padding:32px}
+  main{max-width:1280px;margin:0 auto;padding:20px}
   .crumbs{font-size:13px;color:#6B6B6B;margin-bottom:16px}
   .crumbs a{color:#6B6B6B}
   .crumbs [aria-current]{color:#16191D}
-  h1{font-size:22px;font-weight:600;margin-bottom:24px}
+  h1{font-size:20px;font-weight:600;margin-bottom:16px}
   h2{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#6B6B6B;margin-bottom:8px}
-  .attention{border:1px solid rgba(122,82,0,.25);background:rgba(217,183,92,.14);color:#2C2A27;border-radius:6px;padding:12px 16px;margin-bottom:24px}
+  .attention{border:1px solid rgba(122,82,0,.25);background:rgba(217,183,92,.14);color:#2C2A27;border-radius:6px;padding:12px 16px;margin-bottom:16px}
   .card{background:#FFFFFF;border:1px solid #E6E4E1;border-radius:6px;box-shadow:0 1px 2px rgb(22 25 29 / 5%)}
   .table-wrap{overflow-x:auto}
   table{width:100%;border-collapse:collapse}
   .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-  th{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#6B6B6B;text-align:left;font-weight:600;padding:0 16px;height:40px;border-bottom:1px solid #E6E4E1}
+  th{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#6B6B6B;text-align:left;font-weight:600;padding:0 16px;height:32px;border-bottom:1px solid #E6E4E1}
   td{padding:8px 16px;border-bottom:1px solid #E6E4E1;vertical-align:middle}
   tbody tr:last-child td{border-bottom:0}
   .chip{display:inline-block;font-size:13px;font-weight:600;padding:2px 10px;border:1px solid;border-radius:999px}
@@ -52,7 +52,7 @@
   input[type=text]{padding:6px 10px;border:1px solid #B9B6B1;border-radius:6px;font:inherit;background:#FFFFFF;width:200px}
   .btn-primary{display:inline-block;background:#DB0816;color:#FFFFFF;border:0;border-radius:6px;font:600 14px system-ui;padding:8px 14px;cursor:pointer}
   .hint{font-size:13px;color:#6B6B6B;margin-top:8px}
-  footer{max-width:1280px;margin:0 auto;padding:16px 32px;color:#6B6B6B;font-size:13px;border-top:1px solid #E6E4E1}
+  footer{max-width:1280px;margin:0 auto;padding:12px 20px;color:#6B6B6B;font-size:13px;border-top:1px solid #E6E4E1}
 </style>
 </head>
 <body>

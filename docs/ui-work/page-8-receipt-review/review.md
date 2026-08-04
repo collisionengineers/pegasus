@@ -7,6 +7,13 @@ Reviewed from `receipt-review.png` (Needs sorting), `receipt-review-instruction-
 new IA this becomes **Received item review**, reached from Inbox rows. It is the most
 important operator screen in the product and currently the worst one.
 
+> **Scope correction.** The findings below describe the screen as built, including its
+> accept surface. That surface should not exist: definitive authorised intake creates the
+> case directly (`requirements.md:251`) and only ambiguous or unidentified material reaches
+> this screen, as `Needs sorting` (`operator-notes.md:204`). Read every accept-related
+> finding as evidence about a control that is being removed, not as a control to redesign.
+> See `defects-and-non-functional.md` §B4.
+
 ## 1. Aesthetics
 
 - One mile-long single column. The instruction-draft screenshot is roughly 6,000px tall:
@@ -21,8 +28,8 @@ important operator screen in the product and currently the worst one.
 - The header is eyebrow + decision + reason lede: "INTAKE REVIEW" / "Needs sorting" /
   "The readable content does not provide enough evidence to suggest a principal."
   (`Details.cshtml:11-13`). The h1 is a *state*, not a page — so the page's own name
-  changes as the record changes, and an accepted receipt is still headlined
-  "Instruction draft" (`Details.cshtml.cs:624`) with no accepted indication anywhere.
+  changes as the record changes, and a receipt already turned into a case is still headlined
+  "Instruction draft" (`Details.cshtml.cs:624`) with no case indication anywhere.
 - "Result" panel prints the raw source-receipt hex token:
   "Source receipt c13eb471c31949b7a139da4e95ed1ebd" (`Details.cshtml:43`) — 32 hex chars
   an operator can do nothing with.
@@ -53,12 +60,14 @@ important operator screen in the product and currently the worst one.
   confirmed the instruction evidence"; "Image evidence is complete" AND "I have confirmed
   the image evidence" (`Details.cshtml:423-438`) — four boxes encoding two facts, an audit
   schema leaking into a form.
-- **The accept surface is buried.** "Accept as case" sits mid-page below the address panel
-  and below a "Typed review draft" section (`Details.cshtml:282`) that read-only-duplicates
-  the correction form directly above it. The single action the whole screen exists for
-  requires scrolling past everything else, and its own lede narrates: "Confirm the
-  principal, case type and evidence completeness before allocating an immutable case
-  reference." (`Details.cshtml:373`).
+- **The accept surface is buried — and should not be here at all.** "Accept as case" sits
+  mid-page below the address panel and below a "Typed review draft" section
+  (`Details.cshtml:282`) that read-only-duplicates the correction form directly above it. Its
+  lede narrates: "Confirm the principal, case type and evidence completeness before allocating
+  an immutable case reference." (`Details.cshtml:373`) — which is the acceptance gate
+  `requirements.md:251` forbids, stated as policy in the UI. The burial is a layout symptom;
+  the control itself is the defect (§B4). What belongs here is **Create case** as the sorting
+  resolution for an ambiguous item, and nothing at all for a definitive one.
 - Queue-speak and banned-term copy throughout: page `<title>` and eyebrow, "Intake
   resolution" (`Details.cshtml:145`), "Reason for blocking intake" / "Block intake"
   (`Details.cshtml:194-196`), "Reason for accepting this intake" (`Details.cshtml:378`),

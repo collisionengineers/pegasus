@@ -23,7 +23,7 @@ there is no third wireframe to draw.
 |  |-------------------------------------------------------------------|             |
 |  | Can use              Cases                                         |             |
 |  |                      ~ Find and open cases, and record case edits  |             |
-|  |                      Documents                                     |             |
+|  |                      Evidence                                      |             |
 |  |                      ~ Add, download and export case documents     |             |
 |  |                      Inbox                                         |             |
 |  |                      ~ Read received items and submit uploads      |             |
@@ -53,7 +53,7 @@ use — and the link to activity still shows, because the record outlives the sw
 |  +-------------------------------------------------------------------+             |
 |  | Name                 Pegasus Automation                            |             |
 |  | Status               [Off]                                         |             |
-|  | Can use              Cases · Documents · Inbox (as above)          |             |
+|  | Can use              Cases · Evidence · Inbox (as above)          |             |
 |  | Client identifier    pegasus-automation                            |             |
 |  |===================================================================|             |
 |  | Reason                                                             |             |

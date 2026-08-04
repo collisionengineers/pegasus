@@ -10,6 +10,27 @@ lede, "The organization selector is bounded…" as overflow copy, "normalized to
 as a hint, and no consequence sentence at the one place it matters — the submit button. The
 no-Work-Provider blocking card is already well designed and is kept.
 
+## Container restructure (operator decision, 2026-08-04)
+
+This screen is one record, so it takes the shape every record screen now takes
+(`../../ui-standards-and-review.md` §4 rule 13): **one container** holding a header band, an
+action bar, and a body with **no tab row and no state chip** — this screen creates a
+record rather than showing one.
+
+The page-12 case detail is the reference implementation. What that changes here, over and
+above the numbered changes below:
+
+- The lone form panel becomes the container body, and **Create principal** moves to the right of
+  the action bar so the commitment is visible without scrolling the form. **Cancel** sits at the
+  left of the same bar.
+- The consequence sentence stays with the fields it concerns rather than being pinned to the
+  button that has moved.
+- The no-organisation alternate state removes the container entirely, as before — the blocking
+  card is the only content.
+
+Nothing in the change list is withdrawn — the copy, vocabulary, state and evidence decisions all
+stand; they are re-housed.
+
 ## Changes
 
 1. **Remove the lede.** Old: *"A principal code becomes an immutable identity. Later

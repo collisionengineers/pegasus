@@ -291,7 +291,7 @@ A case owns immutable identity, principal, internal reference, type, accepted so
 
 The lifecycle must support:
 
-- pre-case receiving and acceptance;
+- pre-case receiving, and the sorting of material that is not definitive (this is the `Needs sorting`/`Blocked intake` path and its reasoned resolution, not a manual acceptance step applied to definitive intake — see the allocation rule above);
 - active work, `Not ready`, `Held`, `Review`, due-work visibility, and separate mandatory instruction-completeness, image-completeness, and staff-review gates before Engineers-queue eligibility; provider policy may define accepted gate evidence but may not remove a gate, and named-Engineer assignment remains EVA-owned through `0.1.0-alpha.1`;
 
 - manual chasing with the exact schedule below;

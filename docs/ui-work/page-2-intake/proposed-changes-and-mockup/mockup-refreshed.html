@@ -10,7 +10,7 @@
   2. Surface model: paper #F7F6F4; cards #FFFFFF at 6px radius with 1px hairline plus
      shadow 0 1px 2px rgb(22 25 29 / 5%) — replaces the flat 2px hairline-only card.
   3. State colour roles unchanged, but chips gain a ~10% tinted background with 1px border.
-  4. Density: 8px base rhythm with 16/24/32 steps; 40px table rows.
+  4. Density: 4px base rhythm with 8/12/16 steps; 32px table rows.
   5. Filter chips are pill-shaped with counts; active chip fills charcoal.
   6. Top navigation retained (left rail not taken).
   Two proposed screens shown in one file: Screen 1 "Inbox", Screen 2 "Upload".
@@ -32,7 +32,7 @@
   body{
     margin:0; background:#DDDBD7; color:var(--ink);
     font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
-    font-size:15px; line-height:1.5;
+    font-size:14px; line-height:1.5;
   }
   a{color:inherit;}
   a:focus-visible,button:focus-visible{outline:var(--focus); outline-offset:2px;}
@@ -40,19 +40,19 @@
   /* Mockup-only divider naming each screen (not part of the product UI) */
   .screen-divider{
     background:var(--charcoal); color:#fff; font-size:12px; letter-spacing:.12em;
-    text-transform:uppercase; padding:8px 32px;
+    text-transform:uppercase; padding:8px 24px;
   }
   .screen{background:var(--paper); padding-bottom:64px; min-height:520px;}
 
   /* Top bar */
   .topbar{background:var(--panel); border-bottom:1px solid var(--line);}
   .topbar__inner{
-    max-width:1240px; margin:0 auto; padding:0 32px;
-    display:flex; align-items:center; gap:32px; height:60px;
+    max-width:1240px; margin:0 auto; padding:0 20px;
+    display:flex; align-items:center; gap:20px; height:48px;
   }
   .brand{display:flex; align-items:baseline; gap:12px; white-space:nowrap;}
   .brand__mark{color:var(--ce-red); font-weight:700; font-size:11px; letter-spacing:.14em;}
-  .brand__app{font-weight:600; font-size:17px;}
+  .brand__app{font-weight:600; font-size:15px;}
   .nav{display:flex; gap:8px; margin-left:auto;}
   .nav a{
     display:block; padding:8px 12px; text-decoration:none; font-size:13px; font-weight:500;
@@ -65,8 +65,8 @@
   .session a{text-decoration:none; color:var(--charcoal);}
   .session a:hover{text-decoration:underline;}
 
-  .page{max-width:1240px; margin:0 auto; padding:32px 32px 0;}
-  h1{font-size:22px; font-weight:600; margin:0 0 20px;}
+  .page{max-width:1240px; margin:0 auto; padding:16px 24px 0;}
+  h1{font-size:20px; font-weight:600; margin:0 0 20px;}
 
   .icon{width:15px; height:15px; flex:none; stroke:currentColor; fill:none;
     stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
@@ -96,6 +96,33 @@
   .chip--navy{border-color:var(--navy-line); background:var(--navy-tint); color:var(--navy-fg);}
   .chip--amber{border-color:var(--amber-line); background:var(--amber-tint); color:var(--amber-fg);}
   .chip--red{border-color:var(--ce-red); background:var(--ce-red-tint); color:var(--ce-red-dark);}
+  .chip--green{border-color:var(--green); background:var(--green-tint); color:var(--green);}
+
+  /* Direction tabs (absorbed from the former Email operations screen) */
+  .tabs{display:flex; gap:0; border-bottom:1px solid var(--line); margin-bottom:14px;}
+  .tabs a{
+    padding:8px 16px; text-decoration:none; color:var(--muted); font-size:14px;
+    border-bottom:2px solid transparent; margin-bottom:-1px;
+  }
+  .tabs a:hover{color:var(--ink);}
+  .tabs a.is-active{color:var(--ce-red); font-weight:600; border-bottom-color:var(--ce-red);}
+  .tabs .count{
+    font-size:13px; font-variant-numeric:tabular-nums; color:var(--muted);
+    border:1px solid var(--line); border-radius:var(--radius); padding:0 5px; margin-left:6px;
+  }
+  .tabs a.is-active .count{color:var(--ce-red); border-color:var(--ce-red);}
+  .cell-mailbox{font-size:13px; color:var(--muted); white-space:nowrap;}
+  .cell-mailbox.is-absent{font-style:italic;}
+  .row-detail{font-size:13px; color:var(--muted); margin:3px 0 0;}
+  .row-action{
+    font-size:13px; padding:3px 10px; border:1px solid var(--line);
+    border-radius:var(--radius); background:var(--panel); cursor:pointer; color:var(--charcoal);
+  }
+  .row-action:hover{border-color:var(--charcoal);}
+  .row-confirm{font-size:13px;}
+  .row-confirm .row-action--primary{
+    background:var(--ce-red); border-color:var(--ce-red); color:#fff; font-weight:600;
+  }
 
   /* Inbox table */
   .panel{
@@ -108,7 +135,7 @@
     text-transform:uppercase; color:var(--muted); padding:10px 16px;
     border-bottom:1px solid var(--line);
   }
-  td{height:40px; padding:4px 16px; border-bottom:1px solid var(--line); vertical-align:middle;}
+  td{height:32px; padding:4px 16px; border-bottom:1px solid var(--line); vertical-align:middle;}
   tr:last-child td{border-bottom:none;}
   tbody tr:hover{background:var(--paper); cursor:pointer;}
   .cell-sender{font-weight:600; white-space:nowrap;}
@@ -117,7 +144,7 @@
   .cell-time{white-space:nowrap; color:var(--muted); font-size:13px;
     font-variant-numeric:tabular-nums;}
 
-  .pager{display:flex; align-items:center; gap:16px; margin-top:16px; font-size:13px;}
+  .pager{display:flex; align-items:center; gap:16px; margin-top:12px; font-size:13px;}
   .pager a{text-decoration:none; color:var(--charcoal); padding:6px 14px;
     border:1px solid var(--line); border-radius:var(--radius); background:var(--panel);
     box-shadow:var(--shadow);}
@@ -128,19 +155,19 @@
   .upload-wrap{max-width:640px;}
   .dropzone{
     background:var(--panel); border:1px dashed var(--charcoal); border-radius:var(--radius);
-    box-shadow:var(--shadow); padding:56px 24px; text-align:center;
+    box-shadow:var(--shadow); padding:32px 20px; text-align:center;
   }
   .dropzone .icon{width:30px; height:30px; color:var(--charcoal); margin:0 auto 16px; display:block;}
-  .dropzone__title{font-size:17px; font-weight:600; margin:0 0 4px;}
+  .dropzone__title{font-size:15px; font-weight:600; margin:0 0 4px;}
   .dropzone__title button{
     background:none; border:none; padding:0; font:inherit; color:var(--ce-red);
     text-decoration:underline; cursor:pointer;
   }
   .dropzone__hint{font-size:13px; color:var(--muted); margin:0;}
-  .upload-actions{margin-top:16px;}
+  .upload-actions{margin-top:12px;}
   .primary-action{
     display:inline-block; background:var(--ce-red); color:#fff; border:1px solid var(--ce-red);
-    border-radius:var(--radius); padding:10px 28px; font-size:15px; font-weight:600;
+    border-radius:var(--radius); padding:10px 28px; font-size:14px; font-weight:600;
     cursor:pointer;
   }
   .primary-action:hover{background:var(--ce-red-dark); border-color:var(--ce-red-dark);}
@@ -148,7 +175,7 @@
   /* Outcome status cards */
   .state-caption{
     font-size:13px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;
-    color:var(--muted); margin:32px 0 8px;
+    color:var(--muted); margin:20px 0 8px;
   }
   .status-card{
     display:flex; align-items:flex-start; gap:10px;
@@ -197,12 +224,17 @@
   <main class="page" id="inbox">
     <h1>Inbox</h1>
 
+    <nav class="tabs" aria-label="Direction">
+      <a href="#" class="is-active" aria-current="page">Received <span class="count">9</span></a>
+      <a href="#">Sent <span class="count">4</span></a>
+    </nav>
+
     <nav class="filters" aria-label="Inbox filters">
       <a href="#" class="is-active">All <span class="count">9</span></a>
-      <a href="#">Ready to review <span class="count">3</span></a>
       <a href="#">Needs sorting <span class="count">1</span></a>
       <a href="#">Blocked <span class="count">1</span></a>
       <a href="#">Vehicle images <span class="count">2</span></a>
+      <a href="#">Failed <span class="count">1</span></a>
     </nav>
 
     <div class="panel">
@@ -212,6 +244,7 @@
             <th scope="col">Sender</th>
             <th scope="col">Subject</th>
             <th scope="col">Received</th>
+            <th scope="col">Mailbox</th>
             <th scope="col">State</th>
           </tr>
         </thead>
@@ -219,32 +252,124 @@
           <tr>
             <td class="cell-sender">claims@principal-a.example</td>
             <td class="cell-subject"><a href="#">Instruction — AB12 CDE</a></td>
-            <td class="cell-time">04 Aug 2026 09:12</td>
-            <td><span class="chip chip--navy">Ready to review</span></td>
+            <td class="cell-time"><time datetime="2026-08-04T09:12:00+01:00">04 Aug 2026 09:12</time></td>
+            <td class="cell-mailbox">Instructions</td>
+            <td><span class="chip chip--green"><a href="#">Case 26001</a></span></td>
           </tr>
           <tr>
             <td class="cell-sender">Sample Sender</td>
             <td class="cell-subject"><a href="#">Query on Case 26002</a></td>
-            <td class="cell-time">04 Aug 2026 08:41</td>
+            <td class="cell-time"><time datetime="2026-08-04T08:41:00+01:00">04 Aug 2026 08:41</time></td>
+            <td class="cell-mailbox">Instructions</td>
             <td><span class="chip chip--amber">Needs sorting</span></td>
+          </tr>
+          <tr>
+            <td class="cell-sender">claims@principal-b.example</td>
+            <td class="cell-subject">
+              <a href="#">Instruction — EF56 GHJ</a>
+              <p class="row-detail">The last message from this mailbox could not be processed.</p>
+            </td>
+            <td class="cell-time"><time datetime="2026-08-04T08:02:00+01:00">04 Aug 2026 08:02</time></td>
+            <td class="cell-mailbox">Instructions</td>
+            <td>
+              <span class="chip chip--red">Failed</span>
+              <button class="row-action" type="button">Retry</button>
+            </td>
           </tr>
           <tr>
             <td class="cell-sender">Manual upload</td>
             <td class="cell-subject"><a href="#">sample-instruction.pdf</a></td>
-            <td class="cell-time">03 Aug 2026 16:20</td>
-            <td><span class="chip chip--navy">Ready to review</span></td>
+            <td class="cell-time"><time datetime="2026-08-03T16:20:00+01:00">03 Aug 2026 16:20</time></td>
+            <td class="cell-mailbox is-absent">Mailbox not recorded</td>
+            <td><span class="chip chip--green"><a href="#">Case 26003</a></span></td>
           </tr>
           <tr>
             <td class="cell-sender">photos@principal-b.example</td>
             <td class="cell-subject"><a href="#">Vehicle images — CD34 EFG</a></td>
-            <td class="cell-time">03 Aug 2026 14:05</td>
+            <td class="cell-time"><time datetime="2026-08-03T14:05:00+01:00">03 Aug 2026 14:05</time></td>
+            <td class="cell-mailbox">Instructions</td>
             <td><span class="chip">Vehicle images</span></td>
           </tr>
           <tr>
             <td class="cell-sender">unknown@sample.example</td>
             <td class="cell-subject"><a href="#">Undeliverable notice</a></td>
-            <td class="cell-time">03 Aug 2026 11:57</td>
+            <td class="cell-time"><time datetime="2026-08-03T11:57:00+01:00">03 Aug 2026 11:57</time></td>
+            <td class="cell-mailbox">Instructions</td>
             <td><span class="chip chip--red">Blocked</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="state-caption">Retry — inline confirm (first click)</p>
+    <div class="panel">
+      <table>
+        <tbody>
+          <tr>
+            <td class="cell-sender">claims@principal-b.example</td>
+            <td class="cell-subject">
+              <a href="#">Instruction — EF56 GHJ</a>
+              <p class="row-detail">The last message from this mailbox could not be processed.</p>
+            </td>
+            <td class="cell-time"><time datetime="2026-08-04T08:02:00+01:00">04 Aug 2026 08:02</time></td>
+            <td class="cell-mailbox">Instructions</td>
+            <td class="row-confirm">
+              Retry processing for this item?
+              <button class="row-action row-action--primary" type="button">Retry</button>
+              <button class="row-action" type="button">Cancel</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="state-caption">Retry — after posting (replay renders identically)</p>
+    <div class="panel">
+      <table>
+        <tbody>
+          <tr>
+            <td class="cell-sender">claims@principal-b.example</td>
+            <td class="cell-subject">
+              <a href="#">Instruction — EF56 GHJ</a>
+              <p class="row-detail">The last message from this mailbox could not be processed.</p>
+            </td>
+            <td class="cell-time"><time datetime="2026-08-04T08:02:00+01:00">04 Aug 2026 08:02</time></td>
+            <td class="cell-mailbox">Instructions</td>
+            <td>
+              <span class="chip chip--red">Failed</span>
+              <span class="chip chip--green">Retry scheduled</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="state-caption">Sent tab</p>
+    <div class="panel">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Recipient</th>
+            <th scope="col">Subject</th>
+            <th scope="col">Sent</th>
+            <th scope="col">Mailbox</th>
+            <th scope="col">Where it went</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="cell-sender">provider@principal-a.example</td>
+            <td class="cell-subject"><a href="#">Report — AB12 CDE</a></td>
+            <td class="cell-time"><time datetime="2026-08-04T14:12:00+01:00">04 Aug 2026 14:12</time></td>
+            <td class="cell-mailbox">Instructions</td>
+            <td><a href="#">Open case 26001</a></td>
+          </tr>
+          <tr>
+            <td class="cell-sender">claims@principal-b.example</td>
+            <td class="cell-subject"><a href="#">Information request</a></td>
+            <td class="cell-time"><time datetime="2026-08-04T13:05:00+01:00">04 Aug 2026 13:05</time></td>
+            <td class="cell-mailbox">Desk</td>
+            <td class="cell-mailbox">—</td>
           </tr>
         </tbody>
       </table>
@@ -306,9 +431,9 @@
           <circle cx="12" cy="12" r="9"/><polyline points="8 12.5 11 15.5 16 9.5"/>
         </svg>
         <span class="status-card__body">
-          <strong>sample-instruction.pdf</strong> received — Ready to review
+          <strong>sample-instruction.pdf</strong> received — Case 26003 created
         </span>
-        <a class="status-card__link" href="#">View item</a>
+        <a class="status-card__link" href="#">Open case</a>
       </div>
 
       <div class="status-card status-card--caution" role="status">
