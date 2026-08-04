@@ -16,7 +16,7 @@
 }
 <div id="@dialogId" class="reason-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="@(dialogId)_title" data-reason-dialog hidden>
     <div class="reason-dialog">
-        <h2 id="@(dialogId)_title" style="display: flex; align-items: center; gap: 0.5rem;">
+        <h2 id="@(dialogId)_title" class="reason-dialog__title">
             <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle"/></svg>
             <span>@title</span>
         </h2>
@@ -34,7 +34,7 @@
                 <textarea id="@(dialogId)_reason" name="Reason" rows="3" required aria-describedby="@(dialogId)_reason_hint" placeholder="Enter clear business reason…"></textarea>
                 <small id="@(dialogId)_reason_hint">Required.</small>
             </div>
-            <div class="button-row" style="justify-content: flex-end;">
+            <div class="button-row button-row--end">
                 <button type="button" class="secondary-action" data-dialog-dismiss>Cancel</button>
                 <button type="submit" class="primary-action">Confirm Action</button>
             </div>

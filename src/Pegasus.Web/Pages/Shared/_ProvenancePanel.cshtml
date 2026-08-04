@@ -5,7 +5,7 @@
     var parserVersion = ViewData["ParserVersion"] as string ?? "1.0.0";
 }
 <div class="panel section-gap">
-    <h2 class="section-label" style="display: flex; align-items: center; gap: 0.5rem;">
+    <h2 class="section-label section-label--iconed">
         <svg class="icon" aria-hidden="true"><use href="#icon-info"/></svg>
         <span>Source Occurrence &amp; Provenance</span>
     </h2>
@@ -18,7 +18,7 @@
         {
             <div>
                 <dt>Custody Hash</dt>
-                <dd><code style="font-size: 0.8rem;">@custodyHash</code></dd>
+                <dd><code class="code--compact">@custodyHash</code></dd>
             </div>
         }
         @if (!string.IsNullOrEmpty(receivedAt))
