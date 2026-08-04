@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vehicle images — Pegasus (hardened mockup)</title>
+<style>
+  :root{
+    --ce-red:#DB0816; --ce-red-dark:#8F1422; --ink:#16191D; --charcoal:#2C2A27;
+    --paper:#F5F4F2; --panel:#FFFFFF; --line:#E6E4E1; --muted:#6B6B6B;
+    --green:#16833B;
+    --amber-fg:#7A3E00; --amber-bg:#FFF4D6; --amber-line:#A15C00;
+    --navy-fg:#143A5E; --navy-bg:#EAF1F8; --navy-line:#365F87;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);
+    font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  a{color:inherit}
+  :focus-visible{outline:3px solid rgba(219,8,22,.38);outline-offset:1px}
+
+  .topbar{background:var(--panel);border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:24px;padding:0 24px;height:56px}
+  .brand{display:flex;align-items:center;gap:12px;white-space:nowrap}
+  .brand .mark{color:var(--ce-red);font-weight:700;font-size:12px;letter-spacing:.08em}
+  .brand .app{font-weight:700;border-left:1px solid var(--line);padding-left:12px}
+  nav.primary{display:flex;gap:4px;margin-left:16px}
+  nav.primary a{text-decoration:none;font-size:14px;color:var(--charcoal);
+    padding:18px 12px 15px;border-bottom:3px solid transparent}
+  nav.primary a[aria-current="page"]{color:var(--ce-red);border-bottom-color:var(--ce-red);font-weight:600}
+  .session{margin-left:auto;display:flex;gap:16px;align-items:center;font-size:14px;color:var(--muted)}
+  .session a{color:var(--charcoal);text-decoration:none}
+
+  main{max-width:1080px;margin:0 auto;padding:24px}
+  .crumb{font-size:13px;color:var(--muted);margin-bottom:8px}
+  .crumb a{color:var(--muted)}
+  h1{font-size:24px;font-weight:700;margin-bottom:16px}
+
+  .searchrow{display:flex;gap:8px;margin-bottom:16px;max-width:520px}
+  .searchrow input{flex:1;border:1px solid var(--line);border-radius:2px;background:var(--panel);
+    padding:8px 12px;font:inherit}
+  .btn{border:1px solid var(--charcoal);border-radius:2px;background:var(--panel);
+    color:var(--charcoal);font:inherit;font-size:14px;font-weight:600;padding:8px 16px;cursor:pointer}
+
+  .chips{display:flex;gap:8px;margin-bottom:16px}
+  .chip{display:inline-flex;align-items:center;gap:6px;text-decoration:none;font-size:13px;
+    border:1px solid var(--line);border-radius:2px;background:var(--panel);
+    color:var(--charcoal);padding:5px 12px}
+  .chip[aria-current="true"]{border-color:var(--charcoal);background:var(--charcoal);color:#fff;font-weight:600}
+  .chip .n{font-weight:700}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:2px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+    text-align:left;font-weight:600;padding:10px 16px;border-bottom:1px solid var(--line)}
+  td{padding:10px 16px;border-bottom:1px solid var(--line);vertical-align:middle}
+  tr:last-child td{border-bottom:0}
+  tbody tr{cursor:pointer}
+  tbody tr:hover{background:var(--paper)}
+  td.ref{font-weight:600}
+
+  .state{display:inline-block;font-size:12.5px;font-weight:600;border-radius:2px;
+    padding:2px 8px;border:1px solid var(--line);background:var(--paper);color:var(--charcoal)}
+  .state--pending{background:var(--amber-bg);border-color:var(--amber-line);color:var(--amber-fg)}
+
+  footer{max-width:1080px;margin:0 auto;padding:16px 24px;font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <span class="brand"><span class="mark">&#9679; COLLISION ENGINEERS</span><span class="app">Pegasus</span></span>
+  <nav class="primary" aria-label="Main">
+    <a href="#">Dashboard</a>
+    <a href="#" aria-current="page">Inbox</a>
+    <a href="#">Upload</a>
+    <a href="#">Queues</a>
+    <a href="#">Cases</a>
+    <a href="#">Administration</a>
+  </nav>
+  <span class="session">alex <a href="#">Change password</a> <a href="#">Sign out</a></span>
+</header>
+
+<main>
+  <p class="crumb"><a href="#">Inbox</a> › Vehicle images</p>
+  <h1>Vehicle images</h1>
+
+  <form class="searchrow" role="search">
+    <input type="search" aria-label="Registration or image reference" placeholder="Registration or image reference">
+    <button type="submit" class="btn">Search</button>
+  </form>
+
+  <nav class="chips" aria-label="Filter">
+    <a class="chip" href="#" aria-current="true">All <span class="n">3</span></a>
+    <a class="chip" href="#">Awaiting instruction <span class="n">2</span></a>
+    <a class="chip" href="#">Linked to a case <span class="n">1</span></a>
+  </nav>
+
+  <section class="panel" aria-label="Vehicle images">
+    <table>
+      <thead>
+        <tr><th>Image reference</th><th>Registration</th><th>Received (newest first)</th><th>State</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="ref"><a href="#" style="text-decoration:none">AB12CDE-01</a></td>
+          <td>AB12 CDE</td>
+          <td>4 Aug 2026</td>
+          <td><span class="state state--pending">Awaiting instruction</span></td>
+        </tr>
+        <tr>
+          <td class="ref"><a href="#" style="text-decoration:none">AB12CDE-02</a></td>
+          <td>AB12 CDE</td>
+          <td>4 Aug 2026</td>
+          <td><span class="state state--pending">Awaiting instruction</span></td>
+        </tr>
+        <tr>
+          <td class="ref"><a href="#" style="text-decoration:none">CD34EFG-01</a></td>
+          <td>CD34 EFG</td>
+          <td>3 Aug 2026</td>
+          <td><span class="state">Linked to Case 26001</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+
+<footer>Pegasus · Collision Engineers case management</footer>
+</body>
+</html>

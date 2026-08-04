@@ -1,0 +1,90 @@
+<!doctype html>
+<!--
+  REFRESHED SYSTEM — divergences from the recorded design authority (design/README.md),
+  as summarised in ui-standards-and-review.md §5.2:
+  1. Type scale 22/17/15/13px with 600-weight headings.
+  2. Paper #F7F6F4; cards #FFFFFF with 6px radius, 1px hairline plus shadow
+     0 1px 2px rgb(22 25 29 / 5%).
+  3. State colour roles unchanged; green (#16833B) marks confirmed completion with a
+     10% tinted check disc — never colour-only (check glyph + sentence).
+  4. 8px base rhythm.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Signed out of Pegasus — refreshed mockup</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: #F7F6F4; color: #16191D;
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 40px; padding: 48px 24px;
+  }
+  .state-label {
+    font-size: 13px; text-transform: uppercase; letter-spacing: .08em;
+    color: #6B6B6B; margin-bottom: 8px;
+  }
+  .card {
+    background: #FFFFFF; border: 1px solid #E6E4E1; border-radius: 6px;
+    box-shadow: 0 1px 2px rgb(22 25 29 / 5%);
+    width: 384px; max-width: 100%; padding: 32px;
+  }
+  .mark {
+    font-size: 13px; font-weight: 700; letter-spacing: .14em;
+    color: #2C2A27; margin-bottom: 24px;
+  }
+  h1 {
+    font-size: 22px; font-weight: 600; margin-bottom: 24px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .check {
+    width: 24px; height: 24px; flex: none; border-radius: 50%;
+    border: 1px solid #16833B; background: rgba(22, 131, 59, .1);
+    color: #16833B; font-size: 13px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .primary-action {
+    display: block; width: 100%; padding: 11px 16px; text-align: center;
+    background: #DB0816; color: #FFFFFF; border: 1px solid #DB0816;
+    border-radius: 6px; font: inherit; font-size: 15px; font-weight: 600;
+    text-decoration: none; cursor: pointer;
+  }
+  .button-row { display: flex; gap: 12px; }
+  .button-row .primary-action { width: auto; }
+  .secondary-action {
+    display: inline-block; padding: 10px 16px; background: #FFFFFF;
+    color: #16191D; border: 1px solid #2C2A27; border-radius: 6px;
+    font: inherit; font-weight: 600; text-decoration: none; cursor: pointer;
+  }
+  a:focus, button:focus { outline: 3px solid rgba(219, 8, 22, .38); outline-offset: 1px; }
+  .foot { font-size: 13px; color: #6B6B6B; }
+</style>
+</head>
+<body>
+
+  <div>
+    <p class="state-label">Main state — signed-out confirmation (recommended)</p>
+    <div class="card">
+      <p class="mark">COLLISION ENGINEERS</p>
+      <h1><span class="check" aria-hidden="true">&#10003;</span> You are signed out</h1>
+      <a class="primary-action" href="#">Sign in</a>
+    </div>
+  </div>
+
+  <div>
+    <p class="state-label">Alternate — confirm interstitial (considered, not recommended)</p>
+    <div class="card">
+      <p class="mark">COLLISION ENGINEERS</p>
+      <h1>Sign out of Pegasus?</h1>
+      <div class="button-row">
+        <a class="primary-action" href="#">Sign out</a>
+        <a class="secondary-action" href="#">Cancel</a>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot">Pegasus · Collision Engineers</p>
+</body>
+</html>

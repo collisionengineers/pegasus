@@ -1,0 +1,109 @@
+<!doctype html>
+<!--
+  REFRESHED SYSTEM — divergences from the recorded design authority (design/README.md),
+  as summarised in ui-standards-and-review.md §5.2:
+  1. Type scale 22/17/15/13px with 600-weight headings.
+  2. Paper #F7F6F4; cards #FFFFFF with 6px radius, 1px hairline plus shadow
+     0 1px 2px rgb(22 25 29 / 5%).
+  3. State colour roles unchanged: red marks genuine failure only — a 3px left rule on
+     the error card; the not-found sibling carries no red (nothing failed).
+  4. 8px base rhythm; support reference set at the 13px step in monospace.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>We could not complete that request — refreshed mockup</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: #F7F6F4; color: #16191D;
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 40px; padding: 48px 24px;
+  }
+  .state-label {
+    font-size: 13px; text-transform: uppercase; letter-spacing: .08em;
+    color: #6B6B6B; margin-bottom: 8px;
+  }
+  .card {
+    background: #FFFFFF; border: 1px solid #E6E4E1; border-radius: 6px;
+    box-shadow: 0 1px 2px rgb(22 25 29 / 5%);
+    width: 448px; max-width: 100%; padding: 32px;
+  }
+  .card--fault { border-left: 3px solid #DB0816; }
+  .mark {
+    font-size: 13px; font-weight: 700; letter-spacing: .14em;
+    color: #2C2A27; margin-bottom: 24px;
+  }
+  h1 { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+  .card > p { font-size: 15px; margin-bottom: 24px; }
+  .button-row { display: flex; gap: 12px; }
+  .primary-action {
+    display: inline-block; padding: 11px 16px; background: #DB0816;
+    color: #FFFFFF; border: 1px solid #DB0816; border-radius: 6px;
+    font: inherit; font-size: 15px; font-weight: 600;
+    text-decoration: none; cursor: pointer;
+  }
+  .secondary-action {
+    display: inline-block; padding: 10px 16px; background: #FFFFFF;
+    color: #16191D; border: 1px solid #2C2A27; border-radius: 6px;
+    font: inherit; font-weight: 600; text-decoration: none; cursor: pointer;
+  }
+  a:focus, button:focus { outline: 3px solid rgba(219, 8, 22, .38); outline-offset: 1px; }
+  .support {
+    border-top: 1px solid #E6E4E1; margin-top: 24px; padding-top: 16px;
+  }
+  .support-label { font-size: 13px; color: #6B6B6B; text-transform: uppercase;
+    letter-spacing: .08em; margin-bottom: 4px; }
+  .support-value { display: flex; align-items: center; gap: 8px; }
+  .support-value code {
+    font: 13px/1.4 ui-monospace, Consolas, monospace; color: #6B6B6B;
+    overflow-wrap: anywhere;
+  }
+  .copy-button {
+    flex: none; font: 13px system-ui, sans-serif; font-weight: 600;
+    padding: 4px 10px; background: #FFFFFF; color: #16191D;
+    border: 1px solid #B9B6B1; border-radius: 6px; cursor: pointer;
+  }
+  .foot { font-size: 13px; color: #6B6B6B; }
+</style>
+</head>
+<body>
+
+  <div>
+    <p class="state-label">Main state — request failed</p>
+    <div class="card card--fault" role="alert">
+      <p class="mark">COLLISION ENGINEERS</p>
+      <h1>We could not complete that request</h1>
+      <p>What you submitted may not have been saved. Try again, and if it keeps failing,
+      tell your administrator the reference below.</p>
+      <div class="button-row">
+        <a class="primary-action" href="#">Try again</a>
+        <a class="secondary-action" href="#">Return to Dashboard</a>
+      </div>
+      <div class="support">
+        <p class="support-label">Support reference</p>
+        <p class="support-value">
+          <code>00-bf31b4c01d871a90cee3eb32ad0bcdec-4976ac84fe696071-00</code>
+          <button type="button" class="copy-button">Copy</button>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <p class="state-label">Sibling — page not found (replaces raw browser 404s)</p>
+    <div class="card">
+      <p class="mark">COLLISION ENGINEERS</p>
+      <h1>We could not find that page</h1>
+      <p>The link may be out of date, or the address may have been mistyped.</p>
+      <div class="button-row">
+        <a class="secondary-action" href="#">Return to Dashboard</a>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot">Pegasus · Collision Engineers</p>
+</body>
+</html>
