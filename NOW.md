@@ -7,10 +7,6 @@
 Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 <agent>)`. Nothing is in flight unless it is claimed here on `origin/dev`.
 
-- Vault consolidation: copy the Box/DVLA/DVSA secrets into the Pegasus Key
-  Vault, repoint the Worker's and Web's references, prove resolution, then
-  retire the two adopted vaults and `rg-collisionspike-dev` (branch
-  task/vault-consolidation, taken 2026-08-03, by codex).
 - Report renderer integration planning: plan the retirement of the
   `workspaces/report-renderer/` source import into the monolith — locate the
   Core render port seam and Infrastructure adapter placement that RPT-01–05
@@ -36,16 +32,6 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   repo. Everything composition-gated DevelopmentOffline-only; estimate
   derivation stays D2-gated; no activation or tier-5 claim (branch
   task/send-to-ai-round-trip, taken 2026-08-03, by claude).
-- Vault consolidation close-out: the 2026-08-03 execution is live-verified
-  complete (six Worker references `Resolved` at `pegasusprodkv252ow37g`, both
-  Web Box secrets bound to the Web identity on target-vault versioned URIs,
-  exactly six Worker and two Web secret-scoped `Key Vault Secrets User`
-  grants, no `Key Vault Secrets Officer` remaining, both predecessor vaults
-  soft-deleted and `rg-collisionspike-dev` gone), so record that evidence in
-  operations.md, correct the now-false "predecessor vaults remain" and
-  single-purge-date statements, and close the codex claim. Documentation
-  truth-up only — no Azure write (branch task/vault-consolidation-close-out,
-  taken 2026-08-04, by claude).
 ## Next (ordered queue — take from the top)
 
 - Decide what `docs/ui-work/` is for. PR 335 restored all 202 files onto
@@ -136,8 +122,13 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 
 ## Waiting (each line names its unblock condition)
 
-- Obsolete predecessor vault purge — platform-scheduled 2026-08-09, no action
-  unless it fails.
+- Obsolete predecessor vault purge — five soft-deleted `uksouth` vaults on two
+  platform-scheduled dates: `cespk-pg-kv-dev`, `cespkevakvufa3ci`, and
+  `cespklockva7tzj2` on 2026-08-09, then the two consolidation predecessors
+  `cespkboxkvv76a47` and `cespkenrichkvgi62sd` on 2026-08-10 (verified
+  read-only 2026-08-04; the earlier single 2026-08-09 date covered only the
+  first three). No action unless a purge fails; the watch is not clear until
+  both dates pass.
 
 ## Path (decided 2026-08-02: full QDOS cutover — every new QDOS instruction is worked in Pegasus through to the EVA handoff; EVA keeps engineering and reports. Box custody root decided 2026-08-02: all case folders under the pegasus folder `405543781910` only.)
 
