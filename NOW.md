@@ -36,6 +36,17 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   repo. Everything composition-gated DevelopmentOffline-only; estimate
   derivation stays D2-gated; no activation or tier-5 claim (branch
   task/send-to-ai-round-trip, taken 2026-08-03, by claude).
+- UI rework documentation backflow: `main` commit `440ab5c` ("ui-rework-docs",
+  2026-08-04) was committed straight onto `main` and never reached `dev`, so
+  `dev` is missing all 202 files of `docs/ui-work/` (per-page reviews,
+  wireframes, alteration plans, hardened/refreshed mockups, screenshots, the
+  UI standards and durable-rules proposals). Restore that content onto `dev`
+  unchanged — content move only, no edits to the proposals, no adoption of
+  any proposal, and no product change. The same commit's two
+  `docs/temp-plans/` copies are deliberately excluded: they are the
+  pre-implementation snapshot and PR 332 carries the newer status-headed
+  versions (branch task/ui-rework-docs-backflow, taken 2026-08-04, by
+  claude).
 ## Next (ordered queue — take from the top)
 
 - Record releases 4 and 5 in operations.md deployed evidence: release 4
