@@ -81,9 +81,16 @@ which those two plans reach `dev`.
   (`6930d0aba9d1a7c6c4a1d1be99e25605b0763d40`), proving a byte-exact restore.
 - `dotnet build --configuration Release` — unchanged by a docs-only branch,
   and CI runs it regardless.
-- After merge, `git ls-tree -d origin/dev docs/ui-work` resolves, and
-  `git log --oneline --no-merges origin/dev..origin/main` is empty: the
+- After merge, `git ls-tree -d origin/dev docs/ui-work` resolves and
+  `git diff origin/dev origin/main -- docs/ui-work` is empty: the content
   divergence that motivated this task is gone.
+
+  Note that `git log --oneline --no-merges origin/dev..origin/main` will
+  still list `440ab5c` after merge. This branch restores that commit's
+  content rather than replaying the commit object, so the commit stays
+  unreachable from `dev` even though every byte it introduced is present.
+  Content equality is the check that matters here; the commit-reachability
+  listing is not a defect and needs no further work.
 
 ## Close-out
 
