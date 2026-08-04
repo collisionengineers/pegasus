@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Administration · Pegasus — hardened mockup</title>
+<!-- Hardened system: current tokens from src/Pegasus.Web/wwwroot/css/site.css, unchanged.
+     Grouped card index with one-line job-focused copy. Destinations unchanged. -->
+<style>
+  :root{
+    --ce-red:#DB0816; --ce-red-dark:#8F1422; --ce-red-tint:rgba(219,8,22,.07);
+    --charcoal:#2C2A27; --ink:#16191D; --paper:#F5F4F2; --panel:#FFFFFF;
+    --line:#E6E4E1; --muted:#6B6B6B;
+    --radius:2px; --focus:3px solid rgba(219,8,22,.38);
+  }
+  *,*::before,*::after{box-sizing:border-box;}
+  html{font-size:16px;}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+    font-size:.9375rem; line-height:1.45;
+  }
+  a{color:inherit;}
+  a:focus-visible{outline:var(--focus); outline-offset:1px;}
+
+  .topbar{background:var(--panel); border-bottom:1px solid var(--line);}
+  .topbar__inner{
+    max-width:1240px; margin:0 auto; padding:0 24px;
+    display:flex; align-items:center; gap:24px; height:56px;
+  }
+  .brand{display:flex; align-items:baseline; gap:12px; white-space:nowrap;}
+  .brand__mark{color:var(--ce-red); font-weight:700; font-size:.6875rem; letter-spacing:.14em;}
+  .brand__app{font-weight:600; font-size:1rem;}
+  .nav{display:flex; gap:4px; margin-left:auto;}
+  .nav a{
+    display:block; padding:17px 12px 15px; text-decoration:none; font-size:.875rem;
+    color:var(--charcoal); border-bottom:2px solid transparent;
+  }
+  .nav a:hover{color:var(--ink);}
+  .nav a.is-active{color:var(--ce-red); font-weight:600; border-bottom-color:var(--ce-red);}
+  .session{display:flex; align-items:center; gap:16px; font-size:.875rem;}
+  .session__user{color:var(--muted);}
+  .session a{text-decoration:none; color:var(--charcoal);}
+  .session a:hover{text-decoration:underline;}
+
+  .page{max-width:1240px; margin:0 auto; padding:28px 24px 64px;}
+  h1{font-size:1.5rem; font-weight:600; margin:0 0 20px;}
+
+  .group{margin-bottom:28px;}
+  .section-label{
+    font-size:.75rem; font-weight:600; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--muted); margin:0 0 8px;
+  }
+  .card-grid{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px;}
+  .card-grid--2{grid-template-columns:repeat(2,minmax(0,1fr)); max-width:820px;}
+
+  .admin-card{
+    position:relative; display:flex; gap:12px; align-items:flex-start;
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    padding:16px;
+  }
+  .admin-card:hover{border-color:var(--charcoal);}
+  .admin-card__icon{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:34px; height:34px; flex:none; background:var(--paper);
+    border:1px solid var(--line); border-radius:var(--radius); color:var(--charcoal);
+  }
+  .admin-card h3{font-size:1rem; font-weight:600; margin:0 0 2px;}
+  .admin-card h3 a{text-decoration:none;}
+  /* Whole card is the click target */
+  .admin-card h3 a::after{content:""; position:absolute; inset:0;}
+  .admin-card h3 a:hover{text-decoration:underline; color:var(--ce-red-dark);}
+  .admin-card p{margin:0; font-size:.875rem; color:var(--muted);}
+
+  .icon{width:17px; height:17px; stroke:currentColor; fill:none;
+    stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar__inner">
+    <span class="brand">
+      <span class="brand__mark">COLLISION&nbsp;ENGINEERS</span>
+      <span class="brand__app">Pegasus</span>
+    </span>
+    <nav class="nav" aria-label="Primary">
+      <a href="#">Dashboard</a>
+      <a href="#">Inbox</a>
+      <a href="#">Upload</a>
+      <a href="#">Queues</a>
+      <a href="#">Cases</a>
+      <a href="#" class="is-active" aria-current="page">Administration</a>
+    </nav>
+    <div class="session">
+      <span class="session__user">alex</span>
+      <a href="#">Change password</a>
+      <a href="#">Sign out</a>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+  <h1>Administration</h1>
+
+  <section class="group" aria-labelledby="people-title">
+    <h2 id="people-title" class="section-label">People and access</h2>
+    <div class="card-grid">
+      <article class="admin-card">
+        <span class="admin-card__icon" aria-hidden="true">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </span>
+        <div>
+          <h3><a href="#">Staff accounts</a></h3>
+          <p>Add staff, disable access, and reset first-sign-in passwords.</p>
+        </div>
+      </article>
+      <article class="admin-card">
+        <span class="admin-card__icon" aria-hidden="true">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </span>
+        <div>
+          <h3><a href="#">Staff roles</a></h3>
+          <p>Set who is an Administrator, Engineer, or User.</p>
+        </div>
+      </article>
+      <article class="admin-card">
+        <span class="admin-card__icon" aria-hidden="true">
+          <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="8 12.5 11 15.5 16 9.5"/></svg>
+        </span>
+        <div>
+          <h3><a href="#">Access review</a></h3>
+          <p>Check who has access and record the review.</p>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="group" aria-labelledby="orgs-title">
+    <h2 id="orgs-title" class="section-label">Organisations and principals</h2>
+    <div class="card-grid card-grid--2">
+      <article class="admin-card">
+        <span class="admin-card__icon" aria-hidden="true">
+          <svg class="icon" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="1"/><line x1="8" y1="8" x2="10" y2="8"/><line x1="14" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="10" y2="12"/><line x1="14" y1="12" x2="16" y2="12"/><line x1="10" y1="21" x2="10" y2="17"/><line x1="14" y1="21" x2="14" y2="17"/></svg>
+        </span>
+        <div>
+          <h3><a href="#">Organizations</a></h3>
+          <p>Manage work providers and instruction intermediaries.</p>
+        </div>
+      </article>
+      <article class="admin-card">
+        <span class="admin-card__icon" aria-hidden="true">
+          <svg class="icon" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        </span>
+        <div>
+          <h3><a href="#">Principals</a></h3>
+          <p>Add principals and replace them when they change.</p>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="group" aria-labelledby="system-title">
+    <h2 id="system-title" class="section-label">System</h2>
+    <div class="card-grid">
+      <article class="admin-card">
+        <span class="admin-card__icon" aria-hidden="true">
+          <svg class="icon" viewBox="0 0 24 24"><polygon points="21 4 3 4 10 12.5 10 19 14 21 14 12.5 21 4"/></svg>
+        </span>
+        <div>
+          <h3><a href="#">Workflow configuration</a></h3>
+          <p>Set the checks a case must pass before it goes to an Engineer.</p>
+        </div>
+      </article>
+      <article class="admin-card">
+        <span class="admin-card__icon" aria-hidden="true">
+          <svg class="icon" viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="1.5"/><polyline points="3 7 12 13 21 7"/></svg>
+        </span>
+        <div>
+          <h3><a href="#">Approved mailboxes</a></h3>
+          <p>Choose the mailbox addresses Pegasus accepts e-mail from and sends from.</p>
+        </div>
+      </article>
+      <article class="admin-card">
+        <span class="admin-card__icon" aria-hidden="true">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>
+        </span>
+        <div>
+          <h3><a href="#">Automation</a></h3>
+          <p>See what runs automatically and switch it on or off.</p>
+        </div>
+      </article>
+    </div>
+  </section>
+</main>
+
+</body>
+</html>

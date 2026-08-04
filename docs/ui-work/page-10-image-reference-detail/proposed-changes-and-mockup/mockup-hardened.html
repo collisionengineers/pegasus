@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Image reference AB12CDE-01 — Pegasus (hardened mockup)</title>
+<style>
+  :root{
+    --ce-red:#DB0816; --ce-red-dark:#8F1422; --ink:#16191D; --charcoal:#2C2A27;
+    --paper:#F5F4F2; --panel:#FFFFFF; --line:#E6E4E1; --muted:#6B6B6B;
+    --green:#16833B;
+    --amber-fg:#7A3E00; --amber-bg:#FFF4D6; --amber-line:#A15C00;
+    --navy-fg:#143A5E; --navy-bg:#EAF1F8; --navy-line:#365F87;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);
+    font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  a{color:inherit}
+  :focus-visible{outline:3px solid rgba(219,8,22,.38);outline-offset:1px}
+
+  .topbar{background:var(--panel);border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:24px;padding:0 24px;height:56px}
+  .brand{display:flex;align-items:center;gap:12px;white-space:nowrap}
+  .brand .mark{color:var(--ce-red);font-weight:700;font-size:12px;letter-spacing:.08em}
+  .brand .app{font-weight:700;border-left:1px solid var(--line);padding-left:12px}
+  nav.primary{display:flex;gap:4px;margin-left:16px}
+  nav.primary a{text-decoration:none;font-size:14px;color:var(--charcoal);
+    padding:18px 12px 15px;border-bottom:3px solid transparent}
+  nav.primary a[aria-current="page"]{color:var(--ce-red);border-bottom-color:var(--ce-red);font-weight:600}
+  .session{margin-left:auto;display:flex;gap:16px;align-items:center;font-size:14px;color:var(--muted)}
+  .session a{color:var(--charcoal);text-decoration:none}
+
+  main{max-width:1080px;margin:0 auto;padding:24px}
+  .crumb{font-size:13px;color:var(--muted);margin-bottom:8px}
+  .crumb a{color:var(--muted)}
+  .titlerow{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+  h1{font-size:24px;font-weight:700}
+
+  .state{display:inline-block;font-size:12.5px;font-weight:600;border-radius:2px;
+    padding:3px 10px;border:1px solid var(--line);background:var(--paper);color:var(--charcoal)}
+  .state--pending{background:var(--amber-bg);border-color:var(--amber-line);color:var(--amber-fg)}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:2px;padding:16px 20px}
+  .panel h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+    font-weight:600;margin-bottom:12px}
+  dl.facts div{display:flex;gap:16px;padding:7px 0;border-bottom:1px solid var(--line)}
+  dl.facts div:last-child{border-bottom:0}
+  dl.facts dt{flex:0 0 140px;color:var(--muted);font-size:14px}
+  dl.facts dd{font-weight:600}
+
+  .btn{display:inline-block;border:1px solid var(--charcoal);border-radius:2px;background:var(--panel);
+    color:var(--charcoal);font:inherit;font-size:14px;font-weight:600;padding:7px 14px;
+    cursor:pointer;text-decoration:none}
+  .btn--primary{background:var(--ce-red);border-color:var(--ce-red);color:#fff}
+  .btn--primary:hover{background:var(--ce-red-dark)}
+
+  .rows{border-top:1px solid var(--line)}
+  .row{display:flex;align-items:center;gap:24px;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .row:last-child{border-bottom:0}
+  .row .lead{font-weight:600;min-width:110px}
+  .row .actions{margin-left:auto;display:flex;gap:8px}
+  .hint{font-size:13px;color:var(--muted);margin-top:12px}
+  .section-gap{margin-bottom:16px}
+
+  footer{max-width:1080px;margin:0 auto;padding:16px 24px;font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <span class="brand"><span class="mark">&#9679; COLLISION ENGINEERS</span><span class="app">Pegasus</span></span>
+  <nav class="primary" aria-label="Main">
+    <a href="#">Dashboard</a>
+    <a href="#" aria-current="page">Inbox</a>
+    <a href="#">Upload</a>
+    <a href="#">Queues</a>
+    <a href="#">Cases</a>
+    <a href="#">Administration</a>
+  </nav>
+  <span class="session">alex <a href="#">Change password</a> <a href="#">Sign out</a></span>
+</header>
+
+<main>
+  <p class="crumb"><a href="#">Inbox</a> › <a href="#">Vehicle images</a> › AB12CDE-01</p>
+  <div class="titlerow">
+    <h1>Image reference AB12CDE-01</h1>
+    <span class="state state--pending">Awaiting instruction</span>
+  </div>
+
+  <div class="grid2">
+    <section class="panel" aria-labelledby="record-title">
+      <h2 id="record-title">Record</h2>
+      <dl class="facts">
+        <div><dt>Registration</dt><dd>AB12 CDE</dd></div>
+        <div><dt>Received</dt><dd>4 Aug 2026 14:02</dd></div>
+        <div><dt>Linked case</dt><dd>Not linked</dd></div>
+      </dl>
+    </section>
+
+    <section class="panel" aria-labelledby="origin-title">
+      <h2 id="origin-title">Origin</h2>
+      <p style="margin-bottom:12px">From a manual upload received 4 Aug 2026 14:01.</p>
+      <a class="btn" href="#">View original upload</a>
+    </section>
+  </div>
+
+  <section class="panel section-gap" aria-labelledby="candidates-title">
+    <h2 id="candidates-title">Matching open cases</h2>
+    <div class="rows">
+      <div class="row">
+        <span class="lead">Case 26001</span>
+        <span>Principal A</span>
+        <span>AB12 CDE</span>
+        <span class="actions">
+          <a class="btn" href="#">Open case</a>
+          <button class="btn btn--primary" type="button">Link to this case</button>
+        </span>
+      </div>
+    </div>
+    <p class="hint">Linking keeps this image reference permanently; it can be reversed before the report is sent.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="readings-title">
+    <h2 id="readings-title">Registration readings</h2>
+    <div class="rows">
+      <div class="row">
+        <span class="lead">AB12 CDE</span>
+        <span>High confidence</span>
+        <span style="margin-left:auto;color:var(--muted)">4 Aug 2026</span>
+      </div>
+      <div class="row">
+        <span class="lead">No registration readable</span>
+        <span>One image</span>
+        <span style="margin-left:auto;color:var(--muted)">4 Aug 2026</span>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>Pegasus · Collision Engineers case management</footer>
+</body>
+</html>

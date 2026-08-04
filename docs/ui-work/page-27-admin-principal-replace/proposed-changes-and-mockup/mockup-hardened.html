@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Replace ALPHA1 — Pegasus (hardened mockup)</title>
+<!-- HARDENED SYSTEM: current identity, fixed. Tokens per design/README.md —
+     content and structure change only (copy per standards §2/§4). Schematic data. -->
+<style>
+  :root{
+    --red:#DB0816; --ink:#16191D; --charcoal:#2C2A27; --paper:#F5F4F2;
+    --panel:#FFFFFF; --line:#E6E4E1; --muted:#6B6B6B; --green:#16833B;
+    --amber:#8A5A00; --amber-bg:#FBF3E2; --amber-line:#E3C98A;
+    --navy:#1F3A5F; --navy-bg:#E9EEF6; --navy-line:#B9C6DA;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;font-size:15px;
+       line-height:1.5;color:var(--ink);background:var(--paper)}
+  a{color:var(--ink)}
+  header{background:var(--panel);border-bottom:1px solid var(--line)}
+  .masthead{max-width:1280px;margin:0 auto;padding:12px 24px;display:flex;align-items:center;gap:16px}
+  .mark{font-weight:700;letter-spacing:.08em;font-size:13px;color:var(--red);white-space:nowrap}
+  .app{font-weight:600;font-size:15px;padding-left:16px;border-left:1px solid var(--line)}
+  nav{display:flex;gap:20px;margin-left:auto}
+  nav a{text-decoration:none;font-size:14px;padding:4px 0;border-bottom:2px solid transparent}
+  nav a.active{color:var(--red);font-weight:600;border-bottom-color:var(--red)}
+  .account{display:flex;gap:16px;align-items:center;font-size:14px;margin-left:24px;
+           padding-left:24px;border-left:1px solid var(--line)}
+  .account .who{color:var(--muted)}
+  .account a{text-decoration:none}
+  main{max-width:1280px;margin:0 auto;padding:24px}
+  .crumb{font-size:13px;color:var(--muted);margin-bottom:16px}
+  .crumb a{color:var(--muted)}
+  h1{font-size:24px;font-weight:700;margin-bottom:24px}
+  .section-label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;
+                 color:var(--muted);font-weight:600;margin-bottom:8px}
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:2px;padding:24px}
+  dl.detail{display:grid;grid-template-columns:auto 1fr;gap:8px 24px;font-size:14px}
+  dl.detail dt{color:var(--muted)}
+  dl.detail dd{font-weight:600}
+  .tabular{font-variant-numeric:tabular-nums}
+  .chip{display:inline-block;font-size:13px;font-weight:600;padding:1px 8px;
+        border-radius:2px;border:1px solid var(--charcoal);color:var(--charcoal);background:var(--panel)}
+  .chip--active{border-color:var(--green);color:var(--green)}
+  .chip--disabled{border-color:var(--muted);color:var(--muted)}
+  .field{margin-bottom:16px}
+  label{display:block;font-weight:600;font-size:14px;margin-bottom:4px}
+  select,input[type=text],textarea{width:100%;padding:8px;font:inherit;font-size:14px;
+       border:1px solid var(--charcoal);border-radius:2px;background:var(--panel);color:var(--ink)}
+  select:focus,input:focus,textarea:focus,button:focus,a:focus{outline:3px solid rgba(219,8,22,.38);outline-offset:1px}
+  .field-hint{display:block;font-size:13px;color:var(--muted);margin-top:4px}
+  .field-hint a{color:var(--muted)}
+  .consequence{font-size:13px;color:var(--charcoal);margin:16px 0 8px;
+               padding-top:12px;border-top:1px solid var(--line)}
+  .primary-action{background:var(--red);color:#fff;border:1px solid var(--red);
+       border-radius:2px;font:inherit;font-size:14px;font-weight:600;padding:8px 20px;cursor:pointer}
+  .status-card{border:1px solid var(--amber-line);background:var(--amber-bg);
+       border-radius:2px;padding:16px}
+  .status-card p{color:var(--ink)}
+  .status-card a{font-weight:600}
+  .alt-state{margin-top:48px;padding-top:24px;border-top:1px dashed var(--line)}
+  .alt-label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
+             margin-bottom:12px;font-weight:400}
+  footer{border-top:1px solid var(--line);margin-top:48px}
+  footer p{max-width:1280px;margin:0 auto;padding:16px 24px;font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <div class="masthead">
+    <span class="mark">COLLISION ENGINEERS</span>
+    <span class="app">Pegasus</span>
+    <nav aria-label="Primary">
+      <a href="#">Dashboard</a>
+      <a href="#">Inbox</a>
+      <a href="#">Upload</a>
+      <a href="#">Queues</a>
+      <a href="#">Cases</a>
+      <a href="#" class="active" aria-current="page">Administration</a>
+    </nav>
+    <div class="account">
+      <span class="who">alex</span>
+      <a href="#">Change password</a>
+      <a href="#">Sign out</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <p class="crumb"><a href="#">Administration</a> / Replace principal</p>
+  <h1>Replace ALPHA1</h1>
+
+  <div class="split">
+    <section aria-labelledby="predecessor-heading">
+      <h2 id="predecessor-heading" class="section-label">Predecessor</h2>
+      <div class="panel">
+        <dl class="detail">
+          <dt>Organisation</dt><dd>Organisation A</dd>
+          <dt>Allocated cases</dt><dd class="tabular">12</dd>
+          <dt>Status</dt><dd><span class="chip chip--active">Active</span></dd>
+        </dl>
+      </div>
+    </section>
+
+    <section aria-labelledby="successor-heading">
+      <h2 id="successor-heading" class="section-label">Successor</h2>
+      <div class="panel">
+        <form>
+          <div class="field">
+            <label for="s-org">Successor Work Provider organisation</label>
+            <select id="s-org">
+              <option>Select an organisation</option>
+              <option>Organisation A</option>
+              <option>Organisation B</option>
+              <option>Organisation C</option>
+            </select>
+            <span class="field-hint">Showing the first 50 organisations —
+              search in <a href="#">Organisations</a> to find one that is not listed.</span>
+          </div>
+          <div class="field">
+            <label for="s-code">Successor principal code</label>
+            <input type="text" id="s-code" autocomplete="off">
+            <span class="field-hint">Letters and numbers only — saved in capitals.</span>
+          </div>
+          <div class="field">
+            <label for="s-reason">Reason for replacement</label>
+            <textarea id="s-reason" rows="3"></textarea>
+            <span class="field-hint">Recorded permanently against both principals.</span>
+          </div>
+          <p class="consequence">ALPHA1 stops taking new work immediately; its existing
+            cases and references stay with ALPHA1.</p>
+          <button type="button" class="primary-action">Disable ALPHA1 and create successor</button>
+        </form>
+      </div>
+    </section>
+  </div>
+
+  <!-- Alternate states, shown here for design reference only. -->
+  <div class="alt-state">
+    <p class="alt-label">Alternate state — already replaced (successor form absent)</p>
+    <div class="split">
+      <div class="panel">
+        <dl class="detail">
+          <dt>Organisation</dt><dd>Organisation A</dd>
+          <dt>Allocated cases</dt><dd class="tabular">12</dd>
+          <dt>Status</dt><dd><span class="chip chip--disabled">Disabled</span></dd>
+        </dl>
+      </div>
+      <div class="status-card" role="status">
+        <p>ALPHA1 has already been replaced. <a href="#">View its successor</a></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="alt-state">
+    <p class="alt-label">Alternate state — disabled, no successor</p>
+    <div class="status-card" role="status" style="max-width:560px">
+      <p>ALPHA1 is disabled. A disabled principal cannot be replaced.</p>
+    </div>
+  </div>
+</main>
+
+<footer><p>Pegasus · Collision Engineers case management</p></footer>
+</body>
+</html>
