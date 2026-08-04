@@ -159,7 +159,14 @@ public static class SendToAiExtensions
             client.Timeout = options.Timeout;
             client.DefaultRequestHeaders.Authorization =
                 new AuthenticationHeaderValue("Bearer", options.ChannelToken);
-        });
+        })
+            // Redirects are not followed: a 3xx from the configured loopback
+            // connector would otherwise resend the pointer — and the bearer
+            // token — to whatever host it named, defeating the loopback
+            // restriction and this adapter's contract that it makes no other
+            // outbound call. A 3xx falls through as a transport failure.
+            .ConfigurePrimaryHttpMessageHandler(
+                () => new HttpClientHandler { AllowAutoRedirect = false });
         services.AddScoped<Pegasus.Core.AiWork.IAiHandOffTransport, ChannelAiHandOffTransport>();
         services.AddScoped<Pegasus.Core.AiWork.ISendCaseToAi, Pegasus.Core.AiWork.SendCaseToAi>();
         services.AddScoped<

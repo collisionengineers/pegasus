@@ -272,6 +272,11 @@ public sealed class ReconcileAiWorkRequest(
         ArgumentNullException.ThrowIfNull(command);
         var record = await _store.GetAsync(command.RequestId, cancellationToken)
             ?? throw new KeyNotFoundException("The Send to AI request was not found.");
+        if (command.CaseId != Guid.Empty && record.CaseId != command.CaseId)
+        {
+            throw new KeyNotFoundException(
+                "The Send to AI request belongs to another case.");
+        }
         if (AiWorkRequestStates.IsTerminal(record.State))
         {
             return record;

@@ -172,7 +172,13 @@ public interface ISendCaseToAi
         CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// Reconciles one work request. <paramref name="CaseId"/> is the case the
+/// caller is acting on; a request belonging to another case fails closed
+/// rather than being read and transitioned from the wrong case's screen.
+/// </summary>
 public sealed record ReconcileAiWorkRequestCommand(
+    Guid CaseId,
     Guid RequestId,
     ActionActor Actor,
     string OperationKey);

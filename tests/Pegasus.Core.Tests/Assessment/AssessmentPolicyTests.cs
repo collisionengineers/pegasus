@@ -228,15 +228,27 @@ public sealed class AssessmentPolicyTests
     }
 
     [Fact]
-    public void ReadinessCountsUnconfirmedAutomationValues()
+    public void ReadinessNamesEachUnconfirmedValueIndividually()
     {
         var projection = Projection(
         [
-            Field("vehicle.condition", "good") with { ConfirmedBy = null, ConfirmedAtUtc = null }
+            Field("vehicle.condition", "good") with { ConfirmedBy = null, ConfirmedAtUtc = null },
+            Field("assessment.outcome", "repair") with { ConfirmedBy = null, ConfirmedAtUtc = null }
         ]);
+        var readiness = AssessmentPolicy.EvaluateReadiness(projection);
+
+        // One blocker per unconfirmed value naming its own field and
+        // provenance — never a single aggregate count.
         Assert.Contains(
-            AssessmentPolicy.EvaluateReadiness(projection),
-            item => item.Requirement.Contains("automation-recorded", StringComparison.Ordinal));
+            readiness,
+            item => item.Requirement == "vehicle.condition awaits review"
+                && item.Source.StartsWith("Recorded by ", StringComparison.Ordinal));
+        Assert.Contains(
+            readiness,
+            item => item.Requirement == "assessment.outcome awaits review");
+        Assert.DoesNotContain(
+            readiness,
+            item => item.Requirement.Contains("values await review", StringComparison.Ordinal));
     }
 
     private static SaveAssessmentRequest Request(
