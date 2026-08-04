@@ -1,4 +1,4 @@
-# NOW — updated 2026-08-04
+# NOW — updated 2026-08-05
 
 (Anything here older than 14 days is stale: delete it, don't investigate it.)
 
@@ -43,6 +43,20 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   five shell screens: sign-in (M9d), change password (M9e), sign-out (M10),
   access denied, error (branch task/ui-shell-and-design-system, taken
   2026-08-04, by claude).
+- CASE-27 edit-lease continuity and conflict recovery for both callers
+  (MCP-02/MCP-04): close the gaps between
+  `docs/requirements.md` "Case edit authority and recovery" and shipped
+  behaviour — expired leases must read as free everywhere they are projected
+  (Triage and Operations still narrate a past expiry as held), authorised
+  non-holders must see the holder and when edit authority frees, a rejected
+  editor must keep their proposed values for comparison instead of losing the
+  post to a bare redirect, the Automation Actor must be able to renew rather
+  than only begin/end, and the triplicated mutation guard collapses to one
+  Core-owned implementation with a single lease-token length contract. Staff
+  Web and the Automation Actor exercise the same guard and the same
+  reacquisition path; no takeover, no force-save, no Administrator bypass, no
+  lease vocabulary in operator copy (branch task/case-edit-lease-continuity,
+  taken 2026-08-05, by claude).
 
 ## Next (ordered queue — take from the top)
 
