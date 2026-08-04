@@ -309,7 +309,7 @@ Every protected route and action must handle unauthenticated, disabled-session, 
 Operations is the landing route.
 
 ```text
-CE logo | Operations | Intake | Triage | Cases | Administration | Search | User
+CE logo | Dashboard | Inbox | Queues | Cases | Administration | Search | User
 Operations
 Not ready | Review | Held | Needs sorting | Blocked intake | Triage | Due today
 New cases today | Sent to Engineer: today / week | Reports sent: today / week
@@ -416,7 +416,10 @@ Only the first table describes exercised components. Planned contracts do not cr
 
 | Component | Purpose and states | Runtime owner |
 | --- | --- | --- |
-| Development shell/navigation | Identify the current proof and reach Development routes; normal, hover and focus; the current route carries `aria-current="page"` with a weight and underline change so it is not signalled by colour alone; local-intake link is conditional | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` |
+| Development shell/navigation | Identify the current proof and reach Development routes; normal, hover and focus; the current route carries `aria-current="page"` with a weight and underline change so it is not signalled by colour alone; the Inbox item is conditional and is **absent**, never a disabled span, where the capability is not composed | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` |
+| Navless shells | The screens that are not a place in the application. `_LayoutAuth` carries sign in, the signed-out confirmation, access denied and the error/not-found family; `_LayoutExternal` carries the one screen a third party sees and states the company, never the product | `src/Pegasus.Web/Pages/Shared/_LayoutAuth.cshtml`, `_LayoutExternal.cshtml` |
+| Status-code page | The designed answer to a status code with no exception behind it: unknown record, dead external upload link, oversized upload, rate-limited sign-in. Scoped away from the health, version and automation surfaces, whose callers want a parsable body | `src/Pegasus.Web/Pages/StatusCode.cshtml(.cs)` |
+| Operator label map | The single place a persisted code becomes words: stage, case type, document role and origin, custody, upload-link state, history event, file size. Raw `enum.ToString()`, snake_case event codes and PascalCase compounds never reach markup | `src/Pegasus.Web/Presentation/OperatorLabels.cs` |
 | Queue/metric card | Show persisted Development intake counts and open the exact list; value and unavailable states are both exercised, an unavailable tile stating its absence rather than substituting a zero; stale and partial remain planned | `src/Pegasus.Web/Pages/Index.cshtml`, `src/Pegasus.Web/wwwroot/css/site.css` |
 | Status chip | The single place a business or query state selects its tone and Lucide glyph; always paired with its text label | `src/Pegasus.Web/Pages/Shared/_StatusChip.cshtml` |
 | Freshness and manual refresh | Last-good Europe/London time, current refresh state, and a manual refresh that reruns the same filter with start feedback and double-submit protection | `src/Pegasus.Web/Pages/Shared/_FreshnessBanner.cshtml` |
