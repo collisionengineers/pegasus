@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+@*
+    The shell for the one screen a third party outside Collision Engineers ever
+    sees: the public upload link.
+
+    It carries the company, not the product. The internal application's name,
+    navigation, sign-in link and structure are all absent — a claimant asked to
+    send photographs has no business learning how the office works inside.
+*@
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] · Collision Engineers</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+    <partial name="Shared/_LucideSprite" />
+    <header class="app-nav">
+        <div class="nav-inner">
+            <span class="navbar-brand">
+                <img src="~/images/logo_no_margin.png" asp-append-version="true" alt="Collision Engineers" />
+            </span>
+        </div>
+    </header>
+    <div class="app-shell">
+        <main id="main-content" tabindex="-1">
+            @RenderBody()
+        </main>
+    </div>
+    <footer class="footer">
+        <div class="footer-inner">Collision Engineers</div>
+    </footer>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>
