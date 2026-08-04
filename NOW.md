@@ -32,15 +32,38 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   repo. Everything composition-gated DevelopmentOffline-only; estimate
   derivation stays D2-gated; no activation or tier-5 claim (branch
   task/send-to-ai-round-trip, taken 2026-08-03, by claude).
+- UI implementation programme, specification close-out: land the refined
+  `docs/ui-work/` proposals and the durable-doc corrections the review
+  produced (the `DraftReady` non-conformance now recorded in
+  design/README.md, architecture.md, capabilities.md and requirements.md) so
+  the queued page work below builds against a fixed specification (branch
+  task/ui-work-spec-close-out, taken 2026-08-04, by claude).
+
 ## Next (ordered queue — take from the top)
 
-- Decide what `docs/ui-work/` is for. PR 335 restored all 202 files onto
-  `dev` (they had been committed straight onto `main` as `440ab5c` and never
-  reached the trunk), but restoring the proposals did not adopt them: the
-  per-page reviews, wireframes, alteration plans and mockups are not design
-  authority and no capability is allocated to them. Decide whether they
-  become queued UI work, fold into the design authority, or are deleted —
-  and until then treat nothing in that directory as accepted.
+- **UI implementation programme** (operator decision 2026-08-04, settling the
+  earlier "decide what `docs/ui-work/` is for" question): the folder is
+  adopted as the specification for a whole-application UI rebuild, then
+  deleted. Every page folder's alteration plan is implemented, every entry in
+  `docs/ui-work/additions-hidden-features.md` and
+  `docs/ui-work/defects-and-non-functional.md` is made visible and functional,
+  `docs/ui-work/ui-standards-and-review.md` becomes the enforced presentation
+  contract, and the implemented pages match the **refreshed** mockups. The
+  work lands as one PR per main-navigation page — sub-pages fold into the
+  navigation page that owns them — reviewed and merged into `dev` in
+  sequence, then `dev` into `main`. Queue, each claimable on its own line:
+  - Shell and design system (pages 14–18, `_Layout`, `site.css`, operator
+    label maps, styled status-code pages).
+  - Dashboard (pages 1, 7) — needs the Core case-lifecycle and day/week
+    count queries that do not exist today (defects B3, M1, M7, M8).
+  - Inbox (pages 2, 6, 8, 9, 10) — carries the acceptance-gate/`DraftReady`
+    removal and INT-25 below, because the queue it feeds is this screen.
+  - Upload (pages 2-split, 13) — carries defect B1, the dead upload handler.
+  - Queues (pages 3, 11).
+  - Cases (pages 4/5, 12) — the case container, Evidence tabs, provenance
+    icons, and the `Review`-only export precondition.
+  - Administration (pages 5-administration, 19–31).
+  Until a page's PR merges, nothing in its folder is accepted.
 - Protect `main` against direct pushes. `440ab5c` reached the deployment
   branch without a PR, so CI never gated it — it carried a defect that
   failed the documentation check the moment it was put in front of CI (fixed
@@ -96,12 +119,34 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   (task/ui-alpha-design-pass review, 2026-08-03); also the Access review
   page renders the `0001-01-01 00:00:00Z` sentinel as "Last reviewed"
   beside a `Recorded` state (release-5 live checks, 2026-08-04).
-- Relabel the Operations dashboard's DraftReady intake tile from `Review` to
-  the design authority's `Instruction draft` mapping: `DraftReady` is the
-  internal intake-receipt decision (a route-accepted instruction whose
-  extraction produced a complete reviewable draft, pre-Case), and the
-  internal wording leaked into the UI where `Review` is reserved for the
-  Case state (operator decision 2026-08-03: ship as-is, fix later).
+- Remove the manual case-acceptance gate and the `DraftReady` decision, and
+  implement INT-25/CAP-008. `docs/requirements.md:251` requires that
+  "definitive authorised intake creates exactly one instructed Case
+  idempotently" and that "the allocation decision adds no universal manual
+  acceptance gate"; `docs/operator-notes.md:204` sends only ambiguous
+  provider, instruction-type, or case evidence — and any unidentified e-mail
+  — to `Needs sorting`. Shipped behaviour is the opposite: `IAcceptIntake`
+  has one caller, the staff form handler at
+  `src/Pegasus.Web/Pages/Intake/Details.cshtml.cs:534`, so every case in
+  Pegasus waits on a human pressing "Accept and allocate case reference",
+  and `IntakeDecision.DraftReady` exists only to name that wait. Definitive
+  intake must allocate at processing time, entering `Not ready` when
+  ordinary detail is thin; incomplete detail is not a bar to allocation.
+  `Needs sorting` keeps the ambiguity path, including staff-resolved manual
+  creation (INT-26); genuine fail-closed conditions (limits, principal
+  identity, standalone Audit evidence) stay `Blocked intake` with a reason.
+  Scope: Core policy and the acceptance/receipt stores, the Worker/automation
+  path, the intake and dashboard surfaces, and a repo-wide correction pass —
+  `DraftReady` is referenced across `src/`, `tests/`, `design/README.md:374`,
+  `docs/capabilities.md`, and the intake filter/route token `draft_ready`.
+  Also correct `EfIntakeReceiptStore.GetCountsAsync:152-164` and
+  `ListAsync:166-192`, which never exclude receipts that produced a case, so
+  every intake count is cumulative for all time. `Review` and "Ready to
+  review" are the Case stage before the report is with an Engineer
+  (`CaseWorkflowContracts.cs:15`, `requirements.md:295`) and must never
+  label an intake state (operator decision 2026-08-04, superseding the
+  2026-08-03 "ship as-is, relabel later" line — the tile was never a
+  labelling defect).
 - Prove the per-run template database's server-side BACKUP/RESTORE against a
   PEGASUS_TEST_SQL_DATASOURCE container (Linux workstation or a CI job) and
   lift the review gate that disables the template for external servers
