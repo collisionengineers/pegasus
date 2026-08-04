@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Approved mailboxes — Pegasus (refreshed mockup)</title>
+<!--
+  REFRESHED SYSTEM — divergences from the recorded design authority (design/README.md):
+  1. Type scale 22/17/15/13px, 600-weight headings, tabular numerals for metrics.
+  2. Surface model: paper #F7F6F4; cards #FFFFFF with 6px radius, 1px hairline plus
+     a very low shadow (0 1px 2px rgb(22 25 29 / 5%)) — replaces the flat 2px card.
+  3. State colour roles unchanged; chips gain a 10% tinted background with a 1px border.
+  4. Density: 8px base rhythm with 16/24/32 steps; 40px table rows; single-line filter bars.
+  5. Left-rail navigation NOT taken — top nav retained.
+  Schematic data only.
+-->
+<style>
+  :root{
+    --red:#DB0816; --ink:#16191D; --charcoal:#2C2A27; --paper:#F7F6F4;
+    --panel:#FFFFFF; --line:#E6E4E1; --muted:#6B6B6B; --green:#16833B;
+    --amber:#8A5A00; --amber-line:#E3C98A;
+    --navy:#1F3A5F; --navy-line:#B9C6DA;
+    --shadow:0 1px 2px rgb(22 25 29 / 5%);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;font-size:15px;
+       line-height:1.5;color:var(--ink);background:var(--paper)}
+  a{color:var(--ink)}
+  header{background:var(--panel);border-bottom:1px solid var(--line)}
+  .masthead{max-width:1280px;margin:0 auto;padding:16px 32px;display:flex;align-items:center;gap:24px}
+  .mark{font-weight:700;letter-spacing:.08em;font-size:13px;color:var(--red);white-space:nowrap}
+  .app{font-weight:600;font-size:15px;padding-left:24px;border-left:1px solid var(--line)}
+  nav{display:flex;gap:24px;margin-left:auto}
+  nav a{text-decoration:none;font-size:15px;padding:8px 0;border-bottom:2px solid transparent}
+  nav a.active{color:var(--red);font-weight:600;border-bottom-color:var(--red)}
+  .account{display:flex;gap:16px;align-items:center;font-size:13px;margin-left:32px;
+           padding-left:32px;border-left:1px solid var(--line)}
+  .account .who{color:var(--muted)}
+  .account a{text-decoration:none}
+  main{max-width:1280px;margin:0 auto;padding:32px}
+  .crumb{font-size:13px;color:var(--muted);margin-bottom:16px}
+  .crumb a{color:var(--muted)}
+  h1{font-size:22px;font-weight:600;margin-bottom:24px}
+  .section-label{font-size:13px;letter-spacing:.08em;text-transform:uppercase;
+                 color:var(--muted);font-weight:600;margin:32px 0 16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:6px;
+        box-shadow:var(--shadow)}
+  .table-card{max-width:960px;overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:15px}
+  th{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
+     text-align:left;font-weight:600;padding:12px 24px;border-bottom:1px solid var(--line)}
+  td{padding:8px 24px;border-bottom:1px solid var(--line);vertical-align:top;height:40px}
+  tr:last-child > td{border-bottom:0}
+  .chip{display:inline-block;font-size:13px;font-weight:600;padding:2px 10px;border-radius:6px;
+        border:1px solid var(--charcoal);color:var(--charcoal);background:rgb(44 42 39 / 10%)}
+  .chip--approved{border-color:var(--green);color:var(--green);background:rgb(22 131 59 / 10%)}
+  .chip--disabled{border-color:var(--muted);color:var(--muted);background:rgb(107 107 107 / 10%)}
+  .row-action{font-size:15px;font-weight:600}
+  .visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;
+                   clip:rect(0 0 0 0);white-space:nowrap}
+  .edit-row td{background:var(--paper);padding:24px}
+  .edit-form{background:var(--panel);border:1px solid var(--line);border-radius:6px;
+             box-shadow:var(--shadow);padding:24px;max-width:600px}
+  .field{margin-bottom:16px}
+  label.stack{display:block;font-weight:600;font-size:15px;margin-bottom:8px}
+  input[type=text],input[type=email],select{width:100%;padding:10px 12px;font:inherit;
+       font-size:15px;border:1px solid var(--line);border-radius:6px;background:var(--panel);
+       color:var(--ink)}
+  input:hover,select:hover{border-color:var(--charcoal)}
+  input:focus,select:focus,button:focus,a:focus{outline:3px solid rgba(219,8,22,.38);outline-offset:1px}
+  fieldset{border:0;margin-bottom:16px}
+  legend{font-weight:600;font-size:15px;margin-bottom:8px}
+  .choice{display:flex;align-items:flex-start;gap:8px;padding:4px 0;font-size:15px}
+  .choice input{accent-color:var(--red);width:18px;height:18px;margin-top:2px}
+  .pair{display:grid;grid-template-columns:176px 1fr;gap:16px}
+  .field-hint{display:block;font-size:13px;color:var(--muted);margin-top:8px}
+  .consequence{font-size:13px;color:var(--charcoal);margin:24px 0 16px;
+               padding-top:16px;border-top:1px solid var(--line)}
+  .primary-action{background:var(--red);color:#fff;border:1px solid var(--red);
+       border-radius:6px;font:inherit;font-size:15px;font-weight:600;padding:10px 24px;cursor:pointer}
+  .form-card{padding:32px;max-width:600px}
+  .empty-card{padding:32px;max-width:960px;color:var(--muted)}
+  .status-card--attention{border:1px solid var(--amber-line);
+       background:linear-gradient(0deg, rgb(227 201 138 / 10%), rgb(227 201 138 / 10%)),var(--panel);
+       border-radius:6px;box-shadow:var(--shadow);padding:24px;max-width:960px}
+  .alt-state{margin-top:56px;padding-top:32px;border-top:1px dashed var(--line)}
+  .alt-label{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
+             margin-bottom:16px}
+  footer{border-top:1px solid var(--line);margin-top:56px}
+  footer p{max-width:1280px;margin:0 auto;padding:24px 32px;font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <div class="masthead">
+    <span class="mark">COLLISION ENGINEERS</span>
+    <span class="app">Pegasus</span>
+    <nav aria-label="Primary">
+      <a href="#">Dashboard</a>
+      <a href="#">Inbox</a>
+      <a href="#">Upload</a>
+      <a href="#">Queues</a>
+      <a href="#">Cases</a>
+      <a href="#" class="active" aria-current="page">Administration</a>
+    </nav>
+    <div class="account">
+      <span class="who">alex</span>
+      <a href="#">Change password</a>
+      <a href="#">Sign out</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <p class="crumb"><a href="#">Administration</a> / Approved mailboxes</p>
+  <h1>Approved mailboxes</h1>
+
+  <div class="card table-card">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Address</th>
+          <th scope="col">Reads</th>
+          <th scope="col">Status</th>
+          <th scope="col"><span class="visually-hidden">Edit</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>instructions@example.co.uk</td>
+          <td>Receiving (Inbox)</td>
+          <td><span class="chip chip--approved">Approved</span></td>
+          <td><a class="row-action" href="#">Edit</a></td>
+        </tr>
+        <tr>
+          <td>reports@example.co.uk</td>
+          <td>Receiving (Inbox) · Sent evidence</td>
+          <td><span class="chip chip--approved">Approved</span></td>
+          <td><a class="row-action" href="#">Close</a></td>
+        </tr>
+        <tr class="edit-row">
+          <td colspan="4">
+            <form class="edit-form">
+              <div class="field">
+                <label class="stack" for="e-address">Approved address</label>
+                <input type="email" id="e-address" value="reports@example.co.uk" maxlength="320">
+              </div>
+              <fieldset>
+                <legend>What Pegasus reads</legend>
+                <label class="choice"><input type="checkbox" checked>
+                  <span>Receiving (Inbox)</span></label>
+                <label class="choice"><input type="checkbox" checked>
+                  <span>Sent evidence (Sent Items)</span></label>
+              </fieldset>
+              <div class="pair">
+                <div class="field">
+                  <label class="stack" for="e-state">State</label>
+                  <select id="e-state"><option>Approved</option><option>Disabled</option></select>
+                </div>
+                <div class="field">
+                  <label class="stack" for="e-reason">Reason</label>
+                  <input type="text" id="e-reason" maxlength="1000">
+                  <span class="field-hint">Recorded permanently with the change.</span>
+                </div>
+              </div>
+              <button type="button" class="primary-action">Save</button>
+            </form>
+          </td>
+        </tr>
+        <tr>
+          <td>archive@example.co.uk</td>
+          <td>Sent evidence</td>
+          <td><span class="chip chip--disabled">Disabled</span></td>
+          <td><a class="row-action" href="#">Edit</a></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="section-label">Add an approved address</h2>
+  <div class="card form-card">
+    <form>
+      <div class="field">
+        <label class="stack" for="a-address">Approved address</label>
+        <input type="email" id="a-address" maxlength="320">
+      </div>
+      <fieldset>
+        <legend>What Pegasus reads</legend>
+        <label class="choice"><input type="checkbox"><span>Receiving (Inbox)</span></label>
+        <label class="choice"><input type="checkbox"><span>Sent evidence (Sent Items)</span></label>
+      </fieldset>
+      <div class="field">
+        <label class="stack" for="a-state">State</label>
+        <select id="a-state"><option>Approved</option><option>Disabled</option></select>
+      </div>
+      <div class="field">
+        <label class="stack" for="a-reason">Reason</label>
+        <input type="text" id="a-reason" maxlength="1000">
+        <span class="field-hint">Recorded permanently with the change.</span>
+      </div>
+      <p class="consequence">Pegasus reads e-mail only from the addresses approved here.</p>
+      <button type="button" class="primary-action">Add address</button>
+    </form>
+  </div>
+
+  <!-- Alternate states, shown here for design reference only. -->
+  <div class="alt-state">
+    <p class="alt-label">Alternate state — no approved addresses</p>
+    <div class="card empty-card">
+      No addresses are approved — Pegasus is not reading any e-mail. Add an address below.
+    </div>
+  </div>
+
+  <div class="alt-state">
+    <p class="alt-label">Alternate state — another administrator saved first</p>
+    <div class="status-card--attention" role="status">
+      This address's approval changed while you had it open. Reload to see the current
+      settings, then reapply your change.
+    </div>
+  </div>
+</main>
+
+<footer><p>Pegasus · Collision Engineers case management</p></footer>
+</body>
+</html>
