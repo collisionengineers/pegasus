@@ -21,6 +21,22 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   every integration stays behind the workspace register's activation
   conditions and needs its own ADR and implementation task (branch
   task/report-renderer-integration, taken 2026-08-03, by claude).
+- Report renderer workspace uplift: execute the unblocked, operator-decided
+  part of the `report-renderer-integration` plan set, all of it inside
+  `workspaces/report-renderer/` — remove the WinUI 3 desktop host and its
+  `design/assets/report-renderer/gui/` package assets (keeping
+  `PreviewComposer` and every template, stylesheet, logo and signature
+  asset), upgrade Scriban 5.12.1 → 7.2.6 against composed-HTML parity
+  evidence and retire the `NU1901-1904` suppression, uplift the six
+  remaining projects to `net10.0` with the package bumps, repair the
+  Dockerfile's non-existent `v1.61.0-jammy` base tag, replace `Format.Today`'s
+  machine-local `DateTime.Now` with a `TimeProvider`/Europe-London seam, and
+  correct `docs/operations.md`'s wrong Windows-only TFM row. Supersedes and
+  closes the planning claim above. No relocation into `src/`, no
+  `Pegasus.slnx` change, no Core port, no caller, no MCP consolidation, no
+  template work and no capability advanced — those stay blocked on the
+  operator questions the plan set records (branch
+  task/report-renderer-workspace-uplift, taken 2026-08-05, by claude).
 - AI-09 Send to AI round trip and the Automation Actor assessment toolset:
   implement `docs/temp-plans/mcp-assessment-toolset.md` and
   `docs/temp-plans/send-to-claude-channel-integration.md` under the
