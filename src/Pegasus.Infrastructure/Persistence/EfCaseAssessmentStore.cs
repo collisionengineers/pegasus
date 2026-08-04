@@ -169,6 +169,17 @@ public sealed class EfCaseAssessmentStore(
                 context.CaseAssessmentFields.Add(existing);
                 fields.Add(existing);
             }
+            else if (confirmedBy is null
+                && string.Equals(existing.Value, value, StringComparison.Ordinal))
+            {
+                // An automation resubmission of a value that has not changed
+                // leaves the record alone: saving unchanged data must not
+                // reset readiness or advisory state (requirements.md, the
+                // lifecycle progression rules), so a value a staff Engineer
+                // already confirmed stays confirmed and keeps its
+                // provenance. A staff save still re-stamps, because that is
+                // how an Engineer confirms a value.
+            }
             else
             {
                 existing.Value = value;

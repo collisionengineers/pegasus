@@ -141,6 +141,22 @@ public sealed class AiWorkTests
     }
 
     [Fact]
+    public async Task ReconcileRefusesARequestBelongingToAnotherCase()
+    {
+        var harness = new Harness();
+        var sent = await harness.SendAsync();
+        harness.Transport.Reply = new("done", "Assessment recorded.", null);
+        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+            harness.ReconcileAsync(sent.Request!.RequestId, Guid.NewGuid()));
+
+        // The request is untouched: only its own case can reconcile it.
+        var unchanged = await harness.Store.GetAsync(
+            sent.Request!.RequestId,
+            CancellationToken.None);
+        Assert.Equal(AiWorkRequestState.HandedOff, unchanged!.State);
+    }
+
+    [Fact]
     public async Task ReconcileExpiresAnOverdueRequest()
     {
         var harness = new Harness();
@@ -184,18 +200,21 @@ public sealed class AiWorkTests
                 CancellationToken.None);
         }
 
-        public Task<AiWorkRequestRecord> ReconcileAsync(Guid requestId)
+        public Task<AiWorkRequestRecord> ReconcileAsync(Guid requestId) =>
+            ReconcileAsync(requestId, CaseId);
+
+        public Task<AiWorkRequestRecord> ReconcileAsync(Guid requestId, Guid caseId)
         {
             var reconcile = new ReconcileAiWorkRequest(
                 Store,
                 Transport,
                 new FakeTime(() => Now));
             return reconcile.ExecuteAsync(
-                new(requestId, Staff, Guid.NewGuid().ToString("N")),
+                new(caseId, requestId, Staff, Guid.NewGuid().ToString("N")),
                 CancellationToken.None);
         }
 
-        private static readonly Guid CaseId = Guid.NewGuid();
+        internal static readonly Guid CaseId = Guid.NewGuid();
     }
 
     private sealed class FakeTime(Func<DateTimeOffset> now) : TimeProvider

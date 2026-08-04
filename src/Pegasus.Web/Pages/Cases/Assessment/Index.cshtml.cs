@@ -136,7 +136,7 @@ public sealed class IndexModel(
         try
         {
             var record = await reconcile.ExecuteAsync(
-                new(requestId, actor, operationKey),
+                new(id, requestId, actor, operationKey),
                 cancellationToken);
             TempData["AssessmentStatus"] = record.State switch
             {
@@ -171,7 +171,10 @@ public sealed class IndexModel(
 
     private async Task EvaluatePanelStateAsync(CancellationToken cancellationToken)
     {
-        if (LatestRequest is { } request)
+        // The composition gate decides first. With Features:SendToAi off
+        // there is no reconcile handler to post to, so a persisted request
+        // must not render as an actionable Sent/Completed/Failed state.
+        if (SendComposed && LatestRequest is { } request)
         {
             var expired = request.ExpiresAtUtc <= timeProvider.GetUtcNow();
             switch (request.State)

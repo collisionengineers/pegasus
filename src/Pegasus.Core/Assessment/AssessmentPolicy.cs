@@ -162,6 +162,22 @@ public static class AssessmentPolicy
                 "No confirmed registration is recorded.",
                 "Confirm it on the case details."));
         }
+        if (projection.CaseOwned.Make is null)
+        {
+            items.Add(new(
+                "Vehicle make",
+                "Case record",
+                "No confirmed make is recorded.",
+                "Confirm it on the case details."));
+        }
+        if (projection.CaseOwned.Model is null)
+        {
+            items.Add(new(
+                "Vehicle model",
+                "Case record",
+                "No confirmed model is recorded.",
+                "Confirm it on the case details."));
+        }
         if (projection.CaseOwned.InstructionDate is null)
         {
             items.Add(new(
@@ -254,17 +270,26 @@ public static class AssessmentPolicy
                 "Confirm the address on the case details."));
         }
 
-        var unconfirmed = projection.Fields.Count(field => !field.IsConfirmed)
-            + projection.EstimateLines.Count(line => !line.IsConfirmed);
-        if (unconfirmed > 0)
+        // One actionable blocker per unconfirmed value, naming the exact
+        // field or line and who recorded it. A single aggregate count is
+        // prohibited: an unmet requirement has to identify its own material,
+        // provenance, reason, and permitted resolution.
+        foreach (var field in projection.Fields.Where(field => !field.IsConfirmed))
         {
             items.Add(new(
-                unconfirmed == 1
-                    ? "1 automation-recorded value awaits review"
-                    : $"{unconfirmed} automation-recorded values await review",
-                "Automation",
-                "Values recorded by the Automation actor are unconfirmed until staff review.",
-                "Review and re-save the affected sections."));
+                $"{field.Path} awaits review",
+                $"Recorded by {field.RecordedByKind} ({field.RecordedBy})",
+                "The value is unconfirmed working data until an Engineer confirms it.",
+                "Review the value and re-save it as the assigned Engineer to confirm it."));
+        }
+
+        foreach (var line in projection.EstimateLines.Where(line => !line.IsConfirmed))
+        {
+            items.Add(new(
+                $"Estimate line {line.Position} ({line.Type}) awaits review",
+                $"Recorded by {line.RecordedByKind} ({line.RecordedBy})",
+                "The line is unconfirmed working data until an Engineer confirms it.",
+                "Review the line and re-save the estimate as the assigned Engineer to confirm it."));
         }
 
         return items;
@@ -288,7 +313,11 @@ public static class AssessmentPolicy
         switch (definition.Type)
         {
             case AssessmentFieldType.Text:
-                if (value.Any(char.IsControl) && !value.Any(character => character is '\n' or '\r'))
+                // Only the supported line breaks are permitted. Testing the
+                // whole value for "contains a newline" would have let NUL,
+                // escape, and form-feed through any multi-line narrative.
+                if (value.Any(character =>
+                    char.IsControl(character) && character is not ('\n' or '\r')))
                 {
                     throw new ArgumentException(
                         $"The value for '{definition.Path}' contains control characters.",

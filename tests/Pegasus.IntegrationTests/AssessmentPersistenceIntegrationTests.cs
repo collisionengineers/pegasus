@@ -67,11 +67,17 @@ public sealed class AssessmentPersistenceIntegrationTests
         Assert.All(saved.EstimateLines, line => Assert.False(line.IsConfirmed));
         Assert.Contains(
             saved.Readiness,
-            item => item.Requirement.Contains("automation-recorded", StringComparison.Ordinal));
+            item => item.Requirement == "vehicle.condition awaits review"
+                && item.Source.Contains("Automation", StringComparison.Ordinal));
+        Assert.Contains(
+            saved.Readiness,
+            item => item.Requirement == "Estimate line 1 (repair) awaits review");
 
         // A staff Engineer re-saves one finding with the same value: the
         // value flips to confirmed, and both saves left exactly the same
-        // shape of permanent evidence (logging parity, side by side).
+        // shape of permanent evidence (logging parity, side by side). The
+        // clock advances so the two history rows order deterministically.
+        harness.Advance(TimeSpan.FromMinutes(1));
         var staffLease = await harness.AcquireLeaseAsync(
             caseId,
             saved.CaseVersion,
@@ -338,6 +344,7 @@ public sealed class AssessmentPersistenceIntegrationTests
         private readonly LocalDbTestDatabase database;
         private readonly AcquireCaseEditLease acquireLease;
         private readonly AcceptIntake acceptIntake;
+        private readonly CaseDataCompletenessPersistenceTests.MutableTimeProvider timeProvider;
 
         private Harness(
             LocalDbTestDatabase database,
@@ -346,7 +353,8 @@ public sealed class AssessmentPersistenceIntegrationTests
             AcceptIntake acceptIntake,
             AcquireCaseEditLease acquireLease,
             SaveAssessment saveAssessment,
-            EfAiWorkRequestStore workRequests)
+            EfAiWorkRequestStore workRequests,
+            CaseDataCompletenessPersistenceTests.MutableTimeProvider timeProvider)
         {
             this.database = database;
             Factory = factory;
@@ -355,6 +363,7 @@ public sealed class AssessmentPersistenceIntegrationTests
             this.acquireLease = acquireLease;
             SaveAssessment = saveAssessment;
             WorkRequests = workRequests;
+            this.timeProvider = timeProvider;
         }
 
         public PooledDbContextFactory<PegasusDbContext> Factory { get; }
@@ -390,7 +399,8 @@ public sealed class AssessmentPersistenceIntegrationTests
                         new EfProviderInspectionModeStore(factory)),
                     new AcquireCaseEditLease(workflowStore),
                     new SaveAssessment(new EfCaseAssessmentStore(factory, timeProvider)),
-                    new EfAiWorkRequestStore(factory, timeProvider));
+                    new EfAiWorkRequestStore(factory, timeProvider),
+                    timeProvider);
             }
             catch
             {
@@ -398,6 +408,8 @@ public sealed class AssessmentPersistenceIntegrationTests
                 throw;
             }
         }
+
+        public void Advance(TimeSpan interval) => timeProvider.Advance(interval);
 
         public Task<CaseAcceptanceOutcome> AcceptAsync(string operationKey) =>
             acceptIntake.ExecuteAsync(
