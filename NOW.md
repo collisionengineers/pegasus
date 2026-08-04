@@ -36,6 +36,16 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   repo. Everything composition-gated DevelopmentOffline-only; estimate
   derivation stays D2-gated; no activation or tier-5 claim (branch
   task/send-to-ai-round-trip, taken 2026-08-03, by claude).
+- Vault consolidation close-out: the 2026-08-03 execution is live-verified
+  complete (six Worker references `Resolved` at `pegasusprodkv252ow37g`, both
+  Web Box secrets bound to the Web identity on target-vault versioned URIs,
+  exactly six Worker and two Web secret-scoped `Key Vault Secrets User`
+  grants, no `Key Vault Secrets Officer` remaining, both predecessor vaults
+  soft-deleted and `rg-collisionspike-dev` gone), so record that evidence in
+  operations.md, correct the now-false "predecessor vaults remain" and
+  single-purge-date statements, and close the codex claim. Documentation
+  truth-up only — no Azure write (branch task/vault-consolidation-close-out,
+  taken 2026-08-04, by claude).
 ## Next (ordered queue — take from the top)
 
 - Decide what `docs/ui-work/` is for. PR 335 restored all 202 files onto
