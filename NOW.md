@@ -54,16 +54,21 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 - Assemble the operator-reviewed extraction cohort + untouched holdout and
   accept the per-field thresholds (INT-21, open-decisions) — blocks Path
   step 3.
-- Operator decision: all nine production Worker functions carry
-  `AzureWebJobs.<name>.Disabled = true` and the Worker has recorded no
-  executions since 2026-08-03 01:00 — apparently stilled deliberately
-  (most plausibly during the live vault-consolidation work); decide when to
-  re-enable mailbox polling and queue processing. The release-4 and
-  release-5 deploys (2026-08-04) preserved the flags untouched; the
-  Operations dashboard also shows one failed staged intake artifact
-  (`staging/f7d2bdb8…`, 10,378,983 bytes, first seen 2026-08-01 23:56Z)
-  awaiting Worker processing once re-enabled (release-5 live checks,
-  2026-08-04).
+- Investigate the one failed staged intake artifact
+  (`staging/f7d2bdb8…`, 10,378,983 bytes, first seen 2026-08-01 23:56Z):
+  it remained `Failed` after the 2026-08-04 Worker re-enable and two
+  reconciliation sweeps — decide staff-review disposition. Context: the
+  operator ordered all nine Worker functions re-enabled on 2026-08-04
+  (they had carried `AzureWebJobs.<name>.Disabled = true` since
+  2026-08-03 ~01:08, set under the shared identity during the live
+  vault-consolidation window; releases 4 and 5 preserved the flags).
+  Re-enable verified live: six timer/dispatch functions executed with
+  zero failures and zero exceptions, the Inbox poll succeeded at
+  2026-08-04 08:41:45Z, and the one waiting inbox email processed into
+  `Needs sorting`; the three queue/poison functions correctly idle with
+  no messages. Alert rules and the operations action group were checked
+  enabled; nothing else in `rg-pegasus-prod` was disabled
+  (worker re-enable live checks, 2026-08-04).
 - Decide the production-CSP strategy for the inline `<script>` blocks
   (`_FreshnessBanner` refresh feedback, `_ReasonDialog` focus trap, the
   unrouted Assessment artifacts): external script files versus CSP hashes.
