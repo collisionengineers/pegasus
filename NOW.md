@@ -32,12 +32,17 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   repo. Everything composition-gated DevelopmentOffline-only; estimate
   derivation stays D2-gated; no activation or tier-5 claim (branch
   task/send-to-ai-round-trip, taken 2026-08-03, by claude).
-- UI implementation programme, specification close-out: land the refined
-  `docs/ui-work/` proposals and the durable-doc corrections the review
-  produced (the `DraftReady` non-conformance now recorded in
-  design/README.md, architecture.md, capabilities.md and requirements.md) so
-  the queued page work below builds against a fixed specification (branch
-  task/ui-work-spec-close-out, taken 2026-08-04, by claude).
+- UI implementation programme, shell and design system: implement the
+  refreshed presentation system in `site.css` (tokens, application density,
+  the record container, tabs, provenance icons), the new navigation in
+  `_Layout` (Dashboard · Inbox · Upload · Queues · Cases · Administration),
+  an anonymous layout so the external upload and sign-in screens stop
+  showing staff navigation (defect M9b), styled status-code pages so an
+  unknown record or a dead upload link is never a raw browser 404 (M4, M9c),
+  the operator-label maps that keep enum names out of markup (M5), and the
+  five shell screens: sign-in (M9d), change password (M9e), sign-out (M10),
+  access denied, error (branch task/ui-shell-and-design-system, taken
+  2026-08-04, by claude).
 
 ## Next (ordered queue — take from the top)
 
