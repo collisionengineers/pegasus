@@ -36,18 +36,20 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   repo. Everything composition-gated DevelopmentOffline-only; estimate
   derivation stays D2-gated; no activation or tier-5 claim (branch
   task/send-to-ai-round-trip, taken 2026-08-03, by claude).
-- UI rework documentation backflow: `main` commit `440ab5c` ("ui-rework-docs",
-  2026-08-04) was committed straight onto `main` and never reached `dev`, so
-  `dev` is missing all 202 files of `docs/ui-work/` (per-page reviews,
-  wireframes, alteration plans, hardened/refreshed mockups, screenshots, the
-  UI standards and durable-rules proposals). Restore that content onto `dev`
-  unchanged — content move only, no edits to the proposals, no adoption of
-  any proposal, and no product change. The same commit's two
-  `docs/temp-plans/` copies are deliberately excluded: they are the
-  pre-implementation snapshot and PR 332 carries the newer status-headed
-  versions (branch task/ui-rework-docs-backflow, taken 2026-08-04, by
-  claude).
 ## Next (ordered queue — take from the top)
+
+- Decide what `docs/ui-work/` is for. PR 335 restored all 202 files onto
+  `dev` (they had been committed straight onto `main` as `440ab5c` and never
+  reached the trunk), but restoring the proposals did not adopt them: the
+  per-page reviews, wireframes, alteration plans and mockups are not design
+  authority and no capability is allocated to them. Decide whether they
+  become queued UI work, fold into the design authority, or are deleted —
+  and until then treat nothing in that directory as accepted.
+- Protect `main` against direct pushes. `440ab5c` reached the deployment
+  branch without a PR, so CI never gated it — it carried a defect that
+  failed the documentation check the moment it was put in front of CI (fixed
+  in PR 335). PR 324 was likewise opened against `main` before being
+  redirected. A branch-protection rule stops this being caught by audit.
 
 - Record releases 4 and 5 in operations.md deployed evidence: release 4
   (2026-08-04, revision `8e34078…`, digest `sha256:ae2cc7b8…`, the four
