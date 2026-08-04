@@ -44,6 +44,16 @@ The section currently reads (lines 367-373):
 > - The interface never displays raw internal identifiers: GUIDs, hashes, storage paths,
 >   database or enum value names, event codes, or version integers.
 > - "Needs sorting" refers to e-mail that cannot be matched; it is not a case stage.
+> - Screens are screens in an application, not pages on a website. They are compact, and
+>   scrolling is minimised: the identity, the state, the available actions and the main content
+>   of a screen are visible without scrolling.
+> - A screen about one record shows that record inside one container, with its actions as a bar
+>   at the top and its sections as tabs — not as separate panels stacked down the page.
+> - A case's material is called **Evidence**, and covers files, images and e-mail.
+> - Where a value or a document came from is shown as an icon with a one-word explanation on
+>   hover: Staff, Extracted, AI, E-mail, Lookup, Principal, Automatic.
+> - An action that this record will offer once a condition is met stays visible and disabled,
+>   with the condition named on it. Exporting a case is available when the case is in Review.
 
 Note: `## Reserved terms` already states "the reserved list may be extended over time" — no change
 needed there; "intake" is not reserved, it is banned from the interface layer only (it remains a
@@ -73,6 +83,21 @@ Current lines 59-60:
 >   the last-good time.
 > - Every screen defines its empty, loading, and failure states in business language, and
 >   unknown-record URLs render the styled not-found page, never a raw browser error.
+> - Screens are compact working surfaces, not marketing pages: 4px base rhythm with 8/12/16
+>   steps, 32px table rows, 12–16px panel padding, 13.5–14px body text. A screen about a single
+>   record is one container — header, action bar, tabs — and the operator reaches its identity,
+>   its state, its available actions and its main content without scrolling.
+> - Provenance is an icon with a one-word tooltip, shown on hover **and** on keyboard focus with
+>   a matching accessible name: Staff · Extracted · AI · E-mail · Lookup · Principal ·
+>   Automatic. Source labels, policy keys and provenance sentences do not appear in markup.
+
+The "capability that is not composed is absent" rule above needs one qualification appended, or it
+contradicts stage-gated actions:
+
+> This applies to capabilities, not to conditions. An action that the record in front of the
+> operator will genuinely offer once a condition is met stays visible and disabled with the
+> condition named on the control ("Available in Review"); removing it would assert that the
+> action is impossible, which is false.
 
 Current line 62:
 
@@ -113,26 +138,33 @@ Also **append** to this section:
   `Operations → Intake → Triage → Cases → Administration (admin-only) → Search + user controls`
   to `Dashboard → Inbox → Upload → Queues → Cases → Administration (admin-only) + user controls`,
   recording: Search merged into Cases (identical backing query), page-2 split into Inbox and
-  Upload, Queues as the pre-engineer-assignment case viewer (Not ready / Review / Held), Triage
-  reverting to its reserved case-type meaning only.
+  Upload, Queues as the pre-engineer-assignment work viewer (Not ready / Review / Held /
+  Triage — the first three Case stages, the fourth a separate pre-case entity), and "Triage"
+  no longer naming a screen, nav item, title or route.
 - In the Operations-first shell rules, the existing sentence "`Blocked intake` is exact wording"
   updates to "`Blocked` is exact wording", and the existing "0 is a current result never a
   substitute for stale/unavailable" rule gains: "and no shipped tile may render a placeholder for
   a query that does not exist."
 - Update the `DecisionLabel` mapping table: `BlockedIntake` → `Blocked`;
-  `ImageIntakeRegistered` → `Vehicle images registered` (or the operator-settled wording);
-  `DraftReady` → `Ready to review` (this also resolves the NOW.md open item about the dashboard
-  labelling the DraftReady count `Review` — the tile label follows the map, never a Case state
-  name).
+  `ImageIntakeRegistered` → `Vehicle images registered` (or the operator-settled wording).
+  `DraftReady` gets **no** operator label: the decision is removed, not renamed. Definitive
+  authorised intake creates the case directly (`requirements.md:251` — "the allocation decision adds
+  no universal manual acceptance gate"); ambiguous or unidentified material is `Needs sorting`
+  (`operator-notes.md:204`). An earlier draft of this file proposed `DraftReady` → `Ready to review`;
+  that is withdrawn — it renamed a state that should not exist, and `Review`/`Ready to review` is
+  the Case stage before the report is with an Engineer (`CaseWorkflowContracts.cs:15`,
+  `requirements.md:295`). See `defects-and-non-functional.md` §B4.
 
 ## 5. `CONTEXT.md` (glossary) — record the interface-vocabulary layer
 
 Add a short subsection stating: internal domain identifiers (`Intake*`, `ImageIntake*`, etc.)
 remain unchanged in code; the interface layer maps them to operator vocabulary via label maps.
 Record the pairs: intake receipt → received item; intake queues → e-mail activity; Blocked intake →
-Blocked; Image intake / Image Intake Reference → vehicle image / image reference; DraftReady →
-Ready to review; State (case filter) → Case stage. This keeps ADR-0010's single-glossary rule
-intact while making the two-layer vocabulary explicit.
+Blocked; Image intake / Image Intake Reference → vehicle image / image reference; State (case
+filter) → Case stage. This keeps ADR-0010's single-glossary rule intact while making the two-layer
+vocabulary explicit. `DraftReady` is deliberately absent from the pairs — it is not a business state
+and is being removed, not mapped (`defects-and-non-functional.md` §B4). `Review` and `Ready to
+review` denote the Case stage only.
 
 ## 6. `docs/capabilities.md` — wording and truth-up
 

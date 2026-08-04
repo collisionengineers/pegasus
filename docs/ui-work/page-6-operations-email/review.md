@@ -1,8 +1,14 @@
 # Page 6 — Email operations (`/Operations/Email`) review
 
 Reviewed from `operations-email.png` and `src/Pegasus.Web/Pages/Operations/Email.cshtml`
-(labels in `Email.cshtml.cs`). Under the new IA this screen becomes the Dashboard's
-**E-mail activity** drill-down.
+(labels in `Email.cshtml.cs`).
+
+> **This screen no longer exists as its own page.** Operator decision 2026-08-04: it merges into
+> **Inbox** (page 2), because both screens answer "what came in, and did it work?" and this one
+> was undiscoverable on its own. Every finding below still holds and has been folded into
+> [the merged plan](../page-2-intake/proposed-changes-and-mockup/alteration-plan.md); the
+> feature-by-feature destination map is in
+> [`proposed-changes-and-mockup/alteration-plan.md`](proposed-changes-and-mockup/alteration-plan.md).
 
 ## 1. Aesthetics
 
