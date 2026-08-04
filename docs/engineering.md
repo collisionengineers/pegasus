@@ -30,9 +30,10 @@ procedures and evidence in [operations](operations.md), and current work in
   runs the documentation link check for every change set, so
   `scripts/Test-DocumentationLinks.ps1` is deliberately not a build-relevant
   path. The remaining lanes run in parallel and only when a build-relevant
-  path changed; the `windows-latest` test lanes each do their own locked
-  restore and Release build through the shared
-  `.github/actions/dotnet-build` composite action.
+  path changed; the unit, sql-integration, and browser lanes each do their
+  own locked restore and Release build through the shared
+  `.github/actions/dotnet-build` composite action (`qdos-pressure` sets up
+  the SDK directly).
   `unit` runs `Pegasus.Core.Tests` and `Pegasus.ArchitectureTests` whole and
   unfiltered (20 minutes). `sql-integration` is a three-shard matrix running
   `Invoke-TestShard.ps1` over `Category!=Corpus&Category!=Browser`, each shard

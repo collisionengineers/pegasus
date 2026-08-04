@@ -7,16 +7,6 @@
 Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 <agent>)`. Nothing is in flight unless it is claimed here on `origin/dev`.
 
-- Box Case/PO document custody: remove internal `caseId` values from the Box
-  folder hierarchy; store retained intake sources and managed document versions
-  under the allocated Case/PO-named case folder, reshaping the Core
-  content-store contract rather than duplicating policy in infrastructure;
-  preserve version identity, replay, hash/length verification, and lifecycle
-  gates, with focused local/in-memory custody proof. No Box/Azure read, write,
-  credential/configuration change, or migration of existing Box content without
-  separately approved target and inventory (DOC-02/03) (branch
-  task/box-casepo-document-custody, taken 2026-08-03, by codex).
-
 - Vault consolidation: copy the Box/DVLA/DVSA secrets into the Pegasus Key
   Vault, repoint the Worker's and Web's references, prove resolution, then
   retire the two adopted vaults and `rg-collisionspike-dev` (branch
@@ -35,14 +25,6 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   every integration stays behind the workspace register's activation
   conditions and needs its own ADR and implementation task (branch
   task/report-renderer-integration, taken 2026-08-03, by claude).
-- Documentation truth-up after the five 2026-08-03 merges, operator-vetted
-  2026-08-03: conform architecture/design/requirements/capabilities/
-  operations/open-decisions to the delivered INT-17/28/32, MAIL-21/22, and
-  ADR-0020 state; extend the Azure bootstrap grant matrix to the four new
-  migrations; delete the orphaned qdos temp-plan evidence notes with an
-  ADR-0020 index note; record the DraftReady tile label as a fix-later task.
-  No product behaviour change (branch task/docs-truth-up, taken 2026-08-03,
-  by claude).
 - AI-09 Send to AI round trip and the Automation Actor assessment toolset:
   implement `docs/temp-plans/mcp-assessment-toolset.md` and
   `docs/temp-plans/send-to-claude-channel-integration.md` under the
@@ -59,10 +41,28 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 - Assemble the operator-reviewed extraction cohort + untouched holdout and
   accept the per-field thresholds (INT-21, open-decisions) — blocks Path
   step 3.
+- Operator decision: all nine production Worker functions carry
+  `AzureWebJobs.<name>.Disabled = true` and the Worker has recorded no
+  executions since 2026-08-03 01:00 — apparently stilled deliberately
+  (most plausibly during the live vault-consolidation work); decide when to
+  re-enable mailbox polling and queue processing. The release-4 deploy
+  (2026-08-04) preserved the flags untouched (release-4 live checks,
+  2026-08-04).
+- Decide the production-CSP strategy for the inline `<script>` blocks
+  (`_FreshnessBanner` refresh feedback, `_ReasonDialog` focus trap, the
+  unrouted Assessment artifacts): external script files versus CSP hashes.
+  They are silently discarded by the deployed `default-src 'self'` policy
+  today — progressive enhancement only, nothing functional breaks
+  (release-4 live checks, 2026-08-04).
 - Before the next production deploy, verify the ADR-0020 premise that no
   environment holds an accepted case (CaseMatchIndex ships empty with no
   backfill); if any accepted QDOS case exists, add a one-shot reprojection
   (task/qdos-email-classification review, 2026-08-03).
+- Before the production spine proof: a read-only inventory of the approved
+  Box custody root confirming no pre-existing `{reference}-{caseId}` case
+  folders exist (the Case/PO custody layout fails closed on legacy roots and
+  authorises no migration) (task/box-casepo-document-custody review,
+  2026-08-03).
 - Operator decision: the pre-scrub commits of task/qdos-email-classification
   still carry corpus-derived names/references in GitHub PR refs — decide
   whether to request a history purge; and decide handling of the real staff
@@ -73,10 +73,12 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   focus-trap escape edge case, sparkle glyph clipping, and the freshness
   banner's London label falling back to a UTC value without IANA data
   (task/ui-alpha-design-pass review, 2026-08-03).
-- Business decision: the Operations dashboard labels the DraftReady intake
-  count `Review`, but design/README.md maps DraftReady to the operator label
-  `Instruction draft` and `Review` is a Case state — decide the operator
-  wording (task/ui-alpha-design-pass review, 2026-08-03).
+- Relabel the Operations dashboard's DraftReady intake tile from `Review` to
+  the design authority's `Instruction draft` mapping: `DraftReady` is the
+  internal intake-receipt decision (a route-accepted instruction whose
+  extraction produced a complete reviewable draft, pre-Case), and the
+  internal wording leaked into the UI where `Review` is reserved for the
+  Case state (operator decision 2026-08-03: ship as-is, fix later).
 - Prove the per-run template database's server-side BACKUP/RESTORE against a
   PEGASUS_TEST_SQL_DATASOURCE container (Linux workstation or a CI job) and
   lift the review gate that disables the template for external servers

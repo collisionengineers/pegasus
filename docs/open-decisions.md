@@ -23,17 +23,17 @@ folder `405543781910` ("pegasus") is the production custody root and all case
 folders are created only under it (owner:
 [operations](operations.md#approved-box-integration-test-target)).
 
-Open within that root: where managed document versions (reports, correspondence,
-staff-added documents) are placed. The implemented layout is
-`cases/{caseId}/managed/{versionId}/content`, mirroring the local content store
-so one version resolves to one object, because the content-store boundary is
-keyed by case and version identity and does not carry the Case/PO. Retained
-intake sources continue to land in the operator-legible
-`{reference}-{caseId}/documents/` case folder. Whether operators require managed
-documents inside that same named case folder is not decided; moving them there
-means carrying the Case/PO through the content-store boundary and migrating any
-content already written. Accept the layout from operator review before the
-document surface carries real case work.
+Decided 2026-08-03 by operator direction: every allocated Case/PO has one Box
+case root named exactly by its safe Case/PO, with no `caseId` prefix or suffix.
+Retained intake sources and managed document versions (reports,
+correspondence, and staff-added documents) are kept beneath that same root.
+The application may retain Case and version UUIDs as internal identities, but
+neither a separate `cases/{caseId}` tree nor a UUID-derived Box case folder is
+part of the accepted custody layout (owner:
+[requirements](requirements.md#documents-extraction-and-custody)). No remote
+content migration is authorised by this decision; any existing-content
+relocation requires a separately approved target, inventory, recovery plan,
+and approval.
 
 ## QDOS alpha activation details (migrated from the retired delivery plan)
 
@@ -125,12 +125,10 @@ The classification architecture is fixed:
   established review outcome.
 - No generic rule engine or transport-specific second classifier is to be
   added.
-- QDOS direct sender identity is the operator-accepted three-domain set
-  (decision 2026-08-03): exact whole-domain equality against
-  `qdosassist.co.uk`, `qdoslaw.co.uk`, or `qdosassists.co.uk`, with no suffix
-  or subdomain widening (`qdos_mail_route` v3). An accepted sender domain
-  alone does not classify message type, associate a case, or apply to an
-  identified intermediary.
+- QDOS direct sender identity is owned by
+  [ADR-0020](adr/0020-accepted-qdos-case-association-predicates.md) decision 1
+  (`qdos_mail_route` v3, the accepted three-domain set); an accepted domain
+  alone classifies and associates nothing.
 - The Mapped Principals spreadsheet at the opaque source citation
   `../reference/imp-docs/requirementsdocs/provider-extra-info/Mapped%20Principals.xlsx`
   identifies additional principals and route candidates beyond QDOS. Every
@@ -149,14 +147,11 @@ is a deliberate change to a named, versioned matcher — the Production
 composition test pins the inactive matcher so it can never be activated as a
 side effect of composition.
 
-Accepted for the QDOS direct route only (operator decision 2026-08-03,
-[ADR-0020](adr/0020-accepted-qdos-case-association-predicates.md)): the
-automatic incoming-case matching predicates and their conservative outcomes —
-label-anchored claim-token, client-VRM, and surname+initial keys; incident
-date as an eliminator only; one survivor associates, ambiguity fails closed to
-`Needs sorting` with candidates visible; `Created in error` redirects to its
-replacement. This closes the first row's question for that one matcher and
-pulls the QDOS-direct subset of `MAIL-09` to `Now / 0.1.0-alpha.1`. The
+The QDOS-direct automatic incoming-case matching predicates and their
+conservative outcomes are accepted and owned by
+[ADR-0020](adr/0020-accepted-qdos-case-association-predicates.md) (operator
+decision 2026-08-03). This closes the first row's question for that one matcher
+and pulls the QDOS-direct subset of `MAIL-09` to `Now / 0.1.0-alpha.1`. The
 multi-rule precedence and confidence questions below stay open for
 classification and for every other route, matcher, and surface; the QDOS
 classification policy still records simultaneous category matches as the
