@@ -12,6 +12,10 @@ public sealed class SignOutModel(SignInManager<PegasusIdentityUser> signInManage
     public async Task<IActionResult> OnPostAsync()
     {
         await signInManager.SignOutAsync();
-        return RedirectToPage("/Account/SignIn");
+
+        // The signed-out confirmation is a one-time state of the sign-in page,
+        // not a page of its own: a bookmarked confirmation URL would assert
+        // that a session had just ended when nothing had happened.
+        return RedirectToPage("/Account/SignIn", new { signedOut = true });
     }
 }

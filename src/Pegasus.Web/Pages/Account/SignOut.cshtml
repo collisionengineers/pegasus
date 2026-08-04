@@ -1,10 +1,10 @@
 @page
 @model Pegasus.Web.Pages.Account.SignOutModel
-@{
-    ViewData["Title"] = "Sign out";
-}
+@*
+    No markup: this route is a handler, not a screen.
 
-<h1>Sign out</h1>
-<form method="post">
-    <button type="submit">Sign out of Pegasus</button>
-</form>
+    The navigation posts sign-out directly, so the unstyled interstitial that
+    used to live here was never reached in normal use. What was actually
+    missing is a confirmation that the session ended, which the POST handler
+    now redirects to. A GET still redirects without ending the session.
+*@
