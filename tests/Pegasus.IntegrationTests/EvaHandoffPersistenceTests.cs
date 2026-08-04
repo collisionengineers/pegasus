@@ -326,7 +326,7 @@ public sealed class EvaHandoffPersistenceTests
             $"INSERT INTO DocumentOccurrences (Id, CaseId, DocumentId, VersionId, SemanticRole, Source, SourceOccurrenceIdentity, RecordedAtUtc, OperationKey, ThirdPartyVehicleConfirmedAtUtc, ThirdPartyVehicleConfirmationReason, ThirdPartyVehicleConfirmationOperationKey) VALUES ({occurrenceId}, {caseId}, {documentId}, {versionId}, {"Image"}, {"StaffUpload"}, {$"fixture:{fileName}"}, {recordedAtUtc}, {$"fixture:{fileName}"}, {(thirdPartyVehicleConfirmed ? recordedAtUtc : null)}, {(thirdPartyVehicleConfirmed ? "Staff confirmed this is third-party vehicle evidence." : null)}, {(thirdPartyVehicleConfirmed ? "fixture:third-party-vehicle" : null)})");
         if (!thirdPartyVehicleConfirmed)
         {
-            await contentStore.StoreAsync(caseId, versionId, content, sha256, CancellationToken.None);
+            await contentStore.StoreAsync(caseId, "QDOS001", versionId, content, sha256, CancellationToken.None);
         }
 
         return new(occurrenceId, versionId);

@@ -263,20 +263,36 @@ The intended application staff accounts are Pegasus Identity accounts. The Devel
 post-provision, post-migration user/role operation. It creates only the fixed
 external-user aliases from the Web/Worker managed-identity client-ID SIDs,
 rejects broad roles or direct DDL, and compares the live object permission set
-with the exhaustive migration-defined grant and `DELETE`-denial matrix. It is
-not an automatic `azure.yaml` hook. It ran against production on 2026-08-02 as
-part of the executed release and verified the exhaustive matrix; any further
-execution is a separately approved exact-target cloud write.
+with the exhaustive grant and `DELETE`-denial matrix defined across every
+grant-carrying migration (the 2026-07-29 reconciliation plus the four
+2026-08-03 migrations below). It is not an automatic `azure.yaml` hook. It ran
+against production on 2026-08-02 as part of the executed release and verified
+the then-current matrix; any further execution is a separately approved
+exact-target cloud write.
 
 Migration `20260729176000_AzureSqlRuntimeLeastPrivilege` creates and owns the
 fixed custom roles `pegasus_web_runtime_role` and
 `pegasus_worker_runtime_role`. Role-reconciliation migration
 `20260729199000_RuntimeRoleReconciliation` first removes every direct
 object-level DML permission for those roles across the complete application
-table census, then grants the exhaustive caller-derived matrix. It explicitly
-denies `DELETE` on every table except the four Web workflows that require it
-(`AspNetUserRoles`, `CaseDataFields`, `OrganizationRoles`, and
-`TriageResponseEvidenceLinks`); Worker has no `DELETE` grant. Neither role
+table census, then grants the exhaustive caller-derived matrix. As of the 2026-07-29
+reconciliation migration it explicitly denies `DELETE` on every table except
+the four Web workflows that require it (`AspNetUserRoles`, `CaseDataFields`,
+`OrganizationRoles`, and `TriageResponseEvidenceLinks`); Worker has no
+`DELETE` grant. Later migrations extend the matrix: `ImageIntakeRegistration`
+grants both roles the image-intake tables with `DELETE` denied;
+`MailClassificationDecisions` grants the Worker `SELECT/INSERT/UPDATE/DELETE`
+on `IntakeMailClassificationDecisions` (re-evaluation replaces the decision
+row after snapshotting it to history) and the Web read-only with `DELETE`
+denied;
+`CaseMatchDecisionsAndAssociationPolicy` grants the Web
+`SELECT/INSERT/UPDATE/DELETE` on `CaseMatchIndex` (the acceptance-path
+projector replaces index rows in place), the Worker
+`SELECT/INSERT/UPDATE/DELETE` on `IntakeCaseMatchDecisions` (the same
+replace-after-snapshot reason), the opposite role read-only on each with
+`DELETE` denied, and the Worker insert/update association and insert-only
+history writes with `DELETE` denied; `AutomationActorOpenIddict` grants the
+Web the four OpenIddict tables with `DELETE` denied to both roles. Neither role
 receives DDL, schema-wide access, `db_datareader`, `db_datawriter`, or
 `db_owner`. Web owns staff identity and administration, case editing,
 document-custody, request-upload, and operator intake persistence. Worker owns
@@ -854,7 +870,7 @@ The following contracts must be proved through the owning Core policy and actual
 - no local result is relabelled deployed, live verified, or accepted;
 - repository consistency and product behavior are reported separately.
 
-Automatic mailbox categorisation and email matching await the single combined research decision in [open decisions](open-decisions.md). Tests must not invent that policy.
+Automatic mailbox categorisation and email matching await the single combined research decision in [open decisions](open-decisions.md), except the accepted QDOS-direct case-association predicates and recorded-only classification of [ADR-0020](adr/0020-accepted-qdos-case-association-predicates.md). Tests must not invent policy beyond that acceptance.
 
 Image association stays conservative when evidence is not definitive. Inspection address accepts confirmed physical data, or the exact value `Image Based Assessment` autofilled from the accepted Principal's inspection-mode setting with provider-setting provenance; no address text is ever inferred from a provider, spreadsheet, geocoder or model, and a physical-address Principal fails closed without confirmed address evidence. `0.1.0-alpha.1` email operations remain explicitly unsupported unless required. Reversible EVA wire mapping is an owning integration contract validated with operator acceptance, not an unresolved product rule.
 
@@ -958,11 +974,19 @@ The release scripts are `Build-ReleaseArtifacts.ps1` (immutable packages from
 a clean tree at an exact HEAD), `Test-AzureDeploymentPlan.ps1` (local, artifact,
 pre-upload, and pre-migration validation), `Invoke-AzureDatabaseBootstrap.ps1`
 and `Invoke-ProductionAdministratorBootstrap.ps1` (manifest-SHA-gated), and
-`Invoke-ProductionSmoke.ps1` (health and exact version/SHA assertions). The
+`Invoke-ProductionSmoke.ps1` (health, exact version/SHA, anonymous-denial, and
+https-redirect assertions). The
 executed 2026-08-02 sequence and its evidence gates are recorded in the retired
 runbook (git history, `azure-production-replacement-plan.md`). The one-off
 predecessor archive/retirement scripts completed their purpose in that run and
 are also recoverable from git history.
+
+The next release is the first whose Web and Worker packages load native ONNX
+Runtime and SkiaSharp binaries on the deployed Linux runtimes
+(`Microsoft.ML.OnnxRuntime`, SkiaSharp with the `NoDependencies` Linux native
+asset, models embedded in the Infrastructure assembly). Until a deployed
+vision path is exercised, native load on the deployed runtime is unverified
+evidence.
 
 ### Azure activation remains fail-closed
 
