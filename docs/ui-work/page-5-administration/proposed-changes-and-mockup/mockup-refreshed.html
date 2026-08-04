@@ -9,7 +9,7 @@
   1. Type scale 22/17/15/13px with 600-weight headings.
   2. Surface model: paper #F7F6F4; cards #FFFFFF at 6px radius with 1px hairline plus
      shadow 0 1px 2px rgb(22 25 29 / 5%) — replaces the flat 2px hairline-only card.
-  3. Density: 8px base rhythm with 16/24/32 steps.
+  3. Density: 4px base rhythm with 8/12/16 steps.
   4. Card hover raises the hairline to charcoal; the whole card is the link target.
   5. Top navigation retained (left rail not taken).
   Grouped card index with one-line job-focused copy. Destinations unchanged.
@@ -27,19 +27,19 @@
   body{
     margin:0; background:var(--paper); color:var(--ink);
     font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
-    font-size:15px; line-height:1.5;
+    font-size:14px; line-height:1.5;
   }
   a{color:inherit;}
   a:focus-visible{outline:var(--focus); outline-offset:2px;}
 
   .topbar{background:var(--panel); border-bottom:1px solid var(--line);}
   .topbar__inner{
-    max-width:1240px; margin:0 auto; padding:0 32px;
-    display:flex; align-items:center; gap:32px; height:60px;
+    max-width:1240px; margin:0 auto; padding:0 20px;
+    display:flex; align-items:center; gap:20px; height:48px;
   }
   .brand{display:flex; align-items:baseline; gap:12px; white-space:nowrap;}
   .brand__mark{color:var(--ce-red); font-weight:700; font-size:11px; letter-spacing:.14em;}
-  .brand__app{font-weight:600; font-size:17px;}
+  .brand__app{font-weight:600; font-size:15px;}
   .nav{display:flex; gap:8px; margin-left:auto;}
   .nav a{
     display:block; padding:8px 12px; text-decoration:none; font-size:13px; font-weight:500;
@@ -52,10 +52,10 @@
   .session a{text-decoration:none; color:var(--charcoal);}
   .session a:hover{text-decoration:underline;}
 
-  .page{max-width:1240px; margin:0 auto; padding:32px 32px 72px;}
-  h1{font-size:22px; font-weight:600; margin:0 0 24px;}
+  .page{max-width:1240px; margin:0 auto; padding:16px 24px 32px;}
+  h1{font-size:20px; font-weight:600; margin:0 0 24px;}
 
-  .group{margin-bottom:32px;}
+  .group{margin-bottom:20px;}
   .section-label{
     font-size:13px; font-weight:600; letter-spacing:.10em; text-transform:uppercase;
     color:var(--muted); margin:0 0 12px;
@@ -74,7 +74,7 @@
     width:36px; height:36px; flex:none; background:var(--paper);
     border:1px solid var(--line); border-radius:var(--radius); color:var(--charcoal);
   }
-  .admin-card h3{font-size:15px; font-weight:600; margin:0 0 2px;}
+  .admin-card h3{font-size:14px; font-weight:600; margin:0 0 2px;}
   .admin-card h3 a{text-decoration:none;}
   /* Whole card is the click target */
   .admin-card h3 a::after{content:""; position:absolute; inset:0;}

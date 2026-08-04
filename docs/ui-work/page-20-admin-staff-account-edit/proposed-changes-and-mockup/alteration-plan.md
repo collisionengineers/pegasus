@@ -8,6 +8,26 @@ its one piece of consequence copy below the submit button, and — when the acco
 narrates the actions it does not have. The disable action needs its consequence line moved above
 the button and rewritten in business language.
 
+## Container restructure (operator decision, 2026-08-04)
+
+This screen is one record, so it takes the shape every record screen now takes
+(`../../ui-standards-and-review.md` §4 rule 13): **one container** holding a header band, an
+action bar, and a body with **no tab row** — this record has one section, and tabs are
+for alternatives.
+
+The page-12 case detail is the reference implementation. What that changes here, over and
+above the numbered changes below:
+
+- The detail/action two-column split is retired. **Disable account** and **More** become the
+  action bar; the reason field and its consequence sentence move into a dialog.
+- The header band carries the identity that the detail list used to repeat (password state, last
+  access review), leaving the body as the record's facts alone.
+- The disabled variant drops the action from the bar and adds one line to the body, instead of
+  swapping one panel for another.
+
+Nothing in the change list is withdrawn — the copy, vocabulary, state and evidence decisions all
+stand; they are re-housed.
+
 ## Changes
 
 1. **Navigation.** New global nav; breadcrumb `Administration / Staff accounts / jane.smith`

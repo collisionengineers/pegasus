@@ -49,7 +49,7 @@ is on, so that turning it on does not ship the current copy.
    and `automation.documents`. New: a hand-labelled list, one line per area, each with the
    job it permits:
    - **Cases** — find and open cases, and record case edits
-   - **Documents** — add, download and export case documents
+   - **Evidence** — add, download and export case files, images and e-mail
    - **Inbox** — read received items and submit uploads
 
    The map lives in the page model (the pattern of `ActivityModel.RecordTypeLabel`), never

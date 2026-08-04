@@ -10,7 +10,7 @@
   2. Surface model: paper #F7F6F4; cards #FFFFFF with 6px radius, 1px hairline plus
      a very low shadow (0 1px 2px rgb(22 25 29 / 5%)) — replaces the flat 2px card.
   3. State colour roles unchanged; chips gain a 10% tinted background with a 1px border.
-  4. Density: 8px base rhythm with 16/24/32 steps; 40px table rows; single-line filter bars.
+  4. Density: 4px base rhythm with 8/12/16 steps; 32px table rows; single-line filter bars.
   5. Left-rail navigation NOT taken — top nav retained.
   Schematic data only.
 -->
@@ -23,35 +23,35 @@
     --shadow:0 1px 2px rgb(22 25 29 / 5%);
   }
   *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;font-size:15px;
+  body{font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;font-size:14px;
        line-height:1.5;color:var(--ink);background:var(--paper)}
   a{color:var(--ink)}
   header{background:var(--panel);border-bottom:1px solid var(--line)}
-  .masthead{max-width:1280px;margin:0 auto;padding:16px 32px;display:flex;align-items:center;gap:24px}
+  .masthead{max-width:1280px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:16px}
   .mark{font-weight:700;letter-spacing:.08em;font-size:13px;color:var(--red);white-space:nowrap}
-  .app{font-weight:600;font-size:15px;padding-left:24px;border-left:1px solid var(--line)}
-  nav{display:flex;gap:24px;margin-left:auto}
-  nav a{text-decoration:none;font-size:15px;padding:8px 0;border-bottom:2px solid transparent}
+  .app{font-weight:600;font-size:14px;padding-left:24px;border-left:1px solid var(--line)}
+  nav{display:flex;gap:16px;margin-left:auto}
+  nav a{text-decoration:none;font-size:14px;padding:8px 0;border-bottom:2px solid transparent}
   nav a.active{color:var(--red);font-weight:600;border-bottom-color:var(--red)}
   .account{display:flex;gap:16px;align-items:center;font-size:13px;margin-left:32px;
            padding-left:32px;border-left:1px solid var(--line)}
   .account .who{color:var(--muted)}
   .account a{text-decoration:none}
-  main{max-width:1280px;margin:0 auto;padding:32px}
+  main{max-width:1280px;margin:0 auto;padding:20px}
   .crumb{font-size:13px;color:var(--muted);margin-bottom:16px}
   .crumb a{color:var(--muted)}
-  h1{font-size:22px;font-weight:600;margin-bottom:24px}
+  h1{font-size:20px;font-weight:600;margin-bottom:16px}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:6px;
-        box-shadow:var(--shadow);padding:32px;max-width:600px}
-  .last-changed{font-size:13px;color:var(--muted);margin-bottom:24px}
-  fieldset{border:0;margin-bottom:24px}
-  legend{font-weight:600;font-size:17px;margin-bottom:16px}
-  .choice{display:flex;align-items:flex-start;gap:8px;padding:8px 0;font-size:15px;
-          min-height:40px}
+        box-shadow:var(--shadow);padding:20px;max-width:600px}
+  .last-changed{font-size:13px;color:var(--muted);margin-bottom:16px}
+  fieldset{border:0;margin-bottom:16px}
+  legend{font-weight:600;font-size:15px;margin-bottom:16px}
+  .choice{display:flex;align-items:flex-start;gap:8px;padding:8px 0;font-size:14px;
+          min-height:30px}
   .choice input{accent-color:var(--red);width:18px;height:18px;margin-top:2px}
-  .field{margin-bottom:24px}
-  label.stack{display:block;font-weight:600;font-size:15px;margin-bottom:8px}
-  textarea{width:100%;padding:10px 12px;font:inherit;font-size:15px;
+  .field{margin-bottom:16px}
+  label.stack{display:block;font-weight:600;font-size:14px;margin-bottom:8px}
+  textarea{width:100%;padding:10px 12px;font:inherit;font-size:14px;
        border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink)}
   textarea:hover{border-color:var(--charcoal)}
   textarea:focus,input:focus,button:focus,a:focus{outline:3px solid rgba(219,8,22,.38);outline-offset:1px}
@@ -59,18 +59,18 @@
   .consequence{font-size:13px;color:var(--charcoal);margin:24px 0 16px;
                padding-top:16px;border-top:1px solid var(--line)}
   .primary-action{background:var(--red);color:#fff;border:1px solid var(--red);
-       border-radius:6px;font:inherit;font-size:15px;font-weight:600;padding:10px 24px;cursor:pointer}
-  .status-card{border-radius:6px;box-shadow:var(--shadow);padding:24px;max-width:600px;
-               margin-bottom:24px;background:var(--panel)}
+       border-radius:6px;font:inherit;font-size:14px;font-weight:600;padding:10px 24px;cursor:pointer}
+  .status-card{border-radius:6px;box-shadow:var(--shadow);padding:16px;max-width:600px;
+               margin-bottom:16px;background:var(--panel)}
   .status-card--attention{border:1px solid var(--amber-line);
        background:linear-gradient(0deg, rgb(227 201 138 / 10%), rgb(227 201 138 / 10%)),var(--panel)}
   .status-card--ok{border:1px solid var(--green);
        background:linear-gradient(0deg, rgb(22 131 59 / 10%), rgb(22 131 59 / 10%)),var(--panel)}
-  .alt-state{margin-top:56px;padding-top:32px;border-top:1px dashed var(--line)}
+  .alt-state{margin-top:28px;padding-top:20px;border-top:1px dashed var(--line)}
   .alt-label{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
              margin-bottom:16px}
-  footer{border-top:1px solid var(--line);margin-top:56px}
-  footer p{max-width:1280px;margin:0 auto;padding:24px 32px;font-size:13px;color:var(--muted)}
+  footer{border-top:1px solid var(--line);margin-top:28px}
+  footer p{max-width:1280px;margin:0 auto;padding:16px 20px;font-size:13px;color:var(--muted)}
 </style>
 </head>
 <body>

@@ -11,6 +11,26 @@ knows at render time (Work Provider cannot be removed while an active principal 
 one role is required) are enforced only as post-submit error strings, and the required Reason
 field is not marked required.
 
+## Container restructure (operator decision, 2026-08-04)
+
+This screen is one record, so it takes the shape every record screen now takes
+(`../../ui-standards-and-review.md` §4 rule 13): **one container** holding a header band, an
+action bar, and the tabs **Roles · Principals**.
+
+The page-12 case detail is the reference implementation. What that changes here, over and
+above the numbered changes below:
+
+- The two stacked sections are retired. **Edit roles**, **Create principal** and **More** become
+  the action bar.
+- The roles form stops being a permanently open form in the page body: the **Roles** tab states
+  what is true (held, locked, not held) and editing happens in a dialog carrying the checkboxes,
+  the locked-role explanation, the required reason and its counter. The submit stays disabled
+  until the selection changes, exactly as before.
+- The status card moves inside the container, directly under the action bar.
+
+Nothing in the change list is withdrawn — the copy, vocabulary, state and evidence decisions all
+stand; they are re-housed.
+
 ## Changes
 
 1. **Navigation and orientation.** New global nav. Breadcrumb
