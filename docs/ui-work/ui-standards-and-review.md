@@ -99,11 +99,12 @@ identifier — no C# renames are required or proposed.
 | Staged intake artifacts | *(removed from dashboard)* | Relocates to a system-health surface if kept at all |
 | Queue instruction (button) | **Upload** | |
 | Receive intake (section) | **Upload a document** | |
-| Instruction drafts (chip) | **Ready to review** | `DraftReady` decision |
+| Instruction drafts (chip) | *(chip removed entirely)* | `DraftReady` is not a business state and gets no operator label — definitive intake is a case, ambiguous intake is **Needs sorting**. See `defects-and-non-functional.md` §B4. **"Review"/"Ready to review" is reserved for the Case stage** and must never label an intake filter. |
 | Document text required (chip) | **Needs text extraction** — or keep operator label if settled | Decide with operator-notes update |
 | Intake unavailable (nav span) | *(nav item simply absent)* | Never show a disabled nav item |
 | State (Cases filter) | **Case stage** | With human labels, never enum names |
-| Triage queue (page 3 h1) | **Queues** (pre-engineer-assignment viewer) | "Triage" reverts to the reserved case-type meaning only |
+| Documents (case section) | **Evidence** — sub-tabs **Files · Images · E-mails** | Operator decision 2026-08-04. One home for everything a case carries; the separate "Image in·takes" section folds in, and linked e-mail gets a home it has never had |
+| Triage queue (page 3 h1) | **Queues** (pre-engineer-assignment viewer) | "Triage" stops naming the screen, nav item, title and route; it survives as one tab inside Queues, in its reserved meaning |
 
 Also banned in user-facing copy: *bounded, projection, lease, opaque, ingress, composed/composition,
 artifact, durable, retained bytes, aggregate, route (as plumbing), caller, policy re-evaluation,
@@ -131,8 +132,10 @@ Dashboard · Inbox · Upload · Queues · Cases · Administration          alex 
   accounts only. Requires new Core count queries — flagged as implementation prerequisites, not
   assumed.
 - **Inbox** (was Intake, `/Intake`): the e-mail activity viewer. Rows show sender, subject,
-  received time, and state chip (Ready to review / Needs sorting / Blocked / Vehicle images) —
-  never a filename hash. Upload moves out entirely.
+  received time, and state chip (Case ⟨reference⟩ / Needs sorting / Blocked / Vehicle images) —
+  never a filename hash. Upload moves out entirely. There is no "Ready to review" chip: definitive
+  intake is already a case and the row links to it; only ambiguous or unidentified material sits
+  in a pending state, as Needs sorting (`defects-and-non-functional.md` §B4).
 - **Upload** (new surface, was the "Receive intake" panel): a proper drop-zone page for manual
   submission, 10 MB limit stated as "up to 10 MB", designed success/duplicate/failure states.
 - **Queues** (was Triage, `/Triage`): the pre-engineer-assignment case queues — Not ready /
@@ -147,20 +150,24 @@ Dashboard · Inbox · Upload · Queues · Cases · Administration          alex 
 
 Screens that gain a navigation path (today orphaned): Email operations and Request operations
 (reachable only via dashboard cards that claim "Unavailable"), Vehicle images list (today reachable
-only 4 clicks deep). Proposal: Email/Requests become Dashboard drill-downs with honest labels;
-Vehicle images becomes an Inbox filter chip.
+only 4 clicks deep). **Email operations stops being a separate screen**: operator decision
+2026-08-04 merges it into Inbox as the Received/Sent direction tabs plus a Failed filter, which
+solves its discoverability by removing the orphan rather than labelling it (page 2 plan). Request
+operations becomes a Dashboard drill-down with an honest label; Vehicle images becomes an Inbox
+filter chip.
 
 ### 3.2 Page merge/retire map
 
 | Today | Becomes |
 |---|---|
 | Operations `/` | Dashboard (rebuilt sections, no Unavailable pills, no staged-artifacts panel, compact corner refresh) |
-| Intake `/Intake` | Inbox (viewer only) |
+| Intake `/Intake` | Inbox (viewer only), absorbing Operations Email — Received/Sent tabs, Failed filter, retry in the row |
 | — | Upload (new page, extracted) |
-| Triage `/Triage` | Queues (Not ready / Review / Held) |
+| Triage `/Triage` | Queues (Not ready / Review / Held / Triage) |
 | Cases `/Cases` | Cases (compact filters + keyword search absorbed) |
 | Search `/Search` | **Retired** — redirect to `/Cases?query=…` (verified: both run the identical Core query) |
-| Operations Email/Requests | Dashboard drill-downs, honest entry cards |
+| Operations Email `/Operations/Email` | **Merged into Inbox** — redirects to the Received tab with the Failed filter (operator decision 2026-08-04) |
+| Operations Requests | Dashboard drill-down, honest entry card |
 | Image intakes list/detail | Vehicle images (Inbox filter + detail) |
 
 ---
@@ -187,8 +194,13 @@ Vehicle images becomes an Inbox filter chip.
    H2s. Sibling pages use consistent heading grammar.
 8. **Forms confirm once.** One checkbox per confirmation; a reason field where policy requires a
    reason; no duplicated "X is complete" + "I have confirmed X" pairs.
-9. **Disabled ≠ visible.** Capabilities that are not composed in a deployment are absent, not
-   rendered as inert cards, disabled nav spans, or permanently-"Unavailable" tiles.
+9. **Disabled ≠ visible — for capabilities, not for conditions.** A capability that is not
+   composed in a deployment is **absent**: no inert card, no disabled nav span, no
+   permanently-"Unavailable" tile. An action that *this record will genuinely offer once a
+   condition is met* is the opposite case: it stays in place, **disabled, with the condition
+   named on the control** ("Available in Review"). Removing it would say "this cannot be done",
+   which is false. Test: *will this control ever enable itself for the thing I am looking at?*
+   Yes → show it disabled with the condition. No → it does not exist here.
 10. **Every metric is a link to the exact filtered list behind it** (kept from the current design
     contract — it is right).
 11. **Refresh/last-updated is a compact corner element** (timestamp + refresh icon-button), not a
@@ -196,6 +208,49 @@ Vehicle images becomes an Inbox filter chip.
     designed stale/failed chips.
 12. **Accessibility floor**: labelled controls, visible focus, chips never colour-only (kept
     from design/README; the mockups honour it).
+13. **Application density, not landing-page density.** These are screens in an application that
+    an operator works in all day, not marketing pages. Minimise scrolling: the identity, the
+    state, the available actions and the primary content of a screen fit above the fold at
+    1280×800. This is a *density* rule, not a cramming rule — hairlines, alignment and
+    whitespace still do the separating; there is simply less of it. Working figures, which the
+    page-12 mockups implement and every other mockup is measured against:
+
+    | | Value |
+    |---|---|
+    | Base rhythm | 4px, steps of 8/12/16 (was 8/16/24/32) |
+    | Body text | 13.5–14px |
+    | Table row height | 32px (was 40px) |
+    | Fact/detail row height | 28–30px |
+    | Card/panel padding | 12–16px (was 24px) |
+    | Gap between blocks | 12–16px (was 24px) |
+    | Page h1 | 19–20px (was 22–24px) |
+    | Action/tab bar height | 38–44px |
+
+    Structural consequence, not just spacing: **a screen about one record is one container** —
+    header, action bar, tabs — not a vertical stack of sibling panels the operator scrolls
+    through. Tabs beat stacked sections whenever the sections are alternatives rather than a
+    reading order.
+
+    The container has three parts and only three: a **header band** carrying the reference, the
+    state chip and the identity; an **action bar** carrying every action valid for the current
+    state, with the record-level commitment right-aligned behind a divider; and either **tabs**
+    or a plain body. Tabs appear when the sections are alternatives (Overview / Evidence /
+    History); a record with one section, or with sections that form a reading order, gets a body
+    and no tab row. An action opens a **dialog** carrying its own fields; a form's own submit
+    stays with the form, because a submit is not a lifecycle action.
+
+    Status: applied. Page 12 is the reference implementation; the shape is also built on page 8
+    (received item), page 10 (image reference detail), page 11 (triage detail) and pages
+    20/24/26/27 (the admin record screens), in both the hardened and refreshed systems. Every
+    other mockup has had the spacing figures applied. List and dashboard screens are not record
+    screens and keep their own shape.
+14. **Provenance is an icon with a one-word tooltip.** Where a value or a piece of evidence came
+    from is never a sentence, a source label, a policy key or a third table column. It is a
+    small icon at the end of the row whose tooltip — on hover **and** on keyboard focus, with a
+    matching accessible name — is exactly one word: **Staff · Extracted · AI · E-mail · Lookup ·
+    Principal · Automatic** (operator decision 2026-08-04; the mapping onto persisted
+    `CaseDataSourceKind` values is in the page-12 plan). The row must still make sense with the
+    icon ignored.
 
 ---
 
@@ -233,9 +288,17 @@ listed in a comment block at the top of every refreshed mockup and summarised he
    signalling.
 4. **Metric tiles**: 28px tabular numerals, label under number, whole tile is the link, hover
    raises the hairline to charcoal — replaces label-over-number cards with a separate link.
-5. **Density**: 8px base rhythm with 16/24/32 steps; tables at 40px rows; filter bars single-line
-   with disclosure for advanced fields.
+5. **Density**: 4px base rhythm with 8/12/16 steps; tables at 32px rows; filter bars single-line
+   with disclosure for advanced fields. *(Superseded figures: the first pass used an 8px rhythm
+   with 16/24/32 steps and 40px rows. The operator's verdict on that pass — "these are huge, they
+   seem like a homepage" — is now §4 rule 13; the page-12 mockups are the reference
+   implementation and the remaining mockups are being brought down to match.)*
 6. **Left-rail option is NOT taken** — top nav is kept so the refresh remains an evolutionary step.
+7. **One container per record.** A screen about a single record (case, received item, image
+   reference) is one card with a header band, an action bar and tabs — see the page-12 mockups.
+   The refreshed system adds a dark header band (`#1B1E23`) and a stage-coloured 3px accent to
+   that container; it is the only filled dark surface in the system, and it does not spend the
+   brand red.
 
 Both systems use **schematic placeholder content only** (e.g. `AB12 CDE`, `Principal A`,
 `Case 26001`, `Sample Claimant`) — mockups never contain corpus-derived e-mail content, real

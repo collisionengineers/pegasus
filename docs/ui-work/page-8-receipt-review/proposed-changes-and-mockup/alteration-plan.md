@@ -3,6 +3,20 @@
 Exact current copy strings are quoted with file references in `../review.md`; this plan
 masks the banned vocabulary word as `[banned]` where an old string contains it.
 
+> **Premise correction — the accept surface should not exist.**
+> This plan, the wireframe, and both mockups were written around "Accept as case" as the
+> screen's primary action. That premise is wrong. `requirements.md:251`: *"Definitive
+> authorised intake creates exactly one instructed Case idempotently… The allocation
+> decision adds no universal manual acceptance gate."* `operator-notes.md:204` sends only
+> ambiguous or unidentified material to `Needs sorting`. So a definitive instruction is a
+> case at processing time, and this screen never sees it in a pending state.
+> What survives: this is the **Needs sorting / Blocked** working surface — sort, correct,
+> block, re-evaluate, register vehicle images, and link to the case where one exists. What
+> goes: the Accept rail, the accept checklist, the "to accept" requirements panel, the
+> `DraftReady`/"Ready to review" chip, and every accept-gated enablement rule. The layout,
+> vocabulary, hierarchy, and identifier fixes below all still stand on the surviving
+> surface. See `defects-and-non-functional.md` §B4.
+
 ## Review summary
 
 Today's screen is a 6,000px single column headlined by its own state, narrated by
@@ -12,8 +26,33 @@ receipt token, PascalCase evidence keys, and an accept surface buried mid-page b
 section that duplicates the form above it. The redesign renames it **Received item
 review** (reached from Inbox rows) and restructures it as: a header that states source,
 received time, and state; a left column of extracted/suggested fields to confirm; a
-sticky right action rail (Accept as case / Save corrections / Block / Re-evaluate); and
-evidence and assets collapsed below.
+sticky right action rail (Create case / Save corrections / Block / Re-evaluate); and
+evidence and assets collapsed below. Per the premise correction above, the screen's
+subject is a `Needs sorting` or `Blocked` item, not a case awaiting acceptance.
+
+## Container restructure (operator decision, 2026-08-04)
+
+This screen is one record, so it takes the shape every record screen now takes
+(`../../ui-standards-and-review.md` §4 rule 13): **one container** holding a header band, an
+action bar, and the tabs **Details · Files and images · How this was read**.
+
+The page-12 case detail is the reference implementation. What that changes here, over and
+above the numbered changes below:
+
+- The two-column content + sticky action-rail layout is retired. **Create case**, **Block**,
+  **Link to a case** and **More** become the action bar; the readiness checklist ("Principal
+  identified / Case type chosen") becomes the right-hand end of that bar, so an operator sees
+  what is outstanding without leaving the field they are filling.
+- **Create case** opens a dialog carrying principal, case type, reason and the readiness
+  summary, rather than expanding a panel inside a rail. **Save corrections** stays with the
+  Details form it submits — a form submit is not a lifecycle action and does not belong in the
+  bar.
+- The two `<details>` disclosures become tabs, so the default view is the work, not two
+  collapsed headings under it.
+- The details form runs in two columns; the whole of it now fits without scrolling.
+
+Nothing in the change list is withdrawn — the copy, vocabulary, state and evidence decisions all
+stand; they are re-housed.
 
 ## Changes
 
@@ -22,14 +61,15 @@ evidence and assets collapsed below.
    → **"Back to Inbox"** (that is where it goes).
 2. **Header states facts, not essays.** h1 becomes **"Received item"** with a meta line —
    source name, channel, received time ("sample-instruction.pdf · Uploaded ·
-   04 Aug 2026 16:30") — and one state chip: **Ready to review** (navy), **Needs
-   sorting** (amber), **Blocked** (red), **Vehicle images** (neutral), **Accepted ·
-   Case 26001** (green, linked). The decision-reason lede is deleted; where the reason
-   matters (Needs sorting) it renders as one sentence under the chip.
-3. **Accepted state is visible.** After acceptance the header chip is green
-   "Accepted · Case 26001", the action rail collapses to **"Open case 26001"**, and all
-   editing surfaces render read-only. (Today the chip still says the draft label with no
-   accepted indication.)
+   04 Aug 2026 16:30") — and one state chip: **Needs sorting** (amber), **Blocked** (red),
+   **Vehicle images** (neutral), **Case 26001** (green, linked). The decision-reason lede is
+   deleted; where the reason matters (Needs sorting) it renders as one sentence under the
+   chip. There is no "Ready to review" chip — `Review` is a Case stage, and the state it
+   would have named is being removed (see the premise correction above).
+3. **Case state is visible.** Where the receipt produced or was linked to a case, the header
+   chip is green "Case 26001" (linked), the action rail collapses to **"Open case 26001"**,
+   and all editing surfaces render read-only. (Today the chip still says the draft label
+   with no case indication.)
 4. **Raw identifiers removed.** The "Source receipt" hex row in Result is deleted. The
    header meta carries everything an operator needs; no hex, no version integers.
 5. **Two-column working layout.**
@@ -43,22 +83,25 @@ evidence and assets collapsed below.
      "Suggested fields" card grid — the same data painted once instead of three times.
    - **Right — sticky action rail:** requirements checklist + actions (change 6).
 6. **Action rail.**
-   - **Accept as case** (red primary) sits at the top of a sticky rail with a compact
-     requirements checklist above it (Principal confirmed · Case type chosen · Evidence
-     confirmed). The button is enabled only when requirements are met; unmet items are
-     listed, not narrated. Accept expands: Reason, Principal, Case type, the Audit
-     sub-fields when relevant, and the confirmation checkboxes (change 7).
+   - **Create case** (red primary) sits at the top of a sticky rail with a compact
+     requirements checklist above it (Principal identified · Case type chosen). This is the
+     sorting resolution for an ambiguous item — the operator supplies the identity the route
+     could not establish (`INT-26`, manual creation through the same business rules) — not a
+     gate every intake passes. The button is enabled only when requirements are met; unmet
+     items are listed, not narrated. It expands to: Reason, Principal, Case type, and the
+     Audit sub-fields when relevant. No evidence-completeness checkboxes (change 7).
    - **Save corrections** (secondary) — replaces "Record corrected draft"; reason field
      inside the disclosure.
    - **Block** (secondary) — replaces "Block [banned]"; the reason field appears on
      disclosure, not permanently expanded.
    - **Re-evaluate** (text link under "More") — replaces "Re-evaluate with current
      policy"; reason on disclosure. Rare action, minimal weight.
-7. **One checkbox per fact.** "Instruction evidence is complete" + "I have confirmed the
-   instruction evidence" → single **"Instruction evidence is complete and confirmed"**.
-   "Image evidence is complete" + "I have confirmed the image evidence" → single
-   **"Image evidence is complete and confirmed"**. The accept handler records the same
-   staff identity either way; the double-entry encoding moves out of the UI.
+7. **The evidence-completeness checkboxes are deleted, not consolidated.** Incomplete
+   ordinary detail is not a bar to allocation: the new case enters `Not ready` and its detail
+   is chased there (`requirements.md:251`). Genuine fail-closed conditions — limits, principal
+   identity, standalone Audit evidence — refuse with a reason via **Block**, never via an
+   unticked box. (The superseded proposal here was to merge each "complete" + "I have
+   confirmed" pair into one checkbox; that kept a gate that should not exist.)
 8. **Case linking is one button.** The typed "Case identifier" + typed "Expected case
    version" + "Enter case edit mode" flow → a single **"Link to a case"** action: pick
    the case (search or candidate list), one click, and the claim happens automatically
@@ -102,16 +145,17 @@ evidence and assets collapsed below.
   current version server-side, claims, links, and releases in one post — retrying once
   on version conflict before surfacing the designed conflict message. Core operations
   exist; the composition and retry policy are new (application layer, no policy change).
-- **Accept-requirements evaluation** exposed to the view (which requirements are met) so
-  the rail checklist and button enablement are real, not client-side guesses. The accept
+- **Create-case requirements evaluation** exposed to the view (which requirements are met)
+  so the rail checklist and button enablement are real, not client-side guesses. The
   handler's fail-closed validation is unchanged and remains authoritative.
-- Single-checkbox mapping: the accept command currently takes four booleans; either the
-  Web layer sets both flags of each pair from the one checkbox, or the command narrows
-  to two fields — flag for Core review (the recorded staff confirmation is preserved
-  either way).
+- **Removal of the acceptance gate is the governing prerequisite** for this whole page
+  (`defects-and-non-functional.md` §B4). The four evidence-completeness booleans on the
+  current accept command retire with it; an earlier version of this list proposed mapping
+  them onto one checkbox each, which preserved a gate that should not exist.
 - Label maps: decision-evidence keys, reading-outcome dispositions, missing-field names.
-- Accepted-state rendering needs the accepted case reference in the receipt view model
-  (already present as `AcceptedCaseId`/reference lookup).
+- Case-state rendering needs the case reference in the receipt view model (already present
+  as `AcceptedCaseId`/reference lookup — the field survives the gate's removal; it is how a
+  receipt points at the case its processing created).
 - Inbox rows must link here (`page-2`/Inbox plan); route stays, old links redirect.
 
 ## Open questions

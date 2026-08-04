@@ -47,15 +47,68 @@ contract), **Minor** (polish).
 - Contradiction: `docs/capabilities.md` rows UI-02 and UI-04 claim these capabilities "Required and
   accepted before 0.1.0-alpha.1".
 
+### B4. Definitive intake never creates a case; a manual acceptance gate blocks it (code-verified)
+- Pages: Intake `/Intake` (page-2) and Receipt review `/Intake/{id}` (page-8).
+- `docs/requirements.md:251` is explicit: *"Definitive authorised intake creates exactly one
+  instructed Case idempotently… A new instructed Case enters `Not ready` until its ordinary
+  business detail, required source images, and applicable progression requirements are satisfied…
+  **The allocation decision adds no universal manual acceptance gate.**"* `docs/operator-notes.md:204`
+  gives the only branch that exists in the business rule: *"Ambiguous provider, instruction-type, or
+  case evidence remains pre-case for staff sorting."* Unidentified material goes to `Needs sorting`.
+  Everything definitive is a case.
+- Shipped behaviour is the opposite. `IAcceptIntake` has exactly one caller in the solution — the
+  staff `OnPostAcceptAsync` form handler (`Pages/Intake/Details.cshtml.cs:21`, `:534`) — so **every**
+  case in Pegasus requires a human to press "Accept and allocate case reference". The Automation MCP
+  intake tool can only submit (`Mcp/IntakeMcpTools.cs:160-172`); it cannot create a case. There is no
+  Worker path.
+- The gate is pure ceremony for the definitive case: the page already derives the answer it then
+  demands from the operator — `Details.cshtml.cs:104` prefills the principal from
+  `InstructionDraft.SuggestedPrincipalCode`, and `:105-107` computes `InstructionComplete` from the
+  draft plus an empty `MissingFields`. `ProcessIntake.cs:272-322` has already established
+  route-accepted, policy `Applicable`, and a non-ambiguous case match before the receipt is written.
+- `IntakeDecision.DraftReady` (`Pegasus.Core/Intake/IntakeContracts.cs:13`) exists only to name
+  "the button has not been pressed yet". It has no operator provenance and no owning requirement;
+  it is an artifact of the gate. See §"DraftReady is not a business state" below.
+- Consequence: `CAP-008` / `INT-25` ("Automatic case creation from definitive authorised intake",
+  `docs/capabilities.md:112`, marked *Now / 0.1.0-alpha.1 / required and accepted*) is not
+  implemented at all, and the shipped path contradicts `requirements.md:251`. Nine of the review's
+  other findings are downstream of this one.
+
+## DraftReady is not a business state
+
+Every proposal in this folder that renames, relabels, or rewires `DraftReady` presupposes the state
+is legitimate. It is not, and no rename fixes it. The correct intake outcomes are:
+
+| Outcome | When | Meaning |
+|---|---|---|
+| **Case** | Route accepted, principal and case type established, match not ambiguous | Reference allocated. Thin ordinary detail is `Not ready` (`requirements.md:251`), never a reason to hold allocation. |
+| **Needs sorting** | Ambiguous provider, instruction type, or case evidence; unidentified e-mail | Pre-case, staff sort it (`operator-notes.md:204`). Already implemented, including the ambiguous-match downgrade at `ProcessIntake.cs:317-321`. |
+| **Blocked intake** | Reasoned refusal: unreadable, oversized, limits, standalone Audit evidence incomplete | Fail-closed per the CLAUDE.md product invariant. |
+
+`DraftReady` collapses into the first row. The receipt still records what happened — it is permanent
+history — but for a matching instruction that record is *"case created, here is the reference"*, with
+the case identity populated at processing time, not a decision meaning "waiting for a human".
+
+**"Ready to review" must not be used as an intake label.** `Review` is a Case lifecycle stage
+(`CaseWorkflowContracts.cs:15`) — the stage before the report is with an Engineer, gated by the
+staff-review gate before Engineers-queue eligibility (`requirements.md:295`) and stopping the chase
+schedule (`:334`). Relabelling an intake decision "Ready to review" reintroduces the exact
+Case-stage-name collision this review set out to remove.
+
 ## Major
 
-### M1. The "Review" tile shows an e-mail count, not the Review case state (code-verified; NOW.md already tracks the wording decision)
-- `Pages/Index.cshtml:40-46` renders `Model.Counts.DraftReady` (an e-mail classification) under the
-  label "Review" (a Case state) and links to `/Intake?decision=draft_ready`.
-- Verified live: accepting the draft as a case did NOT decrement the count — accepted receipts keep
-  their `draft_ready` decision, so the tile also over-counts (`IIntakeReceiptQueries.GetCountsAsync`
-  does not exclude accepted receipts). The receipt row equally still shows "Instruction draft"
-  with no accepted indication (`Pages/Intake/Index.cshtml` list).
+### M1. The "Review" tile shows an intake count, not the Review case state (code-verified)
+- `Pages/Index.cshtml:40-46` renders `Model.Counts.DraftReady` under the label "Review" (a Case
+  stage) and links to `/Intake?decision=draft_ready`.
+- The count is also cumulative for all time: accepting a draft as a case does not decrement it.
+  Acceptance inserts a `CaseIntakeLinks` row (`EfCaseAcceptanceStore.cs:276-288`) and never touches
+  `receipt.Decision`, and `EfIntakeReceiptStore.GetCountsAsync:152-164` applies no acceptance
+  filter. Verified live. The receipt row equally still shows "Instruction draft" with no accepted
+  indication (`Pages/Intake/Index.cshtml` list), and `ListAsync:166-192` keeps accepted receipts in
+  the queue view.
+- Under B4 most of what this tile counts should not exist as a queue at all. The fix is not a
+  relabel: the tile needs a real Core count of cases in the `Review` stage, and the intake-side
+  count disappears with the acceptance gate.
 
 ### M2. Working screens advertised as "Unavailable" (verified live)
 - The dashboard's Email and Requests cards are the ONLY navigation entry to
@@ -209,6 +262,21 @@ contract), **Minor** (polish).
 - **Render-time-knowable rules enforced only after POST** — a Work Provider role cannot be removed
   while an active principal exists, but this is discoverable only by submitting and reading an error
   string (`page-24` review).
+- **Case document export has no stage condition** — `IExportCaseDocuments` is invoked directly from
+  `Pages/Cases/Documents/Export.cshtml.cs:59` with no check on the case's lifecycle stage. The
+  operator's rule (2026-08-04) is that a case exports only in `Review`; a greyed button would be
+  presentation, not policy, so the condition has to become a Core precondition with the UI
+  reflecting it (`page-12` plan, change 4).
+- **A case cannot show its own e-mail** — the case↔message links are persisted
+  (`CaseIntakeLinks`, written by `EfCaseAcceptanceStore.cs:276-288`) but no query reads them
+  case-first, so the case workspace surfaces none of the correspondence that produced it. The
+  Evidence tab's E-mails sub-tab needs a new Core query, not a reprojection of existing page data
+  (`page-12` plan, change 11).
+- **Provenance is printed as prose, keys and versions** — the case workspace renders a
+  Fact/Suggestion/Confirmed table plus `PolicyKey`/`PolicyVersion` and source hashes. The persisted
+  source is a clean six-value enum (`CaseDataSourceKind`, `Cases/CaseDataContracts.cs:14`) that maps
+  to one-word labels; only "AI" has no persisted distinction from a plain document read and must be
+  derived from the reader identity on `CaseDataSource.Label`/`PolicyKey` (`page-12` plan, change 8).
 
 ## Cross-references
 - Hidden-but-shipped functionality (not defects, but invisible): `additions-hidden-features.md`.

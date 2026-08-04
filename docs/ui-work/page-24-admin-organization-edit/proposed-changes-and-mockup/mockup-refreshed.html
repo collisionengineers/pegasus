@@ -6,89 +6,131 @@
 <!--
   REFRESHED SYSTEM — declared divergences from the recorded design authority
   (design/README.md tokens), per docs/ui-work/ui-standards-and-review.md §5.2:
-  1. Type scale 22/17/15/13 with 600-weight headings; tabular numerals for counts.
-  2. Surfaces: paper #F7F6F4; cards #FFFFFF, 6px radius, 1px hairline + shadow
+  1. Type scale 20/15/13.5/12 with 600-weight headings; tabular numerals for counts.
+  2. Surfaces: paper #F7F6F4; cards #FFFFFF, 6-8px radius, 1px hairline + shadow
      0 1px 2px rgb(22 25 29 / 5%).
-  3. Chips keep the amber/navy/green/red role semantics but gain a ~10% tinted
-     background with a 1px border; text label always present, never colour alone.
-  4. 8px base rhythm (16/24/32 steps); 40px table rows; single-line action bars.
+  3. Chips keep the amber/navy/green/red role semantics but gain a 10% tinted background.
+  4. 4px base rhythm (8/12/16 steps); 32px table rows; single-line action bars.
   5. Top navigation retained — no left rail.
+  6. ONE CONTAINER PER RECORD (ui-standards §4 rule 13): dark header band, action bar, tabs —
+     replacing the two stacked sections. Editing roles moves into a dialog off the bar, so the
+     Roles tab shows what is true rather than a permanently open form.
+  MOCKUP DEVICE: tabs are hidden radio inputs so the file works by double-click with no script.
 -->
 <title>Organisation One — Pegasus (refreshed mockup)</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;font-size:15px;line-height:1.5;color:#16191D;background:#F7F6F4}
+  body{font:13.5px/1.45 system-ui,-apple-system,"Segoe UI",Arial,sans-serif;color:#16191D;background:#F7F6F4}
   a{color:#16191D}
   a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid rgba(219,8,22,.38);outline-offset:1px}
-  .masthead{display:flex;align-items:center;gap:24px;padding:0 32px;height:60px;background:#FFFFFF;border-bottom:1px solid #E6E4E1}
+  .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .tabular{font-variant-numeric:tabular-nums}
+
+  .masthead{display:flex;align-items:center;gap:16px;padding:0 20px;height:48px;background:#FFFFFF;border-bottom:1px solid #E6E4E1}
   .brand{display:flex;align-items:baseline;gap:12px;white-space:nowrap}
   .brand .mark{color:#DB0816;font-weight:700;font-size:11px;letter-spacing:.16em}
-  .brand .app{font-weight:600;font-size:17px}
-  .nav{display:flex;gap:24px;margin-left:auto}
-  .nav a{text-decoration:none;font-size:15px;padding:20px 2px 17px;border-bottom:2px solid transparent}
+  .brand .app{font-weight:600;font-size:14px}
+  .nav{display:flex;gap:2px;margin-left:8px}
+  .nav a{text-decoration:none;font-size:13.5px;padding:14px 10px 12px;border-bottom:2px solid transparent}
   .nav a[aria-current=page]{color:#DB0816;font-weight:600;border-bottom-color:#DB0816}
-  .account{display:flex;gap:16px;align-items:center;border-left:1px solid #E6E4E1;padding-left:24px;font-size:13px}
-  .account .who{color:#6B6B6B}
-  main{max-width:1280px;margin:0 auto;padding:32px}
-  .crumbs{font-size:13px;color:#6B6B6B;margin-bottom:16px}
+  .account{display:flex;gap:12px;align-items:center;margin-left:auto;font-size:12px;color:#6B6B6B}
+  main{max-width:1080px;margin:0 auto;padding:12px 20px 24px}
+  .crumbs{font-size:12px;color:#6B6B6B;margin-bottom:8px}
   .crumbs a{color:#6B6B6B}
-  .crumbs [aria-current]{color:#16191D}
-  .page-head{display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:24px}
-  h1{font-size:22px;font-weight:600}
-  h2{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#6B6B6B;margin-bottom:8px}
-  .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-  .card{background:#FFFFFF;border:1px solid #E6E4E1;border-radius:6px;box-shadow:0 1px 2px rgb(22 25 29 / 5%)}
-  .chip{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;padding:3px 10px;border:1px solid #E6E4E1;border-radius:6px;background:#F2F1EF;color:#2C2A27;white-space:nowrap}
-  .chip svg{width:8px;height:8px;flex:0 0 8px}
-  .chip--navy{background:rgb(37 53 92 / 10%);border-color:rgb(37 53 92 / 35%);color:#25355C}
-  .chip--navy svg{fill:#25355C}
-  .chip--neutral{background:rgb(107 107 107 / 10%);border-color:rgb(107 107 107 / 30%);color:#2C2A27}
-  .chip--neutral svg{fill:#6B6B6B}
+
+  .rec{background:#FFFFFF;border:1px solid #E6E4E1;border-radius:8px;
+       box-shadow:0 1px 2px rgb(22 25 29 / 5%);overflow:hidden}
+  .rhead{background:#1B1E23;color:#fff;display:flex;align-items:center;gap:12px;padding:10px 16px}
+  .rhead h1{font-size:20px;font-weight:600;letter-spacing:-.01em}
+  .rhead .idy{font-size:12.5px;color:#A7A9AD;padding-left:12px;border-left:1px solid rgb(255 255 255 / 16%);
+              font-variant-numeric:tabular-nums}
+  .rhead .right{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .accent{height:3px;background:#365F87}
+
+  .abar{display:flex;align-items:center;gap:6px;padding:8px 16px;background:#FFFFFF;
+        border-bottom:1px solid #E6E4E1;position:sticky;top:0;z-index:3}
+  .abar .spacer{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .abar .rule{width:1px;height:22px;background:#E6E4E1}
+
+  .btn{display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:13px;font-weight:600;
+       border-radius:5px;cursor:pointer;padding:5px 10px;border:1px solid #D8D5D1;background:#FFFFFF;
+       color:#2C2A27;text-decoration:none;white-space:nowrap}
+  .btn:hover{border-color:#2C2A27;background:#FCFBFA}
+  .btn--dark{background:#2C2A27;border-color:#2C2A27;color:#fff}
+  .btn--dark:hover{background:#000;border-color:#000}
+  .btn--primary{background:#DB0816;border-color:#DB0816;color:#fff}
+  .btn--primary:hover{background:#8F1422;border-color:#8F1422}
+  .btn--primary[disabled]{background:#F1EFEC;border-color:#DEDBD7;color:#A6A29D;cursor:not-allowed}
+  .btn--light{background:transparent;border-color:rgb(255 255 255 / 30%);color:#fff}
+  .btn--light:hover{background:rgb(255 255 255 / 10%)}
+
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:2px 9px;
+        border:1px solid #E6E4E1;border-radius:999px;background:rgb(22 25 29 / 4%);color:#2C2A27}
+  .chip svg{width:7px;height:7px}
+  .chip--navy{color:#143A5E;border-color:rgba(54,95,135,.4);background:rgba(54,95,135,.1)}
+  .rhead .chip--navy{color:#0F2E4B;border-color:#DCE9F4;background:#DCE9F4}
+  .chip--neutral{color:#2C2A27}
   .chip--off{color:#6B6B6B}
-  .status-card{background:rgb(22 131 59 / 8%);border:1px solid rgb(22 131 59 / 30%);border-radius:6px;padding:12px 16px;margin-bottom:24px;max-width:664px;color:#12602D;font-weight:600}
-  .roles-card{max-width:664px;padding:24px;margin-bottom:32px}
-  fieldset{border:0;margin-bottom:24px}
-  .choice{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
-  .choice input{accent-color:#DB0816;margin-top:4px;width:16px;height:16px}
-  .choice span{font-weight:600}
-  .lock{font-weight:400;color:#6B6B6B;font-size:13px}
-  .hint{font-size:13px;color:#6B6B6B;margin:0 0 16px 26px;max-width:54ch}
-  .hint--field{margin:0}
-  label.field-label{display:block;font-weight:600;margin-bottom:8px}
-  .req{font-weight:400;color:#6B6B6B}
-  textarea{width:100%;padding:10px;border:1px solid #B9B6B1;border-radius:6px;font:inherit;background:#FFFFFF;resize:vertical}
-  .counter-row{display:flex;justify-content:space-between;gap:16px;font-size:13px;color:#6B6B6B;margin:8px 0 24px}
-  .tabular{font-variant-numeric:tabular-nums}
-  .btn-primary{display:inline-block;background:#DB0816;color:#FFFFFF;border:0;border-radius:6px;font:600 15px system-ui;padding:10px 18px;cursor:pointer}
-  .btn-primary[disabled]{background:#F2F1EF;color:#6B6B6B;border:1px solid #E6E4E1;cursor:not-allowed}
-  .table-wrap{overflow-x:auto}
-  table{width:100%;border-collapse:collapse}
-  th{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#6B6B6B;text-align:left;font-weight:600;padding:0 16px;height:40px;border-bottom:1px solid #E6E4E1;white-space:nowrap}
-  td{padding:0 16px;height:40px;border-bottom:1px solid #E6E4E1;vertical-align:middle}
+
+  .status-card{margin:12px 16px 0;border:1px solid rgba(22,131,59,.35);background:rgba(22,131,59,.08);
+        border-radius:5px;padding:8px 12px;font-size:12.5px}
+
+  .tabinput{position:absolute;opacity:0;pointer-events:none}
+  .tabs{display:flex;gap:2px;padding:0 16px;border-bottom:1px solid #E6E4E1;background:#F7F6F4}
+  .tabs label{font-size:13.5px;font-weight:600;color:#6B6B6B;padding:9px 12px;cursor:pointer;
+        border-bottom:2px solid transparent;display:inline-flex;gap:6px}
+  .tabs label:hover{color:#16191D}
+  .tabs .count{font-size:12px;color:#6B6B6B;background:rgb(22 25 29 / 6%);border-radius:999px;
+        padding:0 6px;font-variant-numeric:tabular-nums}
+  #t-ro:checked~.tabs label[for=t-ro],#t-pr:checked~.tabs label[for=t-pr]{color:#DB0816;border-bottom-color:#DB0816}
+  #t-pr:checked~.tabs label[for=t-pr] .count{color:#DB0816;background:rgb(219 8 22 / 8%)}
+  .tabpanel{display:none;padding:12px 16px 16px}
+  #t-ro:checked~#p-ro,#t-pr:checked~#p-pr{display:block}
+
+  .rolerow{display:flex;align-items:center;gap:12px;min-height:32px;padding:6px 0;border-bottom:1px solid #E6E4E1}
+  .rolerow:last-of-type{border-bottom:0}
+  .rolerow .name{font-weight:600;flex:0 0 220px}
+  .rolerow .lock{color:#6B6B6B;font-weight:400;font-size:12.5px}
+  .hint{font-size:12.5px;color:#6B6B6B}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums}
+  th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#6B6B6B;text-align:left;
+     font-weight:600;padding:4px 10px;border-bottom:1px solid #E6E4E1}
+  td{height:32px;padding:2px 10px;border-bottom:1px solid #E6E4E1;vertical-align:middle}
+  tbody tr:hover td{background:#FBFAF9}
   tbody tr:last-child td{border-bottom:0}
-  tbody tr:hover{background:#FAF9F8}
-  .num{text-align:right;font-variant-numeric:tabular-nums}
-  th.num{text-align:right}
-  .code{font-weight:600;letter-spacing:.02em;font-variant-numeric:tabular-nums}
-  .table-foot{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 16px;height:40px;border-top:1px solid #E6E4E1;font-size:13px;color:#6B6B6B}
-  .pager{display:flex;gap:16px;align-items:center}
-  .empty{padding:24px;color:#6B6B6B}
-  .empty a{color:#16191D;font-weight:600}
-  footer{max-width:1280px;margin:0 auto;padding:16px 32px;color:#6B6B6B;font-size:13px;border-top:1px solid #E6E4E1}
+  td:first-child,th:first-child{padding-left:0}
+  td:last-child,th:last-child{padding-right:0;text-align:right}
+  .num{text-align:right}
+  .code{font-weight:600}
+  .table-foot{display:flex;justify-content:space-between;align-items:center;margin-top:8px;
+        font-size:12.5px;color:#6B6B6B}
+  .pager{display:flex;gap:10px;align-items:center}
+
+  .demo{border:1px dashed #CFCBC5;border-radius:6px;padding:12px;margin-top:16px;background:#F7F6F4}
+  .demo .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#6B6B6B;font-weight:600;margin-bottom:8px}
+  .dialog{background:#FFFFFF;border:1px solid #E6E4E1;border-radius:8px;max-width:460px;padding:16px;
+          box-shadow:0 16px 48px rgb(22 25 29 / 18%)}
+  .dialog h3{font-size:15px;font-weight:600;margin-bottom:10px}
+  .choice{display:flex;gap:8px;align-items:flex-start;padding:6px 0}
+  .choice span{font-weight:600}
+  .dialog .field-label{display:block;font-size:12px;font-weight:600;color:#6B6B6B;margin:10px 0 4px}
+  .dialog textarea{width:100%;padding:6px 9px;border:1px solid #D8D5D1;border-radius:5px;font:inherit;background:#FFFFFF}
+  .counter-row{display:flex;justify-content:space-between;margin-top:6px;font-size:12px;color:#6B6B6B}
+  .req{color:#6B6B6B;font-weight:400}
+  .dialog .foot{display:flex;justify-content:flex-end;gap:6px;margin-top:14px}
+
+  footer{max-width:1080px;margin:0 auto;padding:12px 20px 24px;color:#6B6B6B;font-size:12px}
 </style>
 </head>
 <body>
 <header class="masthead">
   <span class="brand"><span class="mark">COLLISION&nbsp;ENGINEERS</span><span class="app">Pegasus</span></span>
   <nav class="nav" aria-label="Primary">
-    <a href="#">Dashboard</a>
-    <a href="#">Inbox</a>
-    <a href="#">Upload</a>
-    <a href="#">Queues</a>
-    <a href="#">Cases</a>
-    <a href="#" aria-current="page">Administration</a>
+    <a href="#">Dashboard</a><a href="#">Inbox</a><a href="#">Upload</a><a href="#">Queues</a>
+    <a href="#">Cases</a><a href="#" aria-current="page">Administration</a>
   </nav>
-  <span class="account"><span class="who">alex</span><a href="#">Change password</a><a href="#">Sign out</a></span>
+  <span class="account"><span>alex</span><a href="#">Change password</a><a href="#">Sign out</a></span>
 </header>
 
 <main>
@@ -96,78 +138,66 @@
     <a href="#">Administration</a> / <a href="#">Organizations</a> / <span aria-current="page">Organisation One</span>
   </nav>
 
-  <div class="page-head">
-    <h1>Organisation One</h1>
-    <span class="chip chip--navy"><svg viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="4"/></svg>Work Provider</span>
-  </div>
-
-  <div class="status-card" role="status">The organization roles were updated.</div>
-
-  <section aria-labelledby="roles-heading">
-    <h2 id="roles-heading">Organization roles</h2>
-    <div class="card roles-card">
-      <form>
-        <fieldset>
-          <legend class="sr-only">Organization roles</legend>
-          <label class="choice" for="role-wp">
-            <input id="role-wp" type="checkbox" checked disabled aria-describedby="role-wp-rule">
-            <span>Work Provider <span class="lock">· locked</span></span>
-          </label>
-          <p class="hint" id="role-wp-rule">Work Provider cannot be removed while this
-            organization has an active principal.</p>
-          <label class="choice" for="role-ii">
-            <input id="role-ii" type="checkbox">
-            <span>Instruction Intermediary</span>
-          </label>
-        </fieldset>
-
-        <label class="field-label" for="reason">Reason for change <span class="req">(required)</span></label>
-        <textarea id="reason" rows="4"></textarea>
-        <div class="counter-row">
-          <span class="hint hint--field">Recorded against this change in the administration record.</span>
-          <span class="tabular">0/500 characters</span>
-        </div>
-
-        <button type="submit" class="btn-primary" disabled>Update roles</button>
-      </form>
+  <div class="rec">
+    <div class="rhead">
+      <h1>Organisation One</h1>
+      <span class="chip chip--navy"><svg viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="4"/></svg>Work Provider</span>
+      <span class="idy">3 principals &middot; 47 allocated cases</span>
+      <span class="right"><a class="btn btn--light" href="#">Back to Organizations</a></span>
     </div>
-  </section>
+    <div class="accent"></div>
 
-  <section aria-labelledby="principals-heading">
-    <h2 id="principals-heading">Principals</h2>
-    <div class="card table-wrap">
+    <div class="abar">
+      <button class="btn btn--dark" type="button">Edit roles</button>
+      <a class="btn" href="#">Create principal</a>
+      <button class="btn" type="button">More &#9662;</button>
+    </div>
+
+    <div class="status-card" role="status">The organization roles were updated.</div>
+
+    <input class="tabinput" type="radio" name="orgtab" id="t-ro" checked>
+    <input class="tabinput" type="radio" name="orgtab" id="t-pr">
+
+    <div class="tabs">
+      <label for="t-ro">Roles</label>
+      <label for="t-pr">Principals <span class="count">3</span></label>
+    </div>
+
+    <div class="tabpanel" id="p-ro">
+      <div class="rolerow">
+        <span class="name">Work Provider <span class="lock">&middot; locked</span></span>
+        <span class="hint">Cannot be removed while this organization has an active principal.</span>
+      </div>
+      <div class="rolerow">
+        <span class="name">Instruction Intermediary</span>
+        <span class="hint">Not held.</span>
+      </div>
+    </div>
+
+    <div class="tabpanel" id="p-pr">
       <table>
         <caption class="sr-only">Principals owned by this organization</caption>
         <thead>
           <tr>
-            <th scope="col">Code</th>
-            <th scope="col">Status</th>
-            <th scope="col">Inspection mode</th>
-            <th scope="col" class="num">Allocated cases</th>
-            <th scope="col">Actions</th>
+            <th scope="col">Code</th><th scope="col">Status</th><th scope="col">Inspection mode</th>
+            <th scope="col" class="num">Allocated cases</th><th scope="col">Actions</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td class="code">QDOS</td>
             <td><span class="chip chip--neutral"><svg viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="4"/></svg>Active</span></td>
-            <td>Physical address</td>
-            <td class="num">12</td>
-            <td><a href="#">Replace</a></td>
+            <td>Physical address</td><td class="num">12</td><td><a href="#">Replace</a></td>
           </tr>
           <tr>
             <td class="code">QDOSB</td>
             <td><span class="chip chip--neutral"><svg viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="4"/></svg>Active</span></td>
-            <td>Image Based Assessment</td>
-            <td class="num">4</td>
-            <td><a href="#">Replace</a></td>
+            <td>Image Based Assessment</td><td class="num">4</td><td><a href="#">Replace</a></td>
           </tr>
           <tr>
             <td class="code">QDOSA</td>
             <td><span class="chip chip--neutral chip--off"><svg viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="4"/></svg>Disabled</span></td>
-            <td>Physical address</td>
-            <td class="num">31</td>
-            <td></td>
+            <td>Physical address</td><td class="num">31</td><td></td>
           </tr>
         </tbody>
       </table>
@@ -176,14 +206,39 @@
         <span>Showing the first 100 principals</span>
         <span class="pager"><span class="tabular">Page 1</span><a href="#">Next</a></span>
       </div>
+      <!-- Empty state, shown in place of the table:
+      <p class="hint">No principals yet. <a href="#">Create principal</a></p>
+      -->
     </div>
+  </div>
 
-    <!-- Empty state, shown in place of the table:
-    <div class="card"><p class="empty">No principals yet. <a href="#">Create principal</a></p></div>
-    -->
-  </section>
+  <div class="demo">
+    <p class="lbl">Action dialog &mdash; shown when &ldquo;Edit roles&rdquo; is chosen</p>
+    <div class="dialog" role="dialog" aria-labelledby="r-title" aria-modal="true">
+      <h3 id="r-title">Edit organization roles</h3>
+      <label class="choice" for="role-wp">
+        <input id="role-wp" type="checkbox" checked disabled aria-describedby="role-wp-rule">
+        <span>Work Provider <span style="color:#6B6B6B;font-weight:400">&middot; locked</span></span>
+      </label>
+      <p class="hint" id="role-wp-rule">Work Provider cannot be removed while this organization has
+        an active principal.</p>
+      <label class="choice" for="role-ii">
+        <input id="role-ii" type="checkbox"><span>Instruction Intermediary</span>
+      </label>
+      <label class="field-label" for="reason">Reason for change <span class="req">(required)</span></label>
+      <textarea id="reason" rows="3"></textarea>
+      <div class="counter-row">
+        <span>Recorded against this change in the administration record.</span>
+        <span class="tabular">0/500 characters</span>
+      </div>
+      <div class="foot">
+        <button class="btn" type="button">Cancel</button>
+        <button class="btn btn--primary" type="submit" disabled>Update roles</button>
+      </div>
+    </div>
+  </div>
 </main>
 
-<footer>Pegasus · Collision Engineers case management</footer>
+<footer>Pegasus &middot; Collision Engineers case management</footer>
 </body>
 </html>

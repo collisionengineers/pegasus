@@ -1,7 +1,9 @@
 # Replace principal — wireframe
 
-Proposed layout at 1280px+. Predecessor facts left, successor form right; consequence
-sentence at the confirm button; no lede, no GUIDs, no version integer.
+One container: header, action bar, body (ui-standards §4 rule 13). The predecessor's identity
+and state move into the header band, the commitment moves into the action bar, and the successor
+form is the body. No tabs — predecessor and successor are a reading order, not alternatives.
+No lede, no GUIDs, no version integer.
 
 ## Main state (predecessor active, not yet replaced)
 
@@ -10,69 +12,70 @@ sentence at the confirm button; no lede, no GUIDs, no version integer.
 | COLLISION ENGINEERS | Pegasus   Dashboard Inbox Upload Queues Cases Administration* |
 |                                                    alex · Change password · Sign out|
 +------------------------------------------------------------------------------------+
-|  Administration / Replace principal                                                |
-|                                                                                    |
-|  Replace ALPHA1                                                                    |
-|                                                                                    |
-|  PREDECESSOR                            SUCCESSOR                                  |
-|  +---------------------------------+   +---------------------------------------+  |
-|  | Organisation   Organisation A   |   | Successor Work Provider organisation  |  |
-|  | Allocated cases 12              |   | [ Select an organisation         v ]  |  |
-|  | Status         [Active]         |   | ~ Showing the first 50 organisations  |  |
-|  +---------------------------------+   |   — search in Organisations to find   |  |
-|                                        |   one that is not listed.             |  |
-|                                        |                                       |  |
-|                                        | Successor principal code              |  |
-|                                        | [                        ]            |  |
-|                                        | ~ Letters and numbers only — saved    |  |
-|                                        |   in capitals.                        |  |
-|                                        |                                       |  |
-|                                        | Reason for replacement                |  |
-|                                        | [                        ]            |  |
-|                                        | [                        ]            |  |
-|                                        | ~ Recorded permanently against both   |  |
-|                                        |   principals.                         |  |
-|                                        |---------------------------------------|  |
-|                                        | ALPHA1 stops taking new work          |  |
-|                                        | immediately; its existing cases and   |  |
-|                                        | references stay with ALPHA1.          |  |
-|                                        | [ Disable ALPHA1 and create successor]|  |
-|                                        +---------------------------------------+  |
+|  Administration / Principals / Replace ALPHA1                                      |
+|  ###########################  CONTAINER  ########################################  |
+|  # Replace ALPHA1  [Active]  Organisation A · 12 allocated cases                #  |
+|  #                                                  <Back to Principals>        #  |
+|  #--------------------------------------------------------------------------------#|
+|  # [ Cancel ]                    [[ Disable ALPHA1 and create successor ]]      #  | <- sticky
+|  #--------------------------------------------------------------------------------#|
+|  #  PREDECESSOR                                                                 #  |
+|  #  Organisation  Organisation A     Allocated cases  12     Status  [Active]   #  |
+|  #                                                                              #  |
+|  #  SUCCESSOR                                                                   #  |
+|  #  Successor Work Provider organisation                                        #  |
+|  #  [ Select an organisation                              v ]                   #  |
+|  #  ~ Showing the first 50 organisations — search in Organisations to find one  #  |
+|  #    that is not listed.                                                       #  |
+|  #                                                                              #  |
+|  #  Successor principal code                                                    #  |
+|  #  [                                        ]                                  #  |
+|  #  ~ Letters and numbers only — saved in capitals.                             #  |
+|  #                                                                              #  |
+|  #  Reason for replacement                                                      #  |
+|  #  [                                        ]                                  #  |
+|  #  ~ Recorded permanently against both principals.                             #  |
+|  #                                                                              #  |
+|  #  ! ALPHA1 stops taking new work immediately; its existing cases and          #  |
+|  #    references stay with ALPHA1.                                              #  |
+|  ##################################################################################  |
 +------------------------------------------------------------------------------------+
 ```
 
+The predecessor facts collapse to one row: the header already carries the identity, so the body
+states only what the header cannot.
+
 ## Alternate state — already replaced
 
-The successor form is absent (not disabled).
+The action bar and successor form are absent (not disabled); the header chip changes.
 
 ```
-|  PREDECESSOR                            SUCCESSOR                                  |
-|  +---------------------------------+   +---------------------------------------+  |
-|  | Organisation   Organisation A   |   | (i) ALPHA1 has already been replaced. |  |
-|  | Allocated cases 12              |   |     [ View its successor ]            |  |
-|  | Status         [Disabled]       |   +---------------------------------------+  |
-|  +---------------------------------+                                              |
+|  # Replace ALPHA1  [Disabled]  Organisation A · 12 allocated cases              #  |
+|  #--------------------------------------------------------------------------------#|
+|  #  ALPHA1 has already been replaced.  <View its successor>                     #  |
 ```
 
 ## Alternate state — predecessor disabled, no successor
 
 ```
-|                                        +---------------------------------------+  |
-|                                        | (i) ALPHA1 is disabled. A disabled    |  |
-|                                        |     principal cannot be replaced.     |  |
-|                                        +---------------------------------------+  |
+|  +---------------------------------------+                                        |
+|  | (i) ALPHA1 is disabled. A disabled    |                                        |
+|  |     principal cannot be replaced.     |                                        |
+|  +---------------------------------------+                                        |
 ```
 
 ## Legend
 
+- `#` border — the container: one shell around header, action bar and body.
 - `*` — active nav item (red underline).
-- `Administration / Replace principal` — breadcrumb; replaces eyebrow, back link and the
-  floating heading chip.
-- `[Active]` / `[Disabled]` — status chips (green for Active; muted/grey for Disabled);
-  rendered once, inside the Predecessor panel.
+- `Administration / Principals / Replace ALPHA1` — breadcrumb; replaces eyebrow, back link and
+  the floating heading chip.
+- `[Active]` / `[Disabled]` — status chips (green for Active; muted/grey for Disabled), rendered
+  once, in the header band.
 - `~` — field hint (muted, `field-hint` style).
-- `[ Disable ALPHA1 and create successor ]` — single primary (red) action; the
-  one-sentence consequence line sits immediately above it, separated by a hairline.
-- `(i)` — attention status card (amber trio); "View its successor" is a real link, present
-  only in the already-replaced state.
+- `!` — the one-sentence consequence line, kept with the fields it concerns.
+- `[[ Disable ALPHA1 and create successor ]]` — single primary (red) action, right-aligned in the
+  action bar and visible without scrolling the form.
+- `(i)` — attention status card (amber trio); "View its successor" is a real link, present only
+  in the already-replaced state.
 - ALPHA1 / Organisation A / counts are schematic placeholder data.

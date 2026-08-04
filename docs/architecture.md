@@ -213,13 +213,15 @@ QDOS is the sole concrete extraction policy until another principal has approved
 
 Suggestions and typed drafts are neither editable nor approved case records. Receipt and extraction create no case, counter, year-based reference, or external categorisation.
 
+**Non-conforming: case creation is gated behind a manual acceptance step.** `IAcceptIntake` has exactly one caller in the solution — the staff `OnPostAcceptAsync` handler on the receipt-review page — so every case in Pegasus requires an operator to press "Accept and allocate case reference", and the `DraftReady` decision exists only to name that wait. The Automation MCP intake tool can only submit; there is no Worker path. This contradicts [requirements](requirements.md) — definitive authorised intake creates exactly one instructed Case idempotently and "the allocation decision adds no universal manual acceptance gate" — and leaves `INT-25`/`CAP-008` unimplemented despite their `Now`/`0.1.0-alpha.1` allocation. Recorded here as current implementation truth, not as accepted design; removal is queued in [`NOW.md`](../NOW.md).
+
 ### Idempotency and persisted semantics
 
 - Replaying the same source occurrence returns the existing receipt.
 - Equal source bytes under a different occurrence identity remain separate evidence.
 - Stable decision, channel, evidence, and asset codes plus versioned JSON envelopes are persisted instead of CLR enum names.
 - Unknown persisted codes and inconsistent policy results fail rather than being silently reinterpreted.
-- “Instruction draft” and `Needs sorting` counts and filtered queues are persisted and queryable.
+- `DraftReady` and `Needs sorting` counts and filtered queues are persisted and queryable. Both counts are cumulative for all time: neither `GetCountsAsync` nor the filtered list excludes a receipt that has already produced a case, so an accepted receipt keeps its `draft_ready` code and stays in the queue.
 
 ## Business-rule ownership
 
