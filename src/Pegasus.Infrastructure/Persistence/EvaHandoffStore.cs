@@ -326,6 +326,7 @@ public sealed class EvaHandoffStore(
 
             await using var content = await contentStore.OpenReadAsync(
                 request.CaseId,
+                workflow.Case.Reference,
                 selected.VersionId,
                 selected.Sha256,
                 selected.ContentLength,

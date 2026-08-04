@@ -82,6 +82,7 @@ public sealed class DocumentCustodyDurabilityTests
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
                 store.StoreAsync(
                     caseId,
+                    "QDOS001",
                     versionId,
                     content,
                     sha256,
@@ -90,7 +91,7 @@ public sealed class DocumentCustodyDurabilityTests
             var directory = Path.Combine(
                 root,
                 "cases",
-                caseId.ToString("N"),
+                "QDOS001",
                 "managed",
                 versionId.ToString("N"));
             Assert.False(File.Exists(Path.Combine(directory, "content")));
@@ -98,6 +99,7 @@ public sealed class DocumentCustodyDurabilityTests
 
             await store.StoreAsync(
                 caseId,
+                "QDOS001",
                 versionId,
                 content,
                 sha256,
@@ -105,6 +107,7 @@ public sealed class DocumentCustodyDurabilityTests
 
             await using var retained = await store.OpenReadAsync(
                 caseId,
+                "QDOS001",
                 versionId,
                 sha256,
                 content.LongLength,
@@ -169,7 +172,7 @@ public sealed class DocumentCustodyDurabilityTests
                 root,
                 "custody",
                 "cases",
-                caseId.ToString("N"),
+                "QDOS001",
                 "managed");
             Assert.Empty(Directory.EnumerateFiles(
                 managedDirectory,
@@ -288,7 +291,7 @@ public sealed class DocumentCustodyDurabilityTests
                 root,
                 "custody",
                 "cases",
-                caseId.ToString("N"),
+                "QDOS001",
                 "managed");
             Assert.Empty(Directory.EnumerateFiles(
                 managedDirectory,

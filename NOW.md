@@ -1,4 +1,4 @@
-# NOW — updated 2026-08-03
+# NOW — updated 2026-08-04
 
 (Anything here older than 14 days is stale: delete it, don't investigate it.)
 
@@ -6,16 +6,6 @@
 
 Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 <agent>)`. Nothing is in flight unless it is claimed here on `origin/dev`.
-
-- Box Case/PO document custody: remove internal `caseId` values from the Box
-  folder hierarchy; store retained intake sources and managed document versions
-  under the allocated Case/PO-named case folder, reshaping the Core
-  content-store contract rather than duplicating policy in infrastructure;
-  preserve version identity, replay, hash/length verification, and lifecycle
-  gates, with focused local/in-memory custody proof. No Box/Azure read, write,
-  credential/configuration change, or migration of existing Box content without
-  separately approved target and inventory (DOC-02/03) (branch
-  task/box-casepo-document-custody, taken 2026-08-03, by codex).
 
 - Vault consolidation: copy the Box/DVLA/DVSA secrets into the Pegasus Key
   Vault, repoint the Worker's and Web's references, prove resolution, then
@@ -48,13 +38,43 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   task/send-to-ai-round-trip, taken 2026-08-03, by claude).
 ## Next (ordered queue — take from the top)
 
+- Record releases 4 and 5 in operations.md deployed evidence: release 4
+  (2026-08-04, revision `8e34078…`, digest `sha256:ae2cc7b8…`, the four
+  2026-08-03 migrations applied with the runtime-role matrix re-verified,
+  ADR-0020 premise verified — zero accepted cases, CaseMatchIndex shipped
+  empty) surfaced the production-CSP blank-band defect; release 5
+  (2026-08-04, revision `c6571f7…`, digest `sha256:29d4fcff…`, no new
+  migrations) shipped the PR 333 hotfix — live-verified: all 21
+  authenticated routes render from the viewport top with zero inline
+  styles, zero console errors, zero exceptions/sev3+ traces, smoke passed.
+  Also record the 2026-08-04 read-only Box custody-root inventory: the
+  pegasus folder `405543781910` has zero children, so no legacy
+  `{reference}-{caseId}` folders exist and the Case/PO fail-closed gate is
+  satisfied (release-5 live checks, 2026-08-04).
 - Assemble the operator-reviewed extraction cohort + untouched holdout and
   accept the per-field thresholds (INT-21, open-decisions) — blocks Path
   step 3.
-- Before the next production deploy, verify the ADR-0020 premise that no
-  environment holds an accepted case (CaseMatchIndex ships empty with no
-  backfill); if any accepted QDOS case exists, add a one-shot reprojection
-  (task/qdos-email-classification review, 2026-08-03).
+- Investigate the one failed staged intake artifact
+  (`staging/f7d2bdb8…`, 10,378,983 bytes, first seen 2026-08-01 23:56Z):
+  it remained `Failed` after the 2026-08-04 Worker re-enable and two
+  reconciliation sweeps — decide staff-review disposition. Context: the
+  operator ordered all nine Worker functions re-enabled on 2026-08-04
+  (they had carried `AzureWebJobs.<name>.Disabled = true` since
+  2026-08-03 ~01:08, set under the shared identity during the live
+  vault-consolidation window; releases 4 and 5 preserved the flags).
+  Re-enable verified live: six timer/dispatch functions executed with
+  zero failures and zero exceptions, the Inbox poll succeeded at
+  2026-08-04 08:41:45Z, and the one waiting inbox email processed into
+  `Needs sorting`; the three queue/poison functions correctly idle with
+  no messages. Alert rules and the operations action group were checked
+  enabled; nothing else in `rg-pegasus-prod` was disabled
+  (worker re-enable live checks, 2026-08-04).
+- Decide the production-CSP strategy for the inline `<script>` blocks
+  (`_FreshnessBanner` refresh feedback, `_ReasonDialog` focus trap, the
+  unrouted Assessment artifacts): external script files versus CSP hashes.
+  They are silently discarded by the deployed `default-src 'self'` policy
+  today — progressive enhancement only, nothing functional breaks
+  (release-4 live checks, 2026-08-04).
 - Operator decision: the pre-scrub commits of task/qdos-email-classification
   still carry corpus-derived names/references in GitHub PR refs — decide
   whether to request a history purge; and decide handling of the real staff
@@ -64,7 +84,9 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 - UI polish follow-ups from the design-pass review: Send-confirm focus drop,
   focus-trap escape edge case, sparkle glyph clipping, and the freshness
   banner's London label falling back to a UTC value without IANA data
-  (task/ui-alpha-design-pass review, 2026-08-03).
+  (task/ui-alpha-design-pass review, 2026-08-03); also the Access review
+  page renders the `0001-01-01 00:00:00Z` sentinel as "Last reviewed"
+  beside a `Recorded` state (release-5 live checks, 2026-08-04).
 - Relabel the Operations dashboard's DraftReady intake tile from `Review` to
   the design authority's `Instruction draft` mapping: `DraftReady` is the
   internal intake-receipt decision (a route-accepted instruction whose

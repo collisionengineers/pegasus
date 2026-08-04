@@ -9,12 +9,13 @@ public sealed class LocalDocumentContentStore(string rootPath) : IDocumentConten
 
     public async Task StoreAsync(
         Guid caseId,
+        string caseReference,
         Guid versionId,
         ReadOnlyMemory<byte> content,
         string expectedSha256,
         CancellationToken cancellationToken)
     {
-        ValidateIdentifiers(caseId, versionId);
+        ValidateIdentifiers(caseId, caseReference, versionId);
         var normalizedHash = NormalizeSha256(expectedSha256);
         var actualHash = Convert.ToHexString(SHA256.HashData(content.Span)).ToLowerInvariant();
         if (!string.Equals(normalizedHash, actualHash, StringComparison.Ordinal))
@@ -22,7 +23,7 @@ public sealed class LocalDocumentContentStore(string rootPath) : IDocumentConten
             throw new InvalidDataException("Document content does not match its custody hash.");
         }
 
-        var path = Resolve(caseId, versionId);
+        var path = Resolve(caseReference, versionId);
         var directory = Path.GetDirectoryName(path)!;
         Directory.CreateDirectory(directory);
         if (File.Exists(path))
@@ -70,25 +71,27 @@ public sealed class LocalDocumentContentStore(string rootPath) : IDocumentConten
 
     public Task DeleteAsync(
         Guid caseId,
+        string caseReference,
         Guid versionId,
         CancellationToken cancellationToken)
     {
-        ValidateIdentifiers(caseId, versionId);
+        ValidateIdentifiers(caseId, caseReference, versionId);
         cancellationToken.ThrowIfCancellationRequested();
-        var path = Resolve(caseId, versionId);
+        var path = Resolve(caseReference, versionId);
         File.Delete(path);
         return Task.CompletedTask;
     }
 
     public async Task<Stream> OpenReadAsync(
         Guid caseId,
+        string caseReference,
         Guid versionId,
         string expectedSha256,
         long expectedLength,
         CancellationToken cancellationToken)
     {
-        ValidateIdentifiers(caseId, versionId);
-        var path = Resolve(caseId, versionId);
+        ValidateIdentifiers(caseId, caseReference, versionId);
+        var path = Resolve(caseReference, versionId);
         if (!File.Exists(path))
         {
             throw new FileNotFoundException("The document content is unavailable.");
@@ -130,12 +133,12 @@ public sealed class LocalDocumentContentStore(string rootPath) : IDocumentConten
         }
     }
 
-    private string Resolve(Guid caseId, Guid versionId)
+    private string Resolve(string caseReference, Guid versionId)
     {
         var path = Path.GetFullPath(Path.Combine(
             rootPath,
             "cases",
-            caseId.ToString("N"),
+            SafeCaseFolderName(caseReference),
             "managed",
             versionId.ToString("N"),
             "content"));
@@ -149,12 +152,22 @@ public sealed class LocalDocumentContentStore(string rootPath) : IDocumentConten
         return path;
     }
 
-    private static void ValidateIdentifiers(Guid caseId, Guid versionId)
+    private static void ValidateIdentifiers(Guid caseId, string caseReference, Guid versionId)
     {
-        if (caseId == Guid.Empty || versionId == Guid.Empty)
+        if (caseId == Guid.Empty
+            || versionId == Guid.Empty
+            || string.IsNullOrWhiteSpace(caseReference)
+            || caseReference.Any(char.IsControl))
         {
-            throw new ArgumentException("Case and document version identifiers are required.");
+            throw new ArgumentException("Case, Case/PO, and document version identifiers are required.");
         }
+    }
+
+    private static string SafeCaseFolderName(string value)
+    {
+        var result = CustodyNames.SafeName(value);
+
+        return result;
     }
 
     private static string NormalizeSha256(string value)
