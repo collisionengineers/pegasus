@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard · Pegasus — refreshed mockup</title>
+<!--
+  Refreshed system — divergences from design/README.md (per ui-standards-and-review.md §5.2):
+  1. Type scale 22/17/15/13px with 600-weight headings; metric numerals 28px tabular-nums.
+  2. Surface model: paper #F7F6F4; cards #FFFFFF at 6px radius with 1px hairline plus
+     shadow 0 1px 2px rgb(22 25 29 / 5%) — replaces the flat 2px hairline-only card.
+  3. State colour roles unchanged, but chips gain a ~10% tinted background with 1px border.
+  4. Metric tiles: 28px tabular numerals, label under number, whole tile is the link,
+     hover raises the hairline to charcoal.
+  5. Density: 8px base rhythm with 16/24/32 steps; 40px table rows.
+  6. Top navigation retained (left rail not taken).
+  Content is schematic placeholder data only.
+-->
+<style>
+  :root{
+    --ce-red:#DB0816; --ce-red-dark:#8F1422; --ce-red-tint:rgba(219,8,22,.08);
+    --charcoal:#2C2A27; --ink:#16191D; --paper:#F7F6F4; --panel:#FFFFFF;
+    --line:#E6E4E1; --muted:#6B6B6B;
+    --amber-fg:#7A3E00; --amber-tint:rgba(161,92,0,.10); --amber-line:#A15C00;
+    --navy-fg:#143A5E; --navy-tint:rgba(54,95,135,.10); --navy-line:#365F87;
+    --green:#16833B; --green-tint:rgba(22,131,59,.10);
+    --radius:6px; --shadow:0 1px 2px rgba(22,25,29,.05);
+    --focus:3px solid rgba(219,8,22,.38);
+  }
+  *,*::before,*::after{box-sizing:border-box;}
+  html{font-size:16px;}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+    font-size:15px; line-height:1.5;
+  }
+  a{color:inherit;}
+  a:focus-visible,button:focus-visible{outline:var(--focus); outline-offset:2px;}
+
+  /* Top bar */
+  .topbar{background:var(--panel); border-bottom:1px solid var(--line);}
+  .topbar__inner{
+    max-width:1240px; margin:0 auto; padding:0 32px;
+    display:flex; align-items:center; gap:32px; height:60px;
+  }
+  .brand{display:flex; align-items:baseline; gap:12px; white-space:nowrap;}
+  .brand__mark{color:var(--ce-red); font-weight:700; font-size:11px; letter-spacing:.14em;}
+  .brand__app{font-weight:600; font-size:17px;}
+  .nav{display:flex; gap:8px; margin-left:auto;}
+  .nav a{
+    display:block; padding:8px 12px; text-decoration:none; font-size:13px; font-weight:500;
+    color:var(--charcoal); border-radius:var(--radius);
+  }
+  .nav a:hover{background:var(--paper);}
+  .nav a.is-active{color:var(--ce-red); font-weight:600; background:var(--ce-red-tint);}
+  .session{display:flex; align-items:center; gap:16px; font-size:13px;}
+  .session__user{color:var(--muted);}
+  .session a{text-decoration:none; color:var(--charcoal);}
+  .session a:hover{text-decoration:underline;}
+
+  /* Page frame */
+  .page{max-width:1240px; margin:0 auto; padding:32px 32px 72px;}
+  .page-head{display:flex; align-items:flex-start; justify-content:space-between; gap:24px;}
+  h1{font-size:22px; font-weight:600; margin:0;}
+
+  /* Compact corner freshness element */
+  .freshness{
+    display:flex; align-items:center; gap:8px; font-size:13px; color:var(--muted);
+    padding-top:6px; white-space:nowrap;
+  }
+  .freshness button{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:30px; height:30px; padding:0; background:var(--panel);
+    border:1px solid var(--line); border-radius:var(--radius); cursor:pointer;
+    color:var(--charcoal); box-shadow:var(--shadow);
+  }
+  .freshness button:hover{border-color:var(--charcoal);}
+
+  /* Sections */
+  .section{margin-top:32px;}
+  .section-label{
+    font-size:13px; font-weight:600; letter-spacing:.10em; text-transform:uppercase;
+    color:var(--muted); margin:0 0 12px;
+  }
+
+  /* Metric tiles: number over label, whole tile is the link */
+  .metric-strip{display:grid; gap:16px;}
+  .metric-strip--3{grid-template-columns:repeat(3,minmax(0,1fr)); max-width:780px;}
+  .metric-strip--5{grid-template-columns:repeat(5,minmax(0,1fr));}
+  .metric{
+    display:block; background:var(--panel); border:1px solid var(--line);
+    border-radius:var(--radius); box-shadow:var(--shadow);
+    padding:16px 18px; text-decoration:none;
+  }
+  a.metric:hover{border-color:var(--charcoal);}
+  .metric__value{
+    display:block; font-size:28px; font-weight:600; line-height:1.15;
+    font-variant-numeric:tabular-nums;
+  }
+  .metric__label{
+    display:block; margin-top:4px; font-size:13px; color:var(--muted);
+  }
+
+  .icon{width:15px; height:15px; flex:none; stroke:currentColor; fill:none;
+    stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
+
+  /* Chips: tinted background + 1px border, never colour-only (text always present) */
+  .chip{
+    display:inline-flex; align-items:center; gap:5px; padding:2px 10px 3px;
+    border:1px solid var(--line); border-radius:999px;
+    font-size:13px; font-weight:500; background:var(--paper); color:var(--muted);
+    white-space:nowrap;
+  }
+  .chip--navy{border-color:var(--navy-line); background:var(--navy-tint); color:var(--navy-fg);}
+  .chip--amber{border-color:var(--amber-line); background:var(--amber-tint); color:var(--amber-fg);}
+  .chip--red{border-color:var(--ce-red); background:var(--ce-red-tint); color:var(--ce-red-dark);}
+
+  /* To do list */
+  .panel{
+    background:var(--panel); border:1px solid var(--line);
+    border-radius:var(--radius); box-shadow:var(--shadow);
+  }
+  .todo{max-width:780px;}
+  .todo a{
+    display:flex; align-items:center; gap:16px; min-height:40px; padding:8px 16px;
+    text-decoration:none; border-bottom:1px solid var(--line);
+  }
+  .todo a:last-child{border-bottom:none;}
+  .todo a:hover{background:var(--paper);}
+  .todo__main{flex:1; min-width:0;}
+  .todo__title{font-weight:600; font-size:15px;}
+  .todo__meta{font-size:13px; color:var(--muted);}
+  .todo__due{font-size:13px; color:var(--charcoal); white-space:nowrap;
+    font-variant-numeric:tabular-nums;}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar__inner">
+    <span class="brand">
+      <span class="brand__mark">COLLISION&nbsp;ENGINEERS</span>
+      <span class="brand__app">Pegasus</span>
+    </span>
+    <nav class="nav" aria-label="Primary">
+      <a href="#" class="is-active" aria-current="page">Dashboard</a>
+      <a href="#">Inbox</a>
+      <a href="#">Upload</a>
+      <a href="#">Queues</a>
+      <a href="#">Cases</a>
+      <a href="#">Administration</a>
+    </nav>
+    <div class="session">
+      <span class="session__user">alex</span>
+      <a href="#">Change password</a>
+      <a href="#">Sign out</a>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+  <div class="page-head">
+    <h1>Dashboard</h1>
+    <div class="freshness">
+      <span>Updated 4 Aug 2026 10:43</span>
+      <button type="button" aria-label="Refresh">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <section class="section" aria-labelledby="active-cases-title">
+    <h2 id="active-cases-title" class="section-label">Active cases</h2>
+    <div class="metric-strip metric-strip--3">
+      <a class="metric" href="#">
+        <span class="metric__value">3</span>
+        <span class="metric__label">Not ready</span>
+      </a>
+      <a class="metric" href="#">
+        <span class="metric__value">1</span>
+        <span class="metric__label">Review</span>
+      </a>
+      <a class="metric" href="#">
+        <span class="metric__value">0</span>
+        <span class="metric__label">Held</span>
+      </a>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="email-activity-title">
+    <h2 id="email-activity-title" class="section-label">E-mail activity</h2>
+    <div class="metric-strip metric-strip--3">
+      <a class="metric" href="#">
+        <span class="metric__value">5</span>
+        <span class="metric__label">Received today</span>
+      </a>
+      <a class="metric" href="#">
+        <span class="metric__value">2</span>
+        <span class="metric__label">Queries outstanding</span>
+      </a>
+      <a class="metric" href="#">
+        <span class="metric__value">1</span>
+        <span class="metric__label">Needs sorting</span>
+      </a>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="time-title">
+    <h2 id="time-title" class="section-label">Today and this week</h2>
+    <div class="metric-strip metric-strip--5">
+      <a class="metric" href="#">
+        <span class="metric__value">2</span>
+        <span class="metric__label">New cases today</span>
+      </a>
+      <a class="metric" href="#">
+        <span class="metric__value">1</span>
+        <span class="metric__label">Sent to Engineer today</span>
+      </a>
+      <a class="metric" href="#">
+        <span class="metric__value">4</span>
+        <span class="metric__label">Sent to Engineer this week</span>
+      </a>
+      <a class="metric" href="#">
+        <span class="metric__value">0</span>
+        <span class="metric__label">Reports sent today</span>
+      </a>
+      <a class="metric" href="#">
+        <span class="metric__value">3</span>
+        <span class="metric__label">Reports sent this week</span>
+      </a>
+    </div>
+  </section>
+
+  <!-- Rendered for Engineer accounts only; absent (not disabled) for other roles. -->
+  <section class="section" aria-labelledby="todo-title">
+    <h2 id="todo-title" class="section-label">To do</h2>
+    <div class="panel todo">
+      <a href="#">
+        <span class="chip chip--navy">Report</span>
+        <span class="todo__main">
+          <span class="todo__title">Case 26001 · AB12 CDE</span>
+          <span class="todo__meta">Principal A · Sample Claimant</span>
+        </span>
+        <span class="todo__due">Due 5 Aug</span>
+      </a>
+      <a href="#">
+        <span class="chip chip--navy">Report</span>
+        <span class="todo__main">
+          <span class="todo__title">Case 26004 · EF56 GHJ</span>
+          <span class="todo__meta">Principal B · Sample Claimant</span>
+        </span>
+        <span class="todo__due">Due 7 Aug</span>
+      </a>
+      <a href="#">
+        <span class="chip chip--amber">Query</span>
+        <span class="todo__main">
+          <span class="todo__title">Case 26002 · CD34 EFG</span>
+          <span class="todo__meta">Principal A · Sample Claimant</span>
+        </span>
+        <span class="todo__due">Received 4 Aug 09:12</span>
+      </a>
+    </div>
+  </section>
+</main>
+
+</body>
+</html>

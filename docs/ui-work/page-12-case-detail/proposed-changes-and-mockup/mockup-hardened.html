@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Case 26001 — Pegasus (hardened mockup)</title>
+<style>
+  :root{
+    --ce-red:#DB0816; --ce-red-dark:#8F1422; --ink:#16191D; --charcoal:#2C2A27;
+    --paper:#F5F4F2; --panel:#FFFFFF; --line:#E6E4E1; --muted:#6B6B6B;
+    --green:#16833B;
+    --amber-fg:#7A3E00; --amber-bg:#FFF4D6; --amber-line:#A15C00;
+    --navy-fg:#143A5E; --navy-bg:#EAF1F8; --navy-line:#365F87;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);
+    font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  a{color:inherit}
+  :focus-visible{outline:3px solid rgba(219,8,22,.38);outline-offset:1px}
+
+  .topbar{background:var(--panel);border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:24px;padding:0 24px;height:56px}
+  .brand{display:flex;align-items:center;gap:12px;white-space:nowrap}
+  .brand .mark{color:var(--ce-red);font-weight:700;font-size:12px;letter-spacing:.08em}
+  .brand .app{font-weight:700;border-left:1px solid var(--line);padding-left:12px}
+  nav.primary{display:flex;gap:4px;margin-left:16px}
+  nav.primary a{text-decoration:none;font-size:14px;color:var(--charcoal);
+    padding:18px 12px 15px;border-bottom:3px solid transparent}
+  nav.primary a[aria-current="page"]{color:var(--ce-red);border-bottom-color:var(--ce-red);font-weight:600}
+  .session{margin-left:auto;display:flex;gap:16px;align-items:center;font-size:14px;color:var(--muted)}
+  .session a{color:var(--charcoal);text-decoration:none}
+
+  main{max-width:1120px;margin:0 auto;padding:24px}
+  .crumb{font-size:13px;color:var(--muted);margin-bottom:8px}
+  .crumb a{color:var(--muted)}
+  .casehead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+  h1{font-size:24px;font-weight:700}
+  .meta{font-size:14px;color:var(--muted)}
+  .casehead .right{margin-left:auto;display:flex;gap:8px}
+
+  .chip{display:inline-block;font-size:12.5px;font-weight:600;border-radius:2px;
+    padding:3px 10px;border:1px solid var(--line);background:var(--paper);color:var(--charcoal)}
+  .chip--review{background:var(--navy-bg);border-color:var(--navy-line);color:var(--navy-fg)}
+  .chip--ok{border-color:var(--green);color:var(--green);background:var(--panel)}
+
+  .sectionnav{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px;
+    position:sticky;top:0;background:var(--paper);z-index:2}
+  .sectionnav a{text-decoration:none;font-size:14px;color:var(--charcoal);
+    padding:10px 14px;border-bottom:3px solid transparent}
+  .sectionnav a[aria-current="true"]{color:var(--ce-red);border-bottom-color:var(--ce-red);font-weight:600}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:2px;padding:16px 20px;margin-bottom:16px}
+  .panel h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+    font-weight:600;margin-bottom:12px;display:flex;align-items:center}
+  .panel h2 .tail{margin-left:auto;font-weight:600;letter-spacing:0;text-transform:none;font-size:13px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .grid2 .panel{margin-bottom:0}
+  .gap{margin-bottom:16px}
+
+  dl.facts div{display:flex;gap:16px;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}
+  dl.facts div:last-child{border-bottom:0}
+  dl.facts dt{flex:0 0 140px;color:var(--muted)}
+  dl.facts dd{font-weight:600}
+
+  .datarow{display:flex;align-items:baseline;gap:16px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .datarow:last-child{border-bottom:0}
+  .datarow .f{flex:0 0 150px;color:var(--muted)}
+  .datarow .v{font-weight:600;min-width:160px}
+  .suggest{color:var(--charcoal);font-size:13.5px}
+  .suggest .src{color:var(--muted)}
+  .linkbtn{background:none;border:none;color:var(--ce-red);font:inherit;font-size:13.5px;
+    font-weight:600;cursor:pointer;text-decoration:underline;padding:0}
+
+  .btn{display:inline-block;border:1px solid var(--charcoal);border-radius:2px;background:var(--panel);
+    color:var(--charcoal);font:inherit;font-size:14px;font-weight:600;padding:7px 14px;
+    cursor:pointer;text-decoration:none}
+  .btn--primary{background:var(--ce-red);border-color:var(--ce-red);color:#fff}
+  .btn--primary:hover{background:var(--ce-red-dark)}
+
+  .actiongroups{display:grid;gap:12px}
+  .agroup{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .agroup .glabel{flex:0 0 90px;font-size:13px;color:var(--muted);font-weight:600}
+  .hint{font-size:13px;color:var(--muted);margin-top:10px}
+
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+    text-align:left;font-weight:600;padding:8px 12px;border-bottom:1px solid var(--line)}
+  td{padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+  tr:last-child td{border-bottom:0}
+  .num{text-align:right}
+  .toolrow{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+
+  .dialog-demo{border:1px dashed var(--muted);border-radius:2px;padding:16px;margin-top:16px;background:var(--paper)}
+  .dialog-demo .demolabel{font-size:12px;color:var(--muted);margin-bottom:8px}
+  .dialog{background:var(--panel);border:1px solid var(--charcoal);border-radius:2px;
+    max-width:460px;padding:20px;box-shadow:0 18px 60px rgba(22,25,29,.24)}
+  .dialog h3{font-size:16px;margin-bottom:12px}
+  .dialog label{display:block;font-size:14px;font-weight:600;margin:10px 0 4px}
+  .dialog select,.dialog input[type=text]{width:100%;border:1px solid var(--line);border-radius:2px;
+    padding:8px 10px;font:inherit;background:var(--panel)}
+  .dialog .consequence{font-size:13px;color:var(--muted);margin-top:10px}
+  .dialog .foot{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+
+  footer{max-width:1120px;margin:0 auto;padding:16px 24px;font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <span class="brand"><span class="mark">&#9679; COLLISION ENGINEERS</span><span class="app">Pegasus</span></span>
+  <nav class="primary" aria-label="Main">
+    <a href="#">Dashboard</a>
+    <a href="#">Inbox</a>
+    <a href="#">Upload</a>
+    <a href="#">Queues</a>
+    <a href="#" aria-current="page">Cases</a>
+    <a href="#">Administration</a>
+  </nav>
+  <span class="session">alex <a href="#">Change password</a> <a href="#">Sign out</a></span>
+</header>
+
+<main>
+  <p class="crumb"><a href="#">Cases</a> › 26001</p>
+  <div class="casehead">
+    <h1>Case 26001</h1>
+    <span class="chip chip--review">Review</span>
+    <span class="meta">Principal A · AB12 CDE · Sample Claimant</span>
+    <span class="right"><button class="btn" type="button">Edit</button></span>
+  </div>
+
+  <nav class="sectionnav" aria-label="Case sections">
+    <a href="#overview" aria-current="true">Overview</a>
+    <a href="#actions">Actions</a>
+    <a href="#documents">Documents (2)</a>
+    <a href="#history">History (3)</a>
+  </nav>
+
+  <div class="grid2 gap" id="overview">
+    <section class="panel" aria-labelledby="case-title">
+      <h2 id="case-title">Case</h2>
+      <dl class="facts">
+        <div><dt>Reference</dt><dd>26001</dd></div>
+        <div><dt>Case type</dt><dd>Inspection</dd></div>
+        <div><dt>Principal</dt><dd>Principal A</dd></div>
+        <div><dt>Engineer</dt><dd>Unassigned</dd></div>
+      </dl>
+    </section>
+    <section class="panel" aria-labelledby="instr-title">
+      <h2 id="instr-title">Instruction</h2>
+      <dl class="facts">
+        <div><dt>Received</dt><dd>4 Aug 2026 16:30</dd></div>
+        <div><dt>Instruction date</dt><dd>4 Aug 2026</dd></div>
+        <div><dt>Origin</dt><dd>Manual upload</dd></div>
+        <div><dt>Claim number</dt><dd>Not recorded</dd></div>
+      </dl>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="data-title">
+    <h2 id="data-title">Case data <span class="tail"><a href="#" style="color:var(--charcoal)">Show all 18 fields</a></span></h2>
+    <div class="datarow">
+      <span class="f">Registration</span>
+      <span class="v">AB12 CDE</span>
+      <span class="chip chip--ok">Confirmed</span>
+    </div>
+    <div class="datarow">
+      <span class="f">Incident date</span>
+      <span class="v">Not recorded</span>
+      <span class="suggest">Suggested: <strong>27 Feb 2025</strong> <span class="src">— from the instruction PDF</span></span>
+      <button class="linkbtn" type="button">Accept</button>
+    </div>
+    <div class="datarow">
+      <span class="f">Inspection mode</span>
+      <span class="v">Image-based assessment</span>
+      <span class="chip chip--ok">Confirmed</span>
+    </div>
+    <div class="datarow">
+      <span class="f">Instruction date</span>
+      <span class="v">4 Aug 2026</span>
+      <span class="suggest src">Suggested from the receipt date</span>
+    </div>
+  </section>
+
+  <section class="panel" id="actions" aria-labelledby="actions-title">
+    <h2 id="actions-title">Actions</h2>
+    <div class="actiongroups">
+      <div class="agroup">
+        <span class="glabel">Progress</span>
+        <button class="btn" type="button">Send to report preparation</button>
+        <button class="btn" type="button">Assign engineer</button>
+      </div>
+      <div class="agroup">
+        <span class="glabel">Hold</span>
+        <button class="btn" type="button">Hold case</button>
+      </div>
+      <div class="agroup">
+        <span class="glabel">Closure</span>
+        <button class="btn" type="button">Close case</button>
+        <button class="btn" type="button">Create linked replacement</button>
+        <button class="btn" type="button">More &#9662;</button>
+      </div>
+    </div>
+    <p class="hint">Each action asks for a reason before it is recorded. Only actions available at the Review stage are shown.</p>
+
+    <div class="dialog-demo">
+      <p class="demolabel">Example dialog — shown when "Close case" is chosen (page dims behind it):</p>
+      <div class="dialog" role="dialog" aria-labelledby="close-title" aria-modal="true">
+        <h3 id="close-title">Close case</h3>
+        <label for="outcome">Outcome</label>
+        <select id="outcome">
+          <option>Post-report complete</option>
+          <option>Provider cancelled</option>
+          <option>Collision Engineers rejected</option>
+        </select>
+        <label for="close-reason">Reason</label>
+        <input id="close-reason" type="text">
+        <p class="consequence">Closing ends work on this case. It can be reopened with a reason.</p>
+        <div class="foot">
+          <button class="btn" type="button">Cancel</button>
+          <button class="btn btn--primary" type="button">Close case</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="documents" aria-labelledby="docs-title">
+    <h2 id="docs-title">Documents</h2>
+    <table>
+      <thead><tr><th></th><th>File</th><th>Type</th><th>Custody</th><th class="num">Size</th><th>Added</th><th></th></tr></thead>
+      <tbody>
+        <tr>
+          <td><input type="checkbox" aria-label="Select photos-front.jpg"></td>
+          <td><a href="#">photos-front.jpg</a></td><td>Vehicle image</td>
+          <td><span class="chip chip--ok">Confirmed</span></td>
+          <td class="num">2.4 MB</td><td>4 Aug 2026</td>
+          <td><button class="btn" type="button" aria-label="Row actions">&#8942;</button></td>
+        </tr>
+        <tr>
+          <td><input type="checkbox" aria-label="Select instruction.pdf"></td>
+          <td><a href="#">instruction.pdf</a></td><td>Instruction</td>
+          <td><span class="chip chip--ok">Confirmed</span></td>
+          <td class="num">1.1 MB</td><td>4 Aug 2026</td>
+          <td><button class="btn" type="button" aria-label="Row actions">&#8942;</button></td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="toolrow">
+      <button class="btn" type="button">Export selected</button>
+      <button class="btn" type="button">Add document</button>
+    </div>
+  </section>
+
+  <section class="panel" id="history" aria-labelledby="hist-title">
+    <h2 id="hist-title">History</h2>
+    <table>
+      <thead><tr><th>Event</th><th>Actor</th><th>When</th><th>Reason</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Sent to Review</strong></td><td>alex</td><td>4 Aug 2026 16:41</td><td>Instruction reviewed</td></tr>
+        <tr><td><strong>Case data saved</strong></td><td>alex</td><td>4 Aug 2026 16:38</td><td>Confirmed inspection details</td></tr>
+        <tr><td><strong>Case created</strong></td><td><span class="chip chip--review">Automation</span></td><td>4 Aug 2026 16:30</td><td>Received instruction</td></tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+
+<footer>Pegasus · Collision Engineers case management</footer>
+</body>
+</html>
