@@ -41,6 +41,19 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 - Assemble the operator-reviewed extraction cohort + untouched holdout and
   accept the per-field thresholds (INT-21, open-decisions) — blocks Path
   step 3.
+- Operator decision: all nine production Worker functions carry
+  `AzureWebJobs.<name>.Disabled = true` and the Worker has recorded no
+  executions since 2026-08-03 01:00 — apparently stilled deliberately
+  (most plausibly during the live vault-consolidation work); decide when to
+  re-enable mailbox polling and queue processing. The release-4 deploy
+  (2026-08-04) preserved the flags untouched (release-4 live checks,
+  2026-08-04).
+- Decide the production-CSP strategy for the inline `<script>` blocks
+  (`_FreshnessBanner` refresh feedback, `_ReasonDialog` focus trap, the
+  unrouted Assessment artifacts): external script files versus CSP hashes.
+  They are silently discarded by the deployed `default-src 'self'` policy
+  today — progressive enhancement only, nothing functional breaks
+  (release-4 live checks, 2026-08-04).
 - Before the next production deploy, verify the ADR-0020 premise that no
   environment holds an accepted case (CaseMatchIndex ships empty with no
   backfill); if any accepted QDOS case exists, add a one-shot reprojection
