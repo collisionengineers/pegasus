@@ -33,10 +33,10 @@ acceptance remain separate states.
 | --- | ---: | --- |
 | Now | 131 | Current proof and QDOS-alpha outcome; activate issues only for selected work. |
 | Next | 29 | Post-alpha provider, pairing, provider-location, email, and API outcomes after named dependencies. |
-| Later | 40 | Retained outcomes requiring promotion conditions, contracts, callers, or direct decisions. |
+| Later | 41 | Retained outcomes requiring promotion conditions, contracts, callers, or direct decisions. |
 | Not planned | 29 | Permanent product boundaries; no implementation issue or placeholder. |
 
-Total: **229 capabilities; 229 unique IDs**.
+Total: **230 capabilities; 230 unique IDs**.
 
 | Target release | Planned capabilities |
 | --- | ---: |
@@ -50,7 +50,7 @@ Total: **229 capabilities; 229 unique IDs**.
 | `1.0.0` | 13 |
 | `1.1.0` | 6 |
 | `1.2.0` | 5 |
-| `1.3.0` | 2 |
+| `1.3.0` | 3 |
 | `1.4.0` | 3 |
 | `unallocated` | 29 permanent boundaries |
 
@@ -268,6 +268,7 @@ callers.
 | RPT-05 | Addenda render from accepted case data plus a versioned amendment without retyping the case | Later | 1.1.0 | [Report correction, finality, and post-report work](requirements.md#report-correction-finality-and-post-report-work) | Allocation only; amendment identity, approval, and recovery remain required. |
 | AI-08 | Intended Microsoft Foundry candidate proposes a case-grounded query response in approved house style/letterhead; a named Engineer reviews, amends if needed, and approves it before sending | Later | 1.3.0 | [Targeted sending and reviewed AI proposals](requirements.md#targeted-sending-and-reviewed-ai-proposals) | Allocation only; Foundry remains subject to evaluation, and the proposal cannot mutate accepted case truth or send autonomously. |
 | AI-09 | Staff `Send to AI` creates one durable idempotent capability-scoped work request bound to an immutable case/version stamp; the hand-off carries a pointer only, and the scoped worker returns its work as attributed unconfirmed Automation Actor writes reviewed at manual engineer assignment, with delivery status and visible failure on the tracking record | Now | 0.1.0-alpha.1 | [Targeted sending and reviewed AI proposals](requirements.md#targeted-sending-and-reviewed-ai-proposals) | Implemented behind `Features:SendToAi` (DevelopmentOffline evidence runs only; ADR-0021 rewords the contract from proposal-only worker to direct-writing worker): duplicate, expired, or cancelled requests never mutate accepted data, findings stay staff-Engineer-confirmable only, the channels transport is a research preview that carries local evidence runs only, and production activation needs a separate non-preview transport decision. |
+| MCP-07 | Administration-configurable Send to AI channel connector setup: base URL, token entry/rotation, and timeout configured from Administration, with connector health/status display, replacing the current configuration/user-secrets-only setup | Later | 1.3.0 | [Targeted sending and reviewed AI proposals](requirements.md#targeted-sending-and-reviewed-ai-proposals) | Conditionally allocated; today `SendToAi:ChannelBaseUrl`/`ChannelToken`/`TimeoutSeconds` are `Pegasus.Web` configuration/user-secrets only (ADR-0021) — moving token entry into Administration needs its own secret-custody, audit, and rotation contract, a direct decision on exact fields, and the normal activation evidence before implementation. |
 | MI-01 | Per-Engineer throughput, query rate/types, and Audit uplift | Later | 1.2.0 | [Requirements](requirements.md#vehicle-and-engineering-evidence) | Allocation only; coaching access and measures require accepted definitions. |
 | MI-02 | Per-principal report counts, types, and periods feeding invoice generation | Later | 1.2.0 | [Requirements](requirements.md#vehicle-and-engineering-evidence) | Allocation only; consumes accepted report events and fee rules. |
 | MI-03 | Holding-pen age and instruction-to-images, ready-to-sent, and overall turnaround measures consuming accepted workflow events | Later | 1.2.0 | [Requirements](requirements.md#vehicle-and-engineering-evidence) | Allocation only; MAIL-17 owns report-send/completion event recording; measure definitions and visibility require acceptance. |
