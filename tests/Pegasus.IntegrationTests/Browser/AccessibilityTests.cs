@@ -38,7 +38,7 @@ public sealed class AccessibilityTests
 
     [Theory]
     [MemberData(nameof(AuthenticatedRoutes))]
-    public async Task RealAuthenticatedRouteHasNoAutomatedAxeViolations(string route)
+    public async Task RealAuthenticatedRouteHasNoAxeViolationsAndNoInlineStyleAttribute(string route)
     {
         await using var support = await BrowserTestSupport.StartAsync();
 
@@ -48,6 +48,29 @@ public sealed class AccessibilityTests
         Assert.Empty(await support.FindAccessibilityViolationIdsAsync());
         Assert.Equal(1, await support.Page.Locator("main").CountAsync());
         Assert.Equal(1, await support.Page.Locator("h1").CountAsync());
+
+        // The production CSP (default-src 'self', no style-src) discards
+        // inline style attributes, so any styling delivered through one works
+        // locally and silently vanishes on the deployed site — that is how
+        // the sprite's inline display:none shipped a ~1,900px blank band on
+        // every page. The invariant is mechanical: server markup never
+        // carries a style attribute; everything styles through site.css.
+        // The one allowed [style] carrier is the validation-summary tag
+        // helper's valid-state <li> placeholder — framework output we cannot
+        // author away; site.css hides its .validation-summary-valid parent so
+        // the discarded inline style has nothing left to break. Error-state
+        // summaries carry no such placeholder, so they stay covered.
+        var inlineStyled = await support.Page.EvaluateAsync<string[]>(
+            "Array.from(document.querySelectorAll('[style]'))" +
+            ".filter(element => !(element.tagName === 'LI' && element.closest('[data-valmsg-summary].validation-summary-valid')))" +
+            ".map(element => element.tagName + '.' + element.getAttribute('class'))");
+        Assert.Empty(inlineStyled);
+        Assert.Equal(
+            "none",
+            await support.Page.EvaluateAsync<string>(
+                "getComputedStyle(document.querySelector('svg.sprite-sheet')).display"));
+        Assert.True(await support.Page.EvaluateAsync<bool>(
+            "document.querySelector('.app-nav').getBoundingClientRect().top < 10"));
     }
 
     [Fact]
@@ -107,37 +130,6 @@ public sealed class AccessibilityTests
                 Assert.Matches(@"\d", text);
             }
         }
-    }
-
-    [Theory]
-    [MemberData(nameof(AuthenticatedRoutes))]
-    public async Task ServerRenderedMarkupCarriesNoInlineStyleAttribute(string route)
-    {
-        // The production CSP (default-src 'self', no style-src) discards
-        // inline style attributes, so any styling delivered through one works
-        // locally and silently vanishes on the deployed site — that is how
-        // the sprite's inline display:none shipped a ~1,900px blank band on
-        // every page. The invariant is mechanical: server markup never
-        // carries a style attribute; everything styles through site.css.
-        await using var support = await BrowserTestSupport.StartAsync();
-
-        await support.GoToAsync(route);
-
-        // The one allowed [style] carrier is the validation-summary tag
-        // helper's valid-state <li> placeholder — framework output we cannot
-        // author away; site.css hides its .validation-summary-valid parent so
-        // the discarded inline style has nothing left to break.
-        var inlineStyled = await support.Page.EvaluateAsync<string[]>(
-            "Array.from(document.querySelectorAll('[style]'))" +
-            ".filter(element => !(element.tagName === 'LI' && element.closest('[data-valmsg-summary]')))" +
-            ".map(element => element.tagName + '.' + element.getAttribute('class'))");
-        Assert.Empty(inlineStyled);
-        Assert.Equal(
-            "none",
-            await support.Page.EvaluateAsync<string>(
-                "getComputedStyle(document.querySelector('svg.sprite-sheet')).display"));
-        Assert.True(await support.Page.EvaluateAsync<bool>(
-            "document.querySelector('.app-nav').getBoundingClientRect().top < 10"));
     }
 
     private static Task<bool> HasHorizontalOverflowAsync(IPage page) =>
