@@ -32,17 +32,18 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   repo. Everything composition-gated DevelopmentOffline-only; estimate
   derivation stays D2-gated; no activation or tier-5 claim (branch
   task/send-to-ai-round-trip, taken 2026-08-03, by claude).
-- UI implementation programme, shell and design system: implement the
-  refreshed presentation system in `site.css` (tokens, application density,
-  the record container, tabs, provenance icons), the new navigation in
-  `_Layout` (Dashboard · Inbox · Upload · Queues · Cases · Administration),
-  an anonymous layout so the external upload and sign-in screens stop
-  showing staff navigation (defect M9b), styled status-code pages so an
-  unknown record or a dead upload link is never a raw browser 404 (M4, M9c),
-  the operator-label maps that keep enum names out of markup (M5), and the
-  five shell screens: sign-in (M9d), change password (M9e), sign-out (M10),
-  access denied, error (branch task/ui-shell-and-design-system, taken
-  2026-08-04, by claude).
+- UI implementation programme, Dashboard (pages 1 and 7): the Core
+  case-lifecycle and day/week count queries that do not exist today, so that
+  Not ready, Held, New cases today, Sent to Engineer and Reports sent render
+  real numbers instead of the literal string "Unavailable" (defect B3); the
+  Review tile rebacked onto a case-stage count rather than an intake-receipt
+  count that never decrements (M1); the three-section rebuild (Active cases ·
+  E-mail activity · Today and this week); removal of the staged-artifact
+  panel, which printed storage keys and byte counts at an operator with
+  nothing to act on (M8); the two "Unavailable" workspace cards that were the
+  only way into two working screens (M2); and the Upload links / External
+  work drill-down (page 7) (branch task/ui-dashboard, taken 2026-08-05, by
+  claude).
 - CASE-27 edit-lease continuity and conflict recovery for both callers
   (MCP-02/MCP-04): close the gaps between
   `docs/requirements.md` "Case edit authority and recovery" and shipped
