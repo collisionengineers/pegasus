@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Queues · Pegasus — refreshed mockup</title>
+<!--
+  Refreshed system — divergences from design/README.md (per ui-standards-and-review.md §5.2):
+  1. Type scale 22/17/15/13px with 600-weight headings; tabular numerals for counts/times.
+  2. Surface model: paper #F7F6F4; cards #FFFFFF at 6px radius with 1px hairline plus
+     shadow 0 1px 2px rgb(22 25 29 / 5%) — replaces the flat 2px hairline-only card.
+  3. State colour roles unchanged, but chips gain a ~10% tinted background with 1px border.
+  4. Density: 4px base rhythm with 8/12/16 steps; 32px table rows.
+  5. Tabs carry pill counts; active tab uses the red underline with tinted count pill.
+  6. Top navigation retained (left rail not taken).
+  Pre-engineer-assignment case queues; Review tab active with one-click Confirm.
+  Content is schematic placeholder data only.
+-->
+<style>
+  :root{
+    --ce-red:#DB0816; --ce-red-dark:#8F1422; --ce-red-tint:rgba(219,8,22,.08);
+    --charcoal:#2C2A27; --ink:#16191D; --paper:#F7F6F4; --panel:#FFFFFF;
+    --line:#E6E4E1; --muted:#6B6B6B;
+    --amber-fg:#7A3E00; --amber-tint:rgba(161,92,0,.10); --amber-line:#A15C00;
+    --navy-fg:#143A5E; --navy-tint:rgba(54,95,135,.10); --navy-line:#365F87;
+    --green:#16833B;
+    --radius:6px; --shadow:0 1px 2px rgba(22,25,29,.05);
+    --focus:3px solid rgba(219,8,22,.38);
+  }
+  *,*::before,*::after{box-sizing:border-box;}
+  html{font-size:16px;}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+    font-size:14px; line-height:1.5;
+  }
+  a{color:inherit;}
+  a:focus-visible,button:focus-visible{outline:var(--focus); outline-offset:2px;}
+
+  .topbar{background:var(--panel); border-bottom:1px solid var(--line);}
+  .topbar__inner{
+    max-width:1240px; margin:0 auto; padding:0 20px;
+    display:flex; align-items:center; gap:20px; height:48px;
+  }
+  .brand{display:flex; align-items:baseline; gap:12px; white-space:nowrap;}
+  .brand__mark{color:var(--ce-red); font-weight:700; font-size:11px; letter-spacing:.14em;}
+  .brand__app{font-weight:600; font-size:15px;}
+  .nav{display:flex; gap:8px; margin-left:auto;}
+  .nav a{
+    display:block; padding:8px 12px; text-decoration:none; font-size:13px; font-weight:500;
+    color:var(--charcoal); border-radius:var(--radius);
+  }
+  .nav a:hover{background:var(--paper);}
+  .nav a.is-active{color:var(--ce-red); font-weight:600; background:var(--ce-red-tint);}
+  .session{display:flex; align-items:center; gap:16px; font-size:13px;}
+  .session__user{color:var(--muted);}
+  .session a{text-decoration:none; color:var(--charcoal);}
+  .session a:hover{text-decoration:underline;}
+
+  .page{max-width:1240px; margin:0 auto; padding:16px 24px 32px;}
+  h1{font-size:20px; font-weight:600; margin:0 0 20px;}
+
+  /* Tabs */
+  .tabs{display:flex; gap:4px; border-bottom:1px solid var(--line); margin-bottom:20px;}
+  .tabs a{
+    display:inline-flex; align-items:center; gap:8px; padding:10px 16px 9px;
+    text-decoration:none; font-size:14px; font-weight:500; color:var(--charcoal);
+    border-bottom:2px solid transparent; margin-bottom:-1px;
+  }
+  .tabs a:hover{color:var(--ink);}
+  .tabs a.is-active{color:var(--ce-red); font-weight:600; border-bottom-color:var(--ce-red);}
+  .tabs .count{
+    font-size:13px; font-variant-numeric:tabular-nums; color:var(--muted);
+    background:var(--panel); border:1px solid var(--line); border-radius:999px;
+    padding:0 8px; line-height:1.5;
+  }
+  .tabs a.is-active .count{color:var(--ce-red-dark); border-color:var(--ce-red);
+    background:var(--ce-red-tint);}
+
+  /* Table */
+  .panel{
+    background:var(--panel); border:1px solid var(--line);
+    border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden;
+  }
+  table{width:100%; border-collapse:collapse;}
+  th{
+    text-align:left; font-size:13px; font-weight:600; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--muted); padding:10px 16px;
+    border-bottom:1px solid var(--line);
+  }
+  td{height:32px; padding:4px 16px; border-bottom:1px solid var(--line); vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:var(--paper);}
+  .cell-case a{font-weight:600; text-decoration:none;}
+  .cell-case a:hover{text-decoration:underline;}
+  .cell-time{white-space:nowrap; color:var(--muted); font-size:13px;
+    font-variant-numeric:tabular-nums;}
+  td.cell-action{text-align:right;}
+
+  .chip{
+    display:inline-flex; align-items:center; gap:5px; padding:2px 10px 3px;
+    border:1px solid var(--line); border-radius:999px;
+    font-size:13px; font-weight:500; background:var(--paper); color:var(--muted);
+    white-space:nowrap;
+  }
+  .chip--navy{border-color:var(--navy-line); background:var(--navy-tint); color:var(--navy-fg);}
+
+  .confirm-btn{
+    display:inline-block; background:var(--ce-red); color:#fff; border:1px solid var(--ce-red);
+    border-radius:var(--radius); padding:6px 20px; font-size:13px; font-weight:600;
+    cursor:pointer;
+  }
+  .confirm-btn:hover{background:var(--ce-red-dark); border-color:var(--ce-red-dark);}
+  .row-hint{font-size:13px; color:var(--muted); margin:10px 2px 0;}
+
+  /* Designed empty state demo */
+  .state-caption{
+    font-size:13px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--muted); margin:20px 0 8px;
+  }
+  .empty-state{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    box-shadow:var(--shadow); padding:24px 20px; text-align:center; color:var(--muted);
+  }
+  .visually-hidden{
+    position:absolute; width:1px; height:1px; margin:-1px; padding:0;
+    overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar__inner">
+    <span class="brand">
+      <span class="brand__mark">COLLISION&nbsp;ENGINEERS</span>
+      <span class="brand__app">Pegasus</span>
+    </span>
+    <nav class="nav" aria-label="Primary">
+      <a href="#">Dashboard</a>
+      <a href="#">Inbox</a>
+      <a href="#">Upload</a>
+      <a href="#" class="is-active" aria-current="page">Queues</a>
+      <a href="#">Cases</a>
+      <a href="#">Administration</a>
+    </nav>
+    <div class="session">
+      <span class="session__user">alex</span>
+      <a href="#">Change password</a>
+      <a href="#">Sign out</a>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+  <h1>Queues</h1>
+
+  <nav class="tabs" aria-label="Work queues">
+    <a href="#">Not ready <span class="count">3</span></a>
+    <a href="#" class="is-active" aria-current="page">Review <span class="count">1</span></a>
+    <a href="#">Held <span class="count">0</span></a>
+    <a href="#">Triage <span class="count">0</span></a>
+  </nav>
+
+  <div class="panel">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Case</th>
+          <th scope="col">Registration</th>
+          <th scope="col">Claimant</th>
+          <th scope="col">Principal</th>
+          <th scope="col">Received</th>
+          <th scope="col">Stage</th>
+          <th scope="col"><span class="visually-hidden">Action</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="cell-case"><a href="#">Case 26003</a></td>
+          <td>GH78 JKL</td>
+          <td>Sample Claimant</td>
+          <td>Principal A</td>
+          <td class="cell-time">02 Aug 2026 15:34</td>
+          <td><span class="chip chip--navy">Review</span></td>
+          <td class="cell-action"><button type="button" class="confirm-btn">Confirm</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="row-hint">Confirm passes the case to engineer assignment.</p>
+
+  <p class="state-caption">Designed empty state — Held tab</p>
+  <div class="empty-state">No cases are held.</div>
+
+  <p class="state-caption">Designed empty state — Triage tab (the shipped reality until defect B2 is fixed)</p>
+  <div class="empty-state">No triage work is open.</div>
+</main>
+
+</body>
+</html>

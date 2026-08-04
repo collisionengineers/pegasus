@@ -1,0 +1,146 @@
+<!doctype html>
+<!--
+  REFRESHED SYSTEM — divergences from the recorded design authority (design/README.md tokens),
+  per ui-standards-and-review.md §5.2:
+  1. Type scale 22/17/15/13px, 600-weight headings, tabular numerals for counts and dates.
+  2. Cards: 6px radius, 1px hairline plus soft shadow 0 1px 2px rgb(22 25 29 / 5%) (was 2px flat).
+  3. Paper #F7F6F4 (was #F5F4F2).
+  4. State chips gain a 10% tinted background with the 1px border; colour roles unchanged.
+  5. 4px base rhythm with 8/12/16 steps; table rows 32px.
+  6. Top navigation retained — the left-rail option is not taken.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vehicle images — Pegasus (refreshed mockup)</title>
+<style>
+  :root{
+    --ce-red:#DB0816; --ink:#16191D; --charcoal:#2C2A27;
+    --paper:#F7F6F4; --panel:#FFFFFF; --line:#E6E4E1; --muted:#6B6B6B;
+    --green:#16833B;
+    --amber-fg:#7A3E00; --amber-line:#A15C00;
+    --navy-fg:#143A5E; --navy-line:#365F87;
+    --shadow:0 1px 2px rgb(22 25 29 / 5%);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);
+    font:13.5px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  a{color:inherit}
+  :focus-visible{outline:3px solid rgba(219,8,22,.38);outline-offset:1px}
+
+  .topbar{background:var(--panel);border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:16px;padding:0 20px;height:48px}
+  .brand{display:flex;align-items:center;gap:12px;white-space:nowrap}
+  .brand .mark{color:var(--ce-red);font-weight:700;font-size:12px;letter-spacing:.08em}
+  .brand .app{font-weight:600;border-left:1px solid var(--line);padding-left:12px;font-size:14px}
+  nav.primary{display:flex;gap:8px;margin-left:8px}
+  nav.primary a{text-decoration:none;font-size:14px;color:var(--charcoal);
+    padding:6px 12px;border-radius:6px}
+  nav.primary a:hover{background:var(--paper)}
+  nav.primary a[aria-current="page"]{color:var(--ce-red);font-weight:600;
+    box-shadow:inset 0 -2px 0 var(--ce-red);border-radius:6px 6px 0 0}
+  .session{margin-left:auto;display:flex;gap:16px;font-size:13px;color:var(--muted)}
+  .session a{color:var(--charcoal);text-decoration:none}
+
+  main{max-width:1080px;margin:0 auto;padding:20px 24px}
+  .crumb{font-size:13px;color:var(--muted);margin-bottom:8px}
+  .crumb a{color:var(--muted)}
+  h1{font-size:20px;font-weight:600;margin-bottom:16px}
+
+  .toolrow{display:flex;flex-wrap:wrap;align-items:center;gap:16px;margin-bottom:16px}
+  .searchrow{display:flex;gap:8px;flex:0 1 480px}
+  .searchrow input{flex:1;border:1px solid var(--line);border-radius:6px;background:var(--panel);
+    padding:8px 12px;font:inherit;box-shadow:var(--shadow)}
+  .btn{border:1px solid var(--line);border-radius:6px;background:var(--panel);
+    color:var(--charcoal);font:inherit;font-size:14px;font-weight:600;padding:8px 16px;
+    cursor:pointer;box-shadow:var(--shadow)}
+  .btn:hover{border-color:var(--charcoal)}
+
+  .chips{display:flex;gap:8px;margin-bottom:16px}
+  .chip{display:inline-flex;align-items:center;gap:6px;text-decoration:none;font-size:13px;
+    border:1px solid var(--line);border-radius:999px;background:var(--panel);
+    color:var(--charcoal);padding:5px 14px}
+  .chip .n{font-weight:700;font-variant-numeric:tabular-nums}
+  .chip[aria-current="true"]{border-color:var(--charcoal);background:var(--charcoal);color:#fff;font-weight:600}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:var(--shadow);overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{font-size:13px;color:var(--muted);text-align:left;font-weight:600;
+    padding:0 16px;height:32px;border-bottom:1px solid var(--line)}
+  td{padding:0 16px;height:32px;border-bottom:1px solid var(--line);
+    font-variant-numeric:tabular-nums}
+  tr:last-child td{border-bottom:0}
+  tbody tr:hover{background:var(--paper);cursor:pointer}
+  td.ref{font-weight:600}
+
+  .state{display:inline-block;font-size:13px;font-weight:600;border-radius:999px;
+    padding:2px 10px;border:1px solid var(--line);background:rgb(22 25 29 / 4%);color:var(--charcoal)}
+  .state--pending{background:rgb(161 92 0 / 10%);border-color:var(--amber-line);color:var(--amber-fg)}
+
+  footer{max-width:1080px;margin:0 auto;padding:16px 24px 32px;font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <span class="brand"><span class="mark">&#9679; COLLISION ENGINEERS</span><span class="app">Pegasus</span></span>
+  <nav class="primary" aria-label="Main">
+    <a href="#">Dashboard</a>
+    <a href="#" aria-current="page">Inbox</a>
+    <a href="#">Upload</a>
+    <a href="#">Queues</a>
+    <a href="#">Cases</a>
+    <a href="#">Administration</a>
+  </nav>
+  <span class="session">alex <a href="#">Change password</a> <a href="#">Sign out</a></span>
+</header>
+
+<main>
+  <p class="crumb"><a href="#">Inbox</a> › Vehicle images</p>
+  <h1>Vehicle images</h1>
+
+  <div class="toolrow">
+    <form class="searchrow" role="search">
+      <input type="search" aria-label="Registration or image reference" placeholder="Registration or image reference">
+      <button type="submit" class="btn">Search</button>
+    </form>
+  </div>
+
+  <nav class="chips" aria-label="Filter">
+    <a class="chip" href="#" aria-current="true">All <span class="n">3</span></a>
+    <a class="chip" href="#">Awaiting instruction <span class="n">2</span></a>
+    <a class="chip" href="#">Linked to a case <span class="n">1</span></a>
+  </nav>
+
+  <section class="card" aria-label="Vehicle images">
+    <table>
+      <thead>
+        <tr><th>Image reference</th><th>Registration</th><th>Received (newest first)</th><th>State</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="ref"><a href="#" style="text-decoration:none">AB12CDE-01</a></td>
+          <td>AB12 CDE</td>
+          <td>4 Aug 2026</td>
+          <td><span class="state state--pending">Awaiting instruction</span></td>
+        </tr>
+        <tr>
+          <td class="ref"><a href="#" style="text-decoration:none">AB12CDE-02</a></td>
+          <td>AB12 CDE</td>
+          <td>4 Aug 2026</td>
+          <td><span class="state state--pending">Awaiting instruction</span></td>
+        </tr>
+        <tr>
+          <td class="ref"><a href="#" style="text-decoration:none">CD34EFG-01</a></td>
+          <td>CD34 EFG</td>
+          <td>3 Aug 2026</td>
+          <td><span class="state">Linked to Case 26001</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+
+<footer>Pegasus · Collision Engineers case management</footer>
+</body>
+</html>

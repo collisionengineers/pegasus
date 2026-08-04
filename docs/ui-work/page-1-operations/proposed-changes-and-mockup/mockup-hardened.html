@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard · Pegasus — hardened mockup</title>
+<!-- Hardened system: current tokens from src/Pegasus.Web/wwwroot/css/site.css, unchanged.
+     Content and structure only differ from the shipped page. Schematic placeholder data. -->
+<style>
+  :root{
+    --ce-red:#DB0816; --ce-red-dark:#8F1422; --ce-red-tint:rgba(219,8,22,.07);
+    --charcoal:#2C2A27; --ink:#16191D; --paper:#F5F4F2; --panel:#FFFFFF;
+    --line:#E6E4E1; --muted:#6B6B6B;
+    --amber-fg:#7A3E00; --amber-bg:#FFF4D6; --amber-line:#A15C00;
+    --navy-fg:#143A5E; --navy-bg:#EAF1F8; --navy-line:#365F87;
+    --green:#16833B;
+    --radius:2px; --focus:3px solid rgba(219,8,22,.38);
+  }
+  *,*::before,*::after{box-sizing:border-box;}
+  html{font-size:16px;}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+    font-size:.9375rem; line-height:1.45;
+  }
+  a{color:inherit;}
+  a:focus-visible,button:focus-visible{outline:var(--focus); outline-offset:1px;}
+
+  /* Top bar */
+  .topbar{background:var(--panel); border-bottom:1px solid var(--line);}
+  .topbar__inner{
+    max-width:1240px; margin:0 auto; padding:0 20px;
+    display:flex; align-items:center; gap:16px; height:48px;
+  }
+  .brand{display:flex; align-items:baseline; gap:12px; white-space:nowrap;}
+  .brand__mark{
+    color:var(--ce-red); font-weight:700; font-size:.6875rem; letter-spacing:.14em;
+  }
+  .brand__app{font-weight:600; font-size:1rem; color:var(--ink);}
+  .nav{display:flex; gap:4px; margin-left:auto;}
+  .nav a{
+    display:block; padding:17px 12px 15px; text-decoration:none; font-size:.875rem;
+    color:var(--charcoal); border-bottom:2px solid transparent;
+  }
+  .nav a:hover{color:var(--ink);}
+  .nav a.is-active{color:var(--ce-red); font-weight:600; border-bottom-color:var(--ce-red);}
+  .session{display:flex; align-items:center; gap:16px; font-size:.875rem;}
+  .session__user{color:var(--muted);}
+  .session a{text-decoration:none; color:var(--charcoal);}
+  .session a:hover{text-decoration:underline;}
+
+  /* Page frame */
+  .page{max-width:1240px; margin:0 auto; padding:28px 24px 64px;}
+  .page-head{display:flex; align-items:flex-start; justify-content:space-between; gap:16px;}
+  h1{font-size:1.5rem; font-weight:600; margin:0 0 4px;}
+
+  /* Compact corner freshness element */
+  .freshness{
+    display:flex; align-items:center; gap:8px; font-size:.8125rem; color:var(--muted);
+    padding-top:8px; white-space:nowrap;
+  }
+  .freshness button{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:28px; height:28px; padding:0; background:var(--panel);
+    border:1px solid var(--line); border-radius:var(--radius); cursor:pointer; color:var(--charcoal);
+  }
+  .freshness button:hover{border-color:var(--charcoal);}
+
+  /* Sections */
+  .section{margin-top:28px;}
+  .section-label{
+    font-size:.75rem; font-weight:600; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--muted); margin:0 0 8px;
+  }
+
+  /* Metric tiles */
+  .metric-strip{display:grid; gap:12px;}
+  .metric-strip--3{grid-template-columns:repeat(3,minmax(0,1fr)); max-width:760px;}
+  .metric-strip--5{grid-template-columns:repeat(5,minmax(0,1fr));}
+  .metric{
+    display:block; background:var(--panel); border:1px solid var(--line);
+    border-radius:var(--radius); padding:14px 16px; text-decoration:none;
+  }
+  a.metric:hover{border-color:var(--charcoal);}
+  .metric__label{
+    display:flex; align-items:center; gap:6px;
+    font-size:.875rem; color:var(--charcoal);
+  }
+  .metric__value{
+    display:block; margin-top:4px; font-size:1.75rem; font-weight:700;
+    font-variant-numeric:tabular-nums; color:var(--ink);
+  }
+  .metric--failed{border-color:var(--ce-red);}
+
+  .icon{width:15px; height:15px; flex:none; stroke:currentColor; fill:none;
+    stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
+
+  /* Chips */
+  .chip{
+    display:inline-flex; align-items:center; gap:5px; padding:1px 8px 2px;
+    border:1px solid var(--line); border-radius:var(--radius);
+    font-size:.8125rem; background:var(--paper); color:var(--muted); white-space:nowrap;
+  }
+  .chip--navy{border-color:var(--navy-line); background:var(--navy-bg); color:var(--navy-fg);}
+  .chip--amber{border-color:var(--amber-line); background:var(--amber-bg); color:var(--amber-fg);}
+  .chip--red{border-color:var(--ce-red); background:var(--ce-red-tint); color:var(--ce-red-dark);}
+
+  /* To do list */
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);}
+  .todo{max-width:760px;}
+  .todo a{
+    display:flex; align-items:center; gap:12px; padding:11px 16px;
+    text-decoration:none; border-bottom:1px solid var(--line);
+  }
+  .todo a:last-child{border-bottom:none;}
+  .todo a:hover{background:var(--paper);}
+  .todo__main{flex:1; min-width:0;}
+  .todo__title{font-weight:600; font-size:.9375rem;}
+  .todo__meta{font-size:.8125rem; color:var(--muted); margin-top:1px;}
+  .todo__due{font-size:.8125rem; color:var(--charcoal); white-space:nowrap;}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar__inner">
+    <span class="brand">
+      <span class="brand__mark">COLLISION&nbsp;ENGINEERS</span>
+      <span class="brand__app">Pegasus</span>
+    </span>
+    <nav class="nav" aria-label="Primary">
+      <a href="#" class="is-active" aria-current="page">Dashboard</a>
+      <a href="#">Inbox</a>
+      <a href="#">Upload</a>
+      <a href="#">Queues</a>
+      <a href="#">Cases</a>
+      <a href="#">Administration</a>
+    </nav>
+    <div class="session">
+      <span class="session__user">alex</span>
+      <a href="#">Change password</a>
+      <a href="#">Sign out</a>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+  <div class="page-head">
+    <h1>Dashboard</h1>
+    <div class="freshness">
+      <span>Updated 4 Aug 2026 10:43</span>
+      <button type="button" aria-label="Refresh">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <section class="section" aria-labelledby="active-cases-title">
+    <h2 id="active-cases-title" class="section-label">Active cases</h2>
+    <div class="metric-strip metric-strip--3">
+      <a class="metric" href="#">
+        <span class="metric__label">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12" y2="17"/></svg>
+          Not ready
+        </span>
+        <span class="metric__value">3</span>
+      </a>
+      <a class="metric" href="#">
+        <span class="metric__label">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><line x1="12" y1="8" x2="12" y2="8"/></svg>
+          Review
+        </span>
+        <span class="metric__value">1</span>
+      </a>
+      <a class="metric" href="#">
+        <span class="metric__label">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
+          Held
+        </span>
+        <span class="metric__value">0</span>
+      </a>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="email-activity-title">
+    <h2 id="email-activity-title" class="section-label">E-mail activity</h2>
+    <div class="metric-strip metric-strip--3">
+      <a class="metric" href="#">
+        <span class="metric__label">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="1.5"/><polyline points="3 7 12 13 21 7"/></svg>
+          Received today
+        </span>
+        <span class="metric__value">5</span>
+      </a>
+      <a class="metric" href="#">
+        <span class="metric__label">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.7 8.7 0 0 1-3.5-.7L3 21l1.8-4.3A8.4 8.4 0 1 1 21 11.5z"/></svg>
+          Queries outstanding
+        </span>
+        <span class="metric__value">2</span>
+      </a>
+      <a class="metric" href="#">
+        <span class="metric__label">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12" y2="17"/></svg>
+          Needs sorting
+        </span>
+        <span class="metric__value">1</span>
+      </a>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="time-title">
+    <h2 id="time-title" class="section-label">Today and this week</h2>
+    <div class="metric-strip metric-strip--5">
+      <a class="metric" href="#">
+        <span class="metric__label">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          New cases today
+        </span>
+        <span class="metric__value">2</span>
+      </a>
+      <a class="metric" href="#">
+        <span class="metric__label">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/></svg>
+          Sent to Engineer today
+        </span>
+        <span class="metric__value">1</span>
+      </a>
+      <a class="metric" href="#">
+        <span class="metric__label">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/></svg>
+          Sent to Engineer this week
+        </span>
+        <span class="metric__value">4</span>
+      </a>
+      <a class="metric" href="#">
+        <span class="metric__label">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 8 12 3 17 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Reports sent today
+        </span>
+        <span class="metric__value">0</span>
+      </a>
+      <a class="metric" href="#">
+        <span class="metric__label">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 8 12 3 17 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Reports sent this week
+        </span>
+        <span class="metric__value">3</span>
+      </a>
+    </div>
+  </section>
+
+  <!-- Rendered for Engineer accounts only; absent (not disabled) for other roles. -->
+  <section class="section" aria-labelledby="todo-title">
+    <h2 id="todo-title" class="section-label">To do</h2>
+    <div class="panel todo">
+      <a href="#">
+        <span class="chip chip--navy">Report</span>
+        <span class="todo__main">
+          <span class="todo__title">Case 26001 · AB12 CDE</span>
+          <span class="todo__meta">Principal A · Sample Claimant</span>
+        </span>
+        <span class="todo__due">Due 5 Aug</span>
+      </a>
+      <a href="#">
+        <span class="chip chip--navy">Report</span>
+        <span class="todo__main">
+          <span class="todo__title">Case 26004 · EF56 GHJ</span>
+          <span class="todo__meta">Principal B · Sample Claimant</span>
+        </span>
+        <span class="todo__due">Due 7 Aug</span>
+      </a>
+      <a href="#">
+        <span class="chip chip--amber">Query</span>
+        <span class="todo__main">
+          <span class="todo__title">Case 26002 · CD34 EFG</span>
+          <span class="todo__meta">Principal A · Sample Claimant</span>
+        </span>
+        <span class="todo__due">Received 4 Aug 09:12</span>
+      </a>
+    </div>
+  </section>
+</main>
+
+</body>
+</html>

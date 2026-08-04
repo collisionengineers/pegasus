@@ -9,7 +9,7 @@ public sealed class AccessibilityTests
     // Every authenticated route that renders without a seeded record id.
     // /Account/SignIn is absent on purpose: the DevelopmentOffline profile
     // authenticates automatically and redirects it, so it cannot return 200
-    // through this harness. It shares the auth-panel markup with
+    // through this harness. It shares the auth-card markup with
     // /Account/PasswordChange, which is covered here.
     public static TheoryData<string> AuthenticatedRoutes => new()
     {
@@ -33,7 +33,11 @@ public sealed class AccessibilityTests
         "/Administration/Automation",
         "/Administration/Automation/Activity",
         "/Account/PasswordChange",
-        "/Account/AccessDenied"
+        "/Account/AccessDenied",
+        // The designed answer to a status code. Before it existed, an unknown
+        // record URL and a dead public upload link both rendered the browser's
+        // own error page, which is on no design system at all.
+        "/status/404"
     };
 
     [Theory]
@@ -69,8 +73,20 @@ public sealed class AccessibilityTests
             "none",
             await support.Page.EvaluateAsync<string>(
                 "getComputedStyle(document.querySelector('svg.sprite-sheet')).display"));
+        // The blank-band guard. On an application screen the navigation is the
+        // first thing rendered and belongs at the very top; the auth/error
+        // family is deliberately navless and deliberately centres its card, so
+        // the same assertion there would be asserting the opposite of the
+        // design. What must hold on both is that nothing renders a tall empty
+        // band above the content, which the sprite assertion above already
+        // covers, plus: the content is inside the viewport without scrolling.
         Assert.True(await support.Page.EvaluateAsync<bool>(
-            "document.querySelector('.app-nav').getBoundingClientRect().top < 10"));
+            "(() => {"
+            + "  const nav = document.querySelector('.app-nav');"
+            + "  if (nav) { return nav.getBoundingClientRect().top < 10; }"
+            + "  const card = document.querySelector('.auth-card');"
+            + "  return card !== null && card.getBoundingClientRect().top < window.innerHeight;"
+            + "})()"));
     }
 
     [Fact]

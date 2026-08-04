@@ -25,11 +25,15 @@ public sealed class OperatorJourneyTests
             StringComparison.Ordinal);
 
         var navigation = await support.Page.Locator("nav[aria-label='Primary']").InnerTextAsync();
+        // The navigation speaks the business's language, not the pipeline's:
+        // "Intake" was internal vocabulary for what the office calls the Inbox,
+        // and "Triage" is a reserved business term that was being spent on a
+        // screen which is not about Triage-type work at all.
         AssertOrdered(
             navigation,
-            "Operations",
-            "Intake",
-            "Triage",
+            "Dashboard",
+            "Inbox",
+            "Queues",
             "Cases",
             "Administration",
             "Search",

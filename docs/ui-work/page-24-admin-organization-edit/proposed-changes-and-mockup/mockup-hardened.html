@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Hardened mockup: current design tokens (2px radius, hairlines, no shadows, paper #F5F4F2,
+     red reserved for the primary commitment and the active nav item); corrected content,
+     structure and density only. No version integer, no lede, no eyebrow, plain-language
+     pagination copy.
+     ONE CONTAINER PER RECORD (ui-standards §4 rule 13): header, action bar, tabs — replacing the
+     two stacked sections. Editing roles moves into a dialog off the bar, so the Roles tab shows
+     what is true rather than a permanently open form. Tabs are hidden radio inputs so the file
+     works by double-click with no script. -->
+<title>Organisation One — Pegasus (hardened mockup)</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font:14px/1.45 system-ui,-apple-system,"Segoe UI",Arial,sans-serif;color:#16191D;background:#F5F4F2}
+  a{color:#16191D}
+  a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid rgba(219,8,22,.38);outline-offset:1px}
+  .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .tabular{font-variant-numeric:tabular-nums}
+
+  .masthead{display:flex;align-items:center;gap:16px;padding:0 20px;height:48px;background:#FFFFFF;border-bottom:1px solid #E6E4E1}
+  .brand{display:flex;align-items:baseline;gap:12px;white-space:nowrap}
+  .brand .mark{color:#DB0816;font-weight:700;font-size:11px;letter-spacing:.16em}
+  .brand .app{font-weight:700;font-size:14px}
+  .nav{display:flex;gap:2px;margin-left:8px}
+  .nav a{text-decoration:none;font-size:14px;padding:15px 10px 12px;border-bottom:3px solid transparent}
+  .nav a[aria-current=page]{color:#DB0816;font-weight:600;border-bottom-color:#DB0816}
+  .account{display:flex;gap:12px;align-items:center;margin-left:auto;font-size:13px;color:#6B6B6B}
+  main{max-width:1080px;margin:0 auto;padding:12px 20px 24px}
+  .crumbs{font-size:12px;color:#6B6B6B;margin-bottom:8px}
+  .crumbs a{color:#6B6B6B}
+
+  .rec{background:#FFFFFF;border:1px solid #E6E4E1;border-radius:2px}
+  .rhead{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#F5F4F2;
+         border-bottom:1px solid #E6E4E1}
+  .rhead h1{font-size:19px;font-weight:700}
+  .rhead .idy{font-size:13px;color:#6B6B6B;padding-left:10px;border-left:1px solid #E6E4E1}
+  .rhead .right{margin-left:auto;display:flex;gap:6px}
+
+  .abar{display:flex;align-items:center;gap:6px;padding:8px 14px;background:#FFFFFF;
+        border-bottom:1px solid #E6E4E1;position:sticky;top:0;z-index:3}
+
+  .btn{display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:13px;font-weight:600;
+       border-radius:2px;cursor:pointer;padding:5px 10px;border:1px solid #2C2A27;background:#FFFFFF;
+       color:#2C2A27;text-decoration:none;white-space:nowrap}
+  .btn--primary{background:#DB0816;border-color:#DB0816;color:#fff}
+  .btn--primary:hover{background:#8F1422}
+  .btn--primary[disabled]{background:#FFFFFF;border-color:#CFCBC5;color:#9A9793;cursor:not-allowed}
+
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:2px 8px;
+        border:1px solid #E6E4E1;border-radius:2px;background:#F5F4F2;color:#2C2A27}
+  .chip svg{width:7px;height:7px}
+  .chip--navy{color:#143A5E;border-color:#365F87;background:#EAF1F8}
+  .chip--off{color:#6B6B6B}
+
+  .status-card{margin:12px 14px 0;border:1px solid #16833B;background:#FFFFFF;border-radius:2px;
+        padding:8px 12px;font-size:13px}
+
+  .tabinput{position:absolute;opacity:0;pointer-events:none}
+  .tabs{display:flex;gap:2px;padding:0 14px;border-bottom:1px solid #E6E4E1;background:#F5F4F2}
+  .tabs label{font-size:14px;font-weight:600;color:#2C2A27;padding:8px 12px;cursor:pointer;
+        border-bottom:3px solid transparent}
+  #t-ro:checked~.tabs label[for=t-ro],#t-pr:checked~.tabs label[for=t-pr]{color:#DB0816;border-bottom-color:#DB0816}
+  .tabpanel{display:none;padding:12px 14px 14px}
+  #t-ro:checked~#p-ro,#t-pr:checked~#p-pr{display:block}
+
+  .rolerow{display:flex;align-items:center;gap:12px;min-height:32px;padding:6px 0;border-bottom:1px solid #E6E4E1}
+  .rolerow:last-of-type{border-bottom:0}
+  .rolerow .name{font-weight:600;flex:0 0 220px}
+  .rolerow .lock{color:#6B6B6B;font-weight:400;font-size:13px}
+  .hint{font-size:13px;color:#6B6B6B}
+
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#6B6B6B;text-align:left;
+     font-weight:600;padding:4px 10px;border-bottom:1px solid #E6E4E1}
+  td{height:32px;padding:2px 10px;border-bottom:1px solid #E6E4E1;vertical-align:middle}
+  tbody tr:last-child td{border-bottom:0}
+  td:first-child,th:first-child{padding-left:0}
+  td:last-child,th:last-child{padding-right:0;text-align:right}
+  .num{text-align:right}
+  .code{font-weight:600}
+  .table-foot{display:flex;justify-content:space-between;align-items:center;margin-top:8px;
+        font-size:13px;color:#6B6B6B}
+  .pager{display:flex;gap:10px;align-items:center}
+
+  .demo{border:1px dashed #6B6B6B;border-radius:2px;padding:12px;margin-top:14px;background:#F5F4F2}
+  .demo .lbl{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#6B6B6B;font-weight:600;margin-bottom:8px}
+  .dialog{background:#FFFFFF;border:1px solid #2C2A27;border-radius:2px;max-width:460px;padding:16px;
+          box-shadow:0 18px 60px rgba(22,25,29,.24)}
+  .dialog h3{font-size:15px;margin-bottom:10px}
+  .choice{display:flex;gap:8px;align-items:flex-start;padding:6px 0}
+  .choice span{font-weight:600}
+  .field-label{display:block;font-size:13px;font-weight:600;margin:10px 0 4px}
+  .dialog textarea{width:100%;padding:6px 9px;border:1px solid #E6E4E1;border-radius:2px;font:inherit;background:#FFFFFF}
+  .counter-row{display:flex;justify-content:space-between;margin-top:6px;font-size:13px;color:#6B6B6B}
+  .req{color:#6B6B6B;font-weight:400}
+  .dialog .foot{display:flex;justify-content:flex-end;gap:6px;margin-top:14px}
+
+  footer{max-width:1080px;margin:0 auto;padding:12px 20px 24px;color:#6B6B6B;font-size:13px}
+</style>
+</head>
+<body>
+<header class="masthead">
+  <span class="brand"><span class="mark">COLLISION&nbsp;ENGINEERS</span><span class="app">Pegasus</span></span>
+  <nav class="nav" aria-label="Primary">
+    <a href="#">Dashboard</a><a href="#">Inbox</a><a href="#">Upload</a><a href="#">Queues</a>
+    <a href="#">Cases</a><a href="#" aria-current="page">Administration</a>
+  </nav>
+  <span class="account"><span>alex</span><a href="#">Change password</a><a href="#">Sign out</a></span>
+</header>
+
+<main>
+  <nav class="crumbs" aria-label="Breadcrumb">
+    <a href="#">Administration</a> / <a href="#">Organizations</a> / <span aria-current="page">Organisation One</span>
+  </nav>
+
+  <div class="rec">
+    <div class="rhead">
+      <h1>Organisation One</h1>
+      <span class="chip chip--navy"><svg viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="4"/></svg>Work Provider</span>
+      <span class="idy">3 principals &middot; 47 allocated cases</span>
+      <span class="right"><a class="btn" href="#">Back to Organizations</a></span>
+    </div>
+
+    <div class="abar">
+      <button class="btn" type="button">Edit roles</button>
+      <a class="btn" href="#">Create principal</a>
+      <button class="btn" type="button">More &#9662;</button>
+    </div>
+
+    <div class="status-card" role="status">The organization roles were updated.</div>
+
+    <input class="tabinput" type="radio" name="orgtab" id="t-ro" checked>
+    <input class="tabinput" type="radio" name="orgtab" id="t-pr">
+
+    <div class="tabs">
+      <label for="t-ro">Roles</label>
+      <label for="t-pr">Principals (3)</label>
+    </div>
+
+    <div class="tabpanel" id="p-ro">
+      <div class="rolerow">
+        <span class="name">Work Provider <span class="lock">&middot; locked</span></span>
+        <span class="hint">Cannot be removed while this organization has an active principal.</span>
+      </div>
+      <div class="rolerow">
+        <span class="name">Instruction Intermediary</span>
+        <span class="hint">Not held.</span>
+      </div>
+    </div>
+
+    <div class="tabpanel" id="p-pr">
+      <table>
+        <caption class="sr-only">Principals owned by this organization</caption>
+        <thead>
+          <tr>
+            <th scope="col">Code</th><th scope="col">Status</th><th scope="col">Inspection mode</th>
+            <th scope="col" class="num">Allocated cases</th><th scope="col">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="code">QDOS</td>
+            <td><span class="chip"><svg viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="4"/></svg>Active</span></td>
+            <td>Physical address</td><td class="num">12</td><td><a href="#">Replace</a></td>
+          </tr>
+          <tr>
+            <td class="code">QDOSB</td>
+            <td><span class="chip"><svg viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="4"/></svg>Active</span></td>
+            <td>Image Based Assessment</td><td class="num">4</td><td><a href="#">Replace</a></td>
+          </tr>
+          <tr>
+            <td class="code">QDOSA</td>
+            <td><span class="chip chip--off"><svg viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="4"/></svg>Disabled</span></td>
+            <td>Physical address</td><td class="num">31</td><td></td>
+          </tr>
+        </tbody>
+      </table>
+      <!-- Table footer renders only when the load is capped or more than one page exists. -->
+      <div class="table-foot">
+        <span>Showing the first 100 principals</span>
+        <span class="pager"><span class="tabular">Page 1</span><a href="#">Next</a></span>
+      </div>
+      <!-- Empty state, shown in place of the table:
+      <p class="hint">No principals yet. <a href="#">Create principal</a></p>
+      -->
+    </div>
+  </div>
+
+  <div class="demo">
+    <p class="lbl">Action dialog &mdash; shown when "Edit roles" is chosen</p>
+    <div class="dialog" role="dialog" aria-labelledby="r-title" aria-modal="true">
+      <h3 id="r-title">Edit organization roles</h3>
+      <label class="choice" for="role-wp">
+        <input id="role-wp" type="checkbox" checked disabled aria-describedby="role-wp-rule">
+        <span>Work Provider <span style="color:#6B6B6B;font-weight:400">&middot; locked</span></span>
+      </label>
+      <p class="hint" id="role-wp-rule">Work Provider cannot be removed while this organization has
+        an active principal.</p>
+      <label class="choice" for="role-ii">
+        <input id="role-ii" type="checkbox"><span>Instruction Intermediary</span>
+      </label>
+      <label class="field-label" for="reason">Reason for change <span class="req">(required)</span></label>
+      <textarea id="reason" rows="3"></textarea>
+      <div class="counter-row">
+        <span>Recorded against this change in the administration record.</span>
+        <span class="tabular">0/500 characters</span>
+      </div>
+      <div class="foot">
+        <button class="btn" type="button">Cancel</button>
+        <button class="btn btn--primary" type="submit" disabled>Update roles</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>Pegasus &middot; Collision Engineers case management</footer>
+</body>
+</html>

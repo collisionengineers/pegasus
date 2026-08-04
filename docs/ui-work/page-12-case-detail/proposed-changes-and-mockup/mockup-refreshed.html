@@ -1,0 +1,594 @@
+<!doctype html>
+<!--
+  REFRESHED SYSTEM — divergences from the recorded design authority (design/README.md tokens),
+  per ui-standards-and-review.md §5.2:
+  1. Type scale 20/15/13.5/12px with 600-weight headings; references, dates, sizes and counts
+     carry font-variant-numeric: tabular-nums.
+  2. The case is one container: a single card (8px radius, hairline, soft shadow) holding the
+     header band, the action bar and the tabs. Nothing floats loose on the page background.
+  3. NEW divergence — the container header is a dark band (#1B1E23) with light text, and a 3px
+     stage-coloured accent strip beneath it. This is the one place the system uses a filled dark
+     surface; it exists to make the screen read as a record being worked. Red remains reserved
+     for the primary commitment inside dialogs and the active nav item.
+  4. State chips keep their colour roles exactly (amber = pending, navy = Review, green =
+     confirmed completion only) and gain a ~10% tint behind the 1px border. On the dark band the
+     chip takes its light tint as a solid background so it stays legible.
+  5. APPLICATION DENSITY (ui-standards §4 rule 13): 4px base rhythm, 8/12/16 steps, 32px table
+     rows, 28px fact rows, 13.5px body. The previous refreshed mockups used 8/16/24/32 and 40px
+     rows; that is landing-page spacing and is superseded.
+  6. Top navigation retained — the left-rail option is NOT taken.
+  7. Export is a solid charcoal button, right-aligned in the action bar behind a divider, so it
+     is distinct from the stage actions without spending the brand red.
+
+  MOCKUP DEVICES (not part of the specification): tabs and sub-tabs are hidden radio inputs so
+  the file works by double-click with no script. The real implementation uses the standard
+  tablist/tab/tabpanel roles with roving focus. All content is schematic placeholder material.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Case 26001 — Pegasus (refreshed mockup)</title>
+<style>
+  :root{
+    --ce-red:#DB0816; --ce-red-dark:#8F1422; --ink:#16191D; --charcoal:#2C2A27;
+    --band:#1B1E23; --band-mute:#A7A9AD;
+    --paper:#F7F6F4; --panel:#FFFFFF; --line:#E6E4E1; --muted:#6B6B6B;
+    --green:#16833B;
+    --amber-fg:#7A3E00; --amber-bg:#FFF4D6; --amber-line:#A15C00;
+    --navy-fg:#143A5E; --navy-bg:#E7F0F8; --navy-line:#365F87;
+    --shadow:0 1px 2px rgb(22 25 29 / 6%);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);
+    font:13.5px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  a{color:inherit}
+  :focus-visible{outline:2px solid rgba(219,8,22,.5);outline-offset:1px}
+  .tnum{font-variant-numeric:tabular-nums}
+
+  /* ---- top navigation ---------------------------------------------------- */
+  .topbar{background:var(--panel);border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:16px;padding:0 20px;height:48px}
+  .brand{display:flex;align-items:center;gap:10px;white-space:nowrap}
+  .brand .mark{color:var(--ce-red);font-weight:700;font-size:11px;letter-spacing:.08em}
+  .brand .app{font-weight:600;border-left:1px solid var(--line);padding-left:10px;font-size:14px}
+  nav.primary{display:flex;gap:2px;margin-left:8px}
+  nav.primary a{text-decoration:none;font-size:13.5px;color:var(--charcoal);padding:14px 10px 12px;
+    border-bottom:2px solid transparent}
+  nav.primary a:hover{color:var(--ink)}
+  nav.primary a[aria-current="page"]{color:var(--ce-red);font-weight:600;border-bottom-color:var(--ce-red)}
+  .session{margin-left:auto;display:flex;gap:12px;font-size:12px;color:var(--muted)}
+  .session a{color:var(--charcoal);text-decoration:none}
+
+  /* ---- page frame -------------------------------------------------------- */
+  main{max-width:1180px;margin:0 auto;padding:12px 20px 24px}
+  .crumb{font-size:12px;color:var(--muted);margin-bottom:8px}
+
+  /* ---- the case container ------------------------------------------------ */
+  .case{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    box-shadow:var(--shadow);overflow:hidden}
+
+  .chead{background:var(--band);color:#fff;display:flex;align-items:center;gap:12px;
+    padding:10px 16px}
+  .chead h1{font-size:20px;font-weight:600;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+  .chead .idy{font-size:12.5px;color:var(--band-mute);display:flex;gap:8px;flex-wrap:wrap;
+    padding-left:12px;border-left:1px solid rgb(255 255 255 / 16%);font-variant-numeric:tabular-nums}
+  .chead .idy b{color:#EDEDEE;font-weight:600}
+  .chead .right{margin-left:auto;display:flex;align-items:center;gap:8px}
+  .accent{height:3px;background:var(--navy-line)}
+  .micro{font-size:12px;color:var(--band-mute);padding:0 16px 8px;background:var(--band)}
+
+  /* ---- action bar -------------------------------------------------------- */
+  .abar{display:flex;align-items:center;gap:6px;padding:8px 16px;
+    border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:0;z-index:3}
+  .abar .spacer{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .abar .rule{width:1px;height:22px;background:var(--line)}
+
+  /* ---- buttons ----------------------------------------------------------- */
+  .btn{display:inline-flex;align-items:center;gap:6px;border:1px solid #D8D5D1;border-radius:5px;
+    background:var(--panel);color:var(--charcoal);font:inherit;font-size:13px;font-weight:600;
+    padding:5px 10px;cursor:pointer;text-decoration:none;white-space:nowrap}
+  .btn:hover{border-color:var(--charcoal);background:#FCFBFA}
+  .btn--dark{background:var(--charcoal);border-color:var(--charcoal);color:#fff}
+  .btn--dark:hover{background:#000;border-color:#000}
+  .btn--primary{background:var(--ce-red);border-color:var(--ce-red);color:#fff}
+  .btn--primary:hover{background:var(--ce-red-dark);border-color:var(--ce-red-dark)}
+  .btn--light{background:transparent;border-color:rgb(255 255 255 / 30%);color:#fff}
+  .btn--light:hover{background:rgb(255 255 255 / 10%);border-color:rgb(255 255 255 / 55%)}
+  .btn[aria-disabled="true"]{background:var(--panel);border-color:#DEDBD7;color:#A6A29D;
+    cursor:not-allowed}
+  .btn[aria-disabled="true"]:hover{border-color:#DEDBD7;background:var(--panel)}
+  .btn--icon{padding:5px 7px}
+
+  /* ---- chips ------------------------------------------------------------- */
+  .chip{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;
+    padding:2px 9px;border:1px solid var(--line);background:rgb(22 25 29 / 4%);color:var(--charcoal);
+    white-space:nowrap}
+  .chip--review{border-color:var(--navy-line);background:var(--navy-bg);color:var(--navy-fg)}
+  .chip--pending{border-color:var(--amber-line);background:rgb(161 92 0 / 10%);color:var(--amber-fg)}
+  .chip--ok{border-color:var(--green);background:rgb(22 131 59 / 10%);color:var(--green)}
+  .chip--edit{border-color:var(--amber-line);background:var(--amber-bg);color:var(--amber-fg)}
+
+  /* ---- tabs (radio device) ----------------------------------------------- */
+  .tabinput{position:absolute;opacity:0;pointer-events:none}
+  .tabs{display:flex;gap:2px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--paper)}
+  .tabs label{font-size:13.5px;font-weight:600;color:var(--muted);padding:9px 12px;cursor:pointer;
+    border-bottom:2px solid transparent;display:inline-flex;gap:6px;align-items:center}
+  .tabs label:hover{color:var(--ink)}
+  .tabs .count{font-weight:600;font-size:12px;color:var(--muted);background:rgb(22 25 29 / 6%);
+    border-radius:999px;padding:0 6px;font-variant-numeric:tabular-nums}
+  .tabpanel{display:none;padding:14px 16px 16px}
+  #t-ov:checked~.tabs label[for=t-ov],
+  #t-ev:checked~.tabs label[for=t-ev],
+  #t-hi:checked~.tabs label[for=t-hi]{color:var(--ce-red);border-bottom-color:var(--ce-red)}
+  #t-ov:checked~.tabs label[for=t-ov] .count,
+  #t-ev:checked~.tabs label[for=t-ev] .count,
+  #t-hi:checked~.tabs label[for=t-hi] .count{color:var(--ce-red);background:rgb(219 8 22 / 8%)}
+  #t-ov:checked~#p-ov,#t-ev:checked~#p-ev,#t-hi:checked~#p-hi{display:block}
+
+  /* ---- sub-tabs ---------------------------------------------------------- */
+  .subbar{display:flex;align-items:center;gap:6px;margin-bottom:10px}
+  .subbar .grow{margin-left:auto}
+  .subtabs label{font-size:13px;font-weight:600;color:var(--charcoal);border:1px solid #D8D5D1;
+    background:var(--panel);border-radius:999px;padding:3px 11px;cursor:pointer;
+    display:inline-flex;gap:5px;align-items:center}
+  .subtabs label:hover{border-color:var(--charcoal)}
+  .subtabs label .n{color:var(--muted);font-variant-numeric:tabular-nums}
+  #s-fi:checked~.subbar .subtabs label[for=s-fi],
+  #s-im:checked~.subbar .subtabs label[for=s-im],
+  #s-em:checked~.subbar .subtabs label[for=s-em]{background:var(--charcoal);border-color:var(--charcoal);color:#fff}
+  #s-fi:checked~.subbar .subtabs label[for=s-fi] .n,
+  #s-im:checked~.subbar .subtabs label[for=s-im] .n,
+  #s-em:checked~.subbar .subtabs label[for=s-em] .n{color:#C9C6C2}
+  .subpanel{display:none}
+  #s-fi:checked~#sp-fi,#s-im:checked~#sp-im,#s-em:checked~#sp-em{display:block}
+
+  /* ---- overview: fact columns -------------------------------------------- */
+  .facts3{display:grid;grid-template-columns:repeat(3,1fr);gap:0 24px;margin-bottom:16px}
+  .factcol h2{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);
+    font-weight:600;padding-bottom:5px;border-bottom:1px solid var(--line);margin-bottom:2px}
+  .factcol dl div{display:flex;align-items:baseline;gap:10px;min-height:28px;padding:4px 0;
+    font-variant-numeric:tabular-nums}
+  .factcol dt{flex:0 0 96px;color:var(--muted);font-size:12.5px}
+  .factcol dd{font-weight:600;font-size:13.5px}
+  .factcol dd.quiet{font-weight:400;color:var(--muted)}
+
+  /* ---- overview: case data ----------------------------------------------- */
+  .blockhead{display:flex;align-items:center;gap:8px;margin-bottom:2px}
+  .blockhead h2{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);
+    font-weight:600}
+  .blockhead .grow{margin-left:auto}
+  .linkbtn{background:none;border:none;color:var(--ce-red);font:inherit;font-size:12.5px;
+    font-weight:600;cursor:pointer;text-decoration:underline;padding:2px}
+  .datarow{display:flex;align-items:center;gap:12px;min-height:32px;padding:3px 0;
+    border-top:1px solid var(--line);font-size:13.5px;font-variant-numeric:tabular-nums}
+  .datarow .f{flex:0 0 150px;color:var(--muted);font-size:12.5px}
+  .datarow .v{font-weight:600;flex:0 0 210px}
+  .datarow .v.quiet{font-weight:400;color:var(--muted)}
+  .datarow .sug{font-size:12.5px;color:var(--charcoal)}
+  .datarow .end{margin-left:auto;display:flex;align-items:center;gap:10px}
+
+  /* ---- provenance icon + tooltip ----------------------------------------- */
+  .prov{position:relative;display:inline-flex;align-items:center;justify-content:center;
+    width:22px;height:22px;border-radius:4px;color:#8C8880;cursor:help}
+  .prov:hover,.prov:focus-visible{color:var(--charcoal);background:rgb(22 25 29 / 5%)}
+  .prov svg{width:15px;height:15px;display:block}
+  .prov::after{content:attr(data-word);position:absolute;bottom:calc(100% + 5px);right:-2px;
+    background:var(--band);color:#fff;font-size:11.5px;font-weight:600;letter-spacing:.01em;
+    padding:3px 8px;border-radius:4px;white-space:nowrap;opacity:0;pointer-events:none;
+    transition:opacity .08s linear}
+  .prov:hover::after,.prov:focus-visible::after{opacity:1}
+  .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+  /* ---- tables ------------------------------------------------------------ */
+  table{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums}
+  th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+    text-align:left;font-weight:600;padding:4px 10px;border-bottom:1px solid var(--line)}
+  td{height:32px;padding:2px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+  tbody tr:hover td{background:#FBFAF9}
+  tbody tr:last-child td{border-bottom:0}
+  td:first-child,th:first-child{padding-left:0}
+  td:last-child,th:last-child{padding-right:0;text-align:right}
+  .num{text-align:right}
+  .empty{color:var(--muted);padding:10px 0}
+
+  /* ---- demo blocks (mockup only) ----------------------------------------- */
+  .demo{border:1px dashed #CFCBC5;border-radius:6px;padding:12px;margin-top:16px;background:var(--paper)}
+  .demo .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+    font-weight:600;margin-bottom:8px}
+  .demo+.demo{margin-top:8px}
+  .strip{background:var(--panel);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  .dialog{background:var(--panel);border:1px solid var(--line);border-radius:8px;max-width:420px;
+    padding:16px;box-shadow:0 16px 48px rgb(22 25 29 / 18%)}
+  .dialog h3{font-size:15px;font-weight:600;margin-bottom:10px}
+  .dialog label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:10px 0 4px}
+  .dialog select,.dialog input[type=text]{width:100%;border:1px solid #D8D5D1;border-radius:5px;
+    padding:6px 9px;font:inherit;background:var(--panel)}
+  .dialog .conseq{font-size:12.5px;color:var(--muted);margin-top:10px}
+  .dialog .foot{display:flex;justify-content:flex-end;gap:6px;margin-top:14px}
+
+  footer{max-width:1180px;margin:0 auto;padding:12px 20px 24px;font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<svg style="display:none" aria-hidden="true" focusable="false">
+  <symbol id="i-staff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+    stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="8" r="3.4"/><path d="M4.8 20.2c0-3.8 3.2-6.2 7.2-6.2s7.2 2.4 7.2 6.2"/>
+  </symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+    stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14 2.8H7.2A1.2 1.2 0 0 0 6 4v16a1.2 1.2 0 0 0 1.2 1.2h9.6A1.2 1.2 0 0 0 18 20V6.8z"/>
+    <path d="M14 2.8V7h4"/><path d="M9 12.5h6M9 16h6"/>
+  </symbol>
+  <symbol id="i-ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+    stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 3.2l1.9 5.1 5.1 1.9-5.1 1.9-1.9 5.1-1.9-5.1L5 10.2l5.1-1.9z"/>
+    <path d="M18.4 16.4l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z"/>
+  </symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+    stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3" y="5.2" width="18" height="13.6" rx="1.6"/><path d="M3.6 6.2L12 12.8l8.4-6.6"/>
+  </symbol>
+  <symbol id="i-lookup" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+    stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="10.6" cy="10.6" r="6.1"/><path d="M15.2 15.2L21 21"/>
+  </symbol>
+  <symbol id="i-principal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+    stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 21V4.8A1.2 1.2 0 0 1 5.2 3.6h6.6A1.2 1.2 0 0 1 13 4.8V21"/>
+    <path d="M13 10.4h5.8A1.2 1.2 0 0 1 20 11.6V21"/><path d="M2.8 21h18.4"/>
+    <path d="M7 7.4h2.6M7 11.4h2.6M7 15.4h2.6M16 14.4h1.4M16 17.6h1.4"/>
+  </symbol>
+  <symbol id="i-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+    stroke-linecap="round" stroke-linejoin="round">
+    <path d="M13.4 2.4L5 13.6h5.4L9.8 21.6 18.6 10.4h-5.6z"/>
+  </symbol>
+  <symbol id="i-more" viewBox="0 0 24 24" fill="currentColor">
+    <circle cx="12" cy="5.5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="18.5" r="1.7"/>
+  </symbol>
+</svg>
+
+<header class="topbar">
+  <span class="brand"><span class="mark">&#9679; COLLISION ENGINEERS</span><span class="app">Pegasus</span></span>
+  <nav class="primary" aria-label="Main">
+    <a href="#">Dashboard</a><a href="#">Inbox</a><a href="#">Upload</a><a href="#">Queues</a>
+    <a href="#" aria-current="page">Cases</a><a href="#">Administration</a>
+  </nav>
+  <span class="session">alex <a href="#">Change password</a> <a href="#">Sign out</a></span>
+</header>
+
+<main>
+  <p class="crumb"><a href="#">Cases</a> &rsaquo; 26001</p>
+
+  <div class="case">
+
+    <div class="chead">
+      <h1>Case 26001</h1>
+      <span class="chip chip--review">Review</span>
+      <span class="idy"><b>Principal A</b> &middot; <b>AB12 CDE</b> &middot; Sample Claimant</span>
+      <span class="right"><button class="btn btn--light" type="button">Edit</button></span>
+    </div>
+    <div class="accent"></div>
+
+    <div class="abar">
+      <button class="btn" type="button">Send to report preparation</button>
+      <button class="btn" type="button">Assign engineer</button>
+      <button class="btn" type="button">Hold case</button>
+      <button class="btn" type="button">Close case</button>
+      <button class="btn btn--icon" type="button" aria-label="More actions">
+        <svg width="15" height="15" aria-hidden="true"><use href="#i-more"/></svg></button>
+      <span class="spacer">
+        <span class="rule"></span>
+        <button class="btn btn--dark" type="button">Export case</button>
+      </span>
+    </div>
+
+    <input class="tabinput" type="radio" name="casetab" id="t-ov" checked>
+    <input class="tabinput" type="radio" name="casetab" id="t-ev">
+    <input class="tabinput" type="radio" name="casetab" id="t-hi">
+
+    <div class="tabs">
+      <label for="t-ov">Overview</label>
+      <label for="t-ev">Evidence <span class="count">7</span></label>
+      <label for="t-hi">History <span class="count">12</span></label>
+    </div>
+
+    <!-- ============================ OVERVIEW ============================= -->
+    <div class="tabpanel" id="p-ov">
+      <div class="facts3">
+        <div class="factcol">
+          <h2>Case</h2>
+          <dl>
+            <div><dt>Reference</dt><dd>26001</dd></div>
+            <div><dt>Type</dt><dd>Inspection</dd></div>
+            <div><dt>Principal</dt><dd>Principal A</dd></div>
+            <div><dt>Claimant</dt><dd>Sample Claimant</dd></div>
+          </dl>
+        </div>
+        <div class="factcol">
+          <h2>Instruction</h2>
+          <dl>
+            <div><dt>Received</dt><dd>4 Aug 2026 16:30</dd></div>
+            <div><dt>Instruction date</dt><dd>4 Aug 2026</dd></div>
+            <div><dt>Origin</dt><dd>Manual upload</dd></div>
+            <div><dt>Claim number</dt><dd class="quiet">Not recorded</dd></div>
+          </dl>
+        </div>
+        <div class="factcol">
+          <h2>Assignment</h2>
+          <dl>
+            <div><dt>Engineer</dt><dd class="quiet">Unassigned</dd></div>
+            <div><dt>Sent</dt><dd class="quiet">&mdash;</dd></div>
+            <div><dt>Report</dt><dd class="quiet">Not started</dd></div>
+            <div><dt>Due</dt><dd>11 Aug 2026</dd></div>
+          </dl>
+        </div>
+      </div>
+
+      <div class="blockhead">
+        <h2>Case data</h2>
+        <span class="grow"></span>
+        <button class="linkbtn" type="button">Show all 18 fields</button>
+      </div>
+
+      <div class="datarow">
+        <span class="f">Registration</span>
+        <span class="v">AB12 CDE</span>
+        <span class="chip chip--ok">Confirmed</span>
+        <span class="end">
+          <span class="prov" tabindex="0" role="img" data-word="Staff" aria-label="Source: Staff">
+            <svg aria-hidden="true"><use href="#i-staff"/></svg></span>
+        </span>
+      </div>
+
+      <div class="datarow">
+        <span class="f">Incident date</span>
+        <span class="v quiet">Not recorded</span>
+        <span class="sug">Suggested <strong>27 Feb 2025</strong></span>
+        <span class="end">
+          <button class="linkbtn" type="button">Accept</button>
+          <span class="prov" tabindex="0" role="img" data-word="AI" aria-label="Source: AI">
+            <svg aria-hidden="true"><use href="#i-ai"/></svg></span>
+        </span>
+      </div>
+
+      <div class="datarow">
+        <span class="f">Inspection mode</span>
+        <span class="v">Image-based assessment</span>
+        <span class="chip chip--ok">Confirmed</span>
+        <span class="end">
+          <span class="prov" tabindex="0" role="img" data-word="Extracted" aria-label="Source: Extracted">
+            <svg aria-hidden="true"><use href="#i-doc"/></svg></span>
+        </span>
+      </div>
+
+      <div class="datarow">
+        <span class="f">Instruction date</span>
+        <span class="v">4 Aug 2026</span>
+        <span class="chip chip--pending">Not confirmed</span>
+        <span class="end">
+          <span class="prov" tabindex="0" role="img" data-word="E-mail" aria-label="Source: E-mail">
+            <svg aria-hidden="true"><use href="#i-mail"/></svg></span>
+        </span>
+      </div>
+
+      <div class="datarow">
+        <span class="f">Vehicle make and model</span>
+        <span class="v">Placeholder Make X1</span>
+        <span class="chip chip--ok">Confirmed</span>
+        <span class="end">
+          <span class="prov" tabindex="0" role="img" data-word="Lookup" aria-label="Source: Lookup">
+            <svg aria-hidden="true"><use href="#i-lookup"/></svg></span>
+        </span>
+      </div>
+
+      <div class="datarow">
+        <span class="f">Excess</span>
+        <span class="v">&pound;250</span>
+        <span class="chip chip--ok">Confirmed</span>
+        <span class="end">
+          <span class="prov" tabindex="0" role="img" data-word="Principal" aria-label="Source: Principal">
+            <svg aria-hidden="true"><use href="#i-principal"/></svg></span>
+        </span>
+      </div>
+
+      <div class="datarow">
+        <span class="f">Reference allocated</span>
+        <span class="v">4 Aug 2026 16:30</span>
+        <span class="chip chip--ok">Confirmed</span>
+        <span class="end">
+          <span class="prov" tabindex="0" role="img" data-word="Automatic" aria-label="Source: Automatic">
+            <svg aria-hidden="true"><use href="#i-auto"/></svg></span>
+        </span>
+      </div>
+    </div>
+
+    <!-- ============================ EVIDENCE ============================= -->
+    <div class="tabpanel" id="p-ev">
+      <input class="tabinput" type="radio" name="evtab" id="s-fi" checked>
+      <input class="tabinput" type="radio" name="evtab" id="s-im">
+      <input class="tabinput" type="radio" name="evtab" id="s-em">
+
+      <div class="subbar">
+        <span class="subtabs" style="display:flex;gap:6px">
+          <label for="s-fi">Files <span class="n">2</span></label>
+          <label for="s-im">Images <span class="n">4</span></label>
+          <label for="s-em">E-mails <span class="n">1</span></label>
+        </span>
+        <span class="grow"></span>
+        <button class="btn" type="button">Add file</button>
+      </div>
+
+      <div class="subpanel" id="sp-fi">
+        <table>
+          <thead><tr>
+            <th style="width:24px"></th><th>File</th><th>Type</th><th>Custody</th>
+            <th class="num">Size</th><th>Added</th><th style="width:34px">Src</th><th style="width:34px"></th>
+          </tr></thead>
+          <tbody>
+            <tr>
+              <td><input type="checkbox" aria-label="Select instruction.pdf"></td>
+              <td><a href="#">instruction.pdf</a></td><td>Instruction</td>
+              <td><span class="chip chip--ok">Confirmed</span></td>
+              <td class="num">1.1&nbsp;MB</td><td>4 Aug 2026</td>
+              <td><span class="prov" tabindex="0" role="img" data-word="E-mail" aria-label="Source: E-mail">
+                <svg aria-hidden="true"><use href="#i-mail"/></svg></span></td>
+              <td><button class="btn btn--icon" type="button" aria-label="Actions for instruction.pdf">
+                <svg width="15" height="15" aria-hidden="true"><use href="#i-more"/></svg></button></td>
+            </tr>
+            <tr>
+              <td><input type="checkbox" aria-label="Select photos-front.jpg"></td>
+              <td><a href="#">photos-front.jpg</a></td><td>Vehicle image</td>
+              <td><span class="chip chip--ok">Confirmed</span></td>
+              <td class="num">2.4&nbsp;MB</td><td>4 Aug 2026</td>
+              <td><span class="prov" tabindex="0" role="img" data-word="Staff" aria-label="Source: Staff">
+                <svg aria-hidden="true"><use href="#i-staff"/></svg></span></td>
+              <td><button class="btn btn--icon" type="button" aria-label="Actions for photos-front.jpg">
+                <svg width="15" height="15" aria-hidden="true"><use href="#i-more"/></svg></button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="subpanel" id="sp-im">
+        <table>
+          <thead><tr>
+            <th style="width:24px"></th><th>Image reference</th><th>Registration</th><th>Custody</th>
+            <th>Added</th><th style="width:34px">Src</th><th style="width:34px"></th>
+          </tr></thead>
+          <tbody>
+            <tr>
+              <td><input type="checkbox" aria-label="Select IMG-26014"></td>
+              <td><a href="#">IMG-26014</a></td><td>AB12 CDE</td>
+              <td><span class="chip chip--ok">Confirmed</span></td><td>4 Aug 2026</td>
+              <td><span class="prov" tabindex="0" role="img" data-word="E-mail" aria-label="Source: E-mail">
+                <svg aria-hidden="true"><use href="#i-mail"/></svg></span></td>
+              <td><button class="btn btn--icon" type="button" aria-label="Actions for IMG-26014">
+                <svg width="15" height="15" aria-hidden="true"><use href="#i-more"/></svg></button></td>
+            </tr>
+            <tr>
+              <td><input type="checkbox" aria-label="Select IMG-26015"></td>
+              <td><a href="#">IMG-26015</a></td><td>AB12 CDE</td>
+              <td><span class="chip chip--pending">Pending</span></td><td>4 Aug 2026</td>
+              <td><span class="prov" tabindex="0" role="img" data-word="Staff" aria-label="Source: Staff">
+                <svg aria-hidden="true"><use href="#i-staff"/></svg></span></td>
+              <td><button class="btn btn--icon" type="button" aria-label="Actions for IMG-26015">
+                <svg width="15" height="15" aria-hidden="true"><use href="#i-more"/></svg></button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="subpanel" id="sp-em">
+        <table>
+          <thead><tr>
+            <th>Direction</th><th>From / to</th><th>Subject</th><th>When</th><th style="width:34px"></th>
+          </tr></thead>
+          <tbody>
+            <tr>
+              <td>Received</td><td>claims@principal-a.example</td>
+              <td><a href="#">Instruction &mdash; AB12 CDE</a></td><td>4 Aug 2026 16:30</td>
+              <td><a class="btn btn--icon" href="#" aria-label="Open message in Inbox">Open</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ============================= HISTORY ============================= -->
+    <div class="tabpanel" id="p-hi">
+      <table>
+        <thead><tr><th>Event</th><th>Actor</th><th>When</th><th style="text-align:left">Reason</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Sent to Review</strong></td><td>alex</td><td>4 Aug 2026 16:41</td>
+            <td style="text-align:left">Instruction reviewed</td></tr>
+          <tr><td><strong>Case data saved</strong></td><td>alex</td><td>4 Aug 2026 16:38</td>
+            <td style="text-align:left">Confirmed inspection details</td></tr>
+          <tr><td><strong>Case created</strong></td><td><span class="chip">Automation</span></td>
+            <td>4 Aug 2026 16:30</td><td style="text-align:left">Received instruction</td></tr>
+        </tbody>
+      </table>
+      <p class="empty">Abbreviated in this mockup &mdash; the full tab pages through every recorded
+        event, newest first.</p>
+    </div>
+
+  </div>
+
+  <!-- ===================== other states (mockup only) ===================== -->
+  <div class="demo">
+    <p class="lbl">Not ready stage &mdash; fewer actions, Export disabled with its condition named</p>
+    <div class="strip">
+      <div class="chead" style="padding:8px 16px">
+        <h1 style="font-size:17px">Case 26002</h1>
+        <span class="chip chip--pending">Not ready</span>
+        <span class="idy"><b>Principal B</b> &middot; <b>CD34 EFG</b></span>
+        <span class="right"><button class="btn btn--light" type="button">Edit</button></span>
+      </div>
+      <div class="accent" style="background:var(--amber-line)"></div>
+      <div class="abar" style="position:static">
+        <button class="btn" type="button">Send to Review</button>
+        <button class="btn" type="button">Assign engineer</button>
+        <button class="btn" type="button">Hold case</button>
+        <button class="btn btn--icon" type="button" aria-label="More actions">
+          <svg width="15" height="15" aria-hidden="true"><use href="#i-more"/></svg></button>
+        <span class="spacer">
+          <span class="rule"></span>
+          <span class="prov" tabindex="0" role="img" data-word="Available in Review"
+            aria-label="Export is available in Review" style="width:auto">
+            <span class="btn" aria-disabled="true">Export case</span>
+          </span>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <div class="demo">
+    <p class="lbl">Editing &mdash; and the contended variant</p>
+    <div class="strip">
+      <div class="chead" style="padding:8px 16px">
+        <h1 style="font-size:17px">Case 26001</h1>
+        <span class="chip chip--review">Review</span>
+        <span class="chip chip--edit">Editing</span>
+        <span class="idy"><b>Principal A</b> &middot; <b>AB12 CDE</b></span>
+        <span class="right"><button class="btn btn--light" type="button">Finish editing</button></span>
+      </div>
+      <p class="micro">Changes save one at a time.</p>
+      <div class="accent"></div>
+    </div>
+    <div class="strip" style="margin-top:8px">
+      <div class="chead" style="padding:8px 16px">
+        <h1 style="font-size:17px">Case 26001</h1>
+        <span class="chip chip--review">Review</span>
+        <span class="idy">Sample Colleague is editing this case</span>
+        <span class="right"><span class="btn" aria-disabled="true">Edit</span></span>
+      </div>
+      <div class="accent"></div>
+    </div>
+  </div>
+
+  <div class="demo">
+    <p class="lbl">Action dialog &mdash; shown when &ldquo;Close case&rdquo; is chosen (page dims behind it)</p>
+    <div class="dialog" role="dialog" aria-labelledby="close-title" aria-modal="true">
+      <h3 id="close-title">Close case</h3>
+      <label for="outcome">Outcome</label>
+      <select id="outcome">
+        <option>Post-report complete</option>
+        <option>Provider cancelled</option>
+        <option>Collision Engineers rejected</option>
+      </select>
+      <label for="close-reason">Reason</label>
+      <input id="close-reason" type="text">
+      <p class="conseq">Closing ends work on this case. It can be reopened with a reason.</p>
+      <div class="foot">
+        <button class="btn" type="button">Cancel</button>
+        <button class="btn btn--primary" type="button">Close case</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>Pegasus &middot; Collision Engineers case management</footer>
+</body>
+</html>

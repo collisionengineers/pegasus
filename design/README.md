@@ -309,7 +309,7 @@ Every protected route and action must handle unauthenticated, disabled-session, 
 Operations is the landing route.
 
 ```text
-CE logo | Operations | Intake | Triage | Cases | Administration | Search | User
+CE logo | Dashboard | Inbox | Queues | Cases | Administration | Search | User
 Operations
 Not ready | Review | Held | Needs sorting | Blocked intake | Triage | Due today
 New cases today | Sent to Engineer: today / week | Reports sent: today / week
@@ -371,7 +371,7 @@ must not invent aliases.
 
 | Core intake decision | Exact operator label | Receipt persisted | Case/reference persisted |
 | --- | --- | --- | --- |
-| `DraftReady` | Instruction draft | Yes | No |
+| `DraftReady` | None. The shipped build still emits `Instruction draft`; that is non-conforming, not an approved label — see below | Yes | No |
 | `NeedsSorting` | Needs sorting | Yes | No |
 | `BlockedIntake` | Blocked intake | Yes | No |
 | `OcrRequired` | Document text required | Yes | No |
@@ -381,7 +381,19 @@ must not invent aliases.
 
 `Document text required` records a fail-closed outcome; it does not prove that deferred OCR capability is implemented. The intake list also derives the display outcome `Associated with Case` for receipts holding an active case association.
 
-Validation or refusal before an accepted intake receipt must not be described as case creation. The current Development path never creates a Case/PO, regardless of receipt outcome; an `ImageIntakeRegistered` receipt allocates only the pre-Case Image Intake Reference.
+Validation or refusal before an accepted intake receipt must not be described as case creation. An `ImageIntakeRegistered` receipt allocates only the pre-Case Image Intake Reference.
+
+`DraftReady` is non-conforming and carries no operator label. It names a receipt waiting for a
+staff member to press "Accept and allocate case reference", but
+[requirements](../docs/requirements.md) is explicit that definitive authorised intake creates
+exactly one instructed Case idempotently and that "the allocation decision adds no universal
+manual acceptance gate", and the [operator notes](../docs/operator-notes.md) send only ambiguous
+provider, instruction-type, or case evidence — and any unidentified e-mail — to `Needs sorting`.
+Definitive intake therefore allocates at processing time, entering `Not ready` when ordinary
+detail is thin; incomplete ordinary detail is never a bar to allocation. The decision is being
+removed rather than renamed, together with the manual acceptance gate; no surface may introduce a
+label, chip, filter, or tile for it in the meantime. `Review` and `Ready to review` denote the
+Case stage before the report is with an Engineer and must never name an intake state.
 
 ### Planned case-creation mapping
 
@@ -404,7 +416,10 @@ Only the first table describes exercised components. Planned contracts do not cr
 
 | Component | Purpose and states | Runtime owner |
 | --- | --- | --- |
-| Development shell/navigation | Identify the current proof and reach Development routes; normal, hover and focus; the current route carries `aria-current="page"` with a weight and underline change so it is not signalled by colour alone; local-intake link is conditional | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` |
+| Development shell/navigation | Identify the current proof and reach Development routes; normal, hover and focus; the current route carries `aria-current="page"` with a weight and underline change so it is not signalled by colour alone; the Inbox item is conditional and is **absent**, never a disabled span, where the capability is not composed | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` |
+| Navless shells | The screens that are not a place in the application. `_LayoutAuth` carries sign in, the signed-out confirmation, access denied and the error/not-found family; `_LayoutExternal` carries the one screen a third party sees and states the company, never the product | `src/Pegasus.Web/Pages/Shared/_LayoutAuth.cshtml`, `_LayoutExternal.cshtml` |
+| Status-code page | The designed answer to a status code with no exception behind it: unknown record, dead external upload link, oversized upload, rate-limited sign-in. Scoped away from the health, version and automation surfaces, whose callers want a parsable body | `src/Pegasus.Web/Pages/StatusCode.cshtml(.cs)` |
+| Operator label map | The single place a persisted code becomes words: stage, case type, document role and origin, custody, upload-link state, history event, file size. Raw `enum.ToString()`, snake_case event codes and PascalCase compounds never reach markup | `src/Pegasus.Web/Presentation/OperatorLabels.cs` |
 | Queue/metric card | Show persisted Development intake counts and open the exact list; value and unavailable states are both exercised, an unavailable tile stating its absence rather than substituting a zero; stale and partial remain planned | `src/Pegasus.Web/Pages/Index.cshtml`, `src/Pegasus.Web/wwwroot/css/site.css` |
 | Status chip | The single place a business or query state selects its tone and Lucide glyph; always paired with its text label | `src/Pegasus.Web/Pages/Shared/_StatusChip.cshtml` |
 | Freshness and manual refresh | Last-good Europe/London time, current refresh state, and a manual refresh that reruns the same filter with start feedback and double-submit protection | `src/Pegasus.Web/Pages/Shared/_FreshnessBanner.cshtml` |

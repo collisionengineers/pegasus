@@ -1,4 +1,4 @@
-# NOW — updated 2026-08-04
+# NOW — updated 2026-08-05
 
 (Anything here older than 14 days is stale: delete it, don't investigate it.)
 
@@ -7,10 +7,6 @@
 Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 <agent>)`. Nothing is in flight unless it is claimed here on `origin/dev`.
 
-- Vault consolidation: copy the Box/DVLA/DVSA secrets into the Pegasus Key
-  Vault, repoint the Worker's and Web's references, prove resolution, then
-  retire the two adopted vaults and `rg-collisionspike-dev` (branch
-  task/vault-consolidation, taken 2026-08-03, by codex).
 - Report renderer integration planning: plan the retirement of the
   `workspaces/report-renderer/` source import into the monolith — locate the
   Core render port seam and Infrastructure adapter placement that RPT-01–05
@@ -36,7 +32,62 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   repo. Everything composition-gated DevelopmentOffline-only; estimate
   derivation stays D2-gated; no activation or tier-5 claim (branch
   task/send-to-ai-round-trip, taken 2026-08-03, by claude).
+- UI implementation programme, shell and design system: implement the
+  refreshed presentation system in `site.css` (tokens, application density,
+  the record container, tabs, provenance icons), the new navigation in
+  `_Layout` (Dashboard · Inbox · Upload · Queues · Cases · Administration),
+  an anonymous layout so the external upload and sign-in screens stop
+  showing staff navigation (defect M9b), styled status-code pages so an
+  unknown record or a dead upload link is never a raw browser 404 (M4, M9c),
+  the operator-label maps that keep enum names out of markup (M5), and the
+  five shell screens: sign-in (M9d), change password (M9e), sign-out (M10),
+  access denied, error (branch task/ui-shell-and-design-system, taken
+  2026-08-04, by claude).
+- CASE-27 edit-lease continuity and conflict recovery for both callers
+  (MCP-02/MCP-04): close the gaps between
+  `docs/requirements.md` "Case edit authority and recovery" and shipped
+  behaviour — expired leases must read as free everywhere they are projected
+  (Triage and Operations still narrate a past expiry as held), authorised
+  non-holders must see the holder and when edit authority frees, a rejected
+  editor must keep their proposed values for comparison instead of losing the
+  post to a bare redirect, the Automation Actor must be able to renew rather
+  than only begin/end, and the triplicated mutation guard collapses to one
+  Core-owned implementation with a single lease-token length contract. Staff
+  Web and the Automation Actor exercise the same guard and the same
+  reacquisition path; no takeover, no force-save, no Administrator bypass, no
+  lease vocabulary in operator copy (branch task/case-edit-lease-continuity,
+  taken 2026-08-05, by claude).
+
 ## Next (ordered queue — take from the top)
+
+- **UI implementation programme** (operator decision 2026-08-04, settling the
+  earlier "decide what `docs/ui-work/` is for" question): the folder is
+  adopted as the specification for a whole-application UI rebuild, then
+  deleted. Every page folder's alteration plan is implemented, every entry in
+  `docs/ui-work/additions-hidden-features.md` and
+  `docs/ui-work/defects-and-non-functional.md` is made visible and functional,
+  `docs/ui-work/ui-standards-and-review.md` becomes the enforced presentation
+  contract, and the implemented pages match the **refreshed** mockups. The
+  work lands as one PR per main-navigation page — sub-pages fold into the
+  navigation page that owns them — reviewed and merged into `dev` in
+  sequence, then `dev` into `main`. Queue, each claimable on its own line:
+  - Shell and design system (pages 14–18, `_Layout`, `site.css`, operator
+    label maps, styled status-code pages).
+  - Dashboard (pages 1, 7) — needs the Core case-lifecycle and day/week
+    count queries that do not exist today (defects B3, M1, M7, M8).
+  - Inbox (pages 2, 6, 8, 9, 10) — carries the acceptance-gate/`DraftReady`
+    removal and INT-25 below, because the queue it feeds is this screen.
+  - Upload (pages 2-split, 13) — carries defect B1, the dead upload handler.
+  - Queues (pages 3, 11).
+  - Cases (pages 4/5, 12) — the case container, Evidence tabs, provenance
+    icons, and the `Review`-only export precondition.
+  - Administration (pages 5-administration, 19–31).
+  Until a page's PR merges, nothing in its folder is accepted.
+- Protect `main` against direct pushes. `440ab5c` reached the deployment
+  branch without a PR, so CI never gated it — it carried a defect that
+  failed the documentation check the moment it was put in front of CI (fixed
+  in PR 335). PR 324 was likewise opened against `main` before being
+  redirected. A branch-protection rule stops this being caught by audit.
 
 - Record releases 4 and 5 in operations.md deployed evidence: release 4
   (2026-08-04, revision `8e34078…`, digest `sha256:ae2cc7b8…`, the four
@@ -87,12 +138,34 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   (task/ui-alpha-design-pass review, 2026-08-03); also the Access review
   page renders the `0001-01-01 00:00:00Z` sentinel as "Last reviewed"
   beside a `Recorded` state (release-5 live checks, 2026-08-04).
-- Relabel the Operations dashboard's DraftReady intake tile from `Review` to
-  the design authority's `Instruction draft` mapping: `DraftReady` is the
-  internal intake-receipt decision (a route-accepted instruction whose
-  extraction produced a complete reviewable draft, pre-Case), and the
-  internal wording leaked into the UI where `Review` is reserved for the
-  Case state (operator decision 2026-08-03: ship as-is, fix later).
+- Remove the manual case-acceptance gate and the `DraftReady` decision, and
+  implement INT-25/CAP-008. `docs/requirements.md:251` requires that
+  "definitive authorised intake creates exactly one instructed Case
+  idempotently" and that "the allocation decision adds no universal manual
+  acceptance gate"; `docs/operator-notes.md:204` sends only ambiguous
+  provider, instruction-type, or case evidence — and any unidentified e-mail
+  — to `Needs sorting`. Shipped behaviour is the opposite: `IAcceptIntake`
+  has one caller, the staff form handler at
+  `src/Pegasus.Web/Pages/Intake/Details.cshtml.cs:534`, so every case in
+  Pegasus waits on a human pressing "Accept and allocate case reference",
+  and `IntakeDecision.DraftReady` exists only to name that wait. Definitive
+  intake must allocate at processing time, entering `Not ready` when
+  ordinary detail is thin; incomplete detail is not a bar to allocation.
+  `Needs sorting` keeps the ambiguity path, including staff-resolved manual
+  creation (INT-26); genuine fail-closed conditions (limits, principal
+  identity, standalone Audit evidence) stay `Blocked intake` with a reason.
+  Scope: Core policy and the acceptance/receipt stores, the Worker/automation
+  path, the intake and dashboard surfaces, and a repo-wide correction pass —
+  `DraftReady` is referenced across `src/`, `tests/`, `design/README.md:374`,
+  `docs/capabilities.md`, and the intake filter/route token `draft_ready`.
+  Also correct `EfIntakeReceiptStore.GetCountsAsync:152-164` and
+  `ListAsync:166-192`, which never exclude receipts that produced a case, so
+  every intake count is cumulative for all time. `Review` and "Ready to
+  review" are the Case stage before the report is with an Engineer
+  (`CaseWorkflowContracts.cs:15`, `requirements.md:295`) and must never
+  label an intake state (operator decision 2026-08-04, superseding the
+  2026-08-03 "ship as-is, relabel later" line — the tile was never a
+  labelling defect).
 - Prove the per-run template database's server-side BACKUP/RESTORE against a
   PEGASUS_TEST_SQL_DATASOURCE container (Linux workstation or a CI job) and
   lift the review gate that disables the template for external servers
@@ -113,8 +186,13 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 
 ## Waiting (each line names its unblock condition)
 
-- Obsolete predecessor vault purge — platform-scheduled 2026-08-09, no action
-  unless it fails.
+- Obsolete predecessor vault purge — five soft-deleted `uksouth` vaults on two
+  platform-scheduled dates: `cespk-pg-kv-dev`, `cespkevakvufa3ci`, and
+  `cespklockva7tzj2` on 2026-08-09, then the two consolidation predecessors
+  `cespkboxkvv76a47` and `cespkenrichkvgi62sd` on 2026-08-10 (verified
+  read-only 2026-08-04; the earlier single 2026-08-09 date covered only the
+  first three). No action unless a purge fails; the watch is not clear until
+  both dates pass.
 
 ## Path (decided 2026-08-02: full QDOS cutover — every new QDOS instruction is worked in Pegasus through to the EVA handoff; EVA keeps engineering and reports. Box custody root decided 2026-08-02: all case folders under the pegasus folder `405543781910` only.)
 

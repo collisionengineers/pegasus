@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Automation — Pegasus (refreshed mockup)</title>
+<!--
+  REFRESHED SYSTEM — divergences from the recorded design authority (design/README.md):
+  1. Type scale 22/17/15/13px, 600-weight headings, tabular numerals for metrics.
+  2. Surface model: paper #F7F6F4; cards #FFFFFF with 6px radius, 1px hairline plus
+     a very low shadow (0 1px 2px rgb(22 25 29 / 5%)) — replaces the flat 2px card.
+  3. State colour roles unchanged; chips gain a 10% tinted background with a 1px border.
+  4. Density: 4px base rhythm with 8/12/16 steps; 32px table rows; single-line filter bars.
+  5. Left-rail navigation NOT taken — top nav retained.
+  Only the enabled state is drawn: when the feature gate is off, neither this page nor its
+  Administration card renders at all (standards §4.9). Schematic data only.
+-->
+<style>
+  :root{
+    --red:#DB0816; --ink:#16191D; --charcoal:#2C2A27; --paper:#F7F6F4;
+    --panel:#FFFFFF; --line:#E6E4E1; --muted:#6B6B6B; --green:#16833B;
+    --amber:#8A5A00; --amber-line:#E3C98A;
+    --navy:#1F3A5F; --navy-line:#B9C6DA;
+    --shadow:0 1px 2px rgb(22 25 29 / 5%);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;font-size:14px;
+       line-height:1.5;color:var(--ink);background:var(--paper)}
+  a{color:var(--ink)}
+  header{background:var(--panel);border-bottom:1px solid var(--line)}
+  .masthead{max-width:1280px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:16px}
+  .mark{font-weight:700;letter-spacing:.08em;font-size:13px;color:var(--red);white-space:nowrap}
+  .app{font-weight:600;font-size:14px;padding-left:24px;border-left:1px solid var(--line)}
+  nav{display:flex;gap:16px;margin-left:auto}
+  nav a{text-decoration:none;font-size:14px;padding:8px 0;border-bottom:2px solid transparent}
+  nav a.active{color:var(--red);font-weight:600;border-bottom-color:var(--red)}
+  .account{display:flex;gap:16px;align-items:center;font-size:13px;margin-left:32px;
+           padding-left:32px;border-left:1px solid var(--line)}
+  .account .who{color:var(--muted)}
+  .account a{text-decoration:none}
+  main{max-width:1280px;margin:0 auto;padding:20px}
+  .crumb{font-size:13px;color:var(--muted);margin-bottom:16px}
+  .crumb a{color:var(--muted)}
+  h1{font-size:20px;font-weight:600;margin-bottom:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:6px;
+        box-shadow:var(--shadow);max-width:680px}
+  .facts{width:100%;border-collapse:collapse;font-size:14px}
+  .facts th{width:184px;text-align:left;font-weight:600;color:var(--charcoal);
+            padding:12px 24px;vertical-align:top;border-bottom:1px solid var(--line);height:32px}
+  .facts td{padding:12px 24px;vertical-align:top;border-bottom:1px solid var(--line);height:32px}
+  .facts tr:last-child th,.facts tr:last-child td{border-bottom:0}
+  .mono{font-variant-numeric:tabular-nums}
+  .area{margin-bottom:12px}
+  .area:last-child{margin-bottom:0}
+  .area b{font-weight:600}
+  .area span{display:block;font-size:13px;color:var(--muted);margin-top:2px}
+  .chip{display:inline-block;font-size:13px;font-weight:600;padding:2px 10px;border-radius:6px;
+        border:1px solid var(--charcoal);color:var(--charcoal);background:rgb(44 42 39 / 10%)}
+  .chip--on{border-color:var(--green);color:var(--green);background:rgb(22 131 59 / 10%)}
+  .chip--off{border-color:var(--muted);color:var(--muted);background:rgb(107 107 107 / 10%)}
+  .control{border-top:1px solid var(--charcoal);padding:16px;background:var(--paper);
+           border-radius:0}
+  .field{max-width:420px}
+  label.stack{display:block;font-weight:600;font-size:14px;margin-bottom:8px}
+  input[type=text]{width:100%;padding:10px 12px;font:inherit;font-size:14px;
+       border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink)}
+  input:hover{border-color:var(--charcoal)}
+  input:focus,button:focus,a:focus{outline:3px solid rgba(219,8,22,.38);outline-offset:1px}
+  .field-hint{display:block;font-size:13px;color:var(--muted);margin-top:8px}
+  .consequence{font-size:13px;color:var(--charcoal);margin:24px 0 16px;
+               padding-top:16px;border-top:1px solid var(--line);max-width:540px}
+  .primary-action{background:var(--red);color:#fff;border:1px solid var(--red);
+       border-radius:6px;font:inherit;font-size:14px;font-weight:600;padding:10px 24px;cursor:pointer}
+  .secondary-action{background:var(--panel);color:var(--ink);border:1px solid var(--charcoal);
+       border-radius:6px;font:inherit;font-size:14px;font-weight:600;padding:10px 24px;cursor:pointer}
+  .link-row{border-top:1px solid var(--line);padding:16px 24px;font-size:14px;font-weight:600}
+  .link-row a{text-decoration:none}
+  .link-row .arrow{color:var(--muted);font-weight:400}
+  .status-card{border:1px solid var(--navy-line);border-radius:6px;box-shadow:var(--shadow);
+       background:linear-gradient(0deg, rgb(31 58 95 / 8%), rgb(31 58 95 / 8%)),var(--panel);
+       padding:16px 24px;max-width:680px;margin-bottom:16px;font-size:14px}
+  .alt-state{margin-top:28px;padding-top:20px;border-top:1px dashed var(--line)}
+  .alt-label{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
+             margin-bottom:16px}
+  footer{border-top:1px solid var(--line);margin-top:28px}
+  footer p{max-width:1280px;margin:0 auto;padding:16px 20px;font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <div class="masthead">
+    <span class="mark">COLLISION ENGINEERS</span>
+    <span class="app">Pegasus</span>
+    <nav aria-label="Primary">
+      <a href="#">Dashboard</a>
+      <a href="#">Inbox</a>
+      <a href="#">Upload</a>
+      <a href="#">Queues</a>
+      <a href="#">Cases</a>
+      <a href="#" class="active" aria-current="page">Administration</a>
+    </nav>
+    <div class="account">
+      <span class="who">alex</span>
+      <a href="#">Change password</a>
+      <a href="#">Sign out</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <p class="crumb"><a href="#">Administration</a> / Automation</p>
+  <h1>Automation</h1>
+
+  <div class="card">
+    <table class="facts">
+      <tbody>
+        <tr><th scope="row">Name</th><td>Pegasus Automation</td></tr>
+        <tr><th scope="row">Status</th><td><span class="chip chip--on">On</span></td></tr>
+        <tr>
+          <th scope="row">Can use</th>
+          <td>
+            <p class="area"><b>Cases</b><span>Find and open cases, and record case edits</span></p>
+            <p class="area"><b>Evidence</b><span>Add, download and export case files, images and e-mail</span></p>
+            <p class="area"><b>Inbox</b><span>Read received items and submit uploads</span></p>
+          </td>
+        </tr>
+        <tr><th scope="row">Client identifier</th><td class="mono">pegasus-automation</td></tr>
+      </tbody>
+    </table>
+    <div class="control">
+      <form>
+        <div class="field">
+          <label class="stack" for="reason-off">Reason</label>
+          <input type="text" id="reason-off" maxlength="1000">
+          <span class="field-hint">Recorded permanently with the change.</span>
+        </div>
+        <p class="consequence">Turning automation off stops it within seconds. Your name and
+          reason are recorded permanently.</p>
+        <button type="button" class="primary-action">Turn off automation</button>
+      </form>
+    </div>
+    <p class="link-row"><a href="#">View automation activity</a> <span class="arrow">&rarr;</span></p>
+  </div>
+
+  <!-- Alternate states, shown here for design reference only. -->
+  <div class="alt-state">
+    <p class="alt-label">Alternate state — automation is off</p>
+    <div class="card">
+      <table class="facts">
+        <tbody>
+          <tr><th scope="row">Name</th><td>Pegasus Automation</td></tr>
+          <tr><th scope="row">Status</th><td><span class="chip chip--off">Off</span></td></tr>
+          <tr>
+            <th scope="row">Can use</th>
+            <td>
+              <p class="area"><b>Cases</b><span>Find and open cases, and record case edits</span></p>
+              <p class="area"><b>Evidence</b><span>Add, download and export case files, images and e-mail</span></p>
+              <p class="area"><b>Inbox</b><span>Read received items and submit uploads</span></p>
+            </td>
+          </tr>
+          <tr><th scope="row">Client identifier</th><td class="mono">pegasus-automation</td></tr>
+        </tbody>
+      </table>
+      <div class="control">
+        <form>
+          <div class="field">
+            <label class="stack" for="reason-on">Reason</label>
+            <input type="text" id="reason-on" maxlength="1000">
+            <span class="field-hint">Recorded permanently with the change.</span>
+          </div>
+          <p class="consequence">Turning automation on lets it act on cases and documents
+            within seconds. Your name and reason are recorded permanently.</p>
+          <button type="button" class="secondary-action">Turn on automation</button>
+        </form>
+      </div>
+      <p class="link-row"><a href="#">View automation activity</a> <span class="arrow">&rarr;</span></p>
+    </div>
+  </div>
+
+  <div class="alt-state">
+    <p class="alt-label">Alternate state — after a successful change</p>
+    <div class="status-card" role="status">Automation is off.</div>
+  </div>
+</main>
+
+<footer><p>Pegasus · Collision Engineers case management</p></footer>
+</body>
+</html>

@@ -1,22 +1,27 @@
 @*
-    Last-good time and current refresh state for one query, with the manual
-    refresh that reruns the same filter.
+    Last-good time and the manual refresh that reruns the same filter.
+
+    A compact corner element, not a full-width banner: a strip across the top of
+    every screen spent the most valuable row on the page saying nothing changed.
+    The redundant "Current" badge is gone with it — a loaded query says so by
+    showing its number and its time. Only the states that are not current earn a
+    chip.
 
     Model: the last successful load time, or null when nothing has loaded.
     ViewData["RefreshStatus"] — current | loading | stale | partial |
                                unavailable | failed.
 
-    design/README.md requires that `0`, loading, current, stale, partial,
-    unavailable and failed stay distinct, that the last-good time stays visible
-    when a later refresh degrades, and that refresh never claims an external
-    action succeeded. Times render in Europe/London because that is the day
-    boundary the dashboard counts against.
+    Times render in Europe/London because that is the day boundary the counts
+    are taken against. When the platform carries no IANA database the zone
+    cannot be resolved, and the label says UTC rather than claiming London for
+    a time that is not London.
 *@
 @model DateTimeOffset?
 @{
     var status = ViewData["RefreshStatus"] as string ?? "current";
 
     TimeZoneInfo londonZone;
+    var zoneResolved = true;
     try
     {
         londonZone = TimeZoneInfo.FindSystemTimeZoneById("Europe/London");
@@ -24,23 +29,18 @@
     catch (TimeZoneNotFoundException)
     {
         londonZone = TimeZoneInfo.Utc;
+        zoneResolved = false;
     }
     catch (InvalidTimeZoneException)
     {
         londonZone = TimeZoneInfo.Utc;
+        zoneResolved = false;
     }
 
+    var zoneLabel = zoneResolved ? "London" : "UTC";
     var london = Model.HasValue
         ? TimeZoneInfo.ConvertTime(Model.Value, londonZone)
         : (DateTimeOffset?)null;
-
-    var bannerClass = status switch
-    {
-        "loading" => "freshness-banner--loading",
-        "stale" or "partial" => "freshness-banner--stale",
-        "failed" or "unavailable" => "freshness-banner--failed",
-        _ => string.Empty
-    };
 
     var statusLabel = status switch
     {
@@ -49,51 +49,30 @@
         "partial" => "Partial",
         "unavailable" => "Unavailable",
         "failed" => "Failed",
-        _ => "Current"
+        _ => null
     };
 }
-<div class="freshness-banner @bannerClass" role="status" aria-live="polite">
-    <span class="updated">
-        <svg class="icon" aria-hidden="true"><use href="#icon-clock" /></svg>
-        @if (london is { } lastGood)
-        {
-            <span>
-                Last updated
-                <time datetime="@lastGood.ToString("O")">@lastGood.ToString("d MMM yyyy HH:mm")</time>
-                London
-            </span>
-        }
-        else
-        {
-            <span>No successful update recorded</span>
-        }
+<div class="refresh" data-refresh-region role="status" aria-live="polite">
+    @if (london is { } lastGood)
+    {
+        <span>
+            Updated
+            <time datetime="@lastGood.ToString("O")">@lastGood.ToString("d MMM HH:mm")</time>
+            @zoneLabel
+        </span>
+    }
+    else
+    {
+        <span>Never updated</span>
+    }
+    @if (statusLabel is not null)
+    {
         <partial name="Shared/_StatusChip" model="@statusLabel" />
-    </span>
+    }
     <form method="get" data-refresh-form>
-        <button type="submit" class="secondary-action">
+        <button type="submit" title="Refresh" aria-label="Refresh">
             <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
-            <span data-refresh-label>Refresh</span>
+            <span class="vh" data-refresh-label>Refresh</span>
         </button>
     </form>
 </div>
-<script>
-    // Start feedback for a manual refresh, which design/README.md requires.
-    // The label change is the signal; the spin is decoration on top of it, so
-    // the feedback still reads correctly under reduced motion or no CSS.
-    document.querySelectorAll('[data-refresh-form]').forEach(function (form) {
-        form.addEventListener('submit', function () {
-            var banner = form.closest('.freshness-banner');
-            if (banner) {
-                banner.classList.add('is-refreshing');
-                banner.setAttribute('aria-busy', 'true');
-            }
-            var label = form.querySelector('[data-refresh-label]');
-            if (label) {
-                label.textContent = 'Refreshing';
-            }
-            form.querySelectorAll('button').forEach(function (button) {
-                button.disabled = true;
-            });
-        });
-    });
-</script>
