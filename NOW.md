@@ -67,23 +67,25 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 
   Live browser verification against the deployed instance found six defects
   the local pass could not see, because the local database was empty and the
-  local server clock is Europe/London. `docs/ui-work/` stays until they are
-  fixed and re-verified, because it is the specification they were found
-  against (taken 2026-08-05, by claude).
-- Deployed UI defects found by live verification (release 6): the Dashboard's
-  "Needs sorting" tile is permanently zero — `EfDashboardQueries` compares the
-  persisted decision against `IntakeDecision.NeedsSorting.ToString()`
-  (`"NeedsSorting"`) while the column holds `"needs_sorting"`, so the tile read
-  0 with a `Needs sorting` receipt sitting in the Inbox. Around forty operator
-  date surfaces across Cases, Intake, Triage, Image intake and Operations
-  still call `ToLocalTime()` against the server clock instead of
-  `OperatorLabels.OfficeTime`; the deployed Linux container runs UTC, so every
-  one of them is an hour behind the office through BST, and `OfficeTime`'s own
-  remark claiming only two such places existed is wrong. Four raw identifiers
-  the defect register names by name survived: the source-receipt id and the
-  failure code on the intake review screen, the sequence-lineage GUID on
-  Replace principal, and raw byte counts in the case documents partial
-  (branch task/ui-live-verification-defects, taken 2026-08-05, by claude).
+  local server clock is Europe/London. They are fixed by PR 349 and shipped
+  as **release 7** (2026-08-05, revision `32feefa…`, digest
+  `sha256:c8a0ebac…`, revision `pegasus-prod-web-252ow37gij--32feefacc388`,
+  no new migration, smoke passed). `docs/ui-work/` stays until the deployed
+  pages are re-checked against it — in particular the Dashboard "Needs
+  sorting" tile, which production data says must now read 1 rather than 0
+  (taken 2026-08-05, by claude).
+- Record releases 4, 5, 6 and 7 in `docs/operations.md` deployed evidence.
+  Supersedes the queued "record releases 4 and 5" line below, which has been
+  outstanding since 2026-08-04 and has now accumulated two more releases.
+  Release 6 (2026-08-05, revision `474a0924…`, digest `sha256:b2ceaf37…`,
+  revision `pegasus-prod-web-252ow37gij--474a0924a6ba`) carried the whole UI
+  rebuild and applied `20260803205759_SendToAiAssessmentToolset`; release 7
+  (2026-08-05, revision `32feefa…`, digest `sha256:c8a0ebac…`, revision
+  `pegasus-prod-web-252ow37gij--32feefacc388`, no new migration) carried the
+  six fixes live verification found. Both smoke-passed. Also record that
+  `claudeuiverification` now exists as a live Administrator and must be
+  removed before go-live (branch task/record-releases-4-to-7,
+  taken 2026-08-05, by claude).
 - CASE-27 edit-lease continuity and conflict recovery for both callers
   (MCP-02/MCP-04): close the gaps between
   `docs/requirements.md` "Case edit authority and recovery" and shipped
