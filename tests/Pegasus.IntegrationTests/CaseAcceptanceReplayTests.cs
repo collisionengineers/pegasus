@@ -21,7 +21,7 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed partial class CaseAcceptanceReplayTests
 {
-    private const string PrincipalCode = QdosAlphaCaseActivationPolicy.PrincipalCode;
+    private const string PrincipalCode = QdosPrincipal.Code;
     private static readonly DateTimeOffset RecordedAtUtc =
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
     private static readonly ActionActor AcceptingActor = ActionActor.Staff(

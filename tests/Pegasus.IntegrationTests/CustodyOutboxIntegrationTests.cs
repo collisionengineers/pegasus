@@ -1017,7 +1017,7 @@ public sealed class CustodyOutboxIntegrationTests
         IServiceProvider services,
         Guid receiptId)
     {
-        const string principalCode = QdosAlphaCaseActivationPolicy.PrincipalCode;
+        const string principalCode = QdosPrincipal.Code;
         await SeedPrincipalAsync(services, principalCode);
         return await services.GetRequiredService<IAcceptIntake>()
             .ExecuteAsync(

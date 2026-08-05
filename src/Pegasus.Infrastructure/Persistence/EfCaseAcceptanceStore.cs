@@ -97,8 +97,10 @@ public sealed class EfCaseAcceptanceStore(
             OperationKey = request.OperationKey.Trim(),
             Reason = reason
         };
-        var principalCode = QdosAlphaCaseActivationPolicy.RequireActivatedPrincipal(
-            request.PrincipalCode);
+        // Shape only. Whether this principal may hold a case is settled below,
+        // inside the transaction, by whether the principal record exists and is
+        // active — not by which principal it happens to be.
+        var principalCode = CasePrincipalCode.Normalize(request.PrincipalCode);
         var command = CreateAcceptanceCommand(request, principalCode);
 
         for (var attempt = 1; attempt <= 3; attempt++)
