@@ -40,7 +40,7 @@
             {
                 <a asp-page="/ImageIntake/Details" asp-route-id="@item.Id">
                     <span><strong>@item.ImageIntakeReference</strong><small>@item.NormalizedVehicleRegistration</small></span>
-                    <span><strong>@IndexModel.OutcomeLabel(item)</strong><small>@item.RegisteredAtUtc.ToLocalTime().ToString("dd MMM yyyy") @item.RegisteredAtUtc.ToLocalTime().ToString("HH:mm")</small></span>
+                    <span><strong>@IndexModel.OutcomeLabel(item)</strong><small>@OperatorLabels.OfficeDate(item.RegisteredAtUtc) @OperatorLabels.OfficeClock(item.RegisteredAtUtc)</small></span>
                 </a>
             }
         </div>

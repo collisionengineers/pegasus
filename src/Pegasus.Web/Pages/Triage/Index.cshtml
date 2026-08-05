@@ -77,7 +77,7 @@
                                with the registration rather than a case
                                reference most rows will not have. *@
                             <td><a asp-page="/Triage/Details" asp-route-id="@item.Id">@item.NormalizedVehicleRegistration</a></td>
-                            <td><time datetime="@item.CreatedAtUtc.ToString("O")">@item.CreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</time></td>
+                            <td><time datetime="@item.CreatedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.CreatedAtUtc)</time></td>
                             <td><partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Triage.IndexModel.StateLabel(item.State)" /></td>
                             <td>@(item.AssigneeId is null ? "Unassigned" : "Assigned")</td>
                         </tr>
@@ -123,7 +123,7 @@ else
                             <td>@(item.Registration ?? "—")</td>
                             <td>@(item.Claimant ?? "—")</td>
                             <td>@item.Principal</td>
-                            <td><time datetime="@item.ReceivedAtUtc.ToString("O")">@item.ReceivedAtUtc.ToLocalTime().ToString("dd MMM yyyy")</time></td>
+                            <td><time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeDate(item.ReceivedAtUtc)</time></td>
                         </tr>
                     }
                     </tbody>

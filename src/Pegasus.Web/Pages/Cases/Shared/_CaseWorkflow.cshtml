@@ -271,7 +271,7 @@
     <h2 id="case-report-approval-title" class="section-label">Immutable report approval</h2>
     @if (workflow.ReportApproval is { } approval)
     {
-        <p>Report artifact <strong>@approval.ArtifactIdentity</strong> was approved at @approval.ApprovedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm"). This does not claim the report was sent.</p>
+        <p>Report artifact <strong>@approval.ArtifactIdentity</strong> was approved at @OperatorLabels.OfficeTime(approval.ApprovedAtUtc). This does not claim the report was sent.</p>
     }
     else if (mayEdit && workflow.State == CaseLifecycleState.ReportPreparation)
     {
@@ -305,7 +305,7 @@
         @foreach (var evidence in details.AvailableReportSentEvidence)
         {
             <li>
-                <strong>@evidence.SentAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</strong> — @evidence.MailboxIdentity / @evidence.ImmutableItemIdentity
+                <strong>@OperatorLabels.OfficeTime(evidence.SentAtUtc)</strong> — @evidence.MailboxIdentity / @evidence.ImmutableItemIdentity
                 @if (mayEdit && workflow.State == CaseLifecycleState.ReportPreparation)
                 {
                     <form method="post" asp-page-handler="LinkReportEvidence">
@@ -371,7 +371,7 @@
 {
     <section class="panel" aria-labelledby="case-chaser-title">
         <h2 id="case-chaser-title" class="section-label">Latest generated chase draft</h2>
-        <dl><dt>Generated</dt><dd>@chaser.GeneratedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd><dt>Next chase</dt><dd>@chaser.NextChaseAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd><dt>Due-work version</dt><dd>@chaser.DueWorkVersion</dd></dl>
+        <dl><dt>Generated</dt><dd>@OperatorLabels.OfficeTime(chaser.GeneratedAtUtc)</dd><dt>Next chase</dt><dd>@OperatorLabels.OfficeTime(chaser.NextChaseAtUtc)</dd><dt>Due-work version</dt><dd>@chaser.DueWorkVersion</dd></dl>
         <pre>@chaser.CopyableText</pre>
         <p>This bounded draft is copyable text only. It is not sent correspondence or delivery evidence.</p>
     </section>
@@ -421,7 +421,7 @@
                 <dt>Latest lookup outcome</dt><dd>@observation.Outcome</dd>
                 <dt>Registration</dt><dd>@observation.Registration</dd>
                 <dt>Provider</dt><dd>@observation.Provenance.Provider @observation.Provenance.ProviderVersion</dd>
-                <dt>Retrieved</dt><dd>@observation.Provenance.RetrievedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd>
+                <dt>Retrieved</dt><dd>@OperatorLabels.OfficeTime(observation.Provenance.RetrievedAtUtc)</dd>
             </dl>
             @if (mayEdit)
             {
@@ -461,7 +461,7 @@
             <dt>Can generate</dt><dd>@(eva.CanGenerate ? "Yes" : "No")</dd>
             <dt>Eligible images</dt><dd>@eva.Images.Count</dd>
             <dt>Revisions</dt><dd>@eva.Revisions.Count</dd>
-            <dt>First sent to Engineer</dt><dd>@(eva.FirstSentToEngineerAtUtc?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "Not recorded")</dd>
+            <dt>First sent to Engineer</dt><dd>@(OperatorLabels.OfficeTime(eva.FirstSentToEngineerAtUtc, "Not recorded"))</dd>
         </dl>
         @if (eva.Revisions.Count > 0)
         {
@@ -473,7 +473,7 @@
                        asp-page-handler="EvaDownload"
                        asp-route-id="@workflow.CaseId"
                        asp-route-revision="@revision.Revision">Download @revision.FileName</a>
-                    <small>Revision @revision.Revision · generated @revision.GeneratedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm") · SHA-256 <code>@revision.BundleSha256</code></small>
+                    <small>Revision @revision.Revision · generated @OperatorLabels.OfficeTime(revision.GeneratedAtUtc) · SHA-256 <code>@revision.BundleSha256</code></small>
                 </li>
             }
             </ul>
