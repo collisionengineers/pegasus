@@ -70,19 +70,6 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   reacquisition path; no takeover, no force-save, no Administrator bypass, no
   lease vocabulary in operator copy (branch task/case-edit-lease-continuity,
   taken 2026-08-05, by claude).
-- A QDOS email forwarded to the instructions mailbox did not create a case:
-  diagnose it against production read-only along the intake chain (Graph poll →
-  staged artifact → dispatch → `ProcessIntake` decision → allocation), name the
-  failing link with live evidence, and fix what is genuinely defective. Reads
-  are authorised for `pegasus-prod-appi-252ow37gij`,
-  `pegasus-prod-worker-252ow37gij`, `pegtrans252ow37gij`, the `pegasus`
-  database, and the `instructions@collisionengineers.co.uk` message; every
-  production mutation stops for separate approval. No edits to the files
-  `task/upload-case-creation-and-inbox` owns and no widening of an accepted
-  fail-closed policy — findings that are operator decisions go to
-  `docs/open-decisions.md` (branch task/qdos-forward-intake-failure, taken
-  2026-08-05, by claude).
-
 ## Merged, not deployed
 
 Nothing that needs a release. The estate serves **release 7** (2026-08-05,
@@ -111,6 +98,19 @@ release claim:
   start.
 
 ## Next (ordered queue — take from the top)
+
+- Production holds no Principal at all, so no QDOS instruction can become a
+  case there whatever intake decides. `SELECT COUNT(*) FROM Principals` on
+  `pegasus-prod-sql-252ow37gij/pegasus` returned 0 on 2026-08-05, and
+  `EfCaseAcceptanceStore` throws "The active principal 'QDOS' does not exist"
+  without one. Path step 2 cannot complete until the QDOS Organization and
+  Principal exist on the estate: decide whether they are created through
+  Administration by the operator or seeded by a bootstrap script, then do it
+  and record the evidence. Until then a definitive instruction reaches
+  allocation and stops there — `AllocateCaseIfDefinitiveAsync` is deliberately
+  non-blocking, so it leaves a receipt behind rather than failing the intake
+  (found diagnosing the 2026-08-05 QDOS forward,
+  task/qdos-forward-intake-failure).
 
 - Send to AI work-request integrity (PR 332 review): the reasoned `Cancelled`
   outcome the plan requires has no caller at all — `ICancelAiWorkRequest` is

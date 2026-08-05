@@ -30,7 +30,17 @@ public sealed record EmailOperationProjection(
     string? PrincipalCode,
     string? FailureCode,
     string? RetryMailboxId,
-    DateTimeOffset? RetryExpectedDueAtUtc)
+    DateTimeOffset? RetryExpectedDueAtUtc,
+    /// <summary>
+    /// The recorded byte length of one refused message, where the row is one
+    /// message rather than a mailbox's polling state.
+    /// </summary>
+    /// <remarks>
+    /// Without it a refused message reads as "could not be processed" and an
+    /// operator cannot tell which message failed or why. Size is the whole
+    /// answer for the one refusal that has actually happened in production.
+    /// </remarks>
+    long? SourceLength = null)
 {
     public bool CanRetry => RetryMailboxId is not null && RetryExpectedDueAtUtc is not null;
 }
