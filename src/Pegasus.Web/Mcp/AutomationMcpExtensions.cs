@@ -100,7 +100,8 @@ public static class AutomationMcpExtensions
             .WithHttpTransport(transport => transport.Stateless = true)
             .WithTools<CaseMcpTools>()
             .WithTools<IntakeMcpTools>()
-            .WithTools<DocumentMcpTools>();
+            .WithTools<DocumentMcpTools>()
+            .WithTools<AssessmentMcpTools>();
         return services;
     }
 

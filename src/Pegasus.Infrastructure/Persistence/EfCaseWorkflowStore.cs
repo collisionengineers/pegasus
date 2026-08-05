@@ -78,6 +78,8 @@ public sealed class EfCaseWorkflowStore(
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await context.CaseDueWork.AsNoTracking()
+            .Include(item => item.Workflow)
+            .ThenInclude(workflow => workflow.Case)
             .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
         return entity is null ? null : Map(entity);
     }
@@ -95,6 +97,8 @@ public sealed class EfCaseWorkflowStore(
         var asOfUtcTicks = asOfUtc.ToUniversalTime().UtcDateTime.Ticks;
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entities = await context.CaseDueWork.AsNoTracking()
+            .Include(item => item.Workflow)
+            .ThenInclude(workflow => workflow.Case)
             .Where(item => item.Workflow.ArchivedAtUtc == null
                 && item.State == nameof(CaseDueWorkState.Scheduled)
                 && item.NextChaseAtUtc != null
@@ -669,7 +673,10 @@ public sealed class EfCaseWorkflowStore(
             {
                 throw new CaseOperationConflictException(request.CaseId, request.OperationKey);
             }
-            var replayedDue = await context.CaseDueWork.AsNoTracking().SingleAsync(item => item.CaseId == request.CaseId, cancellationToken);
+            var replayedDue = await context.CaseDueWork.AsNoTracking()
+                .Include(item => item.Workflow)
+                .ThenInclude(workflow => workflow.Case)
+                .SingleAsync(item => item.CaseId == request.CaseId, cancellationToken);
             return Map(replayedDue);
         }
 
@@ -679,7 +686,10 @@ public sealed class EfCaseWorkflowStore(
         ArchivedCaseGuard.RequireMutable(workflow);
         RequireVersion(workflow, request.ExpectedCaseVersion);
         RequireLease(workflow, request.Actor, request.EditLeaseToken, timeProvider.GetUtcNow());
-        var due = await context.CaseDueWork.SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
+        var due = await context.CaseDueWork
+                .Include(item => item.Workflow)
+                .ThenInclude(workflow => workflow.Case)
+                .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
             ?? throw new InvalidOperationException("The case has no due work to chase.");
         if (due.State != nameof(CaseDueWorkState.Scheduled))
         {
@@ -1369,7 +1379,7 @@ public sealed class EfCaseWorkflowStore(
         entity.ReportSentEvidence is null
             ? null
             : MapReportSentEvidence(entity.ReportSentEvidence),
-        entity.DueWork is null ? null : Map(entity.DueWork),
+        entity.DueWork is null ? null : Map(entity.DueWork, entity.Case.Reference),
         entity.ClosureOutcome is null
             ? null
             : Enum.Parse<CaseClosureOutcome>(entity.ClosureOutcome),
@@ -1454,8 +1464,15 @@ public sealed class EfCaseWorkflowStore(
             LinkActor(entity.LinkedByKind, entity.LinkedBySubjectId, entity.LinkedByRolesJson));
     }
 
-    private static CaseDueWork Map(CaseDueWorkEntity entity) => new(
+    /// <summary>
+    /// Maps due work when the query loaded the case behind it.
+    /// </summary>
+    private static CaseDueWork Map(CaseDueWorkEntity entity) =>
+        Map(entity, entity.Workflow.Case.Reference);
+
+    private static CaseDueWork Map(CaseDueWorkEntity entity, string reference) => new(
         entity.CaseId,
+        reference,
         entity.MissingMaterialReason,
         entity.DueBy,
         Enum.Parse<CaseDueWorkState>(entity.State),
