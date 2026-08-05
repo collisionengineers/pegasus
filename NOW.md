@@ -54,13 +54,36 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   errors and zero CSP violations, and the Upload form posts and shows its
   real validation error.
 
-  **It is still not deployed**, and nothing on the production estate has been
-  touched. The deployment needs the operator's approval for the exact Azure
-  targets — subscription `e6076573-23a5-46a8-acef-7e22d264e5db`, resource
-  group `rg-pegasus-prod` — before any image push, revision activation, or
-  migration. `docs/ui-work/` stays until that release is live-verified,
-  because it is the specification the deployed pages are checked against
-  (taken 2026-08-05, by claude).
+  **Deployed as release 6** on 2026-08-05, under the operator's approval for
+  the exact targets (subscription `e6076573-23a5-46a8-acef-7e22d264e5db`,
+  resource group `rg-pegasus-prod`). Web source revision `474a0924…` on
+  immutable digest `sha256:b2ceaf37…`, single revision
+  `pegasus-prod-web-252ow37gij--474a0924a6ba` at 100% traffic; the one pending
+  migration `20260803205759_SendToAiAssessmentToolset` applied explicitly
+  before the packages; Worker package redeployed with all nine functions;
+  smoke passed (health live/ready 200, exact version/SHA match, anonymous
+  `/Cases` 302 to the https sign-in route). `claudeuiverification` seeded as a
+  live Administrator and confirmed in `AspNetUsers`.
+
+  Live browser verification against the deployed instance found six defects
+  the local pass could not see, because the local database was empty and the
+  local server clock is Europe/London. `docs/ui-work/` stays until they are
+  fixed and re-verified, because it is the specification they were found
+  against (taken 2026-08-05, by claude).
+- Deployed UI defects found by live verification (release 6): the Dashboard's
+  "Needs sorting" tile is permanently zero — `EfDashboardQueries` compares the
+  persisted decision against `IntakeDecision.NeedsSorting.ToString()`
+  (`"NeedsSorting"`) while the column holds `"needs_sorting"`, so the tile read
+  0 with a `Needs sorting` receipt sitting in the Inbox. Around forty operator
+  date surfaces across Cases, Intake, Triage, Image intake and Operations
+  still call `ToLocalTime()` against the server clock instead of
+  `OperatorLabels.OfficeTime`; the deployed Linux container runs UTC, so every
+  one of them is an hour behind the office through BST, and `OfficeTime`'s own
+  remark claiming only two such places existed is wrong. Four raw identifiers
+  the defect register names by name survived: the source-receipt id and the
+  failure code on the intake review screen, the sequence-lineage GUID on
+  Replace principal, and raw byte counts in the case documents partial
+  (branch task/ui-live-verification-defects, taken 2026-08-05, by claude).
 - CASE-27 edit-lease continuity and conflict recovery for both callers
   (MCP-02/MCP-04): close the gaps between
   `docs/requirements.md` "Case edit authority and recovery" and shipped
