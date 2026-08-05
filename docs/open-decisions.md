@@ -277,6 +277,16 @@ Operations-first is selected for the QDOS-alpha shell. Worklist-first and Case-f
 |---|---|---|---|
 | Completion of the full design route for each later UI capability, using the canonical [design process](../design/README.md) rather than inheriting raster details. | Treating comparison material or raster details as requirements could constrain later capabilities to an unaccepted interaction model. | Keep the operations-first alpha shell. Require later UI capabilities to re-enter complete design before activation. | Has the later UI capability completed the full design route without treating comparison evidence or raster details as accepted requirements? |
 
+## Mail workspace freshness threshold and retention start
+
+The mail workspace ships reading retained messages. Two of its numbers are
+provisional and are recorded here rather than presented as settled.
+
+| Decision | Evidence needed | Impact | Recommended default | Decision question |
+|---|---|---|---|---|
+| Stale threshold | Observed poll behaviour under real load: how often a tick is genuinely late, and how long an operator can act on mail without knowing polling has stopped. | Too short and the chip cries wolf on every slow tick; too long and a stopped Worker is invisible while staff work from a list that is no longer arriving. | Ship the provisional 15 minutes (fifteen missed one-minute ticks), recorded in `GetRetainedMailFreshness.StaleAfter`. | How long after the last successful poll should the workspace stop calling its data current? |
+| Historical mail | Whether operators need messages received before message-level retention began, and if so what a reconstruction from retained artifacts could honestly recover. | A backfill invents display material for messages whose MIME was retained but never parsed for display, and would present reconstructed fields as if they had been read at poll time. | Start empty. The list surfaces `HasUnretainedHistory` and says the gap exists rather than presenting nothing as "nothing was received". | Should retained mail be backfilled for messages polled before retention began? |
+
 ## Azure ownership and retirement targets
 
 Azure ownership changes and retirement are separate exact-target decisions. The

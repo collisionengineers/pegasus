@@ -84,9 +84,10 @@ than attempts.
 
 ### Staff Web callers
 
-- `GET /Intake` calls Core `ListIntake`; the `ReceiveIntake` POST handler submits one bounded authenticated manual source and preserves the selected filter/page through PRG. `GET /Intake/{id}` calls `GetIntake`, and its mutations call the named Core intake commands with a server-derived actor, expected versions or case lease, operation key, and reason as applicable.
-- `GET /Intake/{id}/Source` calls Core `DownloadIntakeSource`, which authorises the current staff actor, resolves the receipt-owned source, validates retained length and SHA-256, and returns only a no-sniff attachment with a safe filename and content type.
-- `GET /ImageIntake` calls Core `IImageIntakeQueries` for the association-filtered image-intake receipt list and the exact Image Intake Reference lookup. `GET /ImageIntake/{id}` calls the same detail query plus the receipt's VRM suggestions and, while the record holds no case association, the registration-matched eligible-case candidates; both are read-only authenticated staff pages.
+- `GET /Inbox` calls Core `ListRetainedMail` and `GetRetainedMailFreshness` for the mail workspace: retained messages newest first, scoped by mailbox and folder through the query string alone, with an explicit manual refresh that carries that scope. `GET /Inbox/{id}` calls `GetRetainedMail` for one retained message, its attachments, its retained-scope thread, and its current classification, queue, processing outcome and case association. Both are read-only: the pages carry no handler, and the Web runtime role holds `SELECT` alone on the retained-mail tables.
+- `GET /Received` calls Core `ListIntake` for the received-item record, which pages and counts at the store. `GET /Received/{id}` calls `GetIntake`, and its mutations call the named Core intake commands with a server-derived actor, expected versions or case lease, operation key, and reason as applicable. The page folder stays `Pages/Intake/`, which is the internal domain name; the route is the operator's name for the same thing.
+- `GET /Received/{id}/Source` calls Core `DownloadIntakeSource`, which authorises the current staff actor, resolves the receipt-owned source, validates retained length and SHA-256, and returns only a no-sniff attachment with a safe filename and content type.
+- `GET /VehicleImages` calls Core `IImageIntakeQueries` for the association-filtered image-intake receipt list and the exact Image Intake Reference lookup. `GET /VehicleImages/{id}` calls the same detail query plus the receipt's VRM suggestions and, while the record holds no case association, the registration-matched eligible-case candidates; both are read-only authenticated staff pages.
 - `/Triage` and `/Triage/{id}` are the physical list/detail owners for Core triage queries and commands. The former Development web evaluator is not an application caller; the separately owned desktop evaluator remains outside the Web runtime.
 - Anonymous request submission exists only at `/Uploads/{token}`. The PageModel calls `GetRequestUpload` and one `UploadToRequest` command, uses antiforgery and an idempotent operation key, and presents generic non-disclosing outcomes through PRG.
 - The Case documents surface still implements Box File Request create/revoke (`src/Pegasus.Web/Pages/Cases/Shared/_CaseDocuments.cshtml`). That mechanism is superseded by the operator decision in favour of request-scoped upload links (INT-31) and is pending removal; it must gain no new callers.
@@ -304,7 +305,7 @@ artifacts/local-development/default/intake
 
 This is local development evidence, not production Blob staging, Box custody, backup, or accepted recovery.
 
-There is no supported non-Development filesystem fallback: outside the DevelopmentOffline profile, intake artifacts live in Azure Blob, never on the local filesystem. The staff `/Intake` routes are served wherever intake is composed, including the Production runtime profile (composition merged; deployed state is owned by [operations § Production environment](operations.md#production-environment)); only the manual `ReceiveIntake` upload POST still requires the two Development gates and returns `404` otherwise. The current artifact port exposes store and read operations only; Pegasus has no receipt/artifact deletion API, backup command, or proved restore path. Test-harness cleanup and manual removal of an owned ignored run directory are not application deletion or recovery evidence.
+There is no supported non-Development filesystem fallback: outside the DevelopmentOffline profile, intake artifacts live in Azure Blob, never on the local filesystem. The staff `/Received` and `/Inbox` routes are served wherever intake is composed, including the Production runtime profile (composition merged; deployed state is owned by [operations § Production environment](operations.md#production-environment)), and return `404` everywhere else. The current artifact port exposes store and read operations only; Pegasus has no receipt/artifact deletion API, backup command, or proved restore path. Test-harness cleanup and manual removal of an owned ignored run directory are not application deletion or recovery evidence.
 
 The application retains the original source before recording a reviewable receipt:
 
@@ -377,6 +378,27 @@ lease, its own cursor, and its own last-failure code, so a mailbox that fails is
 released alone and the rest of the tick continues
 ([ADR-0022](adr/0022-approved-mailbox-identity-and-enablement-database-setting.md)).
 Sent-evidence polling remains configuration-driven for one mailbox.
+
+The poll also writes a retained-message read model — mailbox, folder scope,
+immutable and conversation identities, sender, recipients, subject, received
+time, excerpt, attachment names, media types and decoded sizes, and read state
+— which is what the `/Inbox` workspace displays. It is written once, between
+the accepted `ReceiveIntake` and the cursor advance, and never updated: a
+redelivery is refused by the unique index on mailbox and message identity, so
+what the row records is what arrived. The Worker holds `SELECT, INSERT` on
+those tables and Web holds `SELECT` alone.
+
+That read model stores `BodyPlainText`, not only the excerpt. The alternative —
+re-reading the retained MIME artifact on every view, or waiting for the
+processed receipt's evidence — leaves the viewer blank exactly where it is most
+needed: on a workstation with no Worker running, nothing has processed the
+message, and re-reading the artifact per view puts a blob fetch and a MIME
+parse on the read path of a list-and-detail screen. The body is already
+flattened inert text when it is written, so it is stored as the text it will be
+rendered as. Message-level retention starts from the tick that first wrote it;
+nothing backfills earlier mail, and the list surfaces that gap rather than
+presenting an empty scope as "nothing was received"
+([open decisions](open-decisions.md#mail-workspace-freshness-threshold-and-retention-start)).
 
 Its production triggers are
 enabled and live-verified under exact Exchange Application RBAC; the current
@@ -513,7 +535,7 @@ Development configuration selects:
 
 The `--migrate-development` process validates the local-only profile, applies the committed migration stream, prints completion, and exits. The Web host must then be started separately.
 
-The manual-upload intake handler is deny-by-default: it returns `404` unless both the DevelopmentOffline runtime profile and local-intake feature gate are active. The staff `/Intake` routes themselves are served wherever intake is composed.
+The staff `/Received` and `/Inbox` routes are served wherever intake is composed and return `404` everywhere else. Manual upload has its own `/Upload` page and no longer runs through a separately gated handler on the received-item list.
 
 ## Implementation map
 
@@ -532,11 +554,15 @@ The manual-upload intake handler is deny-by-default: it returns `404` unless bot
 | EF image-intake persistence | `src/Pegasus.Infrastructure/Persistence/EfImageIntakeStore.cs` |
 | Database model and migrations | `src/Pegasus.Infrastructure/Persistence/PegasusDbContext.cs`, `src/Pegasus.Infrastructure/Persistence/Migrations/` |
 | Web composition, feature gates and route safety | `src/Pegasus.Web/Program.cs` |
-| Canonical Intake callers | `src/Pegasus.Web/Pages/Intake/Index.cshtml.cs`, `src/Pegasus.Web/Pages/Intake/Details.cshtml.cs`, `src/Pegasus.Web/Pages/Intake/Source.cshtml.cs` |
+| Core retained-mail read model, use cases and freshness policy | `src/Pegasus.Core/Intake/RetainedMail.cs` |
+| EF retained-mail store (poll write path and workspace read path) | `src/Pegasus.Infrastructure/Persistence/EfRetainedMailboxMessageStore.cs` |
+| Canonical received-item callers (`/Received`) | `src/Pegasus.Web/Pages/Intake/Index.cshtml.cs`, `src/Pegasus.Web/Pages/Intake/Details.cshtml.cs`, `src/Pegasus.Web/Pages/Intake/Source.cshtml.cs` |
+| Canonical mail-workspace callers (`/Inbox`) | `src/Pegasus.Web/Pages/Mail/Index.cshtml.cs`, `src/Pegasus.Web/Pages/Mail/Message.cshtml.cs` |
 | Canonical Triage and public-upload callers | `src/Pegasus.Web/Pages/Triage/`, `src/Pegasus.Web/Pages/Uploads/Request.cshtml.cs` |
 | Genuine-input Web evidence | `tests/Pegasus.IntegrationTests/QdosIntakeWebTests.cs` |
 | Route-denial evidence | `tests/Pegasus.IntegrationTests/LocalIntakeAccessTests.cs` |
 | Stable persistence and unsupported-source evidence | `tests/Pegasus.IntegrationTests/IntakeStablePersistenceTests.cs` |
+| Retained-mail persistence and mail-workspace Web evidence | `tests/Pegasus.IntegrationTests/RetainedMailPersistenceTests.cs`, `tests/Pegasus.IntegrationTests/MailWorkspaceWebTests.cs` |
 | LocalDB migration, concurrency, rollback, and retry evidence | `tests/Pegasus.IntegrationTests/IntakePersistenceIntegrationTests.cs` |
 | Dependency-direction evidence | `tests/Pegasus.ArchitectureTests/DependencyDirectionTests.cs` |
 

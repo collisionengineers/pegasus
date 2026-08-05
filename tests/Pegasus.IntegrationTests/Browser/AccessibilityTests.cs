@@ -14,8 +14,9 @@ public sealed class AccessibilityTests
     public static TheoryData<string> AuthenticatedRoutes => new()
     {
         "/",
-        "/Intake",
-        "/ImageIntake",
+        "/Inbox",
+        "/Received",
+        "/VehicleImages",
         "/Triage",
         "/Cases",
         // "/Search" is absent: it is a redirect into Cases now, not a screen.

@@ -1,9 +1,11 @@
-@page "/Intake"
+@* The folder is the internal domain name; the route is the operator's.
+   "intake" is a development term and must not appear in the interface. *@
+@page "/Received"
 @using Pegasus.Core.Intake
 @using Pegasus.Core.Operations
 @model Pegasus.Web.Pages.Intake.IndexModel
 @{
-    ViewData["Title"] = "Inbox";
+    ViewData["Title"] = "Received items";
 
     var failedReceived = Model.MailOperations.Received
         .Where(item => item.State == EmailOperationState.Failed)
@@ -12,7 +14,7 @@
 
 @* No eyebrow, no lede. The tabs, the chips and the rows are the explanation. *@
 <header class="page-heading">
-    <h1>Inbox</h1>
+    <h1>Received items</h1>
 </header>
 
 @if (TempData["IntakeQueueStatus"] is string queueStatus)
@@ -248,12 +250,12 @@ else
             <nav class="pager" aria-label="Pages">
                 @if (Model.Results.Page > 1)
                 {
-                    <a asp-page="/Intake/Index" asp-route-decision="@Model.DecisionFilter" asp-route-page="@(Model.Results.Page - 1)">Previous</a>
+                    <a asp-page="/Intake/Index" asp-route-decision="@Model.DecisionFilter" asp-route-pageNumber="@(Model.Results.Page - 1)">Previous</a>
                 }
                 <span class="pager__context">Page @Model.Results.Page of @Model.Results.TotalPages</span>
                 @if (Model.Results.Page < Model.Results.TotalPages)
                 {
-                    <a asp-page="/Intake/Index" asp-route-decision="@Model.DecisionFilter" asp-route-page="@(Model.Results.Page + 1)">Next</a>
+                    <a asp-page="/Intake/Index" asp-route-decision="@Model.DecisionFilter" asp-route-pageNumber="@(Model.Results.Page + 1)">Next</a>
                 }
             </nav>
         }

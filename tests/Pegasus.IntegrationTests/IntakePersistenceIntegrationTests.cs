@@ -62,7 +62,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260803125915_CaseMatchDecisionsAndAssociationPolicy",
                 "20260803151159_AutomationActorOpenIddict",
                 "20260803205759_SendToAiAssessmentToolset",
-                "20260805210236_ApprovedMailboxGraphIdentity"
+                "20260805210236_ApprovedMailboxGraphIdentity",
+                "20260805223036_RetainedMailboxMessages"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -513,8 +514,8 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
     public async Task<IReadOnlyList<IntakeReceiptSummary>> ListAsync(IntakeDecision decision)
     {
         await using var scope = services.CreateAsyncScope();
-        return await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
-            .ListAsync(decision, CancellationToken.None);
+        return (await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+            .ListAsync(decision, 1, 100, CancellationToken.None)).Items;
     }
 
     public async Task<IntakeQueueCounts> GetCountsAsync()

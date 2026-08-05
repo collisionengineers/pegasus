@@ -98,7 +98,7 @@ public sealed class CapacitySoakTests
         {
             await MeasureAsync(readDurations, async () =>
             {
-                using var response = await client.GetAsync(read == 0 ? "/" : "/Intake");
+                using var response = await client.GetAsync(read == 0 ? "/" : "/Received");
                 if (response.StatusCode != HttpStatusCode.OK)
                 {
                     unexpectedStatuses.Add(response.StatusCode);

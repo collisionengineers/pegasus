@@ -22,12 +22,12 @@ public sealed class LocalIntakeAccessTests
         using var factory = new IntakeWebApplicationFactory("Development", true);
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        using var get = await client.GetAsync("/Intake/Qdos");
+        using var get = await client.GetAsync("/Received/Qdos");
 
         Assert.Equal(HttpStatusCode.NotFound, get.StatusCode);
         await using var scope = factory.Services.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<Pegasus.Core.Intake.IIntakeReceiptQueries>();
-        Assert.Empty(await queries.ListAsync(null, CancellationToken.None));
+        Assert.Empty((await queries.ListAsync(null, 1, 100, CancellationToken.None)).Items);
     }
 
     [Theory]
@@ -41,17 +41,24 @@ public sealed class LocalIntakeAccessTests
 
         foreach (var path in new[]
                  {
-                      "/Intake",
-                      $"/Intake/{Guid.NewGuid()}",
-                     $"/Intake/{Guid.NewGuid()}/Source"
+                      "/Received",
+                      $"/Received/{Guid.NewGuid()}",
+                     $"/Received/{Guid.NewGuid()}/Source",
+                     // Retained mail exists only where polling is composed, so the
+                     // mail workspace is behind the same gate.
+                     "/Inbox",
+                     $"/Inbox/{Guid.NewGuid()}"
                  })
         {
             using var response = await client.GetAsync(path);
             Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         }
         var endpoints = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints;
+        // The gate is on the path, so a POST is refused before any handler is
+        // selected. This used to name handler=ReceiveIntake, which stopped
+        // existing when manual upload moved to /Upload.
         using var uploadMultipart = new MultipartFormDataContent();
-        using var uploadPost = await client.PostAsync("/Intake?handler=ReceiveIntake", uploadMultipart);
+        using var uploadPost = await client.PostAsync("/Received", uploadMultipart);
         Assert.Equal(HttpStatusCode.NotFound, uploadPost.StatusCode);
 
         await using var scope = factory.Services.CreateAsyncScope();

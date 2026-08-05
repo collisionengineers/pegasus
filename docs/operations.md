@@ -10,7 +10,7 @@ Use these evidence states literally and independently:
 
 Compilation, registration, mocks, local execution, deployment, live-service observation, and operator acceptance are different conclusions. Describe code as **Implemented** only when source exists and is connected as claimed; reserve **Called** for a genuine input traversing a real Web or Worker entry point. Direct dependency-injection resolution, registration, host startup, an emulator, source workspace, or benchmark harness is not caller proof.
 
-The authenticated `/Intake` `ReceiveIntake` POST handler through `ProcessIntake` is the manual HTTP intake entry point. The Worker has implemented timer and queue-triggered callers for intake dispatch, inbox polling, due work, sent evidence, staged-artifact reconciliation, and external work. Those source-level callers are not deployment, live traffic, or acceptance evidence; starting a Functions host alone remains host evidence only.
+The authenticated `/Upload` POST through `ProcessIntakeSubmission` is the manual HTTP intake entry point; `/Received` is the read-only record of what it and mailbox polling produced, and `/Inbox` is the read-only workspace over retained messages. The Worker has implemented timer and queue-triggered callers for intake dispatch, inbox polling, due work, sent evidence, staged-artifact reconciliation, and external work. Those source-level callers are not deployment, live traffic, or acceptance evidence; starting a Functions host alone remains host evidence only.
 
 Every external read, mutation, billed call, data transfer, credential change, deployment, recovery exercise, or resource retirement requires explicit approval after showing the exact target, scope, operation, data class, cost exposure, and rollback path. Installed tools, repository configuration, credentials, and authentication never grant authority by themselves.
 
@@ -900,7 +900,7 @@ dotnet test ./tests/Pegasus.IntegrationTests --filter Category=Corpus
 The retained evidence observations are qualified as follows:
 
 - A 2026-07-23 corpus inventory describes only the observed local scope and safety boundary; it does not prove current contents, extraction accuracy, workflow behavior, deployment, or acceptance.
-- A 2026-07-23 multi-format evaluation used controlled protocol fixtures and pinned genuine samples through the historical Development-only `POST /Intake/Qdos`. The current route is the authenticated `/Intake` `ReceiveIntake` POST handler through `ProcessIntake`. The historical result records sampled QDOS-policy behavior and failure boundaries, not current-caller execution, complete workflow, field-level accuracy, Worker/Graph/Box/Azure behavior, or production acceptance.
+- A 2026-07-23 multi-format evaluation used controlled protocol fixtures and pinned genuine samples through the historical Development-only `POST /Intake/Qdos`. The current route is the authenticated `/Upload` POST through `ProcessIntakeSubmission`. The historical result records sampled QDOS-policy behavior and failure boundaries, not current-caller execution, complete workflow, field-level accuracy, Worker/Graph/Box/Azure behavior, or production acceptance.
 - A 2026-07-23 embedded-PDF benchmark used 74 unique PDFs and 567 reported pages from an immutable local QDOS cohort through a disposable benchmark harness. It records comparative embedded-text decoding and marker coverage only; it does not prove literal field accuracy, OCR, future layouts, production runtime behavior, or operator acceptance.
 
 ### Planned EML evaluator

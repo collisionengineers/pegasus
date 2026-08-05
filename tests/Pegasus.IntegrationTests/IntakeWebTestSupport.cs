@@ -344,7 +344,7 @@ internal static partial class IntakeWebDriver
     /// The dispatch loop stays for the mailbox and automation callers, which
     /// genuinely still queue.
     ///
-    /// Either way the result is pointed at <c>/Intake/{id}</c>, because that is
+    /// Either way the result is pointed at <c>/Received/{id}</c>, because that is
     /// what the callers of this helper want next: the retained record of what
     /// arrived. Where the upload itself landed is a separate question, asked
     /// with <see cref="Landing"/>, <see cref="CreateScreenReceiptId"/> or
@@ -370,7 +370,7 @@ internal static partial class IntakeWebDriver
             return upload with
             {
                 Location = new Uri(
-                    $"/Intake/{tokenReceiptId:D}" + (IsDuplicateLanding(upload) ? "?duplicate=true" : string.Empty),
+                    $"/Received/{tokenReceiptId:D}" + (IsDuplicateLanding(upload) ? "?duplicate=true" : string.Empty),
                     UriKind.Relative),
                 ProcessedReceiptId = tokenReceiptId
             };
@@ -419,7 +419,7 @@ internal static partial class IntakeWebDriver
             processedReceiptId = evaluation.ProcessedReceiptId;
         }
 
-        var detailLocation = $"/Intake/{processedReceiptId:D}"
+        var detailLocation = $"/Received/{processedReceiptId:D}"
             + (landing.IsDuplicate ? "?duplicate=true" : string.Empty);
         return upload with
         {
@@ -537,8 +537,8 @@ internal static partial class IntakeWebDriver
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var receipts = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
-        var all = await receipts.ListAsync(null, cancellationToken);
-        return Assert.Single(all).Id;
+        var all = await receipts.ListAsync(null, 1, 100, cancellationToken);
+        return Assert.Single(all.Items).Id;
     }
 
     /// <summary>
@@ -707,7 +707,7 @@ internal static class IntakeTestEvidence
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var receipts = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
-        Assert.Empty(await receipts.ListAsync(null, CancellationToken.None));
+        Assert.Empty((await receipts.ListAsync(null, 1, 100, CancellationToken.None)).Items);
     }
 }
 

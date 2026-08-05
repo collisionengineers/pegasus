@@ -186,6 +186,110 @@ public sealed class PollApprovedInboxTests
             read => read.MailboxId == FirstMailbox.MailboxId);
     }
 
+    [Fact]
+    public async Task AnAcceptedMessageIsRetainedWithTheTokenTheReceiptWasFiledUnder()
+    {
+        var harness = new Harness(FirstMailbox);
+        harness.Source.Enqueue(FirstMailbox.MailboxId, DisplayableMessage("a-1", "cursor-a1"));
+
+        await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
+
+        var retained = Assert.Single(harness.Retained.Retained);
+        Assert.Equal("mailbox-a", retained.MailboxId);
+        Assert.Equal(FirstMailbox.Address, retained.MailboxAddress);
+        Assert.Equal("a-1", retained.ImmutableMessageId);
+        // The same token PrepareMessage handed the receipt, which is what joins the
+        // retained row to its processing outcome.
+        Assert.Equal("9:mailbox-aa-1", retained.ExternalReceiptToken);
+        Assert.Equal("An instruction", retained.Metadata.Subject);
+        Assert.Equal(NowUtc, retained.RetainedAtUtc);
+    }
+
+    [Fact]
+    public async Task ARedeliveredMessageIsOfferedToTheStoreAgainUnchanged()
+    {
+        var harness = new Harness(FirstMailbox);
+        harness.Source.Enqueue(FirstMailbox.MailboxId, DisplayableMessage("a-1", "cursor-a1"));
+        await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
+        harness.Source.Enqueue(FirstMailbox.MailboxId, DisplayableMessage("a-1", "cursor-a1"));
+
+        await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
+
+        // Idempotency is the store's promise, not the poll's: the poll offers the
+        // same row twice and the unique index decides.
+        Assert.Equal(2, harness.Retained.Retained.Count);
+        var first = harness.Retained.Retained[0];
+        var second = harness.Retained.Retained[1];
+        Assert.Equal(first.MailboxId, second.MailboxId);
+        Assert.Equal(first.ImmutableMessageId, second.ImmutableMessageId);
+        Assert.Equal(first.ExternalReceiptToken, second.ExternalReceiptToken);
+        Assert.Equal(first.SourceSha256, second.SourceSha256);
+        Assert.Equal(first.ReceivedAtUtc, second.ReceivedAtUtc);
+        Assert.Equal(first.Metadata.Subject, second.Metadata.Subject);
+        Assert.Equal(first.Metadata.BodyPlainText, second.Metadata.BodyPlainText);
+    }
+
+    [Fact]
+    public async Task AMessageWithoutDisplayMetadataIsAcceptedButNotRetained()
+    {
+        var harness = new Harness(FirstMailbox);
+        harness.Source.Enqueue(FirstMailbox.MailboxId, Message("a-1", "cursor-a1"));
+
+        var handled = await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
+
+        Assert.Equal(1, handled);
+        Assert.Empty(harness.Retained.Retained);
+    }
+
+    [Fact]
+    public async Task MetadataOutsideTheRetainedBoundsQuarantinesRatherThanTruncating()
+    {
+        var harness = new Harness(FirstMailbox);
+        harness.Source.Enqueue(
+            FirstMailbox.MailboxId,
+            DisplayableMessage(
+                "a-1",
+                "cursor-a1",
+                Metadata(subject: new string('s', 1001))));
+
+        var handled = await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
+
+        Assert.Equal(1, handled);
+        Assert.Empty(harness.Retained.Retained);
+    }
+
+    [Fact]
+    public async Task TooManyRecipientsIsRefusedAsMalformedMetadata()
+    {
+        var harness = new Harness(FirstMailbox);
+        harness.Source.Enqueue(
+            FirstMailbox.MailboxId,
+            DisplayableMessage(
+                "a-1",
+                "cursor-a1",
+                Metadata(toAddresses: [.. Enumerable.Range(0, 51).Select(index => $"r{index}@example.invalid")])));
+
+        await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
+
+        Assert.Empty(harness.Retained.Retained);
+    }
+
+    [Fact]
+    public async Task AFailedRetainReleasesTheLeaseAndLeavesTheCursorUnadvanced()
+    {
+        var harness = new Harness(FirstMailbox);
+        harness.Source.Enqueue(FirstMailbox.MailboxId, DisplayableMessage("a-1", "cursor-a1"));
+        harness.Retained.Fail(new IOException("the read model is unavailable"));
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None));
+
+        Assert.Equal(
+            ("mailbox-a", "mailbox_poll_failure"),
+            Assert.Single(harness.PollStore.Releases));
+        Assert.False(harness.PollStore.Cursors.ContainsKey("mailbox-a"));
+    }
+
     private static ActionActor WorkerActor() =>
         ActionActor.SystemWorker("approved-inbox-poller");
 
@@ -196,6 +300,31 @@ public sealed class PollApprovedInboxTests
             new ReadOnlyMemory<byte>("From: sender@example.invalid\r\n\r\nBody"u8.ToArray()),
             NowUtc,
             nextCursor);
+
+    private static ApprovedInboxMessage DisplayableMessage(
+        string identity,
+        string nextCursor,
+        RetainedMailboxMessageMetadata? metadata = null) =>
+        Message(identity, nextCursor) with
+        {
+            RetainedMetadata = metadata ?? Metadata()
+        };
+
+    private static RetainedMailboxMessageMetadata Metadata(
+        string? subject = "An instruction",
+        IReadOnlyList<string>? toAddresses = null) =>
+        new(
+            "inbox-a",
+            "conversation-1",
+            "<message-1@example.invalid>",
+            "sender@example.invalid",
+            "A Sender",
+            toAddresses ?? ["intake@collisionengineers.co.uk"],
+            [],
+            subject,
+            "Body",
+            [new("estimate.pdf", "application/pdf", 2048)],
+            IsRead: false);
 
     private sealed class Harness
     {
@@ -215,6 +344,8 @@ public sealed class PollApprovedInboxTests
 
         internal InboxSource Source { get; }
 
+        internal RetainedStore Retained { get; } = new();
+
         internal PollApprovedInbox Poll()
         {
             var artifacts = new ArtifactStore();
@@ -227,7 +358,30 @@ public sealed class PollApprovedInboxTests
                 artifacts,
                 artifacts,
                 new ReceiveIntake(artifacts, new WorkStore(), timeProvider),
+                Retained,
                 timeProvider);
+        }
+    }
+
+    private sealed class RetainedStore : IRetainedMailboxMessageStore
+    {
+        private Exception? failure;
+
+        internal List<RetainedMailboxMessage> Retained { get; } = [];
+
+        internal void Fail(Exception exception) => failure = exception;
+
+        public Task RetainAsync(
+            RetainedMailboxMessage message,
+            CancellationToken cancellationToken)
+        {
+            if (failure is not null)
+            {
+                return Task.FromException(failure);
+            }
+
+            Retained.Add(message);
+            return Task.CompletedTask;
         }
     }
 

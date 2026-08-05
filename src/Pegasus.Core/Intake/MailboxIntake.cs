@@ -20,6 +20,33 @@ public sealed record ApprovedInboxSourceRejection(
     string? OriginalSourceHash = null,
     string? EvidenceMarker = null);
 
+public sealed record RetainedMailboxAttachment(
+    string FileName,
+    string MediaType,
+    long ContentLength);
+
+/// <summary>
+/// Everything the mail workspace shows about one message, as the source read it.
+/// </summary>
+/// <remarks>
+/// Carried on the polled message rather than re-derived later because the MIME is
+/// in hand exactly once, at poll time. <c>BodyPlainText</c> is retained with the
+/// rest: the alternative is re-reading the artifact on every view, which on a
+/// workstation with no Worker running means the viewer is blank.
+/// </remarks>
+public sealed record RetainedMailboxMessageMetadata(
+    string FolderIdentity,
+    string? ConversationIdentity,
+    string? InternetMessageIdentity,
+    string? SenderAddress,
+    string? SenderDisplayName,
+    IReadOnlyList<string> ToAddresses,
+    IReadOnlyList<string> CcAddresses,
+    string? Subject,
+    string? BodyPlainText,
+    IReadOnlyList<RetainedMailboxAttachment> Attachments,
+    bool IsRead);
+
 public sealed record ApprovedInboxMessage(
     string ImmutableMessageId,
     string FileName,
@@ -28,6 +55,42 @@ public sealed record ApprovedInboxMessage(
     string NextCursor)
 {
     public ApprovedInboxSourceRejection? SourceRejection { get; init; }
+
+    /// <summary>
+    /// What the workspace will display, where the source could read it. An init
+    /// property rather than a constructor parameter, following
+    /// <see cref="SourceRejection"/>: a source that supplies none still polls, and
+    /// the messages it brought in are then absent from the viewer rather than the
+    /// poll refusing them.
+    /// </summary>
+    public RetainedMailboxMessageMetadata? RetainedMetadata { get; init; }
+}
+
+/// <summary>
+/// One retained message row. Written once, on the tick that first accepted the
+/// message, and never updated: the fact recorded is what arrived, not what the
+/// mailbox looks like now.
+/// </summary>
+public sealed record RetainedMailboxMessage(
+    string MailboxId,
+    string MailboxAddress,
+    string ImmutableMessageId,
+    string ExternalReceiptToken,
+    DateTimeOffset ReceivedAtUtc,
+    long SourceLength,
+    string SourceSha256,
+    RetainedMailboxMessageMetadata Metadata,
+    DateTimeOffset RetainedAtUtc);
+
+public interface IRetainedMailboxMessageStore
+{
+    /// <summary>
+    /// Inserts the row if the mailbox has never retained this message identity.
+    /// A redelivery is a no-op, never an update.
+    /// </summary>
+    Task RetainAsync(
+        RetainedMailboxMessage message,
+        CancellationToken cancellationToken);
 }
 
 public sealed record ApprovedInboxPage(
@@ -111,6 +174,7 @@ public sealed class PollApprovedInbox(
     IIntakeArtifactStore artifactStore,
     IIntakeQuarantineArtifactStore quarantineArtifactStore,
     ReceiveIntake receiveIntake,
+    IRetainedMailboxMessageStore retainedMessageStore,
     TimeProvider timeProvider)
 {
     private const int MaximumFileNameLength = 260;
@@ -118,6 +182,12 @@ public sealed class PollApprovedInbox(
     private const int MaximumActorLength = 200;
     private const int MaximumMailboxIdentityLength = 100;
     private const int MaximumFolderIdentityLength = 200;
+    private const int MaximumRetainedFolderIdentityLength = 500;
+    private const int MaximumMessageIdentityLength = 500;
+    private const int MaximumAddressLength = 320;
+    private const int MaximumSubjectLength = 1000;
+    private const int MaximumMediaTypeLength = 200;
+    private const int MaximumRecipientCount = 50;
     private const string SystemWorkerActorPrefix = "system-worker:";
     private static readonly TimeSpan PollLeaseDuration = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan FailureRetryDelay = TimeSpan.FromSeconds(30);
@@ -253,7 +323,7 @@ public sealed class PollApprovedInbox(
             PreparedMessage prepared;
             try
             {
-                prepared = PrepareMessage(lease.MailboxId, actorCode, message);
+                prepared = PrepareMessage(lease, actorCode, message);
             }
             catch (MalformedApprovedInboxMessageException exception)
             {
@@ -282,6 +352,19 @@ public sealed class PollApprovedInbox(
                     cancellationToken);
                 handledMessages++;
                 continue;
+            }
+
+            // Between acceptance and the cursor advance, deliberately. After, so a
+            // source-identity conflict is quarantined and never appears in the
+            // workspace as something that arrived cleanly; before, so a failed
+            // retain leaves the cursor where it was and the outer catch releases
+            // the lease — the next tick redelivers the message and the store's
+            // insert-if-absent makes that harmless.
+            if (prepared.RetainedMessage is { } retained)
+            {
+                await retainedMessageStore.RetainAsync(
+                    retained with { RetainedAtUtc = timeProvider.GetUtcNow() },
+                    cancellationToken);
             }
 
             await pollStore.AdvanceAsync(
@@ -499,10 +582,11 @@ public sealed class PollApprovedInbox(
     }
 
     private static PreparedMessage PrepareMessage(
-        string mailboxId,
+        ApprovedInboxPollLease lease,
         string actorCode,
         ApprovedInboxMessage message)
     {
+        var mailboxId = lease.MailboxId;
         if (string.IsNullOrWhiteSpace(message.ImmutableMessageId))
         {
             throw new MalformedApprovedInboxMessageException(
@@ -574,6 +658,24 @@ public sealed class PollApprovedInbox(
                 "The approved inbox message identity exceeds the supported length.");
         }
 
+        RetainedMailboxMessage? retainedMessage = null;
+        if (message.RetainedMetadata is { } metadata)
+        {
+            ValidateRetainedMetadata(metadata);
+            retainedMessage = new(
+                mailboxId,
+                lease.MailboxAddress,
+                message.ImmutableMessageId,
+                externalReceiptToken,
+                message.ReceivedAtUtc,
+                message.MimeContent.Length,
+                Convert.ToHexString(SHA256.HashData(message.MimeContent.Span)),
+                metadata,
+                // Replaced with the clock reading taken at the write, which is the
+                // only place that knows when the row was actually made.
+                message.ReceivedAtUtc);
+        }
+
         return new(
             new(
                 safeFileName,
@@ -582,8 +684,50 @@ public sealed class PollApprovedInbox(
                 message.ReceivedAtUtc,
                 actorCode,
                 new(IntakeSourceChannel.Mailbox, externalReceiptToken)),
-            externalReceiptToken);
+            externalReceiptToken,
+            retainedMessage);
     }
+
+    /// <summary>
+    /// Bounds on what the workspace will store, applied before anything is written.
+    /// A source that hands over a 4 KB subject or a thousand recipients is
+    /// malformed, and the poll treats it as poison rather than truncating material
+    /// an operator will later read as if it were complete.
+    /// </summary>
+    private static void ValidateRetainedMetadata(RetainedMailboxMessageMetadata metadata)
+    {
+        var valid = IsBounded(metadata.FolderIdentity, MaximumRetainedFolderIdentityLength)
+            && IsOptionalBounded(metadata.ConversationIdentity, MaximumMessageIdentityLength)
+            && IsOptionalBounded(metadata.InternetMessageIdentity, MaximumMessageIdentityLength)
+            && IsOptionalBounded(metadata.SenderAddress, MaximumAddressLength)
+            && IsOptionalBounded(metadata.SenderDisplayName, MaximumAddressLength)
+            && IsOptionalBounded(metadata.Subject, MaximumSubjectLength)
+            && IsAddressList(metadata.ToAddresses)
+            && IsAddressList(metadata.CcAddresses)
+            && metadata.Attachments is not null
+            && metadata.Attachments.All(attachment =>
+                attachment is not null
+                && IsBounded(attachment.FileName, MaximumFileNameLength)
+                && IsBounded(attachment.MediaType, MaximumMediaTypeLength)
+                && attachment.ContentLength >= 0);
+        if (!valid)
+        {
+            throw new MalformedApprovedInboxMessageException(
+                "invalid_message_metadata",
+                "The approved inbox message metadata is outside the retained bounds.");
+        }
+    }
+
+    private static bool IsAddressList(IReadOnlyList<string>? addresses) =>
+        addresses is not null
+        && addresses.Count <= MaximumRecipientCount
+        && addresses.All(address => IsBounded(address, MaximumAddressLength));
+
+    private static bool IsBounded(string? value, int maximumLength) =>
+        !string.IsNullOrWhiteSpace(value) && value.Length <= maximumLength;
+
+    private static bool IsOptionalBounded(string? value, int maximumLength) =>
+        value is null || IsBounded(value, maximumLength);
 
     private async Task VerifyRetainedArtifactAsync(
         IntakeQuarantineArtifact artifact,
@@ -667,7 +811,8 @@ public sealed class PollApprovedInbox(
 
     private readonly record struct PreparedMessage(
         IntakeSource Source,
-        string ExternalReceiptToken);
+        string ExternalReceiptToken,
+        RetainedMailboxMessage? RetainedMessage);
 
     private sealed class MalformedApprovedInboxMessageException(
         string failureCode,

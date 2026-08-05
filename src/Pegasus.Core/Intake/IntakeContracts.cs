@@ -575,8 +575,19 @@ public interface IIntakeReceiptQueries
 {
     Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<IntakeReceiptSummary>> ListAsync(
+    /// <summary>
+    /// One page of received items, newest first, filtered and counted at the store.
+    /// </summary>
+    /// <remarks>
+    /// Paging belongs here rather than above it. The port used to return a
+    /// hard-capped list that the use case then paged inside, so the reported total
+    /// was the cap: at twenty-five a page exactly four pages existed however much
+    /// had been received, and everything older was unreachable.
+    /// </remarks>
+    Task<IntakeListPage> ListAsync(
         IntakeDecision? decision,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken);
 
     Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken);

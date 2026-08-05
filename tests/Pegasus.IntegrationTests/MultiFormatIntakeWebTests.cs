@@ -298,7 +298,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var result = await UploadAsync(factory, client, "inbound.html", "text/html", htmlSource);
         var receiptId = ReceiptId(result);
 
-        using var response = await client.GetAsync($"/Intake/{receiptId}/Source");
+        using var response = await client.GetAsync($"/Received/{receiptId}/Source");
         response.EnsureSuccessStatusCode();
         var downloaded = await response.Content.ReadAsByteArrayAsync();
 
@@ -308,7 +308,7 @@ public sealed partial class MultiFormatIntakeWebTests
         Assert.Contains("nosniff", contentTypeOptions);
         Assert.Equal(htmlSource, downloaded);
 
-        using var unknownResponse = await client.GetAsync($"/Intake/{Guid.NewGuid()}/Source");
+        using var unknownResponse = await client.GetAsync($"/Received/{Guid.NewGuid()}/Source");
         var unknownBody = await unknownResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.NotFound, unknownResponse.StatusCode);
         Assert.DoesNotContain(receiptId.ToString(), unknownBody, StringComparison.OrdinalIgnoreCase);
@@ -787,7 +787,7 @@ public sealed partial class MultiFormatIntakeWebTests
             Assert.True(File.Exists(artifactPath), "The real intake caller did not retain its source artifact.");
             await File.WriteAllBytesAsync(artifactPath, Encoding.UTF8.GetBytes(tamperedText));
 
-            using var response = await client.GetAsync($"/Intake/{receipt.Id}/Source");
+            using var response = await client.GetAsync($"/Received/{receipt.Id}/Source");
             var responseBody = await response.Content.ReadAsStringAsync();
 
             Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);

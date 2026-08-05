@@ -363,7 +363,7 @@ public sealed partial class CaseCreateWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
         var receipt = await CreateBareReceiptAsync(factory.Services);
 
-        using var details = await client.GetAsync($"/Intake/{receipt.Id}");
+        using var details = await client.GetAsync($"/Received/{receipt.Id}");
         var html = await details.Content.ReadAsStringAsync();
 
         // Exactly one acceptance caller, in executable form.
@@ -379,7 +379,7 @@ public sealed partial class CaseCreateWebTests
                 ["__RequestVerificationToken"] = AntiforgeryToken(html)
             });
             using var response = await client.PostAsync(
-                $"/Intake/{receipt.Id}?handler={handler}",
+                $"/Received/{receipt.Id}?handler={handler}",
                 content);
             // Razor Pages has no handler to match, so nothing is executed and
             // nothing succeeds. What matters is that the removed handlers can
@@ -406,7 +406,7 @@ public sealed partial class CaseCreateWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
         var receipt = await CreateBareReceiptAsync(factory.Services);
 
-        using var gated = await client.GetAsync($"/Intake/{receipt.Id}");
+        using var gated = await client.GetAsync($"/Received/{receipt.Id}");
         using var createScreen = await client.GetAsync($"/Cases/Create?receiptId={receipt.Id}");
 
         Assert.Equal(HttpStatusCode.NotFound, gated.StatusCode);
