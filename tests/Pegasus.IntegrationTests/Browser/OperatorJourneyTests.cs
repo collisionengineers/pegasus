@@ -33,10 +33,10 @@ public sealed class OperatorJourneyTests
             navigation,
             "Dashboard",
             "Inbox",
+            "Upload",
             "Queues",
             "Cases",
             "Administration",
-            "Search",
             "development-offline-administrator");
 
         // The three sections an operator actually opens this screen to read.

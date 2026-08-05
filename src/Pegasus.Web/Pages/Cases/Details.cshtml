@@ -1,4 +1,5 @@
 @page "/Cases/{id:guid}"
+@using Pegasus.Web.Presentation
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @{
     ViewData["Title"] = Model.Case is null ? "Case" : $"Case {Model.Case.Workflow.Identity.Reference}";
@@ -14,58 +15,154 @@
 }
 
 @* Defensive only: the handler returns 404 when the case is absent or
-   unauthorised, so the not-found surface is owned by the error page rather
-   than by this view. *@
+   unauthorised, so the not-found surface is owned by the status-code page
+   rather than by this view. *@
 @if (Model.Case is null)
 {
     return;
 }
 
-<header class="page-heading">
-    <div>
-        <p class="eyebrow">Case workspace</p>
-        <h1>Case @Model.Case.Workflow.Identity.Reference</h1>
-        <p class="lede">Read-only evidence remains visible without edit mode. Every change uses the current version and an active lease where required.</p>
+@{
+    var details = Model.Case!;
+    var workflow = details.Workflow;
+    var summary = details.Summary;
+    var stage = OperatorLabels.CaseStage(workflow.State);
+    var tab = Model.Tab;
+
+    // Export is offered only in Review. The rule is a Core precondition; this
+    // control reflects it rather than defining it, and states the condition
+    // instead of vanishing — the case will offer export once it reaches
+    // Review, so removing the button would say something false.
+    var canExport = workflow.State == Pegasus.Core.Workflow.CaseLifecycleState.Review;
+}
+
+<nav class="crumb" aria-label="Breadcrumb">
+    <a asp-page="/Cases/Index">Cases</a> / @workflow.Identity.Reference
+</nav>
+
+@* The case is one container: header band, action bar, tabs. It used to be a
+   five-screen vertical stack of sibling panels the operator scrolled through.
+   The lede - "Read-only evidence remains visible without edit mode. Every
+   change uses the current version and an active lease where required." -
+   narrated concurrency mechanics and is gone. *@
+<article class="record" data-state="@(canExport ? "review" : "not-ready")">
+    <header class="record__head">
+        <h1>@workflow.Identity.Reference</h1>
+        <span class="record__identity">
+            <span><b>@workflow.Identity.PrincipalCode</b></span>
+            <span>@(summary.Registration ?? "No registration")</span>
+            <span>@(summary.Claimant ?? "No claimant recorded")</span>
+            <span>@OperatorLabels.CaseTypeName(summary.CaseType)</span>
+        </span>
+        <span class="record__head-end">
+            <partial name="Shared/_StatusChip" model="@stage" />
+        </span>
+    </header>
+    <div class="record__accent"></div>
+
+    <div class="record__bar">
+        <a class="btn" href="#case-actions">Actions</a>
+        @if (workflow.OriginalCaseId is { } originalCaseId)
+        {
+            <a class="btn" asp-page="/Cases/Details" asp-route-id="@originalCaseId">Original case</a>
+        }
+        @if (workflow.ReplacementCaseId is { } replacementCaseId)
+        {
+            <a class="btn" asp-page="/Cases/Details" asp-route-id="@replacementCaseId">Replacement case</a>
+        }
+        <span class="record__bar-end">
+            <span class="record__bar-rule" aria-hidden="true"></span>
+            <span class="gated" data-condition="@(canExport ? null : "Available in Review")">
+                <a class="btn btn--dark @(canExport ? string.Empty : "is-disabled")"
+                   asp-page="/Cases/Documents/Export" asp-route-id="@summary.CaseId"
+                   aria-disabled="@(canExport ? "false" : "true")">Export</a>
+            </span>
+        </span>
     </div>
-    <a asp-page="/Cases/Index" class="secondary-action">Back to cases</a>
-</header>
 
-@if (TempData["CaseStatus"] is string status)
-{
-    <div class="status-card" role="status">@status</div>
-}
-@if (TempData["CaseError"] is string error)
-{
-    <div class="status-card status-card--error" role="alert">@error</div>
-}
-@if (TempData["CaseRequestSecret"] is string requestSecret)
-{
-    <section class="panel form-panel" aria-labelledby="case-request-secret-title">
-        <h2 id="case-request-secret-title" class="section-label">Copy this secret now</h2>
-        <p>It is displayed once and is not available from case history.</p>
-        <input value="@requestSecret" readonly aria-label="One-time request secret" />
-    </section>
-}
+    <nav class="tabs" aria-label="Case sections">
+        <a asp-page="/Cases/Details" asp-route-id="@summary.CaseId"
+           aria-current="@(tab == "overview" ? "page" : null)">Overview</a>
+        <a asp-page="/Cases/Details" asp-route-id="@summary.CaseId" asp-route-tab="evidence"
+           aria-current="@(tab == "evidence" ? "page" : null)">
+            Evidence <span class="count">@Model.EvidenceCount</span>
+        </a>
+        <a asp-page="/Cases/Details" asp-route-id="@summary.CaseId" asp-route-tab="history"
+           aria-current="@(tab == "history" ? "page" : null)">
+            History <span class="count">@details.History.Count</span>
+        </a>
+    </nav>
 
-<partial name="Shared/_CaseSummary" model="Model" />
+    <div class="record__body">
+        @if (TempData["CaseStatus"] is string status)
+        {
+            <div class="status-card status-card--done" role="status">@status</div>
+        }
+        @if (TempData["CaseError"] is string error)
+        {
+            <div class="status-card status-card--error" role="alert">@error</div>
+        }
+        @if (TempData["CaseRequestSecret"] is string requestSecret)
+        {
+            <section class="panel form-panel" aria-labelledby="case-request-secret-title">
+                <h2 id="case-request-secret-title" class="section-label">Copy this secret now</h2>
+                <p>It is shown once and is not available from case history.</p>
+                <input value="@requestSecret" readonly aria-label="One-time request secret" />
+            </section>
+        }
 
-@if (Model.ImageIntakes.Count > 0)
-{
-    <section class="panel section-gap" aria-labelledby="case-image-intakes-title">
-        <h2 id="case-image-intakes-title" class="section-label">Image intakes</h2>
-        <p>Image-led material associated with this case. Both identities are permanent; association can be reasonedly reversed on the origin receipt before report delivery.</p>
-        <div class="queue-list">
-            @foreach (var item in Model.ImageIntakes)
-            {
-                <a asp-page="/ImageIntake/Details" asp-route-id="@item.Id">
-                    <span><strong>@item.ImageIntakeReference</strong><small>@item.NormalizedVehicleRegistration</small></span>
-                    <span><strong>Associated with Case</strong><small>@item.RegisteredAtUtc.ToLocalTime().ToString("dd MMM yyyy") @item.RegisteredAtUtc.ToLocalTime().ToString("HH:mm")</small></span>
-                </a>
-            }
-        </div>
-    </section>
-}
+        @if (tab == "evidence")
+        {
+            @* One home for everything the case carries. The vehicle images
+               used to sit in their own section further down the page under the
+               banned term "Image intakes", and the sentence beside them said
+               an association could be "reasonedly reversed", which is not a
+               word. *@
+            <partial name="Shared/_CaseDocuments" model="Model" />
 
-<partial name="Shared/_CaseWorkflow" model="Model" />
-<partial name="Shared/_CaseDocuments" model="Model" />
-<partial name="Shared/_CaseHistory" model="Model" />
+            <section class="section-gap" aria-labelledby="case-images-title">
+                <div class="blockhead">
+                    <h2 id="case-images-title">Vehicle images</h2>
+                </div>
+                @if (Model.ImageIntakes.Count == 0)
+                {
+                    <p class="empty-state">No vehicle images yet.</p>
+                }
+                else
+                {
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Image reference</th>
+                                    <th scope="col">Registration</th>
+                                    <th scope="col">Registered</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            @foreach (var image in Model.ImageIntakes)
+                            {
+                                <tr>
+                                    <td><a asp-page="/ImageIntake/Details" asp-route-id="@image.Id">@image.ImageIntakeReference</a></td>
+                                    <td>@image.NormalizedVehicleRegistration</td>
+                                    <td><time datetime="@image.RegisteredAtUtc.ToString("O")">@image.RegisteredAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</time></td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+        }
+        else if (tab == "history")
+        {
+            <partial name="Shared/_CaseHistory" model="Model" />
+        }
+        else
+        {
+            <partial name="Shared/_CaseSummary" model="Model" />
+            <div id="case-actions"></div>
+            <partial name="Shared/_CaseWorkflow" model="Model" />
+        }
+    </div>
+</article>
