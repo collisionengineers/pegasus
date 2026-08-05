@@ -155,7 +155,7 @@ public sealed class IndexModel(
 
     public static string DecisionLabel(IntakeDecision decision) => decision switch
     {
-        IntakeDecision.DraftReady => "Instruction draft",
+        IntakeDecision.CaseCreated => "Case created",
         IntakeDecision.NeedsSorting => "Needs sorting",
         IntakeDecision.BlockedIntake => "Blocked intake",
         IntakeDecision.OcrRequired => "Document text required",
@@ -207,7 +207,7 @@ public sealed class IndexModel(
         decision = value switch
         {
             null or "" => null,
-            "draft_ready" => IntakeDecision.DraftReady,
+            "case_created" => IntakeDecision.CaseCreated,
             "needs_sorting" => IntakeDecision.NeedsSorting,
             "blocked_intake" => IntakeDecision.BlockedIntake,
             "unsupported" => IntakeDecision.Unsupported,

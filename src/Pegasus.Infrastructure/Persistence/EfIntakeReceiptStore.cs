@@ -149,16 +149,24 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         return Map(receipt, false, acceptedCaseId);
     }
 
+    /// <summary>
+    /// How much received material is still waiting for a person.
+    /// </summary>
+    /// <remarks>
+    /// Receipts that produced a case are excluded. Without that filter every
+    /// count was cumulative for all time — creating a case from a receipt never
+    /// decremented anything, so the dashboard's queue numbers only ever grew.
+    /// </remarks>
     public async Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var decisions = await context.IntakeReceipts
             .AsNoTracking()
+            .Where(item => !context.CaseIntakeLinks.Any(link => link.IntakeReceiptId == item.Id))
             .Select(item => item.Decision)
             .ToListAsync(cancellationToken);
         var parsedDecisions = decisions.Select(ParseDecision).ToArray();
         return new(
-            parsedDecisions.Count(item => item == IntakeDecision.DraftReady),
             parsedDecisions.Count(item => item == IntakeDecision.NeedsSorting),
             parsedDecisions.Count(item => item == IntakeDecision.BlockedIntake));
     }
@@ -173,8 +181,12 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             _ = ToCode(decision.Value);
         }
 
+        // The same exclusion as the counts: a receipt that produced a case is
+        // not still in the queue. Without it an accepted receipt stayed in the
+        // list for ever, under a decision that no longer described it.
         var entities = await context.IntakeReceipts
             .AsNoTracking()
+            .Where(item => !context.CaseIntakeLinks.Any(link => link.IntakeReceiptId == item.Id))
             .ToListAsync(cancellationToken);
         var summaries = entities
             .Select(item => new IntakeReceiptSummary(
@@ -965,7 +977,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
 
     internal static string ToCode(IntakeDecision value) => value switch
     {
-        IntakeDecision.DraftReady => "draft_ready",
+        IntakeDecision.CaseCreated => "case_created",
         IntakeDecision.NeedsSorting => "needs_sorting",
         IntakeDecision.BlockedIntake => "blocked_intake",
         IntakeDecision.Unsupported => "unsupported",
@@ -977,7 +989,12 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
 
     internal static IntakeDecision ParseDecision(string value) => value switch
     {
-        "draft_ready" => IntakeDecision.DraftReady,
+        "case_created" => IntakeDecision.CaseCreated,
+        // The legacy code for the same processing outcome, written while the
+        // decision still had to wait for a staff member to press "Accept and
+        // allocate case reference". The outcome it records is unchanged; only
+        // the wait is gone, so it reads as the same decision.
+        "draft_ready" => IntakeDecision.CaseCreated,
         "needs_sorting" => IntakeDecision.NeedsSorting,
         "blocked_intake" => IntakeDecision.BlockedIntake,
         "unsupported" => IntakeDecision.Unsupported,
