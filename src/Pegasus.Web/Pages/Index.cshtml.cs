@@ -17,12 +17,13 @@ public class IndexModel(IGetOperationsSnapshot getOperationsSnapshot) : PageMode
 {
     public IntakeQueueCounts Counts { get; private set; } = new(0, 0);
 
-    public int TriageCount { get; private set; }
-
     public IReadOnlyList<CaseDueWork> DueWork { get; private set; } = [];
 
-    public StagedArtifactOperationsSnapshot StagedArtifacts { get; private set; } =
-        new([]);
+    public CaseStageCounts CaseStages { get; private set; } = new(0, 0, 0);
+
+    public CaseActivityCounts CaseActivity { get; private set; } = new(0, 0, 0, 0, 0);
+
+    public MailActivityCounts MailActivity { get; private set; } = new(0, 0);
 
     public DateTimeOffset LoadedAtUtc { get; private set; }
 
@@ -39,9 +40,10 @@ public class IndexModel(IGetOperationsSnapshot getOperationsSnapshot) : PageMode
         var snapshot = await getOperationsSnapshot.ExecuteAsync(actor, cancellationToken);
         LoadedAtUtc = snapshot.AsOfUtc;
         Counts = snapshot.Intake;
-        TriageCount = snapshot.TriageCount;
         DueWork = snapshot.DueWork;
-        StagedArtifacts = snapshot.StagedArtifacts;
+        CaseStages = snapshot.CaseStages;
+        CaseActivity = snapshot.CaseActivity;
+        MailActivity = snapshot.MailActivity;
         return Page();
     }
 }
