@@ -6,10 +6,18 @@
 @{
     var details = Model.Case!;
     var workflow = details.Workflow;
-    static string Display<T>(CaseDataValue<T>? value) where T : notnull =>
+    // A typed value as text, keeping its provenance so the row can show where
+    // it came from as an icon rather than as a source label, a policy key and
+    // a version integer.
+    static CaseDataValue<string>? Text<T>(CaseDataValue<T>? value) where T : notnull =>
         value is null
-            ? "—"
-            : $"{value.Value} ({value.Source.Label}; {value.Source.PolicyKey} v{value.Source.PolicyVersion})";
+            ? null
+            : new(
+                value.Value.ToString() ?? string.Empty,
+                value.Kind,
+                value.Source,
+                value.ConfirmedByActor,
+                value.ConfirmedAtUtc);
     var data = details.Data;
     var leaseToken = Model.LeaseToken;
     var mayEdit = !string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null;
@@ -69,38 +77,66 @@
 @if (data is not null)
 {
     <section class="panel form-panel" aria-labelledby="case-data-title">
-        <h2 id="case-data-title" class="section-label">Typed case data and provenance</h2>
-        <dl>
-            <dt>Completeness policy</dt><dd>@data.Completeness.Evaluation.PolicyKey v@data.Completeness.Evaluation.PolicyVersion — @(data.Completeness.Evaluation.SatisfiesPolicy ? "satisfied" : "not satisfied")</dd>
-            <dt>Source</dt><dd>@data.Origin.Channel / @data.Origin.SourceReaderKey @data.Origin.SourceReaderVersion</dd>
-            <dt>Source hash</dt><dd><code>@data.Origin.SourceHash</code></dd>
-        </dl>
-        <div class="table-wrap">
-            <table>
-                <thead><tr><th>Field</th><th>Accepted fact</th><th>Suggestion</th><th>Staff-confirmed</th></tr></thead>
-                <tbody>
-                    <tr><th>Claimant</th><td>@Display(data.Claimant.Name.Fact)</td><td>@Display(data.Claimant.Name.Suggestion)</td><td>@Display(data.Claimant.Name.Confirmed)</td></tr>
-                    <tr><th>Claim number</th><td>@Display(data.Claim.Number.Fact)</td><td>@Display(data.Claim.Number.Suggestion)</td><td>@Display(data.Claim.Number.Confirmed)</td></tr>
-                    <tr><th>Registration</th><td>@Display(data.Vehicle.Registration.Fact)</td><td>@Display(data.Vehicle.Registration.Suggestion)</td><td>@Display(data.Vehicle.Registration.Confirmed)</td></tr>
-                    <tr><th>Vehicle make</th><td>@Display(data.Vehicle.Make.Fact)</td><td>@Display(data.Vehicle.Make.Suggestion)</td><td>@Display(data.Vehicle.Make.Confirmed)</td></tr>
-                    <tr><th>Vehicle model</th><td>@Display(data.Vehicle.Model.Fact)</td><td>@Display(data.Vehicle.Model.Suggestion)</td><td>@Display(data.Vehicle.Model.Confirmed)</td></tr>
-                    <tr><th>Mileage</th><td>@Display(data.Vehicle.Mileage.Fact)</td><td>@Display(data.Vehicle.Mileage.Suggestion)</td><td>@Display(data.Vehicle.Mileage.Confirmed)</td></tr>
-                    <tr><th>Mileage unit</th><td>@Display(data.Vehicle.MileageUnit.Fact)</td><td>@Display(data.Vehicle.MileageUnit.Suggestion)</td><td>@Display(data.Vehicle.MileageUnit.Confirmed)</td></tr>
-                    <tr><th>Incident date</th><td>@Display(data.Accident.IncidentDate.Fact)</td><td>@Display(data.Accident.IncidentDate.Suggestion)</td><td>@Display(data.Accident.IncidentDate.Confirmed)</td></tr>
-                    <tr><th>Accident circumstances</th><td>@Display(data.Accident.Circumstances.Fact)</td><td>@Display(data.Accident.Circumstances.Suggestion)</td><td>@Display(data.Accident.Circumstances.Confirmed)</td></tr>
-                    <tr><th>Contact name</th><td>@Display(data.Contact.Name.Fact)</td><td>@Display(data.Contact.Name.Suggestion)</td><td>@Display(data.Contact.Name.Confirmed)</td></tr>
-                    <tr><th>Contact email</th><td>@Display(data.Contact.EmailAddress.Fact)</td><td>@Display(data.Contact.EmailAddress.Suggestion)</td><td>@Display(data.Contact.EmailAddress.Confirmed)</td></tr>
-                    <tr><th>Contact phone</th><td>@Display(data.Contact.PhoneNumber.Fact)</td><td>@Display(data.Contact.PhoneNumber.Suggestion)</td><td>@Display(data.Contact.PhoneNumber.Confirmed)</td></tr>
-                    <tr><th>Instruction date</th><td>@Display(data.Instruction.InstructionDate.Fact)</td><td>@Display(data.Instruction.InstructionDate.Suggestion)</td><td>@Display(data.Instruction.InstructionDate.Confirmed)</td></tr>
-                    <tr><th>VAT status</th><td>@Display(data.Instruction.VatStatus.Fact)</td><td>@Display(data.Instruction.VatStatus.Suggestion)</td><td>@Display(data.Instruction.VatStatus.Confirmed)</td></tr>
-                    <tr><th>Inspection date</th><td>@Display(data.Inspection.InspectionDate.Fact)</td><td>@Display(data.Inspection.InspectionDate.Suggestion)</td><td>@Display(data.Inspection.InspectionDate.Confirmed)</td></tr>
-                    <tr><th>Inspection deadline</th><td>@Display(data.Inspection.Deadline.Fact)</td><td>@Display(data.Inspection.Deadline.Suggestion)</td><td>@Display(data.Inspection.Deadline.Confirmed)</td></tr>
-                    <tr><th>Inspection address</th><td>@Display(data.Inspection.Address.Fact)</td><td>@Display(data.Inspection.Address.Suggestion)</td><td>@Display(data.Inspection.Address.Confirmed)</td></tr>
-                    <tr><th>Inspection mode</th><td>@Display(data.Inspection.Mode.Fact)</td><td>@Display(data.Inspection.Mode.Suggestion)</td><td>@Display(data.Inspection.Mode.Confirmed)</td></tr>
-                </tbody>
-            </table>
-        </div>
-        <p>Suggestions are displayed for review but are never prefilled into the staff-confirmation form. Saving case data resets instruction completeness; confirm completeness explicitly afterward.</p>
+        <h2 id="case-data-title" class="section-label">Case detail</h2>
+        @{
+            // One row per field, showing the value that applies and where it
+            // came from. It replaces a three-column Fact / Suggestion /
+            // Staff-confirmed grid in which every populated cell also carried a
+            // source label, a policy key and a version integer — none of which
+            // an operator can act on, and most of which were em dashes.
+            var rows = new (string Field, CaseDataValue<string>? Accepted, CaseDataValue<string>? Suggested)[]
+            {
+                ("Claimant", Text(data.Claimant.Name.Fact) ?? Text(data.Claimant.Name.Confirmed), Text(data.Claimant.Name.Suggestion)),
+                ("Claim number", Text(data.Claim.Number.Fact) ?? Text(data.Claim.Number.Confirmed), Text(data.Claim.Number.Suggestion)),
+                ("Registration", Text(data.Vehicle.Registration.Fact) ?? Text(data.Vehicle.Registration.Confirmed), Text(data.Vehicle.Registration.Suggestion)),
+                ("Vehicle make", Text(data.Vehicle.Make.Fact) ?? Text(data.Vehicle.Make.Confirmed), Text(data.Vehicle.Make.Suggestion)),
+                ("Vehicle model", Text(data.Vehicle.Model.Fact) ?? Text(data.Vehicle.Model.Confirmed), Text(data.Vehicle.Model.Suggestion)),
+                ("Mileage", Text(data.Vehicle.Mileage.Fact) ?? Text(data.Vehicle.Mileage.Confirmed), Text(data.Vehicle.Mileage.Suggestion)),
+                ("Incident date", Text(data.Accident.IncidentDate.Fact) ?? Text(data.Accident.IncidentDate.Confirmed), Text(data.Accident.IncidentDate.Suggestion)),
+                ("Accident circumstances", Text(data.Accident.Circumstances.Fact) ?? Text(data.Accident.Circumstances.Confirmed), Text(data.Accident.Circumstances.Suggestion)),
+                ("Contact name", Text(data.Contact.Name.Fact) ?? Text(data.Contact.Name.Confirmed), Text(data.Contact.Name.Suggestion)),
+                ("Contact e-mail", Text(data.Contact.EmailAddress.Fact) ?? Text(data.Contact.EmailAddress.Confirmed), Text(data.Contact.EmailAddress.Suggestion)),
+                ("Contact phone", Text(data.Contact.PhoneNumber.Fact) ?? Text(data.Contact.PhoneNumber.Confirmed), Text(data.Contact.PhoneNumber.Suggestion)),
+                ("Instruction date", Text(data.Instruction.InstructionDate.Fact) ?? Text(data.Instruction.InstructionDate.Confirmed), Text(data.Instruction.InstructionDate.Suggestion)),
+                ("VAT status", Text(data.Instruction.VatStatus.Fact) ?? Text(data.Instruction.VatStatus.Confirmed), Text(data.Instruction.VatStatus.Suggestion)),
+                ("Inspection date", Text(data.Inspection.InspectionDate.Fact) ?? Text(data.Inspection.InspectionDate.Confirmed), Text(data.Inspection.InspectionDate.Suggestion)),
+                ("Inspection deadline", Text(data.Inspection.Deadline.Fact) ?? Text(data.Inspection.Deadline.Confirmed), Text(data.Inspection.Deadline.Suggestion)),
+                ("Inspection address", Text(data.Inspection.Address.Fact) ?? Text(data.Inspection.Address.Confirmed), Text(data.Inspection.Address.Suggestion)),
+                ("Inspection mode", Text(data.Inspection.Mode.Fact) ?? Text(data.Inspection.Mode.Confirmed), Text(data.Inspection.Mode.Suggestion))
+            };
+            var populated = rows.Where(row => row.Accepted is not null || row.Suggested is not null).ToArray();
+        }
+
+        @if (populated.Length == 0)
+        {
+            <p class="empty-state">No case detail has been recorded yet.</p>
+        }
+        else
+        {
+            @foreach (var row in populated)
+            {
+                <div class="datarow">
+                    <span class="datarow__field">@row.Field</span>
+                    @if (row.Accepted is { } accepted)
+                    {
+                        <span class="datarow__value">@accepted.Value</span>
+                    }
+                    else
+                    {
+                        <span class="datarow__value quiet">Not recorded</span>
+                    }
+                    @if (row.Suggested is { } suggested && row.Accepted is null)
+                    {
+                        <span class="datarow__sug">Suggested @suggested.Value</span>
+                    }
+                    <span class="datarow__end">
+                        <partial name="Shared/_Provenance" model="@((row.Accepted ?? row.Suggested)!.Source)" />
+                    </span>
+                </div>
+            }
+        }
+
+        <p>A suggestion is never prefilled into the confirmation form. Saving case detail resets instruction completeness; confirm it again afterwards.</p>
         @if (!string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null)
         {
             <form method="post" asp-page-handler="Save" class="form-grid">

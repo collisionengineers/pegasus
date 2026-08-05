@@ -13,13 +13,13 @@
     {
         <div class="table-wrap">
             <table>
-                <thead><tr><th>When</th><th>Event</th><th>Actor</th><th>Reason</th><th>Version</th></tr></thead>
+                <thead><tr><th>When</th><th>Event</th><th>Actor</th><th>Reason</th></tr></thead>
                 <tbody>
                 @foreach (var entry in details.History)
                 {
                     <tr>
                         <td>@entry.OccurredAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</td>
-                        <td>@entry.EventType</td>
+                        <td>@Pegasus.Web.Presentation.OperatorLabels.HistoryEvent(entry.EventType)</td>
                         <td>
                             @if (entry.ActorKind == nameof(Pegasus.Core.Identity.ActorKind.Automation))
                             {
@@ -31,7 +31,7 @@
                             }
                         </td>
                         <td>@entry.Reason</td>
-                        <td>@entry.BeforeVersion → @entry.AfterVersion</td>
+                        
                     </tr>
                 }
                 </tbody>
