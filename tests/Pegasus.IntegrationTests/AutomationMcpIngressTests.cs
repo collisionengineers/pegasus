@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Authentication;
@@ -391,6 +392,68 @@ public sealed class AutomationMcpIngressTests
               AND EventKind = N'pegasus_case_edit_renew'
               AND Outcome = N'Failed'
             """));
+    }
+
+    [Fact]
+    public async Task ARefusedDocumentToolReportsTheRefusingGuardAndTheCurrentCaseVersion()
+    {
+        var caseId = Guid.Parse("3a9f2c17-58b6-4c0e-9a3d-1e6f7b2c8d40");
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory).WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IAddCaseDocument>();
+                services.AddSingleton<IAddCaseDocument>(new RefusingDocumentStore(caseId));
+            }));
+        using var client = mcpFactory.CreateClient();
+        var accessToken = await RequestTokenAsync(client, "automation.documents");
+
+        // MCP-04 inherits the shared guard: the refusal names which guard
+        // refused and the version the case now stands at, with no token.
+        using (var response = await PostMcpAsync(
+            client,
+            accessToken,
+            ToolCallPayload(
+                30,
+                "pegasus_document_add",
+                new
+                {
+                    caseId,
+                    fileName = "report.pdf",
+                    mediaType = "application/pdf",
+                    contentBase64 = Convert.ToBase64String("a document"u8.ToArray()),
+                    semanticRole = "Other",
+                    expectedCaseVersion = 4,
+                    editLeaseToken = new string('c', 64),
+                    operationKey = "mcp:document-add-refused"
+                })))
+        {
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            using var document = await ReadJsonRpcAsync(response);
+            var body = document.RootElement.ToString();
+            Assert.Contains("held by another actor", body, StringComparison.Ordinal);
+            Assert.Contains("version 11", body, StringComparison.Ordinal);
+            Assert.DoesNotContain(new string('c', 64), body, StringComparison.Ordinal);
+        }
+
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE ActorKind = N'Automation'
+              AND EventKind = N'pegasus_document_add'
+              AND Outcome = N'Failed'
+            """));
+    }
+
+    private sealed class RefusingDocumentStore(Guid caseId) : IAddCaseDocument
+    {
+        public Task<AddCaseDocumentResult> ExecuteAsync(
+            AddCaseDocumentCommand command,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new CaseEditLeaseConflictException(caseId, 11);
+        }
     }
 
     private sealed class RecordingAutomationLeases(Guid caseId) : IRenewCaseEditLease

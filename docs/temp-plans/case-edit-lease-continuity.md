@@ -68,20 +68,25 @@ with a test that asserts rejection rather than a database truncation error.
 
 ### 3. Expired means free, everywhere it is projected
 
-`EfCaseQueryStore.cs:199-203` projects the stored lease columns with no
-expiry comparison, so an abandoned lease keeps reading as held until the
-next claim overwrites it. `Pages/Cases/Details.cshtml.cs:1340` compensates
-client-side; `Pages/Operations/Requests.cshtml.cs:430-448` and
-`Pages/Triage/Details.cshtml.cs:308-314,346-355` do not — Triage will tell a
-user the case is "held by <holder> until <a time in the past>".
+**Corrected against `origin/dev` during implementation.** This section as
+first written claimed `EfCaseQueryStore` projected the lease columns with no
+expiry comparison and that Triage would therefore show "held by \<holder\>
+until \<a time in the past\>". That was wrong: `EfCaseQueryStore` already
+had `&& expiresAtUtc > timeProvider.GetUtcNow()` and
+`EfOperationsStore.MapLeaseState` already had `&& expiresAtUtc > nowUtc`, so
+an expired lease already projected as free for every consumer and **no
+behavioural gap existed**. Nothing was broken here and CASE-27 closes
+nothing at this clause.
 
-Fix it once at the projection: `CaseEditLeaseSnapshot` is produced only when
-the stored expiry is in the future by server time, so an expired lease is
-`null` — free — for every consumer, Web page and MCP tool alike. Remove the
-now-redundant page-level compensation rather than leaving two rules. This is
-a projection change only: no sweeper, no background service, no new
-deployment unit. Expiry stays lazy in the store, which is already correct —
-the claim path at `EfCaseWorkflowStore.cs:161` refuses only a *live* lease.
+What remains, and what was done: the same expiry rule was written out three
+times — twice in the stores and once again client-side in
+`Pages/Cases/Details.cshtml.cs`, which re-tested the expiry the projection
+had already applied. Both stores now ask one Core owner
+(`CaseEditAuthority.IsHeld`), and the redundant page-level compensation is
+removed so one rule ships instead of three. This is a consolidation, not a
+fix: no sweeper, no background service, no new deployment unit, and no
+change in what any surface shows. Expiry stays lazy in the store, which was
+already correct — the claim path refuses only a *live* lease.
 
 ### 4. The holder and the recovery state are visible to non-holders
 

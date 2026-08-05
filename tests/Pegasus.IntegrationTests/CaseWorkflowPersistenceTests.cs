@@ -1415,6 +1415,35 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     [Fact]
+    public async Task ALiveLeaseProjectsItsHolderAndExpiryAndAnExpiredOneProjectsNoActiveEditor()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var claimedAtUtc = harness.TimeProvider.GetUtcNow();
+        var lease = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, actor, "claim-projection"),
+            default);
+
+        var whileHeld = await harness.QueryStore.GetAsync(new(harness.CaseId, actor), default);
+        var activeLease = whileHeld?.ActiveEditLease;
+        Assert.NotNull(activeLease);
+        Assert.Equal(actor.SubjectId, activeLease.Holder);
+        Assert.Equal(claimedAtUtc.AddMinutes(5), activeLease.ExpiresAtUtc);
+        Assert.Equal(lease.ExpiresAtUtc, activeLease.ExpiresAtUtc);
+        Assert.Equal("claim-projection", activeLease.OperationKey);
+
+        // One second before expiry the case still reads as held; at expiry it reads as free,
+        // with no sweeper having run and the retained columns untouched.
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(5) - TimeSpan.FromSeconds(1));
+        var justBeforeExpiry = await harness.QueryStore.GetAsync(new(harness.CaseId, actor), default);
+        Assert.NotNull(justBeforeExpiry?.ActiveEditLease);
+
+        harness.TimeProvider.Advance(TimeSpan.FromSeconds(1));
+        var afterExpiry = await harness.QueryStore.GetAsync(new(harness.CaseId, actor), default);
+        Assert.Null(afterExpiry?.ActiveEditLease);
+    }
+
+    [Fact]
     public async Task AnAbandonedLeaseExpiresAndIsReacquiredByADifferentHolder()
     {
         await using var harness = await WorkflowHarness.CreateAsync();

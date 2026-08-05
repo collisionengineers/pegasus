@@ -24,7 +24,8 @@ public sealed class RequestsModel(
     IRenewCaseEditLease renewCaseEditLease,
     IReleaseCaseEditLease releaseCaseEditLease,
     IRevokeBoxFileRequest revokeBoxFileRequest,
-    IRevokeRequestUploadLink revokeRequestUploadLink) : PageModel
+    IRevokeRequestUploadLink revokeRequestUploadLink,
+    IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder) : PageModel
 {
     private const string LeaseCaseIdKey = "OperationsRequestLeaseCaseId";
     private const string LeaseTokenKey = "OperationsRequestLeaseToken";
@@ -46,6 +47,11 @@ public sealed class RequestsModel(
         revokeBoxFileRequest ?? throw new ArgumentNullException(nameof(revokeBoxFileRequest));
     private readonly IRevokeRequestUploadLink revokeRequestUploadLink =
         revokeRequestUploadLink ?? throw new ArgumentNullException(nameof(revokeRequestUploadLink));
+    private readonly IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder =
+        describeEditAuthorityHolder
+            ?? throw new ArgumentNullException(nameof(describeEditAuthorityHolder));
+
+    private readonly Dictionary<Guid, CaseEditAuthorityHolder> editAuthorityHolders = [];
 
     public RequestOperationsProjection Operations { get; private set; } = new(
         ImmutableArray<RequestOperationProjection>.Empty,
@@ -71,6 +77,7 @@ public sealed class RequestsModel(
 
         Operations = await getRequestOperations.ExecuteAsync(actor, cancellationToken);
         RestoreLeaseState(actor);
+        await DescribeEditAuthorityHoldersAsync(actor, cancellationToken);
         PreservedRequestId = ReadGuidTempData(PreservedRequestIdKey);
         PreservedReason = TempData[PreservedReasonKey] as string;
         return Page();
@@ -395,10 +402,38 @@ public sealed class RequestsModel(
         ArgumentNullException.ThrowIfNull(item);
         return item.ActiveEditLease is { } activeLease
             ? EditModeDisplay.HeldBy(
-                activeLease.Holder,
+                editAuthorityHolders.TryGetValue(item.CaseId, out var holder)
+                    ? holder
+                    : CaseEditAuthorityHolder.Unnamed,
                 activeLease.ExpiresAtUtc,
                 LeaseCaseId == item.CaseId)
             : LeaseLabel(item.CaseEditLeaseState);
+    }
+
+    /// <summary>
+    /// Resolves each distinct holder once for the whole page, so a row never has to render the
+    /// retained subject identifier.
+    /// </summary>
+    private async Task DescribeEditAuthorityHoldersAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        editAuthorityHolders.Clear();
+        foreach (var item in Operations.Items)
+        {
+            if (item.ActiveEditLease is not { } activeLease
+                || editAuthorityHolders.ContainsKey(item.CaseId))
+            {
+                continue;
+            }
+
+            editAuthorityHolders[item.CaseId] = LeaseCaseId == item.CaseId
+                ? CaseEditAuthorityHolder.Unnamed
+                : await describeEditAuthorityHolder.ExecuteAsync(
+                    activeLease.Holder,
+                    actor,
+                    cancellationToken);
+        }
     }
 
     public static string NewOperationKey() => Guid.NewGuid().ToString("N");
