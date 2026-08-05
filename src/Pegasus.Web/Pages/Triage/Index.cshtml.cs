@@ -4,18 +4,59 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Cases;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Triage;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Web.Pages.Triage;
 
+/// <summary>
+/// Queues: the work waiting before a case reaches an Engineer.
+/// </summary>
+/// <remarks>
+/// The screen used to be called "Triage queue", which spent a reserved
+/// business term on a page that is mostly not about Triage-type work. Three of
+/// its four tabs are Case stages — Not ready, Review, Held — and Triage is the
+/// fourth: a separate pre-case entity with its own lifecycle, which is exactly
+/// why it needs a tab of its own rather than being folded in as a stage.
+///
+/// "Needs sorting" is deliberately absent: it means unmatched e-mail, not a
+/// case stage, and it lives in the Inbox.
+/// </remarks>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
-public sealed class IndexModel(IListTriage listTriage) : PageModel
+public sealed class IndexModel(
+    IListTriage listTriage,
+    ISearchCases searchCases,
+    IDashboardQueries dashboardQueries) : PageModel
 {
     private const int PageSize = 25;
 
     private readonly IListTriage _listTriage =
         listTriage ?? throw new ArgumentNullException(nameof(listTriage));
+    private readonly ISearchCases _searchCases =
+        searchCases ?? throw new ArgumentNullException(nameof(searchCases));
+    private readonly IDashboardQueries _dashboardQueries =
+        dashboardQueries ?? throw new ArgumentNullException(nameof(dashboardQueries));
+
+    /// <summary>
+    /// Which queue is open: <c>not_ready</c>, <c>review</c>, <c>held</c> or
+    /// <c>triage</c>. Not ready is the default because it is the largest and
+    /// the one with work in it.
+    /// </summary>
+    [BindProperty(SupportsGet = true, Name = "queue")]
+    public string? QueueFilter { get; set; }
+
+    public string Queue => string.IsNullOrWhiteSpace(QueueFilter)
+        ? "not_ready"
+        : QueueFilter.ToLowerInvariant();
+
+    public bool ShowingTriage => Queue == "triage";
+
+    public CaseStageCounts StageCounts { get; private set; } = new(0, 0, 0);
+
+    public SearchCasesResult Cases { get; private set; } = new([], 1, PageSize, false, false);
 
     [BindProperty(SupportsGet = true, Name = "state")]
     public string? StateFilter { get; set; }
@@ -49,12 +90,38 @@ public sealed class IndexModel(IListTriage listTriage) : PageModel
             return NotFound();
         }
 
+        if (Queue is not ("not_ready" or "review" or "held" or "triage"))
+        {
+            return NotFound();
+        }
+
         State = parsedState;
         StateFilter = parsedState is null ? null : StateCode(parsedState.Value);
         CurrentPage = Math.Max(1, CurrentPage);
+
+        // Every tab carries its count, whichever one is open: an operator
+        // decides where to go by what is waiting, not by opening each in turn.
+        StageCounts = await _dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
         Results = await _listTriage.ExecuteAsync(
             new(actor, State, CurrentPage, PageSize),
             cancellationToken);
+
+        if (!ShowingTriage)
+        {
+            Cases = await _searchCases.ExecuteAsync(
+                new(
+                    actor,
+                    new(State: Queue switch
+                    {
+                        "review" => CaseLifecycleState.Review,
+                        "held" => CaseLifecycleState.Held,
+                        _ => CaseLifecycleState.NotReady
+                    }),
+                    CurrentPage,
+                    PageSize),
+                cancellationToken);
+        }
+
         return Page();
     }
 

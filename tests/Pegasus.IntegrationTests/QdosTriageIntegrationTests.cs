@@ -201,9 +201,25 @@ public sealed partial class QdosTriageIntegrationTests
         using var detailResponse = await client.GetAsync($"/Triage/{triageId:D}");
         var detailHtml = await detailResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, detailResponse.StatusCode);
-        Assert.Contains("Triage record", detailHtml, StringComparison.Ordinal);
+        // The record is one container now: its registration and state are the
+        // header, not a "Triage record" panel among stacked panels.
+        Assert.Contains("class=\"record\"", detailHtml, StringComparison.Ordinal);
         Assert.DoesNotContain(
             "name=\"caseEditLeaseToken\"",
+            detailHtml,
+            StringComparison.Ordinal);
+
+        // The record's own identifiers are internal. An operator cannot act on
+        // a receipt GUID, an evaluation revision or a source hash, and none of
+        // them is printed any more.
+        Assert.DoesNotContain("Source SHA-256", detailHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Evaluation revision", detailHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(triage.Record.Origin.SourceHash, detailHtml, StringComparison.Ordinal);
+
+        // Completion keeps its place with its condition named, rather than
+        // disappearing until it happens to work.
+        Assert.Contains(
+            "Available once a finding is recorded",
             detailHtml,
             StringComparison.Ordinal);
         var antiforgeryToken = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
