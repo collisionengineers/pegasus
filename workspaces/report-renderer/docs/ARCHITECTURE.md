@@ -23,7 +23,7 @@ The current solution has four shipped projects and two test projects.
 
 Current direct package evidence:
 
-- Core: PDFsharp `6.2.4`, Scriban `5.12.1`, Microsoft.Playwright `1.61.0`.
+- Core: PDFsharp `6.2.4`, Scriban `7.2.6`, Microsoft.Playwright `1.61.0`.
 - MCP: ModelContextProtocol `1.4.0`, Microsoft.Extensions.Hosting `9.0.0`, in addition to its Core project reference.
 
 ## Composition and public contracts

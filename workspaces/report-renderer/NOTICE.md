@@ -9,7 +9,7 @@ The workspace is source-only and non-caller in its current repository context. N
 | Project | Direct package | Version | Purpose | Licence conclusion retained in sources |
 | --- | --- | ---: | --- | --- |
 | `CollisionRenderer.Core` | PDFsharp | `6.2.4` | Appends validated evidence PDFs after Chromium rendering; not used for page layout. | No conclusion stated in the retained notice; verify the package's distributed licence/notice. |
-| `CollisionRenderer.Core` | Scriban | `5.12.1` | First-party HTML body-template engine. | BSD-2-Clause. |
+| `CollisionRenderer.Core` | Scriban | `7.2.6` | First-party HTML body-template engine. | BSD-2-Clause. |
 | `CollisionRenderer.Core` | Microsoft.Playwright | `1.61.0` | Controls headless Chromium for HTML-to-PDF rendering. | Apache-2.0. |
 | `CollisionRenderer.Mcp` | ModelContextProtocol | `1.4.0` | MCP server contracts and transport support. | No conclusion stated in the retained notice; verify the package's distributed licence/notice. |
 | `CollisionRenderer.Mcp` | Microsoft.Extensions.Hosting | `9.0.0` | MCP process hosting, dependency injection, configuration and lifetime. | No conclusion stated in the retained notice; verify the package's distributed licence/notice. |
@@ -76,13 +76,15 @@ Rendered PDFs, advert captures, uploaded evidence, custom signatures, local imag
 
 ## Security notice
 
-Scriban advisories NU1901–NU1904 are suppressed under the accepted rationale recorded in ADR-0010:
+No package security advisories are suppressed in this workspace. The Scriban NU1901–NU1904 suppression that ADR-0010 accepted was resolved by upgrading Scriban to `7.2.6`, which carries no advisories; ADR-0013 records that upgrade and supersedes ADR-0010 in its entirety.
+
+The design properties that made the earlier acceptance defensible still hold, and still bound how a future advisory should be assessed:
 
 - Scriban templates are first-party embedded artefacts;
 - end users do not author or compile runtime templates;
 - payload text is HTML-encoded and passed as values rather than compiled as template source.
 
-This is a constrained acceptance, not a general statement that the advisories are irrelevant. If runtime template authoring, unencoded values, dynamic template compilation or a new trust boundary is introduced, the acceptance must be revisited before release.
+`TreatWarningsAsErrors` is `false` here, so a future advisory surfaces as a build warning rather than a failure. A clean build is not evidence of a clean audit; run `dotnet list package --vulnerable --include-transitive`.
 
 The API supports optional bearer authentication through:
 

@@ -40,7 +40,11 @@ Every project in the solution is framework-agnostic, so the whole solution build
 dotnet build CollisionRenderer.sln -c Release
 ```
 
-Scriban advisory warnings NU1901–NU1904 are intentionally handled by repository policy. Do not remove or broaden the suppression without reviewing ADR-0010 and the first-party-template/HTML-encoding assumptions.
+No package advisory codes are suppressed. The Scriban NU1901–NU1904 suppression was removed when Scriban moved to `7.2.6`, which carries no advisories; see ADR-0013. Do not re-add `NU19xx` to `NoWarn` — restore must stay free to report the next real advisory. Check the audit with:
+
+```sh
+dotnet list package --vulnerable --include-transitive
+```
 
 ## Install Chromium
 

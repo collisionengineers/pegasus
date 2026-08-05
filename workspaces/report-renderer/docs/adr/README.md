@@ -26,9 +26,10 @@ The existing ADR-0001 through ADR-0011 bodies remain unchanged. Where a retained
 | [ADR-0007](0007-density-auto-fit.md) | Accepted — existing | Density auto-fit behavior. |
 | [ADR-0008](0008-cloud-portability-aspnet-core-api-docker.md) | Accepted, partially superseded | **Only its API authentication detail is superseded by ADR-0011.** Every other decision, rationale and consequence remains in force. |
 | [ADR-0009](0009-reference-material-handling.md) | Accepted — existing | Reference material handling: private examples/prior art are not product source or build inputs; sensitive material stays ignored and local. |
-| [ADR-0010](0010-accept-scriban-security-advisories.md) | Accepted — existing | Constrained acceptance of Scriban NU1901–NU1904 based on first-party embedded templates and encoded value handling. |
+| [ADR-0010](0010-accept-scriban-security-advisories.md) | Superseded, obsolete | Constrained acceptance of Scriban NU1901–NU1904 based on first-party embedded templates and encoded value handling. **Superseded in its entirety by ADR-0013: the acceptance was resolved by upgrading to Scriban 7.2.6, and no advisory suppression remains.** |
 | [ADR-0011](0011-multi-token-sha256-api-authentication.md) | Accepted | API bearer-token compatibility, rotation lists and SHA-256 configuration. Supersedes only ADR-0008's authentication detail. |
 | [ADR-0012](0012-decommission-winui-desktop-host.md) | Accepted | Decommission of the WinUI 3 desktop host and its Windows-only dependency surface; the HTML preview composer is retained. Supersedes only the GUI-specific details of ADR-0002 and ADR-0003. |
+| [ADR-0013](0013-upgrade-scriban-resolves-advisory-acceptance.md) | Accepted | Scriban upgraded 5.12.1 → 7.2.6 and the NU1901–NU1904 suppression removed. Supersedes ADR-0010 in its entirety; ADR-0004's templating decision is unchanged. |
 
 ## ADR-0011 decision summary
 

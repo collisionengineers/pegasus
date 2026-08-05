@@ -12,11 +12,13 @@
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <!--
       CS1591: XML doc comments not required.
-      NU1901-1904: Scriban advisories. Accepted: templates are first-party embedded
-      artifacts, never authored by end users at runtime, and all payload data is
-      HTML-encoded and passed as *values* (never compiled). See docs/adr/0010.
+
+      No package-advisory codes are suppressed. The NU1901-NU1904 suppression that
+      ADR-0010 accepted for Scriban 5.12.1 was resolved by upgrading to Scriban
+      7.2.6, which carries no advisories; see docs/adr/0013. Restore must be free
+      to report the next real advisory, so do not re-add NU19xx here.
     -->
-    <NoWarn>$(NoWarn);CS1591;NU1901;NU1902;NU1903;NU1904</NoWarn>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
 
     <!-- Product metadata -->
     <Version>0.2.6</Version>
