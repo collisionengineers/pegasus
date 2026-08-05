@@ -23,6 +23,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
+using Pegasus.Web.AiWork;
 using Pegasus.Web.Mcp;
 using Pegasus.Web.Pages.Uploads;
 using Azure.Identity;
@@ -226,6 +227,13 @@ if ((localDocumentCustodyConfigured || productionProfile)
 // flag is absent nothing below registers and no /mcp or /connect/token route
 // exists. Enabling it outside the DevelopmentOffline profile throws.
 var automationMcpOptions = AutomationMcpOptions.TryCreate(
+    builder.Configuration,
+    developmentOfflineProfile);
+
+// The Send to AI hand-off (AI-09) follows the same gate pattern: absent by
+// default, DevelopmentOffline-only, and without it the assessment panel
+// renders the unavailable state and no outbound transport exists.
+var sendToAiOptions = SendToAiOptions.TryCreate(
     builder.Configuration,
     developmentOfflineProfile);
 
@@ -566,6 +574,10 @@ builder.Services.AddScoped<IListAutomationActivity, ListAutomationActivity>();
 if (automationMcpOptions is not null)
 {
     builder.Services.AddPegasusAutomationMcp(automationMcpOptions, productVersion);
+}
+if (sendToAiOptions is not null)
+{
+    builder.Services.AddPegasusSendToAi(sendToAiOptions);
 }
 
 var app = builder.Build();
