@@ -17,21 +17,21 @@
         @* Every metric opens the exact filtered list behind it, and 0 renders
            as 0. These three were the literal string "Unavailable" until the
            counts behind them existed. *@
-        <a class="metric" data-state="not-ready" asp-page="/Cases/Index" asp-route-state="NotReady">
+        <a class="metric" data-state="not-ready" asp-page="/Triage/Index" asp-route-queue="not_ready">
             <span class="metric__label">
                 <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
                 Not ready
             </span>
             <strong class="metric__value">@Model.CaseStages.NotReady</strong>
         </a>
-        <a class="metric" data-state="review" asp-page="/Cases/Index" asp-route-state="Review">
+        <a class="metric" data-state="review" asp-page="/Triage/Index" asp-route-queue="review">
             <span class="metric__label">
                 <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-info" /></svg>
                 Review
             </span>
             <strong class="metric__value">@Model.CaseStages.Review</strong>
         </a>
-        <a class="metric" data-state="held" asp-page="/Cases/Index" asp-route-state="Held">
+        <a class="metric" data-state="held" asp-page="/Triage/Index" asp-route-queue="held">
             <span class="metric__label">
                 <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-clock" /></svg>
                 Held
