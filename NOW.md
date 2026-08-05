@@ -37,13 +37,53 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   template work and no capability advanced — those stay blocked on the
   operator questions the plan set records (branch
   task/report-renderer-workspace-uplift, taken 2026-08-05, by claude).
-- UI implementation programme, deployment and live verification: `dev` now
-  carries the whole rebuild (PRs 338, 339, 341, 343, 344, 345, 346, 347) and
-  is not deployed. Blocked on the operator: merging `dev` into `main` needs
-  `MERGE AUTH GRANTED`, and the deployment and the live browser checks need
-  approval for the exact Azure targets. `docs/ui-work/` stays until those
-  checks pass, because it is the specification they are checked against
-  (taken 2026-08-05, by claude).
+- UI implementation programme, deployment and live verification: `main` now
+  carries the whole rebuild. The eight page PRs (338, 339, 341, 343, 344,
+  345, 346, 347) merged into `dev`, and `dev` merged into `main` as PR 348 on
+  2026-08-05 under the operator's `MERGE AUTH GRANTED`. All ninety merge
+  conflicts were add/add on documents — `main` held a direct push of
+  `docs/ui-work/` and two `docs/temp-plans/` files, `dev` held the same files
+  with later edits — and every one resolved to `dev`'s copy, leaving the
+  merged tree byte-for-byte `origin/dev`. No source file conflicted.
+  Verified before the merge: Release build clean, Core 441/441, architecture
+  73/73, integration 399 passed with 16 skipped, QDOS pressure 3/3,
+  documentation links across 208 files. Browser-verified 2026-08-05 against a
+  local instance of the merged tree: Dashboard, Inbox, Upload, Queues, Cases,
+  Administration and its Accounts/Mailboxes/Automation sub-pages, and the
+  standalone 404 surface all render in the refreshed style with zero console
+  errors and zero CSP violations, and the Upload form posts and shows its
+  real validation error.
+
+  **Deployed as release 6** on 2026-08-05, under the operator's approval for
+  the exact targets (subscription `e6076573-23a5-46a8-acef-7e22d264e5db`,
+  resource group `rg-pegasus-prod`). Web source revision `474a0924…` on
+  immutable digest `sha256:b2ceaf37…`, single revision
+  `pegasus-prod-web-252ow37gij--474a0924a6ba` at 100% traffic; the one pending
+  migration `20260803205759_SendToAiAssessmentToolset` applied explicitly
+  before the packages; Worker package redeployed with all nine functions;
+  smoke passed (health live/ready 200, exact version/SHA match, anonymous
+  `/Cases` 302 to the https sign-in route). `claudeuiverification` seeded as a
+  live Administrator and confirmed in `AspNetUsers`.
+
+  Live browser verification against the deployed instance found six defects
+  the local pass could not see, because the local database was empty and the
+  local server clock is Europe/London. `docs/ui-work/` stays until they are
+  fixed and re-verified, because it is the specification they were found
+  against (taken 2026-08-05, by claude).
+- Deployed UI defects found by live verification (release 6): the Dashboard's
+  "Needs sorting" tile is permanently zero — `EfDashboardQueries` compares the
+  persisted decision against `IntakeDecision.NeedsSorting.ToString()`
+  (`"NeedsSorting"`) while the column holds `"needs_sorting"`, so the tile read
+  0 with a `Needs sorting` receipt sitting in the Inbox. Around forty operator
+  date surfaces across Cases, Intake, Triage, Image intake and Operations
+  still call `ToLocalTime()` against the server clock instead of
+  `OperatorLabels.OfficeTime`; the deployed Linux container runs UTC, so every
+  one of them is an hour behind the office through BST, and `OfficeTime`'s own
+  remark claiming only two such places existed is wrong. Four raw identifiers
+  the defect register names by name survived: the source-receipt id and the
+  failure code on the intake review screen, the sequence-lineage GUID on
+  Replace principal, and raw byte counts in the case documents partial
+  (branch task/ui-live-verification-defects, taken 2026-08-05, by claude).
 - CASE-27 edit-lease continuity and conflict recovery for both callers
   (MCP-02/MCP-04): close the gaps between
   `docs/requirements.md` "Case edit authority and recovery" and shipped
@@ -61,14 +101,25 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 
 ## Merged, not deployed
 
+Everything below is in both `dev` and `main` as of PR 348 (2026-08-05).
+`main` being the deployment branch is not deployment: no release has been
+built or activated from it, so nothing here runs anywhere.
+
+- **The whole UI implementation programme** — the refreshed shell and design
+  system, Dashboard, Inbox, Upload, Queues, Cases and Administration, with
+  the Core and Infrastructure changes each page needed. Local verification
+  and browser checks are recorded in the `Doing` claim above. **It is not
+  deployed.** The live estate still serves release 5 (revision `c6571f7…`),
+  so no operator has seen any of this.
 - **AI-09 Send to AI round trip and the Automation Actor assessment toolset
   (MCP-06)** merged into `dev` 2026-08-05 (PR 332, merge `5555440`), all nine
-  checks green. **It is not deployed.** Nothing is in `main`, no environment
-  runs it, and no activation, navigation-link, or acceptance claim is made.
-  The whole surface is composition-gated off by default (`Features:SendToAi`,
-  `Features:AutomationMcp`) and DevelopmentOffline-only; production would
-  additionally need a non-preview transport decision. Evidence is tier 2–4
-  local only — the tier-5 external-client round trip is still queued below.
+  checks green, and carried into `main` by PR 348. **It is not deployed**, no
+  environment runs it, and no activation, navigation-link, or acceptance
+  claim is made. The whole surface is composition-gated off by default
+  (`Features:SendToAi`, `Features:AutomationMcp`) and DevelopmentOffline-only;
+  production would additionally need a non-preview transport decision.
+  Evidence is tier 2–4 local only — the tier-5 external-client round trip is
+  still queued below.
 
 ## Next (ordered queue — take from the top)
 
@@ -135,11 +186,12 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   navigation page that owns them — reviewed and merged into `dev` in
   sequence, then `dev` into `main`.
 
-  **All seven page PRs are merged into `dev`** (338 shell and design system,
+  **All eight page PRs are merged into `dev`** (338 shell and design system,
   339 Dashboard, 341 the acceptance gate and INT-25, 343 Inbox, 344 Upload,
-  345 Queues, 346 Cases, 347 Administration). Nothing is deployed. What
-  remains is the operator's to authorise — see the `Doing` claim above — and
-  three decisions the work could not take for itself:
+  345 Queues, 346 Cases, 347 Administration), **and `dev` is merged into
+  `main`** as PR 348 on 2026-08-05. Nothing is deployed. What remains is the
+  operator's to authorise — see the `Doing` claim above — and three decisions
+  the work could not take for itself:
   - **Two provenance glyphs.** The Lucide sprite is a checksummed sixteen-glyph
     asset and `design/README.md` records that no glyph was added, removed or
     redrawn. Seven provenance words share those sixteen, so **E-mail** and
@@ -159,7 +211,10 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   branch without a PR, so CI never gated it — it carried a defect that
   failed the documentation check the moment it was put in front of CI (fixed
   in PR 335). PR 324 was likewise opened against `main` before being
-  redirected. A branch-protection rule stops this being caught by audit.
+  redirected. It cost again at PR 348: the same files existing independently
+  on both branches produced ninety add/add conflicts in a merge that had no
+  source conflict at all. A branch-protection rule stops this being caught by
+  audit.
 
 - Record releases 4 and 5 in operations.md deployed evidence: release 4
   (2026-08-04, revision `8e34078…`, digest `sha256:ae2cc7b8…`, the four

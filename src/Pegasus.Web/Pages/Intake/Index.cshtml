@@ -80,7 +80,7 @@
                                     <span>@item.MailboxIdentity</span>
                                 }
                             </td>
-                            <td><time datetime="@item.LastActivityAtUtc.ToString("O")">@item.LastActivityAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</time></td>
+                            <td><time datetime="@item.LastActivityAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.LastActivityAtUtc)</time></td>
                             <td><partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Intake.IndexModel.MailStateLabel(item.State)" /></td>
                             <td>
                                 @if (item.CaseId is { } sentCaseId)
@@ -161,7 +161,7 @@ else
                                 @* The recorded failure code never renders; the
                                    sentence it maps to does. *@
                                 <td>@Pegasus.Web.Pages.Intake.IndexModel.MailFailureSentence(item.FailureCode)</td>
-                                <td><time datetime="@item.LastActivityAtUtc.ToString("O")">@item.LastActivityAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</time></td>
+                                <td><time datetime="@item.LastActivityAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.LastActivityAtUtc)</time></td>
                                 <td>
                                     @if (item.CanRetry)
                                     {
@@ -218,7 +218,7 @@ else
                                     </a>
                                 </td>
                                 <td>@(string.IsNullOrWhiteSpace(item.Subject) ? item.SourceFileName : item.Subject)</td>
-                                <td><time datetime="@item.ReceivedAtUtc.ToString("O")">@item.ReceivedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</time></td>
+                                <td><time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.ReceivedAtUtc)</time></td>
                                 <td>
                                     @if (item.CaseId is { } linkedCaseId)
                                     {

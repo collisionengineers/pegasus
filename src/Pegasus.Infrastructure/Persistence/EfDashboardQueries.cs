@@ -89,7 +89,13 @@ internal sealed class EfDashboardQueries(IDbContextFactory<PegasusDbContext> con
             .AsNoTracking()
             .CountAsync(item => item.ReceivedAtUtc >= dayStartUtc, cancellationToken);
 
-        var needsSorting = IntakeDecision.NeedsSorting.ToString();
+        // The persisted decision is the snake_case code, not the enum name.
+        // Comparing against `IntakeDecision.NeedsSorting.ToString()` matched
+        // nothing, so this tile read 0 for as long as it existed — including
+        // with a Needs sorting receipt sitting one click away in the Inbox.
+        // The store owns the code, so the count asks it rather than spelling
+        // the string a second time and inviting the same drift back.
+        var needsSorting = EfIntakeReceiptStore.ToCode(IntakeDecision.NeedsSorting);
         var needsSortingCount = await context.IntakeReceipts
             .AsNoTracking()
             .CountAsync(item => item.Decision == needsSorting, cancellationToken);
