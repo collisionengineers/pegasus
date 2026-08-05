@@ -140,7 +140,7 @@ else if (Model.RecordKindFilter == "images" && Model.ImageIntakeResults.Count ==
             {
                 <a asp-page="/ImageIntake/Details" asp-route-id="@item.Id">
                     <span><strong>@item.ImageIntakeReference</strong><small>@item.NormalizedVehicleRegistration</small></span>
-                    <span><strong>@Pegasus.Web.Pages.Cases.IndexModel.ImageIntakeOutcomeLabel(item)</strong><small>@item.RegisteredAtUtc.ToLocalTime().ToString("dd MMM yyyy") @item.RegisteredAtUtc.ToLocalTime().ToString("HH:mm")</small></span>
+                    <span><strong>@Pegasus.Web.Pages.Cases.IndexModel.ImageIntakeOutcomeLabel(item)</strong><small>@OperatorLabels.OfficeDate(item.RegisteredAtUtc) @OperatorLabels.OfficeClock(item.RegisteredAtUtc)</small></span>
                 </a>
             }
         </div>
@@ -178,7 +178,7 @@ else if (Model.RecordKindFilter == "images" && Model.ImageIntakeResults.Count ==
                             <td>@item.Principal</td>
                             <td><partial name="Shared/_StatusChip" model="@OperatorLabels.CaseStage(item.State)" /></td>
                             <td>@(item.EngineerId is null ? "Unassigned" : "Assigned")</td>
-                            <td><time datetime="@item.ReceivedAtUtc.ToString("O")">@item.ReceivedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</time></td>
+                            <td><time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.ReceivedAtUtc)</time></td>
                             <td>@(item.InstructionDate?.ToString("dd MMM yyyy") ?? "Not recorded")</td>
                             <td>@item.Origin</td>
                         </tr>

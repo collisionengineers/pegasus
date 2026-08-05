@@ -14,7 +14,7 @@
         <dt>Registration</dt><dd>@(details.Summary.Registration ?? "Not recorded")</dd>
         <dt>Claimant</dt><dd>@(details.Summary.Claimant ?? "Not recorded")</dd>
         <dt>Claim number</dt><dd>@(details.Summary.ClaimNumber ?? "Not recorded")</dd>
-        <dt>Received</dt><dd>@details.Summary.ReceivedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd>
+        <dt>Received</dt><dd>@OperatorLabels.OfficeTime(details.Summary.ReceivedAtUtc)</dd>
         <dt>Instruction date</dt><dd>@(details.Summary.InstructionDate?.ToString("dd MMM yyyy") ?? "Not recorded")</dd>
         <dt>Origin</dt><dd>@details.Summary.Origin</dd>
         <dt>State</dt><dd>@workflow.State</dd>
@@ -40,7 +40,7 @@
             <dt>Reason</dt><dd>@dueWork.MissingMaterialReason</dd>
             <dt>Due by</dt><dd>@(dueWork.DueBy?.ToString("dd MMM yyyy") ?? "Not recorded")</dd>
             <dt>State</dt><dd>@dueWork.State</dd>
-            <dt>Next chase</dt><dd>@(dueWork.NextChaseAtUtc?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "Not scheduled")</dd>
+            <dt>Next chase</dt><dd>@(OperatorLabels.OfficeTime(dueWork.NextChaseAtUtc, "Not scheduled"))</dd>
             <dt>Most recent channel</dt><dd>@(dueWork.MostRecentChannel ?? "No chase recorded")</dd>
             <dt>Most recent outcome</dt><dd>@(dueWork.MostRecentOutcome ?? "No chase recorded")</dd>
             <dt>Most recent note</dt><dd>@(dueWork.MostRecentNote ?? "None")</dd>
@@ -56,7 +56,7 @@
         <dl>
             <dt>Artifact</dt><dd>@approval.ArtifactIdentity</dd>
             <dt>SHA-256</dt><dd><code>@approval.ArtifactSha256</code></dd>
-            <dt>Approved</dt><dd>@approval.ApprovedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd>
+            <dt>Approved</dt><dd>@OperatorLabels.OfficeTime(approval.ApprovedAtUtc)</dd>
             <dt>Actor</dt><dd>@approval.ApprovedBy.SubjectId</dd>
         </dl>
     </section>
@@ -74,8 +74,8 @@
             <dt>Conversation / reply chain</dt><dd>@sentEvidence.ConversationIdentity / @sentEvidence.ReplyChainIdentity</dd>
             <dt>Source occurrence</dt><dd>@sentEvidence.SourceOccurrenceIdentity</dd>
             <dt>Source / MIME SHA-256</dt><dd><code>@sentEvidence.SourceSha256</code> / <code>@sentEvidence.MimeSha256</code></dd>
-            <dt>Authoritative Sent time</dt><dd>@sentEvidence.SentAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd>
-            <dt>Discovered / linked</dt><dd>@sentEvidence.DiscoveredAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm") / @sentEvidence.LinkedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd>
+            <dt>Authoritative Sent time</dt><dd>@OperatorLabels.OfficeTime(sentEvidence.SentAtUtc)</dd>
+            <dt>Discovered / linked</dt><dd>@OperatorLabels.OfficeTime(sentEvidence.DiscoveredAtUtc) / @OperatorLabels.OfficeTime(sentEvidence.LinkedAtUtc)</dd>
         </dl>
         <p>This evidence proves only the retained approved-mailbox Sent item; it does not prove delivery or close the case.</p>
     </section>

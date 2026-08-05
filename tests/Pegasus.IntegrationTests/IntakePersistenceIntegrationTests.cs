@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Operations;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Persistence;
 using Microsoft.Data.SqlClient;
@@ -154,6 +155,29 @@ public sealed class IntakePersistenceIntegrationTests
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseDueWork'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseManualChases'"));
+    }
+
+    /// <remarks>
+    /// The dashboard tile that reads this count shipped permanently zero: it
+    /// compared the persisted decision against the enum's name
+    /// (<c>NeedsSorting</c>) while the column holds the snake_case code
+    /// (<c>needs_sorting</c>), so nothing ever matched. No test held the
+    /// query against a real database, and every local database was empty, so
+    /// zero looked like the right answer everywhere it was checked. Only the
+    /// deployed instance — with one Needs sorting receipt in it — could tell
+    /// the difference.
+    /// </remarks>
+    [Fact]
+    public async Task DashboardNeedsSortingCountSeesAStoredNeedsSortingReceipt()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await database.StoreAsync(CreateDraft(1, IntakeDecision.NeedsSorting));
+        await database.StoreAsync(CreateDraft(2, IntakeDecision.NeedsSorting));
+        await database.StoreAsync(CreateDraft(3, IntakeDecision.BlockedIntake));
+
+        var counts = await database.GetMailActivityCountsAsync(FixedTime.AddDays(-1));
+
+        Assert.Equal(2, counts.NeedsSorting);
     }
 
     [Fact]
@@ -497,6 +521,13 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         await using var scope = services.CreateAsyncScope();
         return await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
             .GetCountsAsync(CancellationToken.None);
+    }
+
+    public async Task<MailActivityCounts> GetMailActivityCountsAsync(DateTimeOffset dayStartUtc)
+    {
+        await using var scope = services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<IDashboardQueries>()
+            .GetMailActivityCountsAsync(dayStartUtc, CancellationToken.None);
     }
 
     public Task<int> CountAsync(string tableName)
