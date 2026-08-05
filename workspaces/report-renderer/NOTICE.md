@@ -11,8 +11,6 @@ The workspace is source-only and non-caller in its current repository context. N
 | `CollisionRenderer.Core` | PDFsharp | `6.2.4` | Appends validated evidence PDFs after Chromium rendering; not used for page layout. | No conclusion stated in the retained notice; verify the package's distributed licence/notice. |
 | `CollisionRenderer.Core` | Scriban | `5.12.1` | First-party HTML body-template engine. | BSD-2-Clause. |
 | `CollisionRenderer.Core` | Microsoft.Playwright | `1.61.0` | Controls headless Chromium for HTML-to-PDF rendering. | Apache-2.0. |
-| `CollisionRenderer.Gui` | Microsoft.WindowsAppSDK | `2.2.0` | WinUI 3 / Windows desktop runtime and UI platform. | No conclusion stated in the retained notice; verify the package's distributed licence/notice. |
-| `CollisionRenderer.Gui` | CommunityToolkit.Mvvm | `8.4.2` | GUI MVVM support. | No conclusion stated in the retained notice; verify the package's distributed licence/notice. |
 | `CollisionRenderer.Mcp` | ModelContextProtocol | `1.4.0` | MCP server contracts and transport support. | No conclusion stated in the retained notice; verify the package's distributed licence/notice. |
 | `CollisionRenderer.Mcp` | Microsoft.Extensions.Hosting | `9.0.0` | MCP process hosting, dependency injection, configuration and lifetime. | No conclusion stated in the retained notice; verify the package's distributed licence/notice. |
 
@@ -73,7 +71,7 @@ Rendered PDFs, advert captures, uploaded evidence, custom signatures, local imag
 - Do not commit generated customer documents or uploads.
 - Do not use customer payloads as tests, starter drafts or examples.
 - Use synthetic, non-identifying fixtures for automated tests.
-- Local MCP artefacts under `%LOCALAPPDATA%\CollisionRenderer\output` are user-local case artefacts and require the same care as CLI, GUI or API output.
+- Local MCP artefacts under `%LOCALAPPDATA%\CollisionRenderer\output` are user-local case artefacts and require the same care as CLI or API output.
 - API multipart temporary files must not be treated as durable source assets.
 
 ## Security notice

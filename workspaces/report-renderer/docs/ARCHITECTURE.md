@@ -10,13 +10,12 @@ This is independent, source-only, non-caller workspace code. The projects can be
 
 ## Project graph
 
-The current solution has five shipped projects and two test projects.
+The current solution has four shipped projects and two test projects.
 
 | Project | Role | Important boundary |
 | --- | --- | --- |
 | `CollisionRenderer.Core` | Shared typed-model-to-PDF engine. | No Windows-only dependency; sole rendering source of truth. |
 | `CollisionRenderer.Cli` | Command-line host, assembly `collisionrenderer`. | Maps commands and files to Core contracts. |
-| `CollisionRenderer.Gui` | WinUI 3 authoring host with WebView2 preview. | Windows-only presentation; renders through Core in-process. |
 | `CollisionRenderer.Api` | ASP.NET Core minimal HTTP API. | Adds HTTP, multipart, batching and optional bearer authentication. |
 | `CollisionRenderer.Mcp` | Standalone MCP stdio host. | Exposes selected Core operations as MCP tools and writes local artefacts. |
 | `CollisionRenderer.Core.Tests` | Core, validation, composition and Chromium integration tests. | May use a fake `IPdfEngine` for deterministic pipeline tests. |
@@ -25,7 +24,6 @@ The current solution has five shipped projects and two test projects.
 Current direct package evidence:
 
 - Core: PDFsharp `6.2.4`, Scriban `5.12.1`, Microsoft.Playwright `1.61.0`.
-- GUI: Microsoft.WindowsAppSDK `2.2.0`, CommunityToolkit.Mvvm `8.4.2`, in addition to its Core project reference.
 - MCP: ModelContextProtocol `1.4.0`, Microsoft.Extensions.Hosting `9.0.0`, in addition to its Core project reference.
 
 ## Composition and public contracts
@@ -120,10 +118,6 @@ Parity means that document capabilities and render decisions come from Core, not
 ### CLI
 
 Lists templates and forms, emits blank/starter/schema JSON, validates, renders, batches, installs Chromium and reports version information. It writes PDF bytes returned by Core and can open the result through the local operating system.
-
-### GUI
-
-Renders Core-owned form definitions as labelled controls, repeaters, tables, question/answer rows, signature selectors and upload slots. JSON remains a diagnostic representation. Preview is a GUI-only concern implemented with WebView2; it does not change PDF production.
 
 ### API
 

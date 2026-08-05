@@ -1,8 +1,8 @@
 <Project>
   <!--
     Common build settings for every project in the Collision Renderer solution.
-    Per-project TargetFramework is set in each .csproj (Core/Cli/Api are net8.0;
-    the WinUI Gui is net8.0-windows). Keep this file framework-agnostic.
+    Per-project TargetFramework is set in each .csproj (Core/Cli/Api/Mcp and both
+    test projects are net8.0). Keep this file framework-agnostic.
   -->
   <PropertyGroup>
     <LangVersion>latest</LangVersion>

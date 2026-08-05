@@ -63,7 +63,7 @@ What Windows gives this project that Linux does not:
 | `dotnet dev-certs https --trust` | Trust works directly. On Linux it populates per-user NSS and OpenSSL stores and needs `libnss3-tools` plus `SSL_CERT_DIR`. |
 | The `win-x64` migration bundle and authorised release terminal | Fixed by ADR-0007; see above. |
 | The Entra interactive authentication broker, and the `SqlServer` and `ExchangeOnlineManagement` modules | Used by the approved live-work profile. |
-| `scripts/email-eval-desktop` and `CollisionRenderer.Gui` | These target `net10.0-windows` with Windows Forms and WinUI 3 respectively. Neither framework has a Linux implementation, so both are Windows-only by construction. |
+| `scripts/email-eval-desktop` | It targets `net10.0-windows` with Windows Forms, which has no Linux implementation, so it is Windows-only by construction. |
 
 A 2026-07-27 currency check found:
 

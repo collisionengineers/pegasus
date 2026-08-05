@@ -10,12 +10,10 @@ This guide covers the independent source workspace only. The commands build and 
 | --- | --- | --- |
 | SDK selected by `global.json` | Restore/build/test | Projects target their project-file frameworks; use the pinned SDK rather than documenting an evergreen version. |
 | Playwright Chromium | Local real PDF renders and browser integration tests | Install through the CLI command below. |
-| Windows | `CollisionRenderer.Gui` build/run | The WinUI project is Windows-only. |
-| WebView2 runtime | GUI preview | Install the Evergreen runtime if the machine does not already provide it. |
 | Docker | API container build/run | Optional for local development. |
 | PowerShell | Workspace helper scripts and Windows tooling | Use PowerShell 7 where scripts specify `pwsh`. |
 
-Current package versions that matter to browser/runtime matching are Microsoft.Playwright `1.61.0` in Core and the Playwright runtime image `v1.61.0-jammy` in the Dockerfile. GUI packages are Microsoft.WindowsAppSDK `2.2.0` and CommunityToolkit.Mvvm `8.4.2`. MCP packages are ModelContextProtocol `1.4.0` and Microsoft.Extensions.Hosting `9.0.0`.
+Current package versions that matter to browser/runtime matching are Microsoft.Playwright `1.61.0` in Core and the Playwright runtime image `v1.61.0-jammy` in the Dockerfile. MCP packages are ModelContextProtocol `1.4.0` and Microsoft.Extensions.Hosting `9.0.0`.
 
 ## Restore
 
@@ -36,34 +34,11 @@ Then verify that `global.json` is being discovered from the expected directory h
 
 ## Build
 
-### Whole solution on Windows
-
-```powershell
-dotnet build CollisionRenderer.sln -c Release
-```
-
-### Cross-platform projects on Linux or macOS
-
-The GUI is Windows-only. Build the remaining shipped and test projects explicitly:
+Every project in the solution is framework-agnostic, so the whole solution builds on any supported platform:
 
 ```sh
-dotnet build src/CollisionRenderer.Core/CollisionRenderer.Core.csproj -c Release
-dotnet build src/CollisionRenderer.Cli/CollisionRenderer.Cli.csproj -c Release
-dotnet build src/CollisionRenderer.Api/CollisionRenderer.Api.csproj -c Release
-dotnet build src/CollisionRenderer.Mcp/CollisionRenderer.Mcp.csproj -c Release
-dotnet build tests/CollisionRenderer.Core.Tests/CollisionRenderer.Core.Tests.csproj -c Release
-dotnet build tests/CollisionRenderer.Mcp.Tests/CollisionRenderer.Mcp.Tests.csproj -c Release
+dotnet build CollisionRenderer.sln -c Release
 ```
-
-### GUI only
-
-On Windows:
-
-```powershell
-dotnet build src/CollisionRenderer.Gui/CollisionRenderer.Gui.csproj -c Release -r win-x64
-```
-
-Use the RID appropriate to the target machine when building another supported Windows architecture.
 
 Scriban advisory warnings NU1901–NU1904 are intentionally handled by repository policy. Do not remove or broaden the suppression without reviewing ADR-0010 and the first-party-template/HTML-encoding assumptions.
 
@@ -86,7 +61,7 @@ dotnet test tests/CollisionRenderer.Core.Tests/CollisionRenderer.Core.Tests.cspr
 dotnet test tests/CollisionRenderer.Mcp.Tests/CollisionRenderer.Mcp.Tests.csproj -c Release
 ```
 
-Or, on a platform that can build every project in the solution:
+Or the whole solution at once:
 
 ```sh
 dotnet test CollisionRenderer.sln -c Release
@@ -200,24 +175,6 @@ curl -X POST http://localhost:<port>/v1/render.multipart \
 
 Treat the field path as illustrative until checked against the current form definition. Do not rely on arbitrary server-local paths in a remote API payload.
 
-## Run the GUI
-
-On Windows:
-
-```powershell
-dotnet run --project src/CollisionRenderer.Gui
-```
-
-The GUI uses Core in-process. Its generated forms, validation, uploads, density choices and PDF output therefore come from the same contracts as the CLI and API. WebView2 is used only to preview the returned PDF.
-
-If the GUI reports a missing browser, close any failed render state and install Chromium through:
-
-```powershell
-dotnet run --project src/CollisionRenderer.Cli -- install-browser
-```
-
-Then retry the render.
-
 ## Run the MCP host
 
 Start the standalone stdio host with:
@@ -262,8 +219,7 @@ For a meaningful parity check, use the same template ID, JSON payload and densit
 1. Generate one Core-owned starter with the CLI.
 2. Validate and render it through the CLI.
 3. Submit the same JSON to `/v1/validate` and `/v1/render.pdf`.
-4. Open the same draft in the GUI and render without changing it.
-5. Where an MCP tool supports the operation, call it with the same template/data and compare returned metadata.
+4. Where an MCP tool supports the operation, call it with the same template/data and compare returned metadata.
 
 Compare template resolution, validation errors/warnings, used density, page count and PDF SHA-256 only under equivalent browser, font, OS and attachment conditions. Byte identity should not be promised across differing Chromium/font environments; contract and visual parity are the portable guarantees.
 
@@ -288,10 +244,6 @@ apt-get update && apt-get install -y --no-install-recommends fonts-liberation fo
 ```
 
 Invariant globalisation can alter currency and number formatting; the supplied image sets `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false`.
-
-### GUI build fails on non-Windows
-
-This is expected. Build the six cross-platform shipped/test projects individually and build `CollisionRenderer.Gui` on Windows.
 
 ### API returns 401 unexpectedly
 

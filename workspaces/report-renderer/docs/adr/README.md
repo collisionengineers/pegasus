@@ -13,13 +13,13 @@ This directory is the immutable index for Collision Renderer architecture decisi
 
 ## Immutable index
 
-The existing ADR-0001 through ADR-0010 bodies remain unchanged. Where a retained source does not expose an ADR title, this index deliberately avoids inventing one; the existing ADR body's title and text are authoritative.
+The existing ADR-0001 through ADR-0011 bodies remain unchanged. Where a retained source does not expose an ADR title, this index deliberately avoids inventing one; the existing ADR body's title and text are authoritative.
 
 | ADR | Status | Indexed subject / authority note |
 | --- | --- | --- |
 | [ADR-0001](0001-rendering-engine-headless-chromium.md) | Accepted — existing | Headless Chromium rendering engine. |
-| [ADR-0002](0002-modular-shared-core-thin-clients.md) | Accepted — existing | Shared Core with thin clients. |
-| [ADR-0003](0003-unified-dotnet-8-stack.md) | Accepted — existing | Unified .NET 8 source-workspace stack. |
+| [ADR-0002](0002-modular-shared-core-thin-clients.md) | Accepted, partially superseded | **Only its enumeration of the GUI as a thin-client host, and the offline-desktop rationale in *Alternatives considered*, are superseded by ADR-0012.** The shared-Core / thin-client decision itself remains in force. |
+| [ADR-0003](0003-unified-dotnet-8-stack.md) | Accepted, partially superseded | Unified .NET 8 source-workspace stack. **Its WinUI/`net8.0-windows` host bullet and dependent consequences are superseded by ADR-0012; its per-project `net8.0` target framework list is superseded by ADR-0014.** Its one-language/one-runtime rationale and its rejection of Python and mixed stacks remain in force. |
 | [ADR-0004](0004-templating-scriban-plus-csharp-shell.md) | Accepted — existing | Typed model, first-party Scriban body and C#-built common shell. |
 | [ADR-0005](0005-reuse-brand-css-design-system.md) | Accepted — existing | Reuse of the retained brand CSS design system. |
 | [ADR-0006](0006-page-furniture-chromium-header-footer-paged-media.md) | Accepted — existing | Chromium header/footer and paged-media furniture. |
@@ -28,6 +28,7 @@ The existing ADR-0001 through ADR-0010 bodies remain unchanged. Where a retained
 | [ADR-0009](0009-reference-material-handling.md) | Accepted — existing | Reference material handling: private examples/prior art are not product source or build inputs; sensitive material stays ignored and local. |
 | [ADR-0010](0010-accept-scriban-security-advisories.md) | Accepted — existing | Constrained acceptance of Scriban NU1901–NU1904 based on first-party embedded templates and encoded value handling. |
 | [ADR-0011](0011-multi-token-sha256-api-authentication.md) | Accepted | API bearer-token compatibility, rotation lists and SHA-256 configuration. Supersedes only ADR-0008's authentication detail. |
+| [ADR-0012](0012-decommission-winui-desktop-host.md) | Accepted | Decommission of the WinUI 3 desktop host and its Windows-only dependency surface; the HTML preview composer is retained. Supersedes only the GUI-specific details of ADR-0002 and ADR-0003. |
 
 ## ADR-0011 decision summary
 
