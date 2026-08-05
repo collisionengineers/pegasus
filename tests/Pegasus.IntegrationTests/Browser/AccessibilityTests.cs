@@ -102,8 +102,8 @@ public sealed class AccessibilityTests
         Assert.False(await HasHorizontalOverflowAsync(support.Page));
         Assert.True(await support.Page.GetByRole(
             AriaRole.Heading,
-            new PageGetByRoleOptions { Name = "Operations", Exact = true }).IsVisibleAsync());
-        Assert.True(await support.Page.Locator("[data-queue-state='current']").First.IsVisibleAsync());
+            new PageGetByRoleOptions { Name = "Dashboard", Exact = true }).IsVisibleAsync());
+        Assert.True(await support.Page.Locator(".metric .metric__value").First.IsVisibleAsync());
     }
 
     [Fact]
@@ -123,28 +123,23 @@ public sealed class AccessibilityTests
     }
 
     [Fact]
-    public async Task QueueStateIsNotCommunicatedByColourAlone()
+    public async Task MetricStateIsNotCommunicatedByColourAlone()
     {
         await using var support = await BrowserTestSupport.StartAsync();
         await support.GoToAsync("/");
 
-        var states = support.Page.Locator("[data-queue-state]");
-        var count = await states.CountAsync();
+        // A metric's tone is a second signal only. Each tile carries its own
+        // label and its own number, so removing every colour from the page
+        // loses nothing an operator needs.
+        var metrics = support.Page.Locator(".metric");
+        var count = await metrics.CountAsync();
         Assert.True(count > 0);
 
         for (var index = 0; index < count; index++)
         {
-            var state = states.Nth(index);
-            var stateName = await state.GetAttributeAsync("data-queue-state");
-            var text = await state.InnerTextAsync();
-            if (stateName == "unavailable")
-            {
-                Assert.Contains("unavailable", text, StringComparison.OrdinalIgnoreCase);
-            }
-            else
-            {
-                Assert.Matches(@"\d", text);
-            }
+            var text = await metrics.Nth(index).InnerTextAsync();
+            Assert.Matches(@"\d", text);
+            Assert.Matches(@"[A-Za-z]", text);
         }
     }
 
