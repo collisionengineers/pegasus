@@ -46,7 +46,10 @@ Move every project in `CollisionRenderer.sln` to `net10.0`:
 - Both test projects: `Microsoft.NET.Test.Sdk` `17.11.1` → `17.14.1`, `xunit`
   `2.9.2` → `2.9.3`, `xunit.runner.visualstudio` `2.8.2` → `3.1.4`. These are the
   repository-proven pairings; the root test projects run `net10.0` on 17.14.1.
-- `Directory.Build.props` gains `<Deterministic>true</Deterministic>`.
+- `Directory.Build.props` gains `<Deterministic>true</Deterministic>`. This makes
+  an existing SDK default explicit so it cannot be lost silently; it changes no
+  compiler output. The property was measured `true` in this workspace before the
+  line was added, so nothing here depends on it having been off.
 - The Dockerfile's build stage moves to `mcr.microsoft.com/dotnet/sdk:10.0.302`
   and its final stage to `mcr.microsoft.com/playwright/dotnet:v1.61.0-noble`,
   which is built from `mcr.microsoft.com/dotnet/sdk:10.0-noble` and therefore
@@ -146,4 +149,7 @@ tracks the repository target framework", which is not decided here.
   defect. Adding six `packages.lock.json` files is a separate decision.
 - Render output is unchanged. All 12 template identifiers were composed at all 3
   density values before and after the uplift; the 36 composed-HTML SHA-256 hashes
-  are identical, and identical to the pre-Scriban-upgrade baseline.
+  are identical, and identical to the pre-Scriban-upgrade baseline. Those 36
+  outputs carry only 14 distinct hashes — density currently reaches
+  `market-valuation-evidence` alone — so read them as 36 samples, not 36
+  independent documents. See ADR-0013.

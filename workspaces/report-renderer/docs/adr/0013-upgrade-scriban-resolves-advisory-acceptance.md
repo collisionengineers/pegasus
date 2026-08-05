@@ -79,6 +79,12 @@ there is no suppression.
   composed at every one of the 3 density values, before and after the upgrade,
   and all 36 SHA-256 hashes are identical. This is a stronger proof than
   comparing rasterised PDFs, which would have interposed Chromium.
+  Read the 36 honestly: they are 36 composed outputs, not 36 distinct
+  documents. Only 14 are distinct, because `HtmlComposer` currently passes the
+  density through to `market-valuation-evidence` alone, so the other eleven
+  identifiers compose byte-identically at all three densities. All four
+  `.scriban` bodies are still exercised, and every one of the 36 composed a
+  real document rather than a placeholder fallback.
 - No C# change was required. The whole Scriban surface this code uses is
   `Template.Parse`, `Template.HasErrors`, `Template.Messages` and
   `Template.Render(ScriptObject)`, all unchanged across the two major versions.
