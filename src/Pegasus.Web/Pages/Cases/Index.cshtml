@@ -1,102 +1,114 @@
 @page
 @model Pegasus.Web.Pages.Cases.IndexModel
 @using Pegasus.Core.Workflow
+@using Pegasus.Web.Presentation
 @{
     ViewData["Title"] = "Cases";
+    var hasAdvancedFilter =
+        !string.IsNullOrWhiteSpace(Model.Registration)
+        || !string.IsNullOrWhiteSpace(Model.Claimant)
+        || !string.IsNullOrWhiteSpace(Model.ClaimNumber)
+        || Model.EngineerId is not null
+        || Model.ReceivedDate is not null
+        || Model.InstructionDate is not null
+        || Model.FromDate is not null
+        || Model.ToDate is not null
+        || !string.IsNullOrWhiteSpace(Model.Origin)
+        || !string.IsNullOrWhiteSpace(Model.RecordKindFilter);
 }
 
+@* No lede. It narrated browser mechanics - that filters stay in the URL -
+   as if it were guidance. The filter bar is one line, with everything that is
+   used rarely behind a disclosure. *@
 <header class="page-heading">
-    <div>
-        <p class="eyebrow">Case workspace</p>
-        <h1>Cases</h1>
-        <p class="lede">Search the cases you are authorised to access. Filters remain in the URL when you move between result pages.</p>
-    </div>
+    <h1>Cases</h1>
 </header>
 
-<section class="panel form-panel form-panel--wide" aria-labelledby="case-filters-title">
-    <h2 id="case-filters-title" class="section-label">Filter cases</h2>
+<section class="panel filterbar" aria-labelledby="case-filters-title">
+    <h2 id="case-filters-title" class="vh">Filter cases</h2>
     <form method="get">
-        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
-        <div class="form-grid">
-            <div>
-                <label for="case-reference">Case/PO</label>
-                <input id="case-reference" name="case" value="@Model.CaseReference" maxlength="100" />
-            </div>
-            <div>
-                <label asp-for="Registration">Registration</label>
-                <input asp-for="Registration" maxlength="20" />
-            </div>
-            <div>
-                <label asp-for="Claimant">Claimant</label>
-                <input asp-for="Claimant" maxlength="300" />
-            </div>
-            <div>
-                <label asp-for="ClaimNumber">Claim number</label>
-                <input asp-for="ClaimNumber" maxlength="100" />
-            </div>
-            <div>
-                <label asp-for="Principal">Principal</label>
-                <input asp-for="Principal" maxlength="20" />
-            </div>
-            <div>
-                <label asp-for="State">State</label>
-                <select asp-for="State">
-                    <option value="">All states</option>
-                    @foreach (var state in Enum.GetValues<CaseLifecycleState>())
-                    {
-                        <option value="@state">@state</option>
-                    }
-                </select>
-            </div>
-            <div>
-                <label asp-for="EngineerId">Engineer ID</label>
-                <input asp-for="EngineerId" type="text" />
-                <span asp-validation-for="EngineerId" class="field-validation"></span>
-            </div>
-            <div>
-                <label asp-for="ReceivedDate">Received date</label>
-                <input asp-for="ReceivedDate" type="date" />
-                <span asp-validation-for="ReceivedDate" class="field-validation"></span>
-            </div>
-            <div>
-                <label asp-for="InstructionDate">Instruction date</label>
-                <input asp-for="InstructionDate" type="date" />
-                <span asp-validation-for="InstructionDate" class="field-validation"></span>
-            </div>
-            <div>
-                <label asp-for="FromDate">Received from</label>
-                <input asp-for="FromDate" type="date" />
-                <span asp-validation-for="FromDate" class="field-validation"></span>
-            </div>
-            <div>
-                <label asp-for="ToDate">Received to</label>
-                <input asp-for="ToDate" type="date" />
-                <span asp-validation-for="ToDate" class="field-validation"></span>
-            </div>
-            <div>
-                <label asp-for="Origin">Origin</label>
-                <input asp-for="Origin" maxlength="100" />
-            </div>
-            <div>
-                <label asp-for="Query">Any case text</label>
-                <input asp-for="Query" maxlength="300" />
-            </div>
-            <div>
-                <label for="record-kind">Record type</label>
-                <select id="record-kind" name="kind">
-                    <option value="" selected="@(string.IsNullOrEmpty(Model.RecordKindFilter))">All</option>
-                    <option value="instructions" selected="@(Model.RecordKindFilter == "instructions")">Instructions</option>
-                    <option value="images" selected="@(Model.RecordKindFilter == "images")">Images</option>
-                </select>
-            </div>
+        <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+        <div class="filterbar__line">
+            <label for="case-query" class="vh">Case/PO or keyword</label>
+            <input id="case-query" name="query" value="@Model.Query" maxlength="300"
+                   placeholder="Case/PO, registration, claimant or claim number" />
+
+            <label for="case-state" class="vh">Case stage</label>
+            <select id="case-state" name="state">
+                <option value="">Any stage</option>
+                @foreach (var state in Enum.GetValues<CaseLifecycleState>())
+                {
+                    <option value="@state" selected="@(Model.State == state)">@OperatorLabels.CaseStage(state)</option>
+                }
+            </select>
+
+            <label for="case-principal" class="vh">Principal</label>
+            <input id="case-principal" name="principal" value="@Model.Principal" maxlength="20" placeholder="Principal" />
+
+            <button type="submit" class="btn btn--dark">Search</button>
+            <a asp-page="/Cases/Index" class="btn">Clear</a>
         </div>
-        <div class="button-row">
-            <button type="submit" class="primary-action">Search cases</button>
-            <a asp-page="/Cases/Index" class="secondary-action">Clear filters</a>
-        </div>
+
+        <details class="filterbar__more" open="@(hasAdvancedFilter ? "open" : null)">
+            <summary>More filters</summary>
+            <div class="form-grid">
+                <div>
+                    <label asp-for="CaseReference">Case/PO</label>
+                    <input id="case-reference" name="case" value="@Model.CaseReference" maxlength="100" />
+                </div>
+                <div>
+                    <label asp-for="Registration">Registration</label>
+                    <input asp-for="Registration" maxlength="20" />
+                </div>
+                <div>
+                    <label asp-for="Claimant">Claimant</label>
+                    <input asp-for="Claimant" maxlength="300" />
+                </div>
+                <div>
+                    <label asp-for="ClaimNumber">Claim number</label>
+                    <input asp-for="ClaimNumber" maxlength="100" />
+                </div>
+                <div>
+                    <label asp-for="EngineerId">Engineer</label>
+                    <input asp-for="EngineerId" type="text" />
+                    <span asp-validation-for="EngineerId" class="field-validation-error"></span>
+                </div>
+                <div>
+                    <label asp-for="ReceivedDate">Received on</label>
+                    <input asp-for="ReceivedDate" type="date" />
+                    <span asp-validation-for="ReceivedDate" class="field-validation-error"></span>
+                </div>
+                <div>
+                    <label asp-for="InstructionDate">Instructed on</label>
+                    <input asp-for="InstructionDate" type="date" />
+                    <span asp-validation-for="InstructionDate" class="field-validation-error"></span>
+                </div>
+                <div>
+                    <label asp-for="FromDate">Received from</label>
+                    <input asp-for="FromDate" type="date" />
+                    <span asp-validation-for="FromDate" class="field-validation-error"></span>
+                </div>
+                <div>
+                    <label asp-for="ToDate">Received to</label>
+                    <input asp-for="ToDate" type="date" />
+                    <span asp-validation-for="ToDate" class="field-validation-error"></span>
+                </div>
+                <div>
+                    <label asp-for="Origin">Origin</label>
+                    <input asp-for="Origin" maxlength="100" />
+                </div>
+                <div>
+                    <label for="record-kind">Record type</label>
+                    <select id="record-kind" name="kind">
+                        <option value="" selected="@(string.IsNullOrEmpty(Model.RecordKindFilter))">All</option>
+                        <option value="instructions" selected="@(Model.RecordKindFilter == "instructions")">Cases</option>
+                        <option value="images" selected="@(Model.RecordKindFilter == "images")">Vehicle images</option>
+                    </select>
+                </div>
+            </div>
+        </details>
     </form>
 </section>
-
 @if (Model.QueryFailed)
 {
     <section class="status-card status-card--error" role="alert">
@@ -108,21 +120,21 @@ else if (Model.Results is { Items.Count: 0 } && Model.ImageIntakeResults.Count =
 {
     <section class="panel empty-state" aria-live="polite">
         <h2>No matching cases</h2>
-        <p>No authorised cases or Image intakes match the current filters. Clear a filter to widen the search.</p>
+        <p>No cases match these filters.</p>
     </section>
 }
 else if (Model.RecordKindFilter == "images" && Model.ImageIntakeResults.Count == 0)
 {
     <section class="empty-state" aria-live="polite">
-        <h2>No matching Image intakes</h2>
-        <p>No Image intakes match the current filters.</p>
+        <h2>No matching vehicle images</h2>
+        <p>No vehicle images match these filters.</p>
     </section>
 }
 
 @if (Model.ImageIntakeResults.Count > 0)
 {
     <section class="panel section-gap" aria-labelledby="image-intake-results-title">
-        <h2 id="image-intake-results-title" class="section-label">Image intakes</h2>
+        <h2 id="image-intake-results-title" class="section-label">Vehicle images</h2>
         <div class="queue-list">
             @foreach (var item in Model.ImageIntakeResults)
             {
@@ -164,8 +176,8 @@ else if (Model.RecordKindFilter == "images" && Model.ImageIntakeResults.Count ==
                             <td>@(item.Claimant ?? "Not recorded")</td>
                             <td>@(item.ClaimNumber ?? "Not recorded")</td>
                             <td>@item.Principal</td>
-                            <td><partial name="Shared/_StatusChip" model="@item.State.ToString()" /></td>
-                            <td>@(item.EngineerId?.ToString("D") ?? "Unassigned")</td>
+                            <td><partial name="Shared/_StatusChip" model="@OperatorLabels.CaseStage(item.State)" /></td>
+                            <td>@(item.EngineerId is null ? "Unassigned" : "Assigned")</td>
                             <td><time datetime="@item.ReceivedAtUtc.ToString("O")">@item.ReceivedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</time></td>
                             <td>@(item.InstructionDate?.ToString("dd MMM yyyy") ?? "Not recorded")</td>
                             <td>@item.Origin</td>
