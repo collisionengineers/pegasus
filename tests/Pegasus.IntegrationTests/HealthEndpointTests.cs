@@ -37,7 +37,8 @@ public sealed class HealthEndpointTests : IClassFixture<IntakeWebApplicationFact
 
         var html = await client.GetStringAsync("/");
 
-        Assert.Contains("Case and intake queues", html, StringComparison.Ordinal);
+        Assert.Contains("Active cases", html, StringComparison.Ordinal);
+        Assert.Contains("E-mail activity", html, StringComparison.Ordinal);
         Assert.Contains("Needs sorting", html, StringComparison.Ordinal);
     }
 }

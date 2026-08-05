@@ -9,7 +9,6 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Workflow;
-using Pegasus.Web.Pages;
 
 namespace Pegasus.Web.Pages.Operations;
 
@@ -24,8 +23,7 @@ public sealed class RequestsModel(
     IRenewCaseEditLease renewCaseEditLease,
     IReleaseCaseEditLease releaseCaseEditLease,
     IRevokeBoxFileRequest revokeBoxFileRequest,
-    IRevokeRequestUploadLink revokeRequestUploadLink,
-    IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder) : PageModel
+    IRevokeRequestUploadLink revokeRequestUploadLink) : PageModel
 {
     private const string LeaseCaseIdKey = "OperationsRequestLeaseCaseId";
     private const string LeaseTokenKey = "OperationsRequestLeaseToken";
@@ -47,11 +45,6 @@ public sealed class RequestsModel(
         revokeBoxFileRequest ?? throw new ArgumentNullException(nameof(revokeBoxFileRequest));
     private readonly IRevokeRequestUploadLink revokeRequestUploadLink =
         revokeRequestUploadLink ?? throw new ArgumentNullException(nameof(revokeRequestUploadLink));
-    private readonly IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder =
-        describeEditAuthorityHolder
-            ?? throw new ArgumentNullException(nameof(describeEditAuthorityHolder));
-
-    private readonly Dictionary<Guid, CaseEditAuthorityHolder> editAuthorityHolders = [];
 
     public RequestOperationsProjection Operations { get; private set; } = new(
         ImmutableArray<RequestOperationProjection>.Empty,
@@ -77,7 +70,6 @@ public sealed class RequestsModel(
 
         Operations = await getRequestOperations.ExecuteAsync(actor, cancellationToken);
         RestoreLeaseState(actor);
-        await DescribeEditAuthorityHoldersAsync(actor, cancellationToken);
         PreservedRequestId = ReadGuidTempData(PreservedRequestIdKey);
         PreservedReason = TempData[PreservedReasonKey] as string;
         return Page();
@@ -361,6 +353,121 @@ public sealed class RequestsModel(
         return RedirectToPage();
     }
 
+    /// <summary>
+    /// Revokes an upload link in one post: claim edit authority, revoke,
+    /// release.
+    /// </summary>
+    /// <remarks>
+    /// The operator used to hand-operate the concurrency protocol — "Enter edit
+    /// mode to revoke", then "Renew edit mode" or "Leave edit mode", and
+    /// "Revocation is unavailable until the current edit mode expires or is
+    /// released" when someone else held it. None of that is a decision anyone
+    /// takes; it is a mechanism. Whether another member of staff is editing the
+    /// case is now the result of trying, reported as a sentence, rather than a
+    /// precondition the operator manages by hand.
+    ///
+    /// The constituent Core operations are unchanged, and so are their
+    /// guarantees: the same expected versions, the same replay key, the same
+    /// fail-closed conflict. Only the composition is new.
+    /// </remarks>
+    public async Task<IActionResult> OnPostRevokeLinkAsync(
+        Guid requestId,
+        Guid caseId,
+        long expectedVersion,
+        long expectedCaseVersion,
+        string reason,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!ModelState.IsValid || requestId == Guid.Empty || caseId == Guid.Empty)
+        {
+            PreserveReason(requestId, reason);
+            StatusMessage = "The link could not be withdrawn. Refresh and try again.";
+            return RedirectToPage();
+        }
+
+        var leaseOperationKey = NewOperationKey();
+        CaseEditLease lease;
+        try
+        {
+            lease = await acquireCaseEditLease.ExecuteAsync(
+                new(caseId, expectedCaseVersion, actor, leaseOperationKey),
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (
+            exception is ArgumentException or InvalidOperationException or DbUpdateConcurrencyException)
+        {
+            PreserveReason(requestId, reason);
+            StatusMessage =
+                "This link's case is open for editing by someone else. Try again in a few minutes.";
+            return RedirectToPage();
+        }
+
+        try
+        {
+            await revokeRequestUploadLink.ExecuteAsync(
+                new(
+                    caseId,
+                    requestId,
+                    actor,
+                    reason,
+                    operationKey,
+                    expectedVersion,
+                    expectedCaseVersion,
+                    lease.Token),
+                cancellationToken);
+            StatusMessage = "The link was withdrawn.";
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (
+            exception is ArgumentException or InvalidOperationException or DbUpdateConcurrencyException)
+        {
+            PreserveReason(requestId, reason);
+            StatusMessage = "The link changed before it could be withdrawn. Refresh and try again.";
+
+            // Release what this request claimed. Leaving it held would block
+            // the operator's own retry for the lease duration.
+            await ReleaseQuietlyAsync(caseId, actor, lease.Token, cancellationToken);
+            return RedirectToPage();
+        }
+
+        await ReleaseQuietlyAsync(caseId, actor, lease.Token, cancellationToken);
+        return RedirectToPage();
+    }
+
+    private async Task ReleaseQuietlyAsync(
+        Guid caseId,
+        ActionActor actor,
+        string leaseToken,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await releaseCaseEditLease.ExecuteAsync(
+                new(caseId, actor, NewOperationKey(), leaseToken),
+                cancellationToken);
+        }
+        catch (Exception exception) when (
+            exception is ArgumentException or InvalidOperationException or DbUpdateConcurrencyException)
+        {
+            // The lease expires on its own. Failing the operator's action
+            // because the tidy-up did not land would report the wrong outcome.
+        }
+
+        ClearLease();
+    }
+
     public static string KindLabel(RequestOperationKind kind) => kind switch
     {
         RequestOperationKind.BoxFileRequest => "Box file request",
@@ -392,49 +499,6 @@ public sealed class RequestsModel(
         _ => throw new InvalidOperationException(
             $"Unknown request edit-lease state value '{(int)state}'.")
     };
-
-    /// <summary>
-    /// Who is editing the case behind this request and when editing becomes available, so a
-    /// read-only viewer sees the holder and the recovery state rather than a bare refusal.
-    /// </summary>
-    public string EditModeLabel(RequestOperationProjection item)
-    {
-        ArgumentNullException.ThrowIfNull(item);
-        return item.ActiveEditLease is { } activeLease
-            ? EditModeDisplay.HeldBy(
-                editAuthorityHolders.TryGetValue(item.CaseId, out var holder)
-                    ? holder
-                    : CaseEditAuthorityHolder.Unnamed,
-                activeLease.ExpiresAtUtc,
-                LeaseCaseId == item.CaseId)
-            : LeaseLabel(item.CaseEditLeaseState);
-    }
-
-    /// <summary>
-    /// Resolves each distinct holder once for the whole page, so a row never has to render the
-    /// retained subject identifier.
-    /// </summary>
-    private async Task DescribeEditAuthorityHoldersAsync(
-        ActionActor actor,
-        CancellationToken cancellationToken)
-    {
-        editAuthorityHolders.Clear();
-        foreach (var item in Operations.Items)
-        {
-            if (item.ActiveEditLease is not { } activeLease
-                || editAuthorityHolders.ContainsKey(item.CaseId))
-            {
-                continue;
-            }
-
-            editAuthorityHolders[item.CaseId] = LeaseCaseId == item.CaseId
-                ? CaseEditAuthorityHolder.Unnamed
-                : await describeEditAuthorityHolder.ExecuteAsync(
-                    activeLease.Holder,
-                    actor,
-                    cancellationToken);
-        }
-    }
 
     public static string NewOperationKey() => Guid.NewGuid().ToString("N");
 

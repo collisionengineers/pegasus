@@ -97,16 +97,36 @@ recovery state". `Pages/Cases/Shared/_CaseWorkflow.cshtml:53-56` shows only
 disclosure is inconsistent and the primary surface is the one that fails the
 clause.
 
-Show, on the case workspace and the Operations request rows, who is editing
-and when editing becomes available, in the operator vocabulary the
+Show, on the case workspace and in Triage, who is editing and when editing
+becomes available, in the operator vocabulary the
 `docs/ui-work/ui-standards-and-review.md:109` ban requires: "lease",
 "opaque", "token" and "expiry" do not appear in the copy. The expiry renders
 as a Europe/London wall-clock time consistent with the rest of the
-application, and the holder is the display identity already carried by
-`CaseEditLeaseSnapshot.Holder` — no new field, no token exposure. Keep the
-change confined to the existing edit-mode panel partial: the whole-page
-redesign of the case container is a separate queued task
-(`NOW.md` "Cases (pages 4/5, 12)"), and this task must not pre-empt it.
+application. Keep the change confined to the existing edit-mode panel
+partial: the whole-page redesign of the case container is a separate queued
+task (`NOW.md` "Cases (pages 4/5, 12)"), and this task must not pre-empt it.
+
+**Corrected twice during implementation.**
+
+The holder is *not* a display identity. `CaseEditLeaseSnapshot.Holder` is the
+staff subject identifier, and the standard bans GUIDs from operator copy in
+the same list as "lease" and "opaque". The holder is therefore resolved to
+the staff account name by a Core use case over the existing
+`IStaffAccountQueries` read, and an unresolvable holder is disclosed as
+"Another member of staff" — no identifier reaches a page in any state.
+
+**The Operations half of this section was dropped on merge.** `origin/dev`
+has since landed the UI programme's rework of `Pages/Operations/Requests`,
+which deliberately removes the edit-mode ceremony from that page: one post
+performs the whole withdrawal, and whether someone else is editing the case
+is the result of trying rather than a state the operator is asked to manage.
+That is a merged operator decision about that page and it takes precedence,
+so the "Edit mode" column, the holder disclosure, and the enter/recover/
+renew/leave controls are not reinstated there, and the code behind them was
+removed. The requirement's clause stays satisfied by the case workspace and
+Triage, which are where a case is actually edited. The lease and version
+guards on that page's withdrawal POST handlers are untouched — the
+protection stayed, only the ceremony went.
 
 ### 5. A rejected editor keeps their proposed values
 

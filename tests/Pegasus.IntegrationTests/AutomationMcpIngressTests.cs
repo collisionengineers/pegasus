@@ -19,7 +19,8 @@ public sealed class AutomationMcpIngressTests
 {
     private const string ClientId = "pegasus-automation";
     private const string ClientSecret = "integration-test-automation-secret-0123456789";
-    private const string AllScopes = "automation.cases automation.intake automation.documents";
+    private const string AllScopes =
+        "automation.cases automation.intake automation.documents automation.assessment";
 
     private static readonly string[] ExpectedTools =
     [
@@ -28,11 +29,16 @@ public sealed class AutomationMcpIngressTests
         "pegasus_case_edit_begin",
         "pegasus_case_edit_renew",
         "pegasus_case_edit_end",
+        "pegasus_case_update_details",
         "pegasus_intake_queue_list",
         "pegasus_intake_submit",
         "pegasus_document_add",
         "pegasus_document_download",
-        "pegasus_document_export"
+        "pegasus_document_export",
+        "pegasus_assessment_get",
+        "pegasus_assessment_update",
+        "pegasus_eva_bundle_generate",
+        "pegasus_eva_handoff_status"
     ];
 
     [Fact]

@@ -9,7 +9,7 @@ public sealed class AccessibilityTests
     // Every authenticated route that renders without a seeded record id.
     // /Account/SignIn is absent on purpose: the DevelopmentOffline profile
     // authenticates automatically and redirects it, so it cannot return 200
-    // through this harness. It shares the auth-panel markup with
+    // through this harness. It shares the auth-card markup with
     // /Account/PasswordChange, which is covered here.
     public static TheoryData<string> AuthenticatedRoutes => new()
     {
@@ -33,7 +33,11 @@ public sealed class AccessibilityTests
         "/Administration/Automation",
         "/Administration/Automation/Activity",
         "/Account/PasswordChange",
-        "/Account/AccessDenied"
+        "/Account/AccessDenied",
+        // The designed answer to a status code. Before it existed, an unknown
+        // record URL and a dead public upload link both rendered the browser's
+        // own error page, which is on no design system at all.
+        "/status/404"
     };
 
     [Theory]
@@ -69,8 +73,20 @@ public sealed class AccessibilityTests
             "none",
             await support.Page.EvaluateAsync<string>(
                 "getComputedStyle(document.querySelector('svg.sprite-sheet')).display"));
+        // The blank-band guard. On an application screen the navigation is the
+        // first thing rendered and belongs at the very top; the auth/error
+        // family is deliberately navless and deliberately centres its card, so
+        // the same assertion there would be asserting the opposite of the
+        // design. What must hold on both is that nothing renders a tall empty
+        // band above the content, which the sprite assertion above already
+        // covers, plus: the content is inside the viewport without scrolling.
         Assert.True(await support.Page.EvaluateAsync<bool>(
-            "document.querySelector('.app-nav').getBoundingClientRect().top < 10"));
+            "(() => {"
+            + "  const nav = document.querySelector('.app-nav');"
+            + "  if (nav) { return nav.getBoundingClientRect().top < 10; }"
+            + "  const card = document.querySelector('.auth-card');"
+            + "  return card !== null && card.getBoundingClientRect().top < window.innerHeight;"
+            + "})()"));
     }
 
     [Fact]
@@ -86,8 +102,8 @@ public sealed class AccessibilityTests
         Assert.False(await HasHorizontalOverflowAsync(support.Page));
         Assert.True(await support.Page.GetByRole(
             AriaRole.Heading,
-            new PageGetByRoleOptions { Name = "Operations", Exact = true }).IsVisibleAsync());
-        Assert.True(await support.Page.Locator("[data-queue-state='current']").First.IsVisibleAsync());
+            new PageGetByRoleOptions { Name = "Dashboard", Exact = true }).IsVisibleAsync());
+        Assert.True(await support.Page.Locator(".metric .metric__value").First.IsVisibleAsync());
     }
 
     [Fact]
@@ -107,28 +123,23 @@ public sealed class AccessibilityTests
     }
 
     [Fact]
-    public async Task QueueStateIsNotCommunicatedByColourAlone()
+    public async Task MetricStateIsNotCommunicatedByColourAlone()
     {
         await using var support = await BrowserTestSupport.StartAsync();
         await support.GoToAsync("/");
 
-        var states = support.Page.Locator("[data-queue-state]");
-        var count = await states.CountAsync();
+        // A metric's tone is a second signal only. Each tile carries its own
+        // label and its own number, so removing every colour from the page
+        // loses nothing an operator needs.
+        var metrics = support.Page.Locator(".metric");
+        var count = await metrics.CountAsync();
         Assert.True(count > 0);
 
         for (var index = 0; index < count; index++)
         {
-            var state = states.Nth(index);
-            var stateName = await state.GetAttributeAsync("data-queue-state");
-            var text = await state.InnerTextAsync();
-            if (stateName == "unavailable")
-            {
-                Assert.Contains("unavailable", text, StringComparison.OrdinalIgnoreCase);
-            }
-            else
-            {
-                Assert.Matches(@"\d", text);
-            }
+            var text = await metrics.Nth(index).InnerTextAsync();
+            Assert.Matches(@"\d", text);
+            Assert.Matches(@"[A-Za-z]", text);
         }
     }
 

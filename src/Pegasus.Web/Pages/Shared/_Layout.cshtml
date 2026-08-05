@@ -2,7 +2,10 @@
 @inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 @inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment Environment
 @{
-    var intakeEnabled = Environment.IsProduction()
+    // A capability that is not composed in this deployment is absent, never a
+    // disabled nav span: a permanently inert item says the product is broken
+    // rather than that this deployment does not carry the feature.
+    var inboxEnabled = Environment.IsProduction()
         || (Environment.IsDevelopment()
             && Configuration.GetValue<bool>("Features:LocalIntake"));
 
@@ -28,26 +31,25 @@
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <header class="app-nav">
         <div class="nav-inner">
-            <a class="navbar-brand" asp-page="/Index" aria-label="Pegasus Operations">
+            <a class="navbar-brand" asp-page="/Index" aria-label="Pegasus dashboard">
                 <img src="~/images/logo_no_margin.png" asp-append-version="true" alt="Collision Engineers" />
                 <span>Pegasus</span>
             </a>
             <nav class="nav-links" aria-label="Primary">
-                <a class="nav-link" asp-page="/Index" aria-current="@CurrentWhen("/Index", "/Operations")">Operations</a>
-                @if (intakeEnabled)
+                <a class="nav-link" asp-page="/Index" aria-current="@CurrentWhen("/Index", "/Operations")">Dashboard</a>
+                @if (inboxEnabled)
                 {
-                    <a class="nav-link" asp-page="/Intake/Index" aria-current="@CurrentWhen("/Intake")">Intake</a>
+                    <a class="nav-link" asp-page="/Intake/Index" aria-current="@CurrentWhen("/Intake", "/ImageIntake")">Inbox</a>
                 }
-                else
-                {
-                    <span class="nav-link nav-link--unavailable" aria-disabled="true">Intake unavailable</span>
-                }
-                <a class="nav-link" asp-page="/Triage/Index" aria-current="@CurrentWhen("/Triage")">Triage</a>
+                <a class="nav-link" asp-page="/Triage/Index" aria-current="@CurrentWhen("/Triage")">Queues</a>
                 <a class="nav-link" asp-page="/Cases/Index" aria-current="@CurrentWhen("/Cases")">Cases</a>
                 @if (User.IsInRole(Pegasus.Core.Identity.StaffRoleNames.Administrator))
                 {
                     <a class="nav-link" asp-page="/Administration/Index" aria-current="@CurrentWhen("/Administration")">Administration</a>
                 }
+                @* Search is folded into Cases by the Cases page work; it keeps
+                   its nav item until the redirect exists, because a page with
+                   no way in is worse than one nav item too many. *@
                 <a class="nav-link" asp-page="/Search/Index" aria-current="@CurrentWhen("/Search")">Search</a>
                 @if (User.Identity?.IsAuthenticated == true)
                 {
@@ -68,6 +70,15 @@
     </header>
     <div class="app-shell">
         <main id="main-content" tabindex="-1">
+            @if (TempData["Confirmation"] is string confirmation)
+            {
+                @* One-time confirmation of an action completed on another page.
+                   Green is the confirmed-completion role and is earned here. *@
+                <p class="status-card status-card--done" role="status">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg>
+                    <span>@confirmation</span>
+                </p>
+            }
             @RenderBody()
         </main>
     </div>
@@ -78,6 +89,7 @@
         </div>
     </footer>
 
+    <script src="~/js/site.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

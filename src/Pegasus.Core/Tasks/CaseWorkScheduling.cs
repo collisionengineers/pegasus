@@ -13,6 +13,10 @@ public enum CaseDueWorkState
 
 public sealed record CaseDueWork(
     Guid CaseId,
+    // The business reference, so a row of due work can name the case it is
+    // about. Without it a due-work list can only offer "Open case", which
+    // tells an operator nothing until they have opened all of them.
+    string Reference,
     string MissingMaterialReason,
     DateOnly? DueBy,
     CaseDueWorkState State,

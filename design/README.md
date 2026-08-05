@@ -309,7 +309,7 @@ Every protected route and action must handle unauthenticated, disabled-session, 
 Operations is the landing route.
 
 ```text
-CE logo | Operations | Intake | Triage | Cases | Administration | Search | User
+CE logo | Dashboard | Inbox | Queues | Cases | Administration | Search | User
 Operations
 Not ready | Review | Held | Needs sorting | Blocked intake | Triage | Due today
 New cases today | Sent to Engineer: today / week | Reports sent: today / week
@@ -416,7 +416,10 @@ Only the first table describes exercised components. Planned contracts do not cr
 
 | Component | Purpose and states | Runtime owner |
 | --- | --- | --- |
-| Development shell/navigation | Identify the current proof and reach Development routes; normal, hover and focus; the current route carries `aria-current="page"` with a weight and underline change so it is not signalled by colour alone; local-intake link is conditional | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` |
+| Development shell/navigation | Identify the current proof and reach Development routes; normal, hover and focus; the current route carries `aria-current="page"` with a weight and underline change so it is not signalled by colour alone; the Inbox item is conditional and is **absent**, never a disabled span, where the capability is not composed | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` |
+| Navless shells | The screens that are not a place in the application. `_LayoutAuth` carries sign in, the signed-out confirmation, access denied and the error/not-found family; `_LayoutExternal` carries the one screen a third party sees and states the company, never the product | `src/Pegasus.Web/Pages/Shared/_LayoutAuth.cshtml`, `_LayoutExternal.cshtml` |
+| Status-code page | The designed answer to a status code with no exception behind it: unknown record, dead external upload link, oversized upload, rate-limited sign-in. Scoped away from the health, version and automation surfaces, whose callers want a parsable body | `src/Pegasus.Web/Pages/StatusCode.cshtml(.cs)` |
+| Operator label map | The single place a persisted code becomes words: stage, case type, document role and origin, custody, upload-link state, history event, file size. Raw `enum.ToString()`, snake_case event codes and PascalCase compounds never reach markup | `src/Pegasus.Web/Presentation/OperatorLabels.cs` |
 | Queue/metric card | Show persisted Development intake counts and open the exact list; value and unavailable states are both exercised, an unavailable tile stating its absence rather than substituting a zero; stale and partial remain planned | `src/Pegasus.Web/Pages/Index.cshtml`, `src/Pegasus.Web/wwwroot/css/site.css` |
 | Status chip | The single place a business or query state selects its tone and Lucide glyph; always paired with its text label | `src/Pegasus.Web/Pages/Shared/_StatusChip.cshtml` |
 | Freshness and manual refresh | Last-good Europe/London time, current refresh state, and a manual refresh that reruns the same filter with start feedback and double-submit protection | `src/Pegasus.Web/Pages/Shared/_FreshnessBanner.cshtml` |
@@ -675,14 +678,31 @@ There is no alpha control, route or placeholder for:
 
 Deferred AI may propose but must not mutate, accept or send autonomously. Future deterministic outputs must use one accepted structured case/engineering record, validate accepted data, calculate once and avoid duplicate truth owners or output-specific source forks.
 
-One recorded exception (operator widening, 2026-08-03): the Engineer
-assessment workbench (UI-15) and its `Send to Claude` surface (AI-09) exist as
-design markup under `src/Pegasus.Web/Pages/Cases/Assessment/` — routeless
-files with no `@page` directive, no PageModel, no form, every field empty, and
-no link from any navigation or case surface. They are review artifacts
-satisfying the rule that a deferred UI capability re-enters specification and
-review before implementation; activating a route, binding, or transport for
-them remains forbidden until that re-entry approval.
+One recorded exception (operator widening, 2026-08-03; extended by the
+operator-approved AI-09 specification
+`docs/temp-plans/send-to-claude-channel-integration.md`, which is the
+re-entry specification for exactly this slice): the Engineer assessment
+workbench (UI-15) exists as design markup under
+`src/Pegasus.Web/Pages/Cases/Assessment/`, and the AI-09 wiring task
+restored its route (`/Cases/{id}/Assessment`, unlinked from every
+navigation and case surface) to bind only the case-identity header, the
+readiness rail, the `Send to Claude` panel, and the PAV sensitivity
+slider. Every section form stays empty and unbound; the staff save paths
+and the review presentation of unconfirmed automation values remain
+forbidden until the full UI-15 re-entry approval.
+
+The `Send to Claude` panel states are server-rendered: `available` (the
+confirm dialog then a real POST), `sent` — "Sent. Changes will appear on
+this case for your review." with a `Check for completion` reconcile
+control (manual refresh, no auto-poll), `completed` — "Claude has
+finished" linking the case history, `failed` — "Nothing was sent" with a
+retry, and `unavailable` naming its reasons in text. The PAV slider on the
+Valuation section is a review aid only: a labelled `input type="range"`
+paired with a numeric input, tabular numerals, ranges only from recorded
+valuation figures, the indicative settlement (PAV − salvage) as text on a
+recorded total-loss outcome, named missing-evidence states for every
+absent input (a ratio without a costed repair total is not evidence), no
+animation, no new colour tokens, and it writes nothing.
 
 ### Not planned
 
