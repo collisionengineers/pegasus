@@ -72,7 +72,7 @@
                         <td>
                             @if (item.ExpiresAtUtc is { } expiresAtUtc)
                             {
-                                <time datetime="@expiresAtUtc.ToString("O")">@expiresAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</time>
+                                <time datetime="@expiresAtUtc.ToString("O")">@OperatorLabels.OfficeTime(expiresAtUtc)</time>
                             }
                             else
                             {
@@ -146,7 +146,7 @@
                             }
                         </td>
                         <td class="tabular">@item.AttemptCount</td>
-                        <td><time datetime="@item.LastActivityAtUtc.ToString("O")">@item.LastActivityAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</time></td>
+                        <td><time datetime="@item.LastActivityAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.LastActivityAtUtc)</time></td>
                         <td>
                             @if (item.CanRetry)
                             {

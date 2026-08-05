@@ -26,7 +26,7 @@
         <h1>@record.NormalizedVehicleRegistration</h1>
         <span class="record__identity">
             <span><b>@DetailsModel.SourceChannelLabel(record.Origin.SourceIdentity.Channel)</b></span>
-            <span>Opened @Model.Triage.CreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy")</span>
+            <span>Opened @OperatorLabels.OfficeDate(Model.Triage.CreatedAtUtc)</span>
             <span>@(record.AssigneeId is null ? "Unassigned" : "Assigned")</span>
         </span>
         <span class="record__head-end">
@@ -133,7 +133,7 @@
                         <select id="supersedes-finding" name="supersedesFindingId">
                             @foreach (var finding in Model.ActiveFindings)
                             {
-                                <option value="@finding.Id">Recorded @finding.RecordedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</option>
+                                <option value="@finding.Id">Recorded @OperatorLabels.OfficeTime(finding.RecordedAtUtc)</option>
                             }
                         </select>
                         <button type="submit" name="actionName" value="supersede_finding" class="secondary-action">Supersede finding</button>
@@ -163,7 +163,7 @@
                             @foreach (var candidate in Model.Triage.ResponseEvidenceCandidates)
                             {
                                 <option value="@candidate.PollOutcomeId|@candidate.SentEvidenceId">
-                                    @candidate.SentAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm") —
+                                    @OperatorLabels.OfficeTime(candidate.SentAtUtc) —
                                     @candidate.MailboxAddress —
                                     message @candidate.InternetMessageIdentity —
                                     Sent evidence @candidate.SentEvidenceId
@@ -284,7 +284,7 @@
             @foreach (var finding in Model.Triage.Findings)
             {
                 <article class="field-card">
-                    <h3>@finding.RecordedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</h3>
+                    <h3>@OperatorLabels.OfficeTime(finding.RecordedAtUtc)</h3>
                     <strong>@(finding.Roadworthiness.HasValue ? DetailsModel.RoadworthinessLabel(finding.Roadworthiness.Value) : "No roadworthiness finding")</strong>
                     <small>@(finding.Assessment.HasValue ? DetailsModel.AssessmentLabel(finding.Assessment.Value) : "No assessment finding")</small>
                     <small>@finding.Reason</small>
@@ -310,7 +310,7 @@
             @foreach (var evidence in Model.Triage.ResponseEvidence)
             {
                 <li>
-                    <strong>@evidence.LinkedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</strong>
+                    <strong>@OperatorLabels.OfficeTime(evidence.LinkedAtUtc)</strong>
                     <span>Evidence @evidence.SentEvidenceId: @evidence.Reason</span>
                 </li>
             }
@@ -330,7 +330,7 @@
             @foreach (var history in Model.Triage.History)
             {
                 <li>
-                    <strong>@history.OccurredAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</strong>
+                    <strong>@OperatorLabels.OfficeTime(history.OccurredAtUtc)</strong>
                     <span>
                         @DetailsModel.EventLabel(history.EventType) by @history.Actor:
                         @history.Reason

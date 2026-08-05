@@ -47,12 +47,20 @@ else if (Model.IsDuplicate)
             <div><dt>Decision</dt><dd>@DetailsModel.DecisionLabel(Model.Receipt.Decision)</dd></div>
             <div><dt>Source</dt><dd>@Model.Receipt.SourceFileName</dd></div>
             <div><dt>Channel</dt><dd>@DetailsModel.SourceChannelLabel(Model.Receipt.SourceIdentity.Channel)</dd></div>
-            <div><dt>Source receipt</dt><dd>@Model.Receipt.SourceIdentity.ExternalReceiptToken</dd></div>
-            <div><dt>Received</dt><dd>@Model.Receipt.ReceivedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd></div>
+            @* The source-receipt token was printed here in full: a Graph
+               message identifier the operator can neither read, act on, nor
+               quote to anyone. It is the transport's handle on the message,
+               not the business's, and the register names it by name. The
+               channel above already says where the message came from. *@
+            <div><dt>Received</dt><dd>@OperatorLabels.OfficeTime(Model.Receipt.ReceivedAtUtc)</dd></div>
         </dl>
         @if (Model.Receipt.FailureReason is not null)
         {
-            <div class="failure-detail"><strong>@Model.Receipt.FailureCode</strong><span>@Model.Receipt.FailureReason</span></div>
+            @* The failure code led this block in its persisted snake_case
+               form. The reason beside it already says what happened in
+               words, so the code is dropped rather than humanised: two
+               phrasings of one fact read as two facts. *@
+            <div class="failure-detail"><span>@Model.Receipt.FailureReason</span></div>
         }
     </section>
 
@@ -80,7 +88,7 @@ else if (Model.IsDuplicate)
         <dl class="detail-list">
             <div><dt>Image Intake Reference</dt><dd><a asp-page="/ImageIntake/Details" asp-route-id="@imageIntake.Record.Id">@imageIntake.Record.ImageIntakeReference</a></dd></div>
             <div><dt>Vehicle registration</dt><dd>@imageIntake.Record.NormalizedVehicleRegistration</dd></div>
-            <div><dt>Registered</dt><dd>@imageIntake.RegisteredAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd></div>
+            <div><dt>Registered</dt><dd>@OperatorLabels.OfficeTime(imageIntake.RegisteredAtUtc)</dd></div>
             <div>
                 <dt>Status</dt>
                 <dd>
@@ -124,7 +132,7 @@ else if (Model.IsDuplicate)
             {
                 <li>
                     <strong>@DetailsModel.SuggestionOutcomeLabel(suggestion)</strong>
-                    <span>@suggestion.EngineKey v@(suggestion.EngineVersion) · @suggestion.OccurredAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm") · @suggestion.Disposition.ToString().ToLowerInvariant()</span>
+                    <span>@suggestion.EngineKey v@(suggestion.EngineVersion) · @OperatorLabels.OfficeTime(suggestion.OccurredAtUtc) · @suggestion.Disposition.ToString().ToLowerInvariant()</span>
                     @if (suggestion.FailureReason is not null)
                     {
                         <span>@suggestion.FailureReason</span>
@@ -322,7 +330,7 @@ else if (Model.IsDuplicate)
             @if (Model.AddressResolution.ResolvedValue is not null)
             {
                 <div><dt>Confirmed value</dt><dd>@Model.AddressResolution.ResolvedValue</dd></div>
-                <div><dt>Confirmed</dt><dd>@Model.AddressResolution.ResolvedAtUtc?.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd></div>
+                <div><dt>Confirmed</dt><dd>@OperatorLabels.OfficeTime(Model.AddressResolution.ResolvedAtUtc, "Not recorded")</dd></div>
                 <div><dt>Confirmed by</dt><dd>Staff @Model.AddressResolution.ResolvedByStaffId</dd></div>
             }
         </dl>

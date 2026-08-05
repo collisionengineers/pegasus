@@ -114,6 +114,26 @@ public static class OperatorLabels
     };
 
     /// <summary>
+    /// The state of an in-house upload request, as the operator reads it.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from <see cref="UploadLinkState"/>: that one describes a Box
+    /// file request, this one the request Pegasus issues itself. The two
+    /// enums share several member names and no members, so one label method
+    /// cannot serve both.
+    /// </remarks>
+    public static string UploadRequestState(RequestUploadStatus status) => status switch
+    {
+        RequestUploadStatus.Pending => "Being created",
+        RequestUploadStatus.Active => "Active",
+        RequestUploadStatus.Expired => "Expired",
+        RequestUploadStatus.Exhausted => "No uploads left",
+        RequestUploadStatus.Revoked => "Withdrawn",
+        RequestUploadStatus.Failed => "Failed",
+        _ => Humanise(status.ToString())
+    };
+
+    /// <summary>
     /// A case history event in plain language.
     /// </summary>
     /// <remarks>
@@ -148,12 +168,44 @@ public static class OperatorLabels
     /// A date and time in the office's zone.
     /// </summary>
     /// <remarks>
-    /// Every other date surface in the product renders Europe/London. A column
-    /// headed "(UTC)" and a `ToLocalTime()` against the server clock were the
-    /// two places that did not, so the same instant read differently depending
-    /// on which screen you were on.
+    /// Every operator date surface renders Europe/London through this method.
+    /// The alternative that used to be spread across the product was
+    /// <c>ToLocalTime()</c>, which resolves against the server clock: on a
+    /// developer workstation that happens to be Europe/London and looks
+    /// correct, and on the deployed Linux container it is UTC. Through British
+    /// Summer Time that made every one of those screens an hour early, with
+    /// nothing on the page to say which zone it meant.
     /// </remarks>
-    public static string OfficeTime(DateTimeOffset value)
+    public static string OfficeTime(DateTimeOffset value) =>
+        InOffice(value).ToString("dd MMM yyyy HH:mm", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// A date and time in the office's zone, or <paramref name="absent"/> when
+    /// there is no instant to show.
+    /// </summary>
+    public static string OfficeTime(DateTimeOffset? value, string absent) =>
+        value is { } present ? OfficeTime(present) : absent;
+
+    /// <summary>
+    /// A date in the office's zone, for surfaces where the time of day is not
+    /// part of what the operator is deciding.
+    /// </summary>
+    public static string OfficeDate(DateTimeOffset value) =>
+        InOffice(value).ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// The time of day in the office's zone, for the two-line surfaces that
+    /// print the date above it.
+    /// </summary>
+    public static string OfficeClock(DateTimeOffset value) =>
+        InOffice(value).ToString("HH:mm", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// The one conversion. It falls back to UTC rather than throwing, because
+    /// a missing zone database is an operational fault and a blank screen
+    /// would be a worse answer than an hour's offset.
+    /// </summary>
+    private static DateTimeOffset InOffice(DateTimeOffset value)
     {
         TimeZoneInfo office;
         try
@@ -166,8 +218,7 @@ public static class OperatorLabels
             office = TimeZoneInfo.Utc;
         }
 
-        return TimeZoneInfo.ConvertTime(value, office)
-            .ToString("dd MMM yyyy HH:mm", CultureInfo.InvariantCulture);
+        return TimeZoneInfo.ConvertTime(value, office);
     }
 
     /// <summary>
