@@ -15,9 +15,16 @@
     <a class="secondary-action" asp-page="/Intake/Index">Receive another</a>
 </header>
 
-@if (Model.IsDuplicate)
+@if (TempData["UploadOutcomeMessage"] is string uploadOutcome)
 {
-    <div class="status-card" role="status">This source receipt was already processed. The existing intake record is shown.</div>
+    @* What the file the operator just uploaded became, shown on the thing it
+       became. The upload used to confirm success on a page where the item was
+       nowhere to be seen. *@
+    <div class="status-card status-card--done" role="status">@uploadOutcome</div>
+}
+else if (Model.IsDuplicate)
+{
+    <div class="status-card" role="status">This file was already received. The existing record is shown.</div>
 }
 @if (TempData["InspectionAddressStatus"] is string inspectionAddressStatus)
 {
