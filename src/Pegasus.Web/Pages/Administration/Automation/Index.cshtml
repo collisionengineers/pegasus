@@ -68,6 +68,51 @@
     }
 </section>
 
+<section class="panel section-gap" aria-labelledby="send-to-ai-heading">
+    <h2 id="send-to-ai-heading" class="section-label">Send to AI</h2>
+    @if (!Model.SendToAiComposed)
+    {
+        <p>The Send to AI hand-off is not composed in this deployment: the configuration gate is off and no outbound transport exists.</p>
+    }
+    else
+    {
+        <dl class="detail-list">
+            <div>
+                <dt>State</dt>
+                <dd>
+                    @if (Model.SendToAiEnabled)
+                    {
+                        <partial name="Shared/_StatusChip" model="@("Enabled")" />
+                    }
+                    else
+                    {
+                        <partial name="Shared/_StatusChip" model="@("Disabled")" />
+                    }
+                </dd>
+            </div>
+        </dl>
+        <form method="post" asp-page-handler="SetSendToAiEnabled" class="section-gap">
+            <input type="hidden" name="TargetEnabled" value="@((!Model.SendToAiEnabled).ToString())" />
+            <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
+            <label>
+                Reason
+                <input name="Reason" required maxlength="1000" />
+            </label>
+            <div class="button-row">
+                @if (Model.SendToAiEnabled)
+                {
+                    <button type="submit" class="primary-action">Disable sending to AI</button>
+                }
+                else
+                {
+                    <button type="submit" class="secondary-action">Enable sending to AI</button>
+                }
+            </div>
+        </form>
+        <p class="section-gap">Disabling refuses new hand-offs immediately. It does not touch the Automation client above: cutting the return path is that registration's own switch.</p>
+    }
+</section>
+
 <section class="panel section-gap" aria-labelledby="automation-activity-link-heading">
     <h2 id="automation-activity-link-heading" class="section-label">Activity</h2>
     <p>Every Automation action and every denied automation request is recorded in permanent history with a correlation identifier.</p>

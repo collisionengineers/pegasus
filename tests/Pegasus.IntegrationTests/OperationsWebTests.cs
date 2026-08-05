@@ -54,31 +54,61 @@ public sealed partial class OperationsWebTests
         {
             Assert.Contains(state, initialRequestsHtml, StringComparison.Ordinal);
         }
-        Assert.Contains("Enter edit mode to revoke", initialRequestsHtml, StringComparison.Ordinal);
-        Assert.Contains("Retry external work", initialRequestsHtml, StringComparison.Ordinal);
+        Assert.Contains("Withdraw link", initialRequestsHtml, StringComparison.Ordinal);
+        Assert.Contains("Retry", initialRequestsHtml, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Cases/{store.CaseId:D}\"", initialRequestsHtml, StringComparison.Ordinal);
 
-        var claimOperationKey = OperationKeyValue(initialRequestsHtml);
-        using var claim = await client.PostAsync(
-            "/Operations/Requests?handler=ClaimLease",
+        // The concurrency protocol is not the operator's to run. Whether
+        // someone else is editing the case is the result of trying to withdraw
+        // a link, reported as a sentence; it is never a mode the operator
+        // enters, renews and leaves by hand.
+        foreach (var mechanism in new[]
+                 {
+                     "Enter edit mode to revoke",
+                     "Recover edit mode to revoke",
+                     "Renew edit mode",
+                     "Leave edit mode",
+                     "Revocation is unavailable until the current edit mode expires or is released.",
+                     "Edit mode"
+                 })
+        {
+            Assert.DoesNotContain(mechanism, initialRequestsHtml, StringComparison.Ordinal);
+        }
+
+        // Byte counts and the internal limits-version integer are gone; sizes
+        // an operator reads are MB to one decimal.
+        Assert.DoesNotContain("Limits version", initialRequestsHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Byte limit", initialRequestsHtml, StringComparison.Ordinal);
+
+        // Box file requests are superseded and therefore absent, not shown in
+        // a state nobody acts on.
+        Assert.DoesNotContain("Box file request", initialRequestsHtml, StringComparison.Ordinal);
+
+        // One post performs the whole operation server-side. The lease token is
+        // an internal handle and never reaches the page in any state.
+        using var withdraw = await client.PostAsync(
+            "/Operations/Requests?handler=RevokeLink",
             Form(
                 AntiforgeryValue(initialRequestsHtml),
+                ("requestId", store.PegasusRequestId.ToString("D")),
                 ("caseId", store.CaseId.ToString("D")),
+                ("expectedVersion", "4"),
                 ("expectedCaseVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("operationKey", claimOperationKey)));
-        AssertPrg(claim, "/Operations/Requests");
-        Assert.Equal(claimOperationKey, store.LeaseOperationKey);
+                ("reason", "No longer required"),
+                ("operationKey", "withdraw-link")));
+        AssertPrg(withdraw, "/Operations/Requests");
 
-        using var leasedResponse = await client.GetAsync("/Operations/Requests");
-        var leasedHtml = await leasedResponse.Content.ReadAsStringAsync();
-        Assert.True(leasedResponse.Headers.CacheControl?.NoStore == true);
-        Assert.DoesNotContain(store.LeaseToken, leasedHtml, StringComparison.Ordinal);
-        Assert.Contains("Revoke Box file request", leasedHtml, StringComparison.Ordinal);
-        Assert.Contains("Revoke Pegasus upload link", leasedHtml, StringComparison.Ordinal);
-        Assert.Contains("Renew edit mode", leasedHtml, StringComparison.Ordinal);
-        Assert.Contains("Leave edit mode", leasedHtml, StringComparison.Ordinal);
+        Assert.Equal(ActorKind.Staff, store.PegasusRevoke!.Actor.Kind);
+        Assert.Equal(4, store.PegasusRevoke.ExpectedRequestVersion);
+        Assert.Equal(store.CaseVersion, store.PegasusRevoke.ExpectedCaseVersion);
+        Assert.Equal(store.LeaseToken, store.PegasusRevoke.EditLeaseToken);
+
+        using var afterResponse = await client.GetAsync("/Operations/Requests");
+        var afterHtml = await afterResponse.Content.ReadAsStringAsync();
+        Assert.True(afterResponse.Headers.CacheControl?.NoStore == true);
+        Assert.DoesNotContain(store.LeaseToken, afterHtml, StringComparison.Ordinal);
         Assert.Contains("__RequestVerificationToken", emailHtml, StringComparison.Ordinal);
-        Assert.Contains("__RequestVerificationToken", leasedHtml, StringComparison.Ordinal);
+        Assert.Contains("__RequestVerificationToken", afterHtml, StringComparison.Ordinal);
     }
 
     [Fact]
