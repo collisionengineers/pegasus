@@ -390,12 +390,30 @@ public sealed record IntakeReceiptDraft(
 /// </remarks>
 public sealed record IntakeQueueCounts(int NeedsSorting, int BlockedIntake = 0);
 
+/// <summary>
+/// One row of the Inbox.
+/// </summary>
+/// <remarks>
+/// Sender and subject are what an operator recognises a message by. The row
+/// used to carry only <c>SourceFileName</c>, which for mailbox material is a
+/// stored hex <c>.eml</c> name — an identifier, not a description. Where a
+/// manual upload genuinely has no sender or subject, the file name is what
+/// there is, and the surface says "Manual upload" rather than inventing one.
+///
+/// <paramref name="CaseReference"/> is present when this message produced or
+/// was linked to a case, so the row can say which one instead of leaving the
+/// operator to open it and find out.
+/// </remarks>
 public sealed record IntakeReceiptSummary(
     Guid Id,
     string SourceFileName,
     DateTimeOffset ReceivedAtUtc,
     IntakeDecision Decision,
-    string? FailureReason);
+    string? FailureReason,
+    string? Sender = null,
+    string? Subject = null,
+    Guid? CaseId = null,
+    string? CaseReference = null);
 
 public sealed record InstructionExtractionResult(
     InstructionPolicyApplicability Applicability,
