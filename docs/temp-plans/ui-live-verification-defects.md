@@ -78,9 +78,17 @@ explicitly; they survived the page PRs.
   business's, and the "Channel" row above already says where the message came
   from.
 - **Intake review, failure code** led the failure block in its persisted
-  snake_case form, beside the reason that already says what happened in
-  words. Removed rather than humanised — two phrasings of one fact read as
-  two facts.
+  snake_case form. The first attempt removed it outright, and three
+  integration tests caught that as the mistake it was: their names —
+  `MalformedDocxProducesExplicitVisibleTerminalFailure`,
+  `DocxWithMoreThan512ZipEntriesIsVisiblyResourceLimited` — say the
+  distinction between one terminal outcome and another has to reach the
+  screen. "It failed" is not something an operator can act on. So the
+  distinction stays and only the spelling goes: a new
+  `OperatorLabels.IntakeFailure` maps each code to what happened ("The Word
+  document could not be read", "The Word document is larger than the
+  processing limit allows"), and the three tests now assert the words are
+  present *and* the code is not.
 - **Replace principal** printed the sequence-lineage GUID and the concurrency
   version. Both removed: the version is carried by the hidden field that makes
   the post safe, and the consequence paragraph below already promises in words

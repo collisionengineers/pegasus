@@ -57,10 +57,14 @@ else if (Model.IsDuplicate)
         @if (Model.Receipt.FailureReason is not null)
         {
             @* The failure code led this block in its persisted snake_case
-               form. The reason beside it already says what happened in
-               words, so the code is dropped rather than humanised: two
-               phrasings of one fact read as two facts. *@
-            <div class="failure-detail"><span>@Model.Receipt.FailureReason</span></div>
+               form. The distinction it carries is the point of the screen —
+               an operator has to know whether the document was unreadable or
+               simply too large — so it stays, in words. Only the spelling
+               changes. *@
+            <div class="failure-detail">
+                <strong>@OperatorLabels.IntakeFailure(Model.Receipt.FailureCode)</strong>
+                <span>@Model.Receipt.FailureReason</span>
+            </div>
         }
     </section>
 

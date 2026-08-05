@@ -196,8 +196,13 @@ public sealed partial class MultiFormatIntakeWebTests
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
         Assert.Equal(IntakeDecision.Unsupported, receipt.Decision);
+        // The persisted code is the contract; the screen shows the same
+        // distinction in words, because the operator has to know whether the
+        // document was unreadable or merely too large.
         Assert.Equal("unreadable_docx", receipt.FailureCode);
-        Assert.Contains("unreadable_docx", reviewHtml, StringComparison.Ordinal);
+        Assert.Contains(
+            "The Word document could not be read", reviewHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("unreadable_docx", reviewHtml, StringComparison.Ordinal);
         Assert.Contains("malformed.docx", reviewHtml, StringComparison.Ordinal);
     }
 
@@ -574,7 +579,11 @@ public sealed partial class MultiFormatIntakeWebTests
 
         Assert.Equal(IntakeDecision.Unsupported, receipt.Decision);
         Assert.Equal("docx_limit_exceeded", receipt.FailureCode);
-        Assert.Contains("docx_limit_exceeded", reviewHtml, StringComparison.Ordinal);
+        Assert.Contains(
+            "The Word document is larger than the processing limit allows",
+            reviewHtml,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("docx_limit_exceeded", reviewHtml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -595,7 +604,11 @@ public sealed partial class MultiFormatIntakeWebTests
 
         Assert.Equal(IntakeDecision.Unsupported, receipt.Decision);
         Assert.Equal("docx_limit_exceeded", receipt.FailureCode);
-        Assert.Contains("docx_limit_exceeded", reviewHtml, StringComparison.Ordinal);
+        Assert.Contains(
+            "The Word document is larger than the processing limit allows",
+            reviewHtml,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("docx_limit_exceeded", reviewHtml, StringComparison.Ordinal);
     }
 
     [Fact]
