@@ -89,13 +89,19 @@ public interface IApprovedInboxPollStore
         CancellationToken cancellationToken);
 }
 
+/// <param name="maximumContentLength">
+/// The size of one received message this mailbox accepts, envelope and
+/// attachments together. It is a parameter only so that a test can exercise
+/// both sides of the boundary; nothing configures it.
+/// </param>
 public sealed class PollApprovedInbox(
     IApprovedInboxPollStore pollStore,
     IApprovedInboxSource inboxSource,
     IIntakeArtifactStore artifactStore,
     IIntakeQuarantineArtifactStore quarantineArtifactStore,
     ReceiveIntake receiveIntake,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    long maximumContentLength = IntakeEnvelopeLimits.MaximumMailboxContentLength)
 {
     private const int MaximumFileNameLength = 260;
     private const int MaximumExternalReceiptTokenLength = 200;
@@ -145,7 +151,7 @@ public sealed class PollApprovedInbox(
                 PreparedMessage prepared;
                 try
                 {
-                    prepared = PrepareMessage(lease.MailboxId, actorCode, message);
+                    prepared = PrepareMessage(lease.MailboxId, actorCode, message, maximumContentLength);
                 }
                 catch (MalformedApprovedInboxMessageException exception)
                 {
@@ -218,7 +224,7 @@ public sealed class PollApprovedInbox(
         string? storageKey;
         if (message.SourceRejection is { } rejection)
         {
-            ValidateSourceRejection(message, rejection);
+            ValidateSourceRejection(message, rejection, maximumContentLength);
             sourceLength = rejection.SourceLength;
             sourceHash = rejection.SourceHash;
             originalSourceHash = rejection.OriginalSourceHash;
@@ -378,7 +384,8 @@ public sealed class PollApprovedInbox(
     private static PreparedMessage PrepareMessage(
         string mailboxId,
         string actorCode,
-        ApprovedInboxMessage message)
+        ApprovedInboxMessage message,
+        long maximumContentLength)
     {
         if (string.IsNullOrWhiteSpace(message.ImmutableMessageId))
         {
@@ -423,7 +430,7 @@ public sealed class PollApprovedInbox(
 
         if (message.SourceRejection is { } rejection)
         {
-            ValidateSourceRejection(message, rejection);
+            ValidateSourceRejection(message, rejection, maximumContentLength);
             throw new MalformedApprovedInboxMessageException(
                 rejection.FailureCode,
                 "The approved inbox source rejected the message before materializing its content.");
@@ -436,11 +443,11 @@ public sealed class PollApprovedInbox(
                 "The approved inbox message is empty.");
         }
 
-        if (message.MimeContent.Length > IntakeEnvelopeLimits.MaximumContentLength)
+        if (message.MimeContent.Length > maximumContentLength)
         {
             throw new MalformedApprovedInboxMessageException(
                 "message_too_large",
-                "The approved inbox message exceeds the 10 MB intake limit.");
+                "The approved inbox message exceeds the mailbox intake limit.");
         }
 
         var externalReceiptToken = $"{mailboxId.Length}:{mailboxId}{message.ImmutableMessageId}";
@@ -478,12 +485,13 @@ public sealed class PollApprovedInbox(
 
     private static void ValidateSourceRejection(
         ApprovedInboxMessage message,
-        ApprovedInboxSourceRejection rejection)
+        ApprovedInboxSourceRejection rejection,
+        long maximumContentLength)
     {
         var valid = rejection.FailureCode switch
         {
             "message_too_large" =>
-                rejection.SourceLength is > IntakeEnvelopeLimits.MaximumContentLength
+                rejection.SourceLength > maximumContentLength
                 && IsHash(rejection.SourceHash)
                 && IsStorageKey(rejection.RetentionKey)
                 && rejection.OriginalSourceHash is null
