@@ -12,7 +12,7 @@ The workspace is source-only and non-caller in its current repository context. N
 | `CollisionRenderer.Core` | Scriban | `7.2.6` | First-party HTML body-template engine. | BSD-2-Clause. |
 | `CollisionRenderer.Core` | Microsoft.Playwright | `1.61.0` | Controls headless Chromium for HTML-to-PDF rendering. | Apache-2.0. |
 | `CollisionRenderer.Mcp` | ModelContextProtocol | `1.4.0` | MCP server contracts and transport support. | No conclusion stated in the retained notice; verify the package's distributed licence/notice. |
-| `CollisionRenderer.Mcp` | Microsoft.Extensions.Hosting | `9.0.0` | MCP process hosting, dependency injection, configuration and lifetime. | No conclusion stated in the retained notice; verify the package's distributed licence/notice. |
+| `CollisionRenderer.Mcp` | Microsoft.Extensions.Hosting | `10.0.10` | MCP process hosting, dependency injection, configuration and lifetime. | No conclusion stated in the retained notice; verify the package's distributed licence/notice. |
 
 Project references to Core are internal graph edges, not third-party package entries. Transitive dependencies remain governed by their own package manifests, notices and licence files.
 

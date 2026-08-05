@@ -13,7 +13,7 @@ This guide covers the independent source workspace only. The commands build and 
 | Docker | API container build/run | Optional for local development. |
 | PowerShell | Workspace helper scripts and Windows tooling | Use PowerShell 7 where scripts specify `pwsh`. |
 
-Current package versions that matter to browser/runtime matching are Microsoft.Playwright `1.61.0` in Core and the Playwright runtime image `v1.61.0-jammy` in the Dockerfile. MCP packages are ModelContextProtocol `1.4.0` and Microsoft.Extensions.Hosting `9.0.0`.
+Current package versions that matter to browser/runtime matching are Microsoft.Playwright `1.61.0` in Core and the Playwright runtime image `v1.61.0-noble` in the Dockerfile. MCP packages are ModelContextProtocol `1.4.0` and Microsoft.Extensions.Hosting `10.0.10`.
 
 ## Restore
 
@@ -214,7 +214,9 @@ docker run --rm -p 8080:8080 \
   collisionrenderer-api
 ```
 
-Rotation and hash variables can be supplied in the same way. The final image uses `mcr.microsoft.com/playwright/dotnet:v1.61.0-jammy`, includes matching Chromium/native dependencies, installs Liberation and DejaVu fonts, listens on `8080` and keeps globalisation enabled. Building an image does not establish that it has been deployed.
+Rotation and hash variables can be supplied in the same way. The final image uses `mcr.microsoft.com/playwright/dotnet:v1.61.0-noble`, includes matching Chromium/native dependencies, installs Liberation and DejaVu fonts, listens on `8080` and keeps globalisation enabled. Building an image does not establish that it has been deployed.
+
+The previously referenced `v1.61.0-jammy` tag does not exist — Playwright's jammy publication stops at `v1.59.0` — so the container build was broken before this correction. `v1.61.0-noble` is built from `mcr.microsoft.com/dotnet/sdk:10.0-noble` and therefore carries the .NET 10 runtime the published API needs. The Ubuntu 24.04 base changes the Liberation/DejaVu font versions and the system ICU relative to 22.04; there is no valid earlier image to compare against, so its output is a first baseline rather than a comparison.
 
 ## Host-parity checks
 

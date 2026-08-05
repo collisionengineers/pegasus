@@ -48,7 +48,7 @@ dotnet publish $project -c $Configuration -r $Runtime --self-contained true `
     -v quiet
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed (exit $LASTEXITCODE)" }
 
-$publishDir = Join-Path $projectDir "bin/$Configuration/net8.0/$Runtime/publish"
+$publishDir = Join-Path $projectDir "bin/$Configuration/net10.0/$Runtime/publish"
 if (-not (Test-Path (Join-Path $publishDir "collisionrenderer-mcp.exe"))) {
     throw "expected published exe not found under $publishDir"
 }

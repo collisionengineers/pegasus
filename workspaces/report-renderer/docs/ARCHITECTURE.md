@@ -24,7 +24,7 @@ The current solution has four shipped projects and two test projects.
 Current direct package evidence:
 
 - Core: PDFsharp `6.2.4`, Scriban `7.2.6`, Microsoft.Playwright `1.61.0`.
-- MCP: ModelContextProtocol `1.4.0`, Microsoft.Extensions.Hosting `9.0.0`, in addition to its Core project reference.
+- MCP: ModelContextProtocol `1.4.0`, Microsoft.Extensions.Hosting `10.0.10`, in addition to its Core project reference.
 
 ## Composition and public contracts
 
@@ -159,7 +159,7 @@ When any supported token setting is configured, all routes except `/healthz` req
 
 ## Container topology
 
-The workspace `Dockerfile` builds the API and uses the Playwright .NET `v1.61.0-jammy` runtime, which supplies the matching Chromium and native dependencies. The final image adds Liberation and DejaVu fonts for Arial-compatible Linux metrics, enables globalisation, listens on port `8080` and runs the API assembly. It is a portable build artefact; this repository does not claim that it is deployed anywhere.
+The workspace `Dockerfile` builds the API and uses the Playwright .NET `v1.61.0-noble` runtime, which supplies the matching Chromium and native dependencies. The final image adds Liberation and DejaVu fonts for Arial-compatible Linux metrics, enables globalisation, listens on port `8080` and runs the API assembly. It is a portable build artefact; this repository does not claim that it is deployed anywhere.
 
 ## Current limits
 
