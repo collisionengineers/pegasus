@@ -30,6 +30,7 @@ The existing ADR-0001 through ADR-0011 bodies remain unchanged. Where a retained
 | [ADR-0011](0011-multi-token-sha256-api-authentication.md) | Accepted | API bearer-token compatibility, rotation lists and SHA-256 configuration. Supersedes only ADR-0008's authentication detail. |
 | [ADR-0012](0012-decommission-winui-desktop-host.md) | Accepted | Decommission of the WinUI 3 desktop host and its Windows-only dependency surface; the HTML preview composer is retained. Supersedes only the GUI-specific details of ADR-0002 and ADR-0003. |
 | [ADR-0013](0013-upgrade-scriban-resolves-advisory-acceptance.md) | Accepted | Scriban upgraded 5.12.1 → 7.2.6 and the NU1901–NU1904 suppression removed. Supersedes ADR-0010 in its entirety; ADR-0004's templating decision is unchanged. |
+| [ADR-0014](0014-uplift-to-net10.md) | Accepted | Uplift of every project from `net8.0` to `net10.0`, with the SDK pin, test tooling, `Deterministic`, Dockerfile base images and script paths that follow. Supersedes only ADR-0003's per-project `net8.0` target framework list. |
 
 ## ADR-0011 decision summary
 

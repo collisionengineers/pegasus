@@ -1,8 +1,13 @@
 <Project>
   <!--
     Common build settings for every project in the Collision Renderer solution.
-    Per-project TargetFramework is set in each .csproj (Core/Cli/Api/Mcp and both
-    test projects are net8.0). Keep this file framework-agnostic.
+    Every project targets net10.0; the per-project TargetFramework still lives in
+    each .csproj. Keep this file framework-agnostic.
+
+    This workspace is an independently buildable source import, so MSBuild stops
+    here and the projects inherit nothing from the repository-root
+    Directory.Build.props. Anything the root sets and this workspace wants must be
+    repeated here deliberately.
   -->
   <PropertyGroup>
     <LangVersion>latest</LangVersion>
@@ -10,6 +15,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- Reproducible compiler output: a prerequisite for a deterministic renderer,
+         not a stylistic alignment. Matches the repository root and the
+         document-extraction workspace. -->
+    <Deterministic>true</Deterministic>
     <!--
       CS1591: XML doc comments not required.
 
