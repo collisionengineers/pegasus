@@ -37,17 +37,6 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   template work and no capability advanced — those stay blocked on the
   operator questions the plan set records (branch
   task/report-renderer-workspace-uplift, taken 2026-08-05, by claude).
-- AI-09 Send to AI round trip and the Automation Actor assessment toolset:
-  implement `docs/temp-plans/mcp-assessment-toolset.md` and
-  `docs/temp-plans/send-to-claude-channel-integration.md` under the
-  operator's 2026-08-03 direct-write decision — Core assessment model and
-  AiWork work-request lifecycle, `automation.assessment` scope and the five
-  new Automation Actor tools, `Features:SendToAi` gate/adapter/panel wiring,
-  PAV slider, the Automation Actor ADR carrying the AI-09 contract
-  rewording, and the `pegasus-claude-channel` 0.2.0 close-out in the sibling
-  repo. Everything composition-gated DevelopmentOffline-only; estimate
-  derivation stays D2-gated; no activation or tier-5 claim (branch
-  task/send-to-ai-round-trip, taken 2026-08-03, by claude).
 - UI implementation programme, Dashboard (pages 1 and 7): the Core
   case-lifecycle and day/week count queries that do not exist today, so that
   Not ready, Held, New cases today, Sent to Engineer and Reports sent render
@@ -75,8 +64,70 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   lease vocabulary in operator copy (branch task/case-edit-lease-continuity,
   taken 2026-08-05, by claude).
 
+## Merged, not deployed
+
+- **AI-09 Send to AI round trip and the Automation Actor assessment toolset
+  (MCP-06)** merged into `dev` 2026-08-05 (PR 332, merge `5555440`), all nine
+  checks green. **It is not deployed.** Nothing is in `main`, no environment
+  runs it, and no activation, navigation-link, or acceptance claim is made.
+  The whole surface is composition-gated off by default (`Features:SendToAi`,
+  `Features:AutomationMcp`) and DevelopmentOffline-only; production would
+  additionally need a non-preview transport decision. Evidence is tier 2–4
+  local only — the tier-5 external-client round trip is still queued below.
+
 ## Next (ordered queue — take from the top)
 
+- Send to AI work-request integrity (PR 332 review): the reasoned `Cancelled`
+  outcome the plan requires has no caller at all — `ICancelAiWorkRequest` is
+  registered and unit-tested but nothing in the application invokes it, so
+  add the reason-taking action and the visible cancelled state. With it, the
+  outcomes the transport cannot currently tell apart: a lost or malformed
+  `/send` response is recorded as a definite `Failed` ("Nothing was sent")
+  and retry mints a fresh request id, so one case can be forwarded twice;
+  a `/events` transport failure is indistinguishable from an empty reply and
+  the panel states "No reply has been recorded yet" — both need a typed
+  uncertain/unavailable outcome on the Core port rather than a false
+  business-facing claim. Also: replay is not attempted before the in-flight
+  guard rejects; the in-flight check and the insert are not one transaction,
+  so two sends with different operation keys can both reach `/send`; a
+  timed-out request is stepped over rather than transitioned to `Expired`,
+  leaving it permanently non-terminal; and reconcile expires on wall-clock
+  without first reading whether the reply arrived in time.
+- Record the Send to AI eligibility decision (PR 332 review): the shipped
+  gate admits every `NotReady`/`Review`/`ReportPreparation` case with no
+  readiness condition, which silently resolves the channels plan's open
+  decision 5 — which outstanding requirements block the panel — in the most
+  permissive direction. The rewritten `open-decisions.md` section no longer
+  carries the question. The permissive default may well be right; it needs
+  recording as a decision rather than as an implementation detail.
+- Automation round-trip evidence view (PR 332 review): filtering
+  `/Administration/Automation/Activity` by a work-request id does not show
+  the round trip the plan promised. The lifecycle rows (created, handed off,
+  completed, failed) carry the sending staff actor while the activity
+  projection filters strictly on `ActorKind.Automation`, so only the later
+  ingress rows appear; and the `case_assessment_saved` row that holds the
+  per-field before/after evidence is correlated by operation key even when a
+  request id is bound. Extend the projection to the `ai_work_request`
+  aggregate and correlate the detailed row by the bound request id.
+- Assessment toolset correctness follow-ups (PR 332 review): replay returns a
+  fresh current projection with no `IsReplay` marker, so a retry after an
+  intervening save reports the later fields — the toolset plan specifies the
+  original result plus a replay signal. `MapCaseOwned` falls back to
+  `CaseDataCodes.Suggestion`, so an unconfirmed extraction can be served by
+  `pegasus_assessment_get` as accepted case data and satisfy readiness.
+  `pegasus_case_update_details` and `pegasus_eva_bundle_generate` accept any
+  well-formed `workRequestId` as an audit correlation without the existence
+  and case-ownership check `pegasus_assessment_update` applies. A partial
+  `pegasus_case_update_details` edit re-stamps every omitted field's
+  confirmation metadata with the automation actor, because the merge reads
+  the current confirmed values and writes the whole record back. Required-when
+  pairings are validated only when the governing field is in the save, so
+  clearing the dependent value alone persists an invalid merged state.
+  Estimate prices and work units accept decimals wider than the mapped
+  `decimal(18,2)`/`decimal(9,1)`, reaching a database overflow instead of a
+  deterministic refusal. Estimate-line results expose only actor kind and a
+  confirmation boolean, dropping the `RecordedBy`/`ConfirmedBy` provenance
+  the record retains and scalar fields return.
 - **UI implementation programme** (operator decision 2026-08-04, settling the
   earlier "decide what `docs/ui-work/` is for" question): the folder is
   adopted as the specification for a whole-application UI rebuild, then
