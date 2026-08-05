@@ -1,5 +1,14 @@
 # Report renderer integration — master plan
 
+> **Status note, 2026-08-05.** This plan set was produced by the
+> `report-renderer-integration` claim as PR 331 and was never merged on its own.
+> PR 331 is closed as superseded, and the set lands unmodified alongside the
+> first slice of work it authorises — see
+> [`report-renderer-workspace-uplift.md`](report-renderer-workspace-uplift.md).
+> The "planning documents only" scope below describes **that** claim, not the
+> uplift task. Everything the uplift did not do is still blocked exactly as the
+> open-questions document records.
+
 Transient task plan for the `report-renderer-integration` claim
 (`task/report-renderer-integration`, taken 2026-08-03). This file is the
 canonical plan for the claim; the sibling `report-renderer-integration-*.md`
