@@ -65,6 +65,11 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<CaseManualChaseEntity> CaseManualChases => Set<CaseManualChaseEntity>();
     internal DbSet<CaseTaskEntity> CaseTasks => Set<CaseTaskEntity>();
     internal DbSet<CaseDueChaserEntity> CaseDueChasers => Set<CaseDueChaserEntity>();
+    internal DbSet<CaseAssessmentFieldEntity> CaseAssessmentFields =>
+        Set<CaseAssessmentFieldEntity>();
+    internal DbSet<CaseEstimateLineEntity> CaseEstimateLines => Set<CaseEstimateLineEntity>();
+    internal DbSet<AiWorkRequestEntity> AiWorkRequests => Set<AiWorkRequestEntity>();
+    internal DbSet<SendToAiControlEntity> SendToAiControl => Set<SendToAiControlEntity>();
 
 
     internal DbSet<IntakeReceiptEntity> IntakeReceipts => Set<IntakeReceiptEntity>();
@@ -146,6 +151,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         CaseMatchModelConfiguration.Configure(builder);
         VehicleModelConfiguration.Configure(builder);
         EvaHandoffModelConfiguration.Configure(builder);
+        AssessmentModelConfiguration.Configure(builder);
 
         builder.Entity<PegasusIdentityUser>(entity =>
         {

@@ -678,14 +678,31 @@ There is no alpha control, route or placeholder for:
 
 Deferred AI may propose but must not mutate, accept or send autonomously. Future deterministic outputs must use one accepted structured case/engineering record, validate accepted data, calculate once and avoid duplicate truth owners or output-specific source forks.
 
-One recorded exception (operator widening, 2026-08-03): the Engineer
-assessment workbench (UI-15) and its `Send to Claude` surface (AI-09) exist as
-design markup under `src/Pegasus.Web/Pages/Cases/Assessment/` — routeless
-files with no `@page` directive, no PageModel, no form, every field empty, and
-no link from any navigation or case surface. They are review artifacts
-satisfying the rule that a deferred UI capability re-enters specification and
-review before implementation; activating a route, binding, or transport for
-them remains forbidden until that re-entry approval.
+One recorded exception (operator widening, 2026-08-03; extended by the
+operator-approved AI-09 specification
+`docs/temp-plans/send-to-claude-channel-integration.md`, which is the
+re-entry specification for exactly this slice): the Engineer assessment
+workbench (UI-15) exists as design markup under
+`src/Pegasus.Web/Pages/Cases/Assessment/`, and the AI-09 wiring task
+restored its route (`/Cases/{id}/Assessment`, unlinked from every
+navigation and case surface) to bind only the case-identity header, the
+readiness rail, the `Send to Claude` panel, and the PAV sensitivity
+slider. Every section form stays empty and unbound; the staff save paths
+and the review presentation of unconfirmed automation values remain
+forbidden until the full UI-15 re-entry approval.
+
+The `Send to Claude` panel states are server-rendered: `available` (the
+confirm dialog then a real POST), `sent` — "Sent. Changes will appear on
+this case for your review." with a `Check for completion` reconcile
+control (manual refresh, no auto-poll), `completed` — "Claude has
+finished" linking the case history, `failed` — "Nothing was sent" with a
+retry, and `unavailable` naming its reasons in text. The PAV slider on the
+Valuation section is a review aid only: a labelled `input type="range"`
+paired with a numeric input, tabular numerals, ranges only from recorded
+valuation figures, the indicative settlement (PAV − salvage) as text on a
+recorded total-loss outcome, named missing-evidence states for every
+absent input (a ratio without a costed repair total is not evidence), no
+animation, no new colour tokens, and it writes nothing.
 
 ### Not planned
 
