@@ -41,7 +41,7 @@ public sealed class QdosIntakeWebTests
         queue.EnsureSuccessStatusCode();
         var html = await queue.Content.ReadAsStringAsync();
         Assert.Contains(
-            "The instruction has been retained and queued for processing.",
+            "The file has been received and queued for processing.",
             html,
             StringComparison.Ordinal);
 
@@ -61,7 +61,7 @@ public sealed class QdosIntakeWebTests
         duplicateQueue.EnsureSuccessStatusCode();
         var duplicateHtml = await duplicateQueue.Content.ReadAsStringAsync();
         Assert.Contains(
-            "This instruction was already queued; no duplicate work was created.",
+            "This file was already received. No duplicate was created.",
             duplicateHtml,
             StringComparison.Ordinal);
 
