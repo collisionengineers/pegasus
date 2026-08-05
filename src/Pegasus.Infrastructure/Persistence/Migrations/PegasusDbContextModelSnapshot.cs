@@ -655,6 +655,18 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<bool>("AllowSentEvidence")
                         .HasColumnType("bit");
 
+                    b.Property<string>("InboxFolderIdentity")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("MailboxIdentity")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("SentFolderIdentity")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<string>("State")
                         .IsRequired()
                         .HasMaxLength(40)
@@ -667,6 +679,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Address")
                         .IsUnique();
+
+                    b.HasIndex("MailboxIdentity")
+                        .IsUnique()
+                        .HasFilter("[MailboxIdentity] IS NOT NULL");
 
                     b.ToTable("ApprovedMailboxes", (string)null);
 

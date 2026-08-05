@@ -109,7 +109,10 @@ public sealed class AdministrationPolicyTests
                 0,
                 actor,
                 "  Approve the fixed routes  ",
-                "  mailbox-op  "),
+                "  mailbox-op  ",
+                "  mailbox-identity  ",
+                "  inbox-folder  ",
+                "  sent-folder  "),
             default);
 
         Assert.Equal("instructions@collisionengineers.co.uk", updated.Address);
@@ -123,6 +126,117 @@ public sealed class AdministrationPolicyTests
             request.RouteScopes);
         Assert.Equal("Approve the fixed routes", request.Reason);
         Assert.Equal("mailbox-op", request.OperationKey);
+        Assert.Equal("mailbox-identity", request.MailboxIdentity);
+        Assert.Equal("inbox-folder", request.InboxFolderIdentity);
+        Assert.Equal("sent-folder", request.SentFolderIdentity);
+        Assert.True(updated.IdentityIsBound);
+    }
+
+    [Theory]
+    [InlineData(null, "inbox-folder", "sent-folder")]
+    [InlineData("mailbox-identity", null, "sent-folder")]
+    [InlineData("mailbox-identity", "inbox-folder", null)]
+    public async Task ApprovedMailboxCannotBeApprovedWithoutTheIdentitiesItsRoutesNeed(
+        string? mailboxIdentity,
+        string? inboxFolderIdentity,
+        string? sentFolderIdentity)
+    {
+        var store = new MailboxStore();
+        var command = new UpdateApprovedMailbox(store);
+
+        var exception = await Assert.ThrowsAsync<ApprovedMailboxUpdateException>(() =>
+            command.ExecuteAsync(
+                new(
+                    Guid.NewGuid(),
+                    "instructions@collisionengineers.co.uk",
+                    [ApprovedMailboxRouteScope.InboundIntake, ApprovedMailboxRouteScope.SentEvidence],
+                    ApprovedMailboxState.Approved,
+                    0,
+                    ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
+                    "Approve both routes",
+                    "mailbox-op",
+                    mailboxIdentity,
+                    inboxFolderIdentity,
+                    sentFolderIdentity),
+                default));
+
+        Assert.Equal(ApprovedMailboxUpdateError.MissingMailboxIdentity, exception.Error);
+        Assert.Null(store.UpdateRequest);
+    }
+
+    [Fact]
+    public async Task DisabledMailboxIsSavedWhileItsTenantIdentitiesAreStillAwaited()
+    {
+        var store = new MailboxStore();
+        var command = new UpdateApprovedMailbox(store);
+
+        var saved = await command.ExecuteAsync(
+            new(
+                Guid.NewGuid(),
+                "later@collisionengineers.co.uk",
+                [ApprovedMailboxRouteScope.InboundIntake],
+                ApprovedMailboxState.Disabled,
+                0,
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
+                "Awaiting the tenant application access policy",
+                "mailbox-op"),
+            default);
+
+        Assert.Equal(ApprovedMailboxState.Disabled, saved.State);
+        Assert.Null(saved.MailboxIdentity);
+        Assert.False(saved.IdentityIsBound);
+    }
+
+    [Theory]
+    [InlineData("has space")]
+    [InlineData("has\ttab")]
+    public async Task ApprovedMailboxRejectsAnIdentityThatIsNotExact(string mailboxIdentity)
+    {
+        var store = new MailboxStore();
+        var command = new UpdateApprovedMailbox(store);
+
+        var exception = await Assert.ThrowsAsync<ApprovedMailboxUpdateException>(() =>
+            command.ExecuteAsync(
+                new(
+                    Guid.NewGuid(),
+                    "instructions@collisionengineers.co.uk",
+                    [ApprovedMailboxRouteScope.InboundIntake],
+                    ApprovedMailboxState.Approved,
+                    0,
+                    ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
+                    "Approve inbound intake",
+                    "mailbox-op",
+                    mailboxIdentity,
+                    "inbox-folder"),
+                default));
+
+        Assert.Equal(ApprovedMailboxUpdateError.InvalidMailboxIdentity, exception.Error);
+        Assert.Null(store.UpdateRequest);
+    }
+
+    [Fact]
+    public async Task ApprovedMailboxRejectsAMailboxIdentityLongerThanItsCursorKey()
+    {
+        var store = new MailboxStore();
+        var command = new UpdateApprovedMailbox(store);
+
+        var exception = await Assert.ThrowsAsync<ApprovedMailboxUpdateException>(() =>
+            command.ExecuteAsync(
+                new(
+                    Guid.NewGuid(),
+                    "instructions@collisionengineers.co.uk",
+                    [ApprovedMailboxRouteScope.InboundIntake],
+                    ApprovedMailboxState.Approved,
+                    0,
+                    ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
+                    "Approve inbound intake",
+                    "mailbox-op",
+                    new string('m', 101),
+                    "inbox-folder"),
+                default));
+
+        Assert.Equal(ApprovedMailboxUpdateError.InvalidMailboxIdentity, exception.Error);
+        Assert.Null(store.UpdateRequest);
     }
 
     [Fact]
@@ -192,6 +306,10 @@ public sealed class AdministrationPolicyTests
                 request.Address,
                 request.RouteScopes.ToArray(),
                 request.State,
+                request.MailboxIdentity,
+                request.InboxFolderIdentity,
+                request.SentFolderIdentity,
+                request.MailboxIdentity is not null,
                 request.ExpectedVersion + 1));
         }
 
