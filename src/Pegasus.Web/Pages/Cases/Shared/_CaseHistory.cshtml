@@ -18,7 +18,7 @@
                 @foreach (var entry in details.History)
                 {
                     <tr>
-                        <td>@entry.OccurredAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</td>
+                        <td>@OperatorLabels.OfficeTime(entry.OccurredAtUtc)</td>
                         <td>@Pegasus.Web.Presentation.OperatorLabels.HistoryEvent(entry.EventType)</td>
                         <td>
                             @if (entry.ActorKind == nameof(Pegasus.Core.Identity.ActorKind.Automation))

@@ -114,6 +114,66 @@ public static class OperatorLabels
     };
 
     /// <summary>
+    /// The state of an in-house upload request, as the operator reads it.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from <see cref="UploadLinkState"/>: that one describes a Box
+    /// file request, this one the request Pegasus issues itself. The two
+    /// enums share several member names and no members, so one label method
+    /// cannot serve both.
+    /// </remarks>
+    public static string UploadRequestState(RequestUploadStatus status) => status switch
+    {
+        RequestUploadStatus.Pending => "Being created",
+        RequestUploadStatus.Active => "Active",
+        RequestUploadStatus.Expired => "Expired",
+        RequestUploadStatus.Exhausted => "No uploads left",
+        RequestUploadStatus.Revoked => "Withdrawn",
+        RequestUploadStatus.Failed => "Failed",
+        _ => Humanise(status.ToString())
+    };
+
+    /// <summary>
+    /// Why an intake failed, in the operator's language.
+    /// </summary>
+    /// <remarks>
+    /// The persisted failure code is what distinguishes one terminal outcome
+    /// from another, and the operator has to be able to tell them apart —
+    /// "it failed" is not an answer they can act on. What they do not need is
+    /// the code itself: <c>unreadable_docx</c> is the writer's name for the
+    /// fact, not the reader's. So the distinction stays and the spelling goes.
+    /// </remarks>
+    public static string IntakeFailure(string? failureCode) => failureCode switch
+    {
+        "unreadable_docx" => "The Word document could not be read",
+        "unreadable_pdf" => "The PDF could not be read",
+        "image_decode_failure" => "The image could not be read",
+        "email_read_failure" => "The e-mail could not be read",
+        "source_read_failure" or "source_reader_failure" =>
+            "The file could not be read",
+        "empty_message" => "The message was empty",
+        "message_too_large" => "The message was too large to process",
+        "docx_limit_exceeded" =>
+            "The Word document is larger than the processing limit allows",
+        "intake_limit_exceeded" =>
+            "The file is larger or more deeply nested than the processing limit allows",
+        "unsupported_file_type" => "That file type is not supported",
+        "deferred_file_type" => "That file type is not supported yet",
+        "unsupported_source" => "That source is not supported",
+        "artifact_retention_failure" or "not_run_retention_failure" =>
+            "The original file could not be retained",
+        "artifact_read_failure" => "The retained file could not be read back",
+        "artifact_integrity_failure" or "staged_artifact_integrity_failure"
+            or "integrity_failure" =>
+            "The retained file did not match what was received",
+        "persistence_failure" => "The result could not be saved",
+        "intake_processing_failure" or "technical_failure" =>
+            "Processing failed for a technical reason",
+        null or "" => "Processing failed",
+        _ => Humanise(failureCode)
+    };
+
+    /// <summary>
     /// A case history event in plain language.
     /// </summary>
     /// <remarks>
@@ -148,12 +208,44 @@ public static class OperatorLabels
     /// A date and time in the office's zone.
     /// </summary>
     /// <remarks>
-    /// Every other date surface in the product renders Europe/London. A column
-    /// headed "(UTC)" and a `ToLocalTime()` against the server clock were the
-    /// two places that did not, so the same instant read differently depending
-    /// on which screen you were on.
+    /// Every operator date surface renders Europe/London through this method.
+    /// The alternative that used to be spread across the product was
+    /// <c>ToLocalTime()</c>, which resolves against the server clock: on a
+    /// developer workstation that happens to be Europe/London and looks
+    /// correct, and on the deployed Linux container it is UTC. Through British
+    /// Summer Time that made every one of those screens an hour early, with
+    /// nothing on the page to say which zone it meant.
     /// </remarks>
-    public static string OfficeTime(DateTimeOffset value)
+    public static string OfficeTime(DateTimeOffset value) =>
+        InOffice(value).ToString("dd MMM yyyy HH:mm", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// A date and time in the office's zone, or <paramref name="absent"/> when
+    /// there is no instant to show.
+    /// </summary>
+    public static string OfficeTime(DateTimeOffset? value, string absent) =>
+        value is { } present ? OfficeTime(present) : absent;
+
+    /// <summary>
+    /// A date in the office's zone, for surfaces where the time of day is not
+    /// part of what the operator is deciding.
+    /// </summary>
+    public static string OfficeDate(DateTimeOffset value) =>
+        InOffice(value).ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// The time of day in the office's zone, for the two-line surfaces that
+    /// print the date above it.
+    /// </summary>
+    public static string OfficeClock(DateTimeOffset value) =>
+        InOffice(value).ToString("HH:mm", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// The one conversion. It falls back to UTC rather than throwing, because
+    /// a missing zone database is an operational fault and a blank screen
+    /// would be a worse answer than an hour's offset.
+    /// </summary>
+    private static DateTimeOffset InOffice(DateTimeOffset value)
     {
         TimeZoneInfo office;
         try
@@ -166,8 +258,7 @@ public static class OperatorLabels
             office = TimeZoneInfo.Utc;
         }
 
-        return TimeZoneInfo.ConvertTime(value, office)
-            .ToString("dd MMM yyyy HH:mm", CultureInfo.InvariantCulture);
+        return TimeZoneInfo.ConvertTime(value, office);
     }
 
     /// <summary>

@@ -34,7 +34,7 @@
                                     <td>@occurrence.SemanticRole / @occurrence.Source</td>
                                     <td>@version.Version @(version.IsCurrent ? "(current)" : "(historical)") @(version.IsLogicallyRemoved ? "— logically removed" : null)</td>
                                     <td><a asp-page="/Cases/Documents/Download" asp-route-caseId="@workflow.CaseId" asp-route-documentId="@occurrence.Id" asp-route-versionId="@version.Id">@version.FileName</a></td>
-                                    <td>@version.CustodyStatus — @version.ContentLength bytes</td>
+                                    <td>@OperatorLabels.CustodyState(version.CustodyStatus) — @OperatorLabels.FileSize(version.ContentLength)</td>
                                     <td>
                                         @if (occurrence.ThirdPartyVehicleConfirmedAtUtc is not null)
                                         {
@@ -125,7 +125,7 @@
         @foreach (var request in details.BoxFileRequests)
         {
             <li>
-                <strong>@request.Status</strong> — created @request.CreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm") — expires @(request.ExpiresAtUtc?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "not supplied")
+                <strong>@OperatorLabels.UploadLinkState(request.Status)</strong> — created @OperatorLabels.OfficeTime(request.CreatedAtUtc) — expires @(OperatorLabels.OfficeTime(request.ExpiresAtUtc, "not supplied"))
                 @if (mayEdit && request.Status is BoxFileRequestStatus.Pending or BoxFileRequestStatus.Active)
                 {
                     <form method="post" asp-page-handler="RevokeBoxFileRequest">
@@ -158,7 +158,7 @@
         @foreach (var request in details.RequestUploadLinks)
         {
             <li>
-                <strong>@request.Status</strong> — created @request.CreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm") — @request.AcceptedFileCount file(s), @request.AcceptedByteCount bytes accepted
+                <strong>@OperatorLabels.UploadRequestState(request.Status)</strong> — created @OperatorLabels.OfficeTime(request.CreatedAtUtc) — @request.AcceptedFileCount @(request.AcceptedFileCount == 1 ? "file" : "files") accepted, @OperatorLabels.FileSize(request.AcceptedByteCount)
                 @if (mayEdit && request.RevokedAtUtc is null)
                 {
                     <form method="post" asp-page-handler="RevokeRequestUploadLink">

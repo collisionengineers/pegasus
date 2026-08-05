@@ -39,14 +39,12 @@
                         <dt>Status</dt>
                         <dd>@(Model.Predecessor.IsActive ? "Active" : "Disabled")</dd>
                     </div>
-                    <div>
-                        <dt>Version</dt>
-                        <dd class="tabular">@Model.Predecessor.Version</dd>
-                    </div>
-                    <div>
-                        <dt>Sequence lineage</dt>
-                        <dd>@Model.Predecessor.SequenceLineageId</dd>
-                    </div>
+                    @* The concurrency version and the sequence-lineage GUID
+                       were both printed here. Neither is the operator's:
+                       the version is carried by the hidden field that makes
+                       the post safe, and the lineage identity is what the
+                       consequence paragraph below already promises in words
+                       — that the successor continues the same numbering. *@
                     <div>
                         <dt>Allocated cases</dt>
                         <dd class="tabular">@Model.Predecessor.AllocatedCaseCount</dd>

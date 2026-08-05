@@ -8,6 +8,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Triage;
 
@@ -309,7 +310,7 @@ public sealed class DetailsModel(
             {
                 CaseAssociationUnavailableReason =
                     $"Case editing is unavailable while held by {activeLease.Holder} until "
-                    + $"{activeLease.ExpiresAtUtc.ToLocalTime():dd MMM yyyy HH:mm}.";
+                    + $"{OperatorLabels.OfficeTime(activeLease.ExpiresAtUtc)}.";
                 CaseAssociationUnavailableCaseId = linkedCaseId;
             }
         }
@@ -347,7 +348,7 @@ public sealed class DetailsModel(
             {
                 var unavailableReason =
                     $"Case editing is unavailable while held by {activeLease.Holder} until "
-                    + $"{activeLease.ExpiresAtUtc.ToLocalTime():dd MMM yyyy HH:mm}.";
+                    + $"{OperatorLabels.OfficeTime(activeLease.ExpiresAtUtc)}.";
                 TempData["TriageStatus"] = unavailableReason;
                 TempData["TriageUnavailableCase"] =
                     $"{caseId:D}|{unavailableReason}";

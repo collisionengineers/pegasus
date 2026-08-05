@@ -145,7 +145,7 @@
                                 <tr>
                                     <td><a asp-page="/ImageIntake/Details" asp-route-id="@image.Id">@image.ImageIntakeReference</a></td>
                                     <td>@image.NormalizedVehicleRegistration</td>
-                                    <td><time datetime="@image.RegisteredAtUtc.ToString("O")">@image.RegisteredAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</time></td>
+                                    <td><time datetime="@image.RegisteredAtUtc.ToString("O")">@OperatorLabels.OfficeTime(image.RegisteredAtUtc)</time></td>
                                 </tr>
                             }
                             </tbody>
