@@ -57,6 +57,43 @@ dashboard own navigation and exact queue metrics; administration surfaces own
 authorised configuration journeys; error, empty, loading, denied, stale,
 partial, conflict, and unavailable states are explicit.
 
+### Enforced presentation rules
+
+These are the rules every operator surface is held to. They were the
+presentation contract of the 2026-08 UI implementation programme and outlived
+it; the programme's own review folder was deleted once its work landed, and
+these are what remained true.
+
+1. **Words, never codes.** No persisted enum, snake_case code, hash, storage
+   key, path, byte count or version integer appears as operator text. One
+   place — `Pegasus.Web.Presentation.OperatorLabels` — turns a persisted code
+   into words, and every surface goes through it. Where a code carries a
+   distinction the operator must act on, the distinction is kept and only the
+   spelling changes.
+2. **No raw identifiers.** GUIDs, correlation ids, sequence-lineage ids and
+   external transport handles are internal. Where an operator genuinely needs
+   a stable handle, show the business reference — Case/PO, Image reference,
+   registration.
+3. **One clock.** Every date and time renders Europe/London through
+   `OperatorLabels`. `ToLocalTime()` is never correct: it resolves against the
+   server clock, which is the office zone on a developer workstation and UTC
+   on the deployed container, so it looks right exactly where it is tested and
+   is wrong through British Summer Time where it runs.
+4. **Sizes in MB**, one decimal, and only where the size is something the
+   operator can act on. Never bytes.
+5. **Every screen has designed empty, loading and failure states**, written as
+   business statements rather than as descriptions of the query that returned
+   nothing. An unknown-record URL renders the styled not-found surface, never a
+   raw browser 404.
+6. **Absent versus disabled.** A capability that is not composed in this
+   deployment is absent. A capability whose record does not yet satisfy a
+   condition is present, disabled, and states the condition.
+7. **Counts and times cannot be proved locally.** A count query against an
+   empty database returns the same zero as a correct one, and a rendered time
+   against a Europe/London workstation clock matches the office by accident.
+   Both need evidence from populated data and a non-London clock — a test that
+   stores rows, or the deployed instance.
+
 ## Focused flows
 
 **Intake:** source -> `All`/`Instructions`/`Images` evidence filter ->
