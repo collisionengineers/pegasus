@@ -200,6 +200,45 @@ caller, not a deployment.
   limits, or standalone Audit evidence.
 - `corpus/` and `workspaces/` are untouched.
 
+## Landed so far
+
+Commit `de96d7b`, verified by a clean Release build and 441 passing
+`Pegasus.Core.Tests`:
+
+- `Program.cs` composes `ProcessIntakeSubmission` for the Upload page and
+  leaves the queue-only `ReceiveIntake` for the automation ingress.
+  `Upload.cshtml.cs` routes on the receipt's real decision and the dead
+  "is being processed" branch is gone.
+- `QdosAlphaCaseActivationPolicy` is deleted. Its four enforcement sites use
+  `CasePrincipalCode.Normalize`; `QdosPrincipal.Code` remains for seeds and
+  tests. Allocation still fails closed on the principal record inside the
+  acceptance transaction (`EfCaseAcceptanceStore.cs:183`).
+
+## Two findings that change the remaining work
+
+**A hand-keyed case is still blocked by the inspection-address gate.**
+`Ext18InspectionAddressPolicy.Evaluate` derives its suggestion from the
+receipt's extracted `InstructionReviewField` candidates, and
+`InspectionAddressResolutionStore.ResolveAsync` throws
+`InvalidOperationException` when there is no suggestion. A non-QDOS upload with
+no extracted address therefore has no route to a resolved address and cannot be
+accepted; QDOS escapes only because it is image-based. Opening non-QDOS
+principals is meaningless without a staff-supplied path — a `SupplyAddress`
+decision and a `Supplied` state, recorded with staff provenance.
+`docs/requirements.md:421` records the address as kept "when that location is
+explicitly supplied or operator-confirmed", and the EXT-18 prohibition is on
+inference, not on staff entry, so this is within the settled rule rather than a
+change to it.
+
+**The mail viewer needs no Graph credential in Web.**
+`docs/requirements.md:716-788` describes UI-10 over *retained* messages
+throughout — "shows the full retained message", "only retained messages within
+approved mailbox/folder scope". It is a viewer over what polling already
+brought in. What it does need is message-level retention that polling does not
+persist: sender and subject are re-derived at read time from the mail-route
+decision and evidence JSON (`EfIntakeReceiptStore.cs:218-219`), and nothing
+retains recipients, an excerpt, attachment names, or read state.
+
 ## Known overlap
 
 `NOW.md`'s Next queue still carries "Remove the manual case-acceptance gate and
