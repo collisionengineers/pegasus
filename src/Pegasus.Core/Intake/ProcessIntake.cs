@@ -297,8 +297,8 @@ public sealed class ProcessIntake(
         var (decision, reason, failureCode, failureReason) = policyResult.Applicability switch
         {
             InstructionPolicyApplicability.Applicable => (
-                IntakeDecision.DraftReady,
-                "A reviewable instruction draft was extracted. This does not create or classify a case.",
+                IntakeDecision.CaseCreated,
+                "A definitive instruction was identified and a case was created.",
                 null,
                 null),
             InstructionPolicyApplicability.Indeterminate when readResult.RequiresOcr => (
@@ -315,10 +315,21 @@ public sealed class ProcessIntake(
                 $"Unknown instruction policy applicability value '{(int)policyResult.Applicability}'.")
         };
         if (caseMatchDecision is { Outcome: CaseMatchOutcome.Ambiguous }
-            && decision == IntakeDecision.DraftReady)
+            && decision == IntakeDecision.CaseCreated)
         {
             decision = IntakeDecision.NeedsSorting;
             reason = "Competing candidate cases match this message; the association requires manual sorting.";
+        }
+
+        // Standalone Audit work fails closed. An Audit case cannot be created
+        // without its confirmed original-report evidence, and nothing in
+        // processing can supply that, so an audit instruction waits for a
+        // person rather than being allocated a reference it cannot justify.
+        if (decision == IntakeDecision.CaseCreated
+            && IsStandaloneAuditInstruction(mailClassificationDecision))
+        {
+            decision = IntakeDecision.NeedsSorting;
+            reason = "This is audit work; a case is created once the original report is confirmed.";
         }
 
         return new(
@@ -589,9 +600,20 @@ public sealed class ProcessIntake(
         _ => throw new InvalidOperationException($"Unknown intake reader result value '{(int)status}'.")
     };
 
+    /// <summary>
+    /// Whether the recorded classification says this is standalone Audit work.
+    /// </summary>
+    private static bool IsStandaloneAuditInstruction(MailClassificationResult? classification) =>
+        classification?.Category is
+        {
+            Direction: MailDirection.Received,
+            ReceivedFamily: ReceivedMailFamily.NewInstructionReceived,
+            Subtype: "audit"
+        };
+
     private static string DecisionCode(IntakeDecision decision) => decision switch
     {
-        IntakeDecision.DraftReady => "draft_ready",
+        IntakeDecision.CaseCreated => "case_created",
         IntakeDecision.NeedsSorting => "needs_sorting",
         IntakeDecision.BlockedIntake => "blocked_intake",
         IntakeDecision.Unsupported => "unsupported",

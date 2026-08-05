@@ -88,7 +88,7 @@ public sealed partial class QdosTriageIntegrationTests
             await receipts.GetAsync(receiptId, CancellationToken.None));
         var triageQueries = scope.ServiceProvider.GetRequiredService<ITriageQueries>();
 
-        Assert.Equal(IntakeDecision.DraftReady, receipt.Decision);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
         Assert.Equal("AB12CDE", receipt.InstructionDraft?.VehicleRegistration);
         Assert.DoesNotContain(
             receipt.Evidence,
@@ -169,7 +169,7 @@ public sealed partial class QdosTriageIntegrationTests
             await receipts.GetAsync(blockedReceiptId, CancellationToken.None));
 
         Assert.Equal(IntakeDecision.NeedsSorting, sortingReceipt.Decision);
-        Assert.Equal(IntakeDecision.DraftReady, missingRegistrationReceipt.Decision);
+        Assert.Equal(IntakeDecision.CaseCreated, missingRegistrationReceipt.Decision);
         Assert.Null(missingRegistrationReceipt.InstructionDraft?.VehicleRegistration);
         Assert.Equal(IntakeDecision.Unsupported, blockedReceipt.Decision);
         Assert.Empty(await triageQueries.ListAsync(null, CancellationToken.None));

@@ -87,7 +87,7 @@ public sealed class QdosIntakeWebTests
         var html = await review.Content.ReadAsStringAsync();
         var receipt = await GetReceiptAsync(factory, receiptId);
 
-        Assert.Equal(IntakeDecision.DraftReady, receipt.Decision);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
         Assert.NotNull(receipt.InstructionDraft);
         Assert.Equal(ForwardedEmailHash, receipt.SourceHash);
         Assert.Contains(receipt.Evidence, item =>
@@ -191,8 +191,8 @@ public sealed class QdosIntakeWebTests
             "Genuine corpus integration test",
             new(IntakeSourceChannel.ManualUpload, "66666666666666666666666666666666")));
 
-        Assert.Equal(IntakeDecision.DraftReady, unauthorized.Decision);
-        Assert.Equal(IntakeDecision.DraftReady, authorized.Decision);
+        Assert.Equal(IntakeDecision.CaseCreated, unauthorized.Decision);
+        Assert.Equal(IntakeDecision.CaseCreated, authorized.Decision);
     }
 
     [GenuineQdosCorpusFact(
@@ -232,7 +232,7 @@ public sealed class QdosIntakeWebTests
 
         await using var scope = factory.Services.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
-        var receipts = await queries.ListAsync(IntakeDecision.DraftReady, CancellationToken.None);
+        var receipts = await queries.ListAsync(IntakeDecision.CaseCreated, CancellationToken.None);
         Assert.Equal(5, receipts.Count);
     }
 
