@@ -21,11 +21,19 @@ namespace Pegasus.Web.Pages;
 ///
 /// The route is declared here as a plain page with an unnamed handler, so the
 /// form posts to its own URL and there is no handler name to fail to generate.
+///
+/// The file is now read while the operator waits, through
+/// <see cref="ProcessIntakeSubmission"/>. The queue-only composition this page
+/// used before could only ever return
+/// <c>IntakeSubmissionDisposition.Queued</c>, so every upload ended on this
+/// page reading "is being processed" and waited on a Worker timer; the two
+/// branches that sent the operator to a case or to a receipt were unreachable.
+/// An upload now ends where the file ended up.
 /// </remarks>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 public sealed class UploadModel(
-    IIntakeSubmission intakeSubmission,
+    ProcessIntakeSubmission intakeSubmission,
     IIntakeReceiptQueries receiptQueries,
     TimeProvider timeProvider) : PageModel
 {
@@ -121,21 +129,32 @@ public sealed class UploadModel(
             // intake receipts match this view" — the item existed nowhere they
             // could see. Now the confirmation and the thing itself arrive
             // together.
-            var outcome = await DescribeAsync(result, fileName, cancellationToken);
-            TempData["UploadOutcomeMessage"] = outcome.Message;
+            var receipt = await receiptQueries.GetAsync(result.ReceiptId, cancellationToken);
+            var outcome = Describe(receipt, result, fileName);
 
-            // Queued work has not been processed yet, so there is no item to
-            // open: the receipt does not exist until the Worker writes it.
-            // Saying so on this page is the honest answer. Sending the operator
-            // to a record that is not there yet would be a 404 dressed as a
-            // success.
-            if (result.Disposition == IntakeSubmissionDisposition.Queued)
+            // A file that could not be read produced no material to act on, so
+            // there is nowhere to send the operator: the failure belongs on the
+            // page they are still looking at.
+            if (outcome.IsFailure)
             {
-                return RedirectToPage(new { received = result.ReceiptId });
+                ModelState.AddModelError(string.Empty, outcome.Message);
+                return Page();
             }
 
-            return outcome.CaseId is { } createdCaseId
-                ? RedirectToPage("/Cases/Details", new { id = createdCaseId })
+            TempData["UploadOutcomeMessage"] = outcome.Message;
+            if (outcome.CaseId is { } createdCaseId)
+            {
+                return RedirectToPage("/Cases/Details", new { id = createdCaseId });
+            }
+
+            // Everything else is readable material that has not become a case.
+            // That is the create screen's job, prefilled with whatever
+            // extraction found, rather than a list the operator has to go
+            // hunting through.
+            return outcome.OpensCreateScreen
+                ? RedirectToPage(
+                    "/Cases/Create",
+                    new { receiptId = result.ReceiptId })
                 : RedirectToPage(
                     "/Intake/Details",
                     new { id = result.ReceiptId, duplicate = result.IsDuplicate });
@@ -163,62 +182,99 @@ public sealed class UploadModel(
     }
 
     /// <summary>
-    /// What actually happened to the file, in the operator's terms.
+    /// What actually happened to the file, in the operator's terms, and where
+    /// that puts them next.
     /// </summary>
     /// <remarks>
     /// A successful upload used to say "The instruction has been retained and
     /// queued for processing" while the list below still read "No intake
     /// receipts match this view" — the item existed nowhere the operator could
-    /// see. Each outcome now names what the file became and links to it.
+    /// see. Each outcome now names what the file became and goes there.
+    ///
+    /// Three destinations, and the reason for each: a file that allocated its
+    /// own case opens that case; a file that was read but did not allocate one
+    /// opens the create screen, because deciding that is the next thing to do;
+    /// a file that could not be read has no next thing, so it reports on the
+    /// upload page.
     /// </remarks>
-    private async Task<UploadOutcome> DescribeAsync(
+    private static UploadOutcome Describe(
+        IntakeReceipt? receipt,
         IntakeSubmissionResult result,
-        string fileName,
-        CancellationToken cancellationToken)
+        string fileName)
     {
-        if (result.IsDuplicate)
+        if (receipt is null)
         {
+            // Processing persisted an evaluation the queries cannot read back.
+            // Nothing can be said about the file, so nothing is claimed.
             return new(
-                $"{fileName} was already received. No duplicate was created.",
+                $"{fileName} was received, but what happened to it could not be read back. "
+                + "Try again, or contact an administrator if it keeps failing.",
                 result.ReceiptId,
                 null,
-                false);
+                IsFailure: true,
+                OpensCreateScreen: false);
         }
 
-        if (result.Disposition == IntakeSubmissionDisposition.Queued)
+        var duplicatePrefix = result.IsDuplicate
+            ? $"{fileName} was already received. No duplicate was created"
+            : $"{fileName} received";
+
+        if (receipt.CurrentCaseId is { } caseId)
         {
             return new(
-                $"{fileName} was received and is being processed.",
-                result.ReceiptId,
+                $"{duplicatePrefix} — a case was created.",
+                receipt.Id,
+                caseId,
+                IsFailure: false,
+                OpensCreateScreen: false);
+        }
+
+        return receipt.Decision switch
+        {
+            // Read, but not definitive enough to allocate on its own. The
+            // extracted detail is on the create screen for a person to confirm.
+            IntakeDecision.NeedsSorting or IntakeDecision.CaseCreated => new(
+                $"{duplicatePrefix} — check the details and create the case.",
+                receipt.Id,
                 null,
-                false);
-        }
+                IsFailure: false,
+                OpensCreateScreen: true),
 
-        var receipt = await receiptQueries.GetAsync(result.ReceiptId, cancellationToken);
-        if (receipt?.CurrentCaseId is { } caseId)
-        {
-            return new($"{fileName} received — a case was created.", null, caseId, false);
-        }
-
-        return receipt?.Decision switch
-        {
-            IntakeDecision.NeedsSorting => new(
-                $"{fileName} received — it needs sorting.", result.ReceiptId, null, false),
-            IntakeDecision.BlockedIntake => new(
-                $"{fileName} received — it is blocked.", result.ReceiptId, null, false),
+            // Little or no text came out of the document. The create screen is
+            // still the right place: it is where the detail gets keyed in.
             IntakeDecision.OcrRequired => new(
-                $"{fileName} received — it needs text extraction.", result.ReceiptId, null, false),
+                $"{duplicatePrefix} — little text could be read from it, so the details need entering by hand.",
+                receipt.Id,
+                null,
+                IsFailure: false,
+                OpensCreateScreen: true),
+
+            // A reasoned refusal and a registered image set both have a record
+            // that explains them; neither is a case waiting to be made.
+            IntakeDecision.BlockedIntake => new(
+                $"{duplicatePrefix} — it is blocked, with the reason recorded.",
+                receipt.Id,
+                null,
+                IsFailure: false,
+                OpensCreateScreen: false),
             IntakeDecision.ImageIntakeRegistered => new(
-                $"{fileName} received — it was registered as vehicle images.",
-                result.ReceiptId,
+                $"{duplicatePrefix} — it was registered as vehicle images.",
+                receipt.Id,
                 null,
-                false),
+                IsFailure: false,
+                OpensCreateScreen: false),
+
             IntakeDecision.Unsupported or IntakeDecision.TechnicalFailure => new(
-                $"{fileName} could not be processed. Try again, or contact an administrator if it keeps failing.",
-                result.ReceiptId,
+                receipt.FailureReason is { Length: > 0 } reason
+                    ? $"{fileName} could not be processed: {reason}"
+                    : $"{fileName} could not be processed. Try again, or contact an administrator if it keeps failing.",
+                receipt.Id,
                 null,
-                true),
-            _ => new($"{fileName} was received.", result.ReceiptId, null, false)
+                IsFailure: true,
+                OpensCreateScreen: false),
+
+            _ => throw new InvalidOperationException(
+                $"Unknown intake decision value '{(int)receipt.Decision}'.")
         };
     }
 
@@ -226,5 +282,6 @@ public sealed class UploadModel(
         string Message,
         Guid? ReceiptId,
         Guid? CaseId,
-        bool IsFailure);
+        bool IsFailure,
+        bool OpensCreateScreen);
 }

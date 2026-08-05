@@ -360,7 +360,7 @@ public sealed class AutomationAssessmentIngressTests
                     $"case-accept:{Guid.NewGuid():N}",
                     "Integration fixture confirmed complete intake evidence.",
                     CaseType.Inspection,
-                    QdosAlphaCaseActivationPolicy.PrincipalCode,
+                    QdosPrincipal.Code,
                     new(true, true, true, true)),
                 CancellationToken.None);
         return outcome.Identity.CaseId;
@@ -368,7 +368,7 @@ public sealed class AutomationAssessmentIngressTests
 
     private static async Task SeedPrincipalAsync(IServiceProvider services)
     {
-        const string principalCode = QdosAlphaCaseActivationPolicy.PrincipalCode;
+        const string principalCode = QdosPrincipal.Code;
         var organizationId = Guid.NewGuid();
         var lineageId = Guid.NewGuid();
         var principalId = Guid.NewGuid();

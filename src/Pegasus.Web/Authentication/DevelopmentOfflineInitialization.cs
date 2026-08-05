@@ -155,7 +155,7 @@ internal static class DevelopmentOfflineInitialization
         await services.GetRequiredService<ICreatePrincipal>().ExecuteAsync(
             new(
                 organization.Id,
-                QdosAlphaCaseActivationPolicy.PrincipalCode,
+                QdosPrincipal.Code,
                 actor,
                 "development-qdos-principal",
                 CaseInspectionMode.ImageBasedAssessment),

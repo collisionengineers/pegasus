@@ -39,18 +39,51 @@ public enum AuditAssessment
     Repairable,
     TotalLoss
 }
-public static class QdosAlphaCaseActivationPolicy
+/// <summary>
+/// The QDOS principal, as seeded. A code, not a gate.
+/// </summary>
+/// <remarks>
+/// This is here for the seeds and the tests that need to name the principal
+/// the alpha runs on. It authorises nothing: which principals may hold a case
+/// is a question about which principals exist and are active, answered by the
+/// principal record inside the acceptance transaction.
+/// </remarks>
+public static class QdosPrincipal
 {
-    public const string PrincipalCode = "QDOS";
+    public const string Code = "QDOS";
+}
 
-    public static string RequireActivatedPrincipal(string principalCode)
+/// <summary>
+/// The shape of a principal code on its way into an allocation.
+/// </summary>
+/// <remarks>
+/// This replaced <c>QdosAlphaCaseActivationPolicy.RequireActivatedPrincipal</c>,
+/// which refused every principal but <c>QDOS</c>. Nothing about the business
+/// asked for that: allocation fails closed on a principal that does not exist
+/// or is not active, and the acceptance transaction already establishes both
+/// against the principal record. The activation check was a second, blunter
+/// rule sitting in front of the real one, and it made a correctly registered
+/// principal unusable.
+///
+/// What remains is the shape a code must have to be looked up at all. Reading
+/// a non-QDOS principal *out of a document* is a separate matter and is still
+/// not implemented — the extraction policy recognises QDOS only, so another
+/// principal reaches allocation because a person keyed it, not because
+/// anything inferred it.
+/// </remarks>
+public static class CasePrincipalCode
+{
+    public const int MaximumLength = 20;
+
+    public static string Normalize(string principalCode)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(principalCode);
         var normalized = principalCode.Trim().ToUpperInvariant();
-        if (!string.Equals(normalized, PrincipalCode, StringComparison.Ordinal))
+        if (normalized.Length > MaximumLength)
         {
-            throw new InvalidOperationException(
-                "Only the QDOS principal is activated for case creation and reference allocation.");
+            throw new ArgumentException(
+                $"The principal code must be {MaximumLength} characters or fewer.",
+                nameof(principalCode));
         }
 
         return normalized;

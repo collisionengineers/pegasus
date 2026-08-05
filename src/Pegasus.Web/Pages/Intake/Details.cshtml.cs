@@ -374,20 +374,11 @@ public sealed partial class DetailsModel(
                 nameof(PrincipalCode),
                 "Enter the confirmed principal code.");
         }
-        else if (PrincipalCode.Length > 20)
+        else if (PrincipalCode.Length > CasePrincipalCode.MaximumLength)
         {
             ModelState.AddModelError(
                 nameof(PrincipalCode),
-                "The principal code must be 20 characters or fewer.");
-        }
-        else if (!string.Equals(
-            PrincipalCode,
-            QdosAlphaCaseActivationPolicy.PrincipalCode,
-            StringComparison.Ordinal))
-        {
-            ModelState.AddModelError(
-                nameof(PrincipalCode),
-                "Only the activated QDOS principal can allocate a case in this release.");
+                $"The principal code must be {CasePrincipalCode.MaximumLength} characters or fewer.");
         }
 
         var postedProviderMode = PrincipalCode.Length == 0
