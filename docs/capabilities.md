@@ -31,16 +31,16 @@ acceptance remain separate states.
 
 | Horizon | Capabilities | Meaning |
 | --- | ---: | --- |
-| Now | 129 | Current proof and QDOS-alpha outcome; activate issues only for selected work. |
+| Now | 131 | Current proof and QDOS-alpha outcome; activate issues only for selected work. |
 | Next | 29 | Post-alpha provider, pairing, provider-location, email, and API outcomes after named dependencies. |
 | Later | 41 | Retained outcomes requiring promotion conditions, contracts, callers, or direct decisions. |
 | Not planned | 29 | Permanent product boundaries; no implementation issue or placeholder. |
 
-Total: **228 capabilities; 228 unique IDs**.
+Total: **230 capabilities; 230 unique IDs**.
 
 | Target release | Planned capabilities |
 | --- | ---: |
-| `0.1.0-alpha.1` | 129 |
+| `0.1.0-alpha.1` | 131 |
 | `0.2.0` | 5 |
 | `0.3.0` | 19 |
 | `0.4.0` | 5 |
@@ -180,6 +180,7 @@ callers.
 | MCP-02 | Automation Actor Case actions through the same Core use cases as the staff app | Now | 0.1.0-alpha.1 | [MCP automation and actor boundary](requirements.md#mcp-automation-and-actor-boundary) | Implemented (search, get, edit-lease begin/end) behind the shared composition gate; non-blocking for `0.1.0-alpha.1` acceptance and gated off outside local evidence runs. |
 | MCP-03 | Automation Actor intake-queue actions through the same Core use cases as the QDOS-alpha staff app | Now | 0.1.0-alpha.1 | [MCP automation and actor boundary](requirements.md#mcp-automation-and-actor-boundary) | Implemented (queue list, durable intake submission on the automation channel) behind the shared composition gate; non-blocking for `0.1.0-alpha.1` acceptance and gated off outside local evidence runs. |
 | MCP-04 | Automation Actor document actions through the same Core use cases as the staff app | Now | 0.1.0-alpha.1 | [MCP automation and actor boundary](requirements.md#mcp-automation-and-actor-boundary) | Implemented (lease-guarded add, download, export) behind the shared composition gate; non-blocking for `0.1.0-alpha.1` acceptance and gated off outside local evidence runs. |
+| MCP-06 | Automation Actor assessment actions: direct writes with logging parity (assessment get/update, case-detail update, EVA bundle generate and status) through the same Core use cases and guards as the staff app | Now | 0.1.0-alpha.1 | [Targeted sending and reviewed AI proposals](requirements.md#targeted-sending-and-reviewed-ai-proposals) | Implemented behind the shared composition gate (ADR-0021): automation values land unconfirmed for review at manual engineer assignment, finding confirmation stays staff-Engineer-only, estimate derivation waits for EXT-09 formula authority, and no confirmation, report-approval, or outward-dispatch tool exists. |
 | OPS-01 | Production staff Web application on Azure | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
 | OPS-02 | Continuously running Worker for mailbox and background processing | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
 | OPS-03 | Azure SQL persistence | Now | 0.1.0-alpha.1 | [Requirements](requirements.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
@@ -266,7 +267,8 @@ callers.
 | RPT-04 | Diminution rendering uses accepted original-case data plus the Engineer-entered percentage | Later | 1.1.0 | [Report correction, finality, and post-report work](requirements.md#report-correction-finality-and-post-report-work) | Allocation only; wording and approval evidence remain required. |
 | RPT-05 | Addenda render from accepted case data plus a versioned amendment without retyping the case | Later | 1.1.0 | [Report correction, finality, and post-report work](requirements.md#report-correction-finality-and-post-report-work) | Allocation only; amendment identity, approval, and recovery remain required. |
 | AI-08 | Intended Microsoft Foundry candidate proposes a case-grounded query response in approved house style/letterhead; a named Engineer reviews, amends if needed, and approves it before sending | Later | 1.3.0 | [Targeted sending and reviewed AI proposals](requirements.md#targeted-sending-and-reviewed-ai-proposals) | Allocation only; Foundry remains subject to evaluation, and the proposal cannot mutate accepted case truth or send autonomously. |
-| AI-09 | Staff `Send to AI` creates one durable idempotent capability-scoped work request bound to immutable case/revision and evidence; a scoped worker may lease it and return only a proposal, evidence, or visible failure | Later | 1.3.0 | [Targeted sending and reviewed AI proposals](requirements.md#targeted-sending-and-reviewed-ai-proposals) | Allocation only; duplicate, expired, cancelled, or stale work cannot mutate accepted data and named-Engineer accept/amend/reject is required. |
+| AI-09 | Staff `Send to AI` creates one durable idempotent capability-scoped work request bound to an immutable case/version stamp; the hand-off carries a pointer only, and the scoped worker returns its work as attributed unconfirmed Automation Actor writes reviewed at manual engineer assignment, with delivery status and visible failure on the tracking record | Now | 0.1.0-alpha.1 | [Targeted sending and reviewed AI proposals](requirements.md#targeted-sending-and-reviewed-ai-proposals) | Implemented behind `Features:SendToAi` (DevelopmentOffline evidence runs only; ADR-0021 rewords the contract from proposal-only worker to direct-writing worker): duplicate, expired, or cancelled requests never mutate accepted data, findings stay staff-Engineer-confirmable only, the channels transport is a research preview that carries local evidence runs only, and production activation needs a separate non-preview transport decision. |
+| MCP-07 | Administration-configurable Send to AI channel connector setup: base URL, token entry/rotation, and timeout configured from Administration, with connector health/status display, replacing the current configuration/user-secrets-only setup | Later | 1.3.0 | [Targeted sending and reviewed AI proposals](requirements.md#targeted-sending-and-reviewed-ai-proposals) | Conditionally allocated; today `SendToAi:ChannelBaseUrl`/`ChannelToken`/`TimeoutSeconds` are `Pegasus.Web` configuration/user-secrets only (ADR-0021) — moving token entry into Administration needs its own secret-custody, audit, and rotation contract, a direct decision on exact fields, and the normal activation evidence before implementation. |
 | MI-01 | Per-Engineer throughput, query rate/types, and Audit uplift | Later | 1.2.0 | [Requirements](requirements.md#vehicle-and-engineering-evidence) | Allocation only; coaching access and measures require accepted definitions. |
 | MI-02 | Per-principal report counts, types, and periods feeding invoice generation | Later | 1.2.0 | [Requirements](requirements.md#vehicle-and-engineering-evidence) | Allocation only; consumes accepted report events and fee rules. |
 | MI-03 | Holding-pen age and instruction-to-images, ready-to-sent, and overall turnaround measures consuming accepted workflow events | Later | 1.2.0 | [Requirements](requirements.md#vehicle-and-engineering-evidence) | Allocation only; MAIL-17 owns report-send/completion event recording; measure definitions and visibility require acceptance. |

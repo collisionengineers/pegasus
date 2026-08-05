@@ -717,7 +717,8 @@ Run policy tests first, adapter contracts second, persistence/transaction tests 
 | DVLA/DVSA | Deterministic contracts, invalid identifiers, retries, unavailable-service outcomes | Entitlement, identity, real response behavior |
 | EVA | Exact local JSON/image-bundle contract and reconciliation metadata | Operator drag/drop acceptance and any later authorised API sandbox |
 | Provider API | Not implemented: no endpoint, client, credential, or caller | Settled actor/client/authentication contract, real caller evidence, and separately approved activation |
-| Automation MCP | Implemented but composition-gated off by default; enabled only in DevelopmentOffline evidence runs with a configuration-supplied client secret; integration tests drive token issuance, denial, tool calls, and the kill switch over HTTP | Real external client evidence, production certificate/transport decisions, and separately approved activation |
+| Automation MCP | Implemented but composition-gated off by default; enabled only in DevelopmentOffline evidence runs with a configuration-supplied client secret; integration tests drive token issuance, denial, tool calls (including the direct-write assessment tranche), and the kill switch over HTTP | Real external client evidence, production certificate/transport decisions, and separately approved activation |
+| Send to AI channel hand-off | Implemented but composition-gated off by default (`Features:SendToAi`, DevelopmentOffline only); integration tests drive the pointer hand-off, refusal, reconcile, and the Administrator switch against a local fake connector | The recorded round-trip evidence run with a real Claude Code channel session, and any production activation, which additionally needs a non-preview transport decision (ADR-0021) |
 | Direct authorised-terminal deployment | Bicep compile/lint and local configuration checks | Approved preflight, package/migration identity, deployment, health smoke, rollback |
 | Backup/recovery | LocalDB backup/restore into a new disposable database | Azure SQL PITR and the one-time alpha RPO/RTO exercise |
 
@@ -727,7 +728,7 @@ Graph Sent-item evidence does not prove recipient delivery or automatic case mat
 
 ### Automation MCP is implemented but gated off
 
-The Automation Actor ingress (MCP-01–04) is implemented inside `Pegasus.Web`
+The Automation Actor ingress (MCP-01–04, MCP-06) is implemented inside `Pegasus.Web`
 and composition-gated off by default: unless `Features:AutomationMcp` is
 enabled, no `/mcp` endpoint, `/connect/token` route, or resource-metadata
 document exists and the application keeps failing closed by exposing no such
@@ -740,15 +741,39 @@ least-privilege grants, and they now back the single seeded Automation
 client-credentials registration.
 
 When enabled, the ingress issues short-lived scoped access tokens
-(`automation.cases`, `automation.intake`, `automation.documents`) for exactly
-one vendor-neutral Automation client whose identifier and secret come from
-configuration/user-secrets and are never tracked or displayed. Every tool
-invocation is permanent action history attributed to the Automation actor
-with a correlation identifier; denials write `automation_*` security events;
-Administrators review both in the Administration Automation activity view and
-hold an immediate kill switch (disable refuses new tokens outright and
-rejects already-issued tokens within seconds). A staff browser identity is
-not a substitute for that actor and is never accepted on `/mcp`.
+(`automation.cases`, `automation.intake`, `automation.documents`,
+`automation.assessment`) for exactly one vendor-neutral Automation client
+whose identifier and secret come from configuration/user-secrets and are
+never tracked or displayed. Every tool invocation is permanent action
+history attributed to the Automation actor with a correlation identifier;
+denials write `automation_*` security events; Administrators review both in
+the Administration Automation activity view and hold an immediate kill
+switch (disable refuses new tokens outright and rejects already-issued
+tokens within seconds). A staff browser identity is not a substitute for
+that actor and is never accepted on `/mcp`.
+
+Every automation action is recorded exactly as a human action is (ADR-0021):
+the fourteen tools wrap the same Core commands, edit lease, operation-key
+replay, and version guards as the staff app, assessment values written by
+the automation carry the unconfirmed mark until staff review at manual
+engineer assignment, and the migration
+`20260803205759_SendToAiAssessmentToolset` adds the assessment field,
+estimate line, work-request, and Send to AI control tables with the same
+Web-only least-privilege grants.
+
+The Send to AI hand-off (`Features:SendToAi`, DevelopmentOffline only) is
+composed beside it. Local setup for an evidence run: generate a channel
+token of at least 32 characters, store it with `dotnet user-secrets set
+"SendToAi:ChannelToken" <value>` on `Pegasus.Web` (never tracked, displayed,
+or logged), start the local `pegasus-claude-channel` connector on
+`http://127.0.0.1:8629` with the same token, start the Claude Code session
+with its channel loaded, then enable both feature flags. The assessment
+page's Send to Claude panel hands off a pointer only; `Sent` maps to the
+connector's forwarded claim, never to “the provider read it”; the reconcile
+control reads the connector's reply record and flips the tracking state
+only. The Administrator Send to AI switch on the Administration Automation
+page refuses new hand-offs immediately; the Automation client kill switch
+cuts the return path.
 
 Local evidence so far is tier 2–4: green build plus focused integration
 tests driving token issuance, transport and scope denials, tool calls with

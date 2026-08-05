@@ -18,16 +18,28 @@ public sealed class SignInModel(
     TimeProvider timeProvider)
     : PageModel
 {
+    // Explicit messages: the framework defaults name the bind property
+    // ("The UserName field is required."), which is a C# identifier, not a
+    // word the operator has ever seen on this screen.
     [BindProperty]
-    [Required, StringLength(256)]
+    [Display(Name = "Username")]
+    [Required(ErrorMessage = "Enter your username."), StringLength(256)]
     public string UserName { get; set; } = string.Empty;
 
     [BindProperty]
-    [Required, DataType(DataType.Password), StringLength(256)]
+    [Display(Name = "Password")]
+    [Required(ErrorMessage = "Enter your password."), DataType(DataType.Password), StringLength(256)]
     public string Password { get; set; } = string.Empty;
 
     [BindProperty(SupportsGet = true)]
     public string? ReturnUrl { get; set; }
+
+    /// <summary>
+    /// The one-time confirmation that a session has just ended, set only by the
+    /// sign-out redirect.
+    /// </summary>
+    [BindProperty(SupportsGet = true)]
+    public bool SignedOut { get; set; }
 
     public IActionResult OnGet()
     {
@@ -57,7 +69,11 @@ public sealed class SignInModel(
                 SecurityEventOutcome.Denied,
                 "invalid_credentials",
                 cancellationToken);
-            ModelState.AddModelError(string.Empty, "The username or password is incorrect.");
+            ModelState.AddModelError(
+                string.Empty,
+                "The username or password is incorrect. If your access has changed, contact an administrator.");
+            Password = string.Empty;
+            ModelState.Remove(nameof(Password));
             return Page();
         }
 

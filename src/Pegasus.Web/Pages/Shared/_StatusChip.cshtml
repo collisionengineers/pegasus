@@ -20,9 +20,13 @@
 @{
     var state = string.IsNullOrWhiteSpace(Model) ? "Unknown" : Model.Trim();
 
-    var key = new string(state
-        .ToLowerInvariant()
-        .Select(character => character is '_' or '-' ? ' ' : character)
+    @* Normalising only `_` and `-` meant a PascalCase compound reaching this
+       partial — "NotReady", "PostReportComplete" — matched no key and fell
+       through to neutral grey, losing both the wording and the amber/navy/green
+       tone contract. Callers should pass an operator label, but the chip must
+       not silently mis-tone a state when one does not. *@
+    var key = Pegasus.Web.Presentation.OperatorLabels.Humanise(state).ToLowerInvariant();
+    key = new string(key
         .Where(character => char.IsLetterOrDigit(character) || character == ' ')
         .ToArray());
     key = string.Join(' ', key.Split(' ', StringSplitOptions.RemoveEmptyEntries));

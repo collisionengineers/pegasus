@@ -59,10 +59,19 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260803071539_ImageIntakeRegistration",
                 "20260803123935_MailClassificationDecisions",
                 "20260803125915_CaseMatchDecisionsAndAssociationPolicy",
-                "20260803151159_AutomationActorOpenIddict"
+                "20260803151159_AutomationActorOpenIddict",
+                "20260803205759_SendToAiAssessmentToolset"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseAssessmentFields'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseEstimateLines'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'AiWorkRequests'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'SendToAiControl'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'OpenIddictApplications'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
