@@ -57,11 +57,17 @@
             <p>Approve mailbox addresses for the fixed inbound Intake and exact Sent-evidence routes.</p>
         </div>
     </section>
-    <section class="admin-card">
-        <span class="admin-card__icon" aria-hidden="true"><svg class="icon icon--lg"><use href="#icon-refresh-cw" /></svg></span>
-        <div>
-            <h2><a asp-page="/Administration/Automation/Index">Automation</a></h2>
-            <p>Review the Automation actor's permanently recorded activity and enable or disable its authentication client registration.</p>
-        </div>
-    </section>
+    @* A capability a deployment has not composed is absent. The Automation
+       ingress gate is set in no shipped configuration, so this card led to a
+       page that could only ever say "not composed in this deployment". *@
+    @if (Model.AutomationComposed)
+    {
+        <section class="admin-card">
+            <span class="admin-card__icon" aria-hidden="true"><svg class="icon icon--lg"><use href="#icon-refresh-cw" /></svg></span>
+            <div>
+                <h2><a asp-page="/Administration/Automation/Index">Automation</a></h2>
+                <p>Its recorded activity, and its client registration.</p>
+            </div>
+        </section>
+    }
 </div>

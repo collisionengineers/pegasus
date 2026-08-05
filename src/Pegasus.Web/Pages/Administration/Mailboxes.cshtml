@@ -34,7 +34,7 @@
     {
         <div class="table-wrap">
             <table>
-                <caption>Versioned approved-mailbox policies</caption>
+                <caption class="vh">Versioned approved-mailbox policies</caption>
                 <thead>
                     <tr>
                         <th scope="col">Address</th>
@@ -52,7 +52,7 @@
                         : Guid.NewGuid().ToString("N");
                     <tr>
                         <td>@mailbox.Address</td>
-                        <td>@string.Join(", ", mailbox.RouteScopes)</td>
+                        <td>@string.Join(", ", mailbox.RouteScopes.Select(scope => Pegasus.Web.Presentation.OperatorLabels.Humanise(scope.ToString())))</td>
                         <td><partial name="Shared/_StatusChip" model="@mailbox.State.ToString()" /></td>
                         <td class="tabular">@mailbox.Version</td>
                         <td>

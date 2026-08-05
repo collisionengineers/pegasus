@@ -145,6 +145,32 @@ public static class OperatorLabels
     };
 
     /// <summary>
+    /// A date and time in the office's zone.
+    /// </summary>
+    /// <remarks>
+    /// Every other date surface in the product renders Europe/London. A column
+    /// headed "(UTC)" and a `ToLocalTime()` against the server clock were the
+    /// two places that did not, so the same instant read differently depending
+    /// on which screen you were on.
+    /// </remarks>
+    public static string OfficeTime(DateTimeOffset value)
+    {
+        TimeZoneInfo office;
+        try
+        {
+            office = TimeZoneInfo.FindSystemTimeZoneById("Europe/London");
+        }
+        catch (Exception exception) when (
+            exception is TimeZoneNotFoundException or InvalidTimeZoneException)
+        {
+            office = TimeZoneInfo.Utc;
+        }
+
+        return TimeZoneInfo.ConvertTime(value, office)
+            .ToString("dd MMM yyyy HH:mm", CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
     /// A file size the operator can act on. Bytes are an implementation detail
     /// and a KB branch lets a 10 MB limit render as "10240 KB", so MB with one
     /// decimal is the only form — and only where the size matters at all.
