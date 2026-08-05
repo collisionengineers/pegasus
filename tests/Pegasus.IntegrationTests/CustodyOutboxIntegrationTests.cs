@@ -32,42 +32,42 @@ public sealed class CustodyOutboxIntegrationTests
                 FixedUtcNow,
                 TimeSpan.FromMinutes(1),
                 CancellationToken.None));
-        Assert.Equal(accepted.Outcome.CustodyWorkId, abandoned.WorkItemId);
+        Assert.Equal(accepted.CustodyWorkId, abandoned.WorkItemId);
 
         var timeProvider = new MutableTimeProvider(FixedUtcNow.AddMinutes(2));
         var queue = new RecordingExternalWorkQueue();
         var dispatcher = new DispatchPendingExternalWork(store, queue, timeProvider);
 
         Assert.Equal(1, await dispatcher.ExecuteAsync(10, CancellationToken.None));
-        Assert.Equal([accepted.Outcome.CustodyWorkId], queue.WorkItemIds);
+        Assert.Equal([accepted.CustodyWorkId], queue.WorkItemIds);
         Assert.Equal(0, await dispatcher.ExecuteAsync(10, CancellationToken.None));
 
         var editor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         var workflowBeforeCustody = Assert.IsType<CaseWorkflowRecord>(
             await scope.ServiceProvider.GetRequiredService<ICaseWorkflowQueries>()
-                .GetAsync(accepted.Outcome.Identity.CaseId, CancellationToken.None));
+                .GetAsync(accepted.CaseId, CancellationToken.None));
         var editorLease = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>()
             .ClaimAsync(
                 new(
-                    accepted.Outcome.Identity.CaseId,
+                    accepted.CaseId,
                     workflowBeforeCustody.Version,
                     editor,
                     $"custody-editor-lease:{Guid.NewGuid():N}"),
                 CancellationToken.None);
         var processor = scope.ServiceProvider.GetRequiredService<IProcessQueuedCustody>();
-        await processor.ExecuteAsync(accepted.Outcome.CustodyWorkId, CancellationToken.None);
-        await processor.ExecuteAsync(accepted.Outcome.CustodyWorkId, CancellationToken.None);
+        await processor.ExecuteAsync(accepted.CustodyWorkId, CancellationToken.None);
+        await processor.ExecuteAsync(accepted.CustodyWorkId, CancellationToken.None);
         await new ReconcilePoisonedExternalWork(store, timeProvider)
-            .ExecuteAsync(accepted.Outcome.CustodyWorkId, CancellationToken.None);
+            .ExecuteAsync(accepted.CustodyWorkId, CancellationToken.None);
         var workflowAfterCustody = Assert.IsType<CaseWorkflowRecord>(
             await scope.ServiceProvider.GetRequiredService<ICaseWorkflowQueries>()
-                .GetAsync(accepted.Outcome.Identity.CaseId, CancellationToken.None));
+                .GetAsync(accepted.CaseId, CancellationToken.None));
         Assert.Equal(checked(workflowBeforeCustody.Version + 1), workflowAfterCustody.Version);
         await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
             scope.ServiceProvider.GetRequiredService<IAddCaseDocument>()
                 .ExecuteAsync(
                     new(
-                        accepted.Outcome.Identity.CaseId,
+                        accepted.CaseId,
                         "stale-editor.txt",
                         "text/plain",
                         "stale editor content"u8.ToArray(),
@@ -82,21 +82,21 @@ public sealed class CustodyOutboxIntegrationTests
 
         Assert.Equal(
             "completed",
-            await ReadExternalWorkStateAsync(scope.ServiceProvider, accepted.Outcome.CustodyWorkId));
+            await ReadExternalWorkStateAsync(scope.ServiceProvider, accepted.CustodyWorkId));
         Assert.Equal(
             "confirmed",
-            await ReadCaseCustodyStateAsync(scope.ServiceProvider, accepted.Outcome.Identity.CaseId));
+            await ReadCaseCustodyStateAsync(scope.ServiceProvider, accepted.CaseId));
         Assert.Equal(
             1,
             await CountCaseHistoryAsync(
                 scope.ServiceProvider,
-                accepted.Outcome.Identity.CaseId,
+                accepted.CaseId,
                 "custody_confirmed"));
         Assert.Equal(
             0,
             await CountCaseHistoryAsync(
                 scope.ServiceProvider,
-                accepted.Outcome.Identity.CaseId,
+                accepted.CaseId,
                 "custody_failed"));
 
         var expectedHash = Convert.ToHexString(SHA256.HashData(accepted.Content)).ToLowerInvariant();
@@ -104,7 +104,7 @@ public sealed class CustodyOutboxIntegrationTests
             factory.ArtifactDirectory,
             "custody",
             "cases",
-            accepted.Outcome.Identity.CaseId.ToString("N"),
+            accepted.CaseId.ToString("N"),
             "documents",
             accepted.ReceiptId.ToString("N"),
             expectedHash,
@@ -120,17 +120,17 @@ public sealed class CustodyOutboxIntegrationTests
         var accepted = await AcceptQueuedSourceAsync(scope.ServiceProvider);
 
         var processor = scope.ServiceProvider.GetRequiredService<IProcessQueuedCustody>();
-        await processor.ExecuteAsync(accepted.Outcome.CustodyWorkId, CancellationToken.None);
+        await processor.ExecuteAsync(accepted.CustodyWorkId, CancellationToken.None);
 
         Assert.Equal(
             "confirmed",
-            await ReadCaseCustodyStateAsync(scope.ServiceProvider, accepted.Outcome.Identity.CaseId));
+            await ReadCaseCustodyStateAsync(scope.ServiceProvider, accepted.CaseId));
         var expectedHash = Convert.ToHexString(SHA256.HashData(accepted.Content)).ToLowerInvariant();
         var retainedPath = Path.Combine(
             factory.ArtifactDirectory,
             "custody",
             "cases",
-            accepted.Outcome.Identity.CaseId.ToString("N"),
+            accepted.CaseId.ToString("N"),
             "documents",
             accepted.ReceiptId.ToString("N"),
             expectedHash,
@@ -156,11 +156,11 @@ public sealed class CustodyOutboxIntegrationTests
                     initialQueue,
                     new MutableTimeProvider(FixedUtcNow))
                 .ExecuteAsync(10, CancellationToken.None));
-        Assert.Equal([accepted.Outcome.CustodyWorkId], initialQueue.WorkItemIds);
+        Assert.Equal([accepted.CustodyWorkId], initialQueue.WorkItemIds);
 
 
-        await reconciliation.ExecuteAsync(accepted.Outcome.CustodyWorkId, CancellationToken.None);
-        await reconciliation.ExecuteAsync(accepted.Outcome.CustodyWorkId, CancellationToken.None);
+        await reconciliation.ExecuteAsync(accepted.CustodyWorkId, CancellationToken.None);
+        await reconciliation.ExecuteAsync(accepted.CustodyWorkId, CancellationToken.None);
 
         var replayQueue = new RecordingExternalWorkQueue();
         Assert.Equal(
@@ -173,15 +173,15 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.Empty(replayQueue.WorkItemIds);
         Assert.Equal(
             "failed",
-            await ReadExternalWorkStateAsync(scope.ServiceProvider, accepted.Outcome.CustodyWorkId));
+            await ReadExternalWorkStateAsync(scope.ServiceProvider, accepted.CustodyWorkId));
         Assert.Equal(
             "failed",
-            await ReadCaseCustodyStateAsync(scope.ServiceProvider, accepted.Outcome.Identity.CaseId));
+            await ReadCaseCustodyStateAsync(scope.ServiceProvider, accepted.CaseId));
         Assert.Equal(
             1,
             await CountCaseHistoryAsync(
                 scope.ServiceProvider,
-                accepted.Outcome.Identity.CaseId,
+                accepted.CaseId,
                 "custody_failed"));
     }
 
@@ -195,11 +195,11 @@ public sealed class CustodyOutboxIntegrationTests
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         var state = Assert.IsType<CaseDocumentState>(
             await scope.ServiceProvider.GetRequiredService<ICaseDocumentStateQueries>()
-                .GetAsync(accepted.Outcome.Identity.CaseId, CancellationToken.None));
+                .GetAsync(accepted.CaseId, CancellationToken.None));
         var leases = scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>();
         var addLease = await leases.ClaimAsync(
             new(
-                accepted.Outcome.Identity.CaseId,
+                accepted.CaseId,
                 state.CaseVersion,
                 actor,
                 $"document-add-lease:{Guid.NewGuid():N}"),
@@ -207,7 +207,7 @@ public sealed class CustodyOutboxIntegrationTests
         var added = await scope.ServiceProvider.GetRequiredService<IAddCaseDocument>()
             .ExecuteAsync(
                 new(
-                    accepted.Outcome.Identity.CaseId,
+                    accepted.CaseId,
                     "evidence.txt",
                     "text/plain",
                     content,
@@ -223,7 +223,7 @@ public sealed class CustodyOutboxIntegrationTests
             scope.ServiceProvider.GetRequiredService<IAddCaseDocument>()
                 .ExecuteAsync(
                     new(
-                        accepted.Outcome.Identity.CaseId,
+                        accepted.CaseId,
                         "stale.txt",
                         "text/plain",
                         "stale upload"u8.ToArray(),
@@ -243,7 +243,7 @@ public sealed class CustodyOutboxIntegrationTests
                          await scope.ServiceProvider.GetRequiredService<IDownloadCaseDocument>()
                              .ExecuteAsync(
                                 new(
-                                    accepted.Outcome.Identity.CaseId,
+                                    accepted.CaseId,
                                     added.Occurrence.Id,
                                     added.Version.Id,
                                     actor,
@@ -258,7 +258,7 @@ public sealed class CustodyOutboxIntegrationTests
                          await scope.ServiceProvider.GetRequiredService<IDownloadCaseDocument>()
                              .ExecuteAsync(
                                  new(
-                                     accepted.Outcome.Identity.CaseId,
+                                     accepted.CaseId,
                                      added.Occurrence.Id,
                                      added.Version.Id,
                                      actor,
@@ -271,7 +271,7 @@ public sealed class CustodyOutboxIntegrationTests
 
         var exportLease = await leases.ClaimAsync(
             new(
-                accepted.Outcome.Identity.CaseId,
+                accepted.CaseId,
                 checked(addLease.Version + 1),
                 actor,
                 $"document-export-lease:{Guid.NewGuid():N}"),
@@ -279,7 +279,7 @@ public sealed class CustodyOutboxIntegrationTests
         await using (var export = await scope.ServiceProvider.GetRequiredService<IExportCaseDocuments>()
                          .ExecuteAsync(
                              new(
-                                 accepted.Outcome.Identity.CaseId,
+                                 accepted.CaseId,
                                  [new(added.Occurrence.Id, added.Version.Id)],
                                 actor,
                                  exportOperationKey,
@@ -293,7 +293,7 @@ public sealed class CustodyOutboxIntegrationTests
         await using (var replay = await scope.ServiceProvider.GetRequiredService<IExportCaseDocuments>()
                          .ExecuteAsync(
                              new(
-                                 accepted.Outcome.Identity.CaseId,
+                                 accepted.CaseId,
                                  [new(added.Occurrence.Id, added.Version.Id)],
                                  actor,
                                  exportOperationKey,
@@ -307,7 +307,7 @@ public sealed class CustodyOutboxIntegrationTests
 
         var removeLease = await leases.ClaimAsync(
             new(
-                accepted.Outcome.Identity.CaseId,
+                accepted.CaseId,
                 checked(exportLease.Version + 1),
                 actor,
                 $"document-remove-lease:{Guid.NewGuid():N}"),
@@ -334,7 +334,7 @@ public sealed class CustodyOutboxIntegrationTests
             scope.ServiceProvider.GetRequiredService<IExportCaseDocuments>()
                 .ExecuteAsync(
                     new(
-                        accepted.Outcome.Identity.CaseId,
+                        accepted.CaseId,
                         [new(added.Occurrence.Id, added.Version.Id)],
                         actor,
                         $"document-export-over-limit:{Guid.NewGuid():N}",
@@ -346,7 +346,7 @@ public sealed class CustodyOutboxIntegrationTests
         await scope.ServiceProvider.GetRequiredService<ILogicallyRemoveDocument>()
             .ExecuteAsync(
                 new(
-                    accepted.Outcome.Identity.CaseId,
+                    accepted.CaseId,
                     added.Occurrence.Id,
                     actor,
                     "Removed from the active case file.",
@@ -358,7 +358,7 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.Null(await scope.ServiceProvider.GetRequiredService<IDownloadCaseDocument>()
             .ExecuteAsync(
                 new(
-                    accepted.Outcome.Identity.CaseId,
+                    accepted.CaseId,
                     added.Occurrence.Id,
                     added.Version.Id,
                     actor,
@@ -368,7 +368,7 @@ public sealed class CustodyOutboxIntegrationTests
             scope.ServiceProvider.GetRequiredService<IExportCaseDocuments>()
                 .ExecuteAsync(
                     new(
-                        accepted.Outcome.Identity.CaseId,
+                        accepted.CaseId,
                         [new(added.Occurrence.Id, added.Version.Id)],
                         actor,
                         $"document-export-removed:{Guid.NewGuid():N}",
@@ -388,18 +388,18 @@ public sealed class CustodyOutboxIntegrationTests
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         var workflow = Assert.IsType<CaseWorkflowRecord>(
             await scope.ServiceProvider.GetRequiredService<ICaseWorkflowQueries>()
-                .GetAsync(accepted.Outcome.Identity.CaseId, CancellationToken.None));
+                .GetAsync(accepted.CaseId, CancellationToken.None));
         var lease = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>()
             .ClaimAsync(
                 new(
-                    accepted.Outcome.Identity.CaseId,
+                    accepted.CaseId,
                     workflow.Version,
                     actor,
                     $"document-guard-lease:{Guid.NewGuid():N}"),
                 CancellationToken.None);
         var add = scope.ServiceProvider.GetRequiredService<IAddCaseDocument>();
         AddCaseDocumentCommand Command(ActionActor commandActor, string token) => new(
-            accepted.Outcome.Identity.CaseId,
+            accepted.CaseId,
             "guard.txt",
             "text/plain",
             "guard content"u8.ToArray(),
@@ -428,7 +428,7 @@ public sealed class CustodyOutboxIntegrationTests
             add.ExecuteAsync(Command(actor, lease.Token), CancellationToken.None));
         var unchanged = Assert.IsType<CaseWorkflowRecord>(
             await scope.ServiceProvider.GetRequiredService<ICaseWorkflowQueries>()
-                .GetAsync(accepted.Outcome.Identity.CaseId, CancellationToken.None));
+                .GetAsync(accepted.CaseId, CancellationToken.None));
         Assert.Equal(workflow.Version, unchanged.Version);
     }
 
@@ -503,7 +503,7 @@ public sealed class CustodyOutboxIntegrationTests
         using var factory = new IntakeWebApplicationFactory();
         await using var scope = factory.Services.CreateAsyncScope();
         var accepted = await AcceptDirectSourceAsync(scope.ServiceProvider);
-        var caseId = accepted.Outcome.Identity.CaseId;
+        var caseId = accepted.CaseId;
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         var queries = scope.ServiceProvider.GetRequiredService<ICaseWorkflowQueries>();
         var leases = scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>();
@@ -598,7 +598,7 @@ public sealed class CustodyOutboxIntegrationTests
         using var factory = new IntakeWebApplicationFactory();
         await using var scope = factory.Services.CreateAsyncScope();
         var accepted = await AcceptDirectSourceAsync(scope.ServiceProvider);
-        var caseId = accepted.Outcome.Identity.CaseId;
+        var caseId = accepted.CaseId;
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         var queries = scope.ServiceProvider.GetRequiredService<ICaseWorkflowQueries>();
         var leases = scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>();
@@ -807,18 +807,18 @@ public sealed class CustodyOutboxIntegrationTests
         var actor = ActionActor.Staff(staffId, [StaffRole.Engineer]);
         var workflow = Assert.IsType<CaseWorkflowRecord>(
             await scope.ServiceProvider.GetRequiredService<ICaseWorkflowQueries>()
-                .GetAsync(accepted.Outcome.Identity.CaseId, CancellationToken.None));
+                .GetAsync(accepted.CaseId, CancellationToken.None));
         var leases = scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>();
         var createLease = await leases.ClaimAsync(
             new(
-                accepted.Outcome.Identity.CaseId,
+                accepted.CaseId,
                 workflow.Version,
                 actor,
                 $"request-create-lease:{Guid.NewGuid():N}"),
             CancellationToken.None);
         var createOperationKey = $"request-create:{Guid.NewGuid():N}";
         var createRequest = new CreateRequestUploadLinkCommand(
-            accepted.Outcome.Identity.CaseId,
+            accepted.CaseId,
             actor,
             createOperationKey,
             createLease.Version,
@@ -849,14 +849,14 @@ public sealed class CustodyOutboxIntegrationTests
 
         var revokeLease = await leases.ClaimAsync(
             new(
-                accepted.Outcome.Identity.CaseId,
+                accepted.CaseId,
                 checked(createLease.Version + 1),
                 actor,
                 $"request-revoke-lease:{Guid.NewGuid():N}"),
             CancellationToken.None);
         var revokeOperationKey = $"request-revoke:{Guid.NewGuid():N}";
         var revokeRequest = new RevokeRequestUploadLinkCommand(
-            accepted.Outcome.Identity.CaseId,
+            accepted.CaseId,
             created.Link.Id,
             actor,
             "The intended recipient no longer requires access.",
@@ -908,9 +908,11 @@ public sealed class CustodyOutboxIntegrationTests
         var source = CreateSource();
         var receipt = await services.GetRequiredService<ProcessIntake>()
             .ExecuteAsync(source.Source, CancellationToken.None);
-        Assert.Equal(IntakeDecision.DraftReady, receipt.Decision);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
+        var outcome = await AcceptAsync(services, receipt.Id);
         return new(
-            await AcceptAsync(services, receipt.Id),
+            outcome.Identity.CaseId,
+            outcome.CustodyWorkId,
             receipt.Id,
             source.Content);
     }
@@ -941,16 +943,42 @@ public sealed class CustodyOutboxIntegrationTests
                 services.GetRequiredService<IIntakeReceiptQueries>(),
                 services.GetRequiredService<ICreateTriageFromIntake>(),
                 services.GetRequiredService<IAutomaticCaseAssociationStore>(),
+                services.GetRequiredService<IAcceptIntake>(),
                 services.GetRequiredService<TimeProvider>())
             .ExecuteAsync(received.StagedReceiptId, CancellationToken.None);
         var receipt = Assert.IsType<IntakeReceipt>(
             await services.GetRequiredService<IIntakeReceiptStore>()
                 .FindBySourceIdentityAsync(source.Source.SourceIdentity, CancellationToken.None));
-        Assert.Equal(IntakeDecision.DraftReady, receipt.Decision);
-        return new(
-            await AcceptAsync(services, receipt.Id),
-            receipt.Id,
-            source.Content);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
+
+        // The queued path allocated the case itself, so this fixture reads what
+        // processing produced rather than accepting a second time. Accepting
+        // again is exactly the conflict the store is meant to raise.
+        var (caseId, custodyWorkId) = await ReadAllocatedCaseAsync(services, receipt.Id);
+        return new(caseId, custodyWorkId, receipt.Id, source.Content);
+    }
+
+    private static async Task<(Guid CaseId, Guid CustodyWorkId)> ReadAllocatedCaseAsync(
+        IServiceProvider services,
+        Guid receiptId)
+    {
+        var contextFactory = services
+            .GetRequiredService<Microsoft.EntityFrameworkCore.IDbContextFactory<
+                Pegasus.Infrastructure.Persistence.PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var connection = Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions
+            .GetDbConnection(context.Database);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            "SELECT CaseId, CustodyWorkId FROM CaseIntakeLinks WHERE IntakeReceiptId = @receiptId";
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = "@receiptId";
+        parameter.Value = receiptId;
+        command.Parameters.Add(parameter);
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync(), "Processing did not allocate a case for the receipt.");
+        return (reader.GetGuid(0), reader.GetGuid(1));
     }
 
     private static async Task<CaseAcceptanceOutcome> AcceptAsync(
@@ -1089,7 +1117,8 @@ public sealed class CustodyOutboxIntegrationTests
     private sealed record SourceFixture(IntakeSource Source, byte[] Content);
 
     private sealed record AcceptedSource(
-        CaseAcceptanceOutcome Outcome,
+        Guid CaseId,
+        Guid CustodyWorkId,
         Guid ReceiptId,
         byte[] Content);
 }

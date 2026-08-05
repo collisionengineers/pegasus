@@ -89,10 +89,15 @@ public sealed class ImageIntakeWebTests
             caseEmail.MediaType,
             caseEmail.Content);
         var caseOriginReceiptId = IntakeWebDriver.ReceiptId(caseUpload);
-        var caseId = await ImageIntakeTestData.SeedCaseAsync(
+
+        // The instruction creates its own case now, at processing time. Seeding
+        // a second one for the same receipt would make the registration match
+        // ambiguous, which is a fixture artefact rather than anything the
+        // product does. The case is moved to Review because that is the state
+        // this test is about — an image joining an eligible case.
+        var caseId = await ImageIntakeTestData.PromoteAllocatedCaseAsync(
             factory.Services,
             caseOriginReceiptId,
-            "IMG26021",
             nameof(CaseLifecycleState.Review));
 
         var upload = await IntakeWebDriver.UploadAndProcessAsync(
@@ -117,7 +122,8 @@ public sealed class ImageIntakeWebTests
             .GetByOriginReceiptAsync(receiptId, CancellationToken.None);
         Assert.Equal("AB12CDE-01", detail!.Record.ImageIntakeReference);
         Assert.Equal(caseId, detail.AssociatedCaseId);
-        Assert.Equal("IMG26021", detail.AssociatedCaseReference);
+        // The reference is allocated by the sequence, not chosen by the fixture.
+        Assert.False(string.IsNullOrWhiteSpace(detail.AssociatedCaseReference));
 
         var suggestions = await services
             .GetRequiredService<IVrmSuggestionStore>()
@@ -148,6 +154,38 @@ internal static class MultiFormatFixture
 
 internal static class ImageIntakeTestData
 {
+    /// <summary>
+    /// Finds the case that processing allocated for a receipt and moves it to
+    /// the workflow state a test needs.
+    /// </summary>
+    public static async Task<Guid> PromoteAllocatedCaseAsync(
+        IServiceProvider services,
+        Guid originReceiptId,
+        string workflowState)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider
+            .GetRequiredService<Microsoft.EntityFrameworkCore.IDbContextFactory<
+                Pegasus.Infrastructure.Persistence.PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var connection = Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.GetDbConnection(context.Database);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT CaseId FROM CaseIntakeLinks WHERE IntakeReceiptId = @receiptId";
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = "@receiptId";
+        parameter.Value = originReceiptId;
+        command.Parameters.Add(parameter);
+        var caseId = (Guid)(await command.ExecuteScalarAsync()
+            ?? throw new InvalidOperationException(
+                "Processing did not allocate a case for the instruction receipt."));
+
+        await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlInterpolatedAsync(
+            context.Database,
+            $"UPDATE CaseWorkflows SET State = {workflowState} WHERE CaseId = {caseId}");
+        return caseId;
+    }
+
     public static async Task<Guid> SeedCaseAsync(
         IServiceProvider services,
         Guid originReceiptId,

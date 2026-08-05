@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Triage;
 
@@ -410,6 +411,7 @@ public sealed class ProcessQueuedIntake(
     IIntakeReceiptQueries receiptQueries,
     ICreateTriageFromIntake createTriage,
     IAutomaticCaseAssociationStore caseAssociationStore,
+    IAcceptIntake acceptIntake,
     TimeProvider timeProvider,
     Pegasus.Core.ImageIntake.IImageIntakeAutomation? imageIntakeAutomation = null)
 {
@@ -446,6 +448,10 @@ public sealed class ProcessQueuedIntake(
                 cancellationToken)
                 ?? throw new InvalidDataException(
                     "The completed intake evaluation does not identify a persisted receipt.");
+            var replayAllocated = await AllocateCaseIfDefinitiveAsync(
+                completedReceipt,
+                completedEvaluation,
+                cancellationToken);
             var replayAssociated = await AssociateCaseIfUnambiguousAsync(
                 completedReceipt,
                 completedEvaluation,
@@ -454,7 +460,7 @@ public sealed class ProcessQueuedIntake(
                 completedReceipt,
                 completedEvaluation,
                 cancellationToken);
-            if (replayAssociated)
+            if (replayAllocated || replayAssociated)
             {
                 completedReceipt = await receiptQueries.GetAsync(
                     completedEvaluation.ProcessedReceiptId,
@@ -529,9 +535,10 @@ public sealed class ProcessQueuedIntake(
             stagedReceipt.StorageKey,
             cancellationToken);
 
+        var allocated = await AllocateCaseIfDefinitiveAsync(processed, evaluation, cancellationToken);
         var associated = await AssociateCaseIfUnambiguousAsync(processed, evaluation, cancellationToken);
         await CreateTriageIfQualifyingAsync(processed, evaluation, cancellationToken);
-        if (associated)
+        if (allocated || associated)
         {
             // The association wrote CurrentCaseId durably; the in-memory
             // receipt is stale, and image automation must see the associated
@@ -566,6 +573,83 @@ public sealed class ProcessQueuedIntake(
         {
             // Non-blocking by design; suggestions and receipt state carry the
             // visible outcome.
+        }
+    }
+
+    /// <summary>
+    /// Allocates the case for a definitive instruction, at processing time.
+    /// </summary>
+    /// <remarks>
+    /// This is INT-25. Until now <c>IAcceptIntake</c> had exactly one caller in
+    /// the solution — a staff form handler — so every case in Pegasus waited on
+    /// a person pressing "Accept and allocate case reference", which the
+    /// requirements forbid: definitive authorised intake creates exactly one
+    /// instructed Case idempotently, and the allocation decision adds no
+    /// universal manual acceptance gate.
+    ///
+    /// The gate was also ceremony. Everything the form asked for, processing
+    /// had already established: the route was accepted, the extraction policy
+    /// was <c>Applicable</c>, the case match was not ambiguous, and the
+    /// principal came from the draft the page then prefilled from.
+    ///
+    /// The case enters with nothing marked complete, so it lands in
+    /// <c>Not ready</c>. That is the requirement's own answer to thin ordinary
+    /// detail — it is never a reason to withhold the reference. Staff confirm
+    /// completeness on the case, where the evidence is.
+    ///
+    /// Non-blocking in the same way as the association below: the receipt is
+    /// already durable and the operation key makes the allocation replay-safe,
+    /// so a failed write leaves material a person can still act on rather than
+    /// failing a completed receipt.
+    /// </remarks>
+    private async Task<bool> AllocateCaseIfDefinitiveAsync(
+        IntakeReceipt receipt,
+        IntakeEvaluationRevision evaluation,
+        CancellationToken cancellationToken)
+    {
+        if (receipt.Decision != IntakeDecision.CaseCreated
+            || receipt.CurrentCaseId is not null)
+        {
+            return false;
+        }
+
+        var principalCode = receipt.InstructionDraft?.SuggestedPrincipalCode;
+        if (string.IsNullOrWhiteSpace(principalCode))
+        {
+            // A definitive instruction always carries its principal; without
+            // one this is not definitive, and fail-closed means no reference.
+            return false;
+        }
+
+        try
+        {
+            await acceptIntake.ExecuteAsync(
+                new(
+                    receipt.Id,
+                    receipt.Version,
+                    ActionActor.SystemWorker(SystemActor),
+                    $"intake-allocation:{evaluation.Id:N}",
+                    "Created automatically from a definitive authorised instruction.",
+                    CaseType.Inspection,
+                    principalCode.Trim().ToUpperInvariant(),
+                    // Nothing is confirmed by a person yet, so the case enters
+                    // Not ready and the staff-review gates stay closed.
+                    new(false, false, false, false),
+                    StandaloneAuditEvidenceId: null,
+                    receipt.InstructionDraft?.InspectionDate),
+                cancellationToken);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            // An exhausted reference sequence, an unknown principal, or a
+            // concurrent allocation. The receipt stays visible and a person can
+            // still create the case by hand.
+            return false;
         }
     }
 
@@ -687,7 +771,7 @@ public sealed class ProcessQueuedIntake(
             .Where(evidence => evidence.Finding == IntakeEvidenceFinding.AcceptedTriageMatch)
             .Take(2)
             .ToArray();
-        if (receipt.Decision != IntakeDecision.DraftReady
+        if (receipt.Decision != IntakeDecision.CaseCreated
             || string.IsNullOrWhiteSpace(registration)
             || acceptedMatches.Length != 1
             || acceptedMatches[0].Strength != IntakeEvidenceStrength.Strong
