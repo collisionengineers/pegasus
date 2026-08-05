@@ -1,104 +1,113 @@
 # Wireframe — Received item review
 
+One container: header, action bar, tabs. The former two-column content/action-rail split is
+retired (ui-standards §4 rule 13).
+
 ## Legend
 
 ```
 [Inbox*]       active nav item (this page is reached from Inbox rows)
-(chip:xxx)     state chip; navy=Ready to review, amber=Needs sorting/Missing,
-               red=Blocked, green=Accepted, grey=neutral
+(chip:xxx)     state chip; amber=Needs sorting/Missing, red=Blocked,
+               green=Case created (linked), grey=neutral
+               ("Ready to review" is not an intake chip — it is the operator label for
+               the Review Case stage; see the premise correction in alteration-plan.md)
 [Button]       secondary button    [[Button]]  primary (red) button
 <link>         text link           ~muted~     secondary/muted text
 [____]         text input          [v]         select    [x]/[ ]  checkbox
-▸ / ▾          collapsed / expanded section    ║  sticky rail boundary
-─────          hairline rule
+#              container border    ─────       hairline rule
 ```
 
-## Main state — ready to review (two columns, sticky action rail)
+## Main state — Needs sorting
+
+This is the state that actually reaches this screen. Definitive authorised intake creates its
+case at processing time and never lands here pending (`requirements.md:251`); only ambiguous
+or unidentified material does, as `Needs sorting` (`operator-notes.md:204`). **Create case** is
+the ambiguity-resolution path (`INT-26`, manual creation through the same business rules) — not
+a gate that every intake passes through.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │ COLLISION ENGINEERS | Pegasus   Dashboard [Inbox*] Upload Queues Cases       │
 │                                 Administration        alex · Change pw · Out │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  Received item   (chip:navy Ready to review)             <Back to Inbox>     │
-│  ~sample-instruction.pdf · Uploaded · 04 Aug 2026 16:30~                     │
-│                                                                              │
-│  ┌─ Details to confirm ────────────────────────────┐  ║ ┌─ Actions ───────┐  │
-│  │ Principal            [Principal A_________]     │  ║ │ To accept:      │  │
-│  │  ~Suggested from the sender's domain~           │  ║ │ ✓ Principal     │  │
-│  │ Claimant name        [Sample Claimant_____]     │  ║ │   confirmed     │  │
-│  │  ~From page 1 of the instruction~               │  ║ │ ✓ Case type     │  │
-│  │ Claim number         [____________] (chip:amber │  ║ │   chosen        │  │
-│  │                                      Missing)   │  ║ │ ○ Evidence      │  │
-│  │ Vehicle registration [AB12 CDE___________]      │  ║ │   confirmed     │  │
-│  │  ~From page 1 of the instruction~               │  ║ │                 │  │
-│  │ Vehicle make         [____________] (chip:amber │  ║ │ [[Accept as     │  │
-│  │                                      Missing)   │  ║ │    case]]       │  │
-│  │ Vehicle model        [____________] (chip:amber │  ║ │                 │  │
-│  │                                      Missing)   │  ║ │ [Save           │  │
-│  │ Vehicle mileage      [____________]             │  ║ │  corrections]   │  │
-│  │ Accident             [Rear-end collision__]     │  ║ │ [Block]         │  │
-│  │  circumstances       ~From page 2~              │  ║ │                 │  │
-│  │ Date of incident     [27/02/2025]               │  ║ │ ~More:~         │  │
-│  │ Instruction date     [04/08/2026]               │  ║ │ <Re-evaluate>   │  │
-│  │ Inspection address   [____________]             │  ║ │ <Link to a      │  │
-│  │  ~No inspection address was found. Enter or     │  ║ │  case>          │  │
-│  │  ~confirm one.                                  │  ║ └─────────────────┘  │
-│  │ Inspection date      [dd/mm/yyyy]               │  ║   (rail is sticky    │
-│  └─────────────────────────────────────────────────┘  ║    while scrolling)  │
-│                                                                              │
-│  ▸ Documents and images (3)                                                  │
-│  ▸ How this was read (5)                                                     │
-│                                                                              │
+│  Inbox › sample-instruction.pdf                                              │
+│  ###########################  CONTAINER  ##################################  │
+│  # Received item (chip:amber Needs sorting)  sample-instruction.pdf ·      # │
+│  #   Uploaded · 04 Aug 2026 16:30                        <Back to Inbox>   # │
+│  #--------------------------------------------------------------------------#│
+│  # [[Create case]] [Block] [Link to a case] [More v]  | ✓ Case type chosen # │ <- sticky
+│  #                                                      ○ Principal ident. # │
+│  #--------------------------------------------------------------------------#│
+│  # | Details* | Files and images (3) | How this was read (5) |             # │
+│  #--------------------------------------------------------------------------#│
+│  #  Principal          [Principal A_______]  Claimant name  [Sample Cl...] # │
+│  #   ~Suggested from the sender's domain~     ~From page 1 of the instr.~   # │
+│  #  Claim number       [_____] (chip:amber   Vehicle reg    [AB12 CDE___]  # │
+│  #                             Missing)       ~From page 1~                # │
+│  #  Vehicle make       [_____] (chip:amber   Vehicle model  [_____] (chip: # │
+│  #                             Missing)                      amber Missing)# │
+│  #  Vehicle mileage    [__________]          Accident circ. [Rear-end...]  # │
+│  #  Date of incident   [27/02/2025]          Instruction dt [04/08/2026]   # │
+│  #  Inspection address [__________]          Inspection date [dd/mm/yyyy]  # │
+│  #   ~No inspection address was found. Enter or confirm one.~              # │
+│  #                                                     [Save corrections]  # │
+│  ############################################################################ │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Accept expanded (inside the rail, replaces the checklist until submitted):
+The readiness checklist that used to sit in the rail is now the right-hand end of the action
+bar — the operator sees what is outstanding without leaving the field they are filling in.
+
+## Create case — a dialog, not a rail panel
 
 ```
-║ ┌─ Accept as case ────────────┐
-║ │ Reason                      │
-║ │ [_______________________]   │
-║ │ Principal    [Principal A]  │
-║ │ Case type    [Inspection v] │
-║ │ [x] Instruction evidence is │
-║ │     complete and confirmed  │
-║ │ [x] Image evidence is       │
-║ │     complete and confirmed  │
-║ │ [[Accept as case]] [Cancel] │
-║ └─────────────────────────────┘
+        +------------------------------------------------------------+
+        |  Create case                                         ( x ) |
+        |------------------------------------------------------------|
+        |  Principal   [Principal A_________________]                |
+        |  Case type   [Inspection                 v]                |
+        |  Reason      [___________________________]                 |
+        |  ✓ Case type chosen                                        |
+        |  ○ Principal identified                                    |
+        |  i The case reference is allocated on creation and cannot  |
+        |    be changed.                                             |
+        |                       ( Cancel )   (( Create case ))       |
+        +------------------------------------------------------------+
 ```
+
+The two "evidence is complete and confirmed" checkboxes are deleted. Incomplete ordinary detail
+is not a bar to allocation — the new case enters `Not ready` and its detail is chased there
+(`requirements.md:251`). Genuine fail-closed conditions (limits, principal identity, standalone
+Audit evidence) refuse with a reason via **Block**, not via an unticked checkbox.
 
 ## Alternate state — vehicle images (image-only upload)
 
 ```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│  Received item   (chip:grey Vehicle images)              <Back to Inbox>     │
-│  ~sample-image.jpg · Uploaded · 04 Aug 2026 16:40~                           │
-│                                                                              │
-│  ┌─ Register vehicle images ───────────────────────┐  ║ ┌─ Actions ───────┐  │
-│  │ ~Registering keeps these images filed under     │  ║ │ [[Register]]    │  │
-│  │ ~the registration until a case claims them.     │  ║ │ [Block]         │  │
-│  │ Vehicle registration [AB12 CDE________]         │  ║ │ ~More:~         │  │
-│  │ Reason               [________________]         │  ║ │ <Re-evaluate>   │  │
-│  │                                                 │  ║ └─────────────────┘  │
-│  │ Reading results                                 │  ║                      │
-│  │ ─────                                           │  ║                      │
-│  │ No readable registration · 04 Aug 2026 16:40    │  ║                      │
-│  └─────────────────────────────────────────────────┘  ║                      │
-│                                                                              │
-│  ▸ Documents and images (1)                                                  │
-│  ▸ How this was read (1)                                                     │
-└──────────────────────────────────────────────────────────────────────────────┘
+│  # Received item (chip:grey Vehicle images)  sample-image.jpg ·            # │
+│  #   Uploaded · 04 Aug 2026 16:40                        <Back to Inbox>   # │
+│  #--------------------------------------------------------------------------#│
+│  # [[Register images]] [Block] [More v]                                    # │
+│  #--------------------------------------------------------------------------#│
+│  # | Details* | Files and images (1) | How this was read (1) |             # │
+│  #--------------------------------------------------------------------------#│
+│  #  Vehicle registration [AB12 CDE________]                                # │
+│  #  ~Registering keeps these images filed under the registration until a   # │
+│  #  ~case claims them.~                                                    # │
+│  #  Reading results                                                        # │
+│  #  ─────                                                                  # │
+│  #  No readable registration · 04 Aug 2026 16:40                           # │
 ```
 
-## Header variant — accepted
+## Header variant — case created
+
+The ordinary outcome for a definitive instruction, reached without any operator action on this
+screen: the case already existed when the item first appeared in the Inbox.
 
 ```
-│  Received item   (chip:green Accepted · Case 26001)      <Back to Inbox>     │
-│  ~sample-instruction.pdf · Uploaded · 04 Aug 2026 16:30~                     │
-│  … left column read-only …                    ║ ┌─ Actions ────────────┐     │
-│                                               ║ │ [[Open case 26001]]  │     │
-│                                               ║ └──────────────────────┘     │
+│  # Received item (chip:green Case 26001)  sample-instruction.pdf ·         # │
+│  #   Uploaded · 04 Aug 2026 16:30                        <Back to Inbox>   # │
+│  #--------------------------------------------------------------------------#│
+│  # [[Open case 26001]]                                                     # │
+│  #--------------------------------------------------------------------------#│
+│  # | Details* (read-only) | Files and images (3) | How this was read (5) | # │
 ```

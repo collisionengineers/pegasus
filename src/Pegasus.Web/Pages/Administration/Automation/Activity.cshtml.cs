@@ -32,7 +32,12 @@ public sealed class ActivityModel(IListAutomationActivity listActivity)
         var correlationId = CorrelationId?.Trim();
         if (correlationId is { Length: > 100 })
         {
-            return NotFound();
+            // A typo in a filter box is not a missing page. It used to return
+            // a raw browser 404 for one character too many.
+            ModelState.AddModelError(
+                nameof(CorrelationId),
+                "That reference is too long. Use 100 characters or fewer.");
+            correlationId = null;
         }
 
         Result = await listActivity.ExecuteAsync(

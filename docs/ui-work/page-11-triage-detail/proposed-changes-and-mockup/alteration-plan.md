@@ -11,12 +11,34 @@ its own panel with its own Reason textarea — plus a GUID/hash identifier panel
 narration, a typed-GUID "Case ID" field, and dropdowns stuffed with message and evidence
 identifiers. The label maps and the findings/history separation are good and are kept.
 
+## Container restructure (operator decision, 2026-08-04)
+
+This screen is one record, so it takes the shape every record screen now takes
+(`../../ui-standards-and-review.md` §4 rule 13): **one container** holding a header band, an
+action bar, and the tabs **Finding · Replies · History**.
+
+The page-12 case detail is the reference implementation. What that changes here, over and
+above the numbered changes below:
+
+- The main-column/side-column split is retired. **Complete**, **Reassign** and **More** become
+  the action bar, with **View e-mail** at its right-hand end.
+- **Complete** stays visible and disabled with its condition named on the control — "Available
+  once a finding is recorded and a reply is linked" — rather than being hidden until it works
+  (rule 9: absence is for capabilities, disabled-with-a-condition is for conditions).
+- Origin moves into the header band and, as one row, into the Finding tab; it no longer needs a
+  card of its own.
+- **Record finding** stays with the form it submits, inside the Finding tab.
+
+Nothing in the change list is withdrawn — the copy, vocabulary, state and evidence decisions all
+stand; they are re-housed.
+
 ## Changes
 
-1. **Reachability and IA**: nav item "Triage" → gone (that word reverts to the case-type
-   meaning). This screen becomes **"Triage record"**, reached from a Triage-type case or
-   pre-case under **Cases**; breadcrumb `Cases › Triage › AB12 CDE`. The `/Triage/{id}` route
-   stays for links but renders under the Cases section.
+1. **Reachability and IA**: "Triage" is gone as a nav item; the word survives as the Triage tab
+   inside **Queues**, which is the primary way these records are reached. This screen becomes
+   **"Triage record"**, reached from a Queues Triage row, and also from a Triage-type case or
+   pre-case under **Cases**; breadcrumb `Queues › Triage › AB12 CDE` from the queue, `Cases ›
+   Triage › AB12 CDE` from a case. The `/Triage/{id}` route stays for links.
 2. **Styled not-found page**: the raw 404 → a designed not-found state ("This record does not
    exist or you do not have access to it." + a link back to Cases), shared with every
    unknown-record URL. This ships **first**, since it is the only state users can currently

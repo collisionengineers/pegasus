@@ -15,9 +15,16 @@
     <a class="secondary-action" asp-page="/Intake/Index">Receive another</a>
 </header>
 
-@if (Model.IsDuplicate)
+@if (TempData["UploadOutcomeMessage"] is string uploadOutcome)
 {
-    <div class="status-card" role="status">This source receipt was already processed. The existing intake record is shown.</div>
+    @* What the file the operator just uploaded became, shown on the thing it
+       became. The upload used to confirm success on a page where the item was
+       nowhere to be seen. *@
+    <div class="status-card status-card--done" role="status">@uploadOutcome</div>
+}
+else if (Model.IsDuplicate)
+{
+    <div class="status-card" role="status">This file was already received. The existing record is shown.</div>
 }
 @if (TempData["InspectionAddressStatus"] is string inspectionAddressStatus)
 {
@@ -366,10 +373,14 @@
 </section>
 
 
-@if (Model.Receipt.Decision == Pegasus.Core.Intake.IntakeDecision.DraftReady)
+@* This form is INT-26, the staff-resolved manual creation path, and it belongs
+   to Needs sorting alone. A definitive instruction no longer waits for it: the
+   case and its reference already exist by the time this page is opened. What
+   is left here is the genuinely ambiguous material a person has to sort. *@
+@if (Model.Receipt.Decision == Pegasus.Core.Intake.IntakeDecision.NeedsSorting)
 {
     <section class="panel form-panel section-gap" aria-labelledby="accept-title">
-        <h2 id="accept-title" class="section-label">Accept as case</h2>
+        <h2 id="accept-title" class="section-label">Create a case from this item</h2>
         <p>Confirm the principal, case type and evidence completeness before allocating an immutable case reference.</p>
         <form method="post" asp-page-handler="Accept" asp-route-id="@Model.Receipt.Id">
             <input asp-for="AcceptanceOperationKey" type="hidden" />

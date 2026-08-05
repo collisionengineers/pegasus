@@ -37,7 +37,7 @@
     {
         <div class="table-wrap">
             <table>
-                <caption>Automation actions and denied automation requests, most recent first</caption>
+                <caption class="vh">Automation actions and denied automation requests, most recent first</caption>
                 <thead>
                     <tr>
                         <th scope="col">When</th>
@@ -54,11 +54,11 @@
                 @foreach (var record in Model.Result.Records)
                 {
                     <tr>
-                        <td>@record.OccurredAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</td>
+                        <td>@Pegasus.Web.Presentation.OperatorLabels.OfficeTime(record.OccurredAtUtc)</td>
                         <td>@Pegasus.Web.Pages.Administration.Automation.ActivityModel.RecordTypeLabel(record.RecordType)</td>
-                        <td>@record.EventKind</td>
+                        <td>@Pegasus.Web.Presentation.OperatorLabels.Humanise(record.EventKind)</td>
                         <td>@record.SubjectId</td>
-                        <td>@record.Outcome</td>
+                        <td>@Pegasus.Web.Presentation.OperatorLabels.Humanise(record.Outcome)</td>
                         <td>@(record.AggregateId ?? "—")</td>
                         <td><a asp-page="/Administration/Automation/Activity" asp-route-correlationId="@record.CorrelationId">@record.CorrelationId</a></td>
                         <td>@(record.Reason ?? "—")</td>

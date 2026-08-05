@@ -21,7 +21,7 @@ filters, labelled values throughout, and a pager that states position.
 |  | 04 Aug 2026 14:32| Added a document     | Case 26001   | [Done]   | OP-4821-K | —        | |
 |  | 04 Aug 2026 14:31| Started a case edit  | Case 26001   | [Done]   | OP-4821-J | —        | |
 |  | 04 Aug 2026 14:28| Searched cases       | —            | [Done]   | OP-4820-B | —        | |
-|  | 04 Aug 2026 13:55| Area not permitted   | —            | [Refused]| T-9F2C    | Documents| |
+|  | 04 Aug 2026 13:55| Area not permitted   | —            | [Refused]| T-9F2C    | Evidence | |
 |  |                  |                      |              |          |           | are not  | |
 |  |                  |                      |              |          |           | permitted| |
 |  | 04 Aug 2026 13:54| Opened a case        | Case 26001   | [Failed] | OP-4802-A | The case | |

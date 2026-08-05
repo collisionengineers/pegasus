@@ -29,8 +29,8 @@
 
   .topbar{background:var(--panel); border-bottom:1px solid var(--line);}
   .topbar__inner{
-    max-width:1240px; margin:0 auto; padding:0 24px;
-    display:flex; align-items:center; gap:24px; height:56px;
+    max-width:1240px; margin:0 auto; padding:0 20px;
+    display:flex; align-items:center; gap:16px; height:48px;
   }
   .brand{display:flex; align-items:baseline; gap:12px; white-space:nowrap;}
   .brand__mark{color:var(--ce-red); font-weight:700; font-size:.6875rem; letter-spacing:.14em;}
@@ -106,7 +106,7 @@
   }
   .empty-state{
     background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
-    padding:32px 24px; text-align:center; color:var(--muted);
+    padding:20px 24px; text-align:center; color:var(--muted);
   }
   .visually-hidden{
     position:absolute; width:1px; height:1px; margin:-1px; padding:0;
@@ -141,10 +141,11 @@
 <main class="page">
   <h1>Queues</h1>
 
-  <nav class="tabs" aria-label="Case queues">
+  <nav class="tabs" aria-label="Work queues">
     <a href="#">Not ready <span class="count">3</span></a>
     <a href="#" class="is-active" aria-current="page">Review <span class="count">1</span></a>
     <a href="#">Held <span class="count">0</span></a>
+    <a href="#">Triage <span class="count">0</span></a>
   </nav>
 
   <div class="panel">
@@ -177,6 +178,9 @@
 
   <p class="state-caption">Designed empty state — Held tab</p>
   <div class="empty-state">No cases are held.</div>
+
+  <p class="state-caption">Designed empty state — Triage tab (the shipped reality until defect B2 is fixed)</p>
+  <div class="empty-state">No triage work is open.</div>
 </main>
 
 </body>

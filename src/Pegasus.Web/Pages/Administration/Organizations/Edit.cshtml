@@ -15,9 +15,7 @@
 {
     <div class="page-heading">
         <div>
-            <p class="eyebrow">Administration</p>
             <h1>Manage @Model.Organization.Name</h1>
-            <p class="lede">Roles are independently selectable. Work Provider cannot be removed while an active principal belongs to this organization.</p>
         </div>
         <div class="page-heading-actions">
             <span class="updated tabular">Version @Model.Organization.Version</span>
@@ -75,7 +73,7 @@
                     <input asp-for="ExpectedVersion" type="hidden" />
                     <input asp-for="OperationKey" type="hidden" />
                     <fieldset class="role-choices role-choices--stacked">
-                        <legend>Organization roles</legend>
+                        <legend class="vh">Organization roles</legend>
                         <label class="choice"><input asp-for="WorkProvider" /> <span>Work Provider</span></label>
                         <label class="choice"><input asp-for="InstructionIntermediary" /> <span>Instruction Intermediary</span></label>
                     </fieldset>

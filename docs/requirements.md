@@ -29,7 +29,7 @@ credential, external operation, deployment, or acceptance. The
 
 | Order | Target release | Stage and dependency intent | Count |
 | ---: | --- | --- | ---: |
-| 01 | `0.1.0-alpha.1` | Existing QDOS-alpha scope; allocation unchanged, not a completion claim | 129 |
+| 01 | `0.1.0-alpha.1` | Existing QDOS-alpha scope; allocation unchanged, not a completion claim | 131 |
 | 02 | `0.2.0` | Provider expansion and intake fidelity after QDOS acceptance | 5 |
 | 03 | `0.3.0` | Four-mailbox classification, association, folder actions, email workspace and email MCP | 19 |
 | 04 | `0.4.0` | Principal-scoped provider API and post-report query/dispute casework | 5 |
@@ -39,10 +39,10 @@ credential, external operation, deployment, or acceptance. The
 | 08 | `1.0.0` | Pegasus-owned engineering record/workbench and transfer of EVA assignment, estimating, valuation and report-preparation authority | 13 |
 | 09 | `1.1.0` | Deterministic report and fee-note rendering | 6 |
 | 10 | `1.2.0` | Targeted report distribution, accounts/invoicing and management information | 5 |
-| 11 | `1.3.0` | Vendor-neutral AI work requests, Engineer-reviewed query proposals and staff-selected AI Assessor | 3 |
+| 11 | `1.3.0` | Engineer-reviewed query proposals, staff-selected AI Assessor, and conditional Automation/Send-to-AI administration | 3 |
 | 12 | `1.4.0` | Conditional capture and domain outcomes after direct promotion decisions | 3 |
 
-The 199 planned capabilities use these twelve targets; 29 permanent boundaries
+The 201 planned capabilities use these twelve targets; 29 permanent boundaries
 remain `Not planned / unallocated`.
 
 Sequence constraints:
@@ -55,14 +55,19 @@ Sequence constraints:
   `EXT-08` and `RPT-01`–`RPT-05` rendering;
 - accepted report events/rendering precede `MAIL-17` and the `MI-*`
   consumption path;
-- within `1.3.0`, `AI-09` transport, lease, and recovery are proved before any
-  AI proposal caller, and `AI-07` remains blocked on assignment authority;
+- the `AI-09` transport, hand-off, and recovery evidence (implemented gated at
+  `0.1.0-alpha.1`, ADR-0021) precedes any `1.3.0` AI proposal caller, and
+  `AI-07` remains blocked on assignment authority;
 - `AI-02`–`AI-04` and `AI-06` remain blocked until evidence shows deterministic
   rules are insufficient;
 - `0.7.0` / `EXT-04` is optional and non-blocking, not a prerequisite for
   `1.0.0`;
 - `EXT-16`, `EXT-17`, and `EXT-19` remain non-blocking Triage allocations and
-  prohibited from implementation until their direct promotion decisions.
+  prohibited from implementation until their direct promotion decisions;
+- `MCP-07` (Administration-configurable Send to AI channel connector setup)
+  is conditionally allocated behind a direct decision on exact fields and a
+  secret-custody/rotation contract, and depends on `AI-09`/`MCP-06`'s
+  implemented gated evidence.
 
 All mailbox, WhatsApp, EVA, Box, provider, AI, and other source-specific
 approval gates remain mandatory. A target never authorises an external read or
@@ -291,7 +296,7 @@ A case owns immutable identity, principal, internal reference, type, accepted so
 
 The lifecycle must support:
 
-- pre-case receiving and acceptance;
+- pre-case receiving, and the sorting of material that is not definitive (this is the `Needs sorting`/`Blocked intake` path and its reasoned resolution, not a manual acceptance step applied to definitive intake — see the allocation rule above);
 - active work, `Not ready`, `Held`, `Review`, due-work visibility, and separate mandatory instruction-completeness, image-completeness, and staff-review gates before Engineers-queue eligibility; provider policy may define accepted gate evidence but may not remove a gate, and named-Engineer assignment remains EVA-owned through `0.1.0-alpha.1`;
 
 - manual chasing with the exact schedule below;
@@ -944,9 +949,22 @@ its own versioned, authorised contract. Staff-selected AI Assessor and
 Engineer-reviewed query proposals remain proposals until the authorised human
 accepts or rejects them through Core.
 
-Durable AI proposal work has stable request, lease, evidence, proposal-version,
-and human-disposition identities. Stale work cannot overwrite a newer
-case/evidence version; expiry/retry is idempotent; no AI caller mutates,
+The vendor-neutral `Send to AI` work transport (AI-09; reworded by ADR-0021
+under the operator's 2026-08-03 direct-write decision) hands a scoped worker
+a pointer to one case — never case content — and the worker returns its work
+as ordinary Automation Actor writes through the same Core commands, edit
+lease, operation-key replay, and version guards as a staff save, attributed
+and permanently recorded with the same rigor as any human action. Values the
+automation records are unconfirmed working data reviewed by the engineer the
+case is manually assigned to. Confirming a professional finding is
+staff-Engineer-only, and report approval and outward dispatch remain human
+acts, so no model, skill, prompt, or external source ever issues an accepted
+case, engineering, economic, legal, or report outcome.
+
+Durable Send to AI work has stable request, hand-off, reply, and disposition
+identities. Stale work cannot overwrite a newer case/evidence version;
+duplicate, expired, or cancelled requests are idempotent or inert outcomes of
+the tracking record that never mutate accepted data; no AI caller confirms,
 approves, or sends autonomously.
 
 Signatures embedded in governed renderer documents are provenance-sensitive

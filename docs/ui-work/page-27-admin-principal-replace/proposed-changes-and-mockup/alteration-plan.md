@@ -11,6 +11,26 @@ GUID and a "Version: 0" integer in the detail list; a duplicated status chip; an
 "bounded selector" dev-speak repeated with different wording than its sibling page. The
 consequence of the action belongs in one sentence at the confirm button.
 
+## Container restructure (operator decision, 2026-08-04)
+
+This screen is one record, so it takes the shape every record screen now takes
+(`../../ui-standards-and-review.md` §4 rule 13): **one container** holding a header band, an
+action bar, and a body with **no tab row** — predecessor and successor are a reading
+order, not alternatives.
+
+The page-12 case detail is the reference implementation. What that changes here, over and
+above the numbered changes below:
+
+- The predecessor/successor two-column split is retired. The predecessor''s identity and state
+  move into the header band; the body states only what the header cannot, as one row.
+- **Disable ALPHA1 and create successor** moves to the right of the action bar, visible without
+  scrolling the successor form; **Cancel** sits at its left.
+- The already-replaced state keeps the container but drops the action bar and the successor
+  form, so the header chip alone carries the change of state.
+
+Nothing in the change list is withdrawn — the copy, vocabulary, state and evidence decisions all
+stand; they are re-housed.
+
 ## Changes
 
 1. **Remove the lede.** Old: *"The existing code, principal row, cases, references, and

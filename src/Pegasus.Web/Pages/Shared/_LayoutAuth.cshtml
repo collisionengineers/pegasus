@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+@*
+    The navless shell for screens that are not a place in the application:
+    sign in, signed out, access denied, and the error/not-found family.
+
+    Rendering the primary navigation around these screens shows an
+    unauthenticated visitor the internal structure of the product and offers an
+    authenticated one a menu of destinations the page has just refused. One
+    calm card with a single exit is the honest shape.
+*@
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] · Pegasus</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+    <partial name="Shared/_LucideSprite" />
+    <div class="auth-shell">
+        <main id="main-content" tabindex="-1">
+            @RenderBody()
+        </main>
+    </div>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

@@ -10,6 +10,24 @@ on, and pushes the page's only meaningful action ("link these images to a case")
 detour to the origin receipt identified by a raw GUID. The reading-results panel prints engine
 keys and enum dispositions instead of the one fact that matters.
 
+## Container restructure (operator decision, 2026-08-04)
+
+This screen is one record, so it takes the shape every record screen now takes
+(`../../ui-standards-and-review.md` §4 rule 13): **one container** holding a header band, an
+action bar, and the tabs **Overview · Matching cases · Readings**.
+
+The page-12 case detail is the reference implementation. What that changes here, over and
+above the numbered changes below:
+
+- The four stacked cards are retired. **Link to a case**, **View original upload** and **More**
+  become the action bar; "1 open case matches this registration" sits at its right-hand end.
+- Record and Origin merge into a two-column Overview that fits above the fold.
+- The tab set follows the state: once the record is linked, **Matching cases** is replaced by
+  **Link**, rather than showing a tab that can only say "already linked".
+
+Nothing in the change list is withdrawn — the copy, vocabulary, state and evidence decisions all
+stand; they are re-housed.
+
 ## Changes
 
 1. **Title and heading**: eyebrow "IMAGE IN·TAKE" + H1 "SD74CXS-01" + lede → single H1

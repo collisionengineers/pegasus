@@ -15,46 +15,46 @@ public sealed class OperatorJourneyTests
 
         Assert.Equal(200, operationsResponse.Status);
         Assert.Equal(
-            "Operations",
+            "Dashboard",
             await support.Page.GetByRole(
                 AriaRole.Heading,
-                new PageGetByRoleOptions { Name = "Operations", Exact = true }).InnerTextAsync());
+                new PageGetByRoleOptions { Name = "Dashboard", Exact = true }).InnerTextAsync());
         Assert.Contains(
             "development-offline-administrator",
             await support.Page.Locator("[aria-label='User']").InnerTextAsync(),
             StringComparison.Ordinal);
 
         var navigation = await support.Page.Locator("nav[aria-label='Primary']").InnerTextAsync();
+        // The navigation speaks the business's language, not the pipeline's:
+        // "Intake" was internal vocabulary for what the office calls the Inbox,
+        // and "Triage" is a reserved business term that was being spent on a
+        // screen which is not about Triage-type work at all.
         AssertOrdered(
             navigation,
-            "Operations",
-            "Intake",
-            "Triage",
+            "Dashboard",
+            "Inbox",
+            "Upload",
+            "Queues",
             "Cases",
             "Administration",
-            "Search",
             "development-offline-administrator");
 
-        var boundary = await support.Page.Locator(".acceptance-boundary").InnerTextAsync();
-        Assert.Contains("local workflow evidence only", boundary, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("does not prove production behavior", boundary, StringComparison.Ordinal);
+        // The three sections an operator actually opens this screen to read.
+        // Lowercased because the section labels are uppercased by the
+        // stylesheet, so the rendered text is the styling, not the copy.
+        var dashboard = (await support.Page.Locator("main").InnerTextAsync()).ToLowerInvariant();
+        AssertOrdered(dashboard, "active cases", "e-mail activity", "today and this week");
 
-        // The Operations queue tiles are `.metric` in the approved metric-strip
-        // shell; the destinations they open are unchanged.
+        // Every metric opens the exact filtered list behind it. Review is the
+        // case stage, and the tile is backed by a count of cases in it — it
+        // used to render an intake-receipt count and link into the intake
+        // queue, which is a different entity on a different screen.
         await support.Page.Locator(".metric-strip a.metric", new PageLocatorOptions { HasText = "Review" }).ClickAsync();
-        Assert.Equal("/Intake?decision=draft_ready", new Uri(support.Page.Url).PathAndQuery);
-        Assert.Contains(
-            "Instruction drafts",
-            await support.Page.Locator("main").InnerTextAsync(),
-            StringComparison.Ordinal);
+        Assert.Equal("/Triage?queue=review", new Uri(support.Page.Url).PathAndQuery);
 
         await support.GoToAsync("/");
-        await support.Page.Locator(".metric-strip a.metric", new PageLocatorOptions { HasText = "Triage" }).ClickAsync();
-        Assert.Equal("/Triage", new Uri(support.Page.Url).AbsolutePath.TrimEnd('/'));
-        Assert.Contains(
-            "No triage records match this view.",
-            await support.Page.Locator("main").InnerTextAsync(),
-            StringComparison.Ordinal);
+        await support.Page.Locator(".metric-strip a.metric", new PageLocatorOptions { HasText = "Needs sorting" }).ClickAsync();
+        Assert.Equal("/Intake?decision=needs_sorting", new Uri(support.Page.Url).PathAndQuery);
     }
 
     [Fact]
@@ -63,13 +63,16 @@ public sealed class OperatorJourneyTests
         await using var support = await BrowserTestSupport.StartAsync();
         await support.GoToAsync("/");
 
-        var unavailableQueues = support.Page.Locator("[data-queue-state='unavailable']");
-        Assert.True(await unavailableQueues.CountAsync() >= 8);
-        var unavailableText = await unavailableQueues.AllInnerTextsAsync();
-        Assert.All(unavailableText, text => Assert.Contains("unavailable", text, StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(
-            unavailableText,
-            text => text.Contains('0'));
+        // The invariant is now the opposite of what it was. This screen used to
+        // ship nine tiles and two cards hardcoded to the literal string
+        // "Unavailable", so a first-run operator met a wall of failure chrome
+        // on a healthy system. A tile whose query does not exist is not
+        // shipped; every tile that is shipped renders a number, and 0 is a
+        // number.
+        Assert.Equal(0, await support.Page.Locator("[data-queue-state='unavailable']").CountAsync());
+        var metricValues = await support.Page.Locator(".metric .metric__value").AllInnerTextsAsync();
+        Assert.NotEmpty(metricValues);
+        Assert.All(metricValues, value => Assert.Matches(@"^\d+$", value.Trim()));
 
         var unknownRequest = await support.GoToAsync("/Uploads/not-an-accepted-token");
         Assert.Equal(404, unknownRequest.Status);

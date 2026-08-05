@@ -715,7 +715,8 @@ Run policy tests first, adapter contracts second, persistence/transaction tests 
 | DVLA/DVSA | Deterministic contracts, invalid identifiers, retries, unavailable-service outcomes | Entitlement, identity, real response behavior |
 | EVA | Exact local JSON/image-bundle contract and reconciliation metadata | Operator drag/drop acceptance and any later authorised API sandbox |
 | Provider API | Not implemented: no endpoint, client, credential, or caller | Settled actor/client/authentication contract, real caller evidence, and separately approved activation |
-| Automation MCP | Implemented but composition-gated off by default; enabled only in DevelopmentOffline evidence runs with a configuration-supplied client secret; integration tests drive token issuance, denial, tool calls, and the kill switch over HTTP | Real external client evidence, production certificate/transport decisions, and separately approved activation |
+| Automation MCP | Implemented but composition-gated off by default; enabled only in DevelopmentOffline evidence runs with a configuration-supplied client secret; integration tests drive token issuance, denial, tool calls (including the direct-write assessment tranche), and the kill switch over HTTP | Real external client evidence, production certificate/transport decisions, and separately approved activation |
+| Send to AI channel hand-off | Implemented but composition-gated off by default (`Features:SendToAi`, DevelopmentOffline only); integration tests drive the pointer hand-off, refusal, reconcile, and the Administrator switch against a local fake connector | The recorded round-trip evidence run with a real Claude Code channel session, and any production activation, which additionally needs a non-preview transport decision (ADR-0021) |
 | Direct authorised-terminal deployment | Bicep compile/lint and local configuration checks | Approved preflight, package/migration identity, deployment, health smoke, rollback |
 | Backup/recovery | LocalDB backup/restore into a new disposable database | Azure SQL PITR and the one-time alpha RPO/RTO exercise |
 
@@ -725,7 +726,7 @@ Graph Sent-item evidence does not prove recipient delivery or automatic case mat
 
 ### Automation MCP is implemented but gated off
 
-The Automation Actor ingress (MCP-01–04) is implemented inside `Pegasus.Web`
+The Automation Actor ingress (MCP-01–04, MCP-06) is implemented inside `Pegasus.Web`
 and composition-gated off by default: unless `Features:AutomationMcp` is
 enabled, no `/mcp` endpoint, `/connect/token` route, or resource-metadata
 document exists and the application keeps failing closed by exposing no such
@@ -738,15 +739,39 @@ least-privilege grants, and they now back the single seeded Automation
 client-credentials registration.
 
 When enabled, the ingress issues short-lived scoped access tokens
-(`automation.cases`, `automation.intake`, `automation.documents`) for exactly
-one vendor-neutral Automation client whose identifier and secret come from
-configuration/user-secrets and are never tracked or displayed. Every tool
-invocation is permanent action history attributed to the Automation actor
-with a correlation identifier; denials write `automation_*` security events;
-Administrators review both in the Administration Automation activity view and
-hold an immediate kill switch (disable refuses new tokens outright and
-rejects already-issued tokens within seconds). A staff browser identity is
-not a substitute for that actor and is never accepted on `/mcp`.
+(`automation.cases`, `automation.intake`, `automation.documents`,
+`automation.assessment`) for exactly one vendor-neutral Automation client
+whose identifier and secret come from configuration/user-secrets and are
+never tracked or displayed. Every tool invocation is permanent action
+history attributed to the Automation actor with a correlation identifier;
+denials write `automation_*` security events; Administrators review both in
+the Administration Automation activity view and hold an immediate kill
+switch (disable refuses new tokens outright and rejects already-issued
+tokens within seconds). A staff browser identity is not a substitute for
+that actor and is never accepted on `/mcp`.
+
+Every automation action is recorded exactly as a human action is (ADR-0021):
+the fourteen tools wrap the same Core commands, edit lease, operation-key
+replay, and version guards as the staff app, assessment values written by
+the automation carry the unconfirmed mark until staff review at manual
+engineer assignment, and the migration
+`20260803205759_SendToAiAssessmentToolset` adds the assessment field,
+estimate line, work-request, and Send to AI control tables with the same
+Web-only least-privilege grants.
+
+The Send to AI hand-off (`Features:SendToAi`, DevelopmentOffline only) is
+composed beside it. Local setup for an evidence run: generate a channel
+token of at least 32 characters, store it with `dotnet user-secrets set
+"SendToAi:ChannelToken" <value>` on `Pegasus.Web` (never tracked, displayed,
+or logged), start the local `pegasus-claude-channel` connector on
+`http://127.0.0.1:8629` with the same token, start the Claude Code session
+with its channel loaded, then enable both feature flags. The assessment
+page's Send to Claude panel hands off a pointer only; `Sent` maps to the
+connector's forwarded claim, never to “the provider read it”; the reconcile
+control reads the connector's reply record and flips the tracking state
+only. The Administrator Send to AI switch on the Administration Automation
+page refuses new hand-offs immediately; the Automation client kill switch
+cuts the return path.
 
 Local evidence so far is tier 2–4: green build plus focused integration
 tests driving token issuance, transport and scope denials, tool calls with
@@ -945,17 +970,34 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   content — through the one root-fenced client;
   official DVLA VES v1.2 and DVSA MOT History v1; EVA remains the accepted
   manual JSON/image handoff.
-- **Secrets:** the adopted predecessor vaults `cespkboxkvv76a47` and
-  `cespkenrichkvgi62sd` remain (intentionally retained inside
-  `rg-collisionspike-dev`); secret-level access only for the identities and
-  exact secrets that call them. The three obsolete vaults are soft-deleted with
-  platform purge scheduled 2026-08-09. Since release 3 the Web container app
-  declares Key Vault secret references for `Box:ConfigJson` and
-  `Box:ClientSecret` resolved through the Web managed identity; the matching
-  secret-scoped `Key Vault Secrets User` grants (mirroring the Worker's) were
-  applied before that deployment, and the healthy revision start is the
-  resolution proof. Without those grants a Web revision fails to start rather
-  than starting without custody.
+- **Secrets:** consolidated into the one Pegasus Key Vault
+  `pegasusprodkv252ow37g` on 2026-08-03; `rg-pegasus-prod` holds no other
+  vault. The six live Box/DVLA/DVSA secrets were restored into it and both
+  hosts repointed to versioned target-vault URIs: the Worker's
+  `Box__ConfigJson`, `Box__ClientSecret`, `Dvla__ApiKey`, `Dvsa__ClientId`,
+  `Dvsa__ClientSecret`, and `Dvsa__ApiKey`, and the Web's `box-config-json`
+  and `box-client-secret` Container Apps secrets. Access stays secret-level:
+  exactly six Worker and two Web `Key Vault Secrets User` grants, each scoped
+  to a single secret resource, held through the distinct Web/Worker
+  user-assigned identities. The temporary `Key Vault Secrets Officer` created
+  for the restore was removed; only a metadata-only `Key Vault Reader`
+  remains at vault scope. Without those grants a Web revision fails to start
+  rather than starting without custody.
+
+  Live-verified 2026-08-04 (read-only): all six Worker Key Vault references
+  report `Resolved`, both Web secrets carry the Web identity and target-vault
+  versioned URIs, every referenced secret version exists and is enabled, and
+  the active revision `pegasus-prod-web-252ow37gij--c6571f771aab` is
+  `Provisioned`/`Healthy` (scaled to zero). No secret value was retrieved.
+- **Predecessor vaults:** retired. `cespkboxkvv76a47` and
+  `cespkenrichkvgi62sd` were soft-deleted 2026-08-03 once independent
+  readback proved no live Pegasus reference pointed at either, and the
+  then-empty `rg-collisionspike-dev` was deleted — confirmed absent
+  2026-08-04. Five soft-deleted vaults now await platform purge in `uksouth`
+  on **two** dates: `cespk-pg-kv-dev`, `cespkevakvufa3ci`, and
+  `cespklockva7tzj2` on 2026-08-09, then `cespkboxkvv76a47` and
+  `cespkenrichkvgi62sd` on 2026-08-10. No purge was attempted or authorised;
+  the watch is not clear until both dates pass.
 - **Predecessor retirement:** executed through the exact verified manifest;
   eight resource batches completed, 30 delete-classified role assignments
   removed, 7 retained; the archive manifest hash is recorded in the runbook
@@ -1052,7 +1094,7 @@ Repeat the proof after material persistence or release changes where required. R
 
 A recovery, restore, failover, or retirement exercise requires exact target approval, fresh inventory, a recoverable target, retained source data, and a rollback path.
 
-Predecessor retirement executed on 2026-08-02 through the exact verified manifest. `rg-collisionspike-dev` intentionally remains only as the container for the two adopted Key Vaults; any further action on it requires separately approved exact targets.
+Predecessor retirement executed on 2026-08-02 through the exact verified manifest, and completed on 2026-08-03 by the vault consolidation: once the six live secrets were serving from `pegasusprodkv252ow37g` and independent readback proved no live Pegasus reference pointed at either adopted vault, `cespkboxkvv76a47` and `cespkenrichkvgi62sd` were soft-deleted and the then-empty `rg-collisionspike-dev` was deleted (absence confirmed 2026-08-04). The soft-deleted vaults still hold recoverable secret material until their platform purge dates; a purge, a recovery, or any other action against them requires separately approved exact targets.
 
 ## Deferred capability seams
 

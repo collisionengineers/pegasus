@@ -1,8 +1,15 @@
 /* Pegasus operator interface.
-   Tokens are the approved set in design/README.md. Every value below resolves to
-   an approved colour, the 4px spacing rhythm, the 2px radius, the 1px hairline
-   border, or the approved focus ring. No marketing scale, brand face, or motion
-   token is imported. */
+
+   The colour roles, the 4px rhythm, the 1px hairline and the focus ring are the
+   approved set in design/README.md. The declared divergences — a lifted paper,
+   a 6px radius with a very low shadow, a real type scale with tabular numerals,
+   tinted chips, and the dark record-container band — are the refreshed system
+   recorded in the UI standards. No marketing scale, brand face, or motion token
+   is imported.
+
+   Density is application density, not landing-page density: 4px base with
+   8/12/16 steps, 32px table rows, 28px fact rows, 13.5px body. A screen's
+   identity, state, actions and primary content fit above the fold at 1280x800. */
 
 :root {
   /* Brand */
@@ -13,46 +20,57 @@
   /* Neutrals */
   --charcoal: #2c2a27;
   --ink: #16191d;
-  --paper: #f5f4f2;
+  --paper: #f7f6f4;
   --panel: #ffffff;
   --line: #e6e4e1;
+  --line-strong: #d8d5d1;
   --muted: #6b6b6b;
+
+  /* The record container's header band. The one filled dark surface in the
+     system; it exists so a screen about one record reads as a record being
+     worked, and it does not spend the brand red. */
+  --band: #1b1e23;
+  --band-mute: #a7a9ad;
+  --band-bright: #ededee;
 
   /* Product state triads */
   --amber-fg: #7a3e00;
   --amber-bg: #fff4d6;
+  --amber-tint: rgba(161, 92, 0, .1);
   --amber-line: #a15c00;
   --navy-fg: #143a5e;
-  --navy-bg: #eaf1f8;
+  --navy-bg: #e7f0f8;
   --navy-line: #365f87;
   --success: #16833b;
+  --success-tint: rgba(22, 131, 59, .1);
 
   /* Spacing rhythm */
   --sp-1: 4px;
   --sp-2: 8px;
-  --sp-3: 12px;
-  --sp-4: 14px;
-  --sp-5: 18px;
-  --sp-6: 24px;
-  --sp-8: 32px;
-  --sp-10: 40px;
-  --sp-16: 64px;
+  --sp-3: 10px;
+  --sp-4: 12px;
+  --sp-5: 14px;
+  --sp-6: 16px;
+  --sp-8: 20px;
+  --sp-10: 24px;
+  --sp-16: 40px;
 
   /* Type scale: operational, not marketing */
   --t-metric: 1.75rem;
-  --t-h1: 1.5rem;
-  --t-h2: 1.1875rem;
-  --t-h3: 1rem;
-  --t-body: .9375rem;
-  --t-sm: .875rem;
-  --t-xs: .8125rem;
-  --t-eyebrow: .75rem;
+  --t-h1: 1.25rem;
+  --t-h2: .9375rem;
+  --t-h3: .875rem;
+  --t-body: .84375rem;
+  --t-sm: .8125rem;
+  --t-xs: .78125rem;
+  --t-eyebrow: .6875rem;
 
   /* Shape */
-  --radius: 2px;
+  --radius: 6px;
+  --radius-sm: 5px;
   --border: 1px solid var(--line);
   --focus-ring: 3px solid rgba(219, 8, 22, .38);
-  --shadow-soft: 0 1px 3px rgba(22, 25, 29, .05);
+  --shadow-soft: 0 1px 2px rgba(22, 25, 29, .06);
   /* Both derived from the approved near-black ink; no new hue. */
   --scrim: rgba(22, 25, 29, .62);
   --shadow-modal: 0 18px 60px rgba(22, 25, 29, .24);
@@ -140,20 +158,20 @@ body {
   color: var(--ink);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: var(--t-body);
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
 h1, h2, h3 { margin: 0; line-height: 1.25; }
-h1 { font-size: var(--t-h1); font-weight: 700; letter-spacing: -.01em; }
-h2 { font-size: var(--t-h2); font-weight: 700; }
-h3 { font-size: var(--t-h3); font-weight: 700; }
+h1 { font-size: var(--t-h1); font-weight: 600; letter-spacing: -.01em; }
+h2 { font-size: var(--t-h2); font-weight: 600; }
+h3 { font-size: var(--t-h3); font-weight: 600; }
 
 .eyebrow, .section-label {
   margin: 0 0 var(--sp-2);
   color: var(--muted);
   font-size: var(--t-eyebrow);
   font-weight: 700;
-  letter-spacing: .18em;
+  letter-spacing: .07em;
   text-transform: uppercase;
 }
 
@@ -173,7 +191,7 @@ h3 { font-size: var(--t-h3); font-weight: 700; }
   justify-content: space-between;
   gap: var(--sp-6);
   max-width: 1440px;
-  min-height: 56px;
+  min-height: 48px;
   margin: 0 auto;
   padding: 0 var(--sp-6);
 }
@@ -200,7 +218,7 @@ h3 { font-size: var(--t-h3); font-weight: 700; }
   position: relative;
   display: inline-flex;
   align-items: center;
-  min-height: 44px;
+  min-height: 40px;
   padding: 0 var(--sp-3);
   color: var(--charcoal);
   font-size: var(--t-sm);
@@ -245,13 +263,13 @@ h3 { font-size: var(--t-h3); font-weight: 700; }
 
 .app-shell {
   max-width: 1440px;
-  min-height: calc(100vh - 113px);
+  min-height: calc(100vh - 89px);
   margin: 0 auto;
   padding: var(--sp-8) var(--sp-6) var(--sp-10);
 }
 
 .footer { background: var(--panel); border-top: var(--border); color: var(--muted); font-size: var(--t-xs); }
-.footer-inner { min-height: 56px; justify-content: flex-start; }
+.footer-inner { min-height: 40px; justify-content: flex-start; }
 
 .skip-link {
   position: fixed;
@@ -382,7 +400,7 @@ a.queue-card:hover { border-color: var(--state-line); background: var(--state-bg
    Panels, lists and detail
    --------------------------------------------------------------------------- */
 
-.panel { padding: var(--sp-5); border: var(--border); border-radius: var(--radius); background: var(--panel); }
+.panel { padding: var(--sp-6); border: var(--border); border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow-soft); }
 .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); align-items: start; }
 
 /* List leads, the form that adds to it follows. An even split starves a
@@ -501,9 +519,10 @@ a.queue-card:hover { border-color: var(--state-line); background: var(--state-bg
    --------------------------------------------------------------------------- */
 
 .table-wrap { width: 100%; overflow-x: auto; border: var(--border); border-radius: var(--radius); }
-table { width: 100%; border-collapse: collapse; background: var(--panel); font-size: var(--t-sm); }
+table { width: 100%; border-collapse: collapse; background: var(--panel); font-size: var(--t-body); font-variant-numeric: tabular-nums; }
 caption { padding: var(--sp-3); color: var(--muted); font-size: var(--t-sm); text-align: left; }
-th, td { padding: var(--sp-3); border-bottom: var(--border); text-align: left; vertical-align: top; }
+th { padding: var(--sp-1) var(--sp-3); border-bottom: var(--border); text-align: left; vertical-align: middle; }
+td { height: 32px; padding: var(--sp-1) var(--sp-3); border-bottom: var(--border); text-align: left; vertical-align: middle; }
 
 th {
   background: var(--paper);
@@ -526,15 +545,15 @@ td time, .tabular { font-variant-numeric: tabular-nums; }
 
 .primary-action, .secondary-action {
   display: inline-flex;
-  min-height: 44px;
+  min-height: 34px;
   align-items: center;
   justify-content: center;
   gap: var(--sp-2);
   padding: 0 var(--sp-5);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   font: inherit;
   font-size: var(--t-sm);
-  font-weight: 700;
+  font-weight: 600;
   text-decoration: none;
   cursor: pointer;
 }
@@ -557,17 +576,17 @@ input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]),
 select,
 textarea {
   width: 100%;
-  min-height: 44px;
-  padding: var(--sp-2) var(--sp-3);
-  border: 1px solid var(--muted);
-  border-radius: var(--radius);
+  min-height: 34px;
+  padding: var(--sp-1) var(--sp-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
   background: var(--panel);
   color: var(--ink);
   font: inherit;
   font-size: var(--t-sm);
 }
 
-textarea { min-height: 6rem; resize: vertical; }
+textarea { min-height: 5rem; padding: var(--sp-2) var(--sp-3); resize: vertical; }
 input[readonly], input:disabled, select:disabled, textarea:disabled { border-color: var(--line); background: var(--paper); color: var(--muted); }
 input[type="checkbox"], input[type="radio"] { width: 1.125rem; height: 1.125rem; accent-color: var(--ce-red); }
 .form-panel input[type="file"] { padding: var(--sp-4); border: 1px dashed var(--muted); background: var(--panel); }
@@ -648,13 +667,13 @@ a.metric:hover { border-color: var(--state-line); background: var(--state-bg); }
   display: inline-flex;
   align-items: center;
   gap: var(--sp-1);
-  padding: 2px var(--sp-2);
+  padding: 1px var(--sp-2);
   border: 1px solid var(--state-line);
-  border-radius: var(--radius);
+  border-radius: 999px;
   background: var(--state-bg);
   color: var(--state-fg);
   font-size: var(--t-eyebrow);
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -662,9 +681,9 @@ a.metric:hover { border-color: var(--state-line); background: var(--state-bg); }
    which is the single place a business state chooses its treatment. The four
    legacy state-named classes remain as aliases for pages not yet migrated. */
 .status-chip--navy, .status-chip--review { --state-line: var(--navy-line); --state-bg: var(--navy-bg); --state-fg: var(--navy-fg); }
-.status-chip--amber, .status-chip--not-ready { --state-line: var(--amber-line); --state-bg: var(--amber-bg); --state-fg: var(--amber-fg); }
+.status-chip--amber, .status-chip--not-ready { --state-line: var(--amber-line); --state-bg: var(--amber-tint); --state-fg: var(--amber-fg); }
 .status-chip--red, .status-chip--blocked { --state-line: var(--ce-red); --state-bg: var(--ce-red-tint); --state-fg: var(--ce-red-dark); }
-.status-chip--green, .status-chip--completed { --state-line: var(--success); --state-bg: var(--panel); --state-fg: var(--success); }
+.status-chip--green, .status-chip--completed { --state-line: var(--success); --state-bg: var(--success-tint); --state-fg: var(--success); }
 .status-chip--neutral { --state-line: var(--line); --state-bg: var(--paper); --state-fg: var(--muted); }
 
 .status-card {
@@ -1323,3 +1342,395 @@ table tfoot th {
 .validation-summary-valid {
   display: none;
 }
+
+/* ===========================================================================
+   THE RECORD CONTAINER
+
+   A screen about one record is one container, never a vertical stack of
+   sibling panels the operator scrolls through. The container has three parts
+   and only three: a header band carrying the reference, the state chip and the
+   identity; an action bar carrying every action valid for the current state,
+   with the record-level commitment right-aligned behind a divider; and either
+   tabs or a plain body. Tabs appear when the sections are alternatives; a
+   record with one section, or with sections that form a reading order, gets a
+   body and no tab row.
+   =========================================================================== */
+
+.record {
+  overflow: hidden;
+  border: var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
+}
+
+.record__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-6);
+  background: var(--band);
+  color: #fff;
+}
+
+.record__head h1 {
+  font-size: var(--t-h1);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.record__identity {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  padding-left: var(--sp-4);
+  border-left: 1px solid rgba(255, 255, 255, .16);
+  color: var(--band-mute);
+  font-size: var(--t-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.record__identity b { color: var(--band-bright); font-weight: 600; }
+.record__head-end { display: flex; align-items: center; gap: var(--sp-2); margin-left: auto; }
+
+/* The stage accent. Colour is a second signal only: the state chip in the band
+   already carries the state as text. */
+.record__accent { height: 3px; background: var(--state-line); }
+
+.record__bar {
+  position: sticky;
+  z-index: 3;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 42px;
+  padding: var(--sp-2) var(--sp-6);
+  border-bottom: var(--border);
+  background: var(--panel);
+}
+
+.record__bar-end { display: flex; align-items: center; gap: var(--sp-3); margin-left: auto; }
+.record__bar-rule { width: 1px; height: 22px; background: var(--line); }
+.record__body { padding: var(--sp-5) var(--sp-6) var(--sp-6); }
+.record__note { padding: 0 var(--sp-6) var(--sp-2); background: var(--band); color: var(--band-mute); font-size: var(--t-sm); }
+
+/* Chips sitting on the dark band take a solid light tint so they stay legible
+   against it; the colour roles are unchanged. */
+.record__head .status-chip { border-color: transparent; background: var(--state-bg); color: var(--state-fg); }
+
+/* ---------------------------------------------------------------------------
+   Buttons. `.btn` is the compact action-bar button; `.primary-action` and
+   `.secondary-action` remain the page-level form buttons.
+   --------------------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 5px var(--sp-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--charcoal);
+  font: inherit;
+  font-size: var(--t-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.btn:hover { border-color: var(--charcoal); background: #fcfbfa; }
+.btn--dark { border-color: var(--charcoal); background: var(--charcoal); color: #fff; }
+.btn--dark:hover { border-color: #000; background: #000; }
+.btn--primary { border-color: var(--ce-red); background: var(--ce-red); color: #fff; }
+.btn--primary:hover { border-color: var(--ce-red-dark); background: var(--ce-red-dark); }
+.btn--light { border-color: rgba(255, 255, 255, .3); background: transparent; color: #fff; }
+.btn--light:hover { border-color: rgba(255, 255, 255, .55); background: rgba(255, 255, 255, .1); }
+.btn--icon { padding: 5px 7px; }
+.btn .icon { width: .875rem; height: .875rem; }
+
+/* A disabled action states its condition rather than disappearing: removing it
+   would say "this cannot be done", which is false when the record will offer
+   it once the condition is met. */
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  border-color: #dedbd7;
+  background: var(--panel);
+  color: #a6a29d;
+  cursor: not-allowed;
+}
+
+.btn:disabled:hover,
+.btn[aria-disabled="true"]:hover { border-color: #dedbd7; background: var(--panel); }
+
+/* ---------------------------------------------------------------------------
+   Tabs. Real tablist/tab/tabpanel semantics; the panels are server-rendered and
+   the active one is chosen by the query string, so the screen works with no
+   script at all.
+   --------------------------------------------------------------------------- */
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 var(--sp-6);
+  border-bottom: var(--border);
+  background: var(--paper);
+}
+
+.tabs a, .tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-3) var(--sp-4);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--t-body);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.tabs a:hover, .tabs button:hover { color: var(--ink); }
+
+.tabs [aria-selected="true"], .tabs [aria-current="page"] { border-bottom-color: var(--ce-red); color: var(--ce-red); }
+
+.tabs .count {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(22, 25, 29, .06);
+  color: var(--muted);
+  font-size: var(--t-eyebrow);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.tabs [aria-selected="true"] .count, .tabs [aria-current="page"] .count { background: rgba(219, 8, 22, .08); color: var(--ce-red); }
+
+/* Sub-tabs are pills, so a nested level never reads as a second tab row. */
+.subtabs { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-4); }
+.subtabs-end { margin-left: auto; }
+
+.subtabs a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px var(--sp-4);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--charcoal);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.subtabs a:hover { border-color: var(--charcoal); }
+.subtabs a .n { color: var(--muted); font-variant-numeric: tabular-nums; }
+.subtabs a[aria-current="page"] { border-color: var(--charcoal); background: var(--charcoal); color: #fff; }
+.subtabs a[aria-current="page"] .n { color: #c9c6c2; }
+
+/* ---------------------------------------------------------------------------
+   Provenance. Where a value came from is never a sentence, a source label, a
+   policy key or a third table column: it is a small icon whose tooltip — on
+   hover and on keyboard focus — is exactly one word. The row must still make
+   sense with the icon ignored, so the icon is always supplementary.
+   --------------------------------------------------------------------------- */
+
+.prov {
+  position: relative;
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: #8c8880;
+  cursor: help;
+}
+
+.prov:hover, .prov:focus-visible { background: rgba(22, 25, 29, .05); color: var(--charcoal); }
+.prov .icon { width: .9375rem; height: .9375rem; }
+
+.prov::after {
+  position: absolute;
+  right: -2px;
+  bottom: calc(100% + 5px);
+  padding: 3px var(--sp-2);
+  border-radius: 4px;
+  background: var(--band);
+  color: #fff;
+  content: attr(data-word);
+  font-size: var(--t-eyebrow);
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.prov:hover::after, .prov:focus-visible::after { opacity: 1; }
+
+/* The same tooltip shape carries a disabled control's condition. */
+.gated { position: relative; display: inline-flex; }
+
+.gated::after {
+  position: absolute;
+  bottom: calc(100% + 5px);
+  left: 0;
+  padding: 3px var(--sp-2);
+  border-radius: 4px;
+  background: var(--band);
+  color: #fff;
+  content: attr(data-condition);
+  font-size: var(--t-eyebrow);
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.gated:hover::after, .gated:focus-within::after { opacity: 1; }
+
+/* ---------------------------------------------------------------------------
+   Fact columns and data rows: the compact reading shape inside a container.
+   --------------------------------------------------------------------------- */
+
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 0 var(--sp-10); margin-bottom: var(--sp-6); }
+.facts h2 { margin-bottom: 2px; padding-bottom: 5px; border-bottom: var(--border); color: var(--muted); font-size: var(--t-eyebrow); font-weight: 600; letter-spacing: .07em; text-transform: uppercase; }
+.facts dl { margin: 0; }
+.facts dl > div { display: flex; align-items: baseline; gap: var(--sp-3); min-height: 28px; padding: var(--sp-1) 0; font-variant-numeric: tabular-nums; }
+.facts dt { flex: 0 0 100px; color: var(--muted); font-size: var(--t-sm); }
+.facts dd { margin: 0; font-weight: 600; }
+.facts dd.quiet { color: var(--muted); font-weight: 400; }
+
+.datarow { display: flex; align-items: center; gap: var(--sp-4); min-height: 32px; padding: 3px 0; border-top: var(--border); font-variant-numeric: tabular-nums; }
+.datarow__field { flex: 0 0 150px; color: var(--muted); font-size: var(--t-sm); }
+.datarow__value { flex: 0 0 210px; font-weight: 600; }
+.datarow__value.quiet { color: var(--muted); font-weight: 400; }
+.datarow__end { display: flex; align-items: center; gap: var(--sp-3); margin-left: auto; }
+
+.blockhead { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: 2px; }
+.blockhead h2 { color: var(--muted); font-size: var(--t-eyebrow); font-weight: 600; letter-spacing: .07em; text-transform: uppercase; }
+.blockhead-end { margin-left: auto; }
+
+/* ---------------------------------------------------------------------------
+   The auth/status card family: sign in, signed out, access denied, error, not
+   found. Rendered navless, centered, on paper.
+   --------------------------------------------------------------------------- */
+
+.auth-shell { display: grid; min-height: 100vh; place-items: center; padding: var(--sp-16) var(--sp-6); }
+.auth-card { width: 100%; max-width: 26rem; padding: var(--sp-10); border: var(--border); border-radius: 8px; background: var(--panel); box-shadow: var(--shadow-soft); }
+.auth-card--wide { max-width: 34rem; }
+.auth-card--fault { border-left: 3px solid var(--ce-red); }
+.auth-card__mark { margin-bottom: var(--sp-6); color: var(--ce-red); font-size: var(--t-eyebrow); font-weight: 700; letter-spacing: .09em; }
+.auth-card h1 { margin-bottom: var(--sp-4); }
+.auth-card p { margin: 0 0 var(--sp-6); color: var(--charcoal); }
+.auth-card form { display: grid; gap: var(--sp-5); }
+.auth-card .primary-action, .auth-card .secondary-action { width: 100%; }
+.auth-card__done { display: inline-flex; align-items: center; gap: var(--sp-2); color: var(--success); }
+.auth-card__foot { margin: var(--sp-6) 0 0; padding-top: var(--sp-4); border-top: var(--border); color: var(--muted); font-size: var(--t-sm); }
+.auth-card__reference { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-1); }
+.auth-card__reference code { overflow: hidden; font-size: var(--t-sm); text-overflow: ellipsis; white-space: nowrap; }
+.auth-card__actions { display: grid; gap: var(--sp-3); }
+
+/* One requirement, stated once, beside the field it governs. */
+.field-hint { color: var(--muted); font-size: var(--t-sm); font-weight: 400; }
+
+/* ---------------------------------------------------------------------------
+   Compact refresh. Last-updated is a corner element, not a full-width banner,
+   and a loaded query carries no redundant "Current" badge.
+   --------------------------------------------------------------------------- */
+
+.refresh { display: inline-flex; align-items: center; gap: var(--sp-2); color: var(--muted); font-size: var(--t-sm); font-variant-numeric: tabular-nums; }
+.refresh form { margin: 0; }
+.refresh button { display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; padding: 0; border: var(--border); border-radius: var(--radius-sm); background: var(--panel); color: var(--charcoal); cursor: pointer; }
+.refresh button:hover { border-color: var(--charcoal); }
+.refresh .icon { width: .875rem; height: .875rem; }
+.is-refreshing .icon--spin { animation: pegasus-spin 1s linear infinite; }
+
+@keyframes pegasus-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .is-refreshing .icon--spin { animation: none; }
+}
+
+@media (forced-colors: active) {
+  .record, .btn, .auth-card, .tabs a, .subtabs a { border: 1px solid CanvasText; }
+  .prov::after, .gated::after { forced-color-adjust: none; }
+}
+
+/* Confirmed completion of an action taken on another page. */
+.status-card--done {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  --state-line: var(--success);
+  --state-bg: var(--success-tint);
+  /* The tick and the rule carry the confirmed-completion green; the sentence
+     stays ink, because green text on a green tint does not clear the contrast
+     floor and the colour is a second signal, not the message. */
+  color: var(--ink);
+}
+
+.status-card--done .icon { color: var(--success); }
+
+/* Dashboard. Three sections of real numbers; a section whose count does not
+   exist is not shipped, so there is no placeholder treatment to style. */
+.metric-strip--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.page-heading { align-items: center; }
+.page-heading .refresh { margin-left: auto; }
+
+/* A link with no metric behind it is a link, not a card pretending to be one. */
+.drilldowns { display: flex; flex-wrap: wrap; gap: var(--sp-6); margin-top: var(--sp-6); }
+
+.drilldowns a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--charcoal);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.drilldowns a:hover { color: var(--ce-red); text-decoration: underline; }
+
+/* An action that needs a reason confirms in the row it belongs to, rather than
+   making the operator manage a mode before they can take it. */
+.row-confirm { display: flex; align-items: flex-end; gap: var(--sp-2); margin-top: var(--sp-2); }
+.row-confirm label { font-size: var(--t-eyebrow); font-weight: 600; }
+.row-confirm input { min-width: 12rem; }
+details > summary.btn { display: inline-flex; list-style: none; }
+details > summary.btn::-webkit-details-marker { display: none; }
+
+/* A disabled action rendered as a link: it keeps its place and its stated
+   condition, and stops being a target. */
+.btn.is-disabled {
+  border-color: #dedbd7;
+  background: var(--panel);
+  color: #a6a29d;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.crumb { margin-bottom: var(--sp-2); color: var(--muted); font-size: var(--t-sm); }
+.crumb a { color: var(--charcoal); }
+
+/* A filter bar is one line, with the fields used rarely behind a disclosure.
+   Eleven inputs stacked above the results is a form, not a filter. */
+.filterbar { padding: var(--sp-4) var(--sp-6); }
+.filterbar__line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.filterbar__line input[type="text"], .filterbar__line input:not([type]) { flex: 1 1 22rem; min-width: 12rem; }
+.filterbar__line select { flex: 0 0 auto; width: auto; min-width: 10rem; }
+.filterbar__more { margin-top: var(--sp-4); }
+.filterbar__more summary { color: var(--charcoal); cursor: pointer; font-size: var(--t-sm); font-weight: 600; }
+.filterbar__more .form-grid { margin-top: var(--sp-4); }
+
+.datarow__sug { color: var(--charcoal); font-size: var(--t-sm); }

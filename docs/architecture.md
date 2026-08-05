@@ -213,13 +213,17 @@ QDOS is the sole concrete extraction policy until another principal has approved
 
 Suggestions and typed drafts are neither editable nor approved case records. Receipt and extraction create no case, counter, year-based reference, or external categorisation.
 
+**Definitive authorised intake allocates its case at processing time.** The durable processing path calls `IAcceptIntake` itself for a receipt whose decision is `CaseCreated`: route accepted, extraction policy `Applicable`, case match not ambiguous, and a principal on the extracted draft. The case enters `Not ready` with nothing confirmed by a person, because thin ordinary detail is never a reason to withhold the reference. Allocation is replay-safe through the evaluation-scoped operation key and non-blocking — a failed allocation leaves material a person can still act on rather than failing a completed receipt.
+
+Two outcomes are deliberately withheld from the automatic path and wait for a person, which is the fail-closed boundary rather than a gate: an **ambiguous** case match or an unresolvable principal (`Needs sorting`), and **standalone Audit** work, whose case cannot be justified until its original-report evidence is confirmed. The staff acceptance form survives as the `Needs sorting` resolution path (`INT-26`), and `EfCaseAcceptanceStore` refuses every other decision, so the boundary does not depend on which caller asks.
+
 ### Idempotency and persisted semantics
 
 - Replaying the same source occurrence returns the existing receipt.
 - Equal source bytes under a different occurrence identity remain separate evidence.
 - Stable decision, channel, evidence, and asset codes plus versioned JSON envelopes are persisted instead of CLR enum names.
 - Unknown persisted codes and inconsistent policy results fail rather than being silently reinterpreted.
-- “Instruction draft” and `Needs sorting` counts and filtered queues are persisted and queryable.
+- `Needs sorting` and `Blocked intake` counts and filtered queues are persisted and queryable, and both exclude receipts that have produced a case, so they measure what is still waiting for a person rather than everything ever received. The `case_created` decision code supersedes `draft_ready`, which stays readable so receipts written before the acceptance gate was removed still resolve to the same processing outcome.
 
 ## Business-rule ownership
 
@@ -385,7 +389,9 @@ A first Document Intelligence caller may submit only persisted scan-like PDF pag
 
 Provider API and Automation MCP are separate Web ingress boundaries. They must invoke the same Core business actions as staff UI or Worker callers rather than introducing parallel policy engines. The provider API's exact client, actor, authentication, and activation evidence remain separately gated.
 
-The Automation MCP ingress is implemented in `Pegasus.Web` per ADR-0011 and ADR-0013 clause 10: `ActorKind.Automation` is a Core actor granted exactly the ordinary casework surface (every administration, system-work, and request-upload right is denied and unknown rights fail closed), one seeded OpenIddict client-credentials registration authenticates the single vendor-neutral Automation client, and a streamable-HTTP MCP endpoint at `/mcp` exposes nine tools wrapping existing Core case, intake-queue, and document use cases with per-area scopes (`automation.cases`, `automation.intake`, `automation.documents`). Case mutations present the same edit lease and version guard as staff saves; every tool invocation and material denial is attributable permanent history. The whole surface registers only when `Features:AutomationMcp` enables it in the DevelopmentOffline profile; production exposure and any live caller remain separately approved activation work.
+The Automation MCP ingress is implemented in `Pegasus.Web` per ADR-0011, ADR-0013 clause 10, and ADR-0021: `ActorKind.Automation` is a Core actor granted exactly the ordinary casework surface (every administration, system-work, and request-upload right is denied and unknown rights fail closed), one seeded OpenIddict client-credentials registration authenticates the single vendor-neutral Automation client, and a streamable-HTTP MCP endpoint at `/mcp` exposes fourteen tools wrapping existing Core case, intake-queue, document, and assessment use cases with per-area scopes (`automation.cases`, `automation.intake`, `automation.documents`, `automation.assessment`). Automation writes are direct writes with logging parity: they present the same edit lease, operation-key replay, and version guard as staff saves, their assessment values are stored unconfirmed for review at manual engineer assignment, professional-finding confirmation stays staff-Engineer-only, and no confirmation, report-approval, or outward-dispatch tool exists. Every tool invocation and material denial is attributable permanent history. The whole surface registers only when `Features:AutomationMcp` enables it in the DevelopmentOffline profile; production exposure and any live caller remain separately approved activation work.
+
+The Send to AI hand-off (AI-09, ADR-0021) is a second gated boundary beside it: `Pegasus.Core` owns the work-request lifecycle (`AiWork`), `Pegasus.Web` composes the loopback channel transport behind `Features:SendToAi` (DevelopmentOffline only), and the channel carries operator chat only — a case-reference pointer and short instruction out, a short confirmation reply back. Business content returns exclusively through the Automation MCP ingress above; the external channel connector is a non-owned client, never a policy owner, and never part of any deployment.
 
 ### EVA and case lifecycle
 
