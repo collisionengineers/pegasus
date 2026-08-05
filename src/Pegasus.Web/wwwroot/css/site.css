@@ -1709,3 +1709,16 @@ table tfoot th {
 .row-confirm input { min-width: 12rem; }
 details > summary.btn { display: inline-flex; list-style: none; }
 details > summary.btn::-webkit-details-marker { display: none; }
+
+/* A disabled action rendered as a link: it keeps its place and its stated
+   condition, and stops being a target. */
+.btn.is-disabled {
+  border-color: #dedbd7;
+  background: var(--panel);
+  color: #a6a29d;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.crumb { margin-bottom: var(--sp-2); color: var(--muted); font-size: var(--t-sm); }
+.crumb a { color: var(--charcoal); }
