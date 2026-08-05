@@ -372,6 +372,21 @@ Approval or availability of a tool does not authorize an external or cloud opera
 - The application must not narrate its own functions.
 - Do not expose internal Azure function names, concepts, or wording in the interface.
 
+Recorded from the operator's interface review and answers, 2026-08-04. These
+are additions; no statement above changes meaning.
+
+- The word “intake” is an internal development term and must not appear anywhere in the interface. Interface surfaces use business language: e-mail activity, Inbox, Upload, received items, vehicle images.
+- “Blocked intake” is renamed to “Blocked” in the interface, without explanatory copy.
+- File sizes are never shown in bytes. Where a size is relevant — an e-mail attachment, an upload limit — it is shown in megabytes; otherwise it is not shown.
+- A count of zero is shown as 0. Placeholder states such as “Unavailable” must not stand in for numbers, and a metric whose query does not exist must not be shown at all.
+- The interface never displays raw internal identifiers: GUIDs, hashes, storage paths, database or enum value names, event codes, or version integers.
+- “Needs sorting” refers to e-mail that cannot be matched; it is not a case stage.
+- Screens are screens in an application, not pages on a website. They are compact, and scrolling is minimised: the identity, the state, the available actions and the main content of a screen are visible without scrolling.
+- A screen about one record shows that record inside one container, with its actions as a bar at the top and its sections as tabs — not as separate panels stacked down the page.
+- A case's material is called **Evidence**, and covers files, images and e-mail.
+- Where a value or a document came from is shown as an icon with a one-word explanation on hover: Staff, Extracted, AI, E-mail, Lookup, Principal, Automatic.
+- An action that this record will offer once a condition is met stays visible and disabled, with the condition named on it. Exporting a case is available when the case is in Review.
+
 ## Development data boundary
 
 All supplied emails, PDFs, documents, images, and data are permissible for development use. PII, DPIA, retention, and related concerns are outside the development scope defined by this authority.

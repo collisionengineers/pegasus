@@ -1,6 +1,6 @@
 # UI specification
 
-Status: **Planned `0.1.0-alpha.1` specification with Operations-first selected for the shell and landing strategy. Detailed raster styling remains subject to this specification and the design system.**
+Status: **Specification for the shipped `0.1.0-alpha.1` interface. The shell and landing strategy are Operations-first as selected; the routes, presentation rules and vocabulary settled by the operator on 2026-08-04 shipped in releases 6 and 7. Detailed raster styling remains subject to this specification and the design system.**
 
 ## Shared shell and hierarchy
 
@@ -10,7 +10,7 @@ Status: **Planned `0.1.0-alpha.1` specification with Operations-first selected f
 4. Named workflow/evidence/lease/exception state and consequential action.
 5. Provenance, external identity, permanent business history and limitation.
 
-The Planned `0.1.0-alpha.1` routes are Operations, Intake, Triage, Cases and authorised Administration. Each comparison direction uses the same focused-flow set. Production email allocated `Next / 0.3.0` appears only after its gates; every deferred `Next` or `Later` capability carries its exact target in the [capability inventory](../../docs/capabilities.md#capabilities). Deferred capabilities have no alpha placeholder route or control — except the recorded routeless UI-15/AI-09 review artifacts, owned by [design § Deferred casework and advanced surfaces](../README.md#deferred-casework-and-advanced-surfaces).
+The routes are Dashboard, Inbox, Upload, Queues, Cases and authorised Administration (operator decision 2026-08-04, shipped in releases 6 and 7). Search merged into Cases, which has the identical backing query; the combined intake screen split into Inbox and Upload; `Triage` no longer names a route while keeping its settled meaning as a pre-case entity inside Queues. Each comparison direction uses the same focused-flow set. Production email allocated `Next / 0.3.0` appears only after its gates; every deferred `Next` or `Later` capability carries its exact target in the [capability inventory](../../docs/capabilities.md#capabilities). Deferred capabilities have no alpha placeholder route or control — except the recorded routeless UI-15/AI-09 review artifacts, owned by [design § Deferred casework and advanced surfaces](../README.md#deferred-casework-and-advanced-surfaces).
 
 The Development/local email evaluator is separately owned and has no QDOS-alpha
 route, navigation, control, `unchecked`/`checked` workbench, review-report
@@ -23,7 +23,7 @@ evidence required to activate them.
 | Component | Required contract |
 |---|---|
 | Shell/access | Sign-in and disabled/stale-role/denied outcomes; permitted-route visibility plus server authorisation. |
-| Metric/queue | Label, value or unavailable state, last-good time, current refresh state, and exact destination filter. `0`, loading, current, stale, partial, unavailable, and failed remain distinct. Operations includes exact `Blocked intake`, Due today, New cases today, and day/week Sent to Engineer and Reports sent. |
+| Metric/queue | Label, value or unavailable state, last-good time, current refresh state, and exact destination filter. `0`, loading, current, stale, partial, unavailable, and failed remain distinct. Dashboard includes exact `Blocked`, Due today, New cases today, and day/week Sent to Engineer and Reports sent. |
 | Inbox/intake row | Received date above time; exact processing outcome rather than generic `New`; long Case/PO or Image Intake Reference moves to a labelled second line at constrained desktop width and never overlaps the timestamp. |
 | Intake workbench | Persistent source identity; `All`/`Instructions`/`Images` evidence filter; evidence/candidate; fact versus suggestion versus confirmed value; provenance/missing/conflict; acceptance path and no-case failure consequence. |
 | Search result | One full-row keyboard-focusable link or button with visible action affordance; all result text contributes to its accessible name without obscuring its identity fields. |
@@ -56,6 +56,43 @@ and reasoned transitions without duplicating Core policy. The shell and
 dashboard own navigation and exact queue metrics; administration surfaces own
 authorised configuration journeys; error, empty, loading, denied, stale,
 partial, conflict, and unavailable states are explicit.
+
+### Enforced presentation rules
+
+These are the rules every operator surface is held to. They were the
+presentation contract of the 2026-08 UI implementation programme and outlived
+it; the programme's own review folder was deleted once its work landed, and
+these are what remained true.
+
+1. **Words, never codes.** No persisted enum, snake_case code, hash, storage
+   key, path, byte count or version integer appears as operator text. One
+   place — `Pegasus.Web.Presentation.OperatorLabels` — turns a persisted code
+   into words, and every surface goes through it. Where a code carries a
+   distinction the operator must act on, the distinction is kept and only the
+   spelling changes.
+2. **No raw identifiers.** GUIDs, correlation ids, sequence-lineage ids and
+   external transport handles are internal. Where an operator genuinely needs
+   a stable handle, show the business reference — Case/PO, Image reference,
+   registration.
+3. **One clock.** Every date and time renders Europe/London through
+   `OperatorLabels`. `ToLocalTime()` is never correct: it resolves against the
+   server clock, which is the office zone on a developer workstation and UTC
+   on the deployed container, so it looks right exactly where it is tested and
+   is wrong through British Summer Time where it runs.
+4. **Sizes in MB**, one decimal, and only where the size is something the
+   operator can act on. Never bytes.
+5. **Every screen has designed empty, loading and failure states**, written as
+   business statements rather than as descriptions of the query that returned
+   nothing. An unknown-record URL renders the styled not-found surface, never a
+   raw browser 404.
+6. **Absent versus disabled.** A capability that is not composed in this
+   deployment is absent. A capability whose record does not yet satisfy a
+   condition is present, disabled, and states the condition.
+7. **Counts and times cannot be proved locally.** A count query against an
+   empty database returns the same zero as a correct one, and a rendered time
+   against a Europe/London workstation clock matches the office by accident.
+   Both need evidence from populated data and a non-London clock — a test that
+   stores rows, or the deployed instance.
 
 ## Focused flows
 
@@ -147,13 +184,18 @@ in permanent history.
 
 ## UI-07 exact search and filters
 
-Case/PO, Image Intake Reference, registration, claimant, claim number, principal, state, Engineer, received/instruction dates and range, and origin.
+Case/PO, Image Intake Reference, registration, claimant, claim number, principal, Case stage, Engineer, received/instruction dates and range, and origin.
+
+These are the Cases filters. There is no separate Search route: the former
+Search screen ran the identical backing query, so it merged into Cases
+(operator decision 2026-08-04). The common filters sit on one line and the
+rest behind a `More filters` disclosure.
 
 ## Exceptions and necessary copy
 
 Use guidance only where the operator must understand a consequence:
 
-- “Blocked intake — no case has been created. A reason is required.”
+- “Blocked — a reason is required.”
 - “No case or reference was created; review the missing or conflicting evidence.”
 - “Created in error cannot be reopened. Create and link the replacement case.”
 
