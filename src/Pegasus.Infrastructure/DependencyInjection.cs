@@ -180,6 +180,7 @@ public static class DependencyInjection
         services.AddScoped<GetRequestOperations>();
         services.AddScoped<RetryMailboxProcessing>();
         services.AddScoped<RetryExternalWork>();
+        services.AddScoped<IDashboardQueries, EfDashboardQueries>();
         services.AddScoped<IGetOperationsSnapshot, GetOperationsSnapshot>();
         services.AddScoped<EfWorkflowConfigurationStore>();
         services.AddScoped<IWorkflowConfigurationStore>(

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Web.Presentation;
@@ -57,6 +58,18 @@ public static class OperatorLabels
         Enum.TryParse<CaseType>(type, ignoreCase: true, out var parsed)
             ? CaseTypeName(parsed)
             : Humanise(type);
+
+    /// <summary>
+    /// The chase schedule's own state, which is not the case stage: a case in
+    /// Review can still be waiting on a scheduled chase.
+    /// </summary>
+    public static string ChaseState(CaseDueWorkState state) => state switch
+    {
+        CaseDueWorkState.Scheduled => "Chase due",
+        CaseDueWorkState.Held => "Chasing paused",
+        CaseDueWorkState.Stopped => "Chasing stopped",
+        _ => Humanise(state.ToString())
+    };
 
     public static string DocumentRole(DocumentSemanticRole role) => role switch
     {

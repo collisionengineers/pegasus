@@ -327,6 +327,7 @@ public sealed partial class CaseDetailsWebTests
         {
             _dueWork = new(
                 CaseId,
+                "QDOS26001",
                 "Vehicle images",
                 new DateOnly(2031, 5, 10),
                 CaseDueWorkState.Scheduled,

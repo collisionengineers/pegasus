@@ -377,6 +377,7 @@ public sealed class EfCaseQueryStore(
                 ? null
                 : new CaseDueWork(
                     entity.DueWork.CaseId,
+                    entity.Case.Reference,
                     entity.DueWork.MissingMaterialReason,
                     entity.DueWork.DueBy,
                     Enum.Parse<CaseDueWorkState>(entity.DueWork.State),
