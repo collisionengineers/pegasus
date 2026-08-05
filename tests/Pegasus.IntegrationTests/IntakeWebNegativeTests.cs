@@ -58,7 +58,7 @@ public sealed class IntakeWebNegativeTests
 
         Assert.Equal(HttpStatusCode.OK, failed.StatusCode);
         Assert.Contains(
-            "could not be retained. Retry using the same upload receipt.",
+            "The file could not be stored.",
             failed.ResponseBody,
             StringComparison.Ordinal);
         Assert.Empty(await ListAllAsync(factory));
@@ -151,7 +151,7 @@ public sealed class IntakeWebNegativeTests
 
         Assert.Equal(HttpStatusCode.OK, result.StatusCode);
         Assert.Contains(
-            "Choose an email, document, PDF or image to upload.",
+            "Choose a file to upload.",
             result.ResponseBody,
             StringComparison.Ordinal);
         await AssertNoBusinessPersistenceAsync(factory);
@@ -186,7 +186,7 @@ public sealed class IntakeWebNegativeTests
             client, form.AntiforgeryToken, "payload.pdf", "application/octet-stream", [], form.ExternalReceiptToken);
 
         Assert.Equal(HttpStatusCode.OK, result.StatusCode);
-        Assert.Contains("The selected file is empty.", result.ResponseBody, StringComparison.Ordinal);
+        Assert.Contains("That file is empty.", result.ResponseBody, StringComparison.Ordinal);
         await AssertNoBusinessPersistenceAsync(factory);
     }
 
@@ -227,7 +227,7 @@ public sealed class IntakeWebNegativeTests
             form.ExternalReceiptToken);
 
         Assert.Equal(HttpStatusCode.OK, result.StatusCode);
-        Assert.Contains("The selected file must be 10 MB or smaller.", result.ResponseBody, StringComparison.Ordinal);
+        Assert.Contains("Files must be 10.0 MB or smaller.", result.ResponseBody, StringComparison.Ordinal);
         await AssertNoBusinessPersistenceAsync(factory);
     }
 
@@ -284,7 +284,7 @@ public sealed class IntakeWebNegativeTests
 
         using var replayReview = await client.GetAsync(replay.Location);
         var replayHtml = await replayReview.Content.ReadAsStringAsync();
-        Assert.Contains("already processed", replayHtml, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("was already received", replayHtml, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

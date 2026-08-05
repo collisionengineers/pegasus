@@ -40,6 +40,7 @@
                 @if (inboxEnabled)
                 {
                     <a class="nav-link" asp-page="/Intake/Index" aria-current="@CurrentWhen("/Intake", "/ImageIntake")">Inbox</a>
+                    <a class="nav-link" asp-page="/Upload" aria-current="@CurrentWhen("/Upload")">Upload</a>
                 }
                 <a class="nav-link" asp-page="/Triage/Index" aria-current="@CurrentWhen("/Triage")">Queues</a>
                 <a class="nav-link" asp-page="/Cases/Index" aria-current="@CurrentWhen("/Cases")">Cases</a>

@@ -1672,8 +1672,13 @@ table tfoot th {
   gap: var(--sp-2);
   --state-line: var(--success);
   --state-bg: var(--success-tint);
-  color: var(--success);
+  /* The tick and the rule carry the confirmed-completion green; the sentence
+     stays ink, because green text on a green tint does not clear the contrast
+     floor and the colour is a second signal, not the message. */
+  color: var(--ink);
 }
+
+.status-card--done .icon { color: var(--success); }
 
 /* Dashboard. Three sections of real numbers; a section whose count does not
    exist is not shipped, so there is no placeholder treatment to style. */
