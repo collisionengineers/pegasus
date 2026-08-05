@@ -37,18 +37,15 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   template work and no capability advanced — those stay blocked on the
   operator questions the plan set records (branch
   task/report-renderer-workspace-uplift, taken 2026-08-05, by claude).
-- UI implementation programme, Dashboard (pages 1 and 7): the Core
-  case-lifecycle and day/week count queries that do not exist today, so that
-  Not ready, Held, New cases today, Sent to Engineer and Reports sent render
-  real numbers instead of the literal string "Unavailable" (defect B3); the
-  Review tile rebacked onto a case-stage count rather than an intake-receipt
-  count that never decrements (M1); the three-section rebuild (Active cases ·
-  E-mail activity · Today and this week); removal of the staged-artifact
-  panel, which printed storage keys and byte counts at an operator with
-  nothing to act on (M8); the two "Unavailable" workspace cards that were the
-  only way into two working screens (M2); and the Upload links / External
-  work drill-down (page 7) (branch task/ui-dashboard, taken 2026-08-05, by
-  claude).
+- UI implementation programme, Inbox part 1 — remove the manual
+  case-acceptance gate and the `DraftReady` decision, and implement
+  INT-25/CAP-008 (the queued task below, taken as the behavioural half of the
+  Inbox page work because the queue it feeds is that screen). Definitive
+  authorised intake allocates at processing time, entering `Not ready` when
+  ordinary detail is thin; ambiguity stays `Needs sorting`; fail-closed
+  conditions stay `Blocked intake`. Includes the receipt count/list acceptance
+  filters that make every intake count cumulative for all time today (branch
+  task/intake-allocates-without-a-gate, taken 2026-08-05, by claude).
 - CASE-27 edit-lease continuity and conflict recovery for both callers
   (MCP-02/MCP-04): close the gaps between
   `docs/requirements.md` "Case edit authority and recovery" and shipped
