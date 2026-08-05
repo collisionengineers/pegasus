@@ -62,9 +62,12 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 
 ## Merged, not deployed
 
-Nothing. The estate serves **release 7** (2026-08-05, revision `32feefa…`),
-which carries everything currently in `dev` and `main`. The deployed-evidence
-record is owned by
+Nothing that needs a release. The estate serves **release 7** (2026-08-05,
+revision `32feefa…`), which carries every source change in `dev` and `main`.
+`dev` and `main` have since advanced by documentation-only commits (`19d0abf`
+at the time of writing); they change no built artifact, so they ride the next
+functional release rather than justifying one. The deployed-evidence record is
+owned by
 [operations § Production environment](docs/operations.md#production-environment).
 
 Two things are deployed as code without being active, and neither is a
