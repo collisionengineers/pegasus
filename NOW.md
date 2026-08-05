@@ -46,20 +46,6 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   conditions stay `Blocked intake`. Includes the receipt count/list acceptance
   filters that make every intake count cumulative for all time today (branch
   task/intake-allocates-without-a-gate, taken 2026-08-05, by claude).
-- CASE-27 edit-lease continuity and conflict recovery for both callers
-  (MCP-02/MCP-04): close the gaps between
-  `docs/requirements.md` "Case edit authority and recovery" and shipped
-  behaviour — expired leases must read as free everywhere they are projected
-  (Triage and Operations still narrate a past expiry as held), authorised
-  non-holders must see the holder and when edit authority frees, a rejected
-  editor must keep their proposed values for comparison instead of losing the
-  post to a bare redirect, the Automation Actor must be able to renew rather
-  than only begin/end, and the triplicated mutation guard collapses to one
-  Core-owned implementation with a single lease-token length contract. Staff
-  Web and the Automation Actor exercise the same guard and the same
-  reacquisition path; no takeover, no force-save, no Administrator bypass, no
-  lease vocabulary in operator copy (branch task/case-edit-lease-continuity,
-  taken 2026-08-05, by claude).
 
 ## Merged, not deployed
 
@@ -248,6 +234,24 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   contract to an ADR — with the temp plan deleted it is owned only by
   architecture.md/operations.md prose
   (task/mcp-automation-actor review, 2026-08-03).
+- Decide the retained plaintext `EditLeaseToken` column: it sits beside its
+  own hash so an exact claim replay can return the opaque token, which makes
+  it a secret at rest. Removing it changes the accepted replay contract, so
+  it needs a decision, not a patch
+  (task/case-edit-lease-continuity, 2026-08-05).
+- Identifier and clock debt on the case surfaces, for the queued Cases page
+  rework: `_CaseSummary.cshtml` renders `AssignedEngineerId` and the approval
+  `SubjectId` as raw GUIDs, and Triage's non-editing timestamps still use
+  `ToLocalTime()` rather than the Europe/London wall clock the edit-authority
+  copy now uses. Both are banned by
+  `docs/ui-work/ui-standards-and-review.md`; the edit-authority panels were
+  cleared but the rest of the pages were out of that task's line
+  (task/case-edit-lease-continuity review, 2026-08-05).
+- After the Operations requests rework: `RecoverableLeaseCaseIds`,
+  `LeaseCaseId` and `LeaseLabel` on `Requests.cshtml.cs` may have lost their
+  last view caller now that the page shows no editing state — confirm and
+  delete what is unwired
+  (task/case-edit-lease-continuity merge, 2026-08-05).
 
 ## Waiting (each line names its unblock condition)
 
