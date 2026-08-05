@@ -1,9 +1,12 @@
+using System.Globalization;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using System.Text;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Intake;
+using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
@@ -61,11 +64,21 @@ public sealed class CapacitySoakTests
         Assert.True(Percentile95(writeDurations) <= TimeSpan.FromSeconds(3),
             $"Warm write p95 was {Percentile95(writeDurations).TotalMilliseconds:F0} ms.");
 
+        // Counted from the table, not from the operator's queue: "no receipt
+        // was lost under pressure" is a persistence claim, and the queue
+        // deliberately excludes receipts that produced a case — which every
+        // definitive instruction here now does, at processing time.
         await using var scope = factory.Services.CreateAsyncScope();
-        var receipts = await scope.ServiceProvider
-            .GetRequiredService<IIntakeReceiptQueries>()
-            .ListAsync(null, CancellationToken.None);
-        Assert.Equal(10, receipts.Count);
+        await using var context = await scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var connection = context.Database.GetDbConnection();
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM IntakeReceipts";
+        Assert.Equal(
+            10,
+            Convert.ToInt32(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture));
     }
 
     private static async Task RunWorkerAsync(
