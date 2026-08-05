@@ -975,7 +975,11 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   - **Release 7** carried the six defects that live verification of release 6
     found, and is the first release whose Worker redeploy and revision
-    activation carried no schema change at all.
+    activation carried no schema change at all. `dev` and `main` have since
+    advanced by documentation-only commits; they build no artifact, so the
+    estate stays on release 7 and they ride the next functional release. A
+    source revision ahead of the table is only a release claim when it changes
+    something under `src/`.
   - **Release 6** carried the whole UI implementation programme. It seeded the
     temporary `claudeuiverification` Administrator (see below) and applied its
     migration explicitly before the packages, with the runtime-role matrix
