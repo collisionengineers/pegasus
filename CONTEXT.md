@@ -123,3 +123,26 @@ _Avoid_: IBA, image-based mode, desktop assessment value
 **Vehicle enrichment**:
 The acquisition of externally sourced vehicle observations after case intake to enhance, but never silently replace, Case data.
 _Avoid_: Vehicle-data integration, automatic correction
+
+## Interface vocabulary
+
+The domain names above are the language of the code. Several of them are not
+what an operator reads: the interface layer maps them through
+`Pegasus.Web.Presentation.OperatorLabels`, and both layers are correct in
+their own place. Internal identifiers (`Intake*`, `ImageIntake*`, and the
+rest) are unchanged by this mapping — the interface ban is on what an
+operator sees, not on how the code is named.
+
+| Domain term | Interface term |
+| --- | --- |
+| Intake receipt | Received item |
+| Intake queues | E-mail activity |
+| Blocked intake | Blocked |
+| Image intake | Vehicle images |
+| Image Intake Reference | Image reference |
+| State (case filter) | Case stage |
+
+The word “intake” never appears in operator-facing text (operator decision
+2026-08-04). `DraftReady` is deliberately absent from this table: it was not
+a business state and was removed rather than mapped. `Review` and `Ready to
+review` denote the Case stage only.
