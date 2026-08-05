@@ -30,9 +30,14 @@ gain the rule they were already following.
   release", the coverage claim narrows to "every source change in `dev` and
   `main`", and the documentation-only commits are named as riding the next
   functional release.
-- `docs/operations.md` § Deployed evidence, release 7 note: states the rule
-  directly — **a source revision ahead of the table is a release claim only
-  when it changes something under `src/`.**
+- `docs/operations.md` § Deployed evidence: states the rule directly — **a
+  source revision is a release claim only when it changes something under
+  `src/`** — in the lead-in that defines deployed evidence, not in the release 7
+  note. The first draft put it in the release 7 bullet; review rejected that,
+  because a reader looking for the rule at release 9 has no reason to scroll
+  back to release 7. The release 7 note keeps only what is specific to release
+  7: that the documentation-only commits are why its branch heads sit ahead of
+  the row.
 
 The rule belongs in `operations.md` because that file owns deployed evidence;
 `NOW.md` states the current instance of it, which is what `NOW.md` is for.
