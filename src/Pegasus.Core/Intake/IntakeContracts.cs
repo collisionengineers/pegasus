@@ -8,9 +8,30 @@ public static class IntakeEnvelopeLimits
     public const int MaximumContentLength = 10 * 1024 * 1024;
 }
 
+/// <summary>
+/// What processing did with a received source.
+/// </summary>
+/// <remarks>
+/// There is no decision meaning "a human has not pressed the button yet".
+/// The requirements are explicit that definitive authorised intake
+/// creates exactly one instructed Case idempotently and that the allocation
+/// decision adds no universal manual acceptance gate, and the operator notes
+/// send only ambiguous provider, instruction-type or case evidence — and any
+/// unidentified e-mail — to <see cref="NeedsSorting"/>. So a definitive
+/// instruction is <see cref="CaseCreated"/> with the reference already
+/// allocated, ambiguity is <see cref="NeedsSorting"/>, and a reasoned refusal
+/// is <see cref="BlockedIntake"/>.
+///
+/// The former <c>DraftReady</c> named the wait for a staff member to press
+/// "Accept and allocate case reference". It had no operator label, no owning
+/// requirement, and no business meaning; it is removed rather than renamed.
+/// Receipts persisted under its <c>draft_ready</c> code read as
+/// <see cref="NeedsSorting"/>, which is what they are: pre-case material that
+/// never became a case and is waiting for a person.
+/// </remarks>
 public enum IntakeDecision
 {
-    DraftReady,
+    CaseCreated,
     NeedsSorting,
     BlockedIntake,
     Unsupported,
@@ -358,7 +379,16 @@ public sealed record IntakeReceiptDraft(
     public IReadOnlyList<ScannedPdfOcrCandidate> ScannedPdfPages => OcrCandidates ?? [];
 }
 
-public sealed record IntakeQueueCounts(int DraftReady, int NeedsSorting, int BlockedIntake = 0);
+/// <summary>
+/// How much received material is waiting for a person.
+/// </summary>
+/// <remarks>
+/// Both counts exclude receipts that already produced a case. Before this,
+/// neither the counts nor the filtered list applied any such filter, so every
+/// intake count was cumulative for all time and creating a case from a receipt
+/// never decremented anything.
+/// </remarks>
+public sealed record IntakeQueueCounts(int NeedsSorting, int BlockedIntake = 0);
 
 public sealed record IntakeReceiptSummary(
     Guid Id,

@@ -371,7 +371,7 @@ must not invent aliases.
 
 | Core intake decision | Exact operator label | Receipt persisted | Case/reference persisted |
 | --- | --- | --- | --- |
-| `DraftReady` | None. The shipped build still emits `Instruction draft`; that is non-conforming, not an approved label — see below | Yes | No |
+| `CaseCreated` | Case created | Yes | Yes — the reference is allocated at processing time |
 | `NeedsSorting` | Needs sorting | Yes | No |
 | `BlockedIntake` | Blocked intake | Yes | No |
 | `OcrRequired` | Document text required | Yes | No |
@@ -383,17 +383,17 @@ must not invent aliases.
 
 Validation or refusal before an accepted intake receipt must not be described as case creation. An `ImageIntakeRegistered` receipt allocates only the pre-Case Image Intake Reference.
 
-`DraftReady` is non-conforming and carries no operator label. It names a receipt waiting for a
-staff member to press "Accept and allocate case reference", but
+There is no decision meaning "a human has not pressed the button yet". The former `DraftReady`
+named exactly that wait, and was removed rather than renamed:
 [requirements](../docs/requirements.md) is explicit that definitive authorised intake creates
 exactly one instructed Case idempotently and that "the allocation decision adds no universal
 manual acceptance gate", and the [operator notes](../docs/operator-notes.md) send only ambiguous
 provider, instruction-type, or case evidence — and any unidentified e-mail — to `Needs sorting`.
 Definitive intake therefore allocates at processing time, entering `Not ready` when ordinary
-detail is thin; incomplete ordinary detail is never a bar to allocation. The decision is being
-removed rather than renamed, together with the manual acceptance gate; no surface may introduce a
-label, chip, filter, or tile for it in the meantime. `Review` and `Ready to review` denote the
-Case stage before the report is with an Engineer and must never name an intake state.
+detail is thin; incomplete ordinary detail is never a bar to allocation. Its persisted
+`draft_ready` code stays readable and resolves to `CaseCreated`, the same processing outcome.
+`Review` and `Ready to review` denote the Case stage before the report is with an Engineer and
+must never name an intake state.
 
 ### Planned case-creation mapping
 

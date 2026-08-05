@@ -116,6 +116,12 @@ public static class DependencyInjection
             new QdosInstructionExtractionPolicy(
                 provider.GetRequiredService<IIntakeTriageMatcher>()));
         services.AddScoped<ICaseAcceptanceStore, EfCaseAcceptanceStore>();
+
+        // Registered here rather than only in the Web composition root, because
+        // allocation is no longer a staff action: the Worker's processing path
+        // creates the case for a definitive instruction, and it composes only
+        // Infrastructure.
+        services.AddScoped<IAcceptIntake, AcceptIntake>();
         services.AddScoped<IProviderInspectionModeStore, EfProviderInspectionModeStore>();
         services.AddScoped<EfStaffAccountAdministration>();
         services.AddScoped<IStaffAccountQueries>(provider =>

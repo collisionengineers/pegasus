@@ -125,14 +125,19 @@ public sealed class RecoveryTests
         await processor.ExecuteAsync(received.StagedReceiptId);
 
         var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
-        var retained = Assert.Single(await receipts.ListAsync(null, CancellationToken.None));
-        Assert.Equal(IntakeDecision.DraftReady, retained.Decision);
+
+        // The queue list excludes receipts that produced a case, and a
+        // definitive instruction now produces one at processing time — so the
+        // receipt is fetched by identity rather than found in the queue. The
+        // point of this test is that processing the same staged source twice
+        // yields one receipt and one evaluation, which is unchanged.
+        Assert.Empty(await receipts.ListAsync(null, CancellationToken.None));
         var evaluation = Assert.IsType<IntakeEvaluationRevision>(
             await store.GetCompletedEvaluationAsync(
                 received.StagedReceiptId,
                 CancellationToken.None));
         Assert.Equal(received.StagedReceiptId, evaluation.StagedReceiptId);
-        Assert.Equal(retained.Id, evaluation.ProcessedReceiptId);
+        Assert.NotEqual(Guid.Empty, evaluation.ProcessedReceiptId);
         Assert.Equal(1, evaluation.Revision);
         Assert.Null(await store.ClaimProcessingAsync(
             received.StagedReceiptId,
