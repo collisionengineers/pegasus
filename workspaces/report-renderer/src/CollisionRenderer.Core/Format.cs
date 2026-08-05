@@ -15,6 +15,27 @@ public static class Format
 {
     private static readonly CultureInfo Uk = CultureInfo.GetCultureInfo("en-GB");
 
+    /// <summary>
+    /// The UK business time zone. Document dates are the UK business date wherever
+    /// the render runs, so a UTC container and a UK desktop during BST agree on the
+    /// date near midnight instead of disagreeing by a day.
+    /// </summary>
+    private static readonly TimeZoneInfo UkZone = ResolveUkZone();
+
+    private static TimeZoneInfo ResolveUkZone()
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("Europe/London");
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            // A Windows host without the IANA mapping data still carries the
+            // Windows identifier for the same zone.
+            return TimeZoneInfo.FindSystemTimeZoneById("GMT Standard Time");
+        }
+    }
+
     public static string Enc(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
 
     public static string Attr(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
@@ -103,7 +124,20 @@ public static class Format
         return match.Success ? match.Value : Enc(text);
     }
 
-    public static string Today() => DateTime.Now.ToString("dd/MM/yyyy", Uk);
+    /// <summary>
+    /// The current UK business date, taken from <paramref name="timeProvider"/> in UTC
+    /// and converted to Europe/London. Inject a fixed provider to make a document date
+    /// testable.
+    /// </summary>
+    public static string Today(TimeProvider timeProvider) =>
+        TimeZoneInfo.ConvertTime(timeProvider.GetUtcNow(), UkZone).ToString("dd/MM/yyyy", Uk);
+
+    /// <summary>
+    /// The current UK business date from the ambient system clock. This is the
+    /// documented fallback only; prefer an explicit caller-supplied document date,
+    /// then the <see cref="TimeProvider"/> overload.
+    /// </summary>
+    public static string Today() => Today(TimeProvider.System);
 
     public static string VehicleLabel(Advert advert) =>
         string.Join(" ", new[] { advert.Make, advert.Model, advert.DerivativeOrEngine }

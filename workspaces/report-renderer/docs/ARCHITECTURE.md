@@ -32,9 +32,16 @@ All rendering starts at `CollisionRendererFactory`:
 
 - `CollisionRendererFactory.Catalog` exposes the immutable render catalogue.
 - `CollisionRendererFactory.AuthoringCatalog` exposes Core-owned forms, blank drafts, starter drafts and attachment policies.
-- `CollisionRendererFactory.CreateRenderer(IPdfEngine? engine = null)` creates an `IDocumentRenderer`.
+- `CollisionRendererFactory.CreateRenderer(IPdfEngine? engine = null, TimeProvider? timeProvider = null)` creates an `IDocumentRenderer`.
+- `CollisionRendererFactory.CreatePreviewComposer(TimeProvider? timeProvider = null)` creates an `IPreviewComposer`: the same body HTML the renderer produces, without validation and without Chromium, for a live preview.
 
 When no engine is supplied, Core creates, owns and disposes `ChromiumPdfEngine`. When a caller injects an `IPdfEngine`, the caller owns its lifetime.
+
+## Document date
+
+A payload's `meta.date` always wins. When it is blank, the date falls back to the ambient clock — and that fallback is the **Europe/London** conversion of `TimeProvider.GetUtcNow()`, so the answer is the UK business date regardless of the host's clock zone. A UTC container and a UK desktop during BST therefore agree near midnight instead of disagreeing by a day. `TimeProvider` defaults to `TimeProvider.System`; inject a fixed provider to make the fallback deterministic.
+
+Starter payloads fill date fields with the literal `DD/MM/YYYY`, so the ambient clock is not reached on the starter path.
 
 Principal contracts:
 

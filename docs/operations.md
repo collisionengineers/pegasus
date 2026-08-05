@@ -73,6 +73,8 @@ A 2026-07-27 currency check found:
 
 These vendor facts can drift. Refresh them before changing the SDK, target framework, Functions host, or release platform.
 
+Re-checked 2026-08-05 when `workspaces/report-renderer/` moved from `net8.0` to `net10.0` and its SDK pin from `10.0.300` to `10.0.302`. The three vendor facts above are unchanged; no repository target framework outside that workspace moved.
+
 ### Checkout path
 
 The repository's longest tracked relative path is about 122 characters, and
