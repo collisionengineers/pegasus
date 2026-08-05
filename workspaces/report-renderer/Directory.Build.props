@@ -15,9 +15,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
-    <!-- Reproducible compiler output: a prerequisite for a deterministic renderer,
-         not a stylistic alignment. Matches the repository root and the
-         document-extraction workspace. -->
+    <!-- Makes the existing SDK default explicit so it cannot be lost silently. It
+         changes no compiler output: measured true here before this line was added.
+         Matches the repository root and the document-extraction workspace. It is
+         not what makes the renderer's output deterministic — the document-date
+         seam in Format.Today(TimeProvider) does that. -->
     <Deterministic>true</Deterministic>
     <!--
       CS1591: XML doc comments not required.

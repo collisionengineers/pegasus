@@ -132,13 +132,6 @@ public static class Format
     public static string Today(TimeProvider timeProvider) =>
         TimeZoneInfo.ConvertTime(timeProvider.GetUtcNow(), UkZone).ToString("dd/MM/yyyy", Uk);
 
-    /// <summary>
-    /// The current UK business date from the ambient system clock. This is the
-    /// documented fallback only; prefer an explicit caller-supplied document date,
-    /// then the <see cref="TimeProvider"/> overload.
-    /// </summary>
-    public static string Today() => Today(TimeProvider.System);
-
     public static string VehicleLabel(Advert advert) =>
         string.Join(" ", new[] { advert.Make, advert.Model, advert.DerivativeOrEngine }
             .Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!.Trim()));
