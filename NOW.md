@@ -37,55 +37,6 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   template work and no capability advanced — those stay blocked on the
   operator questions the plan set records (branch
   task/report-renderer-workspace-uplift, taken 2026-08-05, by claude).
-- UI implementation programme, deployment and live verification: `main` now
-  carries the whole rebuild. The eight page PRs (338, 339, 341, 343, 344,
-  345, 346, 347) merged into `dev`, and `dev` merged into `main` as PR 348 on
-  2026-08-05 under the operator's `MERGE AUTH GRANTED`. All ninety merge
-  conflicts were add/add on documents — `main` held a direct push of
-  `docs/ui-work/` and two `docs/temp-plans/` files, `dev` held the same files
-  with later edits — and every one resolved to `dev`'s copy, leaving the
-  merged tree byte-for-byte `origin/dev`. No source file conflicted.
-  Verified before the merge: Release build clean, Core 441/441, architecture
-  73/73, integration 399 passed with 16 skipped, QDOS pressure 3/3,
-  documentation links across 208 files. Browser-verified 2026-08-05 against a
-  local instance of the merged tree: Dashboard, Inbox, Upload, Queues, Cases,
-  Administration and its Accounts/Mailboxes/Automation sub-pages, and the
-  standalone 404 surface all render in the refreshed style with zero console
-  errors and zero CSP violations, and the Upload form posts and shows its
-  real validation error.
-
-  **Deployed as release 6** on 2026-08-05, under the operator's approval for
-  the exact targets (subscription `e6076573-23a5-46a8-acef-7e22d264e5db`,
-  resource group `rg-pegasus-prod`). Web source revision `474a0924…` on
-  immutable digest `sha256:b2ceaf37…`, single revision
-  `pegasus-prod-web-252ow37gij--474a0924a6ba` at 100% traffic; the one pending
-  migration `20260803205759_SendToAiAssessmentToolset` applied explicitly
-  before the packages; Worker package redeployed with all nine functions;
-  smoke passed (health live/ready 200, exact version/SHA match, anonymous
-  `/Cases` 302 to the https sign-in route). `claudeuiverification` seeded as a
-  live Administrator and confirmed in `AspNetUsers`.
-
-  Live browser verification against the deployed instance found six defects
-  the local pass could not see, because the local database was empty and the
-  local server clock is Europe/London. They are fixed by PR 349 and shipped
-  as **release 7** (2026-08-05, revision `32feefa…`, digest
-  `sha256:c8a0ebac…`, revision `pegasus-prod-web-252ow37gij--32feefacc388`,
-  no new migration, smoke passed). `docs/ui-work/` stays until the deployed
-  pages are re-checked against it — in particular the Dashboard "Needs
-  sorting" tile, which production data says must now read 1 rather than 0
-  (taken 2026-08-05, by claude).
-- Record releases 4, 5, 6 and 7 in `docs/operations.md` deployed evidence.
-  Supersedes the queued "record releases 4 and 5" line below, which has been
-  outstanding since 2026-08-04 and has now accumulated two more releases.
-  Release 6 (2026-08-05, revision `474a0924…`, digest `sha256:b2ceaf37…`,
-  revision `pegasus-prod-web-252ow37gij--474a0924a6ba`) carried the whole UI
-  rebuild and applied `20260803205759_SendToAiAssessmentToolset`; release 7
-  (2026-08-05, revision `32feefa…`, digest `sha256:c8a0ebac…`, revision
-  `pegasus-prod-web-252ow37gij--32feefacc388`, no new migration) carried the
-  six fixes live verification found. Both smoke-passed. Also record that
-  `claudeuiverification` now exists as a live Administrator and must be
-  removed before go-live (branch task/record-releases-4-to-7,
-  taken 2026-08-05, by claude).
 - CASE-27 edit-lease continuity and conflict recovery for both callers
   (MCP-02/MCP-04): close the gaps between
   `docs/requirements.md` "Case edit authority and recovery" and shipped
@@ -103,25 +54,28 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 
 ## Merged, not deployed
 
-Everything below is in both `dev` and `main` as of PR 348 (2026-08-05).
-`main` being the deployment branch is not deployment: no release has been
-built or activated from it, so nothing here runs anywhere.
+Nothing. The estate serves **release 7** (2026-08-05, revision `32feefa…`),
+which carries everything currently in `dev` and `main`. The deployed-evidence
+record is owned by
+[operations § Production environment](docs/operations.md#production-environment).
 
-- **The whole UI implementation programme** — the refreshed shell and design
-  system, Dashboard, Inbox, Upload, Queues, Cases and Administration, with
-  the Core and Infrastructure changes each page needed. Local verification
-  and browser checks are recorded in the `Doing` claim above. **It is not
-  deployed.** The live estate still serves release 5 (revision `c6571f7…`),
-  so no operator has seen any of this.
+Two things are deployed as code without being active, and neither is a
+release claim:
+
 - **AI-09 Send to AI round trip and the Automation Actor assessment toolset
-  (MCP-06)** merged into `dev` 2026-08-05 (PR 332, merge `5555440`), all nine
-  checks green, and carried into `main` by PR 348. **It is not deployed**, no
-  environment runs it, and no activation, navigation-link, or acceptance
-  claim is made. The whole surface is composition-gated off by default
-  (`Features:SendToAi`, `Features:AutomationMcp`) and DevelopmentOffline-only;
-  production would additionally need a non-preview transport decision.
-  Evidence is tier 2–4 local only — the tier-5 external-client round trip is
-  still queued below.
+  (MCP-06)** (PR 332, merge `5555440`) reached production in release 6, but
+  the whole surface is composition-gated off by default
+  (`Features:SendToAi`, `Features:AutomationMcp`) and DevelopmentOffline-only,
+  so no environment runs it and no activation, navigation-link, or acceptance
+  claim is made. Production would additionally need a non-preview transport
+  decision. Evidence is tier 2–4 local only — the tier-5 external-client
+  round trip is still queued below.
+- **`claudeuiverification`**, an enabled Administrator seeded into production
+  by release 6 from a credential committed to `appsettings.json`, at the
+  operator's request and on their stated risk assessment. **It must be
+  removed before go-live**; replacing the `Bootstrap:VerificationAccount`
+  block with `{ "Removed": "claudeuiverification" }` deletes it on next
+  start.
 
 ## Next (ordered queue — take from the top)
 
@@ -176,39 +130,6 @@ built or activated from it, so nothing here runs anywhere.
   deterministic refusal. Estimate-line results expose only actor kind and a
   confirmation boolean, dropping the `RecordedBy`/`ConfirmedBy` provenance
   the record retains and scalar fields return.
-- **UI implementation programme** (operator decision 2026-08-04, settling the
-  earlier "decide what `docs/ui-work/` is for" question): the folder is
-  adopted as the specification for a whole-application UI rebuild, then
-  deleted. Every page folder's alteration plan is implemented, every entry in
-  `docs/ui-work/additions-hidden-features.md` and
-  `docs/ui-work/defects-and-non-functional.md` is made visible and functional,
-  `docs/ui-work/ui-standards-and-review.md` becomes the enforced presentation
-  contract, and the implemented pages match the **refreshed** mockups. The
-  work lands as one PR per main-navigation page — sub-pages fold into the
-  navigation page that owns them — reviewed and merged into `dev` in
-  sequence, then `dev` into `main`.
-
-  **All eight page PRs are merged into `dev`** (338 shell and design system,
-  339 Dashboard, 341 the acceptance gate and INT-25, 343 Inbox, 344 Upload,
-  345 Queues, 346 Cases, 347 Administration), **and `dev` is merged into
-  `main`** as PR 348 on 2026-08-05. Nothing is deployed. What remains is the
-  operator's to authorise — see the `Doing` claim above — and three decisions
-  the work could not take for itself:
-  - **Two provenance glyphs.** The Lucide sprite is a checksummed sixteen-glyph
-    asset and `design/README.md` records that no glyph was added, removed or
-    redrawn. Seven provenance words share those sixteen, so **E-mail** and
-    **AI** lean on their tooltip rather than a distinct envelope and spark.
-    Adding two glyphs re-checksums an approved asset and needs authorisation.
-  - **The `claudeuiverification` password is committed** to
-    `appsettings.json`, Production-profile only, at the operator's request and
-    on their stated risk assessment. Replace the block with
-    `{ "Removed": "claudeuiverification" }` to delete the account on next
-    start. It must not survive into a real production deployment.
-  - **Two things were not shipped rather than faked.** The Dashboard's
-    "Queries outstanding" tile needs a reply link that hangs off a Triage
-    record no composition can create (defect B2), so **Blocked** takes its
-    slot; and Automation activity's failure reasons need a stable writer-side
-    reason code before the UI can label them, which the register itself says.
 - Protect `main` against direct pushes. `440ab5c` reached the deployment
   branch without a PR, so CI never gated it — it carried a defect that
   failed the documentation check the moment it was put in front of CI (fixed
@@ -218,19 +139,6 @@ built or activated from it, so nothing here runs anywhere.
   source conflict at all. A branch-protection rule stops this being caught by
   audit.
 
-- Record releases 4 and 5 in operations.md deployed evidence: release 4
-  (2026-08-04, revision `8e34078…`, digest `sha256:ae2cc7b8…`, the four
-  2026-08-03 migrations applied with the runtime-role matrix re-verified,
-  ADR-0020 premise verified — zero accepted cases, CaseMatchIndex shipped
-  empty) surfaced the production-CSP blank-band defect; release 5
-  (2026-08-04, revision `c6571f7…`, digest `sha256:29d4fcff…`, no new
-  migrations) shipped the PR 333 hotfix — live-verified: all 21
-  authenticated routes render from the viewport top with zero inline
-  styles, zero console errors, zero exceptions/sev3+ traces, smoke passed.
-  Also record the 2026-08-04 read-only Box custody-root inventory: the
-  pegasus folder `405543781910` has zero children, so no legacy
-  `{reference}-{caseId}` folders exist and the Case/PO fail-closed gate is
-  satisfied (release-5 live checks, 2026-08-04).
 - Assemble the operator-reviewed extraction cohort + untouched holdout and
   accept the per-field thresholds (INT-21, open-decisions) — blocks Path
   step 3.
