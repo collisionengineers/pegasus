@@ -37,15 +37,16 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   template work and no capability advanced — those stay blocked on the
   operator questions the plan set records (branch
   task/report-renderer-workspace-uplift, taken 2026-08-05, by claude).
-- UI implementation programme, Inbox part 1 — remove the manual
-  case-acceptance gate and the `DraftReady` decision, and implement
-  INT-25/CAP-008 (the queued task below, taken as the behavioural half of the
-  Inbox page work because the queue it feeds is that screen). Definitive
-  authorised intake allocates at processing time, entering `Not ready` when
-  ordinary detail is thin; ambiguity stays `Needs sorting`; fail-closed
-  conditions stay `Blocked intake`. Includes the receipt count/list acceptance
-  filters that make every intake count cumulative for all time today (branch
-  task/intake-allocates-without-a-gate, taken 2026-08-05, by claude).
+- UI implementation programme, remaining page work taken as one sequence of
+  stacked branches, reviewed and merged in order: Inbox (pages 2, 6, 8, 9,
+  10 — the received-and-sent viewer absorbing Operations Email, the received
+  item, and vehicle images), Upload (page 2's split-out surface and the public
+  page 13, carrying defect B1's dead handler), Queues (pages 3, 11), Cases
+  (pages 4/5 and 12 — the case container, Evidence tabs, provenance icons and
+  the Review-only export precondition) and Administration (pages
+  5-administration, 19–31). Each is its own PR against `dev`
+  (branches task/ui-inbox, task/ui-upload, task/ui-queues, task/ui-cases,
+  task/ui-administration, taken 2026-08-05, by claude).
 - CASE-27 edit-lease continuity and conflict recovery for both callers
   (MCP-02/MCP-04): close the gaps between
   `docs/requirements.md` "Case edit authority and recovery" and shipped
