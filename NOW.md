@@ -70,6 +70,18 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   reacquisition path; no takeover, no force-save, no Administrator bypass, no
   lease vocabulary in operator copy (branch task/case-edit-lease-continuity,
   taken 2026-08-05, by claude).
+- A QDOS email forwarded to the instructions mailbox did not create a case:
+  diagnose it against production read-only along the intake chain (Graph poll →
+  staged artifact → dispatch → `ProcessIntake` decision → allocation), name the
+  failing link with live evidence, and fix what is genuinely defective. Reads
+  are authorised for `pegasus-prod-appi-252ow37gij`,
+  `pegasus-prod-worker-252ow37gij`, `pegtrans252ow37gij`, the `pegasus`
+  database, and the `instructions@collisionengineers.co.uk` message; every
+  production mutation stops for separate approval. No edits to the files
+  `task/upload-case-creation-and-inbox` owns and no widening of an accepted
+  fail-closed policy — findings that are operator decisions go to
+  `docs/open-decisions.md` (branch task/qdos-forward-intake-failure, taken
+  2026-08-05, by claude).
 
 ## Merged, not deployed
 
