@@ -134,6 +134,46 @@ public static class OperatorLabels
     };
 
     /// <summary>
+    /// Why an intake failed, in the operator's language.
+    /// </summary>
+    /// <remarks>
+    /// The persisted failure code is what distinguishes one terminal outcome
+    /// from another, and the operator has to be able to tell them apart —
+    /// "it failed" is not an answer they can act on. What they do not need is
+    /// the code itself: <c>unreadable_docx</c> is the writer's name for the
+    /// fact, not the reader's. So the distinction stays and the spelling goes.
+    /// </remarks>
+    public static string IntakeFailure(string? failureCode) => failureCode switch
+    {
+        "unreadable_docx" => "The Word document could not be read",
+        "unreadable_pdf" => "The PDF could not be read",
+        "image_decode_failure" => "The image could not be read",
+        "email_read_failure" => "The e-mail could not be read",
+        "source_read_failure" or "source_reader_failure" =>
+            "The file could not be read",
+        "empty_message" => "The message was empty",
+        "message_too_large" => "The message was too large to process",
+        "docx_limit_exceeded" =>
+            "The Word document is larger than the processing limit allows",
+        "intake_limit_exceeded" =>
+            "The file is larger or more deeply nested than the processing limit allows",
+        "unsupported_file_type" => "That file type is not supported",
+        "deferred_file_type" => "That file type is not supported yet",
+        "unsupported_source" => "That source is not supported",
+        "artifact_retention_failure" or "not_run_retention_failure" =>
+            "The original file could not be retained",
+        "artifact_read_failure" => "The retained file could not be read back",
+        "artifact_integrity_failure" or "staged_artifact_integrity_failure"
+            or "integrity_failure" =>
+            "The retained file did not match what was received",
+        "persistence_failure" => "The result could not be saved",
+        "intake_processing_failure" or "technical_failure" =>
+            "Processing failed for a technical reason",
+        null or "" => "Processing failed",
+        _ => Humanise(failureCode)
+    };
+
+    /// <summary>
     /// A case history event in plain language.
     /// </summary>
     /// <remarks>
