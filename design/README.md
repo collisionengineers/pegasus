@@ -193,7 +193,6 @@ SHA-256: E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2
 Current consumers:
 
 - embedded by `workspaces/report-renderer/src/CollisionRenderer.Core`;
-- linked by `workspaces/report-renderer/src/CollisionRenderer.Gui`;
 - copied byte-for-byte to the Web runtime and embedded by `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` (see the source-to-runtime mapping below).
 
 Rules:
@@ -268,10 +267,9 @@ The retained comparison rasters are selection evidence only. The Operations-firs
 
 | Asset class | Approved consumer and boundary |
 | --- | --- |
-| Master logo | Renderer Core and temporary renderer GUI today; approved source for a reviewed future Web copy |
+| Master logo | Renderer Core today; approved source for a reviewed future Web copy |
 | Report templates and document stylesheet | Embedded by `workspaces/report-renderer/src/CollisionRenderer.Core`; not Web shell assets |
 | Supplied engineer signatures | Embedded renderer evidence only; never Web decorative imagery |
-| Temporary renderer GUI package assets | Linked by `workspaces/report-renderer/src/CollisionRenderer.Gui`; remove when that GUI is decommissioned during Pegasus integration |
 | Imported renderer, prompt, model, skill and AI material | Source evidence only unless a separate accepted contract provides a real Pegasus caller |
 
 The imported renderer can exercise its own assets without proving the planned Pegasus report capability. Imported workspace material does not become UI, report or design authority by existing in the repository. See the [workspace boundary](../workspaces/README.md).
@@ -726,10 +724,9 @@ A supported desktop reflow does not alter the permanent mobile-product boundary.
 | Current Web tokens/layout | This file | `src/Pegasus.Web/wwwroot/css/site.css`, conforming: approved colour, spacing, 2px radius, 1px border and focus ring, with no unapproved literal and no new token |
 | Current dashboard | Current exercised component map | `src/Pegasus.Web/Pages/Index.cshtml` |
 | Current intake caller | Current Development pattern | `src/Pegasus.Web/Pages/Intake/` → Core `ProcessIntake` |
-| Master logo | `design/brand/logos/logo_no_margin.png`, checksum above | Renderer Core, temporary renderer GUI, and the checksummed Web copy embedded by `_Layout.cshtml` |
+| Master logo | `design/brand/logos/logo_no_margin.png`, checksum above | Renderer Core and the checksummed Web copy embedded by `_Layout.cshtml` |
 | Renderer templates/style | Repository renderer asset sources | `workspaces/report-renderer/src/CollisionRenderer.Core` |
 | Engineer signatures | Repository renderer signature sources | Renderer Core only; excluded from Web decorative imagery |
-| Temporary renderer GUI assets | Repository renderer GUI asset sources | `workspaces/report-renderer/src/CollisionRenderer.Gui`; remove with GUI |
 | Imported renderer/skills/AI source | [Workspaces](../workspaces/README.md) | Non-caller evidence unless separately integrated and accepted |
 | Decision rationale | [Decision records](../docs/adr/README.md) | Does not itself prove implementation |
 | Change evidence | Git history | Does not replace caller, deployment or acceptance evidence |
