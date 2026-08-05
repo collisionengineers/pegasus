@@ -222,7 +222,7 @@ public sealed partial class CaseDetailsWebTests
         var claimant = Assert.Single(store.Claims).Actor.SubjectId;
         store.LeaseHolder = "different-staff";
         var wrongHolderHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.Contains("Another staff member currently holds edit authority", wrongHolderHtml, StringComparison.Ordinal);
+        Assert.Contains("different-staff is editing this case", wrongHolderHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"editLeaseToken\"", wrongHolderHtml, StringComparison.Ordinal);
 
         store.LeaseHolder = claimant;
@@ -298,6 +298,105 @@ public sealed partial class CaseDetailsWebTests
         return WebUtility.HtmlDecode(value.Groups["value"].Value);
     }
 
+    [Fact]
+    public async Task ARefusedSaveKeepsTheProposedValuesForComparisonAndOffersNoApplyControl()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetCase>();
+                services.RemoveAll<IAcquireCaseEditLease>();
+                services.RemoveAll<ISaveCase>();
+                services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IAcquireCaseEditLease>(store);
+                services.AddSingleton<ISaveCase>(store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var initialHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        using var saveResponse = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            Form(
+                AntiforgeryValue(initialHtml),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", DetailsModelOperationKey),
+                ("editLeaseToken", store.LeaseToken),
+                ("reason", "Corrected claimant spelling"),
+                ("claimantName", "Rebecca Proposed"),
+                ("claimNumber", "CLM-99")));
+        AssertPrg(saveResponse, store.CaseId);
+        Assert.Single(store.Saves);
+
+        var refusedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+
+        Assert.Contains("Your change was not applied", refusedHtml, StringComparison.Ordinal);
+        Assert.Contains("You proposed", refusedHtml, StringComparison.Ordinal);
+        Assert.Contains("The case now holds", refusedHtml, StringComparison.Ordinal);
+        Assert.Contains("Rebecca Proposed", refusedHtml, StringComparison.Ordinal);
+        Assert.Contains("CLM-99", refusedHtml, StringComparison.Ordinal);
+        Assert.Contains("Corrected claimant spelling", refusedHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(store.LeaseToken, refusedHtml, StringComparison.Ordinal);
+        foreach (var forbidden in new[] { "Apply these values", "Force save", "Merge", "Overwrite" })
+        {
+            Assert.DoesNotContain(forbidden, refusedHtml, StringComparison.OrdinalIgnoreCase);
+        }
+
+        var clearedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        Assert.DoesNotContain("Your change was not applied", clearedHtml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ANonHolderSeesWhoIsEditingAndWhenEditingBecomesAvailable()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore
+        {
+            LeaseHolder = "0d3b5a41-6f3f-4a1e-9f0b-2c5d7e8a9b01"
+        };
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetCase>();
+                services.AddSingleton<IGetCase>(store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+
+        Assert.Contains(store.LeaseHolder!, html, StringComparison.Ordinal);
+        Assert.Contains("is editing this case", html, StringComparison.Ordinal);
+        Assert.Contains("Editing becomes available at", html, StringComparison.Ordinal);
+        Assert.Contains("Editing cannot be taken over", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ClaimLease", html, StringComparison.Ordinal);
+        foreach (var banned in new[] { "lease", "opaque", "token", "expiry", "projection" })
+        {
+            Assert.DoesNotContain(banned, VisibleText(html), StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    private const string DetailsModelOperationKey = "3f2504e04f8911d39a0c0305e82c3301";
+
+    /// <summary>
+    /// Operator copy only: markup, attribute values, and script are removed so the banned-vocabulary
+    /// assertion reads what a member of staff reads.
+    /// </summary>
+    private static string VisibleText(string html) =>
+        MarkupRegex().Replace(html, " ");
+
+    [GeneratedRegex("<(script|style)[^>]*>.*?</\\1>|<[^>]*>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.CultureInvariant)]
+    private static partial Regex MarkupRegex();
+
     private static void AssertPrg(HttpResponseMessage response, Guid caseId)
     {
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
@@ -316,7 +415,8 @@ public sealed partial class CaseDetailsWebTests
         IRecordManualCaseChase,
         IHoldCase,
         IReleaseCase,
-        ITransitionCase
+        ITransitionCase,
+        ISaveCase
     {
         private readonly DateTimeOffset _now = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
         private CaseDueWork _dueWork;
@@ -352,6 +452,7 @@ public sealed partial class CaseDetailsWebTests
             set => _leaseHolder = value;
         }
 
+        public List<SaveCaseRequest> Saves { get; } = [];
         public List<ManualChaseRecord> ManualChases { get; } = [];
         public List<PutCaseOnHoldRequest> Holds { get; } = [];
         public List<CaseMutationRequest> Releases { get; } = [];
@@ -403,6 +504,15 @@ public sealed partial class CaseDetailsWebTests
                     _now.AddMinutes(5)));
         }
 
+
+        Task<CaseDataProjection> ISaveCase.ExecuteAsync(
+            SaveCaseRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Saves.Add(request);
+            throw new CaseVersionConflictException(CaseId, request.ExpectedVersion, CaseVersion + 1);
+        }
 
         Task<CaseWorkflowRecord> IHoldCase.ExecuteAsync(
             PutCaseOnHoldRequest request,

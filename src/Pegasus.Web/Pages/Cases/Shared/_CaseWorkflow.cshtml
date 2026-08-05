@@ -3,6 +3,7 @@
 @using Pegasus.Core.Lifecycle
 @using Pegasus.Core.Tasks
 @using Pegasus.Core.Workflow
+@using Pegasus.Web.Pages
 @{
     var details = Model.Case!;
     var workflow = details.Workflow;
@@ -23,7 +24,11 @@
     }
     else if (!string.IsNullOrWhiteSpace(leaseToken))
     {
-        <p>An opaque edit lease is active for this response. A successful change consumes it.</p>
+        <p>You hold edit authority for this case. A successful change consumes it.</p>
+        @if (details.ActiveEditLease is { } heldByYou)
+        {
+            <p>Editing stays yours until @EditModeDisplay.WallClock(heldByYou.ExpiresAtUtc).</p>
+        }
         <div class="button-row">
             <form method="post" asp-page-handler="RenewLease">
                 <input type="hidden" name="id" value="@workflow.CaseId" />
@@ -50,9 +55,16 @@
             <button type="submit" class="primary-action">Recover edit mode</button>
         </form>
     }
-    else if (details.ActiveEditLease is not null)
+    else if (details.ActiveEditLease is { } heldByOther)
     {
-        <p>Read-only view. Another staff member currently holds edit authority for this case.</p>
+        <p>
+            Read-only view.
+            @EditModeDisplay.HeldBy(
+                heldByOther.Holder,
+                heldByOther.ExpiresAtUtc,
+                string.Equals(heldByOther.Holder, Model.ViewerSubjectId, StringComparison.Ordinal))
+        </p>
+        <p>Editing cannot be taken over. Reload the case once editing is available.</p>
     }
     else
     {
@@ -65,6 +77,36 @@
         </form>
     }
 </section>
+
+@if (Model.ProposedValuesWereDropped)
+{
+    <section class="panel form-panel" aria-labelledby="case-proposed-values-title">
+        <h2 id="case-proposed-values-title" class="section-label">Your change was not applied</h2>
+        <p>The values you submitted were too large to keep and could not be shown here. Enter edit mode again and re-enter them.</p>
+    </section>
+}
+else if (Model.ProposedValues.Count > 0)
+{
+    <section class="panel form-panel" aria-labelledby="case-proposed-values-title">
+        <h2 id="case-proposed-values-title" class="section-label">Your change was not applied</h2>
+        <p>These are the values you proposed beside the values the case now holds. Nothing here can be applied: enter edit mode again and re-enter the values you still want.</p>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Field</th><th>You proposed</th><th>The case now holds</th></tr></thead>
+                <tbody>
+                    @foreach (var proposed in Model.ProposedValues)
+                    {
+                        <tr>
+                            <th>@proposed.Label</th>
+                            <td>@proposed.Proposed</td>
+                            <td>@(string.IsNullOrWhiteSpace(proposed.Current) ? "—" : proposed.Current)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+}
 
 @if (data is not null)
 {

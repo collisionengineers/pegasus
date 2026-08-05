@@ -66,7 +66,7 @@
                     </div>
                     <div>
                         <dt>Edit mode</dt>
-                        <dd>@RequestsModel.LeaseLabel(item.CaseEditLeaseState)</dd>
+                        <dd>@Model.EditModeLabel(item)</dd>
                     </div>
                 </dl>
                 @if (item.CanRevoke && Model.LeaseCaseId is null &&
@@ -92,7 +92,7 @@
                 }
                 else if (item.CanRevoke && !ownsLease)
                 {
-                    <p class="notice">Revocation is unavailable until the current edit mode expires or is released.</p>
+                    <p class="notice">Revocation is unavailable while this case is being edited. @Model.EditModeLabel(item)</p>
                 }
                 @if (item.CanRevoke && ownsLease)
                 {
@@ -156,7 +156,7 @@
                     <div><dt>File limit</dt><dd>@item.AcceptedFileCount / @(item.MaximumFileCount?.ToString() ?? "limit version unavailable")</dd></div>
                     <div><dt>Byte limit</dt><dd>@item.AcceptedByteCount / @(item.MaximumByteCount?.ToString() ?? "limit version unavailable")</dd></div>
                     <div><dt>Limits version</dt><dd>@item.LimitsVersion</dd></div>
-                    <div><dt>Edit mode</dt><dd>@RequestsModel.LeaseLabel(item.CaseEditLeaseState)</dd></div>
+                    <div><dt>Edit mode</dt><dd>@Model.EditModeLabel(item)</dd></div>
                 </dl>
                 @if (!string.IsNullOrWhiteSpace(item.FailureCode))
                 {
@@ -185,7 +185,7 @@
                 }
                 else if (item.CanRevoke && !ownsLease)
                 {
-                    <p class="notice">Revocation is unavailable until the current edit mode expires or is released.</p>
+                    <p class="notice">Revocation is unavailable while this case is being edited. @Model.EditModeLabel(item)</p>
                 }
                 @if (item.CanRevoke && ownsLease)
                 {
