@@ -1,6 +1,6 @@
 # UI specification
 
-Status: **Planned `0.1.0-alpha.1` specification with Operations-first selected for the shell and landing strategy. Detailed raster styling remains subject to this specification and the design system.**
+Status: **Specification for the shipped `0.1.0-alpha.1` interface. The shell and landing strategy are Operations-first as selected; the routes, presentation rules and vocabulary settled by the operator on 2026-08-04 shipped in releases 6 and 7. Detailed raster styling remains subject to this specification and the design system.**
 
 ## Shared shell and hierarchy
 
@@ -10,7 +10,7 @@ Status: **Planned `0.1.0-alpha.1` specification with Operations-first selected f
 4. Named workflow/evidence/lease/exception state and consequential action.
 5. Provenance, external identity, permanent business history and limitation.
 
-The Planned `0.1.0-alpha.1` routes are Operations, Intake, Triage, Cases and authorised Administration. Each comparison direction uses the same focused-flow set. Production email allocated `Next / 0.3.0` appears only after its gates; every deferred `Next` or `Later` capability carries its exact target in the [capability inventory](../../docs/capabilities.md#capabilities). Deferred capabilities have no alpha placeholder route or control — except the recorded routeless UI-15/AI-09 review artifacts, owned by [design § Deferred casework and advanced surfaces](../README.md#deferred-casework-and-advanced-surfaces).
+The routes are Dashboard, Inbox, Upload, Queues, Cases and authorised Administration (operator decision 2026-08-04, shipped in releases 6 and 7). Search merged into Cases, which has the identical backing query; the combined intake screen split into Inbox and Upload; `Triage` no longer names a route while keeping its settled meaning as a pre-case entity inside Queues. Each comparison direction uses the same focused-flow set. Production email allocated `Next / 0.3.0` appears only after its gates; every deferred `Next` or `Later` capability carries its exact target in the [capability inventory](../../docs/capabilities.md#capabilities). Deferred capabilities have no alpha placeholder route or control — except the recorded routeless UI-15/AI-09 review artifacts, owned by [design § Deferred casework and advanced surfaces](../README.md#deferred-casework-and-advanced-surfaces).
 
 The Development/local email evaluator is separately owned and has no QDOS-alpha
 route, navigation, control, `unchecked`/`checked` workbench, review-report
@@ -23,7 +23,7 @@ evidence required to activate them.
 | Component | Required contract |
 |---|---|
 | Shell/access | Sign-in and disabled/stale-role/denied outcomes; permitted-route visibility plus server authorisation. |
-| Metric/queue | Label, value or unavailable state, last-good time, current refresh state, and exact destination filter. `0`, loading, current, stale, partial, unavailable, and failed remain distinct. Operations includes exact `Blocked intake`, Due today, New cases today, and day/week Sent to Engineer and Reports sent. |
+| Metric/queue | Label, value or unavailable state, last-good time, current refresh state, and exact destination filter. `0`, loading, current, stale, partial, unavailable, and failed remain distinct. Dashboard includes exact `Blocked`, Due today, New cases today, and day/week Sent to Engineer and Reports sent. |
 | Inbox/intake row | Received date above time; exact processing outcome rather than generic `New`; long Case/PO or Image Intake Reference moves to a labelled second line at constrained desktop width and never overlaps the timestamp. |
 | Intake workbench | Persistent source identity; `All`/`Instructions`/`Images` evidence filter; evidence/candidate; fact versus suggestion versus confirmed value; provenance/missing/conflict; acceptance path and no-case failure consequence. |
 | Search result | One full-row keyboard-focusable link or button with visible action affordance; all result text contributes to its accessible name without obscuring its identity fields. |
@@ -184,13 +184,18 @@ in permanent history.
 
 ## UI-07 exact search and filters
 
-Case/PO, Image Intake Reference, registration, claimant, claim number, principal, state, Engineer, received/instruction dates and range, and origin.
+Case/PO, Image Intake Reference, registration, claimant, claim number, principal, Case stage, Engineer, received/instruction dates and range, and origin.
+
+These are the Cases filters. There is no separate Search route: the former
+Search screen ran the identical backing query, so it merged into Cases
+(operator decision 2026-08-04). The common filters sit on one line and the
+rest behind a `More filters` disclosure.
 
 ## Exceptions and necessary copy
 
 Use guidance only where the operator must understand a consequence:
 
-- “Blocked intake — no case has been created. A reason is required.”
+- “Blocked — a reason is required.”
 - “No case or reference was created; review the missing or conflicting evidence.”
 - “Created in error cannot be reopened. Create and link the replacement case.”
 

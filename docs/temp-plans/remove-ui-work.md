@@ -5,6 +5,39 @@ specification for a whole-application UI rebuild **and then deleted**. The
 rebuild shipped as releases 6 and 7 and was verified against the deployed
 instance, so the folder's purpose is served. 202 files go.
 
+## The proposal that was never applied
+
+`durable-rules-proposal.md` specified the exact edits to canonical documents
+that would make the standards durable, and stated plainly: **"It changes
+nothing itself. The edits are to be applied by a follow-up task."** That task
+was never claimed. Deleting the folder without applying it would have thrown
+away a set of operator decisions and enforceable rules that had been written
+down and then forgotten — the worst of both outcomes.
+
+So it is applied here, in the sequence the proposal itself specified:
+operator-notes first (the authority everything else cites), then
+`design/README.md`, `CONTEXT.md` and `design/product/ui-spec.md` together,
+then `docs/capabilities.md`.
+
+Two of its items needed correcting rather than transcribing, because the
+programme changed the facts after it was written:
+
+- It asked for UI-02 and UI-04 to be recorded as **not implemented**, on the
+  grounds that the dashboard shipped hardcoded placeholders and no Core count
+  queries existed. Both now have real queries, deployed in release 6. The
+  rows record that, and record that the earlier acceptance qualification
+  overstated what existed — which was the proposal's actual point.
+- Its `DecisionLabel` table predates the settled operator wording, so
+  `OcrRequired` and `ImageIntakeRegistered` take the labels that shipped
+  (`Needs text extraction`, `Vehicle images registered`) rather than the ones
+  it guessed at.
+
+The banned-terms list is recorded as a **review rule and not an automated
+check**, because nothing in CI enforces it. The proposal suggested a scripted
+variant "if the team wants it automated"; until that exists, saying it is
+enforced would be the false assurance the evidence discipline exists to
+prevent.
+
 ## What survives, and why
 
 `ui-standards-and-review.md` was not only a review record: the same decision
