@@ -55,14 +55,14 @@
             <button type="submit" class="primary-action">Recover edit mode</button>
         </form>
     }
-    else if (details.ActiveEditLease is { } heldByOther)
+    else if (details.ActiveEditLease is { } heldByOther && Model.EditAuthorityHolder is { } holder)
     {
         <p>
             Read-only view.
             @EditModeDisplay.HeldBy(
-                heldByOther.Holder,
+                holder,
                 heldByOther.ExpiresAtUtc,
-                string.Equals(heldByOther.Holder, Model.ViewerSubjectId, StringComparison.Ordinal))
+                Model.ViewerHoldsEditAuthority)
         </p>
         <p>Editing cannot be taken over. Reload the case once editing is available.</p>
     }
@@ -90,6 +90,10 @@ else if (Model.ProposedValues.Count > 0)
     <section class="panel form-panel" aria-labelledby="case-proposed-values-title">
         <h2 id="case-proposed-values-title" class="section-label">Your change was not applied</h2>
         <p>These are the values you proposed beside the values the case now holds. Nothing here can be applied: enter edit mode again and re-enter the values you still want.</p>
+        @if (Model.ProposedValuesWereShortened)
+        {
+            <p class="notice">Some values were too long to keep in full and are shown shortened. Re-enter those in full.</p>
+        }
         <div class="table-wrap">
             <table>
                 <thead><tr><th>Field</th><th>You proposed</th><th>The case now holds</th></tr></thead>

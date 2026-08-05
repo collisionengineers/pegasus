@@ -1186,8 +1186,9 @@ public sealed class EfCaseWorkflowStore(
         string operationKey,
         DateTimeOffset now)
     {
-        if (workflow.EditLeaseExpiresAtUtc is null
-            || workflow.EditLeaseExpiresAtUtc <= now
+        // The replay legitimately returns the retained plaintext token, but whether the lease is
+        // still held is the one owner's question here as everywhere else.
+        if (!CaseEditAuthority.IsHeld(workflow.EditLeaseExpiresAtUtc, now)
             || workflow.EditLeaseToken is not
                 { Length: CaseEditAuthority.LeaseTokenLength } token
             || workflow.EditLeaseTokenHash is not { } tokenHash)

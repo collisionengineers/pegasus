@@ -1,3 +1,4 @@
+using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Tests.Workflow;
@@ -90,6 +91,79 @@ public sealed class CaseEditAuthorityTests
     [Fact]
     public void TheIssuedTokenLengthIsTheOneContractEveryValidatorShares() =>
         Assert.Equal(64, CaseEditAuthority.LeaseTokenLength);
+
+    [Fact]
+    public async Task TheHolderIsDisclosedByStaffAccountNameAndNeverByItsIdentifier()
+    {
+        var staffId = Guid.NewGuid();
+        var accounts = new StubStaffAccounts(staffId, "r.hughes");
+        var viewer = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+
+        var holder = await new DescribeCaseEditAuthorityHolder(accounts).ExecuteAsync(
+            staffId.ToString("D"),
+            viewer,
+            default);
+
+        Assert.Equal("r.hughes", holder.DisplayName);
+        Assert.Equal(staffId, accounts.Requested);
+    }
+
+    [Fact]
+    public async Task AnUnresolvableHolderIsDescribedWithoutAnIdentifier()
+    {
+        var accounts = new StubStaffAccounts(Guid.NewGuid(), "r.hughes");
+        var viewer = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var describe = new DescribeCaseEditAuthorityHolder(accounts);
+
+        Assert.Null((await describe.ExecuteAsync(
+            Guid.NewGuid().ToString("D"),
+            viewer,
+            default)).DisplayName);
+        Assert.Null((await describe.ExecuteAsync("automation", viewer, default)).DisplayName);
+        Assert.Null((await describe.ExecuteAsync(
+            Guid.Empty.ToString("D"),
+            viewer,
+            default)).DisplayName);
+    }
+
+    [Fact]
+    public async Task DisclosingTheHolderRequiresCaseworkPermissionBeforeAnyAccountIsRead()
+    {
+        var accounts = new StubStaffAccounts(Guid.NewGuid(), "r.hughes");
+
+        var exception = await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            new DescribeCaseEditAuthorityHolder(accounts).ExecuteAsync(
+                Guid.NewGuid().ToString("D"),
+                ActionActor.SystemWorker("case-worker"),
+                default));
+
+        Assert.Equal(StaffAccessRight.PerformCasework, exception.Permission);
+        Assert.Null(accounts.Requested);
+    }
+
+    private sealed class StubStaffAccounts(Guid staffId, string userName) : IStaffAccountQueries
+    {
+        public Guid? Requested { get; private set; }
+
+        public Task<StaffAccountSummary?> GetAsync(
+            Guid requestedStaffId,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Requested = requestedStaffId;
+            return Task.FromResult<StaffAccountSummary?>(
+                requestedStaffId == staffId
+                    ? new(staffId, userName, true, false, [StaffRole.User], null)
+                    : null);
+        }
+
+        public Task<StaffAccountQuerySlice> ListAsync(
+            int offset,
+            int limit,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException(
+                "Disclosing one holder must not enumerate the staff directory.");
+    }
 
     private static void Require(
         string? presentedLeaseToken = "a-live-token",

@@ -1,3 +1,5 @@
+using Pegasus.Core.Identity;
+
 namespace Pegasus.Core.Workflow;
 
 /// <summary>
@@ -60,5 +62,53 @@ public static class CaseEditAuthority
         {
             throw new CaseEditLeaseConflictException(caseId, caseVersion);
         }
+    }
+}
+
+/// <summary>
+/// How the holder of a case's edit authority is disclosed to other authorised staff. A resolved
+/// account is named; an unresolvable one is described without an identifier, because the retained
+/// holder is a subject identifier and an identifier is never operator-facing.
+/// </summary>
+public sealed record CaseEditAuthorityHolder(string? DisplayName)
+{
+    public static readonly CaseEditAuthorityHolder Unnamed = new(DisplayName: null);
+}
+
+public interface IDescribeCaseEditAuthorityHolder
+{
+    Task<CaseEditAuthorityHolder> ExecuteAsync(
+        string holderSubjectId,
+        ActionActor actor,
+        CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Resolves the retained holder to the staff account name other authorised staff may see, through
+/// the same staff-account read the administration surface uses. Casework permission is enough:
+/// the requirement gives every authorised editor sight of who holds a case, and nothing beyond the
+/// account name is disclosed.
+/// </summary>
+public sealed class DescribeCaseEditAuthorityHolder(IStaffAccountQueries accounts)
+    : IDescribeCaseEditAuthorityHolder
+{
+    private readonly IStaffAccountQueries _accounts =
+        accounts ?? throw new ArgumentNullException(nameof(accounts));
+
+    public async Task<CaseEditAuthorityHolder> ExecuteAsync(
+        string holderSubjectId,
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if (!Guid.TryParse(holderSubjectId, out var staffId) || staffId == Guid.Empty)
+        {
+            return CaseEditAuthorityHolder.Unnamed;
+        }
+
+        var account = await _accounts.GetAsync(staffId, cancellationToken);
+        return account is null || string.IsNullOrWhiteSpace(account.UserName)
+            ? CaseEditAuthorityHolder.Unnamed
+            : new(account.UserName);
     }
 }

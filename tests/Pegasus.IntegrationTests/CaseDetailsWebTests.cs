@@ -222,7 +222,11 @@ public sealed partial class CaseDetailsWebTests
         var claimant = Assert.Single(store.Claims).Actor.SubjectId;
         store.LeaseHolder = "different-staff";
         var wrongHolderHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.Contains("different-staff is editing this case", wrongHolderHtml, StringComparison.Ordinal);
+        Assert.Contains(
+            "Another member of staff is editing this case",
+            wrongHolderHtml,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("different-staff", wrongHolderHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"editLeaseToken\"", wrongHolderHtml, StringComparison.Ordinal);
 
         store.LeaseHolder = claimant;
@@ -343,28 +347,165 @@ public sealed partial class CaseDetailsWebTests
         Assert.Contains("CLM-99", refusedHtml, StringComparison.Ordinal);
         Assert.Contains("Corrected claimant spelling", refusedHtml, StringComparison.Ordinal);
         Assert.DoesNotContain(store.LeaseToken, refusedHtml, StringComparison.Ordinal);
-        foreach (var forbidden in new[] { "Apply these values", "Force save", "Merge", "Overwrite" })
-        {
-            Assert.DoesNotContain(forbidden, refusedHtml, StringComparison.OrdinalIgnoreCase);
-        }
+
+        // Structural, not phrase-matching: the comparison panel is a table of values with no way
+        // to put them back. Any form, button, or input inside it would be an apply/force path.
+        var panel = ProposedValuesPanel(refusedHtml);
+        Assert.DoesNotContain("<form", panel, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<button", panel, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<input", panel, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<textarea", panel, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<select", panel, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("handler=", panel, StringComparison.OrdinalIgnoreCase);
 
         var clearedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
         Assert.DoesNotContain("Your change was not applied", clearedHtml, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task ANonHolderSeesWhoIsEditingAndWhenEditingBecomesAvailable()
+    public async Task ARefusalOnOneCaseSurvivesAVisitToAnother()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
-        var store = new RecordingCaseDetailsStore
-        {
-            LeaseHolder = "0d3b5a41-6f3f-4a1e-9f0b-2c5d7e8a9b01"
-        };
+        var store = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IGetCase>();
+                services.RemoveAll<ISaveCase>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<ISaveCase>(store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var initialHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        using var saveResponse = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            Form(
+                AntiforgeryValue(initialHtml),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", DetailsModelOperationKey),
+                ("editLeaseToken", store.LeaseToken),
+                ("reason", "Corrected claimant spelling"),
+                ("claimantName", "Rebecca Proposed")));
+        AssertPrg(saveResponse, store.CaseId);
+
+        // Another case is visited before the refused editor returns to theirs.
+        using var otherCaseResponse = await client.GetAsync($"/Cases/{Guid.NewGuid():D}");
+        Assert.Equal(HttpStatusCode.OK, otherCaseResponse.StatusCode);
+
+        var refusedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        Assert.Contains("Your change was not applied", refusedHtml, StringComparison.Ordinal);
+        Assert.Contains("Rebecca Proposed", refusedHtml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RefusedRetentionKeepsEditorialValuesAndNeverIdentifiersOrRoutingFields()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetCase>();
+                services.RemoveAll<ISaveCase>();
+                services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<ISaveCase>(store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var taskId = Guid.NewGuid();
+        var initialHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        // A long circumstances value is kept far past the old 300-character trim, and the
+        // identifier and routing fields posted alongside it are never retained.
+        var circumstances = new string('c', 1500);
+        using var saveResponse = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            Form(
+                AntiforgeryValue(initialHtml),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", DetailsModelOperationKey),
+                ("editLeaseToken", store.LeaseToken),
+                ("reason", "Long circumstances"),
+                ("accidentCircumstances", circumstances),
+                ("taskId", taskId.ToString("D")),
+                ("actionName", "release"),
+                ("destination", "Review")));
+        AssertPrg(saveResponse, store.CaseId);
+
+        var refusedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        var panel = ProposedValuesPanel(refusedHtml);
+
+        Assert.Contains(circumstances, panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("Some values were too long", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain(taskId.ToString("D"), panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("Task id", panel, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Action name", panel, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("release", panel, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Destination", panel, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotMatch(GuidRegex(), VisibleText(panel));
+    }
+
+    [Fact]
+    public async Task ARetainedValueTooLongToKeepIsReportedRatherThanTrimmedQuietly()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetCase>();
+                services.RemoveAll<ISaveCase>();
+                services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<ISaveCase>(store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var initialHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        using var saveResponse = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            Form(
+                AntiforgeryValue(initialHtml),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", DetailsModelOperationKey),
+                ("editLeaseToken", store.LeaseToken),
+                ("accidentCircumstances", new string('c', 2500))));
+        AssertPrg(saveResponse, store.CaseId);
+
+        var refusedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+
+        Assert.Contains("Some values were too long to keep in full", refusedHtml, StringComparison.Ordinal);
+        Assert.Contains("Re-enter those in full", refusedHtml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ANonHolderSeesTheEditingStaffAccountByNameAndNeverItsIdentifier()
+    {
+        var holderId = Guid.Parse("0d3b5a41-6f3f-4a1e-9f0b-2c5d7e8a9b01");
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore { LeaseHolder = holderId.ToString("D") };
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetCase>();
+                services.RemoveAll<IDescribeCaseEditAuthorityHolder>();
+                services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IDescribeCaseEditAuthorityHolder>(
+                    new StubEditAuthorityHolders("r.hughes"));
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -373,19 +514,160 @@ public sealed partial class CaseDetailsWebTests
         });
 
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        var panel = EditModePanel(html);
 
-        Assert.Contains(store.LeaseHolder!, html, StringComparison.Ordinal);
-        Assert.Contains("is editing this case", html, StringComparison.Ordinal);
-        Assert.Contains("Editing becomes available at", html, StringComparison.Ordinal);
-        Assert.Contains("Editing cannot be taken over", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=ClaimLease", html, StringComparison.Ordinal);
-        foreach (var banned in new[] { "lease", "opaque", "token", "expiry", "projection" })
+        Assert.Contains("r.hughes is editing this case", panel, StringComparison.Ordinal);
+        Assert.Contains("Editing becomes available at", panel, StringComparison.Ordinal);
+        Assert.Contains("Editing cannot be taken over", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ClaimLease", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain(holderId.ToString("D"), html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotMatch(GuidRegex(), VisibleText(panel));
+    }
+
+    [Fact]
+    public async Task AnUnresolvableHolderIsStillDisclosedWithoutAnIdentifier()
+    {
+        var holderId = Guid.Parse("0d3b5a41-6f3f-4a1e-9f0b-2c5d7e8a9b01");
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore { LeaseHolder = holderId.ToString("D") };
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetCase>();
+                services.RemoveAll<IDescribeCaseEditAuthorityHolder>();
+                services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IDescribeCaseEditAuthorityHolder>(
+                    new StubEditAuthorityHolders(displayName: null));
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
-            Assert.DoesNotContain(banned, VisibleText(html), StringComparison.OrdinalIgnoreCase);
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        var panel = EditModePanel(html);
+
+        Assert.Contains(
+            "Another member of staff is editing this case",
+            panel,
+            StringComparison.Ordinal);
+        Assert.Contains("Editing becomes available at", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain(holderId.ToString("D"), html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotMatch(GuidRegex(), VisibleText(panel));
+    }
+
+    [Fact]
+    public async Task EditModeCopyAvoidsBannedOperatorVocabularyInEveryState()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetCase>();
+                services.RemoveAll<IAcquireCaseEditLease>();
+                services.RemoveAll<ISaveCase>();
+                services.RemoveAll<IDescribeCaseEditAuthorityHolder>();
+                services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IAcquireCaseEditLease>(store);
+                services.AddSingleton<ISaveCase>(store);
+                services.AddSingleton<IDescribeCaseEditAuthorityHolder>(
+                    new StubEditAuthorityHolders("r.hughes"));
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        // Available: nobody is editing.
+        AssertNoBannedVocabulary(EditModePanel(await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}")));
+
+        // Holder: this staff member is editing, with the edit forms rendered.
+        var availableHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        using (var claimResponse = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=ClaimLease",
+            Form(
+                AntiforgeryValue(availableHtml),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", InputValue(availableHtml, "operationKey")))))
+        {
+            AssertPrg(claimResponse, store.CaseId);
+        }
+
+        var holderHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        Assert.Contains("You hold edit authority", EditModePanel(holderHtml), StringComparison.Ordinal);
+        AssertNoBannedVocabulary(EditModePanel(holderHtml));
+
+        // Recover: the same holder without the protected browser state.
+        using (var recoveryClient = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        }))
+        {
+            var recoverHtml = await GetHtmlAsync(recoveryClient, $"/Cases/{store.CaseId:D}");
+            Assert.Contains("Recover edit mode", EditModePanel(recoverHtml), StringComparison.Ordinal);
+            AssertNoBannedVocabulary(EditModePanel(recoverHtml));
+        }
+
+        // Non-holder: someone else is editing.
+        store.LeaseHolder = Guid.NewGuid().ToString("D");
+        using (var otherClient = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        }))
+        {
+            var nonHolderHtml = await GetHtmlAsync(otherClient, $"/Cases/{store.CaseId:D}");
+            Assert.Contains(
+                "is editing this case",
+                EditModePanel(nonHolderHtml),
+                StringComparison.Ordinal);
+            AssertNoBannedVocabulary(EditModePanel(nonHolderHtml));
         }
     }
 
+    /// <summary>
+    /// The vocabulary `docs/ui-work/ui-standards-and-review.md` bans from operator copy, including
+    /// identifiers. Applied to this feature's own panels; GUID debt elsewhere on the case page
+    /// (the Engineer field) predates this work and belongs to the queued case-container rework.
+    /// </summary>
+    private static void AssertNoBannedVocabulary(string sectionHtml)
+    {
+        var visible = VisibleText(sectionHtml);
+        foreach (var banned in new[]
+        {
+            "lease", "opaque", "token", "expiry", "projection", "ingress", "bounded",
+            "artifact", "durable", "aggregate", "caller", "composed", "composition",
+            "bytes", "hash", "operation key", "correlation"
+        })
+        {
+            Assert.DoesNotContain(banned, visible, StringComparison.OrdinalIgnoreCase);
+        }
+
+        Assert.DoesNotMatch(GuidRegex(), visible);
+    }
+
     private const string DetailsModelOperationKey = "3f2504e04f8911d39a0c0305e82c3301";
+
+    private static string EditModePanel(string html) =>
+        Section(html, "case-edit-mode-title");
+
+    private static string ProposedValuesPanel(string html) =>
+        Section(html, "case-proposed-values-title");
+
+    private static string Section(string html, string labelledBy)
+    {
+        var start = html.IndexOf($"aria-labelledby=\"{labelledBy}\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, $"The '{labelledBy}' section is not rendered.");
+        var open = html.LastIndexOf("<section", start, StringComparison.Ordinal);
+        var end = html.IndexOf("</section>", start, StringComparison.Ordinal);
+        Assert.True(end > open, $"The '{labelledBy}' section is not closed.");
+        return html[open..(end + "</section>".Length)];
+    }
 
     /// <summary>
     /// Operator copy only: markup, attribute values, and script are removed so the banned-vocabulary
@@ -396,6 +678,22 @@ public sealed partial class CaseDetailsWebTests
 
     [GeneratedRegex("<(script|style)[^>]*>.*?</\\1>|<[^>]*>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.CultureInvariant)]
     private static partial Regex MarkupRegex();
+
+    [GeneratedRegex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", RegexOptions.CultureInvariant)]
+    private static partial Regex GuidRegex();
+
+    private sealed class StubEditAuthorityHolders(string? displayName)
+        : IDescribeCaseEditAuthorityHolder
+    {
+        public Task<CaseEditAuthorityHolder> ExecuteAsync(
+            string holderSubjectId,
+            ActionActor actor,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new CaseEditAuthorityHolder(displayName));
+        }
+    }
 
     private static void AssertPrg(HttpResponseMessage response, Guid caseId)
     {

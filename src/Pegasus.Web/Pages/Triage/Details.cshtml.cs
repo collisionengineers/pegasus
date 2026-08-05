@@ -28,7 +28,8 @@ public sealed class DetailsModel(
     ICancelTriage cancel,
     IReopenTriage reopen,
     ILinkTriageCase linkCase,
-    IUnlinkTriageCase unlinkCase) : PageModel
+    IUnlinkTriageCase unlinkCase,
+    IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder) : PageModel
 {
     private readonly IGetTriage _getTriage =
         getTriage ?? throw new ArgumentNullException(nameof(getTriage));
@@ -36,6 +37,9 @@ public sealed class DetailsModel(
         getCase ?? throw new ArgumentNullException(nameof(getCase));
     private readonly ILeaseCaseForEdit _caseLeases =
         caseLeases ?? throw new ArgumentNullException(nameof(caseLeases));
+    private readonly IDescribeCaseEditAuthorityHolder _describeEditAuthorityHolder =
+        describeEditAuthorityHolder
+            ?? throw new ArgumentNullException(nameof(describeEditAuthorityHolder));
 
 
     public TriageDetail Triage { get; private set; } = null!;
@@ -307,9 +311,10 @@ public sealed class DetailsModel(
             }
             else if (linkedCase.ActiveEditLease is { } activeLease)
             {
-                CaseAssociationUnavailableReason =
-                    $"Case editing is unavailable while held by {activeLease.Holder} until "
-                    + $"{activeLease.ExpiresAtUtc.ToLocalTime():dd MMM yyyy HH:mm}.";
+                CaseAssociationUnavailableReason = await DescribeCaseHeldAsync(
+                    activeLease,
+                    actor,
+                    cancellationToken);
                 CaseAssociationUnavailableCaseId = linkedCaseId;
             }
         }
@@ -345,9 +350,10 @@ public sealed class DetailsModel(
                 ?? throw new KeyNotFoundException($"Case '{caseId}' was not found.");
             if (targetCase.ActiveEditLease is { } activeLease)
             {
-                var unavailableReason =
-                    $"Case editing is unavailable while held by {activeLease.Holder} until "
-                    + $"{activeLease.ExpiresAtUtc.ToLocalTime():dd MMM yyyy HH:mm}.";
+                var unavailableReason = await DescribeCaseHeldAsync(
+                    activeLease,
+                    actor,
+                    cancellationToken);
                 TempData["TriageStatus"] = unavailableReason;
                 TempData["TriageUnavailableCase"] =
                     $"{caseId:D}|{unavailableReason}";
@@ -390,9 +396,7 @@ public sealed class DetailsModel(
         }
         catch (Exception exception) when (IsExpected(exception))
         {
-            var unavailableReason = exception is CaseEditLeaseConflictException
-                ? "Case editing is currently unavailable because another actor holds the active lease."
-                : exception.Message;
+            var unavailableReason = RefusalMessage(exception);
             TempData["TriageStatus"] = unavailableReason;
             if (exception is CaseEditLeaseConflictException)
             {
@@ -462,6 +466,43 @@ public sealed class DetailsModel(
     }
 
     private static string NewOperationKey() => Guid.NewGuid().ToString("N");
+
+    /// <summary>
+    /// One wording and one clock for the case-edit disclosure, shared with the case workspace, so
+    /// Triage never renders a subject identifier or a server-local time.
+    /// </summary>
+    private async Task<string> DescribeCaseHeldAsync(
+        CaseEditLeaseSnapshot activeLease,
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        var isSelf = string.Equals(
+            activeLease.Holder,
+            actor.SubjectId,
+            StringComparison.Ordinal);
+        var holder = isSelf
+            ? CaseEditAuthorityHolder.Unnamed
+            : await _describeEditAuthorityHolder.ExecuteAsync(
+                activeLease.Holder,
+                actor,
+                cancellationToken);
+        return EditModeDisplay.CaseHeldBy(holder, activeLease.ExpiresAtUtc, isSelf);
+    }
+
+    /// <summary>
+    /// Refusals reaching the operator are settled copy: a Core message names the case identifier
+    /// and the internal edit-authority vocabulary, and neither belongs on the page.
+    /// </summary>
+    private static string RefusalMessage(Exception exception) => exception switch
+    {
+        CaseEditLeaseConflictException =>
+            "Case editing is unavailable because another member of staff is editing this case.",
+        CaseEditLeaseExpiredException =>
+            "Case editing is no longer available for this attempt. Reload the record and try again.",
+        CaseVersionConflictException =>
+            "The case changed while this was being prepared. Reload the record and try again.",
+        _ => "The Triage action was not applied. Reload the record and try again."
+    };
 
     private static bool IsExpected(Exception exception) => exception is
         ArgumentException or InvalidOperationException or KeyNotFoundException;

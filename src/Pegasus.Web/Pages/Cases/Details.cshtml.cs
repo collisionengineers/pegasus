@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Globalization;
 using System.Security.Claims;
 using System.Text;
@@ -57,6 +58,7 @@ public sealed partial class DetailsModel(
     ICreateRequestUploadLink createRequestUploadLink,
     IRevokeRequestUploadLink revokeRequestUploadLink,
     IImageIntakeQueries imageIntakeQueries,
+    IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
     TimeProvider timeProvider,
     ILogger<DetailsModel> logger) : PageModel
 {
@@ -72,27 +74,69 @@ public sealed partial class DetailsModel(
     private const string ProposedValuesKey = "CaseProposedValues";
     private const string ProposedValuesCaseIdKey = "CaseProposedValuesCaseId";
     private const string ProposedValuesDroppedKey = "CaseProposedValuesDropped";
+    private const string ProposedValuesShortenedKey = "CaseProposedValuesShortened";
 
     /// <summary>
-    /// Cookie TempData carries roughly four kilobytes for the whole response, so the retained
-    /// refusal payload is capped well inside it. A payload that does not fit is not silently
-    /// dropped: the editor is told the proposed values could not be kept.
+    /// The retained payload is bounded so one refusal cannot grow the response without limit.
+    /// Cookie TempData chunks across cookies, so the ceiling is a deliberate budget rather than a
+    /// hard 4 KB wall: the per-value cap matches the longest field an edit form accepts, and the
+    /// total holds an ordinary case-data save with circumstances, address, and reason together.
+    /// Nothing is trimmed or discarded quietly — both outcomes are stated in the panel.
     /// </summary>
-    private const int MaximumRetainedProposedCharacters = 2000;
-    private const int MaximumRetainedProposedValueCharacters = 300;
+    private const int MaximumRetainedProposedCharacters = 8000;
+    private const int MaximumRetainedProposedValueCharacters = 2000;
 
-    private static readonly string[] UnretainedFormFields =
-    [
-        "id",
-        "caseId",
-        "expectedVersion",
-        "expectedCaseVersion",
-        "expectedTaskVersion",
-        "expectedRequestVersion",
-        "operationKey",
-        "editLeaseToken",
-        "__RequestVerificationToken"
-    ];
+    /// <summary>
+    /// The values an operator types or chooses as case content. Identifiers, versions, keys,
+    /// tokens, and the fields that only route a command are never retained, so the comparison
+    /// shows editorial work and never an identifier.
+    /// </summary>
+    private static readonly FrozenSet<string> RetainableFormFields = new[]
+    {
+        "claimantName",
+        "claimNumber",
+        "vehicleRegistration",
+        "vehicleMake",
+        "vehicleModel",
+        "vehicleMileage",
+        "vehicleMileageUnit",
+        "accidentCircumstances",
+        "incidentDate",
+        "contactName",
+        "contactEmailAddress",
+        "contactPhoneNumber",
+        "instructionDate",
+        "vatStatus",
+        "inspectionDate",
+        "inspectionDeadline",
+        "inspectionAddress",
+        "inspectionMode",
+        "registration",
+        "make",
+        "model",
+        "mileage",
+        "mileageUnit",
+        "reason",
+        "note",
+        "description",
+        "channel",
+        "targetPartyOrAddress",
+        "outcome",
+        "assessment",
+        "evidenceReference",
+        "artifactIdentity",
+        "replacementPrincipalCode",
+        "semanticRole",
+        "expiresAtUtc",
+        "attemptedAtUtc",
+        "instructionComplete",
+        "imagesComplete",
+        "instructionsComplete",
+        "instructionConfirmedByStaff",
+        "imagesConfirmedByStaff",
+        "instructionsReviewedByStaff",
+        "imagesReviewedByStaff"
+    }.ToFrozenSet(StringComparer.Ordinal);
 
     public CaseDetails? Case { get; private set; }
 
@@ -105,7 +149,15 @@ public sealed partial class DetailsModel(
 
     public bool ProposedValuesWereDropped { get; private set; }
 
-    public string? ViewerSubjectId { get; private set; }
+    public bool ProposedValuesWereShortened { get; private set; }
+
+    /// <summary>
+    /// Who holds edit authority, as an operator may see them. Null when nobody is editing; a
+    /// holder whose account cannot be resolved is still disclosed, without an identifier.
+    /// </summary>
+    public CaseEditAuthorityHolder? EditAuthorityHolder { get; private set; }
+
+    public bool ViewerHoldsEditAuthority { get; private set; }
 
     public bool QueryFailed { get; private set; }
 
@@ -144,9 +196,9 @@ public sealed partial class DetailsModel(
                 return NotFound();
             }
             ImageIntakes = await imageIntakeQueries.ListForCaseAsync(id, cancellationToken);
-            ViewerSubjectId = actor.SubjectId;
             RestoreLeaseState(id, actor);
             RestoreProposedValues(id);
+            await DescribeEditAuthorityHolderAsync(actor, cancellationToken);
             ManualChaseAttemptedAtUtc = timeProvider.GetUtcNow();
             return Page();
         }
@@ -859,6 +911,7 @@ public sealed partial class DetailsModel(
         {
             LogCaseCommandFailed(logger, id, "create_linked_replacement", exception);
             HandleLeaseFailure(id, editLeaseToken, exception);
+            RetainProposedValues(id);
             TempData["CaseError"] =
                 "The corrected replacement could not be created because the case changed or the request is not permitted.";
         }
@@ -1038,6 +1091,7 @@ public sealed partial class DetailsModel(
         {
             LogCaseCommandFailed(logger, id, "generate_eva_handoff", exception);
             HandleLeaseFailure(id, editLeaseToken, exception);
+            RetainProposedValues(id);
             TempData["CaseError"] =
                 "The EVA handoff was not generated because the case changed, edit mode was lost, or bundle generation is unavailable.";
         }
@@ -1101,6 +1155,7 @@ public sealed partial class DetailsModel(
         {
             LogCaseCommandFailed(logger, id, "add_case_document", exception);
             HandleLeaseFailure(id, editLeaseToken, exception);
+            RetainProposedValues(id);
             TempData["CaseError"] =
                 "The document could not be retained because the case changed, edit mode was lost, or custody is unavailable.";
         }
@@ -1192,6 +1247,7 @@ public sealed partial class DetailsModel(
         {
             LogCaseCommandFailed(logger, id, "create_box_file_request", exception);
             HandleLeaseFailure(id, editLeaseToken, exception);
+            RetainProposedValues(id);
             TempData["CaseError"] =
                 "The Box file request could not be created because the case changed, edit mode was lost, or the service is unavailable.";
         }
@@ -1268,6 +1324,7 @@ public sealed partial class DetailsModel(
         {
             LogCaseCommandFailed(logger, id, "create_request_upload_link", exception);
             HandleLeaseFailure(id, editLeaseToken, exception);
+            RetainProposedValues(id);
             TempData["CaseError"] =
                 "The upload request could not be created because the case changed, edit mode was lost, or requests are unavailable.";
         }
@@ -1464,6 +1521,27 @@ public sealed partial class DetailsModel(
         TempData[LeaseTokenKey] = new[] { leaseToken };
     }
 
+    private async Task DescribeEditAuthorityHolderAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        if (Case?.ActiveEditLease is not { } activeLease)
+        {
+            return;
+        }
+
+        ViewerHoldsEditAuthority = string.Equals(
+            activeLease.Holder,
+            actor.SubjectId,
+            StringComparison.Ordinal);
+        EditAuthorityHolder = ViewerHoldsEditAuthority
+            ? CaseEditAuthorityHolder.Unnamed
+            : await describeEditAuthorityHolder.ExecuteAsync(
+                activeLease.Holder,
+                actor,
+                cancellationToken);
+    }
+
     /// <summary>
     /// Carries the refused form's own submitted values through the post-redirect-get so the editor
     /// can compare them with the reloaded case. No lease token, version, or case identifier beyond
@@ -1476,17 +1554,28 @@ public sealed partial class DetailsModel(
             return;
         }
 
+        var wasShortened = false;
         var submitted = Request.Form
-            .Where(field => !UnretainedFormFields.Contains(field.Key, StringComparer.Ordinal))
+            .Where(field => RetainableFormFields.Contains(field.Key))
             .Select(field => new
             {
                 field.Key,
                 Value = string.Join(", ", field.Value.Where(value => !string.IsNullOrWhiteSpace(value)))
             })
-            .Where(field => !string.IsNullOrWhiteSpace(field.Value))
-            .Select(field => new RetainedProposedValue(
-                field.Key,
-                Truncate(field.Value, MaximumRetainedProposedValueCharacters)))
+            .Where(field => !string.IsNullOrWhiteSpace(field.Value)
+                && !Guid.TryParse(field.Value, out _))
+            .Select(field =>
+            {
+                if (field.Value.Length <= MaximumRetainedProposedValueCharacters)
+                {
+                    return new RetainedProposedValue(field.Key, field.Value);
+                }
+
+                wasShortened = true;
+                return new RetainedProposedValue(
+                    field.Key,
+                    field.Value[..MaximumRetainedProposedValueCharacters]);
+            })
             .ToArray();
         if (submitted.Length == 0)
         {
@@ -1498,22 +1587,36 @@ public sealed partial class DetailsModel(
         if (payload.Length > MaximumRetainedProposedCharacters)
         {
             TempData.Remove(ProposedValuesKey);
+            TempData.Remove(ProposedValuesShortenedKey);
             TempData[ProposedValuesDroppedKey] = true;
             return;
         }
 
         TempData.Remove(ProposedValuesDroppedKey);
+        TempData[ProposedValuesShortenedKey] = wasShortened;
         TempData[ProposedValuesKey] = payload;
     }
 
+    /// <summary>
+    /// Reads the retained values only for the case they were submitted against. A refusal on one
+    /// case survives a visit to another, so nothing is consumed until it belongs to this page.
+    /// </summary>
     private void RestoreProposedValues(Guid caseId)
     {
-        var retainedCaseId = PeekGuid(ProposedValuesCaseIdKey);
+        if (PeekGuid(ProposedValuesCaseIdKey) != caseId)
+        {
+            TempData.Keep(ProposedValuesCaseIdKey);
+            TempData.Keep(ProposedValuesKey);
+            TempData.Keep(ProposedValuesDroppedKey);
+            TempData.Keep(ProposedValuesShortenedKey);
+            return;
+        }
+
         TempData.Remove(ProposedValuesCaseIdKey);
         var payload = TempData[ProposedValuesKey] as string;
-        ProposedValuesWereDropped = TempData[ProposedValuesDroppedKey] is true
-            && retainedCaseId == caseId;
-        if (retainedCaseId != caseId || string.IsNullOrWhiteSpace(payload))
+        ProposedValuesWereDropped = TempData[ProposedValuesDroppedKey] is true;
+        ProposedValuesWereShortened = TempData[ProposedValuesShortenedKey] is true;
+        if (string.IsNullOrWhiteSpace(payload))
         {
             return;
         }
@@ -1611,9 +1714,6 @@ public sealed partial class DetailsModel(
 
         return text.ToString();
     }
-
-    private static string Truncate(string value, int maximumLength) =>
-        value.Length <= maximumLength ? value : value[..maximumLength];
 
     private void HandleLeaseFailure(Guid caseId, string? editLeaseToken, Exception exception)
     {
