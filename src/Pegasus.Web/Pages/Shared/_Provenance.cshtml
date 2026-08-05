@@ -1,0 +1,43 @@
+@using Pegasus.Core.Cases
+@*
+    Where a value came from: a small icon whose tooltip — on hover and on
+    keyboard focus, with a matching accessible name — is exactly one word.
+
+    It replaces prose in a third column plus a policy key and a version
+    integer, none of which an operator can act on. The row must still make
+    sense with the icon ignored, so this is always supplementary: a value is
+    still a value without it.
+
+    ICON SET: the Lucide sprite is a checksummed asset of sixteen glyphs and
+    the design authority records that no glyph was added, removed or redrawn.
+    Two of the seven words therefore share a glyph with a neighbour and lean on
+    the tooltip to tell them apart. Adding an envelope and a spark glyph needs
+    operator authorisation to re-checksum the sprite; it is recorded as a
+    follow-up rather than done quietly here.
+*@
+@model CaseDataSource?
+@{
+    // "AI" has no persisted distinction from a plain document read: both are
+    // IntakeEvidence. It is derived from the reader identity already carried
+    // on the source label, and falls back to Extracted rather than guessing.
+    var isAiReader = Model is not null
+        && Model.Kind == CaseDataSourceKind.IntakeEvidence
+        && (Model.Label.Contains("ai", StringComparison.OrdinalIgnoreCase)
+            || Model.PolicyKey.Contains("ai", StringComparison.OrdinalIgnoreCase));
+
+    var (word, icon) = Model?.Kind switch
+    {
+        null => ("Unknown", "icon-info"),
+        CaseDataSourceKind.StaffCorrection => ("Staff", "icon-user"),
+        CaseDataSourceKind.IntakeEvidence when isAiReader => ("AI", "icon-filter"),
+        CaseDataSourceKind.IntakeEvidence => ("Extracted", "icon-file-text"),
+        CaseDataSourceKind.MailRoute => ("E-mail", "icon-arrow-right"),
+        CaseDataSourceKind.VehicleLookup => ("Lookup", "icon-search"),
+        CaseDataSourceKind.ProviderSetting => ("Principal", "icon-shield"),
+        CaseDataSourceKind.CaseAcceptance => ("Automatic", "icon-refresh-cw"),
+        _ => ("Unknown", "icon-info")
+    };
+}
+<span class="prov" tabindex="0" role="img" aria-label="@word" data-word="@word">
+    <svg class="icon" aria-hidden="true"><use href="#@icon" /></svg>
+</span>

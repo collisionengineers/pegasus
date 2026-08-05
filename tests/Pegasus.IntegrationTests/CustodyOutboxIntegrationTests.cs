@@ -903,6 +903,38 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.Equal(revokeRequest.Reason, revokeHistory.Reason);
     }
 
+    [Fact]
+    public async Task ExportIsRefusedForACaseThatIsNotInReview()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+
+        // The queued path allocates the case with nothing confirmed, so it
+        // enters Not ready — which is exactly the stage the rule excludes.
+        var accepted = await AcceptQueuedSourceAsync(scope.ServiceProvider);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var lease = await scope.ServiceProvider
+            .GetRequiredService<IAcquireCaseEditLease>()
+            .ExecuteAsync(
+                new(accepted.CaseId, 0, actor, $"export-gate-lease:{Guid.NewGuid():N}"),
+                CancellationToken.None);
+
+        // A greyed button is presentation. The rule is a precondition, so it
+        // holds for every caller and not just the one that renders the button.
+        await Assert.ThrowsAsync<CaseNotInReviewException>(() =>
+            scope.ServiceProvider.GetRequiredService<IExportCaseDocuments>()
+                .ExecuteAsync(
+                    new(
+                        accepted.CaseId,
+                        [new(Guid.NewGuid(), Guid.NewGuid())],
+                        actor,
+                        $"export-gate:{Guid.NewGuid():N}",
+                        1024 * 1024,
+                        lease.Version,
+                        lease.Token),
+                    CancellationToken.None));
+    }
+
     private static async Task<AcceptedSource> AcceptDirectSourceAsync(IServiceProvider services)
     {
         var source = CreateSource();
