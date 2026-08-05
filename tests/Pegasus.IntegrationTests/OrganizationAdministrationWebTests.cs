@@ -47,7 +47,11 @@ public sealed partial class OrganizationAdministrationWebTests
         using var organizationEditGet = await client.GetAsync(organizationEditPath);
         var organizationEditHtml = await organizationEditGet.Content.ReadAsStringAsync();
         organizationEditGet.EnsureSuccessStatusCode();
-        Assert.Contains("Roles are independently selectable", organizationEditHtml, StringComparison.Ordinal);
+        // The lede is gone: a page's heading and its content are the
+        // explanation, and "Roles are independently selectable" described the
+        // checkboxes the operator was already looking at.
+        Assert.DoesNotContain("class=\"lede\"", organizationEditHtml, StringComparison.Ordinal);
+        Assert.Contains("Organization roles", organizationEditHtml, StringComparison.Ordinal);
         var organizationEditForm = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = InputValue(
