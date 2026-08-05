@@ -8,6 +8,7 @@ using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Intake;
 
@@ -18,8 +19,6 @@ public sealed partial class DetailsModel(
     ILinkIntake linkIntake,
     IReverseIntakeLink reverseIntakeLink,
     IAcquireCaseEditLease acquireCaseEditLease,
-    IAcceptIntake acceptIntake,
-    IConfirmStandaloneAuditEvidence confirmStandaloneAuditEvidence,
     IStandaloneAuditEvidenceQueries standaloneAuditEvidenceQueries,
     IImageIntakeQueries imageIntakeQueries,
     IImageIntakeOriginResolver imageIntakeOriginResolver,
@@ -48,39 +47,41 @@ public sealed partial class DetailsModel(
 
     public bool ProviderIsImageBased { get; private set; }
 
-    public string PrincipalCode { get; set; } = string.Empty;
-
-    public CaseType CaseType { get; set; } = Pegasus.Core.Cases.CaseType.Inspection;
-
-    public AuditAssessment? StandaloneAuditAssessment { get; set; }
-    public Guid? StandaloneAuditOriginalReportAssetId { get; set; }
-
-    public string StandaloneAuditEvidenceReason { get; set; } = string.Empty;
-
     public StandaloneAuditEvidence? ConfirmedStandaloneAuditEvidence { get; private set; }
 
+    /// <summary>
+    /// The eleven instruction values, for the correction form this screen still
+    /// offers a blocked item.
+    /// </summary>
+    public InstructionDraftFieldsView DraftFields => new(
+        Receipt.InstructionDraft,
+        Receipt.Fields,
+        IncludePrincipalCode: true,
+        IncludeInspectionAddress: true);
 
-    public bool InstructionComplete { get; set; }
+    /// <summary>
+    /// Whether this item can still be turned into a case, and so whether the
+    /// screen offers the link to where that happens.
+    /// </summary>
+    public bool CanCreateCase =>
+        Receipt.AcceptedCaseId is null
+        && IntakeDecisionPolicy.CanBecomeCase(Receipt.Decision);
 
-    public bool ImagesComplete { get; set; }
+    /// <summary>
+    /// The inspection-address state in words. The enum name was printed here
+    /// verbatim, which the operator notes forbid.
+    /// </summary>
+    public static string AddressStateLabel(InspectionAddressResolutionState state) => state switch
+    {
+        InspectionAddressResolutionState.Unresolved => "Not found",
+        InspectionAddressResolutionState.Suggested => "Found in the document",
+        InspectionAddressResolutionState.Accepted => "Confirmed",
+        InspectionAddressResolutionState.Corrected => "Corrected by staff",
+        InspectionAddressResolutionState.Supplied => "Entered by staff",
+        _ => throw new InvalidOperationException(
+            $"Unknown inspection-address resolution state '{(int)state}'.")
+    };
 
-    public bool InstructionConfirmedByStaff { get; set; }
-
-    public bool ImagesConfirmedByStaff { get; set; }
-
-    public string AcceptanceOperationKey { get; set; } = string.Empty;
-    public string AcceptanceReason { get; set; } = string.Empty;
-
-
-    public long? ReviewedReceiptVersion { get; set; }
-
-    public long ExpectedAddressReceiptVersion { get; set; }
-
-    public string AddressSuggestionFingerprint { get; set; } = string.Empty;
-
-    public string AddressOperationId { get; set; } = string.Empty;
-
-    public string CorrectedInspectionAddress { get; set; } = string.Empty;
     public Guid? LeasedCaseId { get; private set; }
 
     public long? LeasedCaseVersion { get; private set; }
@@ -101,24 +102,6 @@ public sealed partial class DetailsModel(
         }
 
         IsDuplicate = duplicate;
-        PrincipalCode = Receipt.InstructionDraft?.SuggestedPrincipalCode ?? string.Empty;
-        InstructionComplete = Receipt.InstructionDraft is not null
-            && Receipt.MissingFields.Count == 0
-            && (ProviderIsImageBased
-                || AddressResolution.State is (
-                    InspectionAddressResolutionState.Accepted
-                    or InspectionAddressResolutionState.Corrected));
-        InstructionConfirmedByStaff = InstructionComplete;
-        AcceptanceOperationKey = Guid.NewGuid().ToString("N");
-        if (ConfirmedStandaloneAuditEvidence is { } evidence)
-        {
-            StandaloneAuditAssessment = evidence.Assessment;
-            StandaloneAuditOriginalReportAssetId = evidence.OriginalReportAssetId;
-            StandaloneAuditEvidenceReason = evidence.Reason;
-        }
-        ReviewedReceiptVersion =
-            ConfirmedStandaloneAuditEvidence?.ReceiptVersion
-            ?? AddressResolution.ReceiptVersion;
         RestoreCaseLease();
         return Page();
     }
@@ -315,297 +298,6 @@ public sealed partial class DetailsModel(
         return result;
     }
 
-    public async Task<IActionResult> OnPostAcceptAsync(
-        Guid id,
-        string? principalCode,
-        CaseType caseType,
-        AuditAssessment? standaloneAuditAssessment,
-        Guid? standaloneAuditOriginalReportAssetId,
-        string? standaloneAuditEvidenceReason,
-        bool instructionComplete,
-        bool imagesComplete,
-        bool instructionConfirmedByStaff,
-        bool imagesConfirmedByStaff,
-        string? acceptanceOperationKey,
-        string? acceptanceReason,
-        long? reviewedReceiptVersion,
-        CancellationToken cancellationToken = default)
-    {
-        PrincipalCode = principalCode ?? string.Empty;
-        CaseType = caseType;
-        StandaloneAuditAssessment = standaloneAuditAssessment;
-        StandaloneAuditOriginalReportAssetId = standaloneAuditOriginalReportAssetId;
-        StandaloneAuditEvidenceReason = standaloneAuditEvidenceReason ?? string.Empty;
-        InstructionComplete = instructionComplete;
-        ImagesComplete = imagesComplete;
-        InstructionConfirmedByStaff = instructionConfirmedByStaff;
-        ImagesConfirmedByStaff = imagesConfirmedByStaff;
-        AcceptanceOperationKey = acceptanceOperationKey ?? string.Empty;
-        AcceptanceReason = acceptanceReason ?? string.Empty;
-        ReviewedReceiptVersion = reviewedReceiptVersion;
-        var result = await LoadReceiptAsync(id, cancellationToken);
-        if (result is not null)
-        {
-            return result;
-        }
-
-        if (Receipt.Decision != IntakeDecision.NeedsSorting)
-        {
-            ModelState.AddModelError(
-                string.Empty,
-                "Only an item that needs sorting can be turned into a case here.");
-        }
-        if (string.IsNullOrWhiteSpace(AcceptanceReason))
-        {
-            ModelState.AddModelError(
-                nameof(AcceptanceReason),
-                "Record the staff reason for accepting this intake.");
-        }
-        else if (AcceptanceReason.Trim().Length > 500)
-        {
-            ModelState.AddModelError(
-                nameof(AcceptanceReason),
-                "The acceptance reason must be 500 characters or fewer.");
-        }
-        PrincipalCode = PrincipalCode.Trim().ToUpperInvariant();
-        if (PrincipalCode.Length == 0)
-        {
-            ModelState.AddModelError(
-                nameof(PrincipalCode),
-                "Enter the confirmed principal code.");
-        }
-        else if (PrincipalCode.Length > CasePrincipalCode.MaximumLength)
-        {
-            ModelState.AddModelError(
-                nameof(PrincipalCode),
-                $"The principal code must be {CasePrincipalCode.MaximumLength} characters or fewer.");
-        }
-
-        var postedProviderMode = PrincipalCode.Length == 0
-            ? null
-            : await providerInspectionModeStore.GetForPrincipalAsync(
-                PrincipalCode,
-                cancellationToken);
-        if (postedProviderMode != CaseInspectionMode.ImageBasedAssessment
-            && AddressResolution.State is not InspectionAddressResolutionState.Accepted
-                and not InspectionAddressResolutionState.Corrected)
-        {
-            ModelState.AddModelError(
-                string.Empty,
-                "Accept or correct the inspection-address suggestion before allocating a case reference.");
-        }
-
-        if (!Enum.IsDefined(CaseType))
-        {
-            ModelState.AddModelError(nameof(CaseType), "Choose a valid case type.");
-        }
-
-        if (StandaloneAuditAssessment is { } assessment && !Enum.IsDefined(assessment))
-        {
-            ModelState.AddModelError(
-                nameof(StandaloneAuditAssessment),
-                "Choose a valid Audit assessment.");
-        }
-        else if (CaseType == Pegasus.Core.Cases.CaseType.Audit && StandaloneAuditAssessment is null)
-        {
-            ModelState.AddModelError(
-                nameof(StandaloneAuditAssessment),
-                "Confirm the standalone Audit assessment before accepting the case.");
-        }
-        else if (CaseType != Pegasus.Core.Cases.CaseType.Audit && StandaloneAuditAssessment is not null)
-        {
-            ModelState.AddModelError(
-                nameof(StandaloneAuditAssessment),
-                "An assessment can be recorded here only for a standalone Audit.");
-        }
-        StandaloneAuditEvidenceReason = StandaloneAuditEvidenceReason.Trim();
-        if (CaseType == Pegasus.Core.Cases.CaseType.Audit)
-        {
-            if (StandaloneAuditOriginalReportAssetId is not { } selectedAssetId
-                || selectedAssetId == Guid.Empty)
-            {
-                ModelState.AddModelError(
-                    nameof(StandaloneAuditOriginalReportAssetId),
-                    "Select the retained original Engineer report.");
-            }
-            if (StandaloneAuditEvidenceReason.Length == 0
-                || StandaloneAuditEvidenceReason.Length > 500)
-            {
-                ModelState.AddModelError(
-                    nameof(StandaloneAuditEvidenceReason),
-                    "Record why this retained report supports the Audit assessment (500 characters maximum).");
-            }
-            if (ConfirmedStandaloneAuditEvidence is { } confirmed
-                && (StandaloneAuditAssessment != confirmed.Assessment
-                    || StandaloneAuditOriginalReportAssetId != confirmed.OriginalReportAssetId
-                    || !string.Equals(
-                        StandaloneAuditEvidenceReason,
-                        confirmed.Reason,
-                        StringComparison.Ordinal)))
-            {
-                ModelState.AddModelError(
-                    string.Empty,
-                    "The standalone Audit evidence was already confirmed with different immutable details.");
-            }
-        }
-        else
-        {
-            if (StandaloneAuditOriginalReportAssetId is not null
-                || StandaloneAuditEvidenceReason.Length > 0
-                || ConfirmedStandaloneAuditEvidence is not null)
-            {
-                ModelState.AddModelError(
-                    string.Empty,
-                    "Retained original-report evidence can be linked only to a standalone Audit.");
-            }
-        }
-
-        if (!Guid.TryParseExact(AcceptanceOperationKey, "N", out var operationId))
-        {
-            ModelState.AddModelError(
-                string.Empty,
-                "The acceptance request is invalid. Reload the page and try again.");
-        }
-
-        var reviewedVersion = ReviewedReceiptVersion.GetValueOrDefault(-1);
-        if (ReviewedReceiptVersion is null || reviewedVersion < 0)
-        {
-            ModelState.AddModelError(
-                string.Empty,
-                "The reviewed intake version is missing. Reload the receipt before accepting it.");
-        }
-
-        var subjectId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (!StaffActorFactory.TryCreate(
-            subjectId,
-            User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-            out var actionActor))
-        {
-            return Forbid();
-        }
-
-        if (!ModelState.IsValid)
-        {
-            return Page();
-        }
-
-        try
-        {
-            var acceptanceVersion = reviewedVersion;
-            Guid? standaloneAuditEvidenceId = null;
-            if (CaseType == Pegasus.Core.Cases.CaseType.Audit)
-            {
-                var evidence = ConfirmedStandaloneAuditEvidence;
-                if (evidence is null)
-                {
-                    evidence = await confirmStandaloneAuditEvidence.ExecuteAsync(
-                        new(
-                            operationId,
-                            Receipt.Id,
-                            reviewedVersion,
-                            StandaloneAuditOriginalReportAssetId.GetValueOrDefault(),
-                            StandaloneAuditAssessment.GetValueOrDefault(),
-                            actionActor,
-                            $"standalone-audit-evidence:{operationId:N}",
-                            StandaloneAuditEvidenceReason),
-                        cancellationToken);
-                    ConfirmedStandaloneAuditEvidence = evidence;
-                }
-                else if (evidence.ReceiptVersion != reviewedVersion)
-                {
-                    throw new InvalidOperationException(
-                        "The intake evidence changed after the original report was confirmed.");
-                }
-
-                standaloneAuditEvidenceId = evidence.Id;
-                acceptanceVersion = evidence.ReceiptVersion;
-                ReviewedReceiptVersion = acceptanceVersion;
-            }
-
-            var outcome = await acceptIntake.ExecuteAsync(
-                new(
-                    Receipt.Id,
-                    acceptanceVersion,
-                    actionActor,
-                    $"intake-accept:{operationId:N}",
-                    AcceptanceReason,
-                    CaseType,
-                    PrincipalCode,
-                    new(
-                        InstructionComplete,
-                        ImagesComplete,
-                        InstructionConfirmedByStaff,
-                        ImagesConfirmedByStaff),
-                    standaloneAuditEvidenceId,
-                    Receipt.InstructionDraft?.InspectionDate),
-                cancellationToken);
-
-            TempData["IntakeQueueStatus"] = outcome.IsDuplicate
-                ? "acceptance_duplicate"
-                : "accepted";
-            TempData["AcceptedCaseReference"] = outcome.Identity.AuditReference
-                ?? outcome.Identity.Reference;
-            return RedirectToPage("/Intake/Index");
-        }
-        catch (CaseAcceptanceOperationConflictException)
-        {
-            ModelState.AddModelError(
-                string.Empty,
-                "This intake receipt was already accepted using different review details. Reload the receipt.");
-        }
-        catch (CaseIdentitySequenceExhaustedException exception)
-        {
-            LogIdentitySequenceExhausted(logger, Receipt.Id, exception);
-            ModelState.AddModelError(
-                string.Empty,
-                "The case reference sequence is exhausted. The intake receipt was not accepted.");
-        }
-        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-        {
-            LogCaseAcceptanceFailed(logger, Receipt.Id, exception);
-            ModelState.AddModelError(
-                string.Empty,
-                "The case could not be accepted. No reference was allocated; reload the receipt and try again.");
-        }
-
-        return Page();
-    }
-    public Task<IActionResult> OnPostAcceptAddressAsync(
-        Guid id,
-        long expectedAddressReceiptVersion,
-        string? addressSuggestionFingerprint,
-        string? addressOperationId,
-        CancellationToken cancellationToken = default)
-    {
-        ExpectedAddressReceiptVersion = expectedAddressReceiptVersion;
-        AddressSuggestionFingerprint = addressSuggestionFingerprint ?? string.Empty;
-        AddressOperationId = addressOperationId ?? string.Empty;
-        CorrectedInspectionAddress = string.Empty;
-        return ResolveAddressAsync(
-            id,
-            InspectionAddressStaffDecision.AcceptSuggestion,
-            cancellationToken);
-    }
-
-    public Task<IActionResult> OnPostCorrectAddressAsync(
-        Guid id,
-        long expectedAddressReceiptVersion,
-        string? addressSuggestionFingerprint,
-        string? addressOperationId,
-        string? correctedInspectionAddress,
-        CancellationToken cancellationToken = default)
-    {
-        ExpectedAddressReceiptVersion = expectedAddressReceiptVersion;
-        AddressSuggestionFingerprint = addressSuggestionFingerprint ?? string.Empty;
-        AddressOperationId = addressOperationId ?? string.Empty;
-        CorrectedInspectionAddress = correctedInspectionAddress ?? string.Empty;
-        return ResolveAddressAsync(
-            id,
-            InspectionAddressStaffDecision.CorrectSuggestion,
-            cancellationToken);
-    }
-
-
     public int DuplicateOccurrenceCount(IntakeAssetRecord asset) =>
         Receipt.AssetRecords.Count(candidate => candidate.ContentHash == asset.ContentHash);
 
@@ -708,110 +400,6 @@ public sealed partial class DetailsModel(
         CaseEditLeaseToken = null;
     }
 
-    private async Task<IActionResult> ResolveAddressAsync(
-        Guid id,
-        InspectionAddressStaffDecision decision,
-        CancellationToken cancellationToken)
-    {
-        var loadResult = await LoadReceiptAsync(id, cancellationToken);
-        if (loadResult is not null)
-        {
-            return loadResult;
-        }
-
-        if (!Guid.TryParseExact(AddressOperationId, "N", out var operationId))
-        {
-            ModelState.AddModelError(
-                string.Empty,
-                "The inspection-address request is invalid. Reload the receipt and try again.");
-            PrepareAddressCommand();
-            return Page();
-        }
-
-        var subject = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (!Guid.TryParse(subject, out var staffId) || staffId == Guid.Empty)
-        {
-            return Forbid();
-        }
-
-        var roles = new List<StaffRole>(3);
-        if (User.IsInRole(StaffRoleNames.Administrator))
-        {
-            roles.Add(StaffRole.Administrator);
-        }
-        if (User.IsInRole(StaffRoleNames.Engineer))
-        {
-            roles.Add(StaffRole.Engineer);
-        }
-        if (User.IsInRole(StaffRoleNames.User))
-        {
-            roles.Add(StaffRole.User);
-        }
-        if (roles.Count == 0)
-        {
-            return Forbid();
-        }
-
-        try
-        {
-            var resolution = await addressResolutionStore.ResolveAsync(
-                new(
-                    id,
-                    ExpectedAddressReceiptVersion,
-                    AddressSuggestionFingerprint,
-                    decision,
-                    decision == InspectionAddressStaffDecision.CorrectSuggestion
-                        ? CorrectedInspectionAddress
-                        : null,
-                    ActionActor.Staff(staffId, roles),
-                    operationId,
-                    HttpContext.TraceIdentifier),
-                cancellationToken);
-            TempData["InspectionAddressStatus"] =
-                resolution.State == InspectionAddressResolutionState.Accepted
-                    ? "Inspection address suggestion accepted."
-                    : "Inspection address correction recorded.";
-            return RedirectToPage("/Intake/Details", new { id });
-        }
-        catch (InspectionAddressResolutionConcurrencyException)
-        {
-            ModelState.AddModelError(
-                string.Empty,
-                "The intake evidence changed. Review the current inspection-address suggestion before confirming it.");
-        }
-        catch (ArgumentException exception)
-        {
-            ModelState.AddModelError(nameof(CorrectedInspectionAddress), exception.Message);
-        }
-        catch (InvalidOperationException)
-        {
-            ModelState.AddModelError(
-                string.Empty,
-                "The inspection address remains unresolved. Review the current source evidence.");
-        }
-        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-        {
-            LogAddressResolutionFailed(logger, id, exception);
-            ModelState.AddModelError(
-                string.Empty,
-                "The inspection address could not be recorded. Reload the receipt and try again.");
-        }
-
-        await LoadReceiptAsync(id, cancellationToken);
-        PrepareAddressCommand();
-        return Page();
-    }
-
-    private void PrepareAddressCommand()
-    {
-        ExpectedAddressReceiptVersion = AddressResolution.ReceiptVersion;
-        AddressSuggestionFingerprint =
-            AddressResolution.Evaluation.Suggestion?.Fingerprint ?? string.Empty;
-        AddressOperationId = Guid.NewGuid().ToString("N");
-        CorrectedInspectionAddress =
-            AddressResolution.Evaluation.Suggestion?.Value ?? string.Empty;
-    }
-
     private async Task<IActionResult?> LoadReceiptAsync(
         Guid id,
         CancellationToken cancellationToken)
@@ -849,7 +437,6 @@ public sealed partial class DetailsModel(
             null,
             null,
             null);
-        PrepareAddressCommand();
         await LoadImageIntakeAsync(cancellationToken);
         return null;
     }
@@ -973,33 +560,6 @@ public sealed partial class DetailsModel(
         _ => throw new InvalidOperationException(
             $"Unknown recognition outcome value '{(int)suggestion.Outcome}'.")
     };
-
-    [LoggerMessage(
-        EventId = 1200,
-        Level = LogLevel.Warning,
-        Message = "Case acceptance exhausted the identity sequence for intake receipt {ReceiptId}.")]
-    private static partial void LogIdentitySequenceExhausted(
-        ILogger logger,
-        Guid receiptId,
-        Exception exception);
-
-    [LoggerMessage(
-        EventId = 1201,
-        Level = LogLevel.Warning,
-        Message = "Case acceptance failed closed for intake receipt {ReceiptId}.")]
-    private static partial void LogCaseAcceptanceFailed(
-        ILogger logger,
-        Guid receiptId,
-        Exception exception);
-
-    [LoggerMessage(
-        EventId = 1202,
-        Level = LogLevel.Warning,
-        Message = "Inspection-address resolution failed closed for intake receipt {ReceiptId}.")]
-    private static partial void LogAddressResolutionFailed(
-        ILogger logger,
-        Guid receiptId,
-        Exception exception);
 
     [LoggerMessage(
         EventId = 1203,

@@ -722,42 +722,20 @@ if (!app.Environment.IsDevelopment())
     });
 }
 
-// Staff read the intake list, detail, and retained source wherever intake is
-// composed. Manual local upload (POST /Intake?handler=ReceiveIntake) stays a
-// DevelopmentOffline-only capability and keeps returning 404 in Production.
+// The whole received-item surface — the list, an item, and its retained source
+// — is present only where intake is composed, and returns 404 everywhere else.
+//
+// The second gate that used to sit here refused POST /Intake?handler=ReceiveIntake
+// when local intake was off. That handler stopped existing when manual upload
+// moved to its own /Upload page, and no screen has produced that query string
+// since, so the branch matched nothing. Creating a case now happens at
+// /Cases/Create, outside /Intake, which is deliberate: it is a staff action in
+// every runtime profile and must not inherit a development-only gate.
 if (!intakeSurfaceEnabled)
 {
     app.Use(async (context, next) =>
     {
         if (context.Request.Path.StartsWithSegments("/Intake"))
-        {
-            context.Response.StatusCode = StatusCodes.Status404NotFound;
-            return;
-        }
-
-        await next(context);
-    });
-}
-else if (!localIntakeEnabled)
-{
-    // Only the manual upload handler on the intake index is Development-only. The
-    // /Intake/{id} review actions — accept, correct draft, block, link case — are
-    // the production staff path to Case/PO allocation and must stay reachable.
-    app.Use(async (context, next) =>
-    {
-        // Only the manual upload handler is Development-only, which is what
-        // this gate has always said it does. It used to block every POST to
-        // the Inbox index, so any other action that landed there — retrying a
-        // mailbox that failed to deliver, for one — was refused in Production
-        // for no stated reason.
-        var isReceiveIntakeHandler = string.Equals(
-            context.Request.Query["handler"],
-            "ReceiveIntake",
-            StringComparison.OrdinalIgnoreCase);
-        if (context.Request.Path.StartsWithSegments("/Intake")
-            && !HttpMethods.IsGet(context.Request.Method)
-            && !HttpMethods.IsHead(context.Request.Method)
-            && isReceiveIntakeHandler)
         {
             context.Response.StatusCode = StatusCodes.Status404NotFound;
             return;

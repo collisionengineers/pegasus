@@ -207,7 +207,7 @@ QDOS is the sole concrete extraction policy until another principal has approved
 - Strong instruction content may outrank a weak transport signal such as a staff-forwarding sender.
 - A QDOS-looking sender or filename alone creates neither a draft nor a principal suggestion.
 - The review surface shows classification evidence, ten field suggestions, missing values, conflicts, page-labelled extracted text, OCR-required state, and failure details.
-- When applicability and conversion are unambiguous, the ten typed instruction-draft values are shown read-only while original candidates and provenance remain available.
+- The typed instruction-draft values are read-only on the review surface. They are editable in one place, the create screen, where confirming them is part of creating the case; original candidates and provenance stay visible beside every box. A value a person keys becomes a candidate of its own, sourced to the staff correction, so the case records who said it.
 - An absent instruction date defaults from the receipt clock.
 - The test clock is fixed to 2031, so integration assertions use a 2031 default instruction date.
 
@@ -215,7 +215,7 @@ Suggestions and typed drafts are neither editable nor approved case records. Rec
 
 **Definitive authorised intake allocates its case at processing time.** The durable processing path calls `IAcceptIntake` itself for a receipt whose decision is `CaseCreated`: route accepted, extraction policy `Applicable`, case match not ambiguous, and a principal on the extracted draft. The case enters `Not ready` with nothing confirmed by a person, because thin ordinary detail is never a reason to withhold the reference. Allocation is replay-safe through the evaluation-scoped operation key and non-blocking — a failed allocation leaves material a person can still act on rather than failing a completed receipt.
 
-Two outcomes are deliberately withheld from the automatic path and wait for a person, which is the fail-closed boundary rather than a gate: an **ambiguous** case match or an unresolvable principal (`Needs sorting`), and **standalone Audit** work, whose case cannot be justified until its original-report evidence is confirmed. The staff acceptance form survives as the `Needs sorting` resolution path (`INT-26`), and `EfCaseAcceptanceStore` refuses every other decision, so the boundary does not depend on which caller asks.
+Two outcomes are deliberately withheld from the automatic path and wait for a person, which is the fail-closed boundary rather than a gate: an **ambiguous** case match or an unresolvable principal (`Needs sorting`), and **standalone Audit** work, whose case cannot be justified until its original-report evidence is confirmed. Both are resolved on the create screen (`INT-26`), which is the application's only staff caller of `IAcceptIntake`: it records the confirmed detail, settles the inspection address, confirms standalone Audit evidence and allocates the reference in one ordered sequence, each step taking the version the previous step returned. `EfCaseAcceptanceStore` applies `IntakeDecisionPolicy.CanBecomeCase` inside the transaction, so the boundary does not depend on which caller asks.
 
 ### Idempotency and persisted semantics
 
@@ -365,7 +365,20 @@ Deferred capabilities retain only the stable identities and ports necessary for 
 
 The implemented Graph source feeds the existing provider-neutral intake and
 sent-evidence use cases through Worker. It must not copy receipt, extraction,
-categorisation, or workflow rules into Worker. Its production triggers are
+categorisation, or workflow rules into Worker.
+
+Which mailboxes inbound intake reads is Core-owned and database-backed: Core
+asks the approved-mailbox estate for the pollable mailboxes and iterates them,
+so the decision never sits in a Worker function or in an adapter. The sources
+are stateless with respect to the mailbox — every mailbox and folder identity
+comes from the lease, not from configuration closed over at composition — which
+is what lets one Graph client serve the whole estate. Each mailbox holds its own
+lease, its own cursor, and its own last-failure code, so a mailbox that fails is
+released alone and the rest of the tick continues
+([ADR-0022](adr/0022-approved-mailbox-identity-and-enablement-database-setting.md)).
+Sent-evidence polling remains configuration-driven for one mailbox.
+
+Its production triggers are
 enabled and live-verified under exact Exchange Application RBAC; the current
 production state is owned by
 [operations § Production environment](operations.md#production-environment).

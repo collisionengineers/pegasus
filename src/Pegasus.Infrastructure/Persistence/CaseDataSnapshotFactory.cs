@@ -248,9 +248,7 @@ internal static class CaseDataSnapshotFactory
         }
 
         var resolution = InspectionAddressResolutionStore.CreateSnapshot(receipt);
-        if (resolution.State is not (
-                InspectionAddressResolutionState.Accepted
-                or InspectionAddressResolutionState.Corrected)
+        if (!InspectionAddressResolutionPolicy.IsStaffResolved(resolution.State)
             || string.IsNullOrWhiteSpace(resolution.ResolvedValue)
             || resolution.ResolvedByStaffId is not { } staffId
             || resolution.ResolvedAtUtc is not { } resolvedAtUtc)
@@ -259,6 +257,25 @@ internal static class CaseDataSnapshotFactory
         }
 
         var actor = staffId.ToString("D");
+        // Where the value came from, in the terms the case record keeps: an
+        // accepted suggestion is the extraction the acceptance confirmed, and
+        // both a correction and a supplied address are a person's own words,
+        // so both carry staff provenance.
+        var sourceKind = resolution.State == InspectionAddressResolutionState.Accepted
+            ? CaseDataCodes.CaseAcceptance
+            : CaseDataCodes.StaffCorrection;
+        var addressLabel = resolution.State switch
+        {
+            InspectionAddressResolutionState.Corrected => "staff-corrected inspection address",
+            InspectionAddressResolutionState.Supplied => "staff-supplied inspection address",
+            _ => "accepted inspection address"
+        };
+        var modeLabel = resolution.State switch
+        {
+            InspectionAddressResolutionState.Corrected => "staff-corrected inspection mode",
+            InspectionAddressResolutionState.Supplied => "staff-supplied inspection mode",
+            _ => "accepted inspection mode"
+        };
         UpsertConfirmed(
             snapshot,
             CaseDataFieldNames.InspectionAddress,
@@ -268,12 +285,8 @@ internal static class CaseDataSnapshotFactory
             resolvedAtUtc,
             Ext18InspectionAddressPolicy.PolicyKey,
             Ext18InspectionAddressPolicy.PolicyVersion,
-            resolution.State == InspectionAddressResolutionState.Corrected
-                ? CaseDataCodes.StaffCorrection
-                : CaseDataCodes.CaseAcceptance,
-            resolution.State == InspectionAddressResolutionState.Corrected
-                ? "staff-corrected inspection address"
-                : "accepted inspection address");
+            sourceKind,
+            addressLabel);
         UpsertConfirmed(
             snapshot,
             CaseDataFieldNames.InspectionMode,
@@ -288,12 +301,8 @@ internal static class CaseDataSnapshotFactory
             resolvedAtUtc,
             Ext18InspectionAddressPolicy.PolicyKey,
             Ext18InspectionAddressPolicy.PolicyVersion,
-            resolution.State == InspectionAddressResolutionState.Corrected
-                ? CaseDataCodes.StaffCorrection
-                : CaseDataCodes.CaseAcceptance,
-            resolution.State == InspectionAddressResolutionState.Corrected
-                ? "staff-corrected inspection mode"
-                : "accepted inspection mode");
+            sourceKind,
+            modeLabel);
     }
 
     private static void AddAcceptedDeadline(
@@ -355,7 +364,13 @@ internal static class CaseDataSnapshotFactory
             ValueKind = CaseDataCodes.Suggestion,
             ValueType = valueType,
             Value = value,
-            SourceKind = CaseDataCodes.IntakeEvidence,
+            // A value a person keyed is not intake evidence, whatever else is
+            // on the field. Recording it as evidence would have the case claim
+            // the document said something it never said, and the confirmed row
+            // inherits this kind, so the mislabelling would carry through.
+            SourceKind = candidate.Source == IntakeEvidenceSource.StaffCorrection
+                ? CaseDataCodes.StaffCorrection
+                : CaseDataCodes.IntakeEvidence,
             SourceIdentity = receipt.Id.ToString("D"),
             SourceLabel = $"{candidate.Source}:{candidate.SourceLabel}",
             PolicyKey = receipt.ExtractionPolicyKey!,
