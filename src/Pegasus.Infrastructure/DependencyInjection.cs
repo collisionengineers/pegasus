@@ -60,6 +60,14 @@ public static class DependencyInjection
         services.AddScoped<IIntakeReceiptQueries>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
         services.AddScoped<IListIntake, ListIntake>();
         services.AddScoped<IGetIntake, GetIntake>();
+        // The read half of retained mail only. The write port is registered by the
+        // poll compositions below, so nothing in Web can add a retained message.
+        services.AddScoped<EfRetainedMailboxMessageStore>();
+        services.AddScoped<IRetainedMailQueries>(
+            provider => provider.GetRequiredService<EfRetainedMailboxMessageStore>());
+        services.AddScoped<ListRetainedMail>();
+        services.AddScoped<GetRetainedMail>();
+        services.AddScoped<GetRetainedMailFreshness>();
         services.AddScoped<IDownloadIntakeSource, DownloadIntakeSource>();
         services.AddScoped<IIntakeMutationStore, EfIntakeMutationStore>();
         services.AddScoped<IAutomaticCaseAssociationStore, EfIntakeMutationStore>();
@@ -398,6 +406,8 @@ public static class DependencyInjection
         // in a host that composed none.
         services.AddLogging();
         services.AddScoped<IApprovedIntakeMailboxes, ConfiguredApprovedIntakeMailboxes>();
+        services.AddScoped<IRetainedMailboxMessageStore>(
+            provider => provider.GetRequiredService<EfRetainedMailboxMessageStore>());
         services.AddScoped<PollApprovedInbox>();
         return services;
     }
@@ -507,6 +517,8 @@ public static class DependencyInjection
         // in a host that composed none.
         services.AddLogging();
         services.AddScoped<IApprovedIntakeMailboxes, ConfiguredApprovedIntakeMailboxes>();
+        services.AddScoped<IRetainedMailboxMessageStore>(
+            provider => provider.GetRequiredService<EfRetainedMailboxMessageStore>());
         services.AddScoped<PollApprovedInbox>();
         services.AddScoped<PollSentEvidence>();
         services.AddSingleton(VehicleLookupAvailability.ProductionLive);

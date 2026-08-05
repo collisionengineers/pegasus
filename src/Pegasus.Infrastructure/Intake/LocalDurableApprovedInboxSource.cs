@@ -262,11 +262,61 @@ internal sealed class LocalDurableApprovedInboxSource(
                         "message_too_large",
                         read.SourceLength,
                         read.Hash,
-                        read.RetentionKey)
+                        read.RetentionKey),
+                // Only the branch that materialised the content can read it. A
+                // message already observed is re-hashed without being retained, and
+                // one the adapter rejected has no content to read, so neither
+                // carries display metadata.
+                RetainedMetadata = read.Content is null || read.RetentionKey is not null
+                    ? null
+                    : await ReadRetainedMetadataAsync(
+                        read.Content,
+                        folder,
+                        cancellationToken)
             });
         }
 
         return new(messages, serializedNextCursor);
+    }
+
+    /// <summary>
+    /// The display facts of a newly observed local message, read from the bytes the
+    /// poll already holds.
+    /// </summary>
+    /// <remarks>
+    /// Local files have no provider identities: the folder is the lease's own
+    /// folder, the conversation is whatever the MIME References chain says, and read
+    /// state is false because a file on disk has never been read by anybody.
+    /// </remarks>
+    private static async Task<RetainedMailboxMessageMetadata?> ReadRetainedMetadataAsync(
+        byte[] content,
+        string folderIdentity,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var stream = new MemoryStream(content, writable: false);
+            var display = await LocalEmailDisplayReader.ReadAsync(stream, cancellationToken);
+            return new(
+                folderIdentity,
+                display.ThreadIdentity,
+                display.MessageIdentity,
+                display.SenderAddress,
+                display.SenderDisplayName,
+                display.ToAddresses ?? [],
+                display.CcAddresses ?? [],
+                string.IsNullOrWhiteSpace(display.Subject) ? null : display.Subject,
+                string.IsNullOrWhiteSpace(display.Body) ? null : display.Body,
+                display.Attachments ?? [],
+                IsRead: false);
+        }
+        catch (FormatException)
+        {
+            // An unparseable .eml still becomes an intake source, and the reader
+            // behind that records what it could not read. Refusing the whole poll
+            // over a display view nobody has asked for yet would be worse.
+            return null;
+        }
     }
 
     private async Task<ImmutableFileRead> ReadImmutableFileAsync(

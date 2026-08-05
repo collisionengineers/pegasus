@@ -75,7 +75,11 @@ internal sealed class GraphMailClient(
     public Uri InitialDeltaUri(string mailboxId, string folderId, int maximumItems) => new(
         baseUri,
         $"users/{Uri.EscapeDataString(mailboxId)}/mailFolders/{Uri.EscapeDataString(folderId)}" +
-        $"/messages/delta?$select=id,parentFolderId,receivedDateTime,sentDateTime,conversationId,internetMessageId&$top={maximumItems}");
+        // isRead is selected, never written: the workspace shows the retained read
+        // state and this application never changes it. Only the query string grows,
+        // and ValidateDeltaUri compares the path alone, so every existing cursor
+        // still validates.
+        $"/messages/delta?$select=id,parentFolderId,receivedDateTime,sentDateTime,conversationId,internetMessageId,isRead&$top={maximumItems}");
 
     public async Task<GraphDeltaPage> ReadDeltaAsync(
         Uri uri,
@@ -226,8 +230,13 @@ internal sealed class GraphMailClient(
             OptionalInstant(value, "sentDateTime"),
             OptionalString(value, "conversationId"),
             OptionalString(value, "internetMessageId"),
+            OptionalBoolean(value, "isRead"),
             removed);
     }
+
+    private static bool OptionalBoolean(JsonElement value, string property) =>
+        value.TryGetProperty(property, out var result)
+        && result.ValueKind == JsonValueKind.True;
 
     private static string RequiredString(JsonElement value, string property) =>
         OptionalString(value, property)
@@ -303,7 +312,14 @@ internal sealed class GraphApprovedInboxSource(GraphMailClient client) : IApprov
                 $"{SanitizeFileName(item.Id)}.eml",
                 mime,
                 item.ReceivedAtUtc ?? throw new InvalidDataException("Graph Inbox message omitted receivedDateTime."),
-                next));
+                next)
+            {
+                RetainedMetadata = await ReadRetainedMetadataAsync(
+                    mime,
+                    item,
+                    inboxFolderId,
+                    cancellationToken)
+            });
         }
         var consumed = cursor.SkipCount + available.Length;
         var pageCursor = GraphCursor.Serialize(
@@ -314,6 +330,50 @@ internal sealed class GraphApprovedInboxSource(GraphMailClient client) : IApprov
             messages[^1] = messages[^1] with { NextCursor = pageCursor };
         }
         return new(messages, pageCursor);
+    }
+
+    /// <summary>
+    /// The display facts of one polled message: the MIME supplies the content,
+    /// Graph supplies the identities it is authoritative for.
+    /// </summary>
+    /// <remarks>
+    /// Where the two disagree Graph wins on identity — conversation, internet
+    /// message id, folder and read state are the provider's own facts, and a header
+    /// a sender wrote is not evidence about them. The body, recipients and
+    /// attachments come from the MIME because Graph was never asked for them.
+    /// </remarks>
+    private static async Task<RetainedMailboxMessageMetadata?> ReadRetainedMetadataAsync(
+        byte[] mime,
+        GraphDeltaItem item,
+        string inboxFolderId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var stream = new MemoryStream(mime, writable: false);
+            var display = await Pegasus.Infrastructure.Intake.LocalEmailDisplayReader.ReadAsync(
+                stream,
+                cancellationToken);
+            return new(
+                inboxFolderId,
+                item.ConversationId ?? display.ThreadIdentity,
+                item.InternetMessageId ?? display.MessageIdentity,
+                display.SenderAddress,
+                display.SenderDisplayName,
+                display.ToAddresses ?? [],
+                display.CcAddresses ?? [],
+                string.IsNullOrWhiteSpace(display.Subject) ? null : display.Subject,
+                string.IsNullOrWhiteSpace(display.Body) ? null : display.Body,
+                display.Attachments ?? [],
+                item.IsRead);
+        }
+        catch (FormatException)
+        {
+            // The message is still received, retained and processed; only its
+            // display view is unavailable, and the workspace shows the gap rather
+            // than the poll refusing the message.
+            return null;
+        }
     }
 
     /// <summary>
@@ -507,6 +567,7 @@ internal sealed record GraphDeltaItem(
     DateTimeOffset? SentAtUtc,
     string? ConversationId,
     string? InternetMessageId,
+    bool IsRead,
     bool Removed);
 
 internal sealed record GraphCursor(int Version, Uri PageUri, int SkipCount)

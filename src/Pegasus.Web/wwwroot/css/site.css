@@ -1734,3 +1734,16 @@ details > summary.btn::-webkit-details-marker { display: none; }
 .filterbar__more .form-grid { margin-top: var(--sp-4); }
 
 .datarow__sug { color: var(--charcoal); font-size: var(--t-sm); }
+
+/* Mail workspace. Unread is carried by weight and by the words "Unread" in the
+   row, never by colour or weight alone. */
+.queue-list > a[data-state="unread"] strong { font-weight: 800; }
+
+/* A retained body is flattened text. It is rendered as text and wraps like
+   text; nothing here interprets markup. */
+.mail-body {
+  margin: var(--sp-4) 0 0;
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

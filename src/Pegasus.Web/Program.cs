@@ -724,18 +724,22 @@ if (!app.Environment.IsDevelopment())
 
 // The whole received-item surface — the list, an item, and its retained source
 // — is present only where intake is composed, and returns 404 everywhere else.
+// The mail workspace at /Inbox joins it: retained mail exists only where polling
+// is composed, so a deployment without it has no messages to show and says 404
+// rather than rendering a permanently empty screen.
 //
 // The second gate that used to sit here refused POST /Intake?handler=ReceiveIntake
 // when local intake was off. That handler stopped existing when manual upload
 // moved to its own /Upload page, and no screen has produced that query string
 // since, so the branch matched nothing. Creating a case now happens at
-// /Cases/Create, outside /Intake, which is deliberate: it is a staff action in
-// every runtime profile and must not inherit a development-only gate.
+// /Cases/Create, outside these routes, which is deliberate: it is a staff action
+// in every runtime profile and must not inherit a development-only gate.
 if (!intakeSurfaceEnabled)
 {
     app.Use(async (context, next) =>
     {
-        if (context.Request.Path.StartsWithSegments("/Intake"))
+        if (context.Request.Path.StartsWithSegments("/Received")
+            || context.Request.Path.StartsWithSegments("/Inbox"))
         {
             context.Response.StatusCode = StatusCodes.Status404NotFound;
             return;

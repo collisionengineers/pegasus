@@ -120,7 +120,7 @@ public sealed class QdosIntakeWebTests
         var receipt = await GetReceiptAsync(factory, receiptId);
         using var review = await client.GetAsync(upload.Location);
         var reviewHtml = await review.Content.ReadAsStringAsync();
-        using var queue = await client.GetAsync("/Intake");
+        using var queue = await client.GetAsync("/Received");
         var queueHtml = await queue.Content.ReadAsStringAsync();
 
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
@@ -163,7 +163,7 @@ public sealed class QdosIntakeWebTests
         Assert.Contains("already processed", duplicateHtml, StringComparison.OrdinalIgnoreCase);
         await using var scope = factory.Services.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
-        Assert.Equal(2, (await queries.ListAsync(null, CancellationToken.None)).Count);
+        Assert.Equal(2, (await queries.ListAsync(null, 1, 100, CancellationToken.None)).TotalCount);
     }
 
     [GenuineQdosCorpusFact(ForwardedEmailHash, ConfirmedInputTwoHash)]
@@ -233,8 +233,8 @@ public sealed class QdosIntakeWebTests
 
         await using var scope = factory.Services.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
-        var receipts = await queries.ListAsync(IntakeDecision.CaseCreated, CancellationToken.None);
-        Assert.Equal(5, receipts.Count);
+        var receipts = await queries.ListAsync(IntakeDecision.CaseCreated, 1, 100, CancellationToken.None);
+        Assert.Equal(5, receipts.TotalCount);
     }
 
     [GenuineQdosCorpusFact(ForwardedEmailHash, NeedsSortingEmailHash)]
@@ -256,7 +256,7 @@ public sealed class QdosIntakeWebTests
         var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
         var counts = await queries.GetCountsAsync(CancellationToken.None);
         var dashboard = await client.GetStringAsync("/");
-        var sortingQueue = await client.GetStringAsync("/Intake?decision=needs_sorting");
+        var sortingQueue = await client.GetStringAsync("/Received?decision=needs_sorting");
 
         Assert.Equal(new IntakeQueueCounts(1, 1), counts);
         Assert.Contains(

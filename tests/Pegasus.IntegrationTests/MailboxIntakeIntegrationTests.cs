@@ -364,7 +364,7 @@ public sealed class MailboxIntakeIntegrationTests
             await using (var scope = database.CreateAsyncScope())
             {
                 var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
-                var summary = Assert.Single(await queries.ListAsync(null, CancellationToken.None));
+                var summary = Assert.Single((await queries.ListAsync(null, 1, 100, CancellationToken.None)).Items);
                 var receipt = Assert.IsType<IntakeReceipt>(
                     await queries.GetAsync(summary.Id, CancellationToken.None));
                 Assert.Equal(IntakeSourceChannel.Mailbox, receipt.SourceIdentity.Channel);

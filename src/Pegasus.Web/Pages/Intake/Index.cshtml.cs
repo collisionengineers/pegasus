@@ -51,7 +51,10 @@ public sealed class IndexModel(
     public IntakeDecision? Decision { get; private set; }
 
     public async Task<IActionResult> OnGetAsync(
-        [FromQuery(Name = "page")] int? pageNumber,
+        // Bound as pageNumber, not page: page is the reserved Razor Pages route
+        // key, so asp-route-page is overwritten by asp-page and the pager emitted
+        // Previous and Next links carrying no page at all.
+        [FromQuery(Name = "pageNumber")] int? pageNumber,
         CancellationToken cancellationToken)
     {
         CurrentPage = pageNumber ?? 1;
@@ -139,11 +142,12 @@ public sealed class IndexModel(
     {
         IntakeDecision.CaseCreated => "Case created",
         IntakeDecision.NeedsSorting => "Needs sorting",
-        IntakeDecision.BlockedIntake => "Blocked intake",
+        // "Blocked intake" was the internal decision code read out loud.
+        IntakeDecision.BlockedIntake => "Blocked",
         IntakeDecision.OcrRequired => "Document text required",
         IntakeDecision.TechnicalFailure => "Technical failure",
         IntakeDecision.Unsupported => "Unsupported",
-        IntakeDecision.ImageIntakeRegistered => "Image intake registered",
+        IntakeDecision.ImageIntakeRegistered => "Vehicle images registered",
         _ => throw new InvalidOperationException($"Unknown intake decision '{(int)decision}'.")
     };
 

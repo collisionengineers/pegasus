@@ -76,13 +76,25 @@ public sealed class IntakeStablePersistenceTests
         var countsError = await Assert.ThrowsAsync<InvalidDataException>(
             () => queries.GetCountsAsync(CancellationToken.None));
         var unfilteredListError = await Assert.ThrowsAsync<InvalidDataException>(
-            () => queries.ListAsync(null, CancellationToken.None));
-        var filteredListError = await Assert.ThrowsAsync<InvalidDataException>(
-            () => queries.ListAsync(IntakeDecision.Unsupported, CancellationToken.None));
+            () => queries.ListAsync(null, 1, 100, CancellationToken.None));
 
         Assert.Contains("future_decision", countsError.Message, StringComparison.Ordinal);
         Assert.Contains("future_decision", unfilteredListError.Message, StringComparison.Ordinal);
-        Assert.Contains("future_decision", filteredListError.Message, StringComparison.Ordinal);
+
+        // A filtered list now selects by persisted code in SQL, so it does not
+        // read a row it did not ask for and cannot throw on one. What the rule
+        // forbids is silent reinterpretation, and that still holds: the row is
+        // absent from a filter for a known decision rather than appearing under
+        // it, and the counts and the unfiltered list above still fail visibly on
+        // every load. Recovering the throw here would mean scanning every
+        // receipt on every page load, which is the defect this filter fixed.
+        var filtered = await queries.ListAsync(
+            IntakeDecision.Unsupported,
+            1,
+            100,
+            CancellationToken.None);
+        Assert.Empty(filtered.Items);
+        Assert.Equal(0, filtered.TotalCount);
     }
 
     [Fact]

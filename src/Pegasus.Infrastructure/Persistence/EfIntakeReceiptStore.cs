@@ -171,41 +171,71 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             parsedDecisions.Count(item => item == IntakeDecision.BlockedIntake));
     }
 
-    public async Task<IReadOnlyList<IntakeReceiptSummary>> ListAsync(
+    public async Task<IntakeListPage> ListAsync(
         IntakeDecision? decision,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken)
     {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(page);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pageSize);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        if (decision is not null)
+
+        // Deliberately no case-link exclusion here, unlike the counts. Received
+        // items is a viewer of everything received, and a message that became a
+        // case is still a message that was received — the row says so and links to
+        // the case. What was wrong before was the label, not the presence: an
+        // accepted receipt sat here reading "Instruction draft" with no indication
+        // that it had produced anything.
+        //
+        // Filtered, ordered, counted and paged in SQL. This used to materialise
+        // every receipt with its mail-route decision, sort in memory and take the
+        // first hundred, and the caller then paged inside that hundred and reported
+        // it as the total — so the list had exactly four reachable pages at
+        // twenty-five a page, and the page count it printed was false. Note also
+        // that a legacy `draft_ready` row reads as `CaseCreated`, so the decision
+        // filter matches both codes rather than only the current one.
+        var matches = context.IntakeReceipts.AsNoTracking();
+        if (decision is { } requested)
         {
-            _ = ToCode(decision.Value);
+            var codes = DecisionCodes(requested);
+            matches = matches.Where(item => codes.Contains(item.Decision));
         }
 
-        // Deliberately no case-link exclusion here, unlike the counts. The
-        // Inbox is a viewer of everything received, and a message that became
-        // a case is still a message that was received — the row says so and
-        // links to the case. What was wrong before was the label, not the
-        // presence: an accepted receipt sat here reading "Instruction draft"
-        // with no indication that it had produced anything.
-        var entities = await context.IntakeReceipts
-            .AsNoTracking()
-            .Include(item => item.MailRouteDecision)
+        var totalCount = await matches.CountAsync(cancellationToken);
+        var rows = await matches
+            .OrderByDescending(item => item.ReceivedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(item => new
+            {
+                item.Id,
+                item.SourceFileName,
+                item.ReceivedAtUtc,
+                item.Decision,
+                item.FailureReason,
+                item.EvidenceJson,
+                Sender = item.MailRouteDecision!.EffectiveSenderAddress
+            })
             .ToListAsync(cancellationToken);
 
-        // One join for the whole page rather than a lookup per row.
-        var receiptIds = entities.Select(item => item.Id).ToArray();
-        var cases = await context.CaseIntakeLinks
-            .AsNoTracking()
-            .Where(link => receiptIds.Contains(link.IntakeReceiptId))
-            .Select(link => new
-            {
-                link.IntakeReceiptId,
-                link.CaseId,
-                link.Case.Reference
-            })
-            .ToDictionaryAsync(item => item.IntakeReceiptId, cancellationToken);
+        // One join for the page rather than a lookup per row.
+        var receiptIds = rows.Select(item => item.Id).ToArray();
+        var cases = receiptIds.Length == 0
+            ? []
+            : await context.CaseIntakeLinks
+                .AsNoTracking()
+                .Where(link => receiptIds.Contains(link.IntakeReceiptId))
+                .Select(link => new
+                {
+                    link.IntakeReceiptId,
+                    link.CaseId,
+                    link.Case.Reference
+                })
+                .ToDictionaryAsync(item => item.IntakeReceiptId, cancellationToken);
 
-        var summaries = entities
+        var summaries = rows
             .Select(item =>
             {
                 cases.TryGetValue(item.Id, out var linkedCase);
@@ -215,18 +245,22 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                     item.ReceivedAtUtc,
                     ParseDecision(item.Decision),
                     item.FailureReason,
-                    item.MailRouteDecision?.EffectiveSenderAddress,
+                    item.Sender,
                     ReadSubject(item.EvidenceJson),
                     linkedCase?.CaseId,
                     linkedCase?.Reference);
             })
             .ToArray();
-        return summaries
-            .Where(item => decision is null || item.Decision == decision.Value)
-            .OrderByDescending(item => item.ReceivedAtUtc)
-            .Take(100)
-            .ToArray();
+        return new(summaries, page, pageSize, totalCount);
     }
+
+    /// <summary>
+    /// Every persisted code that reads back as one decision.
+    /// </summary>
+    private static string[] DecisionCodes(IntakeDecision decision) =>
+        decision == IntakeDecision.CaseCreated
+            ? [ToCode(decision), "draft_ready"]
+            : [ToCode(decision)];
 
     public async Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken)
     {

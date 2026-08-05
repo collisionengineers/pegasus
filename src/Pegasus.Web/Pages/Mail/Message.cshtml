@@ -1,0 +1,181 @@
+@page "/Inbox/{id:guid}"
+@using Pegasus.Web.Presentation
+@model Pegasus.Web.Pages.Mail.MessageModel
+@{
+    var summary = Model.Detail.Summary;
+    ViewData["Title"] = Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(summary);
+}
+
+@* One record, one container: actions in a bar at the top, sections as tabs. *@
+<header class="page-heading">
+    <div>
+        <h1>@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(summary)</h1>
+        <p class="lede">
+            @Pegasus.Web.Pages.Mail.IndexModel.SenderLine(summary)
+            ·
+            <time datetime="@summary.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(summary.ReceivedAtUtc)</time>
+        </p>
+    </div>
+    <a class="secondary-action" asp-page="/Mail/Index"
+       asp-route-mailbox="@Model.MailboxFilter"
+       asp-route-folder="@Model.FolderRouteValue"
+       asp-route-pageNumber="@Model.PageRouteValue">Back to Inbox</a>
+</header>
+
+@if (Model.OutsideListScope)
+{
+    <div class="status-card" role="status">
+        This message is no longer in the view you opened it from. It is still here,
+        in @summary.MailboxAddress.
+    </div>
+}
+
+@* The state before any action: what processing decided, and what it became. *@
+<section class="panel" aria-label="Current state">
+    <div class="metric-strip metric-strip--3">
+        <span class="metric">
+            <span class="metric__label">Classification</span>
+            <strong class="metric__value">@Pegasus.Web.Pages.Mail.MessageModel.ClassificationLabel(Model.Detail.ClassificationOutcome)</strong>
+        </span>
+        <span class="metric">
+            <span class="metric__label">Queue</span>
+            <strong class="metric__value">@Pegasus.Web.Pages.Mail.MessageModel.QueueLabel(Model.Detail.RouteDisposition)</strong>
+        </span>
+        <span class="metric">
+            <span class="metric__label">Processing outcome</span>
+            <strong class="metric__value">@Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(summary.ProcessingOutcome)</strong>
+        </span>
+    </div>
+    <p>
+        @if (summary.CaseId is { } caseId)
+        {
+            <a asp-page="/Cases/Details" asp-route-id="@caseId">Open case @summary.CaseReference</a>
+        }
+        else
+        {
+            <span class="empty-state">Not associated with a case.</span>
+        }
+    </p>
+</section>
+
+<nav class="tabs section-gap" aria-label="Sections">
+    <a asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-mailbox="@Model.MailboxFilter"
+       asp-route-folder="@Model.FolderRouteValue" asp-route-pageNumber="@Model.PageRouteValue"
+       aria-current="@(Model.ActiveSection == "message" ? "page" : null)">Message</a>
+    <a asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-mailbox="@Model.MailboxFilter"
+       asp-route-folder="@Model.FolderRouteValue" asp-route-pageNumber="@Model.PageRouteValue"
+       asp-route-section="attachments"
+       aria-current="@(Model.ActiveSection == "attachments" ? "page" : null)">
+        @(Model.Detail.Attachments.Count > 0
+            ? $"Attachments ({Model.Detail.Attachments.Count})"
+            : "Attachments")
+    </a>
+    <a asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-mailbox="@Model.MailboxFilter"
+       asp-route-folder="@Model.FolderRouteValue" asp-route-pageNumber="@Model.PageRouteValue"
+       asp-route-section="thread"
+       aria-current="@(Model.ActiveSection == "thread" ? "page" : null)">Thread</a>
+</nav>
+
+@if (Model.ActiveSection == "message")
+{
+    <section class="panel" aria-label="Message">
+        <dl class="detail-list">
+            <div>
+                <dt>From</dt>
+                <dd>@(summary.SenderAddress ?? "Not recorded")</dd>
+            </div>
+            <div>
+                <dt>To</dt>
+                <dd>@(Model.Detail.ToAddresses.Count == 0 ? "Not recorded" : string.Join(", ", Model.Detail.ToAddresses))</dd>
+            </div>
+            @if (Model.Detail.CcAddresses.Count > 0)
+            {
+                <div>
+                    <dt>Cc</dt>
+                    <dd>@string.Join(", ", Model.Detail.CcAddresses)</dd>
+                </div>
+            }
+            <div>
+                <dt>Mailbox</dt>
+                <dd>@summary.MailboxAddress</dd>
+            </div>
+        </dl>
+        @if (string.IsNullOrWhiteSpace(Model.Detail.BodyPlainText))
+        {
+            <p class="empty-state">This message has no readable text body.</p>
+        }
+        else
+        {
+            @* Flattened text, never markup. The reader that produced it already
+               stripped every tag, and this element renders what it was given. *@
+            <pre class="mail-body">@Model.Detail.BodyPlainText</pre>
+        }
+    </section>
+}
+else if (Model.ActiveSection == "attachments")
+{
+    <section class="panel" aria-label="Attachments">
+        @if (Model.Detail.Attachments.Count == 0)
+        {
+            <p class="empty-state">This message has no attachments.</p>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th scope="col">File</th>
+                            <th scope="col">Type</th>
+                            <th scope="col">Size</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var attachment in Model.Detail.Attachments)
+                    {
+                        <tr>
+                            <td>@attachment.FileName</td>
+                            <td>@attachment.MediaType</td>
+                            <td>@OperatorLabels.FileSize(attachment.ContentLength)</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+}
+else
+{
+    <section class="panel" aria-label="Thread">
+        @if (Model.Detail.Thread.Count <= 1)
+        {
+            @* Retained scope only: a matching conversation never reaches for a
+               message Pegasus has not already kept. *@
+            <p class="empty-state">No other message in this conversation is kept here.</p>
+        }
+        else
+        {
+            <div class="queue-list">
+                @foreach (var entry in Model.Detail.Thread)
+                {
+                    <a asp-page="/Mail/Message" asp-route-id="@entry.Id"
+                       asp-route-mailbox="@Model.MailboxFilter"
+                       asp-route-folder="@Model.FolderRouteValue"
+                       asp-route-pageNumber="@Model.PageRouteValue"
+                       aria-current="@(entry.Id == summary.Id ? "page" : null)">
+                        <span>
+                            <strong>@(entry.SenderDisplayName ?? entry.SenderAddress ?? "Sender not recorded")</strong>
+                        </span>
+                        <span>
+                            <strong>@(string.IsNullOrWhiteSpace(entry.Subject) ? "No subject" : entry.Subject)</strong>
+                        </span>
+                        <span>
+                            <time datetime="@entry.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(entry.ReceivedAtUtc)</time>
+                        </span>
+                    </a>
+                }
+            </div>
+        }
+    </section>
+}

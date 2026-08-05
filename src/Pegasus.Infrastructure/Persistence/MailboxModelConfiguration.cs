@@ -40,6 +40,57 @@ internal static class MailboxModelConfiguration
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        builder.Entity<RetainedMailboxMessageEntity>(entity =>
+        {
+            entity.ToTable("RetainedMailboxMessages");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.MailboxId).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.MailboxAddress).HasMaxLength(320).IsRequired();
+            entity.Property(item => item.FolderScope).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.FolderIdentity).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.ImmutableMessageId).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.ConversationIdentity).HasMaxLength(500);
+            entity.Property(item => item.InternetMessageIdentity).HasMaxLength(500);
+            entity.Property(item => item.ExternalReceiptToken).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.SenderAddress).HasMaxLength(320);
+            entity.Property(item => item.SenderDisplayName).HasMaxLength(320);
+            entity.Property(item => item.ToAddressesJson).IsRequired();
+            entity.Property(item => item.CcAddressesJson).IsRequired();
+            entity.Property(item => item.Subject).HasMaxLength(1000);
+            entity.Property(item => item.BodyExcerpt).HasMaxLength(400);
+            entity.Property(item => item.SourceSha256).HasMaxLength(64).IsFixedLength().IsRequired();
+            // One row per message per mailbox: the poll inserts if absent and a
+            // redelivery is refused here, not judged in application code.
+            entity.HasIndex(item => new { item.MailboxId, item.ImmutableMessageId }).IsUnique();
+            entity.HasIndex(item => new { item.ReceivedAtUtc, item.Id }).IsDescending(true, false);
+            entity.HasIndex(item => new
+            {
+                item.MailboxId,
+                item.FolderScope,
+                item.ReceivedAtUtc,
+                item.Id
+            }).IsDescending(false, false, true, false);
+            entity.HasIndex(item => item.ConversationIdentity);
+            entity.HasIndex(item => item.ExternalReceiptToken);
+            entity.HasOne<ApprovedInboxPollStateEntity>()
+                .WithMany()
+                .HasForeignKey(item => item.MailboxId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<RetainedMailboxAttachmentEntity>(entity =>
+        {
+            entity.ToTable("RetainedMailboxAttachments");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.FileName).HasMaxLength(260).IsRequired();
+            entity.Property(item => item.MediaType).HasMaxLength(200).IsRequired();
+            entity.HasIndex(item => new { item.RetainedMailboxMessageId, item.Ordinal }).IsUnique();
+            entity.HasOne(item => item.RetainedMailboxMessage)
+                .WithMany(item => item.Attachments)
+                .HasForeignKey(item => item.RetainedMailboxMessageId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
         builder.Entity<ApprovedSentPollStateEntity>(entity =>
         {
             entity.ToTable("ApprovedSentPollStates");

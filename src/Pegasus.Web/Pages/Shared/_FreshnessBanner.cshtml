@@ -10,6 +10,11 @@
     Model: the last successful load time, or null when nothing has loaded.
     ViewData["RefreshStatus"] — current | loading | stale | partial |
                                unavailable | failed.
+    ViewData["RefreshFields"] — optional IReadOnlyDictionary<string, string?>
+                                rendered as hidden inputs, so a GET refresh
+                                reloads the filter and page the operator is on
+                                rather than resetting the screen. A caller that
+                                supplies none is unaffected.
 
     Times render in Europe/London because that is the day boundary the counts
     are taken against. When the platform carries no IANA database the zone
@@ -70,6 +75,16 @@
         <partial name="Shared/_StatusChip" model="@statusLabel" />
     }
     <form method="get" data-refresh-form>
+        @if (ViewData["RefreshFields"] is IReadOnlyDictionary<string, string?> refreshFields)
+        {
+            @* A bare GET form submits nothing, so refreshing used to drop the
+               active filter and page and drop the operator back on page one of
+               everything. *@
+            foreach (var field in refreshFields.Where(item => !string.IsNullOrWhiteSpace(item.Value)))
+            {
+                <input type="hidden" name="@field.Key" value="@field.Value" />
+            }
+        }
         <button type="submit" title="Refresh" aria-label="Refresh">
             <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
             <span class="vh" data-refresh-label>Refresh</span>

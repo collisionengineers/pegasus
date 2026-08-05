@@ -299,7 +299,7 @@ public sealed class IntakeWebNegativeTests
         Assert.Equal(canonicalToken, (await GetAsync(factory, firstId)).SourceIdentity.ExternalReceiptToken);
         Assert.Single(await ListAllAsync(factory));
 
-        using var replayReview = await client.GetAsync($"/Intake/{firstId:D}");
+        using var replayReview = await client.GetAsync($"/Received/{firstId:D}");
         var replayHtml = await replayReview.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, replayReview.StatusCode);
         Assert.Contains("unknown.bin", replayHtml, StringComparison.Ordinal);
@@ -311,7 +311,7 @@ public sealed class IntakeWebNegativeTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        using var response = await client.GetAsync($"/Intake/{Guid.NewGuid()}");
+        using var response = await client.GetAsync($"/Received/{Guid.NewGuid()}");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -348,7 +348,7 @@ public sealed class IntakeWebNegativeTests
             null,
             null), CancellationToken.None);
 
-        using var response = await client.GetAsync($"/Intake/{record.Id}");
+        using var response = await client.GetAsync($"/Received/{record.Id}");
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -359,8 +359,8 @@ public sealed class IntakeWebNegativeTests
     private static async Task<IReadOnlyList<IntakeReceiptSummary>> ListAllAsync(IntakeWebApplicationFactory factory)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        return await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
-            .ListAsync(null, CancellationToken.None);
+        return (await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+            .ListAsync(null, 1, 100, CancellationToken.None)).Items;
     }
 
     private static async Task<IntakeReceipt> GetAsync(IntakeWebApplicationFactory factory, Guid id)

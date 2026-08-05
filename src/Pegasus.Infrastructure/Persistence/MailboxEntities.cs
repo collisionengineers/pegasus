@@ -30,6 +30,58 @@ internal sealed class ApprovedInboxPoisonMessageEntity
     public DateTimeOffset QuarantinedAtUtc { get; set; }
 }
 
+/// <summary>
+/// One retained message, as the workspace displays it.
+/// </summary>
+/// <remarks>
+/// Written once by the poll and never updated. Recipients are JSON rather than a
+/// table because nothing queries them — they are read back whole with the message,
+/// exactly as <c>ApprovedSentPollOutcomeEntity.InReplyToIdentitiesJson</c> is.
+/// Attachments are a table because the list view counts them.
+/// </remarks>
+internal sealed class RetainedMailboxMessageEntity
+{
+    public Guid Id { get; set; }
+    public required string MailboxId { get; set; }
+    public required string MailboxAddress { get; set; }
+
+    /// <summary>
+    /// Which of the operator's folder scopes this row belongs to. Distinct from
+    /// <see cref="FolderIdentity"/>: the operator picks "Inbox", the tenant folder
+    /// identity is the exact place it was read from.
+    /// </summary>
+    public required string FolderScope { get; set; }
+    public required string FolderIdentity { get; set; }
+    public required string ImmutableMessageId { get; set; }
+    public string? ConversationIdentity { get; set; }
+    public string? InternetMessageIdentity { get; set; }
+    public required string ExternalReceiptToken { get; set; }
+    public string? SenderAddress { get; set; }
+    public string? SenderDisplayName { get; set; }
+    public required string ToAddressesJson { get; set; }
+    public required string CcAddressesJson { get; set; }
+    public string? Subject { get; set; }
+    public string? BodyExcerpt { get; set; }
+    public string? BodyPlainText { get; set; }
+    public bool IsRead { get; set; }
+    public long SourceLength { get; set; }
+    public required string SourceSha256 { get; set; }
+    public DateTimeOffset ReceivedAtUtc { get; set; }
+    public DateTimeOffset RetainedAtUtc { get; set; }
+    public List<RetainedMailboxAttachmentEntity> Attachments { get; } = [];
+}
+
+internal sealed class RetainedMailboxAttachmentEntity
+{
+    public Guid Id { get; set; }
+    public Guid RetainedMailboxMessageId { get; set; }
+    public RetainedMailboxMessageEntity RetainedMailboxMessage { get; set; } = null!;
+    public int Ordinal { get; set; }
+    public required string FileName { get; set; }
+    public required string MediaType { get; set; }
+    public long ContentLength { get; set; }
+}
+
 internal sealed class ApprovedSentPollStateEntity
 {
     public required string MailboxId { get; set; }

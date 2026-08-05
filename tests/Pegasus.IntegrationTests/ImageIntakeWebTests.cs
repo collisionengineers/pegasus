@@ -25,13 +25,13 @@ public sealed class ImageIntakeWebTests
             Guid.NewGuid().ToString("N"));
         var receiptId = IntakeWebDriver.ReceiptId(upload);
 
-        var detailsBefore = await GetAsync(client, $"/Intake/{receiptId:D}");
+        var detailsBefore = await GetAsync(client, $"/Received/{receiptId:D}");
         Assert.Contains("Register Image intake", detailsBefore);
         Assert.Contains("No readable registration", detailsBefore);
 
         var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
         using var registerResponse = await client.PostAsync(
-            $"/Intake/{receiptId:D}?handler=RegisterImageIntake",
+            $"/Received/{receiptId:D}?handler=RegisterImageIntake",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["__RequestVerificationToken"] = token,
@@ -41,19 +41,19 @@ public sealed class ImageIntakeWebTests
             }));
         Assert.Equal(HttpStatusCode.Redirect, registerResponse.StatusCode);
 
-        var detailsAfter = await GetAsync(client, $"/Intake/{receiptId:D}");
-        Assert.Contains("Image intake registered", detailsAfter);
+        var detailsAfter = await GetAsync(client, $"/Received/{receiptId:D}");
+        Assert.Contains("Vehicle images registered", detailsAfter);
         Assert.Contains("AB12CDE-01", detailsAfter);
         Assert.DoesNotContain("Register Image intake</h2>", detailsAfter);
 
-        var queue = await GetAsync(client, "/Intake?decision=image_intake_registered");
-        Assert.Contains("Image intake registered", queue);
-        var sortingQueue = await GetAsync(client, "/Intake?decision=needs_sorting");
+        var queue = await GetAsync(client, "/Received?decision=image_intake_registered");
+        Assert.Contains("Vehicle images registered", queue);
+        var sortingQueue = await GetAsync(client, "/Received?decision=needs_sorting");
         Assert.DoesNotContain("vehicle.png", sortingQueue);
 
-        var indexByReference = await GetAsync(client, "/ImageIntake?query=AB12CDE-01");
+        var indexByReference = await GetAsync(client, "/VehicleImages?query=AB12CDE-01");
         Assert.Contains("AB12CDE-01", indexByReference);
-        var indexByVrm = await GetAsync(client, "/ImageIntake?query=AB12CDE");
+        var indexByVrm = await GetAsync(client, "/VehicleImages?query=AB12CDE");
         Assert.Contains("AB12CDE-01", indexByVrm);
 
         var caseSearch = await GetAsync(client, "/Cases?query=AB12CDE-01");
@@ -65,7 +65,7 @@ public sealed class ImageIntakeWebTests
         var detail = await scope.ServiceProvider
             .GetRequiredService<IImageIntakeQueries>()
             .GetByOriginReceiptAsync(receiptId, CancellationToken.None);
-        var imageIntakePage = await GetAsync(client, $"/ImageIntake/{detail!.Record.Id:D}");
+        var imageIntakePage = await GetAsync(client, $"/VehicleImages/{detail!.Record.Id:D}");
         Assert.Contains("AB12CDE-01", imageIntakePage);
         Assert.Contains("awaiting definitive instruction", imageIntakePage);
     }
@@ -131,7 +131,7 @@ public sealed class ImageIntakeWebTests
         var suggestion = Assert.Single(suggestions);
         Assert.Equal(ImageVrmSuggestionDisposition.Confirmed, suggestion.Disposition);
 
-        var receiptPage = await GetAsync(client, $"/Intake/{receiptId:D}");
+        var receiptPage = await GetAsync(client, $"/Received/{receiptId:D}");
         Assert.Contains("Associated with Case", receiptPage);
         Assert.Contains("AB12CDE-01", receiptPage);
         var casePage = await GetAsync(client, $"/Cases/{caseId:D}?tab=evidence");
