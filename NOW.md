@@ -37,16 +37,13 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   template work and no capability advanced — those stay blocked on the
   operator questions the plan set records (branch
   task/report-renderer-workspace-uplift, taken 2026-08-05, by claude).
-- UI implementation programme, remaining page work taken as one sequence of
-  stacked branches, reviewed and merged in order: Inbox (pages 2, 6, 8, 9,
-  10 — the received-and-sent viewer absorbing Operations Email, the received
-  item, and vehicle images), Upload (page 2's split-out surface and the public
-  page 13, carrying defect B1's dead handler), Queues (pages 3, 11), Cases
-  (pages 4/5 and 12 — the case container, Evidence tabs, provenance icons and
-  the Review-only export precondition) and Administration (pages
-  5-administration, 19–31). Each is its own PR against `dev`
-  (branches task/ui-inbox, task/ui-upload, task/ui-queues, task/ui-cases,
-  task/ui-administration, taken 2026-08-05, by claude).
+- UI implementation programme, deployment and live verification: `dev` now
+  carries the whole rebuild (PRs 338, 339, 341, 343, 344, 345, 346, 347) and
+  is not deployed. Blocked on the operator: merging `dev` into `main` needs
+  `MERGE AUTH GRANTED`, and the deployment and the live browser checks need
+  approval for the exact Azure targets. `docs/ui-work/` stays until those
+  checks pass, because it is the specification they are checked against
+  (taken 2026-08-05, by claude).
 - CASE-27 edit-lease continuity and conflict recovery for both callers
   (MCP-02/MCP-04): close the gaps between
   `docs/requirements.md` "Case edit authority and recovery" and shipped
@@ -136,19 +133,28 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   contract, and the implemented pages match the **refreshed** mockups. The
   work lands as one PR per main-navigation page — sub-pages fold into the
   navigation page that owns them — reviewed and merged into `dev` in
-  sequence, then `dev` into `main`. Queue, each claimable on its own line:
-  - Shell and design system (pages 14–18, `_Layout`, `site.css`, operator
-    label maps, styled status-code pages).
-  - Dashboard (pages 1, 7) — needs the Core case-lifecycle and day/week
-    count queries that do not exist today (defects B3, M1, M7, M8).
-  - Inbox (pages 2, 6, 8, 9, 10) — carries the acceptance-gate/`DraftReady`
-    removal and INT-25 below, because the queue it feeds is this screen.
-  - Upload (pages 2-split, 13) — carries defect B1, the dead upload handler.
-  - Queues (pages 3, 11).
-  - Cases (pages 4/5, 12) — the case container, Evidence tabs, provenance
-    icons, and the `Review`-only export precondition.
-  - Administration (pages 5-administration, 19–31).
-  Until a page's PR merges, nothing in its folder is accepted.
+  sequence, then `dev` into `main`.
+
+  **All seven page PRs are merged into `dev`** (338 shell and design system,
+  339 Dashboard, 341 the acceptance gate and INT-25, 343 Inbox, 344 Upload,
+  345 Queues, 346 Cases, 347 Administration). Nothing is deployed. What
+  remains is the operator's to authorise — see the `Doing` claim above — and
+  three decisions the work could not take for itself:
+  - **Two provenance glyphs.** The Lucide sprite is a checksummed sixteen-glyph
+    asset and `design/README.md` records that no glyph was added, removed or
+    redrawn. Seven provenance words share those sixteen, so **E-mail** and
+    **AI** lean on their tooltip rather than a distinct envelope and spark.
+    Adding two glyphs re-checksums an approved asset and needs authorisation.
+  - **The `claudeuiverification` password is committed** to
+    `appsettings.json`, Production-profile only, at the operator's request and
+    on their stated risk assessment. Replace the block with
+    `{ "Removed": "claudeuiverification" }` to delete the account on next
+    start. It must not survive into a real production deployment.
+  - **Two things were not shipped rather than faked.** The Dashboard's
+    "Queries outstanding" tile needs a reply link that hangs off a Triage
+    record no composition can create (defect B2), so **Blocked** takes its
+    slot; and Automation activity's failure reasons need a stable writer-side
+    reason code before the UI can label them, which the register itself says.
 - Protect `main` against direct pushes. `440ab5c` reached the deployment
   branch without a PR, so CI never gated it — it carried a defect that
   failed the documentation check the moment it was put in front of CI (fixed
