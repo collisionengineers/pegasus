@@ -447,14 +447,42 @@ public sealed class EfOrganizationAdministration(
                         principal.SuccessorId,
                         principal.IsActive,
                         principal.Version,
-                        principal.Cases.Count,
+                        // Filled from one grouped query below. Counting inside
+                        // this projection made EF issue a correlated COUNT(*)
+                        // per principal: up to 25 organizations x 101
+                        // principals of them on a single page load.
+                        0,
                         principal.InspectionMode))
                     .ToArray()))
             .ToArrayAsync(cancellationToken);
 
-        var hasMore = rows.Length > limit;
+        var principalIds = rows
+            .SelectMany(row => row.Principals.Select(principal => principal.Id))
+            .ToArray();
+        var caseCounts = principalIds.Length == 0
+            ? []
+            : await context.Cases
+                .AsNoTracking()
+                .Where(item => principalIds.Contains(item.PrincipalId))
+                .GroupBy(item => item.PrincipalId)
+                .Select(group => new { PrincipalId = group.Key, Count = group.Count() })
+                .ToDictionaryAsync(item => item.PrincipalId, item => item.Count, cancellationToken);
+
+        var counted = rows
+            .Select(row => row with
+            {
+                Principals = row.Principals
+                    .Select(principal => principal with
+                    {
+                        AllocatedCaseCount = caseCounts.GetValueOrDefault(principal.Id)
+                    })
+                    .ToArray()
+            })
+            .ToArray();
+
+        var hasMore = counted.Length > limit;
         return new(
-            rows.Take(limit).Select(ToListItem).ToArray(),
+            counted.Take(limit).Select(ToListItem).ToArray(),
             hasMore);
     }
 
