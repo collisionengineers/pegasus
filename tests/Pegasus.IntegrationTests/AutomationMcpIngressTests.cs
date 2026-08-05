@@ -5,7 +5,9 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Workflow;
 using Pegasus.Web.Authentication;
 using Pegasus.Web.Mcp;
 
@@ -23,6 +25,7 @@ public sealed class AutomationMcpIngressTests
         "pegasus_case_search",
         "pegasus_case_get",
         "pegasus_case_edit_begin",
+        "pegasus_case_edit_renew",
         "pegasus_case_edit_end",
         "pegasus_intake_queue_list",
         "pegasus_intake_submit",
@@ -308,6 +311,113 @@ public sealed class AutomationMcpIngressTests
               AND ActorSubjectId = N'{DevelopmentOfflineIdentity.AdministratorId:D}'
               AND EventKind IN (N'automation_client_disabled', N'automation_client_enabled')
             """));
+    }
+
+    [Fact]
+    public async Task EditRenewUsesTheCoreUseCaseAndRefusalsNameTheGuardAndCurrentVersion()
+    {
+        var caseId = Guid.Parse("6f5a3d21-9c44-4f70-8f1a-7d2b0c9e4a55");
+        var leases = new RecordingAutomationLeases(caseId);
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory).WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IRenewCaseEditLease>();
+                services.AddSingleton<IRenewCaseEditLease>(leases);
+            }));
+        using var client = mcpFactory.CreateClient();
+        var accessToken = await RequestTokenAsync(client, "automation.cases");
+
+        // The holder renews through the same Core use case the staff renew
+        // control calls, and the tool returns the begin-shaped result.
+        using (var response = await PostMcpAsync(
+            client,
+            accessToken,
+            ToolCallPayload(
+                20,
+                "pegasus_case_edit_renew",
+                new
+                {
+                    caseId,
+                    expectedVersion = 3,
+                    leaseToken = RecordingAutomationLeases.HeldToken,
+                    operationKey = "mcp:renew-held"
+                })))
+        {
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            using var document = await ReadJsonRpcAsync(response);
+            var result = document.RootElement.GetProperty("result");
+            Assert.False(result.TryGetProperty("isError", out var isError) && isError.GetBoolean());
+            var structured = result.GetProperty("structuredContent");
+            Assert.Equal(caseId, structured.GetProperty("caseId").GetGuid());
+            Assert.Equal(3, structured.GetProperty("caseVersion").GetInt64());
+            Assert.Equal("mcp:renew-held", structured.GetProperty("operationKey").GetString());
+        }
+
+        var renewal = Assert.Single(leases.Renewals);
+        Assert.Equal(caseId, renewal.CaseId);
+        Assert.Equal(3, renewal.ExpectedVersion);
+        Assert.Equal(RecordingAutomationLeases.HeldToken, renewal.LeaseToken);
+        Assert.Equal("pegasus-automation", renewal.Actor.SubjectId);
+
+        // A non-holder is refused, and the refusal names which guard refused
+        // and the version the case now stands at, with no token disclosed.
+        using (var response = await PostMcpAsync(
+            client,
+            accessToken,
+            ToolCallPayload(
+                21,
+                "pegasus_case_edit_renew",
+                new
+                {
+                    caseId,
+                    expectedVersion = 3,
+                    leaseToken = new string('b', 64),
+                    operationKey = "mcp:renew-non-holder"
+                })))
+        {
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            using var document = await ReadJsonRpcAsync(response);
+            var body = document.RootElement.ToString();
+            Assert.Contains("held by another actor", body, StringComparison.Ordinal);
+            Assert.Contains("version 9", body, StringComparison.Ordinal);
+            Assert.DoesNotContain(RecordingAutomationLeases.HeldToken, body, StringComparison.Ordinal);
+        }
+
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE ActorKind = N'Automation'
+              AND EventKind = N'pegasus_case_edit_renew'
+              AND Outcome = N'Failed'
+            """));
+    }
+
+    private sealed class RecordingAutomationLeases(Guid caseId) : IRenewCaseEditLease
+    {
+        public const string HeldToken = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+        public List<RenewCaseEditLeaseRequest> Renewals { get; } = [];
+
+        public Task<CaseEditLease> ExecuteAsync(
+            RenewCaseEditLeaseRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!string.Equals(request.LeaseToken, HeldToken, StringComparison.Ordinal))
+            {
+                throw new CaseEditLeaseConflictException(caseId, 9);
+            }
+
+            Renewals.Add(request);
+            return Task.FromResult(
+                new CaseEditLease(
+                    caseId,
+                    HeldToken,
+                    request.Actor.SubjectId,
+                    request.ExpectedVersion,
+                    DateTimeOffset.UtcNow.AddMinutes(5)));
+        }
     }
 
     private static WebApplicationFactory<Program> WithAutomationMcp(

@@ -158,9 +158,9 @@ public sealed class EfCaseWorkflowStore(
 
         ArchivedCaseGuard.RequireNotArchived(workflow);
         RequireVersion(workflow, request.ExpectedVersion);
-        if (workflow.EditLeaseExpiresAtUtc > now)
+        if (CaseEditAuthority.IsHeld(workflow.EditLeaseExpiresAtUtc, now))
         {
-            throw new CaseEditLeaseConflictException(request.CaseId);
+            throw new CaseEditLeaseConflictException(request.CaseId, workflow.Version);
         }
 
         ClearLease(workflow);
@@ -1188,17 +1188,18 @@ public sealed class EfCaseWorkflowStore(
     {
         if (workflow.EditLeaseExpiresAtUtc is null
             || workflow.EditLeaseExpiresAtUtc <= now
-            || workflow.EditLeaseToken is not { Length: 64 } token
+            || workflow.EditLeaseToken is not
+                { Length: CaseEditAuthority.LeaseTokenLength } token
             || workflow.EditLeaseTokenHash is not { } tokenHash)
         {
-            throw new CaseEditLeaseExpiredException(workflow.CaseId);
+            throw new CaseEditLeaseExpiredException(workflow.CaseId, workflow.Version);
         }
         if (!string.Equals(
                 workflow.EditLeaseHolder,
                 actor.SubjectId,
                 StringComparison.Ordinal))
         {
-            throw new CaseEditLeaseConflictException(workflow.CaseId);
+            throw new CaseEditLeaseConflictException(workflow.CaseId, workflow.Version);
         }
         if (replay.ResultExpiresAtUtc is not { } resultExpiresAtUtc
             || resultExpiresAtUtc <= now
@@ -1284,39 +1285,14 @@ public sealed class EfCaseWorkflowStore(
         }
     }
 
-    private static void RequireVersion(CaseWorkflowEntity workflow, long expectedVersion)
-    {
-        if (workflow.Version != expectedVersion)
-        {
-            throw new CaseVersionConflictException(workflow.CaseId, expectedVersion, workflow.Version);
-        }
-    }
+    private static void RequireVersion(CaseWorkflowEntity workflow, long expectedVersion) =>
+        CaseMutationGuard.RequireVersion(workflow, expectedVersion);
 
-    private static void RequireLease(CaseWorkflowEntity workflow, ActionActor actor, string token, DateTimeOffset now)
-    {
-        if (workflow.EditLeaseExpiresAtUtc is null || workflow.EditLeaseExpiresAtUtc <= now
-            || workflow.EditLeaseTokenHash is null || workflow.EditLeaseHolder is null)
-        {
-            throw new CaseEditLeaseExpiredException(workflow.CaseId);
-        }
-        if (!string.Equals(workflow.EditLeaseHolder, actor.SubjectId, StringComparison.Ordinal)
-            || !CryptographicOperations.FixedTimeEquals(
-                Convert.FromHexString(workflow.EditLeaseTokenHash),
-                Convert.FromHexString(Hash(token))))
-        {
-            throw new CaseEditLeaseConflictException(workflow.CaseId);
-        }
-    }
+    private static void RequireLease(CaseWorkflowEntity workflow, ActionActor actor, string token, DateTimeOffset now) =>
+        CaseMutationGuard.RequireLease(workflow, actor, token, now);
 
-    private static void ClearLease(CaseWorkflowEntity workflow)
-    {
-        workflow.EditLeaseToken = null;
-        workflow.EditLeaseTokenHash = null;
-        workflow.EditLeaseRequestHash = null;
-        workflow.EditLeaseHolder = null;
-        workflow.EditLeaseOperationKey = null;
-        workflow.EditLeaseExpiresAtUtc = null;
-    }
+    private static void ClearLease(CaseWorkflowEntity workflow) =>
+        CaseMutationGuard.ClearLease(workflow);
 
     private static void AddEvent(
         PegasusDbContext context,

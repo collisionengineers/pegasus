@@ -9,6 +9,7 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Workflow;
+using Pegasus.Web.Pages;
 
 namespace Pegasus.Web.Pages.Operations;
 
@@ -384,6 +385,21 @@ public sealed class RequestsModel(
         _ => throw new InvalidOperationException(
             $"Unknown request edit-lease state value '{(int)state}'.")
     };
+
+    /// <summary>
+    /// Who is editing the case behind this request and when editing becomes available, so a
+    /// read-only viewer sees the holder and the recovery state rather than a bare refusal.
+    /// </summary>
+    public string EditModeLabel(RequestOperationProjection item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        return item.ActiveEditLease is { } activeLease
+            ? EditModeDisplay.HeldBy(
+                activeLease.Holder,
+                activeLease.ExpiresAtUtc,
+                LeaseCaseId == item.CaseId)
+            : LeaseLabel(item.CaseEditLeaseState);
+    }
 
     public static string NewOperationKey() => Guid.NewGuid().ToString("N");
 

@@ -1415,6 +1415,57 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     [Fact]
+    public async Task AnAbandonedLeaseExpiresAndIsReacquiredByADifferentHolder()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var firstActor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var secondActor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var abandoned = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, firstActor, "claim-abandoned"),
+            default);
+
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.Store.ClaimAsync(
+                new(harness.CaseId, 0, secondActor, "claim-competing-live"),
+                default));
+
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(5));
+        var reacquired = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, secondActor, "claim-after-abandonment"),
+            default);
+
+        Assert.Equal(secondActor.SubjectId, reacquired.Holder);
+        Assert.NotEqual(abandoned.Token, reacquired.Token);
+        Assert.Equal(
+            harness.TimeProvider.GetUtcNow().AddMinutes(5),
+            reacquired.ExpiresAtUtc);
+
+        var abandonedHold = await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            new PutCaseOnHold(harness.Store).ExecuteAsync(
+                new(
+                    harness.CaseId,
+                    0,
+                    firstActor,
+                    "hold-after-abandonment",
+                    "Waiting",
+                    abandoned.Token),
+                default));
+        Assert.Equal(harness.CaseId, abandonedHold.CaseId);
+        Assert.Equal(0, abandonedHold.CaseVersion);
+
+        var held = await new PutCaseOnHold(harness.Store).ExecuteAsync(
+            new(
+                harness.CaseId,
+                0,
+                secondActor,
+                "hold-by-reacquiring-holder",
+                "Waiting",
+                reacquired.Token),
+            default);
+        Assert.Equal(1, held.Version);
+    }
+
+    [Fact]
     public async Task StaleVersionAndCompetingLeaseAreRejected()
     {
         await using var harness = await WorkflowHarness.CreateAsync();

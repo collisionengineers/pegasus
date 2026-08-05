@@ -425,48 +425,18 @@ public sealed class EfLinkedCaseReplacementStore(
         dueWork.Version++;
     }
 
-    private static void RequireVersion(CaseWorkflowEntity workflow, long expectedVersion)
-    {
-        if (workflow.Version != expectedVersion)
-        {
-            throw new CaseVersionConflictException(
-                workflow.CaseId,
-                expectedVersion,
-                workflow.Version);
-        }
-    }
+    private static void RequireVersion(CaseWorkflowEntity workflow, long expectedVersion) =>
+        CaseMutationGuard.RequireVersion(workflow, expectedVersion);
 
     private static void RequireLease(
         CaseWorkflowEntity workflow,
         ActionActor actor,
         string token,
-        DateTimeOffset now)
-    {
-        if (workflow.EditLeaseExpiresAtUtc is null
-            || workflow.EditLeaseExpiresAtUtc <= now
-            || workflow.EditLeaseTokenHash is null
-            || workflow.EditLeaseHolder is null)
-        {
-            throw new CaseEditLeaseExpiredException(workflow.CaseId);
-        }
-        if (!string.Equals(workflow.EditLeaseHolder, actor.SubjectId, StringComparison.Ordinal)
-            || !CryptographicOperations.FixedTimeEquals(
-                Convert.FromHexString(workflow.EditLeaseTokenHash),
-                Convert.FromHexString(Hash(token))))
-        {
-            throw new CaseEditLeaseConflictException(workflow.CaseId);
-        }
-    }
+        DateTimeOffset now) =>
+        CaseMutationGuard.RequireLease(workflow, actor, token, now);
 
-    private static void ClearLease(CaseWorkflowEntity workflow)
-    {
-        workflow.EditLeaseToken = null;
-        workflow.EditLeaseTokenHash = null;
-        workflow.EditLeaseRequestHash = null;
-        workflow.EditLeaseHolder = null;
-        workflow.EditLeaseOperationKey = null;
-        workflow.EditLeaseExpiresAtUtc = null;
-    }
+    private static void ClearLease(CaseWorkflowEntity workflow) =>
+        CaseMutationGuard.ClearLease(workflow);
 
     private static bool IsTerminal(string state) => state is
         nameof(CaseLifecycleState.PostReportComplete) or
