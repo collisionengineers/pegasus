@@ -51,23 +51,14 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   reacquisition path; no takeover, no force-save, no Administrator bypass, no
   lease vocabulary in operator copy (branch task/case-edit-lease-continuity,
   taken 2026-08-05, by claude).
-- Release-record accuracy after the documentation-only merge: `dev` and `main`
-  now sit ahead of release 7's source revision on documentation commits alone,
-  which both `NOW.md`'s "Merged, not deployed" section and
-  `docs/operations.md`'s deployed-evidence note currently read as full
-  coverage. State the rule the estate actually follows — a revision ahead of
-  the release table is a release claim only when it changes something under
-  `src/` — in both places. Documentation only; no source change, no release
-  (branch task/release-record-accuracy, taken 2026-08-05, by claude).
 
 ## Merged, not deployed
 
 Nothing that needs a release. The estate serves **release 7** (2026-08-05,
 revision `32feefa…`), which carries every source change in `dev` and `main`.
-`dev` and `main` have since advanced by documentation-only commits (`19d0abf`
-at the time of writing); they change no built artifact, so they ride the next
-functional release rather than justifying one. The deployed-evidence record is
-owned by
+`dev` and `main` have since advanced by documentation-only commits; they
+change no built artifact, so they ride the next functional release rather than
+justifying one. The deployed-evidence record is owned by
 [operations § Production environment](docs/operations.md#production-environment).
 
 Two things are deployed as code without being active, and neither is a
