@@ -7,6 +7,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 
@@ -169,7 +170,8 @@ public sealed class EfCaseAcceptanceStore(
         // `draft_ready` is the legacy code for the definitive outcome, kept
         // readable so receipts written before the acceptance gate was removed
         // still resolve.
-        if (receipt.Decision is not ("case_created" or "draft_ready" or "needs_sorting"))
+        if (!IntakeDecisionPolicy.CanBecomeCase(
+                EfIntakeReceiptStore.ParseDecision(receipt.Decision)))
         {
             throw new InvalidOperationException(
                 "Only a definitive instruction or an item that needs sorting can become a case.");

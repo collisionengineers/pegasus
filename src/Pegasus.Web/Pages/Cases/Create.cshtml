@@ -1,0 +1,204 @@
+@page
+@model Pegasus.Web.Pages.Cases.CreateModel
+@using Pegasus.Core.Cases
+@using Pegasus.Core.Intake
+@{
+    ViewData["Title"] = "New case";
+}
+@*
+    The second half of one operator action: a file was dropped on Upload, it
+    was read while they waited, and this is where what came out of it becomes
+    a case. The route carries no "intake" — the operator notes forbid the word
+    in the interface — and no identifier, hash or version is printed as text.
+*@
+
+<header class="page-heading">
+    <div>
+        <p class="eyebrow">New case</p>
+        <h1>New case</h1>
+        <p class="lede">From @Model.Receipt.SourceFileName</p>
+    </div>
+    <a class="secondary-action" asp-page="/Upload">Upload another</a>
+</header>
+
+@if (Model.UploadOutcomeMessage is { } uploadOutcome)
+{
+    <div class="status-card status-card--done" role="status">@uploadOutcome</div>
+}
+
+@if (Model.RefusalMessage is { } refusal)
+{
+    <section class="panel section-gap" aria-labelledby="refusal-title">
+        <h2 id="refusal-title" class="section-label">This item cannot become a case</h2>
+        <p class="failure-detail">@refusal</p>
+        <a class="secondary-action" asp-page="/Intake/Details" asp-route-id="@Model.Receipt.Id">Open the received item</a>
+    </section>
+}
+else
+{
+    <form method="post" asp-page-handler="Create">
+        <input asp-for="ReceiptId" type="hidden" />
+        <input asp-for="OperationId" type="hidden" />
+        <input asp-for="ExpectedReceiptVersion" type="hidden" />
+        <input asp-for="AddressSuggestionFingerprint" type="hidden" />
+        <div asp-validation-summary="All" class="validation-summary"></div>
+
+        <section class="panel form-panel section-gap" aria-labelledby="details-title">
+            <h2 id="details-title" class="section-label">Details</h2>
+            <p>What was read from the file, for you to confirm or change. Every value is retained with who put it there.</p>
+            <partial name="_InstructionDraftFields" model="Model.DraftFields" />
+        </section>
+
+        <section class="panel form-panel section-gap" aria-labelledby="address-title">
+            <h2 id="address-title" class="section-label">Inspection address</h2>
+            @if (Model.ProviderIsImageBased)
+            {
+                <p>
+                    This work provider uses Image Based Assessment. The inspection address is recorded
+                    as &ldquo;Image Based Assessment&rdquo; when the case is created, even if the
+                    instruction mentions a physical location. A physical address can still be recorded
+                    on the case afterwards with a reason.
+                </p>
+            }
+            else if (Model.AddressAlreadySettled)
+            {
+                <dl class="detail-list">
+                    <div><dt>Inspection address</dt><dd>@Model.AddressResolution.ResolvedValue</dd></div>
+                    <div><dt>Status</dt><dd>@Pegasus.Web.Pages.Cases.CreateModel.AddressStateLabel(Model.AddressResolution.State)</dd></div>
+                </dl>
+                <p>This address is already settled and will be used for the case.</p>
+            }
+            else if (Model.AddressSuggestion is { } suggestion)
+            {
+                <dl class="detail-list">
+                    <div><dt>Address found in the document</dt><dd>@suggestion.Value</dd></div>
+                    <div><dt>Status</dt><dd>@Pegasus.Web.Pages.Cases.CreateModel.AddressStateLabel(Model.AddressResolution.State)</dd></div>
+                </dl>
+                <ul class="plain-list">
+                    @foreach (var provenance in suggestion.Provenance)
+                    {
+                        <li>Extracted from @provenance.SourceLabel</li>
+                    }
+                </ul>
+                @* The choice is always explicit: Pegasus will not decide for
+                   itself which of two addresses is the right one. *@
+                <fieldset>
+                    <legend>Which address should the case use?</legend>
+                    <label>
+                        <input type="radio" asp-for="AddressChoice" value="@Pegasus.Web.Pages.Cases.CreateModel.AddressChoiceKind.UseFoundAddress" required />
+                        Use the address found
+                    </label>
+                    <label>
+                        <input type="radio" asp-for="AddressChoice" value="@Pegasus.Web.Pages.Cases.CreateModel.AddressChoiceKind.UseEnteredAddress" />
+                        Use this address instead
+                    </label>
+                </fieldset>
+                <label asp-for="InspectionAddress">Inspection address to use instead</label>
+                <textarea asp-for="InspectionAddress" maxlength="1000" rows="3"></textarea>
+                <span asp-validation-for="InspectionAddress" class="field-validation"></span>
+            }
+            else
+            {
+                <p>
+                    Nothing in this file said where the vehicle is. Pegasus will not infer an address
+                    from a spreadsheet, geocoder or model, so enter the location yourself; it is
+                    retained as yours.
+                </p>
+                @if (Model.AddressResolution.Evaluation.ConflictingEvidence.Count > 0)
+                {
+                    <p class="failure-detail">The file offered more than one address, so none of them is being used:</p>
+                    <ul class="evidence-list">
+                        @foreach (var evidence in Model.AddressResolution.Evaluation.ConflictingEvidence)
+                        {
+                            <li>
+                                <strong>@evidence.Value</strong>
+                                <span>Extracted from @evidence.Provenance.SourceLabel</span>
+                            </li>
+                        }
+                    </ul>
+                }
+                <label asp-for="InspectionAddress">Inspection address</label>
+                <textarea asp-for="InspectionAddress" maxlength="1000" rows="3" required></textarea>
+                <span asp-validation-for="InspectionAddress" class="field-validation"></span>
+            }
+        </section>
+
+        <section class="panel form-panel section-gap" aria-labelledby="case-title">
+            <h2 id="case-title" class="section-label">Case</h2>
+            <label asp-for="PrincipalCode">Confirmed principal code</label>
+            <input asp-for="PrincipalCode" maxlength="20" autocomplete="off" />
+            <span asp-validation-for="PrincipalCode" class="field-validation"></span>
+
+            <label asp-for="CaseType">Case type</label>
+            <select asp-for="CaseType">
+                <option value="@CaseType.Inspection">Inspection</option>
+                <option value="@CaseType.Audit">Standalone Audit</option>
+                <option value="@CaseType.InspectionAndAudit">Inspection and Audit</option>
+            </select>
+            <span asp-validation-for="CaseType" class="field-validation"></span>
+        </section>
+
+        @if (Model.CaseType == CaseType.Audit)
+        {
+            <section class="panel form-panel section-gap" aria-labelledby="audit-title">
+                <h2 id="audit-title" class="section-label">Standalone Audit evidence</h2>
+                <p>A standalone Audit is an assessment of somebody else's report, so the retained original and the confirming person are kept with it.</p>
+
+                <label asp-for="StandaloneAuditAssessment">Audit assessment</label>
+                <select asp-for="StandaloneAuditAssessment">
+                    <option value="">Not chosen</option>
+                    <option value="@AuditAssessment.Repairable">Repairable</option>
+                    <option value="@AuditAssessment.TotalLoss">Total loss</option>
+                </select>
+                <span asp-validation-for="StandaloneAuditAssessment" class="field-validation"></span>
+
+                <label asp-for="StandaloneAuditOriginalReportAssetId">Retained original Engineer report</label>
+                <select asp-for="StandaloneAuditOriginalReportAssetId">
+                    <option value="">Not chosen</option>
+                    @foreach (var asset in Model.Receipt.AssetRecords.Where(
+                        asset => asset.Kind is IntakeAssetKind.Source or IntakeAssetKind.Attachment))
+                    {
+                        <option value="@asset.Id">@asset.FileName · @asset.SourceLabel</option>
+                    }
+                </select>
+                <span asp-validation-for="StandaloneAuditOriginalReportAssetId" class="field-validation"></span>
+
+                <label asp-for="StandaloneAuditEvidenceReason">Why this report supports the assessment</label>
+                <textarea asp-for="StandaloneAuditEvidenceReason" maxlength="500" rows="3"></textarea>
+                <span asp-validation-for="StandaloneAuditEvidenceReason" class="field-validation"></span>
+                @if (Model.ConfirmedStandaloneAuditEvidence is not null)
+                {
+                    <small>This original-report evidence is already confirmed and immutable. Creating the case reuses it.</small>
+                }
+            </section>
+        }
+
+        <section class="panel form-panel section-gap" aria-labelledby="completeness-title">
+            <h2 id="completeness-title" class="section-label">Evidence completeness</h2>
+            <label>
+                <input asp-for="InstructionComplete" />
+                Instruction evidence is complete
+            </label>
+            <label>
+                <input asp-for="InstructionConfirmedByStaff" />
+                I have confirmed the instruction evidence
+            </label>
+            <label>
+                <input asp-for="ImagesComplete" />
+                Image evidence is complete
+            </label>
+            <label>
+                <input asp-for="ImagesConfirmedByStaff" />
+                I have confirmed the image evidence
+            </label>
+        </section>
+
+        <section class="panel form-panel section-gap" aria-labelledby="reason-title">
+            <h2 id="reason-title" class="section-label">Reason</h2>
+            <label asp-for="Reason">Why this case is being created</label>
+            <textarea asp-for="Reason" maxlength="500" rows="3" required></textarea>
+            <span asp-validation-for="Reason" class="field-validation"></span>
+            <button type="submit" class="primary-action">Create case</button>
+        </section>
+    </form>
+}

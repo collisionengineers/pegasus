@@ -71,8 +71,15 @@ public sealed class IntakeWebNegativeTests
             bytes,
             form.ExternalReceiptToken);
 
-        Assert.Equal(HttpStatusCode.Redirect, retried.StatusCode);
-        _ = await IntakeWebDriver.ProcessQueuedAsync(factory, retried);
+        // The retry gets as far as retaining and reading the file. It is still
+        // an unreadable one, so there is nowhere to send the operator and the
+        // failure is reported on the page they are on — but the receipt that
+        // records the refusal exists, which is what the retry had to prove.
+        Assert.Equal(HttpStatusCode.OK, retried.StatusCode);
+        Assert.Contains(
+            "could not be processed",
+            retried.ResponseBody,
+            StringComparison.Ordinal);
         Assert.Single(await ListAllAsync(factory));
         Assert.Equal(3, artifactStore.Attempts);
     }
@@ -167,9 +174,12 @@ public sealed class IntakeWebNegativeTests
         var result = await IntakeWebDriver.PostUploadAsync(
             client, form.AntiforgeryToken, "payload.bin", "application/octet-stream", [0x00, 0x01], form.ExternalReceiptToken);
 
-        Assert.Equal(HttpStatusCode.Redirect, result.StatusCode);
-        var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, result);
-        var receipt = await GetAsync(factory, IntakeWebDriver.ReceiptId(processed));
+        // The reader is reached while the operator waits, so the refusal is
+        // stated on the upload page rather than by sending them to a record
+        // that only says the same thing.
+        Assert.Equal(HttpStatusCode.OK, result.StatusCode);
+        Assert.Contains("could not be processed", result.ResponseBody, StringComparison.Ordinal);
+        var receipt = await GetAsync(factory, await IntakeWebDriver.SoleReceiptIdAsync(factory));
         Assert.Equal(IntakeDecision.Unsupported, receipt.Decision);
         Assert.Null(receipt.InstructionDraft);
         Assert.Single(receipt.AssetRecords);
@@ -205,8 +215,12 @@ public sealed class IntakeWebNegativeTests
             new byte[TenMiB],
             form.ExternalReceiptToken);
 
-        Assert.Equal(HttpStatusCode.Redirect, result.StatusCode);
-        _ = await IntakeWebDriver.ProcessQueuedAsync(factory, result);
+        // Exactly at the limit the transport accepts the file and it reaches
+        // the reader. What the reader then makes of ten mebibytes of zeroes is
+        // beside the point; that a receipt exists at all is the boundary this
+        // test guards.
+        Assert.Equal(HttpStatusCode.OK, result.StatusCode);
+        Assert.DoesNotContain("Files must be", result.ResponseBody, StringComparison.Ordinal);
         var receipt = Assert.Single(await ListAllAsync(factory));
         Assert.Equal(TenMiB, (await GetAsync(factory, receipt.Id)).SourceLength);
     }
@@ -262,29 +276,33 @@ public sealed class IntakeWebNegativeTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        var first = await IntakeWebDriver.UploadAndProcessAsync(
-            factory,
+        // An unreadable file reports on the upload page rather than
+        // redirecting, so the replay is proved where it actually lives: one
+        // retained receipt under the canonical token, whichever case the
+        // operator's browser sent it in.
+        var first = await IntakeWebDriver.UploadAsync(
             client,
             "unknown.bin",
             "application/octet-stream",
             bytes,
             canonicalToken.ToUpperInvariant());
-        var replay = await IntakeWebDriver.UploadAndProcessAsync(
-            factory,
+        var replay = await IntakeWebDriver.UploadAsync(
             client,
             "unknown.bin",
             "application/octet-stream",
             bytes,
             canonicalToken);
 
-        var firstId = IntakeWebDriver.ReceiptId(first);
-        Assert.Equal(firstId, IntakeWebDriver.ReceiptId(replay));
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
+        var firstId = await IntakeWebDriver.SoleReceiptIdAsync(factory);
         Assert.Equal(canonicalToken, (await GetAsync(factory, firstId)).SourceIdentity.ExternalReceiptToken);
         Assert.Single(await ListAllAsync(factory));
 
-        using var replayReview = await client.GetAsync(replay.Location);
+        using var replayReview = await client.GetAsync($"/Intake/{firstId:D}");
         var replayHtml = await replayReview.Content.ReadAsStringAsync();
-        Assert.Contains("was already received", replayHtml, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(HttpStatusCode.OK, replayReview.StatusCode);
+        Assert.Contains("unknown.bin", replayHtml, StringComparison.Ordinal);
     }
 
     [Fact]

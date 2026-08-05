@@ -214,6 +214,30 @@ Commit `de96d7b`, verified by a clean Release build and 441 passing
   tests. Allocation still fails closed on the principal record inside the
   acceptance transaction (`EfCaseAcceptanceStore.cs:183`).
 
+## Test state after `de96d7b`
+
+`Pegasus.Core.Tests` is green (441). Eleven integration tests fail across
+`QdosIntakeWebTests`, `IntakeWebNegativeTests`, `InstructionDraftWebTests`:
+
+- Ten assert the old queued behaviour and now read `OK` where they expected
+  `Found`, or `False` where they expected `True`. They are asserting a
+  redirect to a staged receipt that the page no longer produces, through
+  `IntakeWebDriver.QueuedReceiptId` and `ProcessQueuedAsync` in
+  `tests/Pegasus.IntegrationTests/IntakeWebTestSupport.cs:329-394`, which
+  drive `DispatchPendingIntakeWork` by hand. That whole driver path is
+  obsolete for the upload caller: processing now happens in the POST. The
+  driver needs a second path that reads the processed receipt straight from
+  the redirect, and the mailbox-caller tests keep the existing one.
+- One is a real defect and not an expectation change:
+  `QdosFilenameAndSenderWithoutConfirmingBodyNeedSortingThroughUploadCaller`
+  returns `InternalServerError`. The receipt is `NeedsSorting`, so the page
+  redirects to `/Cases/Create`, which does not exist yet. `RedirectToPage`
+  only builds the result; URL generation happens after the handler returns,
+  outside its `catch`, so the missing page surfaces as an unhandled 500 rather
+  than the handler's error path. Creating the page closes it — but a
+  redirect target that does not resolve should not be able to 500 the upload,
+  so the handler needs a guard as well.
+
 ## Two findings that change the remaining work
 
 **A hand-keyed case is still blocked by the inspection-address gate.**

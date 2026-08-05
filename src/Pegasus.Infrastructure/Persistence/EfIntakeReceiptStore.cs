@@ -1080,6 +1080,9 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         IntakeEvidenceSource.Subject => "subject",
         IntakeEvidenceSource.FileName => "file_name",
         IntakeEvidenceSource.MimeType => "mime_type",
+        // Declared with the rest but never mapped, so any attempt to retain
+        // evidence a person supplied threw on the way to the database.
+        IntakeEvidenceSource.StaffCorrection => "staff_correction",
         IntakeEvidenceSource.SystemDefault => "system_default",
         _ => throw UnknownEnum(value)
     };
@@ -1094,6 +1097,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         "subject" => IntakeEvidenceSource.Subject,
         "file_name" => IntakeEvidenceSource.FileName,
         "mime_type" => IntakeEvidenceSource.MimeType,
+        "staff_correction" => IntakeEvidenceSource.StaffCorrection,
         "system_default" => IntakeEvidenceSource.SystemDefault,
         _ => throw UnknownCode("evidence source", value)
     };
