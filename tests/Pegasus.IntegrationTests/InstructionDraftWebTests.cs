@@ -38,7 +38,7 @@ public sealed class InstructionDraftWebTests
         using var replayReview = await client.GetAsync(replay.Location);
         var replayHtml = await replayReview.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, replayReview.StatusCode);
-        Assert.Contains("already processed", replayHtml, StringComparison.Ordinal);
+        Assert.Contains("was already received", replayHtml, StringComparison.Ordinal);
         Assert.Equal(1, await CountRowsAsync(factory, "IntakeReceipts"));
         Assert.Equal(1, await CountRowsAsync(factory, "InstructionDrafts"));
         Assert.Equal(receipt.AssetRecords.Count, await CountRowsAsync(factory, "IntakeAssets"));
@@ -69,7 +69,7 @@ public sealed class InstructionDraftWebTests
         Assert.Equal(HttpStatusCode.OK, conflict.StatusCode);
         Assert.Null(conflict.Location);
         Assert.Contains(
-            "already used for different content",
+            "already used for a different file",
             conflict.ResponseBody,
             StringComparison.Ordinal);
         Assert.Equal(firstHash, firstReceipt.SourceHash);

@@ -31,6 +31,7 @@
         "retry_replayed" => "Processing was already scheduled to run again.",
         "retry_changed" => "The failure changed before it could be retried. Refresh and try again.",
         "retry_invalid" => "That retry could not be requested. Refresh and try again.",
+        "upload_outcome" => TempData["UploadOutcomeMessage"] as string ?? "The file was received.",
         _ => "The file has been received and queued for processing."
     };
     <div class="status-card" role="status">@statusMessage</div>
@@ -259,21 +260,3 @@ else
     }
 }
 
-@* Manual submission moves to its own Upload surface in the next change; it
-   stays reachable here until that page exists, demoted below the list rather
-   than sitting above the work. *@
-<section class="panel form-panel section-gap" aria-labelledby="upload-title">
-    <h2 id="upload-title" class="section-label">Upload a document</h2>
-    <form method="post" enctype="multipart/form-data" asp-page-handler="ReceiveIntake" asp-route-page="@Model.CurrentPage">
-        <input asp-for="ExternalReceiptToken" type="hidden" />
-        <input asp-for="DecisionFilter" type="hidden" />
-        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
-        <label asp-for="Upload">
-            E-mail, document, PDF or image
-            <span class="field-hint">Up to 10 MB.</span>
-        </label>
-        <input asp-for="Upload" type="file" accept=".eml,.pdf,.docx,.doc,.msg,.jpg,.jpeg,.png,message/rfc822,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.ms-outlook,image/jpeg,image/png" />
-        <span asp-validation-for="Upload" class="field-validation"></span>
-        <button type="submit" class="primary-action">Upload</button>
-    </form>
-</section>
