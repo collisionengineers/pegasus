@@ -37,6 +37,25 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   template work and no capability advanced — those stay blocked on the
   operator questions the plan set records (branch
   task/report-renderer-workspace-uplift, taken 2026-08-05, by claude).
+- Manual upload creates a case, and the Inbox becomes a mail viewer
+  (INT-01/INT-19/INT-26, UI-10 pulled forward): a manual upload must be
+  processed on the spot and land on a prefilled, editable case-creation
+  screen. Today `src/Pegasus.Web/Program.cs:567` binds `IIntakeSubmission` to
+  the queue-only `ReceiveIntake`, so `Upload.cshtml.cs` always returns
+  "being processed" and both of its other branches are unreachable; the file
+  then waits on a Worker timer and only becomes a case if the QDOS extraction
+  policy returns `Applicable` with a principal. Retire the
+  `QdosAlphaCaseActivationPolicy` activated-principal gate in favour of "the
+  principal must exist and be active" so staff can allocate against any
+  registered principal — automatic non-QDOS identification stays out of
+  scope. Then separate the two surfaces the nav conflates
+  (`_Layout.cshtml:42` points "Inbox" at the intake receipt list): build the
+  mail workspace over retained messages and give the received-items list an
+  honest name. Administration gains additional mailboxes and per-mailbox
+  enable/disable driving the intake poll, which is single-mailbox
+  config-bound today, by extending the existing `ApprovedMailbox`
+  administration to the intake route scope (branch
+  task/upload-case-creation-and-inbox, taken 2026-08-05, by claude).
 - CASE-27 edit-lease continuity and conflict recovery for both callers
   (MCP-02/MCP-04): close the gaps between
   `docs/requirements.md` "Case edit authority and recovery" and shipped
