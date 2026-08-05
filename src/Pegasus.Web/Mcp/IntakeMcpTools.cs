@@ -75,7 +75,7 @@ internal sealed class IntakeMcpTools(
                 {
                     decisionFilter = decision.Trim() switch
                     {
-                        "draft_ready" => IntakeDecision.DraftReady,
+                        "case_created" => IntakeDecision.CaseCreated,
                         "needs_sorting" => IntakeDecision.NeedsSorting,
                         "blocked_intake" => IntakeDecision.BlockedIntake,
                         "unsupported" => IntakeDecision.Unsupported,
@@ -179,7 +179,7 @@ internal sealed class IntakeMcpTools(
 
     private static string DecisionCode(IntakeDecision decision) => decision switch
     {
-        IntakeDecision.DraftReady => "draft_ready",
+        IntakeDecision.CaseCreated => "case_created",
         IntakeDecision.NeedsSorting => "needs_sorting",
         IntakeDecision.BlockedIntake => "blocked_intake",
         IntakeDecision.Unsupported => "unsupported",

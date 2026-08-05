@@ -1,13 +1,16 @@
 <!doctype html>
 <!--
   REFRESHED mockup — divergences from the recorded design authority (design/README.md tokens):
-  1. Type scale 22/17/15/13px, 600-weight headings, tabular numerals for dates/metrics.
-  2. Paper #F7F6F4; cards 6px radius with 1px hairline + soft shadow 0 1px 2px rgb(22 25 29 / 5%).
+  1. Type scale 20/15/14/13px, 600-weight headings, tabular numerals for dates/metrics.
+  2. Paper #F7F6F4; cards 6-8px radius, 1px hairline + soft shadow 0 1px 2px rgb(22 25 29 / 5%).
   3. Chips gain a 10% tinted background alongside the 1px border (colour roles unchanged).
-  4. 8px base rhythm (16/24/32 steps).
-  5. Buttons and inputs 6px radius. Red remains sparse: primary action and active nav only.
-  This variant shows the action rail with the Accept panel EXPANDED (the hardened variant
-  shows the collapsed checklist state).
+  4. 4px base rhythm (8/12/16 steps); 32px rows.
+  5. Buttons and inputs 6px radius. Red remains sparse: primary commitment and active nav only.
+  6. ONE CONTAINER PER RECORD (ui-standards §4 rule 13): the received item is a single shell —
+     dark header band, action bar, tabs — replacing the former page-head + two-column
+     content/action-rail layout. The Create case form moves into a dialog off the action bar.
+  MOCKUP DEVICE: tabs are hidden radio inputs so the file works by double-click with no script;
+  the real implementation uses tablist/tab/tabpanel roles. Placeholder content only.
 -->
 <html lang="en">
 <head>
@@ -16,132 +19,179 @@
 <title>Received item review — Pegasus (refreshed mockup)</title>
 <style>
   :root{
-    --ce-red:#DB0816; --ce-red-dark:#8F1422; --ce-red-tint:rgba(219,8,22,.10);
-    --charcoal:#2C2A27; --ink:#16191D; --paper:#F7F6F4; --panel:#FFFFFF;
-    --line:#E6E4E1; --muted:#6B6B6B; --green:#16833B; --green-tint:rgba(22,131,59,.10);
+    --ce-red:#DB0816; --ce-red-dark:#8F1422; --charcoal:#2C2A27; --ink:#16191D;
+    --band:#1B1E23; --band-mute:#A7A9AD;
+    --paper:#F7F6F4; --panel:#FFFFFF; --line:#E6E4E1; --muted:#6B6B6B;
+    --green:#16833B; --green-tint:rgba(22,131,59,.10);
     --amber-fg:#7A3E00; --amber-line:#A15C00; --amber-tint:rgba(161,92,0,.10);
     --navy-fg:#143A5E; --navy-line:#365F87; --navy-tint:rgba(54,95,135,.10);
     --shadow:0 1px 2px rgb(22 25 29 / 5%);
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;
-       color:var(--ink);background:var(--paper);line-height:1.5}
+  body{font:13.5px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);
+       background:var(--paper)}
   a{color:var(--ink)}
+  :focus-visible{outline:3px solid rgba(219,8,22,.38);outline-offset:1px}
+
   .nav{background:var(--panel);border-bottom:1px solid var(--line)}
-  .nav-inner{max-width:1240px;margin:0 auto;padding:0 32px;display:flex;
-             align-items:center;gap:24px;height:60px}
+  .nav-inner{max-width:1180px;margin:0 auto;padding:0 20px;display:flex;align-items:center;
+             gap:16px;height:48px}
   .brand{display:flex;align-items:center;gap:12px;font-weight:600}
   .brand .mark{color:var(--ce-red);font-size:11px;letter-spacing:.08em}
-  .brand .app{border-left:1px solid var(--line);padding-left:12px;font-size:17px}
-  .nav-links{display:flex;gap:24px;margin-left:auto;font-size:15px;font-weight:600}
-  .nav-links a{text-decoration:none;padding:19px 2px 17px;border-bottom:2px solid transparent}
+  .brand .app{border-left:1px solid var(--line);padding-left:12px;font-size:14px}
+  .nav-links{display:flex;gap:2px;margin-left:8px;font-size:13.5px;font-weight:600}
+  .nav-links a{text-decoration:none;padding:15px 10px 13px;border-bottom:2px solid transparent}
   .nav-links a.active{color:var(--ce-red);border-bottom-color:var(--ce-red)}
-  .nav-user{display:flex;gap:16px;align-items:center;border-left:1px solid var(--line);
-            padding-left:24px;font-size:13px}
-  .nav-user .who{color:var(--muted)}
-  main{max-width:1240px;margin:0 auto;padding:32px}
-  .page-head{display:flex;align-items:flex-start;justify-content:space-between;
-             margin-bottom:32px}
-  h1{font-size:22px;font-weight:600;letter-spacing:-.01em;display:flex;
-     align-items:center;gap:12px}
-  .meta{color:var(--muted);font-size:13px;margin-top:4px}
-  time{font-variant-numeric:tabular-nums}
-  .back{font-size:13px;text-decoration:none;border:1px solid var(--line);
-        background:var(--panel);border-radius:6px;padding:8px 16px;font-weight:600;
-        white-space:nowrap;box-shadow:var(--shadow)}
-  .chip{display:inline-block;font-size:13px;font-weight:600;border-radius:6px;
-        padding:2px 10px;border:1px solid var(--line);background:var(--paper);
-        color:var(--muted);white-space:nowrap;vertical-align:middle}
-  .chip.review{border-color:var(--navy-line);color:var(--navy-fg);background:var(--navy-tint)}
+  .nav-user{display:flex;gap:12px;align-items:center;margin-left:auto;font-size:12px;
+            color:var(--muted)}
+  .nav-user a{color:var(--charcoal);text-decoration:none}
+
+  main{max-width:1180px;margin:0 auto;padding:12px 20px 24px}
+  .crumb{font-size:12px;color:var(--muted);margin-bottom:8px}
+
+  /* ---- the record container ---------------------------------------------- */
+  .rec{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+       box-shadow:var(--shadow);overflow:hidden}
+  .rhead{background:var(--band);color:#fff;display:flex;align-items:center;gap:12px;
+         padding:10px 16px}
+  .rhead h1{font-size:20px;font-weight:600;letter-spacing:-.01em}
+  .rhead .idy{font-size:12.5px;color:var(--band-mute);padding-left:12px;
+              border-left:1px solid rgb(255 255 255 / 16%);font-variant-numeric:tabular-nums}
+  .rhead .idy b{color:#EDEDEE;font-weight:600}
+  .rhead .right{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .accent{height:3px;background:var(--amber-line)}
+
+  .abar{display:flex;align-items:center;gap:6px;padding:8px 16px;background:var(--panel);
+        border-bottom:1px solid var(--line);position:sticky;top:0;z-index:3}
+  .abar .spacer{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .abar .rule{width:1px;height:22px;background:var(--line)}
+
+  .btn{display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:13px;
+       font-weight:600;border-radius:5px;cursor:pointer;padding:5px 10px;
+       border:1px solid #D8D5D1;background:var(--panel);color:var(--charcoal);
+       text-decoration:none;white-space:nowrap}
+  .btn:hover{border-color:var(--charcoal);background:#FCFBFA}
+  .btn--dark{background:var(--charcoal);border-color:var(--charcoal);color:#fff}
+  .btn--dark:hover{background:#000;border-color:#000}
+  .btn--primary{background:var(--ce-red);border-color:var(--ce-red);color:#fff}
+  .btn--primary:hover{background:var(--ce-red-dark);border-color:var(--ce-red-dark)}
+  .btn--light{background:transparent;border-color:rgb(255 255 255 / 30%);color:#fff}
+  .btn--light:hover{background:rgb(255 255 255 / 10%)}
+
+  .chip{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;padding:2px 9px;
+        border:1px solid var(--line);background:rgb(22 25 29 / 4%);color:var(--charcoal);
+        white-space:nowrap}
   .chip.missing{border-color:var(--amber-line);color:var(--amber-fg);background:var(--amber-tint)}
   .chip.ok{border-color:var(--green);color:var(--green);background:var(--green-tint)}
-  .layout{display:grid;grid-template-columns:1fr 336px;gap:24px;align-items:start}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:6px;
-        box-shadow:var(--shadow);padding:24px}
-  h2{font-size:17px;font-weight:600;margin-bottom:16px}
-  .field{display:grid;grid-template-columns:180px 1fr;gap:4px 16px;
-         padding:12px 0;border-bottom:1px solid var(--line);align-items:center}
-  .field:last-child{border-bottom:0}
-  .field label{font-size:15px;font-weight:600}
-  .field input,.field textarea,.field select{font:inherit;font-size:15px;width:100%;
-        padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
-  .field input:focus,.field textarea:focus,.field select:focus,
-  .rail input:focus,.rail select:focus,.rail textarea:focus,.btn:focus{
-        outline:3px solid rgba(219,8,22,.38)}
-  .hint{grid-column:2;color:var(--muted);font-size:13px}
-  .hint.warn{color:var(--amber-fg)}
+  .chip.review{border-color:var(--navy-line);color:var(--navy-fg);background:var(--navy-tint)}
+  .rhead .chip.missing{background:#FFF4D6;border-color:#FFF4D6}
+
+  /* ---- tabs (radio device) ----------------------------------------------- */
+  .tabinput{position:absolute;opacity:0;pointer-events:none}
+  .tabs{display:flex;gap:2px;padding:0 16px;border-bottom:1px solid var(--line);
+        background:var(--paper)}
+  .tabs label{font-size:13.5px;font-weight:600;color:var(--muted);padding:9px 12px;
+              cursor:pointer;border-bottom:2px solid transparent;display:inline-flex;gap:6px}
+  .tabs label:hover{color:var(--ink)}
+  .tabs .count{font-size:12px;color:var(--muted);background:rgb(22 25 29 / 6%);
+               border-radius:999px;padding:0 6px;font-variant-numeric:tabular-nums}
+  #t-de:checked~.tabs label[for=t-de],
+  #t-fi:checked~.tabs label[for=t-fi],
+  #t-hr:checked~.tabs label[for=t-hr]{color:var(--ce-red);border-bottom-color:var(--ce-red)}
+  #t-de:checked~.tabs label[for=t-de] .count,
+  #t-fi:checked~.tabs label[for=t-fi] .count,
+  #t-hr:checked~.tabs label[for=t-hr] .count{color:var(--ce-red);background:rgb(219 8 22 / 8%)}
+  .tabpanel{display:none;padding:12px 16px 16px}
+  #t-de:checked~#p-de,#t-fi:checked~#p-fi,#t-hr:checked~#p-hr{display:block}
+
+  /* ---- details form ------------------------------------------------------ */
+  .fields{display:grid;grid-template-columns:1fr 1fr;gap:0 24px}
+  .field{display:grid;grid-template-columns:150px 1fr;gap:2px 12px;align-items:center;
+         padding:6px 0;border-bottom:1px solid var(--line)}
+  .field label{font-size:12.5px;font-weight:600;color:var(--muted)}
+  .field input,.field textarea,.field select{font:inherit;font-size:13.5px;width:100%;
+         padding:5px 8px;border:1px solid #D8D5D1;border-radius:5px;background:var(--panel)}
+  .field .hint{grid-column:2;color:var(--muted);font-size:12px}
+  .field .hint.warn{color:var(--amber-fg)}
   .inline-chip{display:flex;gap:8px;align-items:center}
-  .rail{position:sticky;top:24px;display:flex;flex-direction:column;gap:16px}
-  .rail .card{padding:24px}
-  .rail h2{font-size:13px;color:var(--muted);margin-bottom:8px}
-  .rail label{display:block;font-size:13px;font-weight:600;margin:8px 0 4px}
-  .rail input[type=text],.rail textarea,.rail select{font:inherit;font-size:15px;
-        width:100%;padding:8px;border:1px solid var(--line);border-radius:6px}
-  .check{display:flex;gap:8px;align-items:flex-start;font-size:13px;
-         font-weight:400;margin:8px 0}
-  .check input{margin-top:2px}
-  .btn{font:inherit;font-size:13px;font-weight:600;border-radius:6px;cursor:pointer;
-       padding:10px 16px;border:1px solid var(--line);background:var(--panel);
-       color:var(--ink);width:100%;margin-top:8px;text-align:center}
-  .btn-primary{background:var(--ce-red);border-color:var(--ce-red);color:#fff}
-  .btn-row{display:flex;gap:8px}
-  .btn-row .btn{margin-top:16px}
-  .quiet{font-size:13px;color:var(--muted);margin-top:8px}
-  .quiet a{display:block;padding:2px 0}
-  details{background:var(--panel);border:1px solid var(--line);border-radius:6px;
-          box-shadow:var(--shadow);margin-top:16px}
-  summary{cursor:pointer;font-weight:600;padding:16px 24px;font-size:15px}
-  details .body{border-top:1px solid var(--line);padding:16px 24px;font-size:15px}
-  .asset{display:flex;justify-content:space-between;gap:16px;padding:8px 0;
-         border-bottom:1px solid var(--line)}
+  .formfoot{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+
+  /* ---- lists ------------------------------------------------------------- */
+  .asset{display:flex;justify-content:space-between;gap:16px;align-items:center;min-height:32px;
+         padding:4px 0;border-bottom:1px solid var(--line)}
   .asset:last-child{border-bottom:0}
-  .asset .sub{color:var(--muted);font-size:13px}
-  .evidence dt{font-weight:600;float:left;width:160px;padding:8px 0;font-size:13px}
-  .evidence dd{padding:8px 0 8px 176px;border-bottom:1px solid var(--line)}
-  .evidence dd:last-child{border-bottom:0}
-  footer{border-top:1px solid var(--line);margin-top:64px;padding:24px 32px;
-         font-size:13px;color:var(--muted)}
+  .asset .sub{color:var(--muted);font-size:12px}
+  .evidence div{display:flex;gap:16px;min-height:32px;align-items:center;padding:4px 0;
+                border-bottom:1px solid var(--line)}
+  .evidence div:last-child{border-bottom:0}
+  .evidence dt{flex:0 0 160px;font-weight:600;font-size:12.5px;color:var(--muted)}
+
+  /* ---- demo blocks (mockup only) ----------------------------------------- */
+  .demo{border:1px dashed #CFCBC5;border-radius:6px;padding:12px;margin-top:16px;
+        background:var(--paper)}
+  .demo .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+             font-weight:600;margin-bottom:8px}
+  .dialog{background:var(--panel);border:1px solid var(--line);border-radius:8px;max-width:420px;
+          padding:16px;box-shadow:0 16px 48px rgb(22 25 29 / 18%)}
+  .dialog h3{font-size:15px;font-weight:600;margin-bottom:10px}
+  .dialog label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:10px 0 4px}
+  .dialog input,.dialog select,.dialog textarea{width:100%;border:1px solid #D8D5D1;
+          border-radius:5px;padding:6px 9px;font:inherit;background:var(--panel)}
+  .dialog .conseq{font-size:12.5px;color:var(--muted);margin-top:10px}
+  .dialog .foot{display:flex;justify-content:flex-end;gap:6px;margin-top:14px}
+
+  footer{max-width:1180px;margin:0 auto;padding:12px 20px 24px;font-size:12px;color:var(--muted)}
 </style>
 </head>
 <body>
 
 <nav class="nav">
   <div class="nav-inner">
-    <div class="brand">
-      <span class="mark">COLLISION<br>ENGINEERS</span>
-      <span class="app">Pegasus</span>
-    </div>
+    <div class="brand"><span class="mark">&#9679; COLLISION ENGINEERS</span><span class="app">Pegasus</span></div>
     <div class="nav-links">
-      <a href="#">Dashboard</a>
-      <a href="#" class="active" aria-current="page">Inbox</a>
-      <a href="#">Upload</a>
-      <a href="#">Queues</a>
-      <a href="#">Cases</a>
-      <a href="#">Administration</a>
+      <a href="#">Dashboard</a><a href="#" class="active" aria-current="page">Inbox</a>
+      <a href="#">Upload</a><a href="#">Queues</a><a href="#">Cases</a><a href="#">Administration</a>
     </div>
-    <div class="nav-user">
-      <span class="who">alex</span>
-      <a href="#">Change password</a>
-      <a href="#">Sign out</a>
-    </div>
+    <div class="nav-user"><span>alex</span><a href="#">Change password</a><a href="#">Sign out</a></div>
   </div>
 </nav>
 
 <main>
-  <div class="page-head">
-    <div>
-      <h1>Received item <span class="chip review">Ready to review</span></h1>
-      <p class="meta">sample-instruction.pdf · Uploaded ·
-        <time datetime="2026-08-04T16:30:00+01:00">04 Aug 2026 16:30</time></p>
+  <p class="crumb"><a href="#">Inbox</a> &rsaquo; sample-instruction.pdf</p>
+
+  <div class="rec">
+    <div class="rhead">
+      <h1>Received item</h1>
+      <span class="chip missing">Needs sorting</span>
+      <span class="idy">sample-instruction.pdf &middot; Uploaded &middot;
+        <time datetime="2026-08-04T16:30:00+01:00">04 Aug 2026 16:30</time></span>
+      <span class="right"><a class="btn btn--light" href="#">Back to Inbox</a></span>
     </div>
-    <a class="back" href="#">Back to Inbox</a>
-  </div>
+    <div class="accent"></div>
 
-  <div class="layout">
-    <div>
-      <section class="card" aria-labelledby="details-title">
-        <h2 id="details-title">Details to confirm</h2>
+    <div class="abar">
+      <button class="btn btn--dark" type="button">Create case</button>
+      <button class="btn" type="button">Block</button>
+      <button class="btn" type="button">Link to a case</button>
+      <button class="btn" type="button">More &#9662;</button>
+      <span class="spacer">
+        <span class="rule"></span>
+        <span style="font-size:12px;color:var(--muted)">3 details missing</span>
+      </span>
+    </div>
 
+    <input class="tabinput" type="radio" name="rectab" id="t-de" checked>
+    <input class="tabinput" type="radio" name="rectab" id="t-fi">
+    <input class="tabinput" type="radio" name="rectab" id="t-hr">
+
+    <div class="tabs">
+      <label for="t-de">Details</label>
+      <label for="t-fi">Files and images <span class="count">3</span></label>
+      <label for="t-hr">How this was read <span class="count">5</span></label>
+    </div>
+
+    <div class="tabpanel" id="p-de">
+      <div class="fields">
         <div class="field">
           <label for="f-principal">Principal</label>
           <input id="f-principal" value="Principal A">
@@ -154,10 +204,7 @@
         </div>
         <div class="field">
           <label for="f-claim">Claim number</label>
-          <div class="inline-chip">
-            <input id="f-claim" value="">
-            <span class="chip missing">Missing</span>
-          </div>
+          <div class="inline-chip"><input id="f-claim" value=""><span class="chip missing">Missing</span></div>
         </div>
         <div class="field">
           <label for="f-vrm">Vehicle registration</label>
@@ -166,17 +213,11 @@
         </div>
         <div class="field">
           <label for="f-make">Vehicle make</label>
-          <div class="inline-chip">
-            <input id="f-make" value="">
-            <span class="chip missing">Missing</span>
-          </div>
+          <div class="inline-chip"><input id="f-make" value=""><span class="chip missing">Missing</span></div>
         </div>
         <div class="field">
           <label for="f-model">Vehicle model</label>
-          <div class="inline-chip">
-            <input id="f-model" value="">
-            <span class="chip missing">Missing</span>
-          </div>
+          <div class="inline-chip"><input id="f-model" value=""><span class="chip missing">Missing</span></div>
         </div>
         <div class="field">
           <label for="f-mileage">Vehicle mileage</label>
@@ -204,83 +245,59 @@
           <label for="f-inspection">Inspection date</label>
           <input id="f-inspection" type="date">
         </div>
-      </section>
-
-      <details>
-        <summary>Documents and images (3)</summary>
-        <div class="body">
-          <div class="asset">
-            <div>sample-instruction.pdf
-              <div class="sub">Source document · 2.4 MB</div></div>
-            <a href="#">Download</a>
-          </div>
-          <div class="asset">
-            <div>vehicle-photo-1.jpg
-              <div class="sub">Image · 1.8 MB</div></div>
-            <a href="#">View</a>
-          </div>
-          <div class="asset">
-            <div>vehicle-photo-2.jpg
-              <div class="sub">Image · 1.6 MB · Duplicate of vehicle-photo-1.jpg</div></div>
-            <a href="#">View</a>
-          </div>
-        </div>
-      </details>
-
-      <details>
-        <summary>How this was read (5)</summary>
-        <div class="body">
-          <dl class="evidence">
-            <dt>Document text</dt><dd>Embedded text and images were read from the instruction.</dd>
-            <dt>Sender</dt><dd>The sender uses an accepted principal domain.</dd>
-            <dt>Document text</dt><dd>The instruction suggests 2 field values.</dd>
-            <dt>Default applied</dt><dd>No claim number suggestion was found.</dd>
-            <dt>Default applied</dt><dd>No vehicle make suggestion was found.</dd>
-          </dl>
-        </div>
-      </details>
+      </div>
+      <div class="formfoot"><button class="btn" type="button">Save corrections</button></div>
     </div>
 
-    <aside class="rail" aria-label="Actions">
-      <div class="card">
-        <h2>Accept as case</h2>
-        <label for="a-reason">Reason</label>
-        <textarea id="a-reason" rows="2" maxlength="500"></textarea>
-        <label for="a-principal">Principal</label>
-        <input id="a-principal" type="text" value="Principal A">
-        <label for="a-type">Case type</label>
-        <select id="a-type">
-          <option selected>Inspection</option>
-          <option>Standalone Audit</option>
-          <option>Inspection and Audit</option>
-        </select>
-        <label class="check">
-          <input type="checkbox" checked>
-          Instruction evidence is complete and confirmed
-        </label>
-        <label class="check">
-          <input type="checkbox">
-          Image evidence is complete and confirmed
-        </label>
-        <div class="btn-row">
-          <button class="btn btn-primary" type="button">Accept as case</button>
-          <button class="btn" type="button">Cancel</button>
-        </div>
+    <div class="tabpanel" id="p-fi">
+      <div class="asset">
+        <div>sample-instruction.pdf<div class="sub">Source document &middot; 2.4 MB</div></div>
+        <a class="btn" href="#">Download</a>
       </div>
-      <div class="card">
-        <button class="btn" type="button" style="margin-top:0">Save corrections</button>
-        <button class="btn" type="button">Block</button>
-        <div class="quiet">
-          More
-          <a href="#">Re-evaluate</a>
-          <a href="#">Link to a case</a>
-        </div>
+      <div class="asset">
+        <div>vehicle-photo-1.jpg<div class="sub">Image &middot; 1.8 MB</div></div>
+        <a class="btn" href="#">View</a>
       </div>
-    </aside>
+      <div class="asset">
+        <div>vehicle-photo-2.jpg
+          <div class="sub">Image &middot; 1.6 MB &middot; Duplicate of vehicle-photo-1.jpg</div></div>
+        <a class="btn" href="#">View</a>
+      </div>
+    </div>
+
+    <div class="tabpanel" id="p-hr">
+      <dl class="evidence">
+        <div><dt>Document text</dt><dd>Embedded text and images were read from the instruction.</dd></div>
+        <div><dt>Sender</dt><dd>The sender uses an accepted principal domain.</dd></div>
+        <div><dt>Document text</dt><dd>The instruction suggests 2 field values.</dd></div>
+        <div><dt>Default applied</dt><dd>No claim number suggestion was found.</dd></div>
+        <div><dt>Default applied</dt><dd>No vehicle make suggestion was found.</dd></div>
+      </dl>
+    </div>
+  </div>
+
+  <div class="demo">
+    <p class="lbl">Action dialog &mdash; shown when &ldquo;Create case&rdquo; is chosen (page dims behind it)</p>
+    <div class="dialog" role="dialog" aria-labelledby="cc-title" aria-modal="true">
+      <h3 id="cc-title">Create case</h3>
+      <label for="cc-principal">Principal</label>
+      <input id="cc-principal" type="text" value="Principal A">
+      <label for="cc-type">Case type</label>
+      <select id="cc-type">
+        <option selected>Inspection</option><option>Standalone Audit</option>
+        <option>Inspection and Audit</option>
+      </select>
+      <label for="cc-reason">Reason</label>
+      <textarea id="cc-reason" rows="2" maxlength="500"></textarea>
+      <p class="conseq">The case reference is allocated on creation and cannot be changed.</p>
+      <div class="foot">
+        <button class="btn" type="button">Cancel</button>
+        <button class="btn btn--primary" type="button">Create case</button>
+      </div>
+    </div>
   </div>
 </main>
 
-<footer>Pegasus · Collision Engineers case management</footer>
-
+<footer>Pegasus &middot; Collision Engineers case management</footer>
 </body>
 </html>

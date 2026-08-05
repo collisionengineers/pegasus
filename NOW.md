@@ -1,4 +1,4 @@
-# NOW — updated 2026-08-03
+# NOW — updated 2026-08-05
 
 (Anything here older than 14 days is stale: delete it, don't investigate it.)
 
@@ -7,10 +7,6 @@
 Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 <agent>)`. Nothing is in flight unless it is claimed here on `origin/dev`.
 
-- Vault consolidation: copy the Box/DVLA/DVSA secrets into the Pegasus Key
-  Vault, repoint the Worker's and Web's references, prove resolution, then
-  retire the two adopted vaults and `rg-collisionspike-dev` (branch
-  task/vault-consolidation, taken 2026-08-03, by codex).
 - Report renderer integration planning: plan the retirement of the
   `workspaces/report-renderer/` source import into the monolith — locate the
   Core render port seam and Infrastructure adapter placement that RPT-01–05
@@ -25,44 +21,183 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   every integration stays behind the workspace register's activation
   conditions and needs its own ADR and implementation task (branch
   task/report-renderer-integration, taken 2026-08-03, by claude).
-- AI-09 Send to AI round trip and the Automation Actor assessment toolset:
-  implement `docs/temp-plans/mcp-assessment-toolset.md` and
-  `docs/temp-plans/send-to-claude-channel-integration.md` under the
-  operator's 2026-08-03 direct-write decision — Core assessment model and
-  AiWork work-request lifecycle, `automation.assessment` scope and the five
-  new Automation Actor tools, `Features:SendToAi` gate/adapter/panel wiring,
-  PAV slider, the Automation Actor ADR carrying the AI-09 contract
-  rewording, and the `pegasus-claude-channel` 0.2.0 close-out in the sibling
-  repo. Everything composition-gated DevelopmentOffline-only; estimate
-  derivation stays D2-gated; no activation or tier-5 claim (branch
-  task/send-to-ai-round-trip, taken 2026-08-03, by claude).
+- Report renderer workspace uplift: execute the unblocked, operator-decided
+  part of the `report-renderer-integration` plan set, all of it inside
+  `workspaces/report-renderer/` — remove the WinUI 3 desktop host and its
+  `design/assets/report-renderer/gui/` package assets (keeping
+  `PreviewComposer` and every template, stylesheet, logo and signature
+  asset), upgrade Scriban 5.12.1 → 7.2.6 against composed-HTML parity
+  evidence and retire the `NU1901-1904` suppression, uplift the six
+  remaining projects to `net10.0` with the package bumps, repair the
+  Dockerfile's non-existent `v1.61.0-jammy` base tag, replace `Format.Today`'s
+  machine-local `DateTime.Now` with a `TimeProvider`/Europe-London seam, and
+  correct `docs/operations.md`'s wrong Windows-only TFM row. Supersedes and
+  closes the planning claim above. No relocation into `src/`, no
+  `Pegasus.slnx` change, no Core port, no caller, no MCP consolidation, no
+  template work and no capability advanced — those stay blocked on the
+  operator questions the plan set records (branch
+  task/report-renderer-workspace-uplift, taken 2026-08-05, by claude).
+- UI implementation programme, deployment and live verification: `dev` now
+  carries the whole rebuild (PRs 338, 339, 341, 343, 344, 345, 346, 347) and
+  is not deployed. Blocked on the operator: merging `dev` into `main` needs
+  `MERGE AUTH GRANTED`, and the deployment and the live browser checks need
+  approval for the exact Azure targets. `docs/ui-work/` stays until those
+  checks pass, because it is the specification they are checked against
+  (taken 2026-08-05, by claude).
+- CASE-27 edit-lease continuity and conflict recovery for both callers
+  (MCP-02/MCP-04): close the gaps between
+  `docs/requirements.md` "Case edit authority and recovery" and shipped
+  behaviour — expired leases must read as free everywhere they are projected
+  (Triage and Operations still narrate a past expiry as held), authorised
+  non-holders must see the holder and when edit authority frees, a rejected
+  editor must keep their proposed values for comparison instead of losing the
+  post to a bare redirect, the Automation Actor must be able to renew rather
+  than only begin/end, and the triplicated mutation guard collapses to one
+  Core-owned implementation with a single lease-token length contract. Staff
+  Web and the Automation Actor exercise the same guard and the same
+  reacquisition path; no takeover, no force-save, no Administrator bypass, no
+  lease vocabulary in operator copy (branch task/case-edit-lease-continuity,
+  taken 2026-08-05, by claude).
+
+## Merged, not deployed
+
+- **AI-09 Send to AI round trip and the Automation Actor assessment toolset
+  (MCP-06)** merged into `dev` 2026-08-05 (PR 332, merge `5555440`), all nine
+  checks green. **It is not deployed.** Nothing is in `main`, no environment
+  runs it, and no activation, navigation-link, or acceptance claim is made.
+  The whole surface is composition-gated off by default (`Features:SendToAi`,
+  `Features:AutomationMcp`) and DevelopmentOffline-only; production would
+  additionally need a non-preview transport decision. Evidence is tier 2–4
+  local only — the tier-5 external-client round trip is still queued below.
+
 ## Next (ordered queue — take from the top)
 
+- Send to AI work-request integrity (PR 332 review): the reasoned `Cancelled`
+  outcome the plan requires has no caller at all — `ICancelAiWorkRequest` is
+  registered and unit-tested but nothing in the application invokes it, so
+  add the reason-taking action and the visible cancelled state. With it, the
+  outcomes the transport cannot currently tell apart: a lost or malformed
+  `/send` response is recorded as a definite `Failed` ("Nothing was sent")
+  and retry mints a fresh request id, so one case can be forwarded twice;
+  a `/events` transport failure is indistinguishable from an empty reply and
+  the panel states "No reply has been recorded yet" — both need a typed
+  uncertain/unavailable outcome on the Core port rather than a false
+  business-facing claim. Also: replay is not attempted before the in-flight
+  guard rejects; the in-flight check and the insert are not one transaction,
+  so two sends with different operation keys can both reach `/send`; a
+  timed-out request is stepped over rather than transitioned to `Expired`,
+  leaving it permanently non-terminal; and reconcile expires on wall-clock
+  without first reading whether the reply arrived in time.
+- Record the Send to AI eligibility decision (PR 332 review): the shipped
+  gate admits every `NotReady`/`Review`/`ReportPreparation` case with no
+  readiness condition, which silently resolves the channels plan's open
+  decision 5 — which outstanding requirements block the panel — in the most
+  permissive direction. The rewritten `open-decisions.md` section no longer
+  carries the question. The permissive default may well be right; it needs
+  recording as a decision rather than as an implementation detail.
+- Automation round-trip evidence view (PR 332 review): filtering
+  `/Administration/Automation/Activity` by a work-request id does not show
+  the round trip the plan promised. The lifecycle rows (created, handed off,
+  completed, failed) carry the sending staff actor while the activity
+  projection filters strictly on `ActorKind.Automation`, so only the later
+  ingress rows appear; and the `case_assessment_saved` row that holds the
+  per-field before/after evidence is correlated by operation key even when a
+  request id is bound. Extend the projection to the `ai_work_request`
+  aggregate and correlate the detailed row by the bound request id.
+- Assessment toolset correctness follow-ups (PR 332 review): replay returns a
+  fresh current projection with no `IsReplay` marker, so a retry after an
+  intervening save reports the later fields — the toolset plan specifies the
+  original result plus a replay signal. `MapCaseOwned` falls back to
+  `CaseDataCodes.Suggestion`, so an unconfirmed extraction can be served by
+  `pegasus_assessment_get` as accepted case data and satisfy readiness.
+  `pegasus_case_update_details` and `pegasus_eva_bundle_generate` accept any
+  well-formed `workRequestId` as an audit correlation without the existence
+  and case-ownership check `pegasus_assessment_update` applies. A partial
+  `pegasus_case_update_details` edit re-stamps every omitted field's
+  confirmation metadata with the automation actor, because the merge reads
+  the current confirmed values and writes the whole record back. Required-when
+  pairings are validated only when the governing field is in the save, so
+  clearing the dependent value alone persists an invalid merged state.
+  Estimate prices and work units accept decimals wider than the mapped
+  `decimal(18,2)`/`decimal(9,1)`, reaching a database overflow instead of a
+  deterministic refusal. Estimate-line results expose only actor kind and a
+  confirmation boolean, dropping the `RecordedBy`/`ConfirmedBy` provenance
+  the record retains and scalar fields return.
+- **UI implementation programme** (operator decision 2026-08-04, settling the
+  earlier "decide what `docs/ui-work/` is for" question): the folder is
+  adopted as the specification for a whole-application UI rebuild, then
+  deleted. Every page folder's alteration plan is implemented, every entry in
+  `docs/ui-work/additions-hidden-features.md` and
+  `docs/ui-work/defects-and-non-functional.md` is made visible and functional,
+  `docs/ui-work/ui-standards-and-review.md` becomes the enforced presentation
+  contract, and the implemented pages match the **refreshed** mockups. The
+  work lands as one PR per main-navigation page — sub-pages fold into the
+  navigation page that owns them — reviewed and merged into `dev` in
+  sequence, then `dev` into `main`.
+
+  **All seven page PRs are merged into `dev`** (338 shell and design system,
+  339 Dashboard, 341 the acceptance gate and INT-25, 343 Inbox, 344 Upload,
+  345 Queues, 346 Cases, 347 Administration). Nothing is deployed. What
+  remains is the operator's to authorise — see the `Doing` claim above — and
+  three decisions the work could not take for itself:
+  - **Two provenance glyphs.** The Lucide sprite is a checksummed sixteen-glyph
+    asset and `design/README.md` records that no glyph was added, removed or
+    redrawn. Seven provenance words share those sixteen, so **E-mail** and
+    **AI** lean on their tooltip rather than a distinct envelope and spark.
+    Adding two glyphs re-checksums an approved asset and needs authorisation.
+  - **The `claudeuiverification` password is committed** to
+    `appsettings.json`, Production-profile only, at the operator's request and
+    on their stated risk assessment. Replace the block with
+    `{ "Removed": "claudeuiverification" }` to delete the account on next
+    start. It must not survive into a real production deployment.
+  - **Two things were not shipped rather than faked.** The Dashboard's
+    "Queries outstanding" tile needs a reply link that hangs off a Triage
+    record no composition can create (defect B2), so **Blocked** takes its
+    slot; and Automation activity's failure reasons need a stable writer-side
+    reason code before the UI can label them, which the register itself says.
+- Protect `main` against direct pushes. `440ab5c` reached the deployment
+  branch without a PR, so CI never gated it — it carried a defect that
+  failed the documentation check the moment it was put in front of CI (fixed
+  in PR 335). PR 324 was likewise opened against `main` before being
+  redirected. A branch-protection rule stops this being caught by audit.
+
+- Record releases 4 and 5 in operations.md deployed evidence: release 4
+  (2026-08-04, revision `8e34078…`, digest `sha256:ae2cc7b8…`, the four
+  2026-08-03 migrations applied with the runtime-role matrix re-verified,
+  ADR-0020 premise verified — zero accepted cases, CaseMatchIndex shipped
+  empty) surfaced the production-CSP blank-band defect; release 5
+  (2026-08-04, revision `c6571f7…`, digest `sha256:29d4fcff…`, no new
+  migrations) shipped the PR 333 hotfix — live-verified: all 21
+  authenticated routes render from the viewport top with zero inline
+  styles, zero console errors, zero exceptions/sev3+ traces, smoke passed.
+  Also record the 2026-08-04 read-only Box custody-root inventory: the
+  pegasus folder `405543781910` has zero children, so no legacy
+  `{reference}-{caseId}` folders exist and the Case/PO fail-closed gate is
+  satisfied (release-5 live checks, 2026-08-04).
 - Assemble the operator-reviewed extraction cohort + untouched holdout and
   accept the per-field thresholds (INT-21, open-decisions) — blocks Path
   step 3.
-- Operator decision: all nine production Worker functions carry
-  `AzureWebJobs.<name>.Disabled = true` and the Worker has recorded no
-  executions since 2026-08-03 01:00 — apparently stilled deliberately
-  (most plausibly during the live vault-consolidation work); decide when to
-  re-enable mailbox polling and queue processing. The release-4 deploy
-  (2026-08-04) preserved the flags untouched (release-4 live checks,
-  2026-08-04).
+- Investigate the one failed staged intake artifact
+  (`staging/f7d2bdb8…`, 10,378,983 bytes, first seen 2026-08-01 23:56Z):
+  it remained `Failed` after the 2026-08-04 Worker re-enable and two
+  reconciliation sweeps — decide staff-review disposition. Context: the
+  operator ordered all nine Worker functions re-enabled on 2026-08-04
+  (they had carried `AzureWebJobs.<name>.Disabled = true` since
+  2026-08-03 ~01:08, set under the shared identity during the live
+  vault-consolidation window; releases 4 and 5 preserved the flags).
+  Re-enable verified live: six timer/dispatch functions executed with
+  zero failures and zero exceptions, the Inbox poll succeeded at
+  2026-08-04 08:41:45Z, and the one waiting inbox email processed into
+  `Needs sorting`; the three queue/poison functions correctly idle with
+  no messages. Alert rules and the operations action group were checked
+  enabled; nothing else in `rg-pegasus-prod` was disabled
+  (worker re-enable live checks, 2026-08-04).
 - Decide the production-CSP strategy for the inline `<script>` blocks
   (`_FreshnessBanner` refresh feedback, `_ReasonDialog` focus trap, the
   unrouted Assessment artifacts): external script files versus CSP hashes.
   They are silently discarded by the deployed `default-src 'self'` policy
   today — progressive enhancement only, nothing functional breaks
   (release-4 live checks, 2026-08-04).
-- Before the next production deploy, verify the ADR-0020 premise that no
-  environment holds an accepted case (CaseMatchIndex ships empty with no
-  backfill); if any accepted QDOS case exists, add a one-shot reprojection
-  (task/qdos-email-classification review, 2026-08-03).
-- Before the production spine proof: a read-only inventory of the approved
-  Box custody root confirming no pre-existing `{reference}-{caseId}` case
-  folders exist (the Case/PO custody layout fails closed on legacy roots and
-  authorises no migration) (task/box-casepo-document-custody review,
-  2026-08-03).
 - Operator decision: the pre-scrub commits of task/qdos-email-classification
   still carry corpus-derived names/references in GitHub PR refs — decide
   whether to request a history purge; and decide handling of the real staff
@@ -72,13 +207,37 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 - UI polish follow-ups from the design-pass review: Send-confirm focus drop,
   focus-trap escape edge case, sparkle glyph clipping, and the freshness
   banner's London label falling back to a UTC value without IANA data
-  (task/ui-alpha-design-pass review, 2026-08-03).
-- Relabel the Operations dashboard's DraftReady intake tile from `Review` to
-  the design authority's `Instruction draft` mapping: `DraftReady` is the
-  internal intake-receipt decision (a route-accepted instruction whose
-  extraction produced a complete reviewable draft, pre-Case), and the
-  internal wording leaked into the UI where `Review` is reserved for the
-  Case state (operator decision 2026-08-03: ship as-is, fix later).
+  (task/ui-alpha-design-pass review, 2026-08-03); also the Access review
+  page renders the `0001-01-01 00:00:00Z` sentinel as "Last reviewed"
+  beside a `Recorded` state (release-5 live checks, 2026-08-04).
+- Remove the manual case-acceptance gate and the `DraftReady` decision, and
+  implement INT-25/CAP-008. `docs/requirements.md:251` requires that
+  "definitive authorised intake creates exactly one instructed Case
+  idempotently" and that "the allocation decision adds no universal manual
+  acceptance gate"; `docs/operator-notes.md:204` sends only ambiguous
+  provider, instruction-type, or case evidence — and any unidentified e-mail
+  — to `Needs sorting`. Shipped behaviour is the opposite: `IAcceptIntake`
+  has one caller, the staff form handler at
+  `src/Pegasus.Web/Pages/Intake/Details.cshtml.cs:534`, so every case in
+  Pegasus waits on a human pressing "Accept and allocate case reference",
+  and `IntakeDecision.DraftReady` exists only to name that wait. Definitive
+  intake must allocate at processing time, entering `Not ready` when
+  ordinary detail is thin; incomplete detail is not a bar to allocation.
+  `Needs sorting` keeps the ambiguity path, including staff-resolved manual
+  creation (INT-26); genuine fail-closed conditions (limits, principal
+  identity, standalone Audit evidence) stay `Blocked intake` with a reason.
+  Scope: Core policy and the acceptance/receipt stores, the Worker/automation
+  path, the intake and dashboard surfaces, and a repo-wide correction pass —
+  `DraftReady` is referenced across `src/`, `tests/`, `design/README.md:374`,
+  `docs/capabilities.md`, and the intake filter/route token `draft_ready`.
+  Also correct `EfIntakeReceiptStore.GetCountsAsync:152-164` and
+  `ListAsync:166-192`, which never exclude receipts that produced a case, so
+  every intake count is cumulative for all time. `Review` and "Ready to
+  review" are the Case stage before the report is with an Engineer
+  (`CaseWorkflowContracts.cs:15`, `requirements.md:295`) and must never
+  label an intake state (operator decision 2026-08-04, superseding the
+  2026-08-03 "ship as-is, relabel later" line — the tile was never a
+  labelling defect).
 - Prove the per-run template database's server-side BACKUP/RESTORE against a
   PEGASUS_TEST_SQL_DATASOURCE container (Linux workstation or a CI job) and
   lift the review gate that disables the template for external servers
@@ -99,8 +258,13 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 
 ## Waiting (each line names its unblock condition)
 
-- Obsolete predecessor vault purge — platform-scheduled 2026-08-09, no action
-  unless it fails.
+- Obsolete predecessor vault purge — five soft-deleted `uksouth` vaults on two
+  platform-scheduled dates: `cespk-pg-kv-dev`, `cespkevakvufa3ci`, and
+  `cespklockva7tzj2` on 2026-08-09, then the two consolidation predecessors
+  `cespkboxkvv76a47` and `cespkenrichkvgi62sd` on 2026-08-10 (verified
+  read-only 2026-08-04; the earlier single 2026-08-09 date covered only the
+  first three). No action unless a purge fails; the watch is not clear until
+  both dates pass.
 
 ## Path (decided 2026-08-02: full QDOS cutover — every new QDOS instruction is worked in Pegasus through to the EVA handoff; EVA keeps engineering and reports. Box custody root decided 2026-08-02: all case folders under the pegasus folder `405543781910` only.)
 

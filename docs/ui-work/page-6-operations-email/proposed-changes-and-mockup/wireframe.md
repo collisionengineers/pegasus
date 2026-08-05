@@ -1,4 +1,10 @@
-# Wireframe — E-mail activity drill-down
+# Wireframe — E-mail activity drill-down — SUPERSEDED
+
+> **Merged into Inbox** (operator decision 2026-08-04). The live wireframe is
+> [`../../page-2-intake/proposed-changes-and-mockup/wireframe.md`](../../page-2-intake/proposed-changes-and-mockup/wireframe.md),
+> where these rows become the Received and Sent tabs of one list, the retry states are kept
+> verbatim, and mailbox identity becomes a column. Retained below only as the record of what the
+> merge had to preserve.
 
 ## Legend
 

@@ -351,7 +351,7 @@ public sealed class OrganizationAdministrationPersistenceTests
                 RecordedAtUtc,
                 RecordedAtUtc,
                 "Principal replacement test",
-                IntakeDecision.DraftReady,
+                IntakeDecision.CaseCreated,
                 "Ready for staff review",
                 [],
                 [

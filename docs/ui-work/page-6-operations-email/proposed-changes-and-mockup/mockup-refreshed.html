@@ -4,7 +4,7 @@
   1. Type scale 22/17/15/13px, 600-weight headings, tabular numerals for metrics/times.
   2. Paper #F7F6F4; cards 6px radius with 1px hairline + soft shadow 0 1px 2px rgb(22 25 29 / 5%).
   3. Chips gain a 10% tinted background alongside the 1px border (colour roles unchanged).
-  4. 8px base rhythm (16/24/32 steps); table rows at 40px.
+  4. 4px base rhythm (8/12/16 steps); table rows at 32px.
   5. Buttons 6px radius. Red remains sparse: primary action and active nav only.
 -->
 <html lang="en">
@@ -22,36 +22,36 @@
     --shadow:0 1px 2px rgb(22 25 29 / 5%);
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;
+  body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px;
        color:var(--ink);background:var(--paper);line-height:1.5}
   a{color:var(--ink)}
   .nav{background:var(--panel);border-bottom:1px solid var(--line)}
-  .nav-inner{max-width:1240px;margin:0 auto;padding:0 32px;display:flex;
-             align-items:center;gap:24px;height:60px}
+  .nav-inner{max-width:1240px;margin:0 auto;padding:0 20px;display:flex;
+             align-items:center;gap:16px;height:48px}
   .brand{display:flex;align-items:center;gap:12px;font-weight:600}
   .brand .mark{color:var(--ce-red);font-size:11px;letter-spacing:.08em}
-  .brand .app{border-left:1px solid var(--line);padding-left:12px;font-size:17px}
-  .nav-links{display:flex;gap:24px;margin-left:auto;font-size:15px;font-weight:600}
+  .brand .app{border-left:1px solid var(--line);padding-left:12px;font-size:15px}
+  .nav-links{display:flex;gap:16px;margin-left:auto;font-size:14px;font-weight:600}
   .nav-links a{text-decoration:none;padding:19px 2px 17px;border-bottom:2px solid transparent}
   .nav-links a.active{color:var(--ce-red);border-bottom-color:var(--ce-red)}
   .nav-user{display:flex;gap:16px;align-items:center;border-left:1px solid var(--line);
             padding-left:24px;font-size:13px}
   .nav-user .who{color:var(--muted)}
-  main{max-width:1240px;margin:0 auto;padding:32px}
+  main{max-width:1240px;margin:0 auto;padding:20px}
   .page-head{display:flex;align-items:flex-start;justify-content:space-between;
-             margin-bottom:32px}
-  h1{font-size:22px;font-weight:600;letter-spacing:-.01em}
+             margin-bottom:20px}
+  h1{font-size:20px;font-weight:600;letter-spacing:-.01em}
   .back{font-size:13px;text-decoration:none;border:1px solid var(--line);
         background:var(--panel);border-radius:6px;padding:8px 16px;font-weight:600;
         box-shadow:var(--shadow)}
   .corner-status{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
-  h2{font-size:17px;font-weight:600;margin:32px 0 8px}
+  h2{font-size:15px;font-weight:600;margin:20px 0 8px}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:6px;
         box-shadow:var(--shadow);overflow:hidden}
-  table{width:100%;border-collapse:collapse;font-size:15px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
   th{font-size:13px;color:var(--muted);text-align:left;font-weight:600;
      padding:12px 16px;border-bottom:1px solid var(--line)}
-  td{padding:0 16px;height:40px;border-bottom:1px solid var(--line);vertical-align:middle}
+  td{padding:0 16px;height:32px;border-bottom:1px solid var(--line);vertical-align:middle}
   td.tall{padding:12px 16px;height:auto}
   tr:last-child td{border-bottom:0}
   time{font-variant-numeric:tabular-nums}
@@ -71,7 +71,7 @@
   .confirm .row{display:flex;gap:8px}
   .notice{color:var(--muted);font-size:13px;margin:8px 0 0}
   .dash{color:var(--muted)}
-  footer{border-top:1px solid var(--line);margin-top:64px;padding:24px 32px;
+  footer{border-top:1px solid var(--line);margin-top:28px;padding:16px 20px;
          font-size:13px;color:var(--muted)}
 </style>
 </head>

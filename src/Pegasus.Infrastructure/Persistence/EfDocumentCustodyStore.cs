@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Custody;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -293,6 +294,21 @@ internal sealed class EfDocumentCustodyStore(
             .Select(value => value.Reference)
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new InvalidOperationException("The case is unavailable.");
+
+        // A case exports only in Review (operator decision 2026-08-04). This
+        // is a precondition, not a greyed button: export had no stage
+        // condition at all, so the rule existed nowhere until now and any
+        // caller could take the bundle at any stage.
+        var stage = await context.CaseWorkflows
+            .AsNoTracking()
+            .Where(value => value.CaseId == command.CaseId)
+            .Select(value => value.State)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (stage != nameof(CaseLifecycleState.Review))
+        {
+            throw new CaseNotInReviewException(command.CaseId);
+        }
+
         var history = await FindDocumentHistoryAsync(context, operationKey, cancellationToken);
 
         var requested = command.Selections

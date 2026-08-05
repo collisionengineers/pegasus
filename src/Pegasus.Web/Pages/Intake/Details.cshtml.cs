@@ -349,11 +349,11 @@ public sealed partial class DetailsModel(
             return result;
         }
 
-        if (Receipt.Decision != IntakeDecision.DraftReady)
+        if (Receipt.Decision != IntakeDecision.NeedsSorting)
         {
             ModelState.AddModelError(
                 string.Empty,
-                "Only an instruction draft can be accepted as a case.");
+                "Only an item that needs sorting can be turned into a case here.");
         }
         if (string.IsNullOrWhiteSpace(AcceptanceReason))
         {
@@ -621,7 +621,7 @@ public sealed partial class DetailsModel(
 
     public static string DecisionLabel(IntakeDecision decision) => decision switch
     {
-        IntakeDecision.DraftReady => "Instruction draft",
+        IntakeDecision.CaseCreated => "Case created",
         IntakeDecision.NeedsSorting => "Needs sorting",
         IntakeDecision.BlockedIntake => "Blocked intake",
         IntakeDecision.Unsupported => "Unsupported",

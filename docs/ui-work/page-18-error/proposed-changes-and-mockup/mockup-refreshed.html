@@ -7,7 +7,7 @@
      0 1px 2px rgb(22 25 29 / 5%).
   3. State colour roles unchanged: red marks genuine failure only — a 3px left rule on
      the error card; the not-found sibling carries no red (nothing failed).
-  4. 8px base rhythm; support reference set at the 13px step in monospace.
+  4. 4px base rhythm; support reference set at the 13px step in monospace.
 -->
 <html lang="en">
 <head>
@@ -20,7 +20,7 @@
     background: #F7F6F4; color: #16191D;
     font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
     min-height: 100vh; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 40px; padding: 48px 24px;
+    align-items: center; justify-content: center; gap: 24px; padding: 28px 20px;
   }
   .state-label {
     font-size: 13px; text-transform: uppercase; letter-spacing: .08em;
@@ -29,20 +29,20 @@
   .card {
     background: #FFFFFF; border: 1px solid #E6E4E1; border-radius: 6px;
     box-shadow: 0 1px 2px rgb(22 25 29 / 5%);
-    width: 448px; max-width: 100%; padding: 32px;
+    width: 448px; max-width: 100%; padding: 20px;
   }
   .card--fault { border-left: 3px solid #DB0816; }
   .mark {
     font-size: 13px; font-weight: 700; letter-spacing: .14em;
-    color: #2C2A27; margin-bottom: 24px;
+    color: #2C2A27; margin-bottom: 16px;
   }
-  h1 { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
-  .card > p { font-size: 15px; margin-bottom: 24px; }
+  h1 { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
+  .card > p { font-size: 14px; margin-bottom: 16px; }
   .button-row { display: flex; gap: 12px; }
   .primary-action {
     display: inline-block; padding: 11px 16px; background: #DB0816;
     color: #FFFFFF; border: 1px solid #DB0816; border-radius: 6px;
-    font: inherit; font-size: 15px; font-weight: 600;
+    font: inherit; font-size: 14px; font-weight: 600;
     text-decoration: none; cursor: pointer;
   }
   .secondary-action {

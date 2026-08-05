@@ -365,12 +365,36 @@ internal static partial class IntakeWebDriver
         };
     }
 
+    /// <summary>
+    /// The receipt an upload produced, read from where the upload lands.
+    /// </summary>
+    /// <remarks>
+    /// An upload now redirects to the item it created rather than back to a
+    /// list with the identifier tacked on as a query parameter, so the id is
+    /// in the path. The query form is still read for any caller that produces
+    /// it.
+    /// </remarks>
     public static Guid QueuedReceiptId(UploadResult result)
     {
         Assert.Equal(HttpStatusCode.Redirect, result.StatusCode);
         var query = ParseLocationQuery(result);
-        Assert.True(query.TryGetValue("queuedReceiptId", out var values));
-        Assert.True(Guid.TryParse(values.SingleOrDefault(), out var id));
+        if (query.TryGetValue("received", out var receivedValues)
+            && Guid.TryParse(receivedValues.SingleOrDefault(), out var receivedId))
+        {
+            return receivedId;
+        }
+
+        if (query.TryGetValue("queuedReceiptId", out var values)
+            && Guid.TryParse(values.SingleOrDefault(), out var queuedId))
+        {
+            return queuedId;
+        }
+
+        Assert.NotNull(result.Location);
+        var path = result.Location!.OriginalString.Split('?', 2)[0];
+        Assert.True(
+            Guid.TryParse(path.Split('/', StringSplitOptions.RemoveEmptyEntries).Last(), out var id),
+            $"The upload should land on the item it created; it landed on '{result.Location}'.");
         return id;
     }
 
@@ -383,7 +407,7 @@ internal static partial class IntakeWebDriver
         HttpClient client,
         CancellationToken cancellationToken = default)
     {
-        using var formPage = await client.GetAsync("/Intake", cancellationToken);
+        using var formPage = await client.GetAsync("/Upload", cancellationToken);
         formPage.EnsureSuccessStatusCode();
         var html = await formPage.Content.ReadAsStringAsync(cancellationToken);
         var tokenTag = AntiforgeryTagRegex().Match(html);
@@ -427,7 +451,7 @@ internal static partial class IntakeWebDriver
             multipart.Add(file, "Upload", uploadName);
         }
 
-        using var response = await client.PostAsync("/Intake?handler=ReceiveIntake", multipart, cancellationToken);
+        using var response = await client.PostAsync("/Upload", multipart, cancellationToken);
         var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
         return new(response.StatusCode, response.Headers.Location, responseBody);
     }

@@ -1,12 +1,14 @@
 @page
 @using Pegasus.Core.Operations
+@using Pegasus.Web.Presentation
 @model Pegasus.Web.Pages.Operations.RequestsModel
 @{
-    ViewData["Title"] = "Request operations";
-    var boxRequests = Model.Operations.Items
-        .Where(item => item.Kind == RequestOperationKind.BoxFileRequest)
-        .ToArray();
-    var pegasusRequests = Model.Operations.Items
+    ViewData["Title"] = "Upload links";
+
+    // Box file requests are superseded, so they are absent rather than shown
+    // in a state nobody acts on. Historical Box records remain in the case's
+    // own history; this operations view is about work in flight.
+    var uploadLinks = Model.Operations.Items
         .Where(item => item.Kind == RequestOperationKind.PegasusUploadLink)
         .ToArray();
     var externalWork = Model.Operations.Items
@@ -15,12 +17,8 @@
 }
 
 <header class="page-heading">
-    <div>
-        <p class="eyebrow">Operations</p>
-        <h1>Requests</h1>
-        <p class="lede">Bounded Box, Pegasus upload-link and durable external-work outcomes.</p>
-    </div>
-    <a class="secondary-action" asp-page="/Index">Back to Operations</a>
+    <h1>Upload links</h1>
+    <a class="secondary-action" asp-page="/Index">Back to Dashboard</a>
 </header>
 
 @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
@@ -28,194 +26,87 @@
     <div class="status-card" role="status">@Model.StatusMessage</div>
 }
 
-<section aria-labelledby="box-requests-title">
-    <h2 id="box-requests-title" class="section-label">Box file requests</h2>
-    @if (boxRequests.Length == 0)
+<section aria-labelledby="upload-links-title">
+    <h2 id="upload-links-title" class="section-label">Upload links</h2>
+    @if (uploadLinks.Length == 0)
     {
-        <div class="panel empty-state">No Box file-request outcomes are recorded.</div>
+        <p class="empty-state">No upload links have been issued.</p>
     }
     else
     {
-        @foreach (var item in boxRequests)
-        {
-            var ownsLease = Model.LeaseCaseId == item.CaseId;
-            <article class="panel section-gap">
-                <h3>@RequestsModel.KindLabel(item.Kind) · @RequestsModel.StateLabel(item.State)</h3>
-                <dl class="detail-list">
-                    <div>
-                        <dt>Case</dt>
-                        <dd><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.CaseReference</a></dd>
-                    </div>
-                    <div><dt>Principal</dt><dd>@item.PrincipalCode</dd></div>
-                    <div>
-                        <dt>Last activity</dt>
-                        <dd><time datetime="@item.LastActivityAtUtc.ToString("O")">@item.LastActivityAtUtc.ToString("u")</time></dd>
-                    </div>
-                    <div>
-                        <dt>Expiry</dt>
-                        <dd>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th scope="col">Case</th>
+                        <th scope="col">Principal</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Used</th>
+                        <th scope="col">Expires</th>
+                        <th scope="col">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var item in uploadLinks)
+                {
+                    <tr>
+                        <td><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.CaseReference</a></td>
+                        <td>@item.PrincipalCode</td>
+                        <td><partial name="Shared/_StatusChip" model="@RequestsModel.StateLabel(item.State)" /></td>
+                        <td>
+                            @* Sizes in MB, never bytes, and the internal limits
+                               version integer does not render at all. *@
+                            @if (item.MaximumByteCount is { } maximumBytes)
+                            {
+                                <span>@OperatorLabels.FileSize(item.AcceptedByteCount ?? 0) of @OperatorLabels.FileSize(maximumBytes)</span>
+                            }
+                            @if (item.MaximumFileCount is { } maximumFiles)
+                            {
+                                <span> · @item.AcceptedFileCount of @maximumFiles files</span>
+                            }
+                            @if (item.MaximumByteCount is null && item.MaximumFileCount is null)
+                            {
+                                <span class="empty-state">—</span>
+                            }
+                        </td>
+                        <td>
                             @if (item.ExpiresAtUtc is { } expiresAtUtc)
                             {
-                                <time datetime="@expiresAtUtc.ToString("O")">@expiresAtUtc.ToString("u")</time>
+                                <time datetime="@expiresAtUtc.ToString("O")">@expiresAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</time>
                             }
                             else
                             {
-                                <span>Not set</span>
+                                <span class="empty-state">—</span>
                             }
-                        </dd>
-                    </div>
-                    <div>
-                        <dt>Edit mode</dt>
-                        <dd>@RequestsModel.LeaseLabel(item.CaseEditLeaseState)</dd>
-                    </div>
-                </dl>
-                @if (item.CanRevoke && Model.LeaseCaseId is null &&
-                    item.CaseEditLeaseState == RequestCaseEditLeaseState.Available)
-                {
-                    <form method="post" asp-page-handler="ClaimLease" class="section-gap">
-                        <input type="hidden" name="caseId" value="@item.CaseId" />
-                        <input type="hidden" name="expectedCaseVersion" value="@item.CaseVersion" />
-                        <input type="hidden" name="operationKey" value="@RequestsModel.NewOperationKey()" />
-                        <button class="secondary-action" type="submit">Enter edit mode to revoke</button>
-                    </form>
+                        </td>
+                        <td>
+                            @if (item.CanRevoke)
+                            {
+                                @* One post does the whole operation. Whether
+                                   someone else is editing the case is the
+                                   result of trying, not a state the operator
+                                   is asked to manage. *@
+                                <details>
+                                    <summary class="btn">Withdraw link</summary>
+                                    <form method="post" asp-page-handler="RevokeLink" class="row-confirm">
+                                        <input type="hidden" name="requestId" value="@item.Id" />
+                                        <input type="hidden" name="caseId" value="@item.CaseId" />
+                                        <input type="hidden" name="expectedVersion" value="@item.Version" />
+                                        <input type="hidden" name="expectedCaseVersion" value="@item.CaseVersion" />
+                                        <input type="hidden" name="operationKey" value="@RequestsModel.NewOperationKey()" />
+                                        <label for="withdraw-reason-@item.Id">Reason</label>
+                                        <input id="withdraw-reason-@item.Id" name="reason" maxlength="500" required
+                                               value="@(Model.PreservedRequestId == item.Id ? Model.PreservedReason : null)" />
+                                        <button class="btn btn--dark" type="submit">Withdraw link</button>
+                                    </form>
+                                </details>
+                            }
+                        </td>
+                    </tr>
                 }
-                else if (item.CanRevoke &&
-                    Model.RecoverableLeaseCaseIds.Contains(item.CaseId) &&
-                    item.ActiveEditLease is { } recoverableLease)
-                {
-                    <form method="post" asp-page-handler="ClaimLease" class="section-gap">
-                        <input type="hidden" name="caseId" value="@item.CaseId" />
-                        <input type="hidden" name="expectedCaseVersion" value="@item.CaseVersion" />
-                        <input type="hidden" name="operationKey" value="@recoverableLease.OperationKey" />
-                        <button class="secondary-action" type="submit">Recover edit mode to revoke</button>
-                    </form>
-                }
-                else if (item.CanRevoke && !ownsLease)
-                {
-                    <p class="notice">Revocation is unavailable until the current edit mode expires or is released.</p>
-                }
-                @if (item.CanRevoke && ownsLease)
-                {
-                    <div class="button-row section-gap">
-                        <form method="post" asp-page-handler="RenewLease">
-                            <input type="hidden" name="caseId" value="@item.CaseId" />
-                            <input type="hidden" name="expectedCaseVersion" value="@item.CaseVersion" />
-                            <input type="hidden" name="operationKey" value="@RequestsModel.NewOperationKey()" />
-                            <button class="secondary-action" type="submit">Renew edit mode</button>
-                        </form>
-                        <form method="post" asp-page-handler="ReleaseLease">
-                            <input type="hidden" name="caseId" value="@item.CaseId" />
-                            <input type="hidden" name="operationKey" value="@RequestsModel.NewOperationKey()" />
-                            <button class="secondary-action" type="submit">Leave edit mode</button>
-                        </form>
-                    </div>
-                    <form method="post" asp-page-handler="RevokeBox" class="form-panel section-gap">
-                        <input type="hidden" name="requestId" value="@item.Id" />
-                        <input type="hidden" name="caseId" value="@item.CaseId" />
-                        <input type="hidden" name="expectedVersion" value="@item.Version" />
-                        <input type="hidden" name="expectedCaseVersion" value="@item.CaseVersion" />
-                        <input type="hidden" name="operationKey" value="@RequestsModel.NewOperationKey()" />
-                        <label for="box-reason-@item.Id">Reason for revocation</label>
-                        <input id="box-reason-@item.Id" name="reason" maxlength="500" required
-                               value="@(Model.PreservedRequestId == item.Id ? Model.PreservedReason : null)" />
-                        <button class="secondary-action" type="submit">Revoke Box file request</button>
-                    </form>
-                }
-            </article>
-        }
-    }
-</section>
-
-<section class="section-gap" aria-labelledby="pegasus-requests-title">
-    <h2 id="pegasus-requests-title" class="section-label">Pegasus upload links</h2>
-    @if (pegasusRequests.Length == 0)
-    {
-        <div class="panel empty-state">No Pegasus upload-link outcomes are recorded.</div>
-    }
-    else
-    {
-        @foreach (var item in pegasusRequests)
-        {
-            var ownsLease = Model.LeaseCaseId == item.CaseId;
-            <article class="panel section-gap">
-                <h3>@RequestsModel.KindLabel(item.Kind) · @RequestsModel.StateLabel(item.State)</h3>
-                <dl class="detail-list">
-                    <div>
-                        <dt>Case</dt>
-                        <dd><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.CaseReference</a></dd>
-                    </div>
-                    <div><dt>Principal</dt><dd>@item.PrincipalCode</dd></div>
-                    <div>
-                        <dt>Last activity</dt>
-                        <dd><time datetime="@item.LastActivityAtUtc.ToString("O")">@item.LastActivityAtUtc.ToString("u")</time></dd>
-                    </div>
-                    <div>
-                        <dt>Expiry</dt>
-                        <dd><time datetime="@item.ExpiresAtUtc!.Value.ToString("O")">@item.ExpiresAtUtc.Value.ToString("u")</time></dd>
-                    </div>
-                    <div><dt>File limit</dt><dd>@item.AcceptedFileCount / @(item.MaximumFileCount?.ToString() ?? "limit version unavailable")</dd></div>
-                    <div><dt>Byte limit</dt><dd>@item.AcceptedByteCount / @(item.MaximumByteCount?.ToString() ?? "limit version unavailable")</dd></div>
-                    <div><dt>Limits version</dt><dd>@item.LimitsVersion</dd></div>
-                    <div><dt>Edit mode</dt><dd>@RequestsModel.LeaseLabel(item.CaseEditLeaseState)</dd></div>
-                </dl>
-                @if (!string.IsNullOrWhiteSpace(item.FailureCode))
-                {
-                    <div class="failure-detail"><strong>Failure</strong><span>@item.FailureCode</span></div>
-                }
-                @if (item.CanRevoke && Model.LeaseCaseId is null &&
-                    item.CaseEditLeaseState == RequestCaseEditLeaseState.Available)
-                {
-                    <form method="post" asp-page-handler="ClaimLease" class="section-gap">
-                        <input type="hidden" name="caseId" value="@item.CaseId" />
-                        <input type="hidden" name="expectedCaseVersion" value="@item.CaseVersion" />
-                        <input type="hidden" name="operationKey" value="@RequestsModel.NewOperationKey()" />
-                        <button class="secondary-action" type="submit">Enter edit mode to revoke</button>
-                    </form>
-                }
-                else if (item.CanRevoke &&
-                    Model.RecoverableLeaseCaseIds.Contains(item.CaseId) &&
-                    item.ActiveEditLease is { } recoverableLease)
-                {
-                    <form method="post" asp-page-handler="ClaimLease" class="section-gap">
-                        <input type="hidden" name="caseId" value="@item.CaseId" />
-                        <input type="hidden" name="expectedCaseVersion" value="@item.CaseVersion" />
-                        <input type="hidden" name="operationKey" value="@recoverableLease.OperationKey" />
-                        <button class="secondary-action" type="submit">Recover edit mode to revoke</button>
-                    </form>
-                }
-                else if (item.CanRevoke && !ownsLease)
-                {
-                    <p class="notice">Revocation is unavailable until the current edit mode expires or is released.</p>
-                }
-                @if (item.CanRevoke && ownsLease)
-                {
-                    <div class="button-row section-gap">
-                        <form method="post" asp-page-handler="RenewLease">
-                            <input type="hidden" name="caseId" value="@item.CaseId" />
-                            <input type="hidden" name="expectedCaseVersion" value="@item.CaseVersion" />
-                            <input type="hidden" name="operationKey" value="@RequestsModel.NewOperationKey()" />
-                            <button class="secondary-action" type="submit">Renew edit mode</button>
-                        </form>
-                        <form method="post" asp-page-handler="ReleaseLease">
-                            <input type="hidden" name="caseId" value="@item.CaseId" />
-                            <input type="hidden" name="operationKey" value="@RequestsModel.NewOperationKey()" />
-                            <button class="secondary-action" type="submit">Leave edit mode</button>
-                        </form>
-                    </div>
-                    <form method="post" asp-page-handler="RevokePegasus" class="form-panel section-gap">
-                        <input type="hidden" name="requestId" value="@item.Id" />
-                        <input type="hidden" name="caseId" value="@item.CaseId" />
-                        <input type="hidden" name="expectedVersion" value="@item.Version" />
-                        <input type="hidden" name="expectedCaseVersion" value="@item.CaseVersion" />
-                        <input type="hidden" name="operationKey" value="@RequestsModel.NewOperationKey()" />
-                        <label for="pegasus-reason-@item.Id">Reason for revocation</label>
-                        <input id="pegasus-reason-@item.Id" name="reason" maxlength="500" required
-                               value="@(Model.PreservedRequestId == item.Id ? Model.PreservedReason : null)" />
-                        <button class="secondary-action" type="submit">Revoke Pegasus upload link</button>
-                    </form>
-                }
-            </article>
-        }
+                </tbody>
+            </table>
+        </div>
     }
 </section>
 
@@ -223,46 +114,62 @@
     <h2 id="external-work-title" class="section-label">External work</h2>
     @if (externalWork.Length == 0)
     {
-        <div class="panel empty-state">No durable external-work outcomes are recorded.</div>
+        <p class="empty-state">No external work is recorded.</p>
     }
     else
     {
-        @foreach (var item in externalWork)
-        {
-            <article class="panel section-gap">
-                <h3>@RequestsModel.KindLabel(item.Kind) · @RequestsModel.StateLabel(item.State)</h3>
-                <dl class="detail-list">
-                    <div><dt>Case</dt><dd><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.CaseReference</a></dd></div>
-                    <div><dt>Principal</dt><dd>@item.PrincipalCode</dd></div>
-                    <div><dt>Work kind</dt><dd>@item.ExternalKind</dd></div>
-                    <div><dt>Attempts</dt><dd>@item.AttemptCount</dd></div>
-                    <div><dt>Last activity</dt><dd><time datetime="@item.LastActivityAtUtc.ToString("O")">@item.LastActivityAtUtc.ToString("u")</time></dd></div>
-                </dl>
-                @if (!string.IsNullOrWhiteSpace(item.FailureCode))
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th scope="col">Case</th>
+                        <th scope="col">Work</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Attempts</th>
+                        <th scope="col">Last activity</th>
+                        <th scope="col">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var item in externalWork)
                 {
-                    <div class="failure-detail">
-                        <strong>Failure</strong><span>@item.FailureCode</span>
-                        @if (!string.IsNullOrWhiteSpace(item.FailureReason))
-                        {
-                            <span>@item.FailureReason</span>
-                        }
-                    </div>
+                    <tr>
+                        <td><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.CaseReference</a></td>
+                        <td>@OperatorLabels.Humanise(item.ExternalKind)</td>
+                        <td>
+                            <partial name="Shared/_StatusChip" model="@RequestsModel.StateLabel(item.State)" />
+                            @if (!string.IsNullOrWhiteSpace(item.FailureReason))
+                            {
+                                @* The recorded human reason, never the failure
+                                   code token. *@
+                                <small class="empty-state">@item.FailureReason</small>
+                            }
+                        </td>
+                        <td class="tabular">@item.AttemptCount</td>
+                        <td><time datetime="@item.LastActivityAtUtc.ToString("O")">@item.LastActivityAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</time></td>
+                        <td>
+                            @if (item.CanRetry)
+                            {
+                                <details>
+                                    <summary class="btn">Retry</summary>
+                                    <form method="post" asp-page-handler="RetryExternal" class="row-confirm">
+                                        <input type="hidden" name="workItemId" value="@item.Id" />
+                                        <input type="hidden" name="expectedAttemptCount" value="@item.AttemptCount" />
+                                        <input type="hidden" name="operationKey" value="@RequestsModel.NewOperationKey()" />
+                                        <button class="btn btn--dark" type="submit">Retry this work</button>
+                                    </form>
+                                </details>
+                            }
+                        </td>
+                    </tr>
                 }
-                @if (item.CanRetry)
-                {
-                    <form method="post" asp-page-handler="RetryExternal" class="section-gap">
-                        <input type="hidden" name="workItemId" value="@item.Id" />
-                        <input type="hidden" name="expectedAttemptCount" value="@item.AttemptCount" />
-                        <input type="hidden" name="operationKey" value="@RequestsModel.NewOperationKey()" />
-                        <button class="secondary-action" type="submit">Retry external work</button>
-                    </form>
-                }
-            </article>
-        }
+                </tbody>
+            </table>
+        </div>
     }
 </section>
 
 @if (Model.Operations.LimitReached)
 {
-    <p class="notice">Showing the latest @GetRequestOperations.MaximumItems request and external-work outcomes.</p>
+    <p class="empty-state section-gap">Showing the latest @GetRequestOperations.MaximumItems items.</p>
 }

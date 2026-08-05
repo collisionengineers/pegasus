@@ -236,6 +236,20 @@ public interface IDownloadCaseDocument
         CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// Export was attempted on a case that is not in <c>Review</c>.
+/// </summary>
+/// <remarks>
+/// The operator's rule (2026-08-04) is that a case exports only in Review. A
+/// disabled button is presentation; this is the condition itself, so it holds
+/// for every caller rather than only for the one that renders the button.
+/// </remarks>
+public sealed class CaseNotInReviewException(Guid caseId)
+    : InvalidOperationException("A case can only be exported while it is in Review.")
+{
+    public Guid CaseId { get; } = caseId;
+}
+
 public interface IExportCaseDocuments
 {
     Task<DocumentExport> ExecuteAsync(
