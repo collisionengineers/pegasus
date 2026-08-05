@@ -1497,7 +1497,7 @@ table tfoot th {
 
 .tabs a:hover, .tabs button:hover { color: var(--ink); }
 
-.tabs [aria-selected="true"] { border-bottom-color: var(--ce-red); color: var(--ce-red); }
+.tabs [aria-selected="true"], .tabs [aria-current="page"] { border-bottom-color: var(--ce-red); color: var(--ce-red); }
 
 .tabs .count {
   padding: 0 6px;
@@ -1509,7 +1509,7 @@ table tfoot th {
   font-weight: 600;
 }
 
-.tabs [aria-selected="true"] .count { background: rgba(219, 8, 22, .08); color: var(--ce-red); }
+.tabs [aria-selected="true"] .count, .tabs [aria-current="page"] .count { background: rgba(219, 8, 22, .08); color: var(--ce-red); }
 
 /* Sub-tabs are pills, so a nested level never reads as a second tab row. */
 .subtabs { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-4); }

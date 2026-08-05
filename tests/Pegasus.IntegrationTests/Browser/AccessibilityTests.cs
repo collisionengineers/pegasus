@@ -19,7 +19,8 @@ public sealed class AccessibilityTests
         "/Triage",
         "/Cases",
         "/Search",
-        "/Operations/Email",
+        // "/Operations/Email" is absent: it is a redirect into the Inbox now,
+        // not a screen, so it cannot return 200 through this sweep.
         "/Operations/Requests",
         "/Administration",
         "/Administration/Accounts",

@@ -181,20 +181,45 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             _ = ToCode(decision.Value);
         }
 
-        // The same exclusion as the counts: a receipt that produced a case is
-        // not still in the queue. Without it an accepted receipt stayed in the
-        // list for ever, under a decision that no longer described it.
+        // Deliberately no case-link exclusion here, unlike the counts. The
+        // Inbox is a viewer of everything received, and a message that became
+        // a case is still a message that was received — the row says so and
+        // links to the case. What was wrong before was the label, not the
+        // presence: an accepted receipt sat here reading "Instruction draft"
+        // with no indication that it had produced anything.
         var entities = await context.IntakeReceipts
             .AsNoTracking()
-            .Where(item => !context.CaseIntakeLinks.Any(link => link.IntakeReceiptId == item.Id))
+            .Include(item => item.MailRouteDecision)
             .ToListAsync(cancellationToken);
+
+        // One join for the whole page rather than a lookup per row.
+        var receiptIds = entities.Select(item => item.Id).ToArray();
+        var cases = await context.CaseIntakeLinks
+            .AsNoTracking()
+            .Where(link => receiptIds.Contains(link.IntakeReceiptId))
+            .Select(link => new
+            {
+                link.IntakeReceiptId,
+                link.CaseId,
+                link.Case.Reference
+            })
+            .ToDictionaryAsync(item => item.IntakeReceiptId, cancellationToken);
+
         var summaries = entities
-            .Select(item => new IntakeReceiptSummary(
-                item.Id,
-                item.SourceFileName,
-                item.ReceivedAtUtc,
-                ParseDecision(item.Decision),
-                item.FailureReason))
+            .Select(item =>
+            {
+                cases.TryGetValue(item.Id, out var linkedCase);
+                return new IntakeReceiptSummary(
+                    item.Id,
+                    item.SourceFileName,
+                    item.ReceivedAtUtc,
+                    ParseDecision(item.Decision),
+                    item.FailureReason,
+                    item.MailRouteDecision?.EffectiveSenderAddress,
+                    ReadSubject(item.EvidenceJson),
+                    linkedCase?.CaseId,
+                    linkedCase?.Reference);
+            })
             .ToArray();
         return summaries
             .Where(item => decision is null || item.Decision == decision.Value)
@@ -834,6 +859,31 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         entity.BoundsJson is null ? null : DeserializeEnvelope<IntakeAssetBounds>(entity.BoundsJson),
         entity.WidthPixels,
         entity.HeightPixels);
+
+    /// <summary>
+    /// The message subject, read back from the recorded evidence.
+    /// </summary>
+    /// <remarks>
+    /// The subject is not a column; it is evidence, recorded by the reader that
+    /// found it. Reading it here rather than adding a column keeps one writer
+    /// for the fact and avoids a migration for something the Inbox only
+    /// displays.
+    /// </remarks>
+    private static string? ReadSubject(string evidenceJson)
+    {
+        try
+        {
+            return DeserializeEvidence(evidenceJson)
+                .FirstOrDefault(item => item.Source == IntakeEvidenceSource.Subject)
+                ?.Detail;
+        }
+        catch (JsonException)
+        {
+            // A row whose evidence cannot be read still has a file name and a
+            // decision, and the Inbox is more useful showing those than failing.
+            return null;
+        }
+    }
 
     internal static string SerializeEvidence(IReadOnlyList<IntakeEvidence> evidence) =>
         SerializeEnvelope<IReadOnlyList<PersistedEvidence>>(evidence.Select(item => new PersistedEvidence(

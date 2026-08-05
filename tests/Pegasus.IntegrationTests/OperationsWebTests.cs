@@ -28,23 +28,39 @@ public sealed partial class OperationsWebTests
         using var factory = Configure(baseFactory, store);
         using var client = CreateClient(factory);
 
-        using var emailResponse = await client.GetAsync("/Operations/Email");
-        var emailHtml = await emailResponse.Content.ReadAsStringAsync();
+        // The separate Email screen is retired: its route redirects into the
+        // Inbox, whose Received and Sent tabs and Failed filter carry what it
+        // showed. Merging it away solves its discoverability — its only entry
+        // was a dashboard card labelled "Unavailable" — rather than giving that
+        // card better copy.
+        using var emailRedirect = await client.GetAsync("/Operations/Email");
+        Assert.Equal(HttpStatusCode.MovedPermanently, emailRedirect.StatusCode);
+        Assert.Contains(
+            "/Intake",
+            emailRedirect.Headers.Location?.OriginalString ?? string.Empty,
+            StringComparison.Ordinal);
+
+        var emailHtml = await GetHtmlAsync(client, "/Intake?decision=failed");
         using var requestsResponse = await client.GetAsync("/Operations/Requests");
         var initialRequestsHtml = await requestsResponse.Content.ReadAsStringAsync();
 
-        Assert.Equal(HttpStatusCode.OK, emailResponse.StatusCode);
         Assert.Contains("Received", emailHtml, StringComparison.Ordinal);
         Assert.Contains("Sent", emailHtml, StringComparison.Ordinal);
-        Assert.Contains("Pending", emailHtml, StringComparison.Ordinal);
-        Assert.Contains("Succeeded", emailHtml, StringComparison.Ordinal);
         Assert.Contains("Failed", emailHtml, StringComparison.Ordinal);
-        Assert.Contains("Unknown", emailHtml, StringComparison.Ordinal);
-        Assert.Contains("Retry Received processing", emailHtml, StringComparison.Ordinal);
-        Assert.Contains("Retry Sent processing", emailHtml, StringComparison.Ordinal);
-        Assert.Contains("Open Intake receipt", emailHtml, StringComparison.Ordinal);
-        Assert.Contains("Open Triage", emailHtml, StringComparison.Ordinal);
-        Assert.Contains("Open Case", emailHtml, StringComparison.Ordinal);
+        Assert.Contains("Retry", emailHtml, StringComparison.Ordinal);
+
+        // The recorded failure code is never shown to the operator; a sentence
+        // is. It still round-trips as a hidden guard so a retry cannot act on a
+        // failure that has since changed, which is why the assertion is about
+        // what is read rather than about the string being absent entirely.
+        Assert.Contains(
+            "The message could not be read from the mailbox.",
+            emailHtml,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            $">{store.MailboxFailureCode}<",
+            emailHtml,
+            StringComparison.Ordinal);
 
         Assert.Equal(HttpStatusCode.OK, requestsResponse.StatusCode);
         foreach (var state in new[]
@@ -121,7 +137,6 @@ public sealed partial class OperationsWebTests
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("href=\"/Operations/Email\"", html, StringComparison.Ordinal);
         Assert.Contains("href=\"/Operations/Requests\"", html, StringComparison.Ordinal);
     }
 
@@ -133,9 +148,9 @@ public sealed partial class OperationsWebTests
         using var factory = Configure(baseFactory, store);
         using var client = CreateClient(factory);
 
-        var emailHtml = await GetHtmlAsync(client, "/Operations/Email");
+        var emailHtml = await GetHtmlAsync(client, "/Intake?decision=failed");
         using var emailPost = await client.PostAsync(
-            "/Operations/Email?handler=Retry",
+            "/Intake?handler=RetryMailbox",
             Form(
                 AntiforgeryValue(emailHtml),
                 ("mailboxId", store.ReceivedMailboxId),
@@ -192,7 +207,14 @@ public sealed partial class OperationsWebTests
                 ("reason", "No longer required"),
                 ("operationKey", "pegasus-revoke")));
 
-        AssertPrg(emailPost, "/Operations/Email");
+        AssertPrg(emailPost, "/Intake");
+
+        // The outcome the operator is told, so a silent failure branch cannot
+        // pass as a successful retry.
+        Assert.Contains(
+            "Processing was scheduled to run again.",
+            await GetHtmlAsync(client, "/Intake?decision=failed"),
+            StringComparison.Ordinal);
         AssertPrg(externalPost, "/Operations/Requests");
         AssertPrg(boxPost, "/Operations/Requests");
         AssertPrg(pegasusPost, "/Operations/Requests");

@@ -735,17 +735,19 @@ else if (!localIntakeEnabled)
     // the production staff path to Case/PO allocation and must stay reachable.
     app.Use(async (context, next) =>
     {
-        var path = context.Request.Path;
-        var isIntakeIndex = path.Equals("/Intake", StringComparison.OrdinalIgnoreCase)
-            || path.Equals("/Intake/", StringComparison.OrdinalIgnoreCase);
+        // Only the manual upload handler is Development-only, which is what
+        // this gate has always said it does. It used to block every POST to
+        // the Inbox index, so any other action that landed there — retrying a
+        // mailbox that failed to deliver, for one — was refused in Production
+        // for no stated reason.
         var isReceiveIntakeHandler = string.Equals(
             context.Request.Query["handler"],
             "ReceiveIntake",
             StringComparison.OrdinalIgnoreCase);
-        if (path.StartsWithSegments("/Intake")
+        if (context.Request.Path.StartsWithSegments("/Intake")
             && !HttpMethods.IsGet(context.Request.Method)
             && !HttpMethods.IsHead(context.Request.Method)
-            && (isIntakeIndex || isReceiveIntakeHandler))
+            && isReceiveIntakeHandler)
         {
             context.Response.StatusCode = StatusCodes.Status404NotFound;
             return;
