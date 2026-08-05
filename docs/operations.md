@@ -489,6 +489,68 @@ across a mode change fails closed with an operation conflict instead of
 deduplicating, and an acceptance in flight during the change is rejected and
 must be retried from a reloaded intake receipt.
 
+## Approved mailbox estate
+
+The approved-mailbox allowlist is the authority for which mailboxes inbound
+Intake polls, under
+[ADR-0022](adr/0022-approved-mailbox-identity-and-enablement-database-setting.md).
+Each row carries the exact tenant identity a poll needs — a mailbox identity,
+an Inbox folder identity, and a Sent folder identity — alongside the address,
+route scopes, and `Approved`/`Disabled` state it already carried. All three are
+nullable so an administrator can save a row `Disabled` while the tenant grant
+is still outstanding; a row saved `Approved` must carry the identities its
+route scopes need, and Pegasus refuses the save otherwise.
+
+An identity is immutable once saved, and the address is immutable once a
+mailbox identity is bound: the mailbox identity is the primary key of that
+mailbox's `ApprovedInboxPollStates` cursor row. Moving a mailbox is
+disable-and-add, never edit.
+
+The seeded production row keeps its identities `NULL` after the upgrade. Its
+real Graph identities are deployment configuration, read from azd environment
+variables into `Graph:MailboxId` and `Graph:InboxFolderId`, and are not in this
+repository. A polling host therefore carries a read-only fallback: an Approved
+inbound row with no saved identities whose address matches the configured
+mailbox is polled under exactly the identities the deployment already uses. A
+saved identity always wins; configuration never overrides one. A row with no
+identities and no configuration match is skipped and logged by address. No
+manual step is needed to keep the existing mailbox polling across this upgrade.
+
+### Disabling a mailbox
+
+Disabling stops polling at the next tick, for both the Inbox and Sent routes.
+It deletes nothing: retained receipts, assets, staged artifacts, quarantined
+messages, and case associations all stay, and the cursor row is preserved so
+re-enabling resumes rather than restarts. Note honestly that a Graph delta
+token expires after roughly a week of disuse; on resume Graph answers 410 Gone
+and the folder is re-enumerated. That is a re-read, not a re-ingest — intake
+deduplicates on the operation key and the source identity — so no second
+receipt, case, or reference appears. A poll already inside a page finishes that
+page; disabling is effective within one poll page, never mid-message.
+
+### Runbook: admitting a new mailbox to the tenant
+
+Approving a mailbox in Pegasus grants no Exchange access, and Pegasus cannot
+request or grant it. These steps are for a human with Microsoft 365 tenant
+rights and are not executed from this repository:
+
+1. Confirm the Pegasus application registration holds the `Mail.Read`
+   application permission with tenant admin consent.
+2. Add the new mailbox to the Exchange Online application access policy that
+   scopes the application, so it may read that mailbox and no other.
+3. Record, as the evidence for this action: the tenant, the application object
+   id, the mailbox address, the policy scope group, who approved it, and when.
+4. In Pegasus, add the approved-mailbox row with its mailbox and folder
+   identities and a reason, saving it `Disabled` until step 2 is confirmed,
+   then set it `Approved`.
+5. Confirm on `/Administration/Mailboxes` that the mailbox reports a completed
+   poll. Until the tenant admits the application, polling that mailbox alone
+   fails with `mailbox_access_denied`, which the page reports as the tenant not
+   having granted access.
+
+Per-tick Graph cost grows linearly with the estate: the message bound is per
+mailbox, so an estate of *n* mailboxes may read *n* × 50 messages a minute.
+
 ## Local setup and run
 
 Run these commands from PowerShell 7 at the repository root:
@@ -597,6 +659,7 @@ Configuration ownership is:
 | Development profile and launch path | `src/Pegasus.Web/Properties/launchSettings.json` |
 | Ignored local state | `artifacts/` |
 | Target Azure parameters and topology | `infra/`, `azure.yaml`, and `.azure/deployment-plan.md` |
+| Which mailboxes inbound Intake polls, and their exact tenant identities | The `ApprovedMailboxes` allowlist, edited on `/Administration/Mailboxes` ([ADR-0022](adr/0022-approved-mailbox-identity-and-enablement-database-setting.md)). `Graph:MailboxId` and `Graph:InboxFolderId` are retained as the read-only bootstrap fallback for the already-deployed mailbox and as the Sent route's own configuration. |
 
 Tool availability does not authorize external action.
 

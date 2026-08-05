@@ -8,7 +8,8 @@ namespace Pegasus.Web.Pages.Administration;
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed class MailboxesModel(
     ListApprovedMailboxes listApprovedMailboxes,
-    UpdateApprovedMailbox updateApprovedMailbox)
+    UpdateApprovedMailbox updateApprovedMailbox,
+    IApprovedMailboxPollStatusQueries pollStatusQueries)
     : AdministrationPageModel
 {
     public IReadOnlyList<ApprovedMailbox> Mailboxes { get; private set; } = [];
@@ -28,6 +29,21 @@ public sealed class MailboxesModel(
     [BindProperty]
     [Required]
     public string SelectedState { get; set; } = ApprovedMailboxState.Approved.ToString();
+
+    // Exact tenant identifiers, not credentials. They are shown in full here, on the
+    // only surface that already requires Administrator and ManageApprovedMailboxes,
+    // and nowhere else.
+    [BindProperty]
+    [StringLength(100)]
+    public string? MailboxIdentity { get; set; }
+
+    [BindProperty]
+    [StringLength(200)]
+    public string? InboxFolderIdentity { get; set; }
+
+    [BindProperty]
+    [StringLength(200)]
+    public string? SentFolderIdentity { get; set; }
 
     [BindProperty]
     [Range(0, int.MaxValue)]
@@ -88,7 +104,10 @@ public sealed class MailboxesModel(
                         ExpectedVersion,
                         actor,
                         Reason,
-                        OperationKey),
+                        OperationKey,
+                        MailboxIdentity,
+                        InboxFolderIdentity,
+                        SentFolderIdentity),
                     cancellationToken);
                 TempData["AdministrationStatus"] =
                     $"Approved-mailbox policy version {updated.Version} was recorded for {updated.Address}.";
@@ -107,6 +126,19 @@ public sealed class MailboxesModel(
                         "Your change was not applied; review the current row and retry.",
                     ApprovedMailboxUpdateError.OperationConflict =>
                         "This form was already used for another mailbox change. Review the current row and retry.",
+                    ApprovedMailboxUpdateError.MissingMailboxIdentity =>
+                        "An approved mailbox needs its mailbox identity, plus the Inbox folder " +
+                        "identity for inbound Intake and the Sent folder identity for Sent evidence. " +
+                        "Save the mailbox as Disabled while you are still waiting for them.",
+                    ApprovedMailboxUpdateError.InvalidMailboxIdentity =>
+                        "A mailbox or folder identity must be an exact identifier with no spaces: " +
+                        "up to 100 characters for the mailbox and 200 for a folder.",
+                    ApprovedMailboxUpdateError.MailboxIdentityImmutable =>
+                        "A mailbox identity and address cannot be changed once saved. " +
+                        "Disable this mailbox and add a new one.",
+                    ApprovedMailboxUpdateError.DuplicateMailboxIdentity =>
+                        "That mailbox identity already belongs to another row. " +
+                        "Two rows cannot share one mailbox.",
                     _ => "The approved-mailbox change was not accepted."
                 });
             }
@@ -134,8 +166,63 @@ public sealed class MailboxesModel(
         return Page();
     }
 
+    public IReadOnlyList<ApprovedMailboxPollStatus> PollStatuses { get; private set; } = [];
+
     public string AddressFor(ApprovedMailbox mailbox) =>
         mailbox.Id == MailboxId && ExpectedVersion > 0 ? Address : mailbox.Address;
+
+    public string MailboxIdentityFor(ApprovedMailbox mailbox) =>
+        Identity(mailbox, mailbox.MailboxIdentity, MailboxIdentity);
+
+    public string InboxFolderIdentityFor(ApprovedMailbox mailbox) =>
+        Identity(mailbox, mailbox.InboxFolderIdentity, InboxFolderIdentity);
+
+    public string SentFolderIdentityFor(ApprovedMailbox mailbox) =>
+        Identity(mailbox, mailbox.SentFolderIdentity, SentFolderIdentity);
+
+    private string Identity(ApprovedMailbox mailbox, string? saved, string? posted) =>
+        saved ?? (mailbox.Id == MailboxId && ExpectedVersion > 0 ? posted ?? string.Empty : string.Empty);
+
+    public string NewMailboxIdentity => ExpectedVersion == 0 ? MailboxIdentity ?? string.Empty : string.Empty;
+
+    public string NewInboxFolderIdentity =>
+        ExpectedVersion == 0 ? InboxFolderIdentity ?? string.Empty : string.Empty;
+
+    public string NewSentFolderIdentity =>
+        ExpectedVersion == 0 ? SentFolderIdentity ?? string.Empty : string.Empty;
+
+    /// <summary>
+    /// What the last poll of this mailbox actually did. A mailbox with no cursor row has
+    /// never been polled; a mailbox the tenant has not admitted reports that plainly,
+    /// because approving an address in Pegasus grants no Exchange access.
+    /// </summary>
+    public string PollStatusFor(ApprovedMailbox mailbox)
+    {
+        var status = PollStatuses.SingleOrDefault(item =>
+            string.Equals(item.MailboxAddress, mailbox.Address, StringComparison.OrdinalIgnoreCase));
+        if (status is null)
+        {
+            return mailbox.State == ApprovedMailboxState.Approved
+                && mailbox.RouteScopes.Contains(ApprovedMailboxRouteScope.InboundIntake)
+                ? "Not yet polled."
+                : "Not polled.";
+        }
+
+        var completed = status.LastCompletedAtUtc is { } lastCompletedAtUtc
+            ? $"Last completed {lastCompletedAtUtc:u}."
+            : "No completed poll yet.";
+        var due = $" Next due {status.DueAtUtc:u}.";
+        var failure = status.LastFailureCode switch
+        {
+            null => string.Empty,
+            "mailbox_access_denied" =>
+                " The tenant has not granted this application access to this mailbox.",
+            "mailbox_not_approved" =>
+                " The last attempt stopped because this mailbox was no longer approved.",
+            var code => $" Last failure: {code}."
+        };
+        return $"{completed}{due}{failure}";
+    }
 
     public string ReasonFor(ApprovedMailbox mailbox) =>
         mailbox.Id == MailboxId && ExpectedVersion > 0 ? Reason : string.Empty;
@@ -193,6 +280,9 @@ public sealed class MailboxesModel(
         return routeScopes;
     }
 
-    private async Task LoadAsync(ActionActor actor, CancellationToken cancellationToken) =>
+    private async Task LoadAsync(ActionActor actor, CancellationToken cancellationToken)
+    {
         Mailboxes = await listApprovedMailboxes.ExecuteAsync(actor, cancellationToken);
+        PollStatuses = await pollStatusQueries.ListAsync(cancellationToken);
+    }
 }

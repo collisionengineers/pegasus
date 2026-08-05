@@ -16,6 +16,8 @@ public sealed class MailboxIntakeIntegrationTests
     private static readonly DateTimeOffset RecordedAtUtc =
         new(2031, 7, 8, 9, 10, 0, TimeSpan.Zero);
 
+    private const string DefaultInboxFolderIdentity = "inbox";
+
     [Fact]
     public async Task ReevaluationPreservesThePriorDecisionRecordsInPermanentHistory()
     {
@@ -304,11 +306,14 @@ public sealed class MailboxIntakeIntegrationTests
             Path.GetTempPath(),
             "Pegasus.MailboxIntakeIntegrationTests",
             Guid.NewGuid().ToString("N"));
+        // The local root is now the root of a mailbox estate: each mailbox reads the
+        // folder its lease names, directly beneath it.
         var inboxRoot = Path.Combine(workingRoot, "approved-inbox");
+        var inboxFolder = Path.Combine(inboxRoot, DefaultInboxFolderIdentity);
         var artifactRoot = Path.Combine(workingRoot, "artifacts");
-        Directory.CreateDirectory(inboxRoot);
+        Directory.CreateDirectory(inboxFolder);
         await File.WriteAllBytesAsync(
-            Path.Combine(inboxRoot, "0001-forwarded.eml"),
+            Path.Combine(inboxFolder, "0001-forwarded.eml"),
             CreateForwardedProtocolMessage());
 
         try
@@ -394,14 +399,15 @@ public sealed class MailboxIntakeIntegrationTests
             Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(workingRoot);
         var inboxRoot = Path.Combine(workingRoot, "approved-inbox");
-        Directory.CreateDirectory(inboxRoot);
-        var poisonPath = Path.Combine(inboxRoot, "0001-poison.eml");
+        var inboxFolder = Path.Combine(inboxRoot, DefaultInboxFolderIdentity);
+        Directory.CreateDirectory(inboxFolder);
+        var poisonPath = Path.Combine(inboxFolder, "0001-poison.eml");
         await CreateSizedFileAsync(
             poisonPath,
             IntakeEnvelopeLimits.MaximumContentLength + 1L);
         var validContent = CreateForwardedProtocolMessage();
         await File.WriteAllBytesAsync(
-            Path.Combine(inboxRoot, "0002-valid.eml"),
+            Path.Combine(inboxFolder, "0002-valid.eml"),
             validContent);
 
         try
@@ -516,12 +522,13 @@ public sealed class MailboxIntakeIntegrationTests
             Path.GetTempPath(),
             "Pegasus.MailboxEnvelopeLimitIntegrationTests",
             Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(workingRoot);
+        var inboxFolder = Path.Combine(workingRoot, DefaultInboxFolderIdentity);
+        Directory.CreateDirectory(inboxFolder);
         await CreateSizedFileAsync(
-            Path.Combine(workingRoot, "0001-boundary.eml"),
+            Path.Combine(inboxFolder, "0001-boundary.eml"),
             IntakeEnvelopeLimits.MaximumContentLength);
         await CreateSizedFileAsync(
-            Path.Combine(workingRoot, "0002-oversize.eml"),
+            Path.Combine(inboxFolder, "0002-oversize.eml"),
             IntakeEnvelopeLimits.MaximumContentLength + 1L);
 
         try
@@ -546,6 +553,7 @@ public sealed class MailboxIntakeIntegrationTests
                     new(
                         "instructions",
                         "instructions@collisionengineers.co.uk",
+                        DefaultInboxFolderIdentity,
                         null,
                         "boundary-lease"),
                     10,
@@ -592,6 +600,7 @@ public sealed class MailboxIntakeIntegrationTests
                 new(
                     "instructions",
                     "instructions@collisionengineers.co.uk",
+                    DefaultInboxFolderIdentity,
                     nextCursor,
                     "restarted-boundary-lease"),
                 10,
@@ -768,9 +777,10 @@ public sealed class MailboxIntakeIntegrationTests
             Path.GetTempPath(),
             "Pegasus.MailboxKnownSourceTerminalIntegrationTests",
             Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(workingRoot);
-        var itemPath = Path.Combine(workingRoot, "0001-observed.eml");
-        var laterPath = Path.Combine(workingRoot, "0002-later.eml");
+        var inboxFolder = Path.Combine(workingRoot, DefaultInboxFolderIdentity);
+        Directory.CreateDirectory(inboxFolder);
+        var itemPath = Path.Combine(inboxFolder, "0001-observed.eml");
+        var laterPath = Path.Combine(inboxFolder, "0002-later.eml");
         var originalContent = CreateForwardedProtocolMessage();
         var changedContent = originalContent.ToArray();
         changedContent[^1] ^= 1;

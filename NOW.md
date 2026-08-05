@@ -241,6 +241,15 @@ release claim:
   contract to an ADR — with the temp plan deleted it is owned only by
   architecture.md/operations.md prose
   (task/mcp-automation-actor review, 2026-08-03).
+- Bound the approved-mailbox identity against the receipt-token limit:
+  `PollApprovedInbox.MaximumExternalReceiptTokenLength = 200` bounds
+  `{mailboxId.Length}:{mailboxId}{immutableMessageId}`, so a long
+  administrator-entered mailbox identity (now up to 100 characters) shortens
+  the headroom before a real Graph message is quarantined as
+  `message_identity_too_long`. Pre-existing risk, made reachable by
+  administrator input in ADR-0022; decide whether to tighten the identity
+  bound, widen the token, or key the receipt token on something shorter
+  (task/upload-case-creation-and-inbox part E, 2026-08-05).
 
 ## Waiting (each line names its unblock condition)
 

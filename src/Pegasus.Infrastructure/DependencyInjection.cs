@@ -24,6 +24,7 @@ using Pegasus.Infrastructure.Vision;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Azure.Core;
 
 namespace Pegasus.Infrastructure;
@@ -202,6 +203,9 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfApprovedMailboxStore>());
         services.AddScoped<IApprovedMailboxPolicy>(
             provider => provider.GetRequiredService<EfApprovedMailboxStore>());
+        services.AddScoped<IApprovedIntakeMailboxes>(
+            provider => provider.GetRequiredService<EfApprovedMailboxStore>());
+        services.AddScoped<IApprovedMailboxPollStatusQueries, EfApprovedMailboxPollStatusQueries>();
         services.AddScoped<ListApprovedMailboxes>();
         services.AddScoped<UpdateApprovedMailbox>();
         services.AddScoped<EfCaseWorkflowStore>();
@@ -388,6 +392,12 @@ public static class DependencyInjection
             provider.GetRequiredService<LocalApprovedInboxOptions>());
         services.AddSingleton<IApprovedInboxSource, LocalDurableApprovedInboxSource>();
         services.AddScoped<IApprovedInboxPollStore, EfApprovedInboxPollStore>();
+        // Only a polling composition carries the configuration fallback; Web reads the
+        // estate as saved and never borrows a mailbox identity from configuration. The
+        // fallback reports an unidentified mailbox by address, so it needs logging even
+        // in a host that composed none.
+        services.AddLogging();
+        services.AddScoped<IApprovedIntakeMailboxes, ConfiguredApprovedIntakeMailboxes>();
         services.AddScoped<PollApprovedInbox>();
         return services;
     }
@@ -485,12 +495,18 @@ public static class DependencyInjection
         });
         services.AddSingleton(provider => new GraphMailClient(
             provider.GetRequiredService<TokenCredential>(),
-            provider.GetRequiredService<GraphApprovedMailboxOptions>(),
+            provider.GetRequiredService<GraphApprovedMailboxOptions>().BaseUri,
             provider.GetRequiredService<HttpClient>()));
         services.AddSingleton<IApprovedInboxSource, GraphApprovedInboxSource>();
         services.AddSingleton<IApprovedSentSource, GraphApprovedSentSource>();
         services.AddScoped<IApprovedInboxPollStore, EfApprovedInboxPollStore>();
         services.AddScoped<ISentEvidencePollStore, EfSentEvidencePollStore>();
+        // Only a polling composition carries the configuration fallback; Web reads the
+        // estate as saved and never borrows a mailbox identity from configuration. The
+        // fallback reports an unidentified mailbox by address, so it needs logging even
+        // in a host that composed none.
+        services.AddLogging();
+        services.AddScoped<IApprovedIntakeMailboxes, ConfiguredApprovedIntakeMailboxes>();
         services.AddScoped<PollApprovedInbox>();
         services.AddScoped<PollSentEvidence>();
         services.AddSingleton(VehicleLookupAvailability.ProductionLive);

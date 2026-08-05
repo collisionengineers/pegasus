@@ -16,9 +16,10 @@ public sealed record GraphApprovedMailboxOptions(
     string MailboxId,
     string MailboxAddress,
     string InboxFolderId,
-    string SentFolderId) : IApprovedSentSourceSettings
+    string SentFolderId) : IApprovedInboxSourceSettings, IApprovedSentSourceSettings
 {
     string IApprovedSentSourceSettings.SentFolderIdentity => SentFolderId;
+    string IApprovedInboxSourceSettings.InboxFolderIdentity => InboxFolderId;
     public static GraphApprovedMailboxOptions Create(
         string? baseUri,
         string? mailboxId,
@@ -58,25 +59,31 @@ public sealed record GraphApprovedMailboxOptions(
     }
 }
 
+/// <summary>
+/// A mailbox-agnostic Graph reader. The mailbox and folder are passed on every call
+/// rather than closed over, because the approved estate — not deployment
+/// configuration — now decides which mailboxes a tick reads.
+/// </summary>
 internal sealed class GraphMailClient(
     TokenCredential credential,
-    GraphApprovedMailboxOptions options,
+    Uri baseUri,
     HttpClient httpClient)
 {
     private static readonly TokenRequestContext TokenContext =
         new(["https://graph.microsoft.com/.default"]);
 
-    public Uri InitialDeltaUri(string folderId, int maximumItems) => new(
-        options.BaseUri,
-        $"users/{Uri.EscapeDataString(options.MailboxId)}/mailFolders/{Uri.EscapeDataString(folderId)}" +
+    public Uri InitialDeltaUri(string mailboxId, string folderId, int maximumItems) => new(
+        baseUri,
+        $"users/{Uri.EscapeDataString(mailboxId)}/mailFolders/{Uri.EscapeDataString(folderId)}" +
         $"/messages/delta?$select=id,parentFolderId,receivedDateTime,sentDateTime,conversationId,internetMessageId&$top={maximumItems}");
 
     public async Task<GraphDeltaPage> ReadDeltaAsync(
         Uri uri,
+        string mailboxId,
         string approvedFolderId,
         CancellationToken cancellationToken)
     {
-        ValidateDeltaUri(uri, approvedFolderId);
+        ValidateDeltaUri(uri, mailboxId, approvedFolderId);
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
         using var response = await SendAsync(request, cancellationToken);
@@ -96,8 +103,8 @@ internal sealed class GraphMailClient(
                     "Microsoft Graph returned a message outside the exact approved mailbox folder.");
             }
         }
-        var next = ReadLink(root, "@odata.nextLink", approvedFolderId);
-        var delta = ReadLink(root, "@odata.deltaLink", approvedFolderId);
+        var next = ReadLink(root, "@odata.nextLink", mailboxId, approvedFolderId);
+        var delta = ReadLink(root, "@odata.deltaLink", mailboxId, approvedFolderId);
         if (next is null && delta is null)
         {
             throw new InvalidDataException("Microsoft Graph returned no next or delta cursor.");
@@ -105,11 +112,14 @@ internal sealed class GraphMailClient(
         return new(values, next ?? delta!);
     }
 
-    public async Task<byte[]> ReadMimeAsync(string immutableMessageId, CancellationToken cancellationToken)
+    public async Task<byte[]> ReadMimeAsync(
+        string mailboxId,
+        string immutableMessageId,
+        CancellationToken cancellationToken)
     {
         var uri = new Uri(
-            options.BaseUri,
-            $"users/{Uri.EscapeDataString(options.MailboxId)}/messages/{Uri.EscapeDataString(immutableMessageId)}/$value");
+            baseUri,
+            $"users/{Uri.EscapeDataString(mailboxId)}/messages/{Uri.EscapeDataString(immutableMessageId)}/$value");
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
         using var response = await SendAsync(request, cancellationToken);
@@ -145,6 +155,15 @@ internal sealed class GraphMailClient(
         {
             throw new GraphDeltaResetRequiredException();
         }
+        // A tenant that has not admitted this application to this mailbox answers 401 or
+        // 403 for that mailbox alone. Naming it separately is what lets the
+        // administration surface say "the tenant has not granted access" rather than
+        // reporting an indistinguishable transport failure.
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        {
+            throw new ApprovedMailboxAccessDeniedException(
+                $"Microsoft Graph refused access to the mailbox with {(int)response.StatusCode}.");
+        }
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
         throw new HttpRequestException(
             $"Microsoft Graph returned {(int)response.StatusCode}; response length {body.Length}.",
@@ -152,40 +171,44 @@ internal sealed class GraphMailClient(
             response.StatusCode);
     }
 
-    private Uri? ReadLink(JsonElement root, string property, string approvedFolderId)
+    private Uri? ReadLink(
+        JsonElement root,
+        string property,
+        string mailboxIdentity,
+        string approvedFolderId)
     {
         if (!root.TryGetProperty(property, out var value) || value.ValueKind != JsonValueKind.String)
         {
             return null;
         }
         var uri = new Uri(value.GetString()!, UriKind.Absolute);
-        ValidateDeltaUri(uri, approvedFolderId);
+        ValidateDeltaUri(uri, mailboxIdentity, approvedFolderId);
         return uri;
     }
 
-    private void ValidateDeltaUri(Uri uri, string approvedFolderId)
+    public void ValidateDeltaUri(Uri uri, string mailboxIdentity, string approvedFolderId)
     {
-        var mailboxId = Uri.EscapeDataString(options.MailboxId);
+        var mailboxId = Uri.EscapeDataString(mailboxIdentity);
         var folderId = Uri.EscapeDataString(approvedFolderId);
         var approvedPaths = new[]
         {
-            InitialDeltaUri(approvedFolderId, 1),
+            InitialDeltaUri(mailboxIdentity, approvedFolderId, 1),
             new Uri(
-                options.BaseUri,
+                baseUri,
                 $"users/{mailboxId}/mailfolders('{folderId}')/messages/delta"),
             new Uri(
-                options.BaseUri,
+                baseUri,
                 $"users/{mailboxId}/mailFolders('{folderId}')/messages/delta"),
             new Uri(
-                options.BaseUri,
+                baseUri,
                 $"users('{mailboxId}')/mailfolders('{folderId}')/messages/delta"),
             new Uri(
-                options.BaseUri,
+                baseUri,
                 $"users('{mailboxId}')/mailFolders('{folderId}')/messages/delta")
         }.Select(value => value.GetComponents(UriComponents.Path, UriFormat.Unescaped));
         var actualPath = uri.GetComponents(UriComponents.Path, UriFormat.Unescaped);
         if (uri.Scheme != Uri.UriSchemeHttps
-            || !uri.Host.Equals(options.BaseUri.Host, StringComparison.OrdinalIgnoreCase)
+            || !uri.Host.Equals(baseUri.Host, StringComparison.OrdinalIgnoreCase)
             || !approvedPaths.Contains(actualPath, StringComparer.Ordinal))
         {
             throw new UnauthorizedAccessException(
@@ -226,10 +249,17 @@ internal sealed class GraphMailClient(
             : null;
 }
 
-internal sealed class GraphApprovedInboxSource(
-    GraphApprovedMailboxOptions options,
-    GraphMailClient client) : IApprovedInboxSource
+/// <summary>
+/// Stateless with respect to the mailbox: every identity it uses comes from the lease
+/// the Core poll handed it, which the approved estate produced. The exact-folder
+/// guarantee is unchanged — it is still enforced on every cursor and every item — but
+/// the folder it is enforced against is now per lease.
+/// </summary>
+internal sealed class GraphApprovedInboxSource(GraphMailClient client) : IApprovedInboxSource
 {
+    private const int MaximumMailboxIdentityLength = 100;
+    private const int MaximumFolderIdentityLength = 200;
+
     public async Task<ApprovedInboxPage> ReadAsync(
         ApprovedInboxPollLease lease,
         int maximumMessages,
@@ -237,16 +267,22 @@ internal sealed class GraphApprovedInboxSource(
     {
         ValidateLease(lease);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumMessages);
-        var cursor = GraphCursor.Parse(lease.Cursor, client.InitialDeltaUri(options.InboxFolderId, maximumMessages));
+        var mailboxId = lease.MailboxId;
+        var inboxFolderId = lease.InboxFolderIdentity;
+        var cursor = GraphCursor.Parse(
+            lease.Cursor,
+            client.InitialDeltaUri(mailboxId, inboxFolderId, maximumMessages));
         GraphDeltaPage page;
         try
         {
-            page = await client.ReadDeltaAsync(cursor.PageUri, options.InboxFolderId, cancellationToken);
+            page = await client.ReadDeltaAsync(cursor.PageUri, mailboxId, inboxFolderId, cancellationToken);
         }
         catch (GraphDeltaResetRequiredException)
         {
-            cursor = GraphCursor.Parse(null, client.InitialDeltaUri(options.InboxFolderId, maximumMessages));
-            page = await client.ReadDeltaAsync(cursor.PageUri, options.InboxFolderId, cancellationToken);
+            cursor = GraphCursor.Parse(
+                null,
+                client.InitialDeltaUri(mailboxId, inboxFolderId, maximumMessages));
+            page = await client.ReadDeltaAsync(cursor.PageUri, mailboxId, inboxFolderId, cancellationToken);
         }
         var available = page.Items.Skip(cursor.SkipCount).Take(maximumMessages).ToArray();
         var messages = new List<ApprovedInboxMessage>(available.Length);
@@ -258,7 +294,7 @@ internal sealed class GraphApprovedInboxSource(
             {
                 continue;
             }
-            var mime = await client.ReadMimeAsync(item.Id, cancellationToken);
+            var mime = await client.ReadMimeAsync(mailboxId, item.Id, cancellationToken);
             var next = GraphCursor.Serialize(
                 processed >= page.Items.Count ? page.NextUri : cursor.PageUri,
                 processed >= page.Items.Count ? 0 : processed);
@@ -280,14 +316,27 @@ internal sealed class GraphApprovedInboxSource(
         return new(messages, pageCursor);
     }
 
-    private void ValidateLease(ApprovedInboxPollLease lease)
+    /// <summary>
+    /// Shape only. Which mailbox is legitimate is settled upstream by the approved
+    /// estate and re-asserted inside the claiming transaction; what remains here is
+    /// refusing an identity Graph should never be asked for.
+    /// </summary>
+    private static void ValidateLease(ApprovedInboxPollLease lease)
     {
-        if (!lease.MailboxId.Equals(options.MailboxId, StringComparison.Ordinal)
-            || !lease.MailboxAddress.Equals(options.MailboxAddress, StringComparison.OrdinalIgnoreCase))
+        ArgumentNullException.ThrowIfNull(lease);
+        if (!IsExactIdentity(lease.MailboxId, MaximumMailboxIdentityLength)
+            || !IsExactIdentity(lease.InboxFolderIdentity, MaximumFolderIdentityLength)
+            || string.IsNullOrWhiteSpace(lease.MailboxAddress))
         {
-            throw new UnauthorizedAccessException("The Inbox lease is outside the approved Graph mailbox.");
+            throw new UnauthorizedAccessException(
+                "The Inbox lease does not carry an exact Graph mailbox and folder identity.");
         }
     }
+
+    private static bool IsExactIdentity(string value, int maximumLength) =>
+        !string.IsNullOrWhiteSpace(value)
+        && value.Length <= maximumLength
+        && !value.Any(character => char.IsControl(character) || char.IsWhiteSpace(character));
 
     private static string SanitizeFileName(string value) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
@@ -302,18 +351,27 @@ internal sealed class GraphApprovedSentSource(
         int maximumItems,
         CancellationToken cancellationToken)
     {
+        // ValidateLease has already proved the lease equals the configured mailbox and
+        // Sent folder, so passing the lease's identities to the client is the same call
+        // it made when the client closed over the configuration.
         ValidateLease(lease);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
-        var cursor = GraphCursor.Parse(lease.Cursor, client.InitialDeltaUri(options.SentFolderId, maximumItems));
+        var mailboxId = lease.MailboxId;
+        var sentFolderId = lease.SentFolderIdentity;
+        var cursor = GraphCursor.Parse(
+            lease.Cursor,
+            client.InitialDeltaUri(mailboxId, sentFolderId, maximumItems));
         GraphDeltaPage page;
         try
         {
-            page = await client.ReadDeltaAsync(cursor.PageUri, options.SentFolderId, cancellationToken);
+            page = await client.ReadDeltaAsync(cursor.PageUri, mailboxId, sentFolderId, cancellationToken);
         }
         catch (GraphDeltaResetRequiredException)
         {
-            cursor = GraphCursor.Parse(null, client.InitialDeltaUri(options.SentFolderId, maximumItems));
-            page = await client.ReadDeltaAsync(cursor.PageUri, options.SentFolderId, cancellationToken);
+            cursor = GraphCursor.Parse(
+                null,
+                client.InitialDeltaUri(mailboxId, sentFolderId, maximumItems));
+            page = await client.ReadDeltaAsync(cursor.PageUri, mailboxId, sentFolderId, cancellationToken);
         }
         var available = page.Items.Skip(cursor.SkipCount).Take(maximumItems).ToArray();
         var items = new List<ApprovedSentItem>(available.Length);
@@ -344,7 +402,7 @@ internal sealed class GraphApprovedSentSource(
         string nextCursor,
         CancellationToken cancellationToken)
     {
-        var mime = await client.ReadMimeAsync(item.Id, cancellationToken);
+        var mime = await client.ReadMimeAsync(options.MailboxId, item.Id, cancellationToken);
         var sourceHash = Convert.ToHexString(SHA256.HashData(mime));
         try
         {

@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using System.Text;
 using Pegasus.Core.Identity;
@@ -7,6 +8,7 @@ namespace Pegasus.Core.Intake;
 public sealed record ApprovedInboxPollLease(
     string MailboxId,
     string MailboxAddress,
+    string InboxFolderIdentity,
     string? Cursor,
     string LeaseToken);
 
@@ -44,6 +46,17 @@ public sealed record ApprovedInboxPoisonMessage(
     DateTimeOffset ReceivedAtUtc,
     string FailureCode);
 
+/// <summary>
+/// The mail provider refused this mailbox outright. Approving an address in Pegasus
+/// grants nothing at the tenant: the application still needs the tenant's own
+/// application access policy to admit it. Distinguished from a generic transport
+/// failure so the administration surface can say which of the two happened.
+/// </summary>
+public sealed class ApprovedMailboxAccessDeniedException(
+    string message,
+    Exception? innerException = null)
+    : Exception(message, innerException);
+
 public interface IApprovedInboxSource
 {
     Task<ApprovedInboxPage> ReadAsync(
@@ -55,6 +68,7 @@ public interface IApprovedInboxSource
 public interface IApprovedInboxPollStore
 {
     Task<ApprovedInboxPollLease?> ClaimAsync(
+        ApprovedIntakeMailbox mailbox,
         DateTimeOffset nowUtc,
         TimeSpan leaseDuration,
         CancellationToken cancellationToken);
@@ -90,6 +104,8 @@ public interface IApprovedInboxPollStore
 }
 
 public sealed class PollApprovedInbox(
+    IApprovedIntakeMailboxes approvedIntakeMailboxes,
+    IApprovedMailboxPolicy approvedMailboxPolicy,
     IApprovedInboxPollStore pollStore,
     IApprovedInboxSource inboxSource,
     IIntakeArtifactStore artifactStore,
@@ -100,10 +116,17 @@ public sealed class PollApprovedInbox(
     private const int MaximumFileNameLength = 260;
     private const int MaximumExternalReceiptTokenLength = 200;
     private const int MaximumActorLength = 200;
+    private const int MaximumMailboxIdentityLength = 100;
+    private const int MaximumFolderIdentityLength = 200;
     private const string SystemWorkerActorPrefix = "system-worker:";
     private static readonly TimeSpan PollLeaseDuration = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan FailureRetryDelay = TimeSpan.FromSeconds(30);
 
+    /// <summary>
+    /// Polls every mailbox the approved estate currently offers for inbound intake,
+    /// each under its own lease and cursor. <paramref name="maximumMessages"/> bounds
+    /// one mailbox, not the tick, so a busy mailbox cannot starve the others.
+    /// </summary>
     public async Task<int> ExecuteAsync(
         int maximumMessages,
         ActionActor actor,
@@ -124,7 +147,54 @@ public sealed class PollApprovedInbox(
                 nameof(actor));
         }
 
+        var mailboxes = await approvedIntakeMailboxes.ListPollableAsync(cancellationToken);
+        ArgumentNullException.ThrowIfNull(mailboxes);
+
+        // Fail closed on the whole estate before claiming anything: a malformed
+        // identity is an administration defect, not a per-message poison.
+        foreach (var mailbox in mailboxes)
+        {
+            ValidateMailbox(mailbox);
+        }
+
+        var handledMessages = 0;
+        var failures = new List<Exception>();
+        foreach (var mailbox in mailboxes)
+        {
+            handledMessages += await PollMailboxAsync(
+                mailbox,
+                maximumMessages,
+                actorCode,
+                failures,
+                cancellationToken);
+        }
+
+        // One failure keeps its exact type and stack so existing callers and tests
+        // that assert on a specific intake exception still see it unchanged.
+        if (failures.Count == 1)
+        {
+            ExceptionDispatchInfo.Capture(failures[0]).Throw();
+        }
+
+        if (failures.Count > 1)
+        {
+            throw new AggregateException(
+                "One or more approved mailboxes failed during the bounded inbox poll.",
+                failures);
+        }
+
+        return handledMessages;
+    }
+
+    private async Task<int> PollMailboxAsync(
+        ApprovedIntakeMailbox mailbox,
+        int maximumMessages,
+        string actorCode,
+        List<Exception> failures,
+        CancellationToken cancellationToken)
+    {
         var lease = await pollStore.ClaimAsync(
+            mailbox,
             timeProvider.GetUtcNow(),
             PollLeaseDuration,
             cancellationToken);
@@ -134,64 +204,26 @@ public sealed class PollApprovedInbox(
         }
 
         ValidateLease(lease);
-        try
+
+        // Re-check after claiming, exactly as the Sent side does: the estate may have
+        // disabled this mailbox between listing and claiming.
+        if (!await approvedMailboxPolicy.IsApprovedAsync(
+                lease.MailboxAddress,
+                ApprovedMailboxRouteScope.InboundIntake,
+                cancellationToken))
         {
-            var page = await inboxSource.ReadAsync(lease, maximumMessages, cancellationToken);
-            ValidatePage(page, maximumMessages);
-
-            var handledMessages = 0;
-            foreach (var message in page.Messages)
-            {
-                PreparedMessage prepared;
-                try
-                {
-                    prepared = PrepareMessage(lease.MailboxId, actorCode, message);
-                }
-                catch (MalformedApprovedInboxMessageException exception)
-                {
-                    await QuarantineMalformedMessageAsync(
-                        lease,
-                        message,
-                        exception.FailureCode,
-                        cancellationToken);
-                    handledMessages++;
-                    continue;
-                }
-
-                try
-                {
-                    await receiveIntake.ExecuteAsync(
-                        prepared.Source,
-                        CreateOperationKey(prepared.ExternalReceiptToken),
-                        cancellationToken);
-                }
-                catch (IntakeSourceIdentityConflictException exception)
-                {
-                    await QuarantineSourceIdentityConflictAsync(
-                        lease,
-                        message,
-                        exception,
-                        cancellationToken);
-                    handledMessages++;
-                    continue;
-                }
-
-                await pollStore.AdvanceAsync(
-                    lease.MailboxId,
-                    lease.LeaseToken,
-                    message.NextCursor,
-                    timeProvider.GetUtcNow(),
-                    cancellationToken);
-                handledMessages++;
-            }
-
-            await pollStore.CompleteAsync(
+            await pollStore.ReleaseAsync(
                 lease.MailboxId,
                 lease.LeaseToken,
-                page.NextCursor,
-                timeProvider.GetUtcNow(),
+                timeProvider.GetUtcNow().Add(FailureRetryDelay),
+                "mailbox_not_approved",
                 cancellationToken);
-            return handledMessages;
+            return 0;
+        }
+
+        try
+        {
+            return await PollOneAsync(lease, maximumMessages, actorCode, cancellationToken);
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
@@ -201,8 +233,73 @@ public sealed class PollApprovedInbox(
                 timeProvider.GetUtcNow().Add(FailureRetryDelay),
                 FailureCode(exception),
                 cancellationToken);
-            throw;
+            failures.Add(exception);
+            return 0;
         }
+    }
+
+    private async Task<int> PollOneAsync(
+        ApprovedInboxPollLease lease,
+        int maximumMessages,
+        string actorCode,
+        CancellationToken cancellationToken)
+    {
+        var page = await inboxSource.ReadAsync(lease, maximumMessages, cancellationToken);
+        ValidatePage(page, maximumMessages);
+
+        var handledMessages = 0;
+        foreach (var message in page.Messages)
+        {
+            PreparedMessage prepared;
+            try
+            {
+                prepared = PrepareMessage(lease.MailboxId, actorCode, message);
+            }
+            catch (MalformedApprovedInboxMessageException exception)
+            {
+                await QuarantineMalformedMessageAsync(
+                    lease,
+                    message,
+                    exception.FailureCode,
+                    cancellationToken);
+                handledMessages++;
+                continue;
+            }
+
+            try
+            {
+                await receiveIntake.ExecuteAsync(
+                    prepared.Source,
+                    CreateOperationKey(prepared.ExternalReceiptToken),
+                    cancellationToken);
+            }
+            catch (IntakeSourceIdentityConflictException exception)
+            {
+                await QuarantineSourceIdentityConflictAsync(
+                    lease,
+                    message,
+                    exception,
+                    cancellationToken);
+                handledMessages++;
+                continue;
+            }
+
+            await pollStore.AdvanceAsync(
+                lease.MailboxId,
+                lease.LeaseToken,
+                message.NextCursor,
+                timeProvider.GetUtcNow(),
+                cancellationToken);
+            handledMessages++;
+        }
+
+        await pollStore.CompleteAsync(
+            lease.MailboxId,
+            lease.LeaseToken,
+            page.NextCursor,
+            timeProvider.GetUtcNow(),
+            cancellationToken);
+        return handledMessages;
     }
 
     private async Task QuarantineMalformedMessageAsync(
@@ -327,10 +424,36 @@ public sealed class PollApprovedInbox(
             cancellationToken);
     }
 
+    private static void ValidateMailbox(ApprovedIntakeMailbox mailbox)
+    {
+        ArgumentNullException.ThrowIfNull(mailbox);
+        RequireExactIdentity(
+            mailbox.MailboxId,
+            MaximumMailboxIdentityLength,
+            "approved mailbox identity");
+        ArgumentException.ThrowIfNullOrWhiteSpace(mailbox.Address);
+        RequireExactIdentity(
+            mailbox.InboxFolderIdentity,
+            MaximumFolderIdentityLength,
+            "approved Inbox folder identity");
+    }
+
+    private static void RequireExactIdentity(string value, int maximumLength, string description)
+    {
+        if (string.IsNullOrWhiteSpace(value)
+            || value.Length > maximumLength
+            || value.Any(character => char.IsControl(character) || char.IsWhiteSpace(character)))
+        {
+            throw new ArgumentException(
+                $"The {description} is not an exact identity of {maximumLength} characters or fewer.");
+        }
+    }
+
     private static void ValidateLease(ApprovedInboxPollLease lease)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(lease.MailboxId);
         ArgumentException.ThrowIfNullOrWhiteSpace(lease.MailboxAddress);
+        ArgumentException.ThrowIfNullOrWhiteSpace(lease.InboxFolderIdentity);
         ArgumentException.ThrowIfNullOrWhiteSpace(lease.LeaseToken);
     }
 
@@ -537,6 +660,7 @@ public sealed class PollApprovedInbox(
     {
         IntakeArtifactRetentionException => "artifact_retention_failure",
         IntakeSourceIdentityConflictException => "source_identity_conflict",
+        ApprovedMailboxAccessDeniedException => "mailbox_access_denied",
         InvalidDataException or ArgumentException => "invalid_mailbox_source",
         _ => "mailbox_poll_failure"
     };

@@ -61,7 +61,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260803123935_MailClassificationDecisions",
                 "20260803125915_CaseMatchDecisionsAndAssociationPolicy",
                 "20260803151159_AutomationActorOpenIddict",
-                "20260803205759_SendToAiAssessmentToolset"
+                "20260803205759_SendToAiAssessmentToolset",
+                "20260805210236_ApprovedMailboxGraphIdentity"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());

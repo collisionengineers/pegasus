@@ -2,58 +2,67 @@ using System.Data;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Intake;
-using Pegasus.Infrastructure.Email;
 using Microsoft.EntityFrameworkCore;
 
 namespace Pegasus.Infrastructure.Persistence;
 
 internal sealed class EfApprovedInboxPollStore(
-    IDbContextFactory<PegasusDbContext> contextFactory,
-    IApprovedInboxSourceSettings options,
-    IApprovedMailboxPolicy approvedMailboxPolicy) : IApprovedInboxPollStore
+    IDbContextFactory<PegasusDbContext> contextFactory) : IApprovedInboxPollStore
 {
     public async Task<ApprovedInboxPollLease?> ClaimAsync(
+        ApprovedIntakeMailbox mailbox,
         DateTimeOffset nowUtc,
         TimeSpan leaseDuration,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(mailbox);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(
             leaseDuration,
             TimeSpan.Zero);
 
-        if (!await approvedMailboxPolicy.IsApprovedAsync(
-                options.MailboxAddress,
-                ApprovedMailboxRouteScope.InboundIntake,
-                cancellationToken))
-        {
-            throw new UnauthorizedAccessException(
-                "The configured mailbox is not approved for inbound intake.");
-        }
-
+        var mailboxId = mailbox.MailboxId;
+        var mailboxAddress = mailbox.Address;
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
             cancellationToken);
+
+        // Re-assert approval inside the claiming transaction rather than before it, so a
+        // disable committed between listing and claiming cannot slip a poll through. A
+        // withdrawn mailbox yields no lease; it is not an error.
+        var approvedState = ApprovedMailboxState.Approved.ToString();
+        var stillApproved = await context.Set<ApprovedMailboxEntity>()
+            .AnyAsync(
+                item => item.Address == mailboxAddress
+                    && item.State == approvedState
+                    && item.AllowInboundIntake,
+                cancellationToken);
+        if (!stillApproved)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return null;
+        }
+
         var state = await context.ApprovedInboxPollStates.SingleOrDefaultAsync(
-            item => item.MailboxId == options.MailboxId,
+            item => item.MailboxId == mailboxId,
             cancellationToken);
         if (state is null)
         {
             state = new()
             {
-                MailboxId = options.MailboxId,
-                MailboxAddress = options.MailboxAddress,
+                MailboxId = mailboxId,
+                MailboxAddress = mailboxAddress,
                 DueAtUtc = nowUtc
             };
             context.ApprovedInboxPollStates.Add(state);
         }
         else if (!string.Equals(
                      state.MailboxAddress,
-                     options.MailboxAddress,
+                     mailboxAddress,
                      StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
-                "The configured approved mailbox identity is already bound to another address.");
+                "The approved mailbox identity is already bound to another address.");
         }
 
         if ((state.LeaseToken is null) != (state.LeaseExpiresAtUtc is null))
@@ -76,6 +85,7 @@ internal sealed class EfApprovedInboxPollStore(
         return new(
             state.MailboxId,
             state.MailboxAddress,
+            mailbox.InboxFolderIdentity,
             state.Cursor,
             state.LeaseToken);
     }
