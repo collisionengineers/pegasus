@@ -950,9 +950,14 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   accepted), FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard
   LRS storage accounts, distinct Web/Worker managed identities, a Pegasus Key
   Vault, Log Analytics, and Application Insights.
-- **Deployed evidence:** the estate currently serves **release 7**. Every
-  release below went through the same authorised-terminal route: build the
-  immutable artifacts from a clean exact HEAD, validate the plan in
+- **Deployed evidence:** the estate currently serves **release 7**. A branch
+  head ahead of the newest row is expected and is not a missing release:
+  **a source revision is a release claim only when it changes something under
+  `src/`.** Documentation-only commits build no artifact, so they ride the
+  next functional release rather than justifying one.
+
+  Every release below went through the same authorised-terminal route: build
+  the immutable artifacts from a clean exact HEAD, validate the plan in
   `Artifact`, `PreUpload` and `PreMigration` modes, push the digest-pinned OCI
   image to the production ACR, apply any pending migration explicitly *before*
   the application packages, activate the single Web revision, redeploy the
@@ -975,7 +980,9 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   - **Release 7** carried the six defects that live verification of release 6
     found, and is the first release whose Worker redeploy and revision
-    activation carried no schema change at all.
+    activation carried no schema change at all. `dev` and `main` have since
+    advanced by documentation-only commits, which is why the branch heads sit
+    ahead of this row.
   - **Release 6** carried the whole UI implementation programme. It seeded the
     temporary `claudeuiverification` Administrator (see below) and applied its
     migration explicitly before the packages, with the runtime-role matrix
