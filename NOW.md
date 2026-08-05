@@ -191,11 +191,14 @@ release claim:
   `Needs sorting` (`Details.cshtml:392`) and a handler that refuses
   anything else (`Details.cshtml.cs:352`) (repository audit, 2026-08-06).
 - Triage reserved-meaning edges (INT-21 adjacency):
-  `DurableIntake.CreateTriageIfQualifyingAsync:774` creates a Triage only
-  when the intake already created a Case, inverting the pre-case property
-  (`operator-notes.md:37`, `requirements.md:264`) — latent while
-  `NoAcceptedIntakeTriageMatcher` is the only matcher, and it must be
-  fixed before any matcher is accepted; the manual staff Triage origin
+  `DurableIntake.CreateTriageIfQualifyingAsync:774` requires the
+  `CaseCreated` decision — the decision, not an existing Case: it runs
+  after the silently-swallowed allocation in the same pass (`:538-540`),
+  so it inverts the pre-case property (`operator-notes.md:37`,
+  `requirements.md:264`) and can also run for a receipt whose allocation
+  failed. Latent while `NoAcceptedIntakeTriageMatcher` is the only
+  matcher; fix as an eligibility/ordering decision proven by behaviour
+  tests before any matcher is accepted; the manual staff Triage origin
   (`requirements.md:264`) has no Core command; decide the `/Triage`
   route/folder/namespace overload — the Queues screen kept them while
   `design/README.md:352` claims the route was renamed; and rename the
@@ -291,7 +294,9 @@ release claim:
   contract to an ADR — with the temp plan deleted it is owned only by
   architecture.md/operations.md prose
   (task/mcp-automation-actor review, 2026-08-03).
-- Decide the 17 unbuilt approved UI packages: the operator-approved
+- Decide the unbuilt approved UI packages (audit total 17; the recovered
+  set carries a page-5 numbering collision, so work from the named list
+  rather than the count): the operator-approved
   `docs/ui-work` review (deleted in `4c89669`, recoverable at `4c89669^`)
   shipped 8 of its 31 page packages; pages 8 (receipt review), 9-10
   (image intake), 13 (public-upload body), 5 (administration hub) and
@@ -355,6 +360,11 @@ release claim:
   browser lane reinstalls Playwright on every run despite the cache, lane
   structure) and cut further, building on PR 321 rather than repeating it
   (operator, 2026-08-06).
+- Complete the canonical-docs accuracy audit: the 2026-08-06 audit
+  claim-checked `architecture.md`, `design/README.md` and the roadmap
+  forms only; `requirements.md`, `operations.md`, `operator-notes.md`,
+  `open-decisions.md` and `engineering.md` have had no claim-level
+  verification against code (artifact critique, 2026-08-06).
 - Queue-and-claims hygiene: the report-renderer planning Doing line is
   superseded and closed by its successor line yet still listed; the
   CASE-27 Doing line's branch has already released its claim (`c02d75a` —
