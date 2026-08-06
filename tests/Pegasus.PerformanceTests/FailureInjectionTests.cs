@@ -1,8 +1,11 @@
+using System.Globalization;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Intake;
+using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
@@ -34,7 +37,7 @@ public sealed class FailureInjectionTests
         cancellation.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await interrupted);
-        Assert.Empty(await ListReceiptsAsync(factory));
+        Assert.Equal(0, await CountReceiptsAsync(factory));
 
         var replay = await IntakeWebDriver.PostUploadAsync(
             client,
@@ -46,7 +49,7 @@ public sealed class FailureInjectionTests
 
         Assert.Equal(HttpStatusCode.Redirect, replay.StatusCode);
         await IntakeWebDriver.ProcessQueuedAsync(factory, replay);
-        Assert.Single(await ListReceiptsAsync(factory));
+        Assert.Equal(1, await CountReceiptsAsync(factory));
         // The replay first re-stages the source, then the worker retains the
         // verified content for durable processing. Together with the
         // cancelled original attempt, that is three store calls.
@@ -80,7 +83,7 @@ public sealed class FailureInjectionTests
             Assert.All(results, result => Assert.Equal(HttpStatusCode.Redirect, result.StatusCode));
             Assert.Single(results.Select(IntakeWebDriver.QueuedReceiptId).Distinct());
             await IntakeWebDriver.ProcessQueuedAsync(factory, results[0]);
-            Assert.Single(await ListReceiptsAsync(factory));
+            Assert.Equal(1, await CountReceiptsAsync(factory));
         }
         finally
         {
@@ -91,13 +94,28 @@ public sealed class FailureInjectionTests
         }
     }
 
-    private static async Task<IReadOnlyList<IntakeReceiptSummary>> ListReceiptsAsync(
-        IntakeWebApplicationFactory factory)
+    /// <summary>
+    /// How many receipts are persisted, counted from the table rather than
+    /// from the operator's queue.
+    /// </summary>
+    /// <remarks>
+    /// These tests assert that no receipt is lost under pressure, which is a
+    /// persistence claim. The queue projection is the wrong instrument for it:
+    /// it deliberately excludes receipts that produced a case, so a definitive
+    /// instruction — which now allocates its case at processing time — is
+    /// correctly absent from it and would read as a lost receipt.
+    /// </remarks>
+    private static async Task<int> CountReceiptsAsync(IntakeWebApplicationFactory factory)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        return await scope.ServiceProvider
-            .GetRequiredService<IIntakeReceiptQueries>()
-            .ListAsync(null, CancellationToken.None);
+        var contextFactory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var connection = context.Database.GetDbConnection();
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM IntakeReceipts";
+        return Convert.ToInt32(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture);
     }
 
     private static byte[] CreateMessage(string claimNumber) => Encoding.UTF8.GetBytes(

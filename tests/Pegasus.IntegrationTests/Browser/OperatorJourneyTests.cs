@@ -33,10 +33,10 @@ public sealed class OperatorJourneyTests
             navigation,
             "Dashboard",
             "Inbox",
+            "Upload",
             "Queues",
             "Cases",
             "Administration",
-            "Search",
             "development-offline-administrator");
 
         // The three sections an operator actually opens this screen to read.
@@ -50,7 +50,7 @@ public sealed class OperatorJourneyTests
         // used to render an intake-receipt count and link into the intake
         // queue, which is a different entity on a different screen.
         await support.Page.Locator(".metric-strip a.metric", new PageLocatorOptions { HasText = "Review" }).ClickAsync();
-        Assert.Equal("/Cases?state=Review", new Uri(support.Page.Url).PathAndQuery);
+        Assert.Equal("/Triage?queue=review", new Uri(support.Page.Url).PathAndQuery);
 
         await support.GoToAsync("/");
         await support.Page.Locator(".metric-strip a.metric", new PageLocatorOptions { HasText = "Needs sorting" }).ClickAsync();

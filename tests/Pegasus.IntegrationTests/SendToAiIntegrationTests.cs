@@ -219,7 +219,7 @@ public sealed partial class SendToAiIntegrationTests
                         IntakeSourceChannel.ManualUpload,
                         $"send-to-ai-source:{Guid.NewGuid():N}")),
                 CancellationToken.None);
-        Assert.Equal(IntakeDecision.DraftReady, receipt.Decision);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
         await SeedPrincipalAsync(services);
         var outcome = await services.GetRequiredService<IAcceptIntake>()
             .ExecuteAsync(

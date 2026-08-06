@@ -344,8 +344,12 @@ public sealed partial class CaseAcceptanceReplayTests
                 RecordedAtUtc,
                 RecordedAtUtc,
                 "Acceptance replay test",
-                IntakeDecision.DraftReady,
-                "Ready for staff review",
+                // The staff acceptance form is the INT-26 manual path now: a
+                // definitive instruction has its case before this page opens,
+                // so what is left for a person to accept is material that
+                // needs sorting.
+                IntakeDecision.NeedsSorting,
+                "Needs staff sorting",
                 [],
                 [
                     SourceField("Claimant name", "Replay claimant"),

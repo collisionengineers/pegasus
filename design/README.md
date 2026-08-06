@@ -28,14 +28,22 @@ The application is an operational, restrained, desktop-first internal case-manag
 
 **Operations-first was selected on 2026-07-27 for the planned `0.1.0-alpha.1` shell and landing strategy.** This approves the route hierarchy and operating model, not pixel-for-pixel reproduction of a comparison raster and not a partial implementation.
 
-The planned authenticated routes are:
+The authenticated routes are:
 
-1. Operations
-2. Intake
-3. Triage
-4. Cases
-5. Administration, visible only to authorised Administrators
-6. Search and authenticated user/sign-out controls
+1. Dashboard
+2. Inbox
+3. Upload
+4. Queues
+5. Cases
+6. Administration, visible only to authorised Administrators
+7. authenticated user/sign-out controls
+
+This order was settled by the operator on 2026-08-04 and shipped in releases
+6 and 7. It supersedes the earlier planned order
+(`Operations → Intake → Triage → Cases → Administration → Search`): Search
+merged into Cases, which has the identical backing query; the combined intake
+screen split into Inbox and Upload; and `Triage` stopped naming a route while
+keeping its settled meaning as a pre-case entity inside Queues.
 
 The common hierarchy is:
 
@@ -56,10 +64,18 @@ Capabilities allocated beyond `0.1.0-alpha.1` have no alpha navigation, control,
 - State is never conveyed by colour alone.
 - Use 2px corners, 1px hairline borders, rare soft shadows and a 4px spacing rhythm.
 - Use system UI text and Lucide line icons only.
-- Controls communicate purpose without narrating obvious actions.
-- Do not expose Azure, OCR, AI, queue mechanics, extraction engines, deployment or adapter terminology in operator copy.
+- Controls communicate purpose without narrating obvious actions. Screens carry no lede or subtitle: one H1 and the content. Guidance appears only beside a control whose action has a consequence the operator must understand, and is one sentence.
+- Do not expose Azure, OCR, AI, queue mechanics, extraction engines, deployment, adapter, lease/version, projection, ingress, or artifact terminology in operator copy. The word “intake” never appears in operator-facing text (operator decision 2026-08-04).
+- Every state value shown to an operator passes through an explicit operator-label map — `Pegasus.Web.Presentation.OperatorLabels`. Raw `ToString()` of enums, snake_case event codes, GUIDs, hashes, storage paths, version integers and byte counts never reach markup. File sizes, where relevant, are megabytes to one decimal.
+- Every date and time an operator reads renders Europe/London through that same map. `ToLocalTime()` is never correct: it resolves against the server clock, which is the office zone on a developer workstation and UTC on the deployed container, so it looks right exactly where it is tested and is wrong through British Summer Time where it runs.
+- A composed query that returns zero renders `0`. A capability that is not composed in a deployment is absent from the interface — never a disabled item, inert card, or “Unavailable” placeholder. Genuine runtime failure renders the designed failure state with the last-good time.
+  - This applies to capabilities, not to conditions. An action the record in front of the operator will genuinely offer once a condition is met stays visible and disabled with the condition named on the control (“Available in Review”); removing it would assert the action is impossible, which is false.
+- Every screen defines its empty, loading, and failure states in business language, and unknown-record URLs render the styled not-found screen, never a raw browser error.
+- Screens are compact working surfaces, not marketing pages: 4px base rhythm with 8/12/16 steps, 32px table rows, 12–16px panel padding, 13.5–14px body text. A screen about a single record is one container — header, action bar, tabs — and the operator reaches its identity, its state, its available actions and its main content without scrolling.
+- Provenance is an icon with a one-word tooltip, shown on hover **and** on keyboard focus with a matching accessible name: Staff · Extracted · AI · E-mail · Lookup · Principal · Automatic. Source labels, policy keys and provenance sentences do not appear in markup.
+- A count query and a rendered time cannot be proved locally: an empty database returns the same zero as a correct query, and a Europe/London workstation clock matches the office by accident. Both need populated test data or the deployed instance.
 
-Settled terms retain their exact meanings and casing, including `Audit`, `Triage`, `Needs sorting`, `Blocked intake`, `Not ready`, `Review` and `Held`. Never substitute a generic **Close** action for a named lifecycle outcome.
+Settled terms retain their exact meanings and casing, including `Audit`, `Triage`, `Needs sorting`, `Blocked`, `Not ready`, `Review` and `Held` (`Blocked` supersedes the earlier interface wording `Blocked intake`, operator decision 2026-08-04; the pre-case failure boundary it names is unchanged). Never substitute a generic **Close** action for a named lifecycle outcome.
 
 ## Tokens
 
@@ -282,13 +298,23 @@ Use concise, settled Collision Engineers language. Guidance is appropriate only 
 
 Approved necessary copy includes:
 
-> Blocked intake — no case has been created. A reason is required.
+> Blocked — a reason is required.
 
 > No case or reference was created; review the missing or conflicting evidence.
 
 > Created in error cannot be reopened. Create and link the replacement case.
 
 Permanent consequences must be visible without hover or colour alone. Illustrative text must not fabricate operational input.
+
+These words are banned from operator-facing copy in
+`src/Pegasus.Web/Pages/**/*.cshtml` and PageModel label maps, and a change
+introducing one does not merge: `intake`, `bounded`, `projection`, `lease`,
+`opaque`, `ingress`, `composed`, `artifact`, `durable`, `aggregate`, `queue`,
+`caller`, `correlation identifier`, `bytes`. This is a review rule, not an
+automated check — nothing in CI enforces it today, and claiming otherwise
+would be the kind of false assurance the evidence discipline above exists to
+prevent. The words remain valid as internal code identifiers; the ban is on
+what an operator reads.
 
 ## Access and permissions
 
@@ -309,22 +335,32 @@ Every protected route and action must handle unauthenticated, disabled-session, 
 Operations is the landing route.
 
 ```text
-CE logo | Dashboard | Inbox | Queues | Cases | Administration | Search | User
-Operations
-Not ready | Review | Held | Needs sorting | Blocked intake | Triage | Due today
+CE logo | Dashboard | Inbox | Upload | Queues | Cases | Administration | User
+Dashboard
+Not ready | Review | Held        (active cases)
+Received today | Needs sorting | Blocked        (e-mail activity)
 New cases today | Sent to Engineer: today / week | Reports sent: today / week
 Last updated | Refresh
-Exact filtered queue list | selected summary / next safe action
 ```
+
+The approved route order is `Dashboard → Inbox → Upload → Queues → Cases →
+Administration (admin-only) + user controls` (operator decision 2026-08-04).
+Search merged into Cases, which has the identical backing query; the former
+combined intake screen split into Inbox and Upload; Queues is the
+pre-engineer-assignment work viewer carrying Not ready, Review, Held and
+Triage — the first three Case stages, the fourth a separate pre-case entity.
+`Triage` no longer names a screen, nav item, title or route, and its settled
+meaning is unchanged.
 
 Rules:
 
 - Every metric is an exact query link to its corresponding filtered queue.
-- `Blocked intake` is exact wording and remains pre-case.
+- `Blocked` is exact wording and remains pre-case.
 - Every metric shows its last-good time and one current refresh state: loading,
   current, stale, partial, unavailable, or failed.
 - `0` is a current result, never a substitute for stale, partial, unavailable,
-  failed, or not-yet-loaded data.
+  failed, or not-yet-loaded data, and no shipped tile may render a placeholder
+  for a query that does not exist.
 - Manual refresh reruns the same filter, gives start/completion feedback, keeps
   last-good data visible, and never claims an external action succeeded.
 - Refresh remains telemetry; accepting, rejecting, linking, or changing an
@@ -371,29 +407,33 @@ must not invent aliases.
 
 | Core intake decision | Exact operator label | Receipt persisted | Case/reference persisted |
 | --- | --- | --- | --- |
-| `DraftReady` | None. The shipped build still emits `Instruction draft`; that is non-conforming, not an approved label — see below | Yes | No |
+| `CaseCreated` | Case created | Yes | Yes — the reference is allocated at processing time |
 | `NeedsSorting` | Needs sorting | Yes | No |
-| `BlockedIntake` | Blocked intake | Yes | No |
-| `OcrRequired` | Document text required | Yes | No |
-| `TechnicalFailure` | Technical failure | Yes | No |
+| `BlockedIntake` | Blocked | Yes | No |
+| `OcrRequired` | Needs text extraction | Yes | No |
+| `TechnicalFailure` | Failed | Yes | No |
 | `Unsupported` | Unsupported | Yes | No |
-| `ImageIntakeRegistered` | Image intake registered | Yes | No Case/PO; allocates the pre-Case Image Intake Reference |
+| `ImageIntakeRegistered` | Vehicle images registered | Yes | No Case/PO; allocates the pre-Case image reference |
 
-`Document text required` records a fail-closed outcome; it does not prove that deferred OCR capability is implemented. The intake list also derives the display outcome `Associated with Case` for receipts holding an active case association.
+`DraftReady` is deliberately absent and gets no operator label: the decision
+was removed rather than renamed. Definitive authorised material creates its
+case directly, and ambiguous or unidentified material is `Needs sorting`.
+
+`Needs text extraction` records a fail-closed outcome; it does not prove that deferred OCR capability is implemented. The intake list also derives the display outcome `Associated with Case` for receipts holding an active case association.
 
 Validation or refusal before an accepted intake receipt must not be described as case creation. An `ImageIntakeRegistered` receipt allocates only the pre-Case Image Intake Reference.
 
-`DraftReady` is non-conforming and carries no operator label. It names a receipt waiting for a
-staff member to press "Accept and allocate case reference", but
+There is no decision meaning "a human has not pressed the button yet". The former `DraftReady`
+named exactly that wait, and was removed rather than renamed:
 [requirements](../docs/requirements.md) is explicit that definitive authorised intake creates
 exactly one instructed Case idempotently and that "the allocation decision adds no universal
 manual acceptance gate", and the [operator notes](../docs/operator-notes.md) send only ambiguous
 provider, instruction-type, or case evidence — and any unidentified e-mail — to `Needs sorting`.
 Definitive intake therefore allocates at processing time, entering `Not ready` when ordinary
-detail is thin; incomplete ordinary detail is never a bar to allocation. The decision is being
-removed rather than renamed, together with the manual acceptance gate; no surface may introduce a
-label, chip, filter, or tile for it in the meantime. `Review` and `Ready to review` denote the
-Case stage before the report is with an Engineer and must never name an intake state.
+detail is thin; incomplete ordinary detail is never a bar to allocation. Its persisted
+`draft_ready` code stays readable and resolves to `CaseCreated`, the same processing outcome.
+`Review` and `Ready to review` denote the Case stage before the report is with an Engineer and
+must never name an intake state.
 
 ### Planned case-creation mapping
 
@@ -404,7 +444,7 @@ Case stage before the report is with an Engineer and must never name an intake s
 | Staff-resolved acceptance with explicit confirmation of both completeness requirements | `Review` | Create exactly one case/reference |
 | Staff-resolved acceptance without explicit confirmation of both requirements | `Not ready` | Create exactly one incomplete case/reference |
 | Explicit confirmation of both requirements on an existing `Not ready` case | `Review` | Transition the existing case; do not create another case/reference |
-| `Blocked intake` | Blocked intake with required reason | Persist pre-case intake work only; no case/reference |
+| `Blocked intake` | Shown as `Blocked`, with required reason | Persist pre-case intake work only; no case/reference |
 | `Needs sorting`, unsupported/incomplete source, ambiguity, custody/integrity/replay/occurrence conflict or missing evidence | Needs sorting or named pre-case failure | No case/reference |
 | Resolve/retry of blocked or failed intake | Re-enter ordinary fail-closed intake | Create exactly one case/reference only if the ordinary gates then pass |
 

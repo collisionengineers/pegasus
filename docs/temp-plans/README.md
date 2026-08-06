@@ -6,6 +6,12 @@ line's `task/<task-slug>` branch. The full protocol is owned by
 [engineering](../engineering.md#task-workflow); [ADR-0017](../adr/0017-multi-agent-task-workflow.md)
 records the decision.
 
+Docs-only carve-out (ADR-0017 addendum, 2026-08-06): a task whose every
+changed path in the final PR diff is a Markdown file outside `src/`,
+`tests/`, `infra/`, and `scripts/` skips the plan file; its two-question
+review runs against the PR diff and description. A task that stops
+qualifying mid-work writes the plan before review.
+
 Contract:
 
 - The plan states what the task will change and how it will be verified.
