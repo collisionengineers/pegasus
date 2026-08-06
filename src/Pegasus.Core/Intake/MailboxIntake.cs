@@ -263,46 +263,69 @@ public sealed class PollApprovedInbox(
         List<Exception> failures,
         CancellationToken cancellationToken)
     {
-        var lease = await pollStore.ClaimAsync(
-            mailbox,
-            timeProvider.GetUtcNow(),
-            PollLeaseDuration,
-            cancellationToken);
-        if (lease is null)
-        {
-            return 0;
-        }
-
-        ValidateLease(lease);
-
-        // Re-check after claiming, exactly as the Sent side does: the estate may have
-        // disabled this mailbox between listing and claiming.
-        if (!await approvedMailboxPolicy.IsApprovedAsync(
-                lease.MailboxAddress,
-                ApprovedMailboxRouteScope.InboundIntake,
-                cancellationToken))
-        {
-            await pollStore.ReleaseAsync(
-                lease.MailboxId,
-                lease.LeaseToken,
-                timeProvider.GetUtcNow().Add(FailureRetryDelay),
-                "mailbox_not_approved",
-                cancellationToken);
-            return 0;
-        }
-
+        // The whole body sits inside the boundary, claim included. A claim, a lease
+        // validation or an approval re-check that threw from outside it escaped this
+        // method, escaped the loop over the estate, and bypassed the aggregation
+        // below — so one mailbox's failure skipped every mailbox after it and threw
+        // away every failure already collected before it.
+        ApprovedInboxPollLease? lease = null;
         try
         {
+            lease = await pollStore.ClaimAsync(
+                mailbox,
+                timeProvider.GetUtcNow(),
+                PollLeaseDuration,
+                cancellationToken);
+            if (lease is null)
+            {
+                return 0;
+            }
+
+            ValidateLease(lease);
+
+            // Re-check after claiming, exactly as the Sent side does: the estate may have
+            // disabled this mailbox between listing and claiming.
+            if (!await approvedMailboxPolicy.IsApprovedAsync(
+                    lease.MailboxAddress,
+                    ApprovedMailboxRouteScope.InboundIntake,
+                    cancellationToken))
+            {
+                await pollStore.ReleaseAsync(
+                    lease.MailboxId,
+                    lease.LeaseToken,
+                    timeProvider.GetUtcNow().Add(FailureRetryDelay),
+                    "mailbox_not_approved",
+                    cancellationToken);
+                return 0;
+            }
+
             return await PollOneAsync(lease, maximumMessages, actorCode, cancellationToken);
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
-            await pollStore.ReleaseAsync(
-                lease.MailboxId,
-                lease.LeaseToken,
-                timeProvider.GetUtcNow().Add(FailureRetryDelay),
-                FailureCode(exception),
-                cancellationToken);
+            // Only a lease that was actually claimed can be released, and a release
+            // that fails must not replace the failure that caused it: the lease
+            // lapses on its own, and the original exception is what the estate needs
+            // to be told about.
+            if (lease is not null)
+            {
+                try
+                {
+                    await pollStore.ReleaseAsync(
+                        lease.MailboxId,
+                        lease.LeaseToken,
+                        timeProvider.GetUtcNow().Add(FailureRetryDelay),
+                        FailureCode(exception),
+                        cancellationToken);
+                }
+                catch (Exception releaseFailure) when (
+                    IntakeExceptionPolicy.IsRecoverable(releaseFailure))
+                {
+                    // Swallowed deliberately; the lease lapses and the original
+                    // failure below is the one that matters.
+                }
+            }
+
             failures.Add(exception);
             return 0;
         }

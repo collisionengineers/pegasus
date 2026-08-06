@@ -1,7 +1,7 @@
 # ADR-0022: Approved-mailbox identity and enablement as an administrator-editable database setting
 
-- Date: 2026-08-05
-- Status: proposed
+- Date: 2026-08-06
+- Status: accepted
 - Owners: Collision Engineers product owner and Pegasus development team
 - Relation: a second scoped exception to ADR-0008's code-owned-configuration
   consequence, and the intake-side counterpart to ADR-0018; ADR-0008's
@@ -117,6 +117,16 @@ Disabling a mailbox means all of the following, and nothing more:
   minute rather than 50.
 - A mailbox identity may not be rebound, so a mailbox move is disable-and-add.
   The old row keeps its cursor and its retained material.
+- Saving a real identity over the configuration fallback is the one permitted
+  change of a poll state's key, and it must carry the cursor with it or the
+  first save would re-enumerate the folder. One address has one poll state, so
+  the claim adopts the existing row by address and re-keys it rather than
+  inserting a second one, which the unique index on the address would refuse
+  anyway. Both tables referencing that key — quarantined messages and retained
+  messages — therefore cascade on update
+  (`20260806090000_ApprovedInboxPollStateIdentityAdoption`). Deletes stay
+  restricted, and because the engine performs the cascade the Worker needs no
+  wider grant on either table.
 - The Worker keeps `SELECT`-only on `ApprovedMailboxes` and can never
   self-heal a missing identity. That is deliberate, and it is why the
   configuration fallback is read-only.

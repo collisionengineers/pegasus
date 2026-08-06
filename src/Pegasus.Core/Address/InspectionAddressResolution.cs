@@ -102,7 +102,9 @@ public sealed record InspectionAddressResolutionRequest(
 /// This test was written out twice — once in the staff screen and once in the
 /// case-data snapshot factory — and each copy had to be found and changed
 /// whenever a state was added. It is one rule about business evidence, so it
-/// lives in Core and both callers ask it.
+/// lives in Core and both callers ask it: the create screen decides whether to
+/// ask for an address at all, and the snapshot factory decides whether a
+/// resolved one belongs on the case.
 /// </remarks>
 public static class InspectionAddressResolutionPolicy
 {

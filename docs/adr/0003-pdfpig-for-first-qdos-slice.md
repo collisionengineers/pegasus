@@ -60,18 +60,13 @@ slice. It does not prove every extracted field against a human-approved expected
 value, scanned-document OCR accuracy, future QDOS layouts, Linux publication, or
 production acceptance.
 
-The manual upload path retains the original and extracted assets in ignored
-local content-addressed storage. That is not production Blob staging, Box
-custody, backup, or retention.
-
-This statement previously read that the route was development-only and must not
-be enabled in a deployed environment until authenticated intake and approved
-durable source custody were implemented. Both named conditions are now met:
-`UploadModel` is `[Authorize]` with explicit Administrator, Engineer and User
-roles, and Production composes Box-backed custody. The manual upload route is
-consequently permitted in a deployed environment. Local SQLite concurrency
-evidence still does not establish the Azure SQL locking behaviour required for
-production reference allocation.
+The manual upload path is development-only and now retains the original and
+extracted assets in ignored local content-addressed storage. That is not
+production Blob staging, Box custody, backup, or retention. The route must not be
+enabled in a deployed environment until authenticated intake and approved
+durable source custody are implemented. Local SQLite concurrency evidence also
+does not establish the Azure SQL locking behaviour required for production
+reference allocation.
 
 Before production rollout, rerun the same adapter contract against a frozen,
 human-reviewed field-expectation cohort and an untouched holdout. Reopen this ADR

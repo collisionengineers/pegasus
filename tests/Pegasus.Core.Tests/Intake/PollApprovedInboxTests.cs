@@ -19,6 +19,9 @@ public sealed class PollApprovedInboxTests
     private static readonly ApprovedIntakeMailbox SecondMailbox =
         new("mailbox-b", "b@collisionengineers.co.uk", "inbox-b");
 
+    private static readonly ApprovedIntakeMailbox ThirdMailbox =
+        new("mailbox-c", "c@collisionengineers.co.uk", "inbox-c");
+
     [Fact]
     public async Task PollRequiresASystemWorkerActor()
     {
@@ -139,6 +142,49 @@ public sealed class PollApprovedInboxTests
                 ("mailbox-b", "mailbox_poll_failure")
             ],
             harness.PollStore.Releases);
+    }
+
+    [Fact]
+    public async Task AMailboxWhoseClaimFailsCostsNeitherTheEarlierFailureNorTheLaterMailbox()
+    {
+        var harness = new Harness(FirstMailbox, SecondMailbox, ThirdMailbox);
+        harness.Source.Fail(FirstMailbox.MailboxId, new InvalidDataException("bad page"));
+        harness.PollStore.FailClaim(
+            SecondMailbox.MailboxId,
+            new IOException("the poll store is unavailable"));
+        harness.Source.Enqueue(ThirdMailbox.MailboxId, Message("c-1", "cursor-c1"));
+
+        var exception = await Assert.ThrowsAsync<AggregateException>(() =>
+            harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None));
+
+        // Claiming is inside the per-mailbox boundary, so its failure belongs to
+        // that mailbox alone. Outside it, this exception escaped the loop over the
+        // estate: every mailbox after it went unpolled and every failure already
+        // collected before it was thrown away with the aggregation that never ran.
+        Assert.Equal(2, exception.InnerExceptions.Count);
+        Assert.IsType<InvalidDataException>(exception.InnerExceptions[0]);
+        Assert.IsType<IOException>(exception.InnerExceptions[1]);
+        Assert.Equal("cursor-c1", harness.PollStore.Cursors["mailbox-c"]);
+        // No lease was ever handed out for mailbox-b, so nothing is released for it.
+        Assert.Equal(
+            ("mailbox-a", "invalid_mailbox_source"),
+            Assert.Single(harness.PollStore.Releases));
+    }
+
+    [Fact]
+    public async Task AReleaseThatFailsDoesNotReplaceTheFailureThatCausedIt()
+    {
+        var harness = new Harness(FirstMailbox, SecondMailbox);
+        harness.Source.Fail(FirstMailbox.MailboxId, new InvalidDataException("bad page"));
+        harness.PollStore.FailRelease(new IOException("the poll store is unavailable"));
+        harness.Source.Enqueue(SecondMailbox.MailboxId, Message("b-1", "cursor-b1"));
+
+        // The lease lapses on its own. What the estate must be told is why the
+        // mailbox failed, not that tidying up after it also failed.
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None));
+
+        Assert.Equal("cursor-b1", harness.PollStore.Cursors["mailbox-b"]);
     }
 
     [Fact]
@@ -409,6 +455,10 @@ public sealed class PollApprovedInboxTests
     {
         private readonly HashSet<string> withheld = new(StringComparer.Ordinal);
 
+        private readonly Dictionary<string, Exception> claimFailures = new(StringComparer.Ordinal);
+
+        private Exception? releaseFailure;
+
         internal List<string> ClaimedMailboxIds { get; } = [];
 
         internal Dictionary<string, string> Cursors { get; } = new(StringComparer.Ordinal);
@@ -417,12 +467,22 @@ public sealed class PollApprovedInboxTests
 
         internal void WithholdLease(string mailboxId) => withheld.Add(mailboxId);
 
+        internal void FailClaim(string mailboxId, Exception exception) =>
+            claimFailures[mailboxId] = exception;
+
+        internal void FailRelease(Exception exception) => releaseFailure = exception;
+
         public Task<ApprovedInboxPollLease?> ClaimAsync(
             ApprovedIntakeMailbox mailbox,
             DateTimeOffset nowUtc,
             TimeSpan leaseDuration,
             CancellationToken cancellationToken)
         {
+            if (claimFailures.TryGetValue(mailbox.MailboxId, out var failure))
+            {
+                return Task.FromException<ApprovedInboxPollLease?>(failure);
+            }
+
             if (withheld.Contains(mailbox.MailboxId))
             {
                 return Task.FromResult<ApprovedInboxPollLease?>(null);
@@ -479,6 +539,11 @@ public sealed class PollApprovedInboxTests
             string failureCode,
             CancellationToken cancellationToken)
         {
+            if (releaseFailure is not null)
+            {
+                return Task.FromException(releaseFailure);
+            }
+
             Releases.Add((mailboxId, failureCode));
             return Task.CompletedTask;
         }

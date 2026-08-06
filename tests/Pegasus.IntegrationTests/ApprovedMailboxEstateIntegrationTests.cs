@@ -172,6 +172,73 @@ public sealed class ApprovedMailboxEstateIntegrationTests
     }
 
     [Fact]
+    public async Task SavingARealIdentityAdoptsTheExistingPollStateInsteadOfStartingASecond()
+    {
+        using var workspace = new MailboxWorkspace();
+        workspace.WriteMessage(DefaultFolder, "0001-before.eml");
+
+        await using var database = await CreateDatabaseAsync(workspace);
+
+        // Today's deployed shape: an approved row with no saved identities,
+        // polled under the identity the deployment configured.
+        await using (var scope = database.CreateAsyncScope())
+        {
+            var poll = scope.ServiceProvider.GetRequiredService<PollApprovedInbox>();
+            Assert.Equal(1, await poll.ExecuteAsync(10, WorkerActor, CancellationToken.None));
+        }
+
+        var receiptsBefore = await database.ScalarAsync<long>(
+            "SELECT COUNT(*) FROM IntakeStagedReceipts");
+        var retainedBefore = await database.ScalarAsync<long>(
+            "SELECT COUNT(*) FROM RetainedMailboxMessages WHERE MailboxId = 'instructions'");
+        // The rows that reference the poll state are what made re-keying it
+        // impossible before; the test is worth nothing if there are none.
+        Assert.Equal(1L, retainedBefore);
+
+        // The administrator saves the mailbox's real identity for the first
+        // time. That is the documented retirement of the configuration
+        // fallback, and it is the moment the identity the poll state is keyed
+        // by stops matching the identity the estate offers.
+        await database.ExecuteAsync(
+            $"""
+            UPDATE ApprovedMailboxes
+            SET MailboxIdentity = 'graph-instructions', InboxFolderIdentity = '{DefaultFolder}'
+            WHERE Address = '{SeededAddress}';
+            """);
+        workspace.WriteMessage(DefaultFolder, "0002-after.eml");
+
+        await using (var scope = database.CreateAsyncScope())
+        {
+            var poll = scope.ServiceProvider.GetRequiredService<PollApprovedInbox>();
+            // Only the message posted since. Inserting a second poll state would
+            // have violated the unique index on the address instead, on this tick
+            // and on every tick after it, stopping all inbound intake.
+            Assert.Equal(1, await poll.ExecuteAsync(10, WorkerActor, CancellationToken.None));
+        }
+
+        // One poll state for the address, now under the saved identity, and the
+        // mail it had already taken in came with it rather than being orphaned.
+        Assert.Equal(
+            1L,
+            await database.ScalarAsync<long>("SELECT COUNT(*) FROM ApprovedInboxPollStates"));
+        Assert.Equal(
+            "graph-instructions",
+            await database.ScalarAsync<string>(
+                $"SELECT MailboxId FROM ApprovedInboxPollStates WHERE MailboxAddress = '{SeededAddress}'"));
+        Assert.Equal(
+            receiptsBefore + 1,
+            await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeStagedReceipts"));
+        Assert.Equal(
+            0L,
+            await database.ScalarAsync<long>(
+                "SELECT COUNT(*) FROM RetainedMailboxMessages WHERE MailboxId = 'instructions'"));
+        Assert.Equal(
+            retainedBefore + 1,
+            await database.ScalarAsync<long>(
+                "SELECT COUNT(*) FROM RetainedMailboxMessages WHERE MailboxId = 'graph-instructions'"));
+    }
+
+    [Fact]
     public async Task WebReadsTheEstateAsSavedAndNeverBorrowsConfiguredIdentities()
     {
         // No AddLocalApprovedInbox, so no configuration fallback: this is the Web shape.

@@ -188,7 +188,9 @@ public sealed partial class CreateModel(
     /// <summary>
     /// Whether the operator is asked for an address at all.
     /// </summary>
-    public bool AsksForAddress => !ProviderIsImageBased && !AddressAlreadySettled;
+    public bool AsksForAddress => !InspectionAddressResolutionPolicy.SatisfiesCaseCreation(
+        AddressResolution.State,
+        ProviderIsImageBased);
 
     public InstructionDraftFieldsView DraftFields => new(
         new(
@@ -395,7 +397,14 @@ public sealed partial class CreateModel(
                         cancellationToken);
                 ConfirmedStandaloneAuditEvidence = evidence;
                 standaloneAuditEvidenceId = evidence.Id;
-                version = evidence.ReceiptVersion;
+                // Never a plain assignment. Evidence confirmed on this submit
+                // carries the newest version, but evidence confirmed on an
+                // earlier attempt carries the version it was written at, and
+                // step 1 has bumped the receipt past that since. Assigning
+                // would walk the chain backwards and hand step 4 a stale
+                // version, so a resumed Audit could never become a case: every
+                // retry would write another correction and fail again.
+                version = Math.Max(version, evidence.ReceiptVersion);
             }
 
             // 4. The acceptance itself, at the version the last write returned.

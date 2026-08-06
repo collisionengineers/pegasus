@@ -33,6 +33,8 @@ namespace Pegasus.IntegrationTests;
 public sealed partial class CaseCreateWebTests
 {
     private const string PrincipalCode = "HANDKEY";
+    private const string AuditEvidenceReason =
+        "The retained original Engineer report supports the repairable assessment.";
     private static readonly DateTimeOffset RecordedAtUtc =
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
     private static readonly ActionActor StaffActor = ActionActor.Staff(
@@ -94,6 +96,105 @@ public sealed partial class CaseCreateWebTests
     }
 
     [Fact]
+    public async Task AStandaloneAuditCreateAllocatesItsAuditReference()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var (receipt, originalReportAssetId) =
+            await CreateReceiptWithRetainedOriginalReportAsync(factory.Services);
+        await SeedPrincipalAsync(factory.Services, PrincipalCode);
+
+        var form = await OpenCreateScreenAsync(client, receipt.Id);
+        using var response = await PostCreateAsync(
+            client,
+            form,
+            AuditFields(originalReportAssetId));
+
+        // An Audit is the same four writes with one more in the middle: the
+        // retained original report the acceptance gate demands before it will
+        // allocate an Audit reference at all.
+        var caseId = AssertCaseRedirect(response);
+        Assert.Equal(1, await CountAsync(factory.Services, "Cases"));
+        Assert.Equal("audit", await ReadCaseColumnAsync<string>(factory.Services, caseId, "Type"));
+        Assert.Equal(
+            "repairable",
+            await ReadCaseColumnAsync<string>(factory.Services, caseId, "StandaloneAuditAssessment"));
+
+        // The Audit reference is the ordinary reference under the assessment's
+        // own prefix, and it is what the operator is told the case is called.
+        var reference = await ReadCaseColumnAsync<string>(factory.Services, caseId, "Reference");
+        var auditReference =
+            await ReadCaseColumnAsync<string>(factory.Services, caseId, "AuditReference");
+        Assert.Equal($"a.{reference}", auditReference);
+
+        // The evidence is linked to the case, not merely written beside it.
+        Assert.Equal(
+            1,
+            await ScalarAsync<int>(
+                factory.Services,
+                $"""
+                SELECT COUNT(*) FROM Cases c
+                JOIN StandaloneAuditEvidence e ON e.Id = c.StandaloneAuditEvidenceId
+                WHERE c.Id = '{caseId:D}'
+                    AND e.IntakeReceiptId = '{receipt.Id:D}'
+                    AND e.OriginalReportAssetId = '{originalReportAssetId:D}'
+                """));
+    }
+
+    [Fact]
+    public async Task AnAuditWhoseEvidenceWasConfirmedOnAnEarlierAttemptStillBecomesACase()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var (receipt, originalReportAssetId) =
+            await CreateReceiptWithRetainedOriginalReportAsync(factory.Services);
+        await SeedPrincipalAsync(factory.Services, PrincipalCode);
+
+        // An earlier attempt got as far as confirming the evidence and then
+        // failed. The evidence is immutable and permanent, so the next attempt
+        // finds it already there and must not confirm it twice.
+        var confirmed = await ConfirmAuditEvidenceAsync(
+            factory.Services,
+            receipt.Id,
+            receipt.Version,
+            originalReportAssetId);
+        Assert.Equal(receipt.Version + 1, confirmed.ReceiptVersion);
+
+        var form = await OpenCreateScreenAsync(client, receipt.Id);
+        using var response = await PostCreateAsync(
+            client,
+            form,
+            AuditFields(originalReportAssetId));
+
+        // The version this submit accepts at must be the newest write's, not the
+        // one frozen into the evidence when the earlier attempt confirmed it. The
+        // corrected draft and the address have both moved the receipt on since,
+        // so taking the evidence's version would accept against a version that no
+        // longer exists — and the item could never become a case, however many
+        // times the operator reloaded and tried again, each retry recording
+        // another correction in permanent history.
+        var caseId = AssertCaseRedirect(response);
+        Assert.Equal(1, await CountAsync(factory.Services, "Cases"));
+        Assert.Equal(1, await CountEventsAsync(factory.Services, "intake_resolved"));
+        Assert.Equal("audit", await ReadCaseColumnAsync<string>(factory.Services, caseId, "Type"));
+
+        // Confirmed once, on the earlier attempt, and reused rather than repeated.
+        Assert.Equal(
+            1,
+            await ScalarAsync<int>(
+                factory.Services,
+                $"SELECT COUNT(*) FROM StandaloneAuditEvidence WHERE IntakeReceiptId = '{receipt.Id:D}'"));
+        Assert.Equal(
+            confirmed.Id.ToString("D"),
+            await ScalarAsync<string>(
+                factory.Services,
+                $"""
+                SELECT LOWER(CONVERT(nvarchar(36), StandaloneAuditEvidenceId))
+                FROM Cases WHERE Id = '{caseId:D}'
+                """));
+    }
+
+    [Fact]
     public async Task CreateRefusesWhenARequiredFieldIsBlankAndLeavesTheReceiptUnchanged()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -136,8 +237,13 @@ public sealed partial class CaseCreateWebTests
         using var first = await PostCreateAsync(client, form, KeyedFields());
         using var replay = await PostCreateAsync(client, form, KeyedFields());
 
-        // A double submit replays every step rather than starting a second
-        // sequence: one reference, allocated once, and no second correction.
+        // The second post never reaches step 1: it reloads the item, sees the
+        // case the first post allocated, and redirects to it from the
+        // already-has-a-case guard. That is what makes one reference, allocated
+        // once, and one correction the observable result of pressing the button
+        // twice. (The replay of the steps themselves is what
+        // CreateResumesAfterAMidSequenceFailureWithoutASecondCorrection covers,
+        // where the first post allocated nothing.)
         Assert.Equal(HttpStatusCode.Redirect, first.StatusCode);
         Assert.Equal(HttpStatusCode.Redirect, replay.StatusCode);
         Assert.Equal(AssertCaseRedirect(first), AssertCaseRedirect(replay));
@@ -436,6 +542,20 @@ public sealed partial class CaseCreateWebTests
         ["ImagesConfirmedByStaff"] = bool.TrueString
     };
 
+    /// <summary>
+    /// The hand-keyed fields plus everything a standalone Audit adds: the
+    /// assessment, the retained original report it rests on, and why.
+    /// </summary>
+    private static Dictionary<string, string> AuditFields(Guid originalReportAssetId)
+    {
+        var fields = KeyedFields();
+        fields["CaseType"] = CaseType.Audit.ToString();
+        fields["StandaloneAuditAssessment"] = AuditAssessment.Repairable.ToString();
+        fields["StandaloneAuditOriginalReportAssetId"] = originalReportAssetId.ToString("D");
+        fields["StandaloneAuditEvidenceReason"] = AuditEvidenceReason;
+        return fields;
+    }
+
     private static async Task<CreateForm> OpenCreateScreenAsync(HttpClient client, Guid receiptId)
     {
         using var response = await client.GetAsync($"/Cases/Create?receiptId={receiptId}");
@@ -519,6 +639,81 @@ public sealed partial class CaseCreateWebTests
                 new DateOnly(2031, 3, 5),
                 null));
 
+    /// <summary>
+    /// A hand-keyed receipt that also carries a retained attachment fit to be
+    /// selected as the original Engineer report, with its bytes really in
+    /// intake custody.
+    /// </summary>
+    /// <remarks>
+    /// The evidence store re-reads the artifact and checks its length and hash
+    /// before it will confirm anything, so a row invented in SQL would not get
+    /// past it. This is the only fixture in the suite that puts a genuine
+    /// original report where the Audit path can find it.
+    /// </remarks>
+    private static async Task<(IntakeReceipt Receipt, Guid OriginalReportAssetId)>
+        CreateReceiptWithRetainedOriginalReportAsync(IServiceProvider services)
+    {
+        var content = "%PDF-1.7 retained original Engineer report"u8.ToArray();
+        var contentHash = Convert.ToHexString(SHA256.HashData(content));
+        string storageKey;
+        await using (var scope = services.CreateAsyncScope())
+        {
+            storageKey = await scope.ServiceProvider
+                .GetRequiredService<IIntakeArtifactStore>()
+                .StoreAsync(contentHash, content, CancellationToken.None);
+        }
+
+        var assetId = Guid.NewGuid();
+        var receipt = await StoreReceiptAsync(
+            services,
+            fields: [],
+            draft: null,
+            assets:
+            [
+                new(
+                    assetId,
+                    "original-report",
+                    "original-report.pdf",
+                    "application/pdf",
+                    IntakeAssetKind.Attachment,
+                    IntakeAssetDisposition.Attachment,
+                    content.Length,
+                    contentHash,
+                    storageKey,
+                    null,
+                    null,
+                    null,
+                    null)
+            ]);
+        return (receipt, assetId);
+    }
+
+    /// <summary>
+    /// Confirms the standalone Audit evidence the way an earlier, later-failed
+    /// attempt at the create screen would have, through the same port.
+    /// </summary>
+    private static async Task<StandaloneAuditEvidence> ConfirmAuditEvidenceAsync(
+        IServiceProvider services,
+        Guid receiptId,
+        long expectedVersion,
+        Guid originalReportAssetId)
+    {
+        await using var scope = services.CreateAsyncScope();
+        return await scope.ServiceProvider
+            .GetRequiredService<IConfirmStandaloneAuditEvidence>()
+            .ExecuteAsync(
+                new(
+                    Guid.NewGuid(),
+                    receiptId,
+                    expectedVersion,
+                    originalReportAssetId,
+                    AuditAssessment.Repairable,
+                    StaffActor,
+                    $"standalone-audit-evidence:{Guid.NewGuid():N}",
+                    AuditEvidenceReason),
+                CancellationToken.None);
+    }
+
     private static Task<IntakeReceipt> CreateReceiptWithExtractedAddressAsync(
         IServiceProvider services) =>
         StoreReceiptAsync(
@@ -543,7 +738,8 @@ public sealed partial class CaseCreateWebTests
     private static async Task<IntakeReceipt> StoreReceiptAsync(
         IServiceProvider services,
         IReadOnlyList<InstructionReviewField> fields,
-        InstructionDraft? draft)
+        InstructionDraft? draft,
+        IReadOnlyList<IntakeAssetRecord>? assets = null)
     {
         var token = Guid.NewGuid().ToString("N");
         var sourceHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
@@ -570,7 +766,8 @@ public sealed partial class CaseCreateWebTests
                 "create_screen_test_reader",
                 "1",
                 "create_screen_test_policy",
-                1),
+                1,
+                assets),
             CancellationToken.None);
     }
 
@@ -663,6 +860,19 @@ public sealed partial class CaseCreateWebTests
                 AND FieldName = 'inspection_address'
                 AND ValueKind = 'confirmed'
             """);
+
+    private static Task<T> ReadCaseColumnAsync<T>(
+        IServiceProvider services,
+        Guid caseId,
+        string columnName)
+    {
+        var allowed = columnName switch
+        {
+            "Type" or "Reference" or "AuditReference" or "StandaloneAuditAssessment" => columnName,
+            _ => throw new ArgumentOutOfRangeException(nameof(columnName))
+        };
+        return ScalarAsync<T>(services, $"SELECT [{allowed}] FROM Cases WHERE Id = '{caseId:D}'");
+    }
 
     private static Task<long> ReadReceiptVersionAsync(IServiceProvider services, Guid receiptId) =>
         ScalarAsync<long>(

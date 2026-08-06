@@ -44,8 +44,9 @@ internal sealed class EfApprovedInboxPollStore(
         }
 
         var state = await context.ApprovedInboxPollStates.SingleOrDefaultAsync(
-            item => item.MailboxId == mailboxId,
-            cancellationToken);
+                item => item.MailboxId == mailboxId,
+                cancellationToken)
+            ?? await AdoptStateForAddressAsync(context, mailboxId, mailboxAddress, cancellationToken);
         if (state is null)
         {
             state = new()
@@ -88,6 +89,57 @@ internal sealed class EfApprovedInboxPollStore(
             mailbox.InboxFolderIdentity,
             state.Cursor,
             state.LeaseToken);
+    }
+
+    /// <summary>
+    /// Takes over the poll state this address already has, when it carries a
+    /// different mailbox identity, and returns it re-keyed to the identity now
+    /// in force. Null when the address has no poll state at all.
+    /// </summary>
+    /// <remarks>
+    /// One address has one poll state — <c>MailboxAddress</c> is unique — so
+    /// looking a state up by identity alone is not enough. The deployed mailbox
+    /// polls under the deployment's configured fallback identity until an
+    /// administrator saves the mailbox's real one, which is exactly how the
+    /// fallback is meant to retire. Inserting a second row for the same address
+    /// at that moment violates the unique index on that tick and on every tick
+    /// after it, stopping all inbound intake permanently.
+    ///
+    /// Adoption is also the right answer rather than merely the safe one: the
+    /// row carries the delta cursor, so re-keying it resumes where the mailbox
+    /// had got to instead of replaying or skipping mail, which is the
+    /// disable-and-resume promise ADR-0022 makes. A primary key cannot be
+    /// changed through a tracked entity, so the re-key is a statement; the
+    /// retained-message and quarantine rows that reference it follow by
+    /// cascade, and the whole thing is inside the claiming transaction.
+    /// </remarks>
+    private static async Task<ApprovedInboxPollStateEntity?> AdoptStateForAddressAsync(
+        PegasusDbContext context,
+        string mailboxId,
+        string mailboxAddress,
+        CancellationToken cancellationToken)
+    {
+        var adopted = await context.ApprovedInboxPollStates
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                item => item.MailboxAddress == mailboxAddress,
+                cancellationToken);
+        if (adopted is null)
+        {
+            return null;
+        }
+
+        var previousMailboxId = adopted.MailboxId;
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            UPDATE ApprovedInboxPollStates
+            SET MailboxId = {mailboxId}
+            WHERE MailboxId = {previousMailboxId}
+            """,
+            cancellationToken);
+        return await context.ApprovedInboxPollStates.SingleAsync(
+            item => item.MailboxId == mailboxId,
+            cancellationToken);
     }
 
     public Task AdvanceAsync(

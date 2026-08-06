@@ -66,12 +66,25 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 
 ## Merged, not deployed
 
-Nothing that needs a release. The estate serves **release 7** (2026-08-05,
-revision `32feefa…`), which carries every source change in `dev` and `main`.
-`dev` and `main` have since advanced by documentation-only commits; they
-change no built artifact, so they ride the next functional release rather than
-justifying one. The deployed-evidence record is owned by
+The estate serves **release 7** (2026-08-05, revision `32feefa…`). It no longer
+carries every source change in `dev`: PR 357
+(task/upload-case-creation-and-inbox) merged a functional change that has never
+been deployed. The deployed-evidence record is owned by
 [operations § Production environment](docs/operations.md#production-environment).
+
+Awaiting a release:
+
+- **Manual upload creates a case, and the Inbox shows mail** (PR 357). The
+  Upload page reads the file inline and lands on a new `/Cases/Create` screen;
+  the QDOS-only principal gate is gone; approved mailboxes carry their own
+  Graph identity and enabled state and drive the intake poll; `/Inbox` is a
+  viewer over a new retained-message read model and the receipt list moved to
+  `/Received`. Two migrations ship with it —
+  `20260805210236_ApprovedMailboxGraphIdentity` and
+  `20260805223036_RetainedMailboxMessages` — so a release must run
+  `efbundle` before activation. Evidence is local-caller tier only: a clean
+  Release build and green Core, architecture and CI-filtered integration
+  suites. Nothing here is live-verified, and UI-10 is not claimed as accepted.
 
 Two things are deployed as code without being active, and neither is a
 release claim:
@@ -243,6 +256,22 @@ release claim:
   administrator input in ADR-0022; decide whether to tighten the identity
   bound, widen the token, or key the receipt token on something shorter
   (task/upload-case-creation-and-inbox part E, 2026-08-05).
+- `Administration/Automation/Activity.cshtml`'s pager is silently broken, the
+  same way the received-items and mail pagers were: `asp-route-page` does
+  nothing, because `page` is the reserved Razor Pages route key and `asp-page`
+  overwrites it, so Next emits a link with no page. Both fixed pagers now use
+  `pageNumber`; this one was out of scope. Sweep for any other
+  `asp-route-page` before assuming these are the last three
+  (task/upload-case-creation-and-inbox review, 2026-08-06).
+- Finish the operator-language sweep the route rename started. `/Intake` and
+  `/ImageIntake` are gone as URLs, but the receipt and vehicle-image pages
+  still say "Intake review", "Intake resolution", "Block intake" and "Register
+  Image intake" in visible copy, which `docs/operator-notes.md:378` forbids.
+  Also missing: an `/Inbox/{id}` accessibility case (the audited routes render
+  without a seeded record, so a retained message needs a browser fixture), and
+  a guard so an unresolvable `RedirectToPage` target cannot 500 the Upload
+  handler — URL generation runs after the handler returns, outside its catch
+  (task/upload-case-creation-and-inbox review, 2026-08-06).
 
 ## Waiting (each line names its unblock condition)
 

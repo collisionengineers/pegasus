@@ -52,7 +52,10 @@ internal static class CaseDataSnapshotFactory
 
         AddProviderFact(snapshot, receipt);
         AddInstructionSuggestions(snapshot, receipt);
-        AddResolvedInspection(snapshot, receipt);
+        AddResolvedInspection(
+            snapshot,
+            receipt,
+            request.ProviderInspectionMode == CaseInspectionMode.ImageBasedAssessment);
         AddProviderInspectionMode(snapshot, request, acceptedAtUtc);
         AddAcceptedDeadline(snapshot, receipt, request, acceptedAtUtc);
         return snapshot;
@@ -240,15 +243,22 @@ internal static class CaseDataSnapshotFactory
 
     private static void AddResolvedInspection(
         CaseDataSnapshotEntity snapshot,
-        IntakeReceiptEntity receipt)
+        IntakeReceiptEntity receipt,
+        bool providerIsImageBased)
     {
         if (receipt.InstructionDraft is null)
         {
             return;
         }
 
+        // The same rule the create screen applies, asked of Core rather than
+        // composed again here. An Image Based Assessment provider needs nothing
+        // settled first, and anything this adds for one is replaced by the
+        // provider's own recorded mode below.
         var resolution = InspectionAddressResolutionStore.CreateSnapshot(receipt);
-        if (!InspectionAddressResolutionPolicy.IsStaffResolved(resolution.State)
+        if (!InspectionAddressResolutionPolicy.SatisfiesCaseCreation(
+                resolution.State,
+                providerIsImageBased)
             || string.IsNullOrWhiteSpace(resolution.ResolvedValue)
             || resolution.ResolvedByStaffId is not { } staffId
             || resolution.ResolvedAtUtc is not { } resolvedAtUtc)

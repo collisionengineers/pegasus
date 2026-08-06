@@ -47,8 +47,14 @@ internal sealed partial class ConfiguredApprovedIntakeMailboxes(
                 continue;
             }
 
+            // Case-insensitively, because the poll store binds an identity to an
+            // address the same way. Comparing exactly here would silently drop a
+            // mailbox from polling over a difference in case alone.
             if (configuredAddress is not null
-                && string.Equals(candidate.Address, configuredAddress, StringComparison.Ordinal))
+                && string.Equals(
+                    candidate.Address,
+                    configuredAddress,
+                    StringComparison.OrdinalIgnoreCase))
             {
                 if (ShouldReport(candidate.Address))
                 {
