@@ -138,6 +138,21 @@ public sealed partial class DetailsModel(
         "imagesReviewedByStaff"
     }.ToFrozenSet(StringComparer.Ordinal);
 
+    /// <summary>
+    /// The retainable fields posted by a checkbox. Each carries a trailing hidden false, so an
+    /// unchecked box still submits and a proposed "no" survives the refusal instead of vanishing.
+    /// </summary>
+    private static readonly FrozenSet<string> BooleanFormFields = new[]
+    {
+        "instructionComplete",
+        "imagesComplete",
+        "instructionsComplete",
+        "instructionConfirmedByStaff",
+        "imagesConfirmedByStaff",
+        "instructionsReviewedByStaff",
+        "imagesReviewedByStaff"
+    }.ToFrozenSet(StringComparer.Ordinal);
+
     public CaseDetails? Case { get; private set; }
 
     /// <summary>
@@ -1560,7 +1575,11 @@ public sealed partial class DetailsModel(
             .Select(field => new
             {
                 field.Key,
-                Value = string.Join(", ", field.Value.Where(value => !string.IsNullOrWhiteSpace(value)))
+                // A checked box posts "true" followed by its hidden "false"; the model binder reads
+                // the first entry, so retention reads the first entry too rather than joining both.
+                Value = BooleanFormFields.Contains(field.Key)
+                    ? field.Value.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty
+                    : string.Join(", ", field.Value.Where(value => !string.IsNullOrWhiteSpace(value)))
             })
             .Where(field => !string.IsNullOrWhiteSpace(field.Value)
                 && !Guid.TryParse(field.Value, out _))
@@ -1637,10 +1656,21 @@ public sealed partial class DetailsModel(
             : retained
                 .Select(value => new ProposedCaseValue(
                     FieldLabel(value.Field),
-                    value.Value,
+                    DisplayValue(value.Field, value.Value),
                     CurrentValue(value.Field)))
                 .ToArray();
     }
+
+    /// <summary>
+    /// Renders a proposed checkbox value in the same words as the current one, so the two columns
+    /// compare rather than reading "true" beside "Yes".
+    /// </summary>
+    private static string DisplayValue(string field, string value) =>
+        BooleanFormFields.Contains(field)
+            ? YesOrNo(string.Equals(value, "true", StringComparison.OrdinalIgnoreCase))
+            : value;
+
+    private static string YesOrNo(bool value) => value ? "Yes" : "No";
 
     private string? CurrentValue(string field)
     {
@@ -1669,6 +1699,26 @@ public sealed partial class DetailsModel(
             "inspectionDate" => data.Inspection.InspectionDate.Confirmed?.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             "inspectionDeadline" => data.Inspection.Deadline.Confirmed?.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             "inspectionAddress" => data.Inspection.Address.Confirmed?.Value,
+            "inspectionMode" => data.Inspection.Mode.Confirmed?.Value.ToString(),
+
+            // The corrected-vehicle-suggestion form posts unprefixed names against the same case
+            // fields, so the case's confirmed vehicle values are what it is compared with.
+            "registration" => data.Vehicle.Registration.Confirmed?.Value,
+            "make" => data.Vehicle.Make.Confirmed?.Value,
+            "model" => data.Vehicle.Model.Confirmed?.Value,
+            "mileage" => data.Vehicle.Mileage.Confirmed?.Value.ToString(
+                CultureInfo.InvariantCulture),
+            "mileageUnit" => data.Vehicle.MileageUnit.Confirmed?.Value,
+
+            // Two handlers name the same completeness flags differently; both compare against the
+            // one projected value.
+            "instructionComplete" or "instructionsComplete" =>
+                YesOrNo(data.Completeness.Values.InstructionComplete),
+            "imagesComplete" => YesOrNo(data.Completeness.Values.ImagesComplete),
+            "instructionConfirmedByStaff" or "instructionsReviewedByStaff" =>
+                YesOrNo(data.Completeness.Values.InstructionConfirmedByStaff),
+            "imagesConfirmedByStaff" or "imagesReviewedByStaff" =>
+                YesOrNo(data.Completeness.Values.ImagesConfirmedByStaff),
             _ => null
         };
     }
@@ -1694,6 +1744,13 @@ public sealed partial class DetailsModel(
         "inspectionAddress" => "Inspection address",
         "inspectionMode" => "Inspection mode",
         "reason" => "Reason",
+
+        // The completeness flags are labelled as the form the editor was looking at labelled them.
+        "instructionComplete" or "instructionsComplete" => "Instructions complete",
+        "imagesComplete" => "Images complete",
+        "instructionConfirmedByStaff" or "instructionsReviewedByStaff" =>
+            "Instructions staff-reviewed",
+        "imagesConfirmedByStaff" or "imagesReviewedByStaff" => "Images staff-reviewed",
         _ => Humanize(field)
     };
 
@@ -1717,7 +1774,7 @@ public sealed partial class DetailsModel(
 
     private void HandleLeaseFailure(Guid caseId, string? editLeaseToken, Exception exception)
     {
-        if (IsLeaseLoss(exception))
+        if (RequiresReacquisition(exception))
         {
             ClearLeaseState();
         }
@@ -1769,8 +1826,19 @@ public sealed partial class DetailsModel(
         TempData.Remove(ClaimLeaseCaseIdKey);
     }
 
+    /// <summary>The lease itself is gone: it expired, or another actor holds it.</summary>
     private static bool IsLeaseLoss(Exception exception) =>
         exception is CaseEditLeaseExpiredException or CaseEditLeaseConflictException;
+
+    /// <summary>
+    /// The refused mutations after which the editor must reacquire rather than resubmit. A lost
+    /// lease is one; so is a stale version, because the requirement makes the rejected editor
+    /// "reload and reacquire rather than merge or force the save". Clearing this page's lease state
+    /// does not release the server-owned authority, so a holder who did nothing wrong keeps it and
+    /// simply re-enters edit mode deliberately rather than saving over newer work.
+    /// </summary>
+    private static bool RequiresReacquisition(Exception exception) =>
+        IsLeaseLoss(exception) || exception is CaseVersionConflictException;
 
     private bool TryGetActor(out ActionActor actor)
     {

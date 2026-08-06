@@ -304,7 +304,9 @@ internal sealed class CaseMcpTools(
     {
         var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
         var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
+
+        // Routine renewal is telemetry, not permanent history; only the refusal is material.
+        return await auditor.RecordDenialAsync(
             context,
             "pegasus_case_edit_renew",
             caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),

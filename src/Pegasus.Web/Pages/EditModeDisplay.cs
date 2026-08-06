@@ -26,7 +26,9 @@ public static class EditModeDisplay
         ArgumentNullException.ThrowIfNull(holder);
         return isSelf
             ? $"You are editing this case. Editing stays yours until {WallClock(availableAtUtc)}."
-            : $"{Editor(holder, capitalized: true)} is editing this case. "
+            // A plain hyphen, not an en/em dash: the default HTML encoder emits non-ASCII as a
+            // numeric entity, and this sentence is read far more often than it is authored.
+            : $"Case locked - {Editor(holder)} is editing. "
                 + $"Editing becomes available at {WallClock(availableAtUtc)}.";
     }
 
@@ -43,14 +45,21 @@ public static class EditModeDisplay
         return isSelf
             ? "Case editing is unavailable here because you are editing the case elsewhere. "
                 + $"Editing stays yours until {WallClock(availableAtUtc)}."
-            : $"Case editing is unavailable while {Editor(holder, capitalized: false)} is editing "
-                + $"this case. Editing becomes available at {WallClock(availableAtUtc)}.";
+            : $"Case locked - {Editor(holder)} is editing the case. "
+                + $"Editing becomes available at {WallClock(availableAtUtc)}.";
     }
 
-    private static string Editor(CaseEditAuthorityHolder holder, bool capitalized) =>
-        string.IsNullOrWhiteSpace(holder.DisplayName)
-            ? capitalized ? "Another member of staff" : "another member of staff"
-            : holder.DisplayName;
+    /// <summary>
+    /// The Automation Actor is named as itself rather than as staff, because ADR-0011 requires it to
+    /// stay attributable without impersonating a person. A staff account that cannot be resolved is
+    /// still described without an identifier.
+    /// </summary>
+    private static string Editor(CaseEditAuthorityHolder holder) =>
+        holder.IsAutomation
+            ? "AI"
+            : string.IsNullOrWhiteSpace(holder.DisplayName)
+                ? "another member of staff"
+                : holder.DisplayName;
 
     private static TimeZoneInfo ResolveLondonTimeZone()
     {

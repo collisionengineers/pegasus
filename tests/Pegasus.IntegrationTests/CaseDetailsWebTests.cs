@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
@@ -220,13 +221,17 @@ public sealed partial class CaseDetailsWebTests
         AssertPrg(claimResponse, store.CaseId);
 
         var claimant = Assert.Single(store.Claims).Actor.SubjectId;
-        store.LeaseHolder = "different-staff";
+
+        // A staff subject identifier is always a GUID; a holder that is not one is the Automation
+        // Actor, so a staff holder has to be shaped like one here to test the staff disclosure.
+        var otherStaffId = Guid.NewGuid().ToString("D");
+        store.LeaseHolder = otherStaffId;
         var wrongHolderHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
         Assert.Contains(
-            "Another member of staff is editing this case",
+            "Case locked - another member of staff is editing",
             wrongHolderHtml,
             StringComparison.Ordinal);
-        Assert.DoesNotContain("different-staff", wrongHolderHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(otherStaffId, wrongHolderHtml, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("name=\"editLeaseToken\"", wrongHolderHtml, StringComparison.Ordinal);
 
         store.LeaseHolder = claimant;
@@ -280,6 +285,17 @@ public sealed partial class CaseDetailsWebTests
         fields["__RequestVerificationToken"] = antiforgeryToken;
         return new(fields);
     }
+
+    /// <summary>
+    /// A form post that may repeat a field name, which a checkbox and its hidden false companion
+    /// always do. <see cref="Form"/> cannot express that because it keys by name.
+    /// </summary>
+    private static FormUrlEncodedContent RepeatableForm(
+        string antiforgeryToken,
+        params (string Name, string Value)[] values) =>
+        new(values
+            .Select(item => KeyValuePair.Create(item.Name, item.Value))
+            .Append(KeyValuePair.Create("__RequestVerificationToken", antiforgeryToken)));
 
     private static string InputValue(string html, string name)
     {
@@ -360,6 +376,138 @@ public sealed partial class CaseDetailsWebTests
 
         var clearedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
         Assert.DoesNotContain("Your change was not applied", clearedHtml, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// An unchecked box is absent from the post unless the form carries a hidden false, so without
+    /// one a proposed "no" silently disappears from the comparison — the very defect the retention
+    /// work exists to remove. The current column must be populated too, or there is nothing to
+    /// compare against.
+    /// </summary>
+    [Fact]
+    public async Task ARefusedCompletenessChangeKeepsUncheckedProposalsBesideTheCurrentValues()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetCase>();
+                services.RemoveAll<IAcquireCaseEditLease>();
+                services.RemoveAll<IConfirmCompleteness>();
+                services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IAcquireCaseEditLease>(store);
+                services.AddSingleton<IConfirmCompleteness>(store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var initialHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+
+        // Exactly what the browser posts: a checked box sends "true" then its hidden "false"; an
+        // unchecked box sends the hidden "false" alone.
+        using var response = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=ConfirmCompleteness",
+            RepeatableForm(
+                AntiforgeryValue(initialHtml),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", DetailsModelOperationKey),
+                ("editLeaseToken", store.LeaseToken),
+                ("reason", "Images turned out to be incomplete"),
+                ("instructionComplete", "true"),
+                ("instructionComplete", "false"),
+                ("imagesComplete", "false"),
+                ("instructionConfirmedByStaff", "false"),
+                ("imagesConfirmedByStaff", "false")));
+        AssertPrg(response, store.CaseId);
+
+        // The command really did receive false, so the panel must not claim otherwise.
+        var confirmation = Assert.Single(store.CompletenessConfirmations);
+        Assert.True(confirmation.Completeness.InstructionComplete);
+        Assert.False(confirmation.Completeness.ImagesComplete);
+
+        var panel = ProposedValuesPanel(await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}"));
+
+        Assert.Contains("Images complete", panel, StringComparison.Ordinal);
+        Assert.Contains("Instructions complete", panel, StringComparison.Ordinal);
+        Assert.Contains(">No<", panel, StringComparison.Ordinal);
+        Assert.Contains(">Yes<", panel, StringComparison.Ordinal);
+
+        // Raw booleans never reach operator copy, and the current column is not the em-dash blank.
+        Assert.DoesNotContain(">true<", panel, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(">false<", panel, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("true, false", panel, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// A stale-version refusal is not lease loss, but the requirement still makes the rejected editor
+    /// "reload and reacquire rather than merge or force the save", so the edit forms must not come
+    /// back under the same edit authority.
+    /// </summary>
+    [Fact]
+    public async Task AStaleVersionRefusalRequiresEditModeToBeEnteredAgain()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetCase>();
+                services.RemoveAll<IAcquireCaseEditLease>();
+                services.RemoveAll<ISaveCase>();
+                services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IAcquireCaseEditLease>(store);
+                services.AddSingleton<ISaveCase>(store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var initialHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        using (var claimResponse = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=ClaimLease",
+            Form(
+                AntiforgeryValue(initialHtml),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", InputValue(initialHtml, "operationKey")))))
+        {
+            AssertPrg(claimResponse, store.CaseId);
+        }
+
+        // Edit mode is genuinely active before the refusal, or the assertion below proves nothing.
+        var editingHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        Assert.Contains("name=\"editLeaseToken\"", editingHtml, StringComparison.Ordinal);
+
+        using (var saveResponse = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            Form(
+                AntiforgeryValue(editingHtml),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", DetailsModelOperationKey),
+                ("editLeaseToken", store.LeaseToken),
+                ("reason", "Corrected claimant spelling"),
+                ("claimantName", "Rebecca Proposed"))))
+        {
+            AssertPrg(saveResponse, store.CaseId);
+        }
+
+        var refusedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+
+        Assert.Contains("Your change was not applied", refusedHtml, StringComparison.Ordinal);
+        Assert.Contains("Rebecca Proposed", refusedHtml, StringComparison.Ordinal);
+
+        // The authority is still this editor's on the server, so recovery is offered rather than
+        // the case being handed to anyone else — but no edit form is live until it is retaken.
+        Assert.DoesNotContain("name=\"editLeaseToken\"", refusedHtml, StringComparison.Ordinal);
+        Assert.Contains("Recover edit mode", refusedHtml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -516,7 +664,7 @@ public sealed partial class CaseDetailsWebTests
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
         var panel = EditModePanel(html);
 
-        Assert.Contains("r.hughes is editing this case", panel, StringComparison.Ordinal);
+        Assert.Contains("Case locked - r.hughes is editing", panel, StringComparison.Ordinal);
         Assert.Contains("Editing becomes available at", panel, StringComparison.Ordinal);
         Assert.Contains("Editing cannot be taken over", panel, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=ClaimLease", panel, StringComparison.Ordinal);
@@ -549,12 +697,46 @@ public sealed partial class CaseDetailsWebTests
         var panel = EditModePanel(html);
 
         Assert.Contains(
-            "Another member of staff is editing this case",
+            "Case locked - another member of staff is editing",
             panel,
             StringComparison.Ordinal);
         Assert.Contains("Editing becomes available at", panel, StringComparison.Ordinal);
         Assert.DoesNotContain(holderId.ToString("D"), html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotMatch(GuidRegex(), VisibleText(panel));
+    }
+
+    /// <summary>
+    /// ADR-0011 requires the Automation Actor to stay attributable without impersonating staff, so a
+    /// case it holds must never be reported as held by a member of staff.
+    /// </summary>
+    [Fact]
+    public async Task AnAutomationHolderIsNamedAsAiAndNeverAsAMemberOfStaff()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore { LeaseHolder = "pegasus-automation" };
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetCase>();
+                services.RemoveAll<IDescribeCaseEditAuthorityHolder>();
+                services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IDescribeCaseEditAuthorityHolder>(
+                    new StubEditAuthorityHolders(displayName: null, isAutomation: true));
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        var panel = EditModePanel(html);
+
+        Assert.Contains("Case locked - AI is editing", panel, StringComparison.Ordinal);
+        Assert.Contains("Editing becomes available at", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("member of staff", panel, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("pegasus-automation", html, StringComparison.OrdinalIgnoreCase);
+        AssertNoBannedVocabulary(panel);
     }
 
     [Fact]
@@ -623,7 +805,7 @@ public sealed partial class CaseDetailsWebTests
         {
             var nonHolderHtml = await GetHtmlAsync(otherClient, $"/Cases/{store.CaseId:D}");
             Assert.Contains(
-                "is editing this case",
+                "Case locked - ",
                 EditModePanel(nonHolderHtml),
                 StringComparison.Ordinal);
             AssertNoBannedVocabulary(EditModePanel(nonHolderHtml));
@@ -682,7 +864,7 @@ public sealed partial class CaseDetailsWebTests
     [GeneratedRegex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", RegexOptions.CultureInvariant)]
     private static partial Regex GuidRegex();
 
-    private sealed class StubEditAuthorityHolders(string? displayName)
+    private sealed class StubEditAuthorityHolders(string? displayName, bool isAutomation = false)
         : IDescribeCaseEditAuthorityHolder
     {
         public Task<CaseEditAuthorityHolder> ExecuteAsync(
@@ -691,7 +873,7 @@ public sealed partial class CaseDetailsWebTests
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult(new CaseEditAuthorityHolder(displayName));
+            return Task.FromResult(new CaseEditAuthorityHolder(displayName, isAutomation));
         }
     }
 
@@ -714,6 +896,7 @@ public sealed partial class CaseDetailsWebTests
         IHoldCase,
         IReleaseCase,
         ITransitionCase,
+        IConfirmCompleteness,
         ISaveCase
     {
         private readonly DateTimeOffset _now = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
@@ -752,6 +935,7 @@ public sealed partial class CaseDetailsWebTests
         }
 
         public List<SaveCaseRequest> Saves { get; } = [];
+        public List<ConfirmCompletenessRequest> CompletenessConfirmations { get; } = [];
         public List<ManualChaseRecord> ManualChases { get; } = [];
         public List<PutCaseOnHoldRequest> Holds { get; } = [];
         public List<CaseMutationRequest> Releases { get; } = [];
@@ -783,9 +967,80 @@ public sealed partial class CaseDetailsWebTests
                 [],
                 [],
                 [],
-                []);
+                [])
+            {
+                Data = CreateData()
+            };
             return Task.FromResult<CaseDetails?>(details);
         }
+
+        Task<CaseDataProjection> IConfirmCompleteness.ExecuteAsync(
+            ConfirmCompletenessRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            CompletenessConfirmations.Add(request);
+            throw new CaseVersionConflictException(CaseId, request.ExpectedVersion, CaseVersion + 1);
+        }
+
+        /// <summary>
+        /// The case as it currently stands, so a refused editor's proposed values have something to
+        /// be compared against rather than an empty "the case now holds" column.
+        /// </summary>
+        private CaseDataProjection CreateData() =>
+            new(
+                new(CaseId, "QDOS", 2031, 42, "QDOS3100042"),
+                new(
+                    Guid.NewGuid(),
+                    IntakeSourceChannel.Mailbox,
+                    "receipt-token",
+                    "source-hash",
+                    _now.AddDays(-2),
+                    "reader",
+                    "1",
+                    null,
+                    null),
+                _now.AddDays(-2),
+                CaseVersion,
+                CaseLifecycleState.NotReady,
+                new(
+                    new(
+                        InstructionComplete: true,
+                        ImagesComplete: true,
+                        InstructionConfirmedByStaff: false,
+                        ImagesConfirmedByStaff: false),
+                    new(false, "case-completeness", 1)),
+                new(Confirmed("QDOS")),
+                new(Confirmed("Case claimant")),
+                new(Confirmed("CLM-42")),
+                new(
+                    Confirmed("AB12CDE"),
+                    Confirmed("Ford"),
+                    Confirmed("Transit"),
+                    Confirmed(42_000L),
+                    Confirmed("miles")),
+                new(Empty<DateOnly>(), Confirmed("Rear impact")),
+                new(Confirmed("Case contact"), Empty<string>(), Empty<string>()),
+                new(Empty<DateOnly>(), Confirmed("Standard")),
+                new(
+                    Empty<DateOnly>(),
+                    Empty<DateOnly>(),
+                    Confirmed("1 Depot Road"),
+                    Confirmed(CaseInspectionMode.PhysicalAddress)));
+
+        private static readonly CaseDataSource StaffCorrection =
+            new(CaseDataSourceKind.StaffCorrection, "staff", "Staff correction", "case-edit", 1);
+
+        private CaseField<T> Confirmed<T>(T value)
+            where T : notnull =>
+            new(
+                null,
+                null,
+                new(value, CaseDataValueKind.Confirmed, StaffCorrection, "staff", _now));
+
+        private static CaseField<T> Empty<T>()
+            where T : notnull =>
+            new(null, null, null);
 
         Task<CaseEditLease> IAcquireCaseEditLease.ExecuteAsync(
             ClaimCaseEditLeaseRequest request,

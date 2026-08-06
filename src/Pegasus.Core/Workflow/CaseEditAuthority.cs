@@ -68,11 +68,16 @@ public static class CaseEditAuthority
 /// <summary>
 /// How the holder of a case's edit authority is disclosed to other authorised staff. A resolved
 /// account is named; an unresolvable one is described without an identifier, because the retained
-/// holder is a subject identifier and an identifier is never operator-facing.
+/// holder is a subject identifier and an identifier is never operator-facing. The Automation Actor
+/// is disclosed as itself: ADR-0011 requires it to stay attributable without impersonating staff,
+/// so it is never described as a member of staff.
 /// </summary>
-public sealed record CaseEditAuthorityHolder(string? DisplayName)
+public sealed record CaseEditAuthorityHolder(string? DisplayName, bool IsAutomation = false)
 {
     public static readonly CaseEditAuthorityHolder Unnamed = new(DisplayName: null);
+
+    public static readonly CaseEditAuthorityHolder Automation =
+        new(DisplayName: null, IsAutomation: true);
 }
 
 public interface IDescribeCaseEditAuthorityHolder
@@ -101,7 +106,15 @@ public sealed class DescribeCaseEditAuthorityHolder(IStaffAccountQueries account
         CancellationToken cancellationToken)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        if (!Guid.TryParse(holderSubjectId, out var staffId) || staffId == Guid.Empty)
+
+        // Casework authorization admits only the Staff and Automation actor kinds, and a staff
+        // subject identifier is always a GUID, so a holder that is not one is the Automation Actor.
+        if (!Guid.TryParse(holderSubjectId, out var staffId))
+        {
+            return CaseEditAuthorityHolder.Automation;
+        }
+
+        if (staffId == Guid.Empty)
         {
             return CaseEditAuthorityHolder.Unnamed;
         }
