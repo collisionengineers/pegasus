@@ -79,10 +79,12 @@ Awaiting a release:
   the QDOS-only principal gate is gone; approved mailboxes carry their own
   Graph identity and enabled state and drive the intake poll; `/Inbox` is a
   viewer over a new retained-message read model and the receipt list moved to
-  `/Received`. Two migrations ship with it —
-  `20260805210236_ApprovedMailboxGraphIdentity` and
-  `20260805223036_RetainedMailboxMessages` — so a release must run
-  `efbundle` before activation. Evidence is local-caller tier only: a clean
+  `/Received`. Three migrations ship with it —
+  `20260805210236_ApprovedMailboxGraphIdentity`,
+  `20260805223036_RetainedMailboxMessages` and
+  `20260806090000_ApprovedInboxPollStateIdentityAdoption`, the last recreating
+  two foreign keys as `ON UPDATE CASCADE` — so a release must run `efbundle`
+  before activation. Evidence is local-caller tier only: a clean
   Release build and green Core, architecture and CI-filtered integration
   suites. Nothing here is live-verified, and UI-10 is not claimed as accepted.
 
