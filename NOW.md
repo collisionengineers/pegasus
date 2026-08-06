@@ -82,14 +82,6 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   fail-closed policy — findings that are operator decisions go to
   `docs/open-decisions.md` (branch task/qdos-forward-intake-failure, taken
   2026-08-05, by claude).
-- Amend ADR-0017 with the docs-only carve-out (operator decision
-  2026-08-06): a task whose every changed path is a Markdown file outside
-  `src/`, `tests/`, `infra/` and `scripts/` skips the temp-plan file, and
-  its two-question independent review is answered against the PR diff
-  instead. Record as a dated addendum per the ADR index rules and update
-  engineering.md's task workflow and the temp-plans contract in the same
-  PR (restructure wave 1) (branch task/docs-only-carve-out, taken
-  2026-08-06, by claude).
 
 ## Merged, not deployed
 
