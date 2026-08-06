@@ -85,9 +85,13 @@ public sealed class IntakeStablePersistenceTests
         // read a row it did not ask for and cannot throw on one. What the rule
         // forbids is silent reinterpretation, and that still holds: the row is
         // absent from a filter for a known decision rather than appearing under
-        // it, and the counts and the unfiltered list above still fail visibly on
-        // every load. Recovering the throw here would mean scanning every
-        // receipt on every page load, which is the defect this filter fixed.
+        // it. The always-on guarantee is the counts, which still scan every
+        // non-case-linked receipt and so throw on a corrupt code wherever it
+        // sits; the unfiltered list is paged in SQL, so it throws only when the
+        // page it reads contains the corrupt row. A corrupt code on a
+        // case-linked receipt is invisible to both. Recovering the throw here
+        // would mean scanning every receipt on every page load, which is the
+        // defect this filter fixed.
         var filtered = await queries.ListAsync(
             IntakeDecision.Unsupported,
             1,

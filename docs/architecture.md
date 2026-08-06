@@ -400,10 +400,14 @@ nothing backfills earlier mail, and the list surfaces that gap rather than
 presenting an empty scope as "nothing was received"
 ([open decisions](open-decisions.md#mail-workspace-freshness-threshold-and-retention-start)).
 
-Its production triggers are
-enabled and live-verified under exact Exchange Application RBAC; the current
-production state is owned by
+The Graph mailbox intake route's production triggers are enabled and
+live-verified under exact Exchange Application RBAC; the current production
+state is owned by
 [operations § Production environment](operations.md#production-environment).
+That verification predates the administrator-managed estate and the
+retained-message read model described above, and does not extend to them: both
+are proven at local-caller tier only, and neither has run against a deployed
+environment.
 
 Its adapter boundary provides:
 
