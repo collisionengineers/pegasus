@@ -371,11 +371,11 @@ public sealed partial class QdosTriageIntegrationTests
         // The holder is disclosed by staff account, never by identifier, and the wording and
         // clock are the ones the case workspace uses.
         Assert.Contains(
-            "Case editing is unavailable while",
+            "Case locked - ",
             unavailableCaseHtml,
             StringComparison.Ordinal);
         Assert.Contains(
-            "is editing this case",
+            "is editing the case",
             unavailableCaseHtml,
             StringComparison.Ordinal);
         Assert.Contains(

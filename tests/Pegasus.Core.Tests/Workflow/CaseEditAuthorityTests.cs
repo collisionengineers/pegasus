@@ -126,6 +126,40 @@ public sealed class CaseEditAuthorityTests
             default)).DisplayName);
     }
 
+    /// <summary>
+    /// ADR-0011 keeps the Automation Actor attributable without impersonating staff, so the two
+    /// unresolvable cases must stay apart: a non-GUID holder is the Automation Actor, while a GUID
+    /// with no account behind it is still a member of staff.
+    /// </summary>
+    [Fact]
+    public async Task TheAutomationHolderIsNotDescribedAsAMemberOfStaff()
+    {
+        var accounts = new StubStaffAccounts(Guid.NewGuid(), "r.hughes");
+        var viewer = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var describe = new DescribeCaseEditAuthorityHolder(accounts);
+
+        var automation = await describe.ExecuteAsync(
+            ActionActor.Automation("pegasus-automation").SubjectId,
+            viewer,
+            default);
+        Assert.True(automation.IsAutomation);
+        Assert.Null(automation.DisplayName);
+
+        var unresolvedStaff = await describe.ExecuteAsync(
+            Guid.NewGuid().ToString("D"),
+            viewer,
+            default);
+        Assert.False(unresolvedStaff.IsAutomation);
+        Assert.Null(unresolvedStaff.DisplayName);
+
+        var namedStaff = await describe.ExecuteAsync(
+            accounts.KnownStaffId.ToString("D"),
+            viewer,
+            default);
+        Assert.False(namedStaff.IsAutomation);
+        Assert.Equal("r.hughes", namedStaff.DisplayName);
+    }
+
     [Fact]
     public async Task DisclosingTheHolderRequiresCaseworkPermissionBeforeAnyAccountIsRead()
     {
@@ -143,6 +177,8 @@ public sealed class CaseEditAuthorityTests
 
     private sealed class StubStaffAccounts(Guid staffId, string userName) : IStaffAccountQueries
     {
+        public Guid KnownStaffId => staffId;
+
         public Guid? Requested { get; private set; }
 
         public Task<StaffAccountSummary?> GetAsync(

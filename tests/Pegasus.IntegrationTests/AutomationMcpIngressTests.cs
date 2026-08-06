@@ -398,6 +398,18 @@ public sealed class AutomationMcpIngressTests
               AND EventKind = N'pegasus_case_edit_renew'
               AND Outcome = N'Failed'
             """));
+
+        // The requirement classifies routine renewal as telemetry and keeps only a deliberate
+        // recovery or a material denial in permanent history, so the successful renewal above must
+        // leave nothing behind: an automation run that renews on a timer would otherwise write a
+        // heartbeat into the case's permanent record.
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE ActorKind = N'Automation'
+              AND EventKind = N'pegasus_case_edit_renew'
+              AND Outcome = N'Succeeded'
+            """));
     }
 
     [Fact]
