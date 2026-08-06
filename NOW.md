@@ -238,6 +238,13 @@ release claim:
   again at PR 348 with ninety add/add conflicts in a merge that had no
   source conflict. Add CI checks for new-Markdown-file creation and NOW.md
   claim-format/staleness while in the workflow file.
+- Amend ADR-0017 with the docs-only carve-out (operator decision
+  2026-08-06): a task whose every changed path is a Markdown file outside
+  `src/`, `tests/`, `infra/` and `scripts/` skips the temp-plan file, and
+  its two-question independent review is answered against the PR diff
+  instead. Record as a dated addendum or superseding decision per the ADR
+  index rules and update engineering.md's task workflow in the same PR
+  (restructure wave 1).
 
 - Assemble the operator-reviewed extraction cohort + untouched holdout and
   accept the per-field thresholds (INT-21, open-decisions) — blocks Path
@@ -314,7 +321,8 @@ release claim:
   tokens, the retained eyebrow/lede mechanism, `site.js`, the generic
   `/status/{code}` route) into the authority or remove them, and apply
   the ui-spec state-matrix additions the durable-rules proposal specified
-  but never landed (repository audit, 2026-08-06).
+  but never landed (repository audit, 2026-08-06). Restructure wave 3:
+  once the reorg lands, the merge target is the new `docs/design.md`.
 - Correct the stale documentation claims from the accuracy audit:
   `architecture.md` L87/L307/L503 still describe the removed
   `ReceiveIntake` handler on `/Intake` and its orphaned
@@ -327,6 +335,22 @@ release claim:
   deployed" though its merge is inside release 7 (`32feefa`), and INT-01
   says "accepted" while upload creates no case (repository audit,
   2026-08-06).
+- Restructure ADR and reorg execution (operator decisions 2026-08-06;
+  **gated on PRs 340, 342 and 356 merging first** — they edit
+  docs/architecture.md and temp-plans): record the settled target
+  structure as an accepted ADR, then execute it — `docs/operations.md`
+  splits into a current-state record plus a new `docs/runbook.md`;
+  `design/README.md` and the surviving `design/product/` content become
+  one `docs/design.md` (design/ keeps assets only); `docs/reference/`
+  moves to top-level `reference/` with `.gitattributes` and link updates
+  in the same commit; rule dedupe to single owners happens during the
+  move (the evidence-tier ladder lands in engineering.md and every
+  referrer updates; the ADR index collapses to its blanket qualifier);
+  `docs/index.md`'s router updates to the new file set. `CLAUDE.md`
+  stays a symlink to `AGENTS.md` — Claude does not read AGENTS.md by
+  default. Absorbs the rule-dedupe line below and the
+  PerformanceTests/Python-split/git-hygiene/duplicated-asset parts of
+  the hygiene line below.
 - Deduplicate the process rules to single owners: at least twelve rules
   are stated in two or more files (~30 sites) — collapse the ADR index's
   twelve per-row "proves no…" repeats to its own blanket rule, the
@@ -334,7 +358,8 @@ release claim:
   `operations.md#required-evidence-tiers` (three tables carry it today),
   and the 34-line CI prose duplicate in `engineering.md:25-62`; ownership
   pointers stop restating what they point to (repository audit,
-  2026-08-06).
+  2026-08-06). **Absorbed into the restructure reorg task above — do not
+  claim separately.**
 - Repository hygiene sweep: `tests/Pegasus.PerformanceTests/` has no
   `.csproj` — two test files that have never compiled; adopt or delete.
   `scripts/reference_data` and `tests/reference_data` split one Python
@@ -348,12 +373,18 @@ release claim:
   validation lane or record why not. `scripts/email-eval-desktop/` stays
   — it is the operator's own tool — but note it references
   Core/Infrastructure while nothing builds it (repository audit,
-  2026-08-06).
+  2026-08-06). **The PerformanceTests, Python-split, `.gitattributes`/
+  `.gitignore` and duplicated-asset items execute inside the restructure
+  reorg task above; still claimable here: the `.obsidian` keep, the
+  `.infisical.json` confirm-then-delete, and the `infra/` validation-lane
+  decision.**
 - Trim `.agents/skills/` (operator decision 2026-08-05): keep `grill-me`,
   `grill-with-docs`, `grilling` (the engine both wrappers invoke) and
   `domain-modeling` (a grill-with-docs dependency that also prescribes
   the CONTEXT.md format); remove the other sixteen vendored packages and
-  update `skills-lock.json`.
+  update `skills-lock.json`. In the same task, delete the unused `.omp/`
+  harness directory — the operator uses Codex and Claude only (operator
+  decision 2026-08-06; restructure wave 1).
 - CI wall-clock second pass: PR 321's reduction (sharded lanes, per-run
   template database, caches) under-delivered on the operator's intent —
   measure what still dominates (five of six jobs are Windows-pinned, the
