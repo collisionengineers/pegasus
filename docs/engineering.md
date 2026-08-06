@@ -85,7 +85,11 @@ checkout you happen to be in.
    free, another task if not.
 4. **Plan.** Write `docs/temp-plans/<slug>.md` on the task branch: what the
    task will change and how it will be verified
-   ([contract](temp-plans/README.md)).
+   ([contract](temp-plans/README.md)). Docs-only carve-out (ADR-0017
+   addendum, 2026-08-06): a task whose every changed path in the final PR
+   diff is a Markdown file outside `src/`, `tests/`, `infra/`, and
+   `scripts/` skips the plan file. If the diff stops qualifying mid-work,
+   write the plan before review.
 5. **Work and PR.** Implement, verify locally, open the PR into `dev`. The
    PR's `NOW.md` edit removes its own claim line. If `NOW.md` conflicts,
    merge `origin/dev` into the task branch, take `dev`'s `NOW.md` wholesale,
@@ -93,7 +97,11 @@ checkout you happen to be in.
 6. **Review.** Before merge, an agent that did not implement the task
    answers two questions against the plan file on the PR: did the plan miss
    anything the task line implied, and did the implementation miss anything
-   from the plan. Merge only after that review passes and CI is green.
+   from the plan. For a docs-only task (no plan file), the two questions
+   run against the PR diff and description instead: did the PR miss
+   anything the task line implied, and did the diff change anything the
+   task line did not authorise. Merge only after that review passes and CI
+   is green.
 7. **Release.** After merge: one maintenance push to `dev` deletes
    `docs/temp-plans/<slug>.md`, then remove the worktree and delete the
    branch. Abandoning instead: reset your worktree to fresh `origin/dev`,
