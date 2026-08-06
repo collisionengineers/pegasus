@@ -82,14 +82,6 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
   fail-closed policy — findings that are operator decisions go to
   `docs/open-decisions.md` (branch task/qdos-forward-intake-failure, taken
   2026-08-05, by claude).
-- Trim `.agents/skills/` (operator decision 2026-08-05): keep `grill-me`,
-  `grill-with-docs`, `grilling` (the engine both wrappers invoke) and
-  `domain-modeling` (a grill-with-docs dependency that also prescribes
-  the CONTEXT.md format); remove the other sixteen vendored packages and
-  update `skills-lock.json`. In the same task, delete the unused `.omp/`
-  harness directory — the operator uses Codex and Claude only (operator
-  decision 2026-08-06; restructure wave 1) (branch task/agents-omp-trim,
-  taken 2026-08-06, by claude).
 
 ## Merged, not deployed
 
