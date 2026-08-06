@@ -1497,7 +1497,7 @@ table tfoot th {
 
 .tabs a:hover, .tabs button:hover { color: var(--ink); }
 
-.tabs [aria-selected="true"] { border-bottom-color: var(--ce-red); color: var(--ce-red); }
+.tabs [aria-selected="true"], .tabs [aria-current="page"] { border-bottom-color: var(--ce-red); color: var(--ce-red); }
 
 .tabs .count {
   padding: 0 6px;
@@ -1509,7 +1509,7 @@ table tfoot th {
   font-weight: 600;
 }
 
-.tabs [aria-selected="true"] .count { background: rgba(219, 8, 22, .08); color: var(--ce-red); }
+.tabs [aria-selected="true"] .count, .tabs [aria-current="page"] .count { background: rgba(219, 8, 22, .08); color: var(--ce-red); }
 
 /* Sub-tabs are pills, so a nested level never reads as a second tab row. */
 .subtabs { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-4); }
@@ -1672,8 +1672,13 @@ table tfoot th {
   gap: var(--sp-2);
   --state-line: var(--success);
   --state-bg: var(--success-tint);
-  color: var(--success);
+  /* The tick and the rule carry the confirmed-completion green; the sentence
+     stays ink, because green text on a green tint does not clear the contrast
+     floor and the colour is a second signal, not the message. */
+  color: var(--ink);
 }
+
+.status-card--done .icon { color: var(--success); }
 
 /* Dashboard. Three sections of real numbers; a section whose count does not
    exist is not shipped, so there is no placeholder treatment to style. */
@@ -1704,3 +1709,28 @@ table tfoot th {
 .row-confirm input { min-width: 12rem; }
 details > summary.btn { display: inline-flex; list-style: none; }
 details > summary.btn::-webkit-details-marker { display: none; }
+
+/* A disabled action rendered as a link: it keeps its place and its stated
+   condition, and stops being a target. */
+.btn.is-disabled {
+  border-color: #dedbd7;
+  background: var(--panel);
+  color: #a6a29d;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.crumb { margin-bottom: var(--sp-2); color: var(--muted); font-size: var(--t-sm); }
+.crumb a { color: var(--charcoal); }
+
+/* A filter bar is one line, with the fields used rarely behind a disclosure.
+   Eleven inputs stacked above the results is a form, not a filter. */
+.filterbar { padding: var(--sp-4) var(--sp-6); }
+.filterbar__line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.filterbar__line input[type="text"], .filterbar__line input:not([type]) { flex: 1 1 22rem; min-width: 12rem; }
+.filterbar__line select { flex: 0 0 auto; width: auto; min-width: 10rem; }
+.filterbar__more { margin-top: var(--sp-4); }
+.filterbar__more summary { color: var(--charcoal); cursor: pointer; font-size: var(--t-sm); font-weight: 600; }
+.filterbar__more .form-grid { margin-top: var(--sp-4); }
+
+.datarow__sug { color: var(--charcoal); font-size: var(--t-sm); }

@@ -284,7 +284,7 @@ public sealed class ProcessIntakeTests
 
         var result = await sut.ExecuteAsync(CreateSource());
 
-        Assert.Equal(IntakeDecision.DraftReady, result.Decision);
+        Assert.Equal(IntakeDecision.CaseCreated, result.Decision);
         Assert.Equal("QDOS", Assert.IsType<InstructionDraft>(result.InstructionDraft).SuggestedPrincipalCode);
         Assert.Contains(result.Evidence, item => item.Signal == "additional-scanned-content");
     }
@@ -324,7 +324,7 @@ public sealed class ProcessIntakeTests
 
         var result = await sut.ExecuteAsync(source);
 
-        Assert.Equal(IntakeDecision.DraftReady, result.Decision);
+        Assert.Equal(IntakeDecision.CaseCreated, result.Decision);
         var route = Assert.IsType<MailRouteEvaluationResult>(result.MailRouteDecision);
         Assert.Equal(MailRouteDisposition.Accepted, route.Disposition);
         Assert.Equal("staff@collisionengineers.co.uk", Assert.Single(route.TransportIdentities).Address);
@@ -673,7 +673,7 @@ public sealed class ProcessIntakeTests
 
         var draft = Assert.Single(store.Drafts);
         var typed = Assert.IsType<InstructionDraft>(draft.InstructionDraft);
-        Assert.Equal(IntakeDecision.DraftReady, result.Decision);
+        Assert.Equal(IntakeDecision.CaseCreated, result.Decision);
         Assert.Equal("QDOS", typed.SuggestedPrincipalCode);
         Assert.Equal("Review Claimant", typed.ClaimantName);
         Assert.Equal("PROTOCOL-001", typed.ClaimNumber);
@@ -715,7 +715,7 @@ public sealed class ProcessIntakeTests
 
         var result = await sut.ExecuteAsync(CreateSource());
 
-        Assert.Equal(IntakeDecision.DraftReady, result.Decision);
+        Assert.Equal(IntakeDecision.CaseCreated, result.Decision);
         Assert.Contains("Claimant name", result.MissingFields);
         var claimantName = Assert.Single(result.Fields, field => field.Name == "Claimant name");
         Assert.Null(claimantName.SuggestedValue);

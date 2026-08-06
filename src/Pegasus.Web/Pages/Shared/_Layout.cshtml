@@ -40,17 +40,14 @@
                 @if (inboxEnabled)
                 {
                     <a class="nav-link" asp-page="/Intake/Index" aria-current="@CurrentWhen("/Intake", "/ImageIntake")">Inbox</a>
+                    <a class="nav-link" asp-page="/Upload" aria-current="@CurrentWhen("/Upload")">Upload</a>
                 }
                 <a class="nav-link" asp-page="/Triage/Index" aria-current="@CurrentWhen("/Triage")">Queues</a>
-                <a class="nav-link" asp-page="/Cases/Index" aria-current="@CurrentWhen("/Cases")">Cases</a>
+                <a class="nav-link" asp-page="/Cases/Index" aria-current="@CurrentWhen("/Cases", "/Search")">Cases</a>
                 @if (User.IsInRole(Pegasus.Core.Identity.StaffRoleNames.Administrator))
                 {
                     <a class="nav-link" asp-page="/Administration/Index" aria-current="@CurrentWhen("/Administration")">Administration</a>
                 }
-                @* Search is folded into Cases by the Cases page work; it keeps
-                   its nav item until the redirect exists, because a page with
-                   no way in is worse than one nav item too many. *@
-                <a class="nav-link" asp-page="/Search/Index" aria-current="@CurrentWhen("/Search")">Search</a>
                 @if (User.Identity?.IsAuthenticated == true)
                 {
                     <span class="user-menu" role="group" aria-label="User">

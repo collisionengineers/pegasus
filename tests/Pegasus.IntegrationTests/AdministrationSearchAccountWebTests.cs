@@ -23,7 +23,6 @@ public sealed class AdministrationSearchAccountWebTests
                  {
                      "/Administration/Configuration",
                      "/Administration/Mailboxes",
-                     "/Search",
                      "/Account/PasswordChange"
                  })
         {
@@ -40,7 +39,7 @@ public sealed class AdministrationSearchAccountWebTests
 
         using var shell = await client.GetAsync("/");
         var shellHtml = await shell.Content.ReadAsStringAsync();
-        Assert.Contains("href=\"/Search\"", shellHtml, StringComparison.Ordinal);
+
         Assert.Contains("href=\"/Account/PasswordChange\"", shellHtml, StringComparison.Ordinal);
     }
 
@@ -104,27 +103,34 @@ public sealed class AdministrationSearchAccountWebTests
     }
 
     [Fact]
-    public async Task SearchHasDistinctEmptyNoMatchAndValidationErrorStates()
+    public async Task SearchIsAbsorbedByCasesAndItsRouteCarriesTheKeywordThrough()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        using var emptyResponse = await client.GetAsync("/Search");
-        var emptyHtml = await emptyResponse.Content.ReadAsStringAsync();
-        Assert.Contains("Enter a search query", emptyHtml, StringComparison.Ordinal);
+        // Search and Cases ran the identical Core query and differed only in
+        // which filters they exposed, so two nav items led to one capability —
+        // and the two screens disagreed about what a query failure meant.
+        // Cases absorbs it; the route redirects so bookmarks land on results.
+        using var bare = await client.GetAsync("/Search");
+        Assert.Equal(HttpStatusCode.MovedPermanently, bare.StatusCode);
+        Assert.Contains(
+            "/Cases",
+            bare.Headers.Location?.OriginalString ?? string.Empty,
+            StringComparison.Ordinal);
 
-        const string exactQuery = "QDOS-search-no-match";
-        using var noMatchResponse = await client.GetAsync($"/Search?q={exactQuery}");
-        var noMatchHtml = await noMatchResponse.Content.ReadAsStringAsync();
-        Assert.Contains("No matching cases", noMatchHtml, StringComparison.Ordinal);
-        Assert.Contains(exactQuery, noMatchHtml, StringComparison.Ordinal);
-        Assert.Equal($"?q={exactQuery}", noMatchResponse.RequestMessage?.RequestUri?.Query);
+        const string keyword = "QDOS-search-no-match";
+        using var withKeyword = await client.GetAsync($"/Search?query={keyword}");
+        Assert.Equal(HttpStatusCode.MovedPermanently, withKeyword.StatusCode);
+        Assert.Contains(
+            keyword,
+            withKeyword.Headers.Location?.OriginalString ?? string.Empty,
+            StringComparison.Ordinal);
 
-        var overlongQuery = new string('q', 301);
-        using var invalidResponse = await client.GetAsync(
-            $"/Search?q={Uri.EscapeDataString(overlongQuery)}");
-        var invalidHtml = await invalidResponse.Content.ReadAsStringAsync();
-        Assert.Contains("cannot exceed 300 characters", invalidHtml, StringComparison.Ordinal);
+        using var cases = await client.GetAsync($"/Cases?query={keyword}");
+        cases.EnsureSuccessStatusCode();
+        var html = await cases.Content.ReadAsStringAsync();
+        Assert.Contains("No cases match these filters.", html, StringComparison.Ordinal);
     }
 
     [Fact]

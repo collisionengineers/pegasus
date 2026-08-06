@@ -157,9 +157,20 @@ public sealed class EfCaseAcceptanceStore(
             throw new DbUpdateConcurrencyException("The intake receipt changed before it could be accepted.");
         }
 
-        if (!string.Equals(receipt.Decision, "draft_ready", StringComparison.Ordinal))
+        // Two decisions can produce a case, and they are the two the business
+        // recognises: a definitive instruction, which processing allocates
+        // automatically, and material a person has sorted (INT-26). Anything
+        // else - blocked, unreadable, unsupported, an image registration - is
+        // refused here, so the fail-closed boundary does not depend on which
+        // caller asked.
+        //
+        // `draft_ready` is the legacy code for the definitive outcome, kept
+        // readable so receipts written before the acceptance gate was removed
+        // still resolve.
+        if (receipt.Decision is not ("case_created" or "draft_ready" or "needs_sorting"))
         {
-            throw new InvalidOperationException("Only a ready intake receipt can be accepted as a case.");
+            throw new InvalidOperationException(
+                "Only a definitive instruction or an item that needs sorting can become a case.");
         }
         var standaloneAuditEvidence = await ResolveStandaloneAuditEvidenceAsync(
             context,

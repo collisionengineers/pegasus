@@ -19,9 +19,7 @@
 {
     <div class="page-heading">
         <div>
-            <p class="eyebrow">Administration</p>
             <h1>Replace @Model.Predecessor.Code</h1>
-            <p class="lede">The existing code, principal row, cases, references, and reference ownership will not be edited. Replacement disables this predecessor, links a new active successor, and continues the same sequence lineage.</p>
         </div>
         <div class="page-heading-actions">
             <partial name="Shared/_StatusChip" model="@(Model.Predecessor.IsActive ? "Active" : "Disabled")" />
@@ -41,14 +39,12 @@
                         <dt>Status</dt>
                         <dd>@(Model.Predecessor.IsActive ? "Active" : "Disabled")</dd>
                     </div>
-                    <div>
-                        <dt>Version</dt>
-                        <dd class="tabular">@Model.Predecessor.Version</dd>
-                    </div>
-                    <div>
-                        <dt>Sequence lineage</dt>
-                        <dd>@Model.Predecessor.SequenceLineageId</dd>
-                    </div>
+                    @* The concurrency version and the sequence-lineage GUID
+                       were both printed here. Neither is the operator's:
+                       the version is carried by the hidden field that makes
+                       the post safe, and the lineage identity is what the
+                       consequence paragraph below already promises in words
+                       — that the successor continues the same numbering. *@
                     <div>
                         <dt>Allocated cases</dt>
                         <dd class="tabular">@Model.Predecessor.AllocatedCaseCount</dd>
@@ -103,6 +99,10 @@
                             <textarea asp-for="Reason" rows="3"></textarea>
                             <span asp-validation-for="Reason"></span>
                         </div>
+                        @* Consequence guidance, kept with the control it
+                           concerns rather than as a page lede: this is what
+                           the operator needs before committing. *@
+                        <p class="field-hint">The existing code, principal row, cases, references, and reference ownership will not be edited. This disables the predecessor, links a new active successor, and continues the same sequence lineage.</p>
                         <div class="button-row">
                             <button type="submit" class="primary-action">Disable predecessor and create successor</button>
                         </div>

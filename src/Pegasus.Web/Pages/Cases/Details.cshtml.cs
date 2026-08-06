@@ -153,6 +153,31 @@ public sealed partial class DetailsModel(
         "imagesReviewedByStaff"
     }.ToFrozenSet(StringComparer.Ordinal);
 
+    /// <summary>
+    /// Which section of the case container is open.
+    /// </summary>
+    /// <remarks>
+    /// Overview, Evidence and History are alternatives, not a reading order,
+    /// so they are tabs rather than panels stacked down the page. The tab is
+    /// in the query string and the panels are server-rendered, so the screen
+    /// works with no script and every section is linkable.
+    /// </remarks>
+    [BindProperty(SupportsGet = true, Name = "tab")]
+    public string? TabFilter { get; set; }
+
+    public string Tab => TabFilter?.ToLowerInvariant() switch
+    {
+        "evidence" => "evidence",
+        "history" => "history",
+        _ => "overview"
+    };
+
+    /// <summary>
+    /// Everything the case carries: files, vehicle images and linked e-mail.
+    /// </summary>
+    public int EvidenceCount =>
+        (Case?.Documents.Count ?? 0) + ImageIntakes.Count;
+
     public CaseDetails? Case { get; private set; }
 
     /// <summary>
