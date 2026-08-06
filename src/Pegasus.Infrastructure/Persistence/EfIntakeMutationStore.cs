@@ -171,7 +171,7 @@ internal sealed class EfIntakeMutationStore(
                 ApplyDraftToReviewFields(receipt, correctedDraft);
                 var isComplete = HasRequiredInstructionFields(correctedDraft);
                 receipt.Decision = EfIntakeReceiptStore.ToCode(
-                    isComplete ? IntakeDecision.DraftReady : IntakeDecision.BlockedIntake);
+                    isComplete ? IntakeDecision.CaseCreated : IntakeDecision.BlockedIntake);
                 receipt.DecisionReason = isComplete
                     ? "The intake correction produced a reviewable instruction draft."
                     : "The intake correction was retained but required instruction fields remain unresolved.";

@@ -349,7 +349,7 @@ public sealed class AutomationAssessmentIngressTests
                         IntakeSourceChannel.ManualUpload,
                         $"assessment-ingress-source:{Guid.NewGuid():N}")),
                 CancellationToken.None);
-        Assert.Equal(IntakeDecision.DraftReady, receipt.Decision);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
         await SeedPrincipalAsync(services);
         var outcome = await services.GetRequiredService<IAcceptIntake>()
             .ExecuteAsync(

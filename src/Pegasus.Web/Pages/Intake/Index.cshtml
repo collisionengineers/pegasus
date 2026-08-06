@@ -1,15 +1,18 @@
 @page "/Intake"
+@using Pegasus.Core.Intake
+@using Pegasus.Core.Operations
 @model Pegasus.Web.Pages.Intake.IndexModel
 @{
-    ViewData["Title"] = "Intake";
+    ViewData["Title"] = "Inbox";
+
+    var failedReceived = Model.MailOperations.Received
+        .Where(item => item.State == EmailOperationState.Failed)
+        .ToArray();
 }
 
+@* No eyebrow, no lede. The tabs, the chips and the rows are the explanation. *@
 <header class="page-heading">
-    <div>
-        <p class="eyebrow">Intake</p>
-        <h1>@(Model.Decision is null ? "Intake queue" : IndexModel.DecisionLabel(Model.Decision.Value))</h1>
-        <p class="lede">Receive instructions and review retained manual or approved-inbox receipts.</p>
-    </div>
+    <h1>Inbox</h1>
 </header>
 
 @if (TempData["IntakeQueueStatus"] is string queueStatus)
@@ -17,71 +20,243 @@
     var acceptedCaseReference = TempData["AcceptedCaseReference"] as string;
     var statusMessage = queueStatus switch
     {
-        "accepted" => $"Case {acceptedCaseReference} was accepted and its custody work was queued.",
-        "acceptance_duplicate" => $"This intake receipt was already accepted as case {acceptedCaseReference}; no second reference was allocated.",
-        "duplicate" => "This instruction was already queued; no duplicate work was created.",
-        "resolved" => "The intake resolution was recorded.",
-        "reevaluation" => "The retained source was queued for policy re-evaluation.",
-        "linked" => "The intake receipt was linked to the selected case.",
-        "reversed" => "The intake-to-case association was reversed.",
-        _ => "The instruction has been retained and queued for processing."
+        "accepted" => $"Case {acceptedCaseReference} was created from this item.",
+        "acceptance_duplicate" => $"This item is already case {acceptedCaseReference}; no second reference was allocated.",
+        "duplicate" => "This file was already received. No duplicate was created.",
+        "resolved" => "The decision was recorded.",
+        "reevaluation" => "The retained source was queued for reprocessing.",
+        "linked" => "The item was linked to the selected case.",
+        "reversed" => "The link to the case was removed.",
+        "retry_scheduled" => "Processing was scheduled to run again.",
+        "retry_replayed" => "Processing was already scheduled to run again.",
+        "retry_changed" => "The failure changed before it could be retried. Refresh and try again.",
+        "retry_invalid" => "That retry could not be requested. Refresh and try again.",
+        "upload_outcome" => TempData["UploadOutcomeMessage"] as string ?? "The file was received.",
+        _ => "The file has been received and queued for processing."
     };
     <div class="status-card" role="status">@statusMessage</div>
 }
 
-<section class="panel form-panel" aria-labelledby="receive-intake-title">
-    <h2 id="receive-intake-title" class="section-label">Receive intake</h2>
-    <p>Choose an email, document, PDF or image, up to 10 MB. Original bytes are retained before durable processing.</p>
-    <form method="post" enctype="multipart/form-data" asp-page-handler="ReceiveIntake" asp-route-page="@Model.CurrentPage">
-        <input asp-for="ExternalReceiptToken" type="hidden" />
-        <input asp-for="DecisionFilter" type="hidden" />
-        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
-        <label asp-for="Upload">Email, document, PDF or image</label>
-        <input asp-for="Upload" type="file" accept=".eml,.pdf,.docx,.doc,.msg,.jpg,.jpeg,.png,message/rfc822,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.ms-outlook,image/jpeg,image/png" />
-        <span asp-validation-for="Upload" class="field-validation"></span>
-        <button type="submit" class="primary-action">Queue instruction</button>
-    </form>
-</section>
-
-<nav class="queue-filters section-gap" aria-label="Intake filters">
-    <a asp-page="/Intake/Index">All</a>
-    <a asp-page="/Intake/Index" asp-route-decision="draft_ready">Instruction drafts</a>
-    <a asp-page="/Intake/Index" asp-route-decision="needs_sorting">Needs sorting</a>
-    <a asp-page="/Intake/Index" asp-route-decision="blocked_intake">Blocked intake</a>
-    <a asp-page="/Intake/Index" asp-route-decision="ocr_required">Document text required</a>
-    <a asp-page="/Intake/Index" asp-route-decision="image_intake_registered">Image intakes</a>
+@* Received and Sent are the same correspondence seen from either end. Sent was
+   a separate screen whose only way in was a dashboard card labelled
+   "Unavailable". *@
+<nav class="tabs" aria-label="Direction">
+    <a asp-page="/Intake/Index" asp-route-decision="@Model.DecisionFilter"
+       aria-current="@(Model.ShowingSent ? null : "page")">Received</a>
+    <a asp-page="/Intake/Index" asp-route-view="sent"
+       aria-current="@(Model.ShowingSent ? "page" : null)">Sent</a>
 </nav>
 
-<section class="panel">
-    @if (Model.Results.Items.Count == 0)
+@if (Model.ShowingSent)
+{
+    <section class="panel section-gap" aria-label="Sent messages">
+        @if (Model.MailOperations.Sent.IsEmpty)
+        {
+            <p class="empty-state">Nothing has been sent recently.</p>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th scope="col">Mailbox</th>
+                            <th scope="col">Sent</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Where it went</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var item in Model.MailOperations.Sent)
+                    {
+                        <tr>
+                            <td>
+                                @if (string.IsNullOrWhiteSpace(item.MailboxIdentity))
+                                {
+                                    <span class="empty-state">Mailbox not recorded</span>
+                                }
+                                else
+                                {
+                                    <span>@item.MailboxIdentity</span>
+                                }
+                            </td>
+                            <td><time datetime="@item.LastActivityAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.LastActivityAtUtc)</time></td>
+                            <td><partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Intake.IndexModel.MailStateLabel(item.State)" /></td>
+                            <td>
+                                @if (item.CaseId is { } sentCaseId)
+                                {
+                                    <a asp-page="/Cases/Details" asp-route-id="@sentCaseId">Open case @item.CaseReference</a>
+                                }
+                                else
+                                {
+                                    <span class="empty-state">—</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+}
+else
+{
+    @* One chip scale. "Instruction drafts" is gone: a definitive instruction is
+       already a case and its row links to it, so there is no pending-draft
+       queue to filter. *@
+    <nav class="subtabs section-gap" aria-label="Filters">
+        <a asp-page="/Intake/Index" aria-current="@(Model.DecisionFilter is null ? "page" : null)">All</a>
+        <a asp-page="/Intake/Index" asp-route-decision="needs_sorting"
+           aria-current="@(Model.DecisionFilter == "needs_sorting" ? "page" : null)">Needs sorting</a>
+        <a asp-page="/Intake/Index" asp-route-decision="blocked_intake"
+           aria-current="@(Model.DecisionFilter == "blocked_intake" ? "page" : null)">Blocked</a>
+        <a asp-page="/Intake/Index" asp-route-decision="ocr_required"
+           aria-current="@(Model.DecisionFilter == "ocr_required" ? "page" : null)">Needs text extraction</a>
+        <a asp-page="/Intake/Index" asp-route-decision="image_intake_registered"
+           aria-current="@(Model.DecisionFilter == "image_intake_registered" ? "page" : null)">Vehicle images</a>
+        <a asp-page="/Intake/Index" asp-route-decision="failed"
+           aria-current="@(Model.ShowingFailed ? "page" : null)">
+            Failed
+            @if (failedReceived.Length > 0)
+            {
+                <span class="n">@failedReceived.Length</span>
+            }
+        </a>
+    </nav>
+
+    if (Model.ShowingFailed)
     {
-        <p class="empty-state">No intake receipts match this view.</p>
+        <section class="panel" aria-label="Messages that failed to arrive">
+            @if (failedReceived.Length == 0)
+            {
+                <p class="empty-state">Nothing has failed to arrive.</p>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th scope="col">Mailbox</th>
+                                <th scope="col">What happened</th>
+                                <th scope="col">Last activity</th>
+                                <th scope="col">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var item in failedReceived)
+                        {
+                            <tr>
+                                <td>
+                                    @if (string.IsNullOrWhiteSpace(item.MailboxIdentity))
+                                    {
+                                        <span class="empty-state">Mailbox not recorded</span>
+                                    }
+                                    else
+                                    {
+                                        <span>@item.MailboxIdentity</span>
+                                    }
+                                </td>
+                                @* The recorded failure code never renders; the
+                                   sentence it maps to does. *@
+                                <td>@Pegasus.Web.Pages.Intake.IndexModel.MailFailureSentence(item.FailureCode)</td>
+                                <td><time datetime="@item.LastActivityAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.LastActivityAtUtc)</time></td>
+                                <td>
+                                    @if (item.CanRetry)
+                                    {
+                                        <details>
+                                            <summary class="btn">Retry</summary>
+                                            <form method="post" asp-page-handler="RetryMailbox" class="row-confirm">
+                                                <input type="hidden" name="mailboxId" value="@item.RetryMailboxId" />
+                                                <input type="hidden" name="direction" value="@item.Direction" />
+                                                <input type="hidden" name="expectedFailureCode" value="@item.FailureCode" />
+                                                <input type="hidden" name="expectedDueAtUtc" value="@item.RetryExpectedDueAtUtc!.Value.ToString("O")" />
+                                                <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+                                                <button class="btn btn--dark" type="submit">Retry processing</button>
+                                            </form>
+                                        </details>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
     }
     else
     {
-        <div class="queue-list">
-            @foreach (var item in Model.Results.Items)
+        <section class="panel" aria-label="Received messages">
+            @if (Model.Results.Items.Count == 0)
             {
-                <a asp-page="/Intake/Details" asp-route-id="@item.Id">
-                    <span><strong>@item.SourceFileName</strong><small>@item.ReceivedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</small></span>
-                    <span><strong>@Model.RowOutcomeLabel(item)</strong><small>@item.FailureReason</small></span>
-                </a>
+                <p class="empty-state">No e-mail matches this view.</p>
             }
-        </div>
-    }
-</section>
+            else
+            {
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th scope="col">From</th>
+                                <th scope="col">Subject</th>
+                                <th scope="col">Received</th>
+                                <th scope="col">State</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var item in Model.Results.Items)
+                        {
+                            <tr>
+                                <td>
+                                    @* A stored hex .eml name is an identifier,
+                                       not a sender. Where a manual upload has
+                                       neither, the row says what it is. *@
+                                    <a asp-page="/Intake/Details" asp-route-id="@item.Id">
+                                        @(string.IsNullOrWhiteSpace(item.Sender) ? "Manual upload" : item.Sender)
+                                    </a>
+                                </td>
+                                <td>@(string.IsNullOrWhiteSpace(item.Subject) ? item.SourceFileName : item.Subject)</td>
+                                <td><time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.ReceivedAtUtc)</time></td>
+                                <td>
+                                    @if (item.CaseId is { } linkedCaseId)
+                                    {
+                                        @* What it became, linked — not the
+                                           decision code that produced it. *@
+                                        <a asp-page="/Cases/Details" asp-route-id="@linkedCaseId">Case @item.CaseReference</a>
+                                    }
+                                    else
+                                    {
+                                        <partial name="Shared/_StatusChip" model="@Model.RowOutcomeLabel(item)" />
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(item.FailureReason))
+                                    {
+                                        <small class="empty-state">@item.FailureReason</small>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
 
-@if (Model.Results.TotalPages > 1)
-{
-    <nav class="queue-filters" aria-label="Intake pages">
-        @if (Model.Results.Page > 1)
+        if (Model.Results.TotalPages > 1)
         {
-            <a asp-page="/Intake/Index" asp-route-decision="@Model.DecisionFilter" asp-route-page="@(Model.Results.Page - 1)">Previous</a>
+            <nav class="pager" aria-label="Pages">
+                @if (Model.Results.Page > 1)
+                {
+                    <a asp-page="/Intake/Index" asp-route-decision="@Model.DecisionFilter" asp-route-page="@(Model.Results.Page - 1)">Previous</a>
+                }
+                <span class="pager__context">Page @Model.Results.Page of @Model.Results.TotalPages</span>
+                @if (Model.Results.Page < Model.Results.TotalPages)
+                {
+                    <a asp-page="/Intake/Index" asp-route-decision="@Model.DecisionFilter" asp-route-page="@(Model.Results.Page + 1)">Next</a>
+                }
+            </nav>
         }
-        <span>Page @Model.Results.Page of @Model.Results.TotalPages</span>
-        @if (Model.Results.Page < Model.Results.TotalPages)
-        {
-            <a asp-page="/Intake/Index" asp-route-decision="@Model.DecisionFilter" asp-route-page="@(Model.Results.Page + 1)">Next</a>
-        }
-    </nav>
+    }
 }
+

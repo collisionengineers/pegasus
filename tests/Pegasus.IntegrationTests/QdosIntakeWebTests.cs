@@ -31,17 +31,23 @@ public sealed class QdosIntakeWebTests
             [49],
             receiptToken);
 
+        // Queued work has not been processed yet, so there is no record to
+        // open and the Upload page says so. It used to redirect to a list that
+        // then read "No intake receipts match this view" while the banner
+        // claimed success — the thing the operator had just sent existed
+        // nowhere they could see it.
         Assert.Equal(HttpStatusCode.Redirect, upload.StatusCode);
         Assert.NotNull(upload.Location);
-        Assert.Equal(
-            "/Intake",
-            upload.Location!.OriginalString.Split('?', 2)[0]);
+        Assert.StartsWith(
+            "/Upload",
+            upload.Location!.OriginalString,
+            StringComparison.Ordinal);
         var queuedReceiptId = IntakeWebDriver.QueuedReceiptId(upload);
         using var queue = await client.GetAsync(upload.Location);
         queue.EnsureSuccessStatusCode();
         var html = await queue.Content.ReadAsStringAsync();
         Assert.Contains(
-            "The instruction has been retained and queued for processing.",
+            "queued-intake.txt was received and is being processed.",
             html,
             StringComparison.Ordinal);
 
@@ -54,14 +60,14 @@ public sealed class QdosIntakeWebTests
         Assert.Equal(HttpStatusCode.Redirect, duplicate.StatusCode);
         Assert.NotNull(duplicate.Location);
         Assert.Equal(
-            "/Intake",
+            "/Upload",
             duplicate.Location!.OriginalString.Split('?', 2)[0]);
         Assert.Equal(queuedReceiptId, IntakeWebDriver.QueuedReceiptId(duplicate));
         using var duplicateQueue = await client.GetAsync(duplicate.Location);
         duplicateQueue.EnsureSuccessStatusCode();
         var duplicateHtml = await duplicateQueue.Content.ReadAsStringAsync();
         Assert.Contains(
-            "This instruction was already queued; no duplicate work was created.",
+            "queued-intake.txt was already received. No duplicate was created.",
             duplicateHtml,
             StringComparison.Ordinal);
 
@@ -87,7 +93,7 @@ public sealed class QdosIntakeWebTests
         var html = await review.Content.ReadAsStringAsync();
         var receipt = await GetReceiptAsync(factory, receiptId);
 
-        Assert.Equal(IntakeDecision.DraftReady, receipt.Decision);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
         Assert.NotNull(receipt.InstructionDraft);
         Assert.Equal(ForwardedEmailHash, receipt.SourceHash);
         Assert.Contains(receipt.Evidence, item =>
@@ -191,8 +197,8 @@ public sealed class QdosIntakeWebTests
             "Genuine corpus integration test",
             new(IntakeSourceChannel.ManualUpload, "66666666666666666666666666666666")));
 
-        Assert.Equal(IntakeDecision.DraftReady, unauthorized.Decision);
-        Assert.Equal(IntakeDecision.DraftReady, authorized.Decision);
+        Assert.Equal(IntakeDecision.CaseCreated, unauthorized.Decision);
+        Assert.Equal(IntakeDecision.CaseCreated, authorized.Decision);
     }
 
     [GenuineQdosCorpusFact(
@@ -232,7 +238,7 @@ public sealed class QdosIntakeWebTests
 
         await using var scope = factory.Services.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
-        var receipts = await queries.ListAsync(IntakeDecision.DraftReady, CancellationToken.None);
+        var receipts = await queries.ListAsync(IntakeDecision.CaseCreated, CancellationToken.None);
         Assert.Equal(5, receipts.Count);
     }
 
