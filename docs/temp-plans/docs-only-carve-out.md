@@ -17,7 +17,11 @@ qualifying mid-work writes the plan file before review, as today.
   untouched.
 - `docs/adr/README.md`: the ADR-0017 index row records the addendum.
 - `docs/engineering.md` task workflow: step 4 gains the carve-out and its
-  boundary; step 6 gains the diff-based form of the two review questions.
+  boundary; step 6 gains the diff-based form of the two review questions;
+  step 7 notes a docs-only task has no plan file to delete, so its
+  release step is worktree and branch cleanup only. Step 1's
+  slug-collision check is deliberately unchanged — it stays correct for
+  any plan file that does exist.
 - `docs/temp-plans/README.md`: the contract gains the exemption.
 - `NOW.md`: this PR removes its own claim line.
 
