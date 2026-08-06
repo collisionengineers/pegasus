@@ -108,7 +108,11 @@ release claim:
   Administration by the operator or seeded by a bootstrap script, then do it
   and record the evidence. Until then a definitive instruction reaches
   allocation and stops there — `AllocateCaseIfDefinitiveAsync` is deliberately
-  non-blocking, so it leaves a receipt behind rather than failing the intake
+  non-blocking, so it leaves a receipt behind rather than failing the intake.
+  Decide with it what re-drives allocation for a receipt already stranded:
+  nothing routine reprocesses a completed work item, and the intake review
+  screen offers the create-case form for `Needs sorting` only, so a receipt
+  stuck this way stays stuck even once the Principal exists
   (found diagnosing the 2026-08-05 QDOS forward,
   task/qdos-forward-intake-failure).
 
