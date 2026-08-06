@@ -104,7 +104,8 @@ checkout you happen to be in.
    is green.
 7. **Release.** After merge: one maintenance push to `dev` deletes
    `docs/temp-plans/<slug>.md`, then remove the worktree and delete the
-   branch. Abandoning instead: reset your worktree to fresh `origin/dev`,
+   branch. A docs-only task has no plan file, so its release step is just
+   the worktree and branch cleanup. Abandoning instead: reset your worktree to fresh `origin/dev`,
    commit only your claim-line removal, and push it as a maintenance push —
    the plan file exists only on your task branch and dies with it — then
    delete branch and worktree; only the claiming agent abandons its own
