@@ -8,9 +8,30 @@ public static class IntakeEnvelopeLimits
     public const int MaximumContentLength = 10 * 1024 * 1024;
 }
 
+/// <summary>
+/// What processing did with a received source.
+/// </summary>
+/// <remarks>
+/// There is no decision meaning "a human has not pressed the button yet".
+/// The requirements are explicit that definitive authorised intake
+/// creates exactly one instructed Case idempotently and that the allocation
+/// decision adds no universal manual acceptance gate, and the operator notes
+/// send only ambiguous provider, instruction-type or case evidence — and any
+/// unidentified e-mail — to <see cref="NeedsSorting"/>. So a definitive
+/// instruction is <see cref="CaseCreated"/> with the reference already
+/// allocated, ambiguity is <see cref="NeedsSorting"/>, and a reasoned refusal
+/// is <see cref="BlockedIntake"/>.
+///
+/// The former <c>DraftReady</c> named the wait for a staff member to press
+/// "Accept and allocate case reference". It had no operator label, no owning
+/// requirement, and no business meaning; it is removed rather than renamed.
+/// Receipts persisted under its <c>draft_ready</c> code read as
+/// <see cref="NeedsSorting"/>, which is what they are: pre-case material that
+/// never became a case and is waiting for a person.
+/// </remarks>
 public enum IntakeDecision
 {
-    DraftReady,
+    CaseCreated,
     NeedsSorting,
     BlockedIntake,
     Unsupported,
@@ -358,14 +379,41 @@ public sealed record IntakeReceiptDraft(
     public IReadOnlyList<ScannedPdfOcrCandidate> ScannedPdfPages => OcrCandidates ?? [];
 }
 
-public sealed record IntakeQueueCounts(int DraftReady, int NeedsSorting, int BlockedIntake = 0);
+/// <summary>
+/// How much received material is waiting for a person.
+/// </summary>
+/// <remarks>
+/// Both counts exclude receipts that already produced a case. Before this,
+/// neither the counts nor the filtered list applied any such filter, so every
+/// intake count was cumulative for all time and creating a case from a receipt
+/// never decremented anything.
+/// </remarks>
+public sealed record IntakeQueueCounts(int NeedsSorting, int BlockedIntake = 0);
 
+/// <summary>
+/// One row of the Inbox.
+/// </summary>
+/// <remarks>
+/// Sender and subject are what an operator recognises a message by. The row
+/// used to carry only <c>SourceFileName</c>, which for mailbox material is a
+/// stored hex <c>.eml</c> name — an identifier, not a description. Where a
+/// manual upload genuinely has no sender or subject, the file name is what
+/// there is, and the surface says "Manual upload" rather than inventing one.
+///
+/// <paramref name="CaseReference"/> is present when this message produced or
+/// was linked to a case, so the row can say which one instead of leaving the
+/// operator to open it and find out.
+/// </remarks>
 public sealed record IntakeReceiptSummary(
     Guid Id,
     string SourceFileName,
     DateTimeOffset ReceivedAtUtc,
     IntakeDecision Decision,
-    string? FailureReason);
+    string? FailureReason,
+    string? Sender = null,
+    string? Subject = null,
+    Guid? CaseId = null,
+    string? CaseReference = null);
 
 public sealed record InstructionExtractionResult(
     InstructionPolicyApplicability Applicability,

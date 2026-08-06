@@ -28,7 +28,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
-        Assert.Equal(IntakeDecision.DraftReady, receipt.Decision);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
         Assert.Equal(
             "SYN-DOCX-001",
             Assert.Single(receipt.Fields, field => field.Name == "Claim number").SuggestedValue);
@@ -37,7 +37,7 @@ public sealed partial class MultiFormatIntakeWebTests
             Assert.Single(receipt.Fields, field => field.Name == "Vehicle registration").SuggestedValue);
         Assert.Equal("AB12CDE", Assert.IsType<InstructionDraft>(receipt.InstructionDraft).VehicleRegistration);
         Assert.Contains("synthetic-instruction.docx", reviewHtml, StringComparison.Ordinal);
-        Assert.Contains("Instruction draft", reviewHtml, StringComparison.Ordinal);
+        Assert.Contains("Case created", reviewHtml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
-        Assert.Equal(IntakeDecision.DraftReady, receipt.Decision);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
         Assert.Contains(receipt.AssetRecords, asset => asset.FileName == "instruction.docx");
         Assert.Contains(receipt.AssetRecords, asset => asset.FileName == "supporting.pdf");
         Assert.Contains(receipt.AssetRecords, asset => asset.FileName == "vehicle.jpg");
@@ -170,7 +170,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
-        Assert.Equal(IntakeDecision.DraftReady, receipt.Decision);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
         var original = Assert.Single(
             receipt.AssetRecords,
             asset => asset.FileName == "vehicle-front-original.jpg");
@@ -196,8 +196,13 @@ public sealed partial class MultiFormatIntakeWebTests
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
         Assert.Equal(IntakeDecision.Unsupported, receipt.Decision);
+        // The persisted code is the contract; the screen shows the same
+        // distinction in words, because the operator has to know whether the
+        // document was unreadable or merely too large.
         Assert.Equal("unreadable_docx", receipt.FailureCode);
-        Assert.Contains("unreadable_docx", reviewHtml, StringComparison.Ordinal);
+        Assert.Contains(
+            "The Word document could not be read", reviewHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("unreadable_docx", reviewHtml, StringComparison.Ordinal);
         Assert.Contains("malformed.docx", reviewHtml, StringComparison.Ordinal);
     }
 
@@ -324,7 +329,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var result = await UploadAsync(factory, client, "thirty-page-instruction.pdf", "application/pdf", pdf);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
-        Assert.Equal(IntakeDecision.DraftReady, receipt.Decision);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
         Assert.Equal(
             "SYN-GUARD-001",
             Assert.Single(receipt.Fields, field => field.Name == "Claim number").SuggestedValue);
@@ -574,7 +579,11 @@ public sealed partial class MultiFormatIntakeWebTests
 
         Assert.Equal(IntakeDecision.Unsupported, receipt.Decision);
         Assert.Equal("docx_limit_exceeded", receipt.FailureCode);
-        Assert.Contains("docx_limit_exceeded", reviewHtml, StringComparison.Ordinal);
+        Assert.Contains(
+            "The Word document is larger than the processing limit allows",
+            reviewHtml,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("docx_limit_exceeded", reviewHtml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -595,7 +604,11 @@ public sealed partial class MultiFormatIntakeWebTests
 
         Assert.Equal(IntakeDecision.Unsupported, receipt.Decision);
         Assert.Equal("docx_limit_exceeded", receipt.FailureCode);
-        Assert.Contains("docx_limit_exceeded", reviewHtml, StringComparison.Ordinal);
+        Assert.Contains(
+            "The Word document is larger than the processing limit allows",
+            reviewHtml,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("docx_limit_exceeded", reviewHtml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -676,7 +689,7 @@ public sealed partial class MultiFormatIntakeWebTests
             .OrderBy(asset => asset.SourceLabel, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(IntakeDecision.DraftReady, receipt.Decision);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
         Assert.DoesNotContain(receipt.Evidence, evidence => evidence.Signal == "intake_limit_exceeded");
         Assert.Equal(2, images.Length);
         Assert.Equal(
@@ -705,7 +718,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
-        Assert.Equal(IntakeDecision.DraftReady, receipt.Decision);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
         Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "unreadable-pdf-attachment");
         Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "unreadable-docx-attachment");
         Assert.Contains("corrupt.pdf", reviewHtml, StringComparison.Ordinal);

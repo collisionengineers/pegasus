@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Operations;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Persistence;
 using Microsoft.Data.SqlClient;
@@ -156,13 +157,36 @@ public sealed class IntakePersistenceIntegrationTests
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseManualChases'"));
     }
 
+    /// <remarks>
+    /// The dashboard tile that reads this count shipped permanently zero: it
+    /// compared the persisted decision against the enum's name
+    /// (<c>NeedsSorting</c>) while the column holds the snake_case code
+    /// (<c>needs_sorting</c>), so nothing ever matched. No test held the
+    /// query against a real database, and every local database was empty, so
+    /// zero looked like the right answer everywhere it was checked. Only the
+    /// deployed instance — with one Needs sorting receipt in it — could tell
+    /// the difference.
+    /// </remarks>
+    [Fact]
+    public async Task DashboardNeedsSortingCountSeesAStoredNeedsSortingReceipt()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await database.StoreAsync(CreateDraft(1, IntakeDecision.NeedsSorting));
+        await database.StoreAsync(CreateDraft(2, IntakeDecision.NeedsSorting));
+        await database.StoreAsync(CreateDraft(3, IntakeDecision.BlockedIntake));
+
+        var counts = await database.GetMailActivityCountsAsync(FixedTime.AddDays(-1));
+
+        Assert.Equal(2, counts.NeedsSorting);
+    }
+
     [Fact]
     public async Task EightConcurrentDistinctSourceIdentitiesPersistEightPreCaseDrafts()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
 
         var records = await Task.WhenAll(Enumerable.Range(1, 8).Select(index =>
-            database.StoreAsync(CreateDraft(index, IntakeDecision.DraftReady))));
+            database.StoreAsync(CreateDraft(index, IntakeDecision.CaseCreated))));
 
         Assert.Equal(8, records.Select(record => record.Id).Distinct().Count());
         Assert.All(records, record =>
@@ -178,7 +202,7 @@ public sealed class IntakePersistenceIntegrationTests
     public async Task EightConcurrentSameSourceIdentityCallsCreateOneReceiptAndDraft()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
-        var draft = CreateDraft(1, IntakeDecision.DraftReady);
+        var draft = CreateDraft(1, IntakeDecision.CaseCreated);
 
         var records = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => database.StoreAsync(draft)));
 
@@ -199,7 +223,7 @@ public sealed class IntakePersistenceIntegrationTests
         await database.ExecuteAsync(
             "CREATE TRIGGER [FailReceiptEventInsert] ON [dbo].[IntakeReceiptEvents] INSTEAD OF INSERT AS " +
             "BEGIN THROW 51000, 'Deliberate integration-test receipt-event failure.', 1; END");
-        var draft = CreateDraft(1, IntakeDecision.DraftReady);
+        var draft = CreateDraft(1, IntakeDecision.CaseCreated);
 
         await Assert.ThrowsAsync<DbUpdateException>(() => database.StoreAsync(draft));
 
@@ -221,7 +245,7 @@ public sealed class IntakePersistenceIntegrationTests
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
 
-        var record = await database.StoreAsync(CreateDraft(1, IntakeDecision.DraftReady));
+        var record = await database.StoreAsync(CreateDraft(1, IntakeDecision.CaseCreated));
 
         Assert.NotNull(record.InstructionDraft);
         Assert.Equal(1, await database.CountAsync("IntakeReceipts"));
@@ -234,7 +258,7 @@ public sealed class IntakePersistenceIntegrationTests
     public async Task DraftReceiptPersistsReceiptHistoryContents()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
-        var draft = CreateDraft(1, IntakeDecision.DraftReady);
+        var draft = CreateDraft(1, IntakeDecision.CaseCreated);
 
         var record = await database.StoreAsync(draft);
         var receiptEvent = await database.ReadSingleReceiptEventAsync();
@@ -246,7 +270,7 @@ public sealed class IntakePersistenceIntegrationTests
         using var details = JsonDocument.Parse(receiptEvent.DetailsJson);
         Assert.Equal(1, details.RootElement.GetProperty("version").GetInt32());
         var data = details.RootElement.GetProperty("data");
-        Assert.Equal("draft_ready", data.GetProperty("decision").GetString());
+        Assert.Equal("case_created", data.GetProperty("decision").GetString());
         Assert.Equal("manual_upload", data.GetProperty("sourceChannel").GetString());
         Assert.Equal(draft.SourceIdentity.ExternalReceiptToken,
             data.GetProperty("externalReceiptToken").GetString());
@@ -269,7 +293,7 @@ public sealed class IntakePersistenceIntegrationTests
         var receipt = Assert.Single(result);
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Equal("source-1.bin", receipt.SourceFileName);
-        Assert.Equal(new IntakeQueueCounts(0, 1), await database.GetCountsAsync());
+        Assert.Equal(new IntakeQueueCounts(1, 0), await database.GetCountsAsync());
     }
 
     private static IntakeReceiptDraft CreateDraft(
@@ -288,7 +312,7 @@ public sealed class IntakePersistenceIntegrationTests
         [new(IntakeEvidenceSource.SystemDefault, IntakeEvidenceStrength.Weak, IntakeEvidenceFinding.Information,
             "integration-test", "Persistence boundary evidence")],
         [new("Instruction date", "2031-05-06", [], true, false)],
-        decision == IntakeDecision.DraftReady
+        decision == IntakeDecision.CaseCreated
             ? new("QDOS", null, null, null, null, null, null, null, null, new DateOnly(2031, 5, 6), null)
             : null,
         [],
@@ -296,8 +320,8 @@ public sealed class IntakePersistenceIntegrationTests
         null,
         "controlled_test_reader",
         "1",
-        decision == IntakeDecision.DraftReady ? QdosInstructionExtractionPolicy.Key : null,
-        decision == IntakeDecision.DraftReady ? QdosInstructionExtractionPolicy.Version : null);
+        decision == IntakeDecision.CaseCreated ? QdosInstructionExtractionPolicy.Key : null,
+        decision == IntakeDecision.CaseCreated ? QdosInstructionExtractionPolicy.Version : null);
 }
 
 /// <summary>
@@ -497,6 +521,13 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         await using var scope = services.CreateAsyncScope();
         return await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
             .GetCountsAsync(CancellationToken.None);
+    }
+
+    public async Task<MailActivityCounts> GetMailActivityCountsAsync(DateTimeOffset dayStartUtc)
+    {
+        await using var scope = services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<IDashboardQueries>()
+            .GetMailActivityCountsAsync(dayStartUtc, CancellationToken.None);
     }
 
     public Task<int> CountAsync(string tableName)

@@ -63,7 +63,7 @@ public sealed class MultiFormatGenuineCorpusWebTests(ITestOutputHelper output)
             receipt.Decision,
             new[]
             {
-                IntakeDecision.DraftReady,
+                IntakeDecision.CaseCreated,
                 IntakeDecision.NeedsSorting
             });
         Assert.Contains(receipt.Evidence, item => item.Signal == "openxml-engine");

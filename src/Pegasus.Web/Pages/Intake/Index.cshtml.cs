@@ -3,15 +3,17 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Pegasus.Core.Actors;
 using Pegasus.Core.ImageIntake;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Operations;
 
 namespace Pegasus.Web.Pages.Intake;
 
 public sealed class IndexModel(
     IListIntake listIntake,
-    IIntakeSubmission intakeSubmission,
     IImageIntakeQueries imageIntakeQueries,
-    TimeProvider timeProvider) : PageModel
+    GetEmailOperations getEmailOperations,
+    RetryMailboxProcessing retryMailboxProcessing) : PageModel
 {
     private Dictionary<Guid, ImageIntakeSummary> _imageIntakesByReceipt = [];
 
@@ -20,13 +22,29 @@ public sealed class IndexModel(
     [BindProperty(SupportsGet = true, Name = "decision")]
     public string? DecisionFilter { get; set; }
 
+    /// <summary>
+    /// Which direction the operator is looking at.
+    /// </summary>
+    /// <remarks>
+    /// Sent used to be a separate screen, reachable only from a dashboard card
+    /// that said "Unavailable". It is the same list of messages seen from the
+    /// other end, so it is a tab.
+    /// </remarks>
+    [BindProperty(SupportsGet = true, Name = "view")]
+    public string? DirectionFilter { get; set; }
+
+    public bool ShowingSent => string.Equals(DirectionFilter, "sent", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The "did anything fail to arrive?" view — the one question the separate
+    /// Email screen existed to answer, now one click from the list an operator
+    /// already has open.
+    /// </summary>
+    public bool ShowingFailed => string.Equals(DecisionFilter, "failed", StringComparison.OrdinalIgnoreCase);
+
+    public EmailOperationsProjection MailOperations { get; private set; } = new([], [], false, false);
+
     public int CurrentPage { get; private set; } = 1;
-
-    [BindProperty]
-    public IFormFile? Upload { get; set; }
-
-    [BindProperty]
-    public string ExternalReceiptToken { get; set; } = string.Empty;
 
     public IntakeListPage Results { get; private set; } = new([], 1, PageSize, 0);
 
@@ -37,7 +55,6 @@ public sealed class IndexModel(
         CancellationToken cancellationToken)
     {
         CurrentPage = pageNumber ?? 1;
-        ExternalReceiptToken = CreateExternalReceiptToken();
         if (!TryParseDecision(DecisionFilter, out var decision))
         {
             return NotFound();
@@ -47,48 +64,23 @@ public sealed class IndexModel(
         return await LoadAsync(cancellationToken) ? Page() : Forbid();
     }
 
-    public async Task<IActionResult> OnPostReceiveIntakeAsync(
-        [FromQuery(Name = "page")] int? pageNumber,
+    /// <summary>
+    /// Retries mailbox processing from the row that failed.
+    /// </summary>
+    /// <remarks>
+    /// The handler, its expected failure-code and due-time guards and its
+    /// replay behaviour are the ones the separate Email screen used, unchanged.
+    /// Only where the operator finds it has moved: into the row, on the list
+    /// they already have open.
+    /// </remarks>
+    public async Task<IActionResult> OnPostRetryMailboxAsync(
+        string mailboxId,
+        EmailOperationDirection direction,
+        string expectedFailureCode,
+        DateTimeOffset expectedDueAtUtc,
+        string operationKey,
         CancellationToken cancellationToken)
     {
-        CurrentPage = pageNumber ?? 1;
-        if (!TryParseDecision(DecisionFilter, out var decision))
-        {
-            return NotFound();
-        }
-        Decision = decision;
-
-        if (string.IsNullOrWhiteSpace(ExternalReceiptToken))
-        {
-            ExternalReceiptToken = CreateExternalReceiptToken();
-        }
-        else if (!Guid.TryParseExact(ExternalReceiptToken, "N", out var receiptId))
-        {
-            ModelState.AddModelError(string.Empty, "The upload receipt is invalid. Refresh the page and try again.");
-        }
-        else
-        {
-            ExternalReceiptToken = receiptId.ToString("N");
-        }
-
-        if (Upload is null)
-        {
-            ModelState.AddModelError(nameof(Upload), "Choose an email, document, PDF or image to upload.");
-        }
-        else if (Upload.Length == 0)
-        {
-            ModelState.AddModelError(nameof(Upload), "The selected file is empty.");
-        }
-        else if (Upload.Length > IntakeEnvelopeLimits.MaximumContentLength)
-        {
-            ModelState.AddModelError(nameof(Upload), "The selected file must be 10 MB or smaller.");
-        }
-
-        if (!ModelState.IsValid)
-        {
-            return await LoadAsync(cancellationToken) ? Page() : Forbid();
-        }
-
         if (!StaffActorFactory.TryCreate(
                 User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
                 User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
@@ -96,66 +88,56 @@ public sealed class IndexModel(
         {
             return Forbid();
         }
+        if (!ModelState.IsValid || !Enum.IsDefined(direction))
+        {
+            TempData["IntakeQueueStatus"] = "retry_invalid";
+            return RedirectToPage(new { decision = DecisionFilter, view = DirectionFilter });
+        }
 
-        await using var memory = new MemoryStream((int)Upload!.Length);
-        await Upload.CopyToAsync(memory, cancellationToken);
         try
         {
-            var result = await intakeSubmission.ExecuteAsync(
-                new(
-                    Path.GetFileName(Upload.FileName),
-                    string.IsNullOrWhiteSpace(Upload.ContentType)
-                        ? "application/octet-stream"
-                        : Upload.ContentType,
-                    memory.ToArray(),
-                    timeProvider.GetUtcNow(),
-                    $"staff:{actor.SubjectId}",
-                    new(IntakeSourceChannel.ManualUpload, ExternalReceiptToken)),
-                $"manual-upload:{ExternalReceiptToken}",
+            var result = await retryMailboxProcessing.ExecuteAsync(
+                new(mailboxId, direction, expectedFailureCode, expectedDueAtUtc, actor, operationKey),
                 cancellationToken);
-            if (result.Disposition == IntakeSubmissionDisposition.Queued)
-            {
-                TempData["IntakeQueueStatus"] = result.IsDuplicate ? "duplicate" : "queued";
-                return RedirectToPage(
-                    "/Intake/Index",
-                    new
-                    {
-                        decision = DecisionFilter,
-                        page = Math.Max(1, CurrentPage),
-                        queuedReceiptId = result.ReceiptId,
-                        duplicate = result.IsDuplicate
-                    });
-            }
-
-            return RedirectToPage(
-                "/Intake/Details",
-                new { id = result.ReceiptId, duplicate = result.IsDuplicate });
+            TempData["IntakeQueueStatus"] = result.IsReplay ? "retry_replayed" : "retry_scheduled";
         }
-        catch (IntakeSourceIdentityConflictException)
+        catch (StaffAuthorizationException)
         {
-            ModelState.AddModelError(
-                string.Empty,
-                "This upload receipt was already used for different content. Refresh the page and try again.");
+            return Forbid();
         }
-        catch (IntakeArtifactRetentionException)
+        catch (Exception exception) when (
+            exception is ArgumentException or InvalidOperationException)
         {
-            ModelState.AddModelError(
-                string.Empty,
-                "The instruction source could not be retained. Retry using the same upload receipt.");
-        }
-        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-        {
-            ModelState.AddModelError(
-                string.Empty,
-                "The intake receipt could not be queued because of a technical failure.");
+            TempData["IntakeQueueStatus"] = "retry_changed";
         }
 
-        return await LoadAsync(cancellationToken) ? Page() : Forbid();
+        return RedirectToPage(new { decision = DecisionFilter, view = DirectionFilter });
     }
+
+    public static string MailStateLabel(EmailOperationState state) => state switch
+    {
+        EmailOperationState.Pending => "Pending",
+        EmailOperationState.Succeeded => "Succeeded",
+        EmailOperationState.Failed => "Failed",
+        _ => "Unknown"
+    };
+
+    /// <summary>
+    /// A failure an operator can act on, never the recorded failure code.
+    /// </summary>
+    public static string MailFailureSentence(string? failureCode) => failureCode switch
+    {
+        null or "" => "This message could not be processed.",
+        "source_unavailable" => "The message could not be read from the mailbox.",
+        "sent_mailbox_not_approved" => "The mailbox it was sent from is not an approved mailbox.",
+        "sent_source_throttled" => "The mailbox refused further reads for a while.",
+        "sent_evidence_poll_failure" => "The sent folder could not be read.",
+        _ => "The last message from this mailbox could not be processed."
+    };
 
     public static string DecisionLabel(IntakeDecision decision) => decision switch
     {
-        IntakeDecision.DraftReady => "Instruction draft",
+        IntakeDecision.CaseCreated => "Case created",
         IntakeDecision.NeedsSorting => "Needs sorting",
         IntakeDecision.BlockedIntake => "Blocked intake",
         IntakeDecision.OcrRequired => "Document text required",
@@ -188,6 +170,7 @@ public sealed class IndexModel(
         }
 
         CurrentPage = Math.Max(1, CurrentPage);
+        MailOperations = await getEmailOperations.ExecuteAsync(actor, cancellationToken);
         Results = await listIntake.ExecuteAsync(
             new(actor, Decision, CurrentPage, PageSize),
             cancellationToken);
@@ -206,8 +189,11 @@ public sealed class IndexModel(
     {
         decision = value switch
         {
-            null or "" => null,
-            "draft_ready" => IntakeDecision.DraftReady,
+            // "failed" is a mailbox-processing view, not an intake decision:
+            // it answers "did anything not come in?", which is a different
+            // question from "what did processing decide about what did".
+            null or "" or "failed" => null,
+            "case_created" => IntakeDecision.CaseCreated,
             "needs_sorting" => IntakeDecision.NeedsSorting,
             "blocked_intake" => IntakeDecision.BlockedIntake,
             "unsupported" => IntakeDecision.Unsupported,
@@ -216,8 +202,9 @@ public sealed class IndexModel(
             "image_intake_registered" => IntakeDecision.ImageIntakeRegistered,
             _ => null
         };
-        return string.IsNullOrWhiteSpace(value) || decision is not null;
+        return string.IsNullOrWhiteSpace(value)
+            || decision is not null
+            || string.Equals(value, "failed", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string CreateExternalReceiptToken() => Guid.NewGuid().ToString("N");
 }

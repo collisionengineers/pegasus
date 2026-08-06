@@ -952,18 +952,73 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   accepted), FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard
   LRS storage accounts, distinct Web/Worker managed identities, a Pegasus Key
   Vault, Log Analytics, and Application Insights.
-- **Deployed evidence:** release 3 executed 2026-08-03 through the same
-  authorised-terminal route — Web source revision `ef987ac4…` on immutable
-  digest `sha256:89165ad5…` (single healthy revision `ef987ac49cb4` at 100%
-  traffic, proving the Key Vault secret references resolved), the
-  inspection-mode migration applied before activation with the runtime-role
-  matrix re-verified, Worker package redeployed with all nine functions, and
-  smoke evidence: health live/ready 200, exact version/SHA match, and
-  anonymous `/Cases` 302 to the **https** sign-in route (the forwarded-headers
-  fix live-verified; earlier releases redirected to `http://`). Release 2
-  (2026-08-03, revision `836db05c…`) applied the Box custody root; release 1
-  (2026-08-02, revision `94997dd0…`) live-verified Graph Inbox/Sent processing
-  through the production Worker (83 successful executions, zero exceptions).
+- **Deployed evidence:** the estate currently serves **release 7**. A branch
+  head ahead of the newest row is expected and is not a missing release:
+  **a source revision is a release claim only when it changes something under
+  `src/`.** Documentation-only commits build no artifact, so they ride the
+  next functional release rather than justifying one.
+
+  Every release below went through the same authorised-terminal route: build
+  the immutable artifacts from a clean exact HEAD, validate the plan in
+  `Artifact`, `PreUpload` and `PreMigration` modes, push the digest-pinned OCI
+  image to the production ACR, apply any pending migration explicitly *before*
+  the application packages, activate the single Web revision, redeploy the
+  Worker package, then smoke. Smoke asserts health live/ready 200, an exact
+  version and source-SHA match against the release manifest, and an anonymous
+  `/Cases` 302 to the **https** sign-in route (the forwarded-headers fix was
+  live-verified at release 3; earlier releases redirected to `http://`).
+
+  | Release | Date | Source revision | Image digest | Web revision | Migration |
+  |---|---|---|---|---|---|
+  | 7 | 2026-08-05 | `32feefa…` | `sha256:c8a0ebac…` | `pegasus-prod-web-252ow37gij--32feefacc388` | none |
+  | 6 | 2026-08-05 | `474a0924…` | `sha256:b2ceaf37…` | `pegasus-prod-web-252ow37gij--474a0924a6ba` | `20260803205759_SendToAiAssessmentToolset` |
+  | 5 | 2026-08-04 | `c6571f7…` | `sha256:29d4fcff…` | `pegasus-prod-web-252ow37gij--c6571f771aab` | none |
+  | 4 | 2026-08-04 | `8e34078…` | `sha256:ae2cc7b8…` | — | four 2026-08-03 migrations |
+  | 3 | 2026-08-03 | `ef987ac4…` | `sha256:89165ad5…` | `ef987ac49cb4` | inspection-mode |
+  | 2 | 2026-08-03 | `836db05c…` | — | — | none |
+  | 1 | 2026-08-02 | `94997dd0…` | — | — | initial |
+
+  What each release proved beyond smoke:
+
+  - **Release 7** carried the six defects that live verification of release 6
+    found, and is the first release whose Worker redeploy and revision
+    activation carried no schema change at all. `dev` and `main` have since
+    advanced by documentation-only commits, which is why the branch heads sit
+    ahead of this row.
+  - **Release 6** carried the whole UI implementation programme. It seeded the
+    temporary `claudeuiverification` Administrator (see below) and applied its
+    migration explicitly before the packages, with the runtime-role matrix
+    re-verified. Live browser verification of this release found six defects
+    that local testing could not: an empty local database made a permanently
+    zero dashboard count indistinguishable from a correct one, and the
+    Europe/London workstation clock made `ToLocalTime()` look correct where
+    the deployed Linux container runs UTC. Both are recorded here because they
+    are properties of the verification environment, not of any one defect:
+    **a count query and a rendered time cannot be proved locally.**
+  - **Release 5** shipped the PR 333 CSP hotfix and was live-verified across
+    all 21 authenticated routes — every one rendering from the viewport top
+    with zero inline styles, zero console errors, and zero exceptions or
+    sev3+ traces.
+  - **Release 4** applied the four 2026-08-03 migrations with the runtime-role
+    matrix re-verified, and verified the ADR-0020 premise directly: zero
+    accepted cases, `CaseMatchIndex` shipped empty. It also surfaced the
+    production-CSP blank-band defect that release 5 then fixed.
+  - **Release 3** proved the Key Vault secret references resolved, through a
+    single healthy revision at 100% traffic.
+  - **Release 2** applied the Box custody root. A read-only inventory on
+    2026-08-04 confirmed the pegasus custody folder `405543781910` has zero
+    children, so no legacy `{reference}-{caseId}` folders exist and the
+    Case/PO fail-closed gate is satisfied.
+  - **Release 1** live-verified Graph Inbox/Sent processing through the
+    production Worker: 83 successful executions, zero exceptions.
+- **Temporary verification account:** `claudeuiverification` exists on the
+  production estate as an enabled Administrator, seeded by release 6 from the
+  `Bootstrap:VerificationAccount` block committed to `appsettings.json`. It
+  exists at the operator's request and on their stated risk assessment, so
+  that interface verification does not run as the owner's own account, and
+  **it must be removed before go-live.** Replacing the block with
+  `{ "Removed": "claudeuiverification" }` deletes the account on next start.
+  Its password is in source control; treat the account as disclosed.
 - **Integrations:** Graph via the Worker managed identity scoped by Exchange
   Application RBAC to `instructions@collisionengineers.co.uk`; Box production
   custody rooted at the pegasus folder `405543781910` (applied by release 2);

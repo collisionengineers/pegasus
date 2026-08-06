@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
+using Pegasus.Core.Workflow;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -37,7 +38,7 @@ public sealed class InstructionDraftWebTests
         using var replayReview = await client.GetAsync(replay.Location);
         var replayHtml = await replayReview.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, replayReview.StatusCode);
-        Assert.Contains("already processed", replayHtml, StringComparison.Ordinal);
+        Assert.Contains("was already received", replayHtml, StringComparison.Ordinal);
         Assert.Equal(1, await CountRowsAsync(factory, "IntakeReceipts"));
         Assert.Equal(1, await CountRowsAsync(factory, "InstructionDrafts"));
         Assert.Equal(receipt.AssetRecords.Count, await CountRowsAsync(factory, "IntakeAssets"));
@@ -68,7 +69,7 @@ public sealed class InstructionDraftWebTests
         Assert.Equal(HttpStatusCode.OK, conflict.StatusCode);
         Assert.Null(conflict.Location);
         Assert.Contains(
-            "already used for different content",
+            "already used for a different file",
             conflict.ResponseBody,
             StringComparison.Ordinal);
         Assert.Equal(firstHash, firstReceipt.SourceHash);
@@ -116,7 +117,7 @@ public sealed class InstructionDraftWebTests
     }
 
     [Fact]
-    public async Task UploadAndReviewPersistAllTypedFieldsWithoutCaseOrReferenceRows()
+    public async Task UploadAndReviewPersistAllTypedFieldsAndAllocateTheCaseWithoutAStaffAction()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -129,7 +130,7 @@ public sealed class InstructionDraftWebTests
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
         var receipt = await GetReceiptAsync(factory, IntakeWebDriver.ReceiptId(upload));
 
-        Assert.Equal(IntakeDecision.DraftReady, receipt.Decision);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
         var typed = Assert.IsType<InstructionDraft>(receipt.InstructionDraft);
         Assert.Equal("QDOS", typed.SuggestedPrincipalCode);
         Assert.Equal("Controlled Claimant", typed.ClaimantName);
@@ -157,8 +158,24 @@ public sealed class InstructionDraftWebTests
             Assert.Contains(value, html, StringComparison.Ordinal);
         }
 
-        Assert.Equal(0, await CountRowsAsync(factory, "Cases"));
-        Assert.Equal(0, await CountRowsAsync(factory, "CaseSequences"));
+        // A definitive authorised instruction creates exactly one case, at
+        // processing time, with its reference allocated. This assertion used to
+        // read zero and one, which was the manual acceptance gate the
+        // requirements forbid: the allocation decision adds no universal manual
+        // acceptance gate, and thin ordinary detail is answered by Not ready
+        // rather than by withholding the reference.
+        Assert.Equal(1, await CountRowsAsync(factory, "Cases"));
+        Assert.Equal(1, await CountRowsAsync(factory, "CaseSequences"));
+
+        // The case enters Not ready. That is the requirement's own answer to
+        // thin ordinary detail — the reference is allocated, and completeness
+        // is confirmed later, on the case, by a person looking at the evidence.
+        Assert.Equal(
+            nameof(CaseLifecycleState.NotReady),
+            await ScalarAsync<string>(factory, "SELECT TOP 1 State FROM CaseWorkflows"));
+
+        // And the receipt that produced it says so, permanently.
+        Assert.Equal(1, await ScalarAsync<int>(factory, "SELECT COUNT(*) FROM CaseIntakeLinks"));
     }
 
     [Fact]
@@ -183,7 +200,7 @@ public sealed class InstructionDraftWebTests
             "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
         var receipt = await GetReceiptAsync(factory, IntakeWebDriver.ReceiptId(upload));
 
-        Assert.Equal(IntakeDecision.DraftReady, receipt.Decision);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
         var typed = Assert.IsType<InstructionDraft>(receipt.InstructionDraft);
         Assert.Null(typed.VehicleMileage);
         Assert.Null(typed.DateOfIncident);

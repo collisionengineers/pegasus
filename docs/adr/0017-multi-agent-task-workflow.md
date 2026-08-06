@@ -70,3 +70,23 @@ Claim lines ride into `main`'s `NOW.md` when `dev` is released; this is
 accepted as cosmetic. Stale claims are removable by anyone under the
 staleness ladder in `NOW.md`. The blanket prohibition on merge/reset git
 operations is narrowed to protect only work an agent does not own.
+
+## Addendum: docs-only carve-out (2026-08-06)
+
+Operator decision, 2026-08-06. A task is docs-only when every path in its
+final PR diff is a Markdown file outside `src/`, `tests/`, `infra/`, and
+`scripts/`. A docs-only task:
+
+1. skips the transient `docs/temp-plans/<task-slug>.md` plan file
+   (decision 5's plan requirement does not apply to it), and
+2. has its two-question independent review answered against the PR diff
+   and description instead of a plan file: did the PR miss anything the
+   task line implied, and did the diff change anything the task line did
+   not authorise.
+
+Everything else in this decision is unchanged: the claim-by-push, the
+worktree and branch convention, one task = one worktree = one PR, the
+independent review before merge, green CI, and merge authority. A task
+that stops qualifying mid-work — its diff gains a non-Markdown path or
+one inside the excluded trees — writes the plan file before review, as
+decision 5 requires. `docs/engineering.md` owns the protocol text.

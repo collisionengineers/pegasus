@@ -149,16 +149,24 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         return Map(receipt, false, acceptedCaseId);
     }
 
+    /// <summary>
+    /// How much received material is still waiting for a person.
+    /// </summary>
+    /// <remarks>
+    /// Receipts that produced a case are excluded. Without that filter every
+    /// count was cumulative for all time — creating a case from a receipt never
+    /// decremented anything, so the dashboard's queue numbers only ever grew.
+    /// </remarks>
     public async Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var decisions = await context.IntakeReceipts
             .AsNoTracking()
+            .Where(item => !context.CaseIntakeLinks.Any(link => link.IntakeReceiptId == item.Id))
             .Select(item => item.Decision)
             .ToListAsync(cancellationToken);
         var parsedDecisions = decisions.Select(ParseDecision).ToArray();
         return new(
-            parsedDecisions.Count(item => item == IntakeDecision.DraftReady),
             parsedDecisions.Count(item => item == IntakeDecision.NeedsSorting),
             parsedDecisions.Count(item => item == IntakeDecision.BlockedIntake));
     }
@@ -173,16 +181,45 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             _ = ToCode(decision.Value);
         }
 
+        // Deliberately no case-link exclusion here, unlike the counts. The
+        // Inbox is a viewer of everything received, and a message that became
+        // a case is still a message that was received — the row says so and
+        // links to the case. What was wrong before was the label, not the
+        // presence: an accepted receipt sat here reading "Instruction draft"
+        // with no indication that it had produced anything.
         var entities = await context.IntakeReceipts
             .AsNoTracking()
+            .Include(item => item.MailRouteDecision)
             .ToListAsync(cancellationToken);
+
+        // One join for the whole page rather than a lookup per row.
+        var receiptIds = entities.Select(item => item.Id).ToArray();
+        var cases = await context.CaseIntakeLinks
+            .AsNoTracking()
+            .Where(link => receiptIds.Contains(link.IntakeReceiptId))
+            .Select(link => new
+            {
+                link.IntakeReceiptId,
+                link.CaseId,
+                link.Case.Reference
+            })
+            .ToDictionaryAsync(item => item.IntakeReceiptId, cancellationToken);
+
         var summaries = entities
-            .Select(item => new IntakeReceiptSummary(
-                item.Id,
-                item.SourceFileName,
-                item.ReceivedAtUtc,
-                ParseDecision(item.Decision),
-                item.FailureReason))
+            .Select(item =>
+            {
+                cases.TryGetValue(item.Id, out var linkedCase);
+                return new IntakeReceiptSummary(
+                    item.Id,
+                    item.SourceFileName,
+                    item.ReceivedAtUtc,
+                    ParseDecision(item.Decision),
+                    item.FailureReason,
+                    item.MailRouteDecision?.EffectiveSenderAddress,
+                    ReadSubject(item.EvidenceJson),
+                    linkedCase?.CaseId,
+                    linkedCase?.Reference);
+            })
             .ToArray();
         return summaries
             .Where(item => decision is null || item.Decision == decision.Value)
@@ -823,6 +860,31 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         entity.WidthPixels,
         entity.HeightPixels);
 
+    /// <summary>
+    /// The message subject, read back from the recorded evidence.
+    /// </summary>
+    /// <remarks>
+    /// The subject is not a column; it is evidence, recorded by the reader that
+    /// found it. Reading it here rather than adding a column keeps one writer
+    /// for the fact and avoids a migration for something the Inbox only
+    /// displays.
+    /// </remarks>
+    private static string? ReadSubject(string evidenceJson)
+    {
+        try
+        {
+            return DeserializeEvidence(evidenceJson)
+                .FirstOrDefault(item => item.Source == IntakeEvidenceSource.Subject)
+                ?.Detail;
+        }
+        catch (JsonException)
+        {
+            // A row whose evidence cannot be read still has a file name and a
+            // decision, and the Inbox is more useful showing those than failing.
+            return null;
+        }
+    }
+
     internal static string SerializeEvidence(IReadOnlyList<IntakeEvidence> evidence) =>
         SerializeEnvelope<IReadOnlyList<PersistedEvidence>>(evidence.Select(item => new PersistedEvidence(
             ToCode(item.Source),
@@ -965,7 +1027,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
 
     internal static string ToCode(IntakeDecision value) => value switch
     {
-        IntakeDecision.DraftReady => "draft_ready",
+        IntakeDecision.CaseCreated => "case_created",
         IntakeDecision.NeedsSorting => "needs_sorting",
         IntakeDecision.BlockedIntake => "blocked_intake",
         IntakeDecision.Unsupported => "unsupported",
@@ -977,7 +1039,12 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
 
     internal static IntakeDecision ParseDecision(string value) => value switch
     {
-        "draft_ready" => IntakeDecision.DraftReady,
+        "case_created" => IntakeDecision.CaseCreated,
+        // The legacy code for the same processing outcome, written while the
+        // decision still had to wait for a staff member to press "Accept and
+        // allocate case reference". The outcome it records is unchanged; only
+        // the wait is gone, so it reads as the same decision.
+        "draft_ready" => IntakeDecision.CaseCreated,
         "needs_sorting" => IntakeDecision.NeedsSorting,
         "blocked_intake" => IntakeDecision.BlockedIntake,
         "unsupported" => IntakeDecision.Unsupported,
