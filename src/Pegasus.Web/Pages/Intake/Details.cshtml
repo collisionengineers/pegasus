@@ -19,11 +19,16 @@
         <p class="eyebrow">Intake review</p>
         @if (allocationIncomplete)
         {
+            @* The create-case form renders for Needs sorting only (below), and
+               the handler refuses anything else, so this copy describes what
+               exists today rather than pointing at a control that is not on the
+               page. The recovery action belongs to the upload/inbox claim. *@
             <h1>Case not created</h1>
             <p class="lede">
                 This is a definitive instruction, but no case reference was
-                allocated for it. Create the case from this instruction, or ask
-                an Administrator to check that its Principal exists.
+                allocated for it. Ask an Administrator to check that its
+                Principal exists and is active; the instruction can be turned
+                into a case once it is resolved.
             </p>
         }
         else
