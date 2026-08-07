@@ -16,6 +16,18 @@ public sealed class MailboxIntakeIntegrationTests
     private static readonly DateTimeOffset RecordedAtUtc =
         new(2031, 7, 8, 9, 10, 0, TimeSpan.Zero);
 
+    /// <summary>
+    /// The mailbox envelope bound these tests run against.
+    /// </summary>
+    /// <remarks>
+    /// The shipped bound is deliberately permissive, and writing a file of
+    /// that size to prove the boundary would cost more than the boundary is
+    /// worth. The adapter and the poll take their bound as a parameter for
+    /// exactly this reason, so both sides of it stay covered here while
+    /// production keeps <see cref="IntakeEnvelopeLimits.MaximumMailboxContentLength"/>.
+    /// </remarks>
+    private const long TestMailboxContentLength = 256 * 1024;
+
     [Fact]
     public async Task ReevaluationPreservesThePriorDecisionRecordsInPermanentHistory()
     {
@@ -398,7 +410,7 @@ public sealed class MailboxIntakeIntegrationTests
         var poisonPath = Path.Combine(inboxRoot, "0001-poison.eml");
         await CreateSizedFileAsync(
             poisonPath,
-            IntakeEnvelopeLimits.MaximumContentLength + 1L);
+            TestMailboxContentLength + 1L);
         var validContent = CreateForwardedProtocolMessage();
         await File.WriteAllBytesAsync(
             Path.Combine(inboxRoot, "0002-valid.eml"),
@@ -424,7 +436,16 @@ public sealed class MailboxIntakeIntegrationTests
                         LocalApprovedInboxOptions.RequiredRuntimeProfile,
                         "instructions",
                         "instructions@collisionengineers.co.uk",
-                        inboxRoot));
+                        inboxRoot,
+                        TestMailboxContentLength));
+                    services.AddScoped(provider => new PollApprovedInbox(
+                        provider.GetRequiredService<IApprovedInboxPollStore>(),
+                        provider.GetRequiredService<IApprovedInboxSource>(),
+                        provider.GetRequiredService<IIntakeArtifactStore>(),
+                        provider.GetRequiredService<IIntakeQuarantineArtifactStore>(),
+                        provider.GetRequiredService<ReceiveIntake>(),
+                        provider.GetRequiredService<TimeProvider>(),
+                        TestMailboxContentLength));
                 });
 
             string poisonStorageKey;
@@ -452,7 +473,7 @@ public sealed class MailboxIntakeIntegrationTests
                 Assert.StartsWith("sha256/", poisonStorageKey, StringComparison.Ordinal);
                 Assert.Equal("message_too_large", reader.GetString(1));
                 Assert.Equal(
-                    IntakeEnvelopeLimits.MaximumContentLength + 1L,
+                    TestMailboxContentLength + 1L,
                     reader.GetInt64(2));
                 Assert.Equal(64, reader.GetString(3).Length);
                 Assert.Equal(reader.GetString(4), reader.GetString(5));
@@ -464,13 +485,13 @@ public sealed class MailboxIntakeIntegrationTests
                 CancellationToken.None);
             Assert.True(retainedPoison.HasValue);
             Assert.Equal(
-                IntakeEnvelopeLimits.MaximumContentLength + 1L,
+                TestMailboxContentLength + 1L,
                 retainedPoison.Value.Length);
             Assert.Equal(
                 Path.GetFileName(poisonStorageKey),
                 Convert.ToHexString(SHA256.HashData(retainedPoison.Value.Span)));
             Assert.Equal(
-                IntakeEnvelopeLimits.MaximumContentLength + 1L,
+                TestMailboxContentLength + 1L,
                 new FileInfo(poisonPath).Length);
 
             clock.Advance(TimeSpan.FromSeconds(31));
@@ -519,10 +540,10 @@ public sealed class MailboxIntakeIntegrationTests
         Directory.CreateDirectory(workingRoot);
         await CreateSizedFileAsync(
             Path.Combine(workingRoot, "0001-boundary.eml"),
-            IntakeEnvelopeLimits.MaximumContentLength);
+            TestMailboxContentLength);
         await CreateSizedFileAsync(
             Path.Combine(workingRoot, "0002-oversize.eml"),
-            IntakeEnvelopeLimits.MaximumContentLength + 1L);
+            TestMailboxContentLength + 1L);
 
         try
         {
@@ -539,7 +560,8 @@ public sealed class MailboxIntakeIntegrationTests
                     LocalApprovedInboxOptions.RequiredRuntimeProfile,
                     "instructions",
                     "instructions@collisionengineers.co.uk",
-                    workingRoot));
+                    workingRoot,
+                    TestMailboxContentLength));
                 await using var provider = services.BuildServiceProvider(validateScopes: true);
                 var source = provider.GetRequiredService<IApprovedInboxSource>();
                 var page = await source.ReadAsync(
@@ -554,7 +576,7 @@ public sealed class MailboxIntakeIntegrationTests
                 Assert.Equal(2, page.Messages.Count);
                 var boundary = page.Messages[0];
                 Assert.Equal(
-                    IntakeEnvelopeLimits.MaximumContentLength,
+                    TestMailboxContentLength,
                     boundary.MimeContent.Length);
                 Assert.Null(boundary.SourceRejection);
                 var oversize = page.Messages[1];
@@ -563,7 +585,7 @@ public sealed class MailboxIntakeIntegrationTests
                     oversize.SourceRejection);
                 Assert.Equal("message_too_large", rejection.FailureCode);
                 Assert.Equal(
-                    IntakeEnvelopeLimits.MaximumContentLength + 1L,
+                    TestMailboxContentLength + 1L,
                     rejection.SourceLength);
                 retainedHash = Assert.IsType<string>(rejection.SourceHash);
                 Assert.Equal(64, retainedHash.Length);
@@ -583,7 +605,8 @@ public sealed class MailboxIntakeIntegrationTests
                 LocalApprovedInboxOptions.RequiredRuntimeProfile,
                 "instructions",
                 "instructions@collisionengineers.co.uk",
-                workingRoot));
+                workingRoot,
+                TestMailboxContentLength));
             await using var restartedProvider =
                 restartedServices.BuildServiceProvider(validateScopes: true);
             var restartedSource =
@@ -602,7 +625,7 @@ public sealed class MailboxIntakeIntegrationTests
                 CancellationToken.None);
             Assert.True(retained.HasValue);
             Assert.Equal(
-                IntakeEnvelopeLimits.MaximumContentLength + 1L,
+                TestMailboxContentLength + 1L,
                 retained.Value.Length);
             Assert.Equal(
                 retainedHash,
