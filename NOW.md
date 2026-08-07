@@ -108,6 +108,22 @@ release claim:
 
 ## Next (ordered queue — take from the top)
 
+- Concurrent staff uploads lose their result (PR 357 review, diagnosed not
+  fixed — this is the `qdos-pressure` acceptance gate and it is red).
+  `EightConcurrentStaffCompleteBoundedCallerPressureWithoutLostReceipts` fails
+  reproducibly: under eight concurrent staff, several uploads never get a
+  completed evaluation for their **own** staged receipt. `ProcessQueuedIntake`
+  cannot claim the work item and returns having done nothing, no other request
+  is processing that receipt, and the inline wait times out into "The file
+  could not be processed." The receipt is durable throughout — nothing is lost
+  — but the operator is told their upload failed when it did not, and may
+  upload again. The replay half of the gate is fixed and passing; this half is
+  the work-item claim and lease lifecycle under concurrency
+  (`ClaimProcessingAsync`, the five-minute `ProcessingLeaseDuration`, and who
+  is expected to process a staged receipt nobody holds), which is a design
+  question rather than a patch. `qdos-pressure` passes on `dev`, so this
+  arrived with the inline-processing change
+  (task/upload-case-creation-and-inbox review, 2026-08-07).
 - Mailbox identity change stalls or duplicates inbound mail (PR 357 review,
   diagnosed not fixed — take this before the next mailbox is onboarded).
   `AdoptStateForAddressAsync` re-keys the poll state and carries the delta

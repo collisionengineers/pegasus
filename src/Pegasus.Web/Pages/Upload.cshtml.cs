@@ -32,10 +32,11 @@ namespace Pegasus.Web.Pages;
 /// </remarks>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
-public sealed class UploadModel(
+public sealed partial class UploadModel(
     ProcessIntakeSubmission intakeSubmission,
     IIntakeReceiptQueries receiptQueries,
-    TimeProvider timeProvider) : PageModel
+    TimeProvider timeProvider,
+    ILogger<UploadModel> logger) : PageModel
 {
     public static string MaximumSizeLabel =>
         OperatorLabels.FileSize(IntakeEnvelopeLimits.MaximumContentLength);
@@ -173,6 +174,10 @@ public sealed class UploadModel(
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
+            // The operator is told to try again; without this nobody can tell
+            // them why, because the only record of the cause was the message
+            // itself, which deliberately does not carry one.
+            LogUploadFailed(logger, fileName, exception);
             ModelState.AddModelError(
                 string.Empty,
                 "The file could not be processed. Try again, or contact an administrator if it keeps failing.");
@@ -180,6 +185,12 @@ public sealed class UploadModel(
 
         return Page();
     }
+
+    [LoggerMessage(
+        EventId = 1310,
+        Level = LogLevel.Warning,
+        Message = "A staff upload of {FileName} could not be processed.")]
+    private static partial void LogUploadFailed(ILogger logger, string fileName, Exception exception);
 
     /// <summary>
     /// What actually happened to the file, in the operator's terms, and where

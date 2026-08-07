@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Intake;
@@ -10,7 +11,7 @@ using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
-public sealed class CapacitySoakTests
+public sealed partial class CapacitySoakTests
 {
     private const int ConcurrentStaff = 8;
 
@@ -33,7 +34,7 @@ public sealed class CapacitySoakTests
         var writeDurations = new ConcurrentBag<TimeSpan>();
         var receiptLocations = new ConcurrentBag<Uri>();
         var queuedUploads = new ConcurrentBag<UploadResult>();
-        var unexpectedStatuses = new ConcurrentBag<HttpStatusCode>();
+        var unexpectedOutcomes = new ConcurrentBag<string>();
         var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var workers = Enumerable.Range(0, ConcurrentStaff)
@@ -45,7 +46,7 @@ public sealed class CapacitySoakTests
                 writeDurations,
                 receiptLocations,
                 queuedUploads,
-                unexpectedStatuses))
+                unexpectedOutcomes))
             .ToArray();
 
         start.SetResult();
@@ -55,7 +56,10 @@ public sealed class CapacitySoakTests
             await IntakeWebDriver.ProcessQueuedAsync(factory, queuedUpload);
         }
 
-        Assert.Empty(unexpectedStatuses);
+        Assert.True(
+            unexpectedOutcomes.IsEmpty,
+            $"Unexpected outcomes under pressure:{Environment.NewLine}"
+                + string.Join(Environment.NewLine, unexpectedOutcomes.Order()));
         Assert.Equal(10, receiptLocations.Count);
         Assert.Equal(28, readDurations.Count);
         Assert.Equal(10, writeDurations.Count);
@@ -89,7 +93,7 @@ public sealed class CapacitySoakTests
         ConcurrentBag<TimeSpan> writeDurations,
         ConcurrentBag<Uri> receiptLocations,
         ConcurrentBag<UploadResult> queuedUploads,
-        ConcurrentBag<HttpStatusCode> unexpectedStatuses)
+        ConcurrentBag<string> unexpectedOutcomes)
     {
         using var client = IntakeWebDriver.CreateClient(factory);
         await start;
@@ -98,16 +102,17 @@ public sealed class CapacitySoakTests
         {
             await MeasureAsync(readDurations, async () =>
             {
-                using var response = await client.GetAsync(read == 0 ? "/" : "/Received");
+                var path = read == 0 ? "/" : "/Received";
+                using var response = await client.GetAsync(path);
                 if (response.StatusCode != HttpStatusCode.OK)
                 {
-                    unexpectedStatuses.Add(response.StatusCode);
+                    unexpectedOutcomes.Add($"read {path}: {(int)response.StatusCode} {response.StatusCode}");
                 }
             });
         }
 
         var primary = await MeasureAsync(writeDurations, () => UploadAsync(client, worker, 0));
-        RecordLocation(primary, receiptLocations, queuedUploads, unexpectedStatuses);
+        RecordLocation(primary, receiptLocations, queuedUploads, unexpectedOutcomes);
 
         if (worker < 4)
         {
@@ -116,7 +121,8 @@ public sealed class CapacitySoakTests
                 using var response = await client.GetAsync(primary.Location);
                 if (response.StatusCode != HttpStatusCode.OK)
                 {
-                    unexpectedStatuses.Add(response.StatusCode);
+                    unexpectedOutcomes.Add(
+                        $"read landing '{primary.Location}': {(int)response.StatusCode} {response.StatusCode}");
                 }
             });
         }
@@ -132,13 +138,13 @@ public sealed class CapacitySoakTests
                 externalReceiptToken: form.ExternalReceiptToken);
             if (denied.StatusCode != HttpStatusCode.BadRequest)
             {
-                unexpectedStatuses.Add(denied.StatusCode);
+                unexpectedOutcomes.Add(Describe("upload without an antiforgery token", denied));
             }
         }
         else
         {
             var secondary = await MeasureAsync(writeDurations, () => UploadAsync(client, worker, 1));
-            RecordLocation(secondary, receiptLocations, queuedUploads, unexpectedStatuses);
+            RecordLocation(secondary, receiptLocations, queuedUploads, unexpectedOutcomes);
         }
     }
 
@@ -161,7 +167,7 @@ public sealed class CapacitySoakTests
         UploadResult result,
         ConcurrentBag<Uri> receiptLocations,
         ConcurrentBag<UploadResult> queuedUploads,
-        ConcurrentBag<HttpStatusCode> unexpectedStatuses)
+        ConcurrentBag<string> unexpectedOutcomes)
     {
         if (result.StatusCode == HttpStatusCode.Redirect && result.Location is not null)
         {
@@ -170,8 +176,36 @@ public sealed class CapacitySoakTests
             return;
         }
 
-        unexpectedStatuses.Add(result.StatusCode);
+        unexpectedOutcomes.Add(Describe("upload", result));
     }
+
+    /// <summary>
+    /// What actually happened, not just the status code. A bag of bare status
+    /// codes says "OK" for a refused upload and for a page that rendered an
+    /// error, which tells whoever reads the failure nothing about which.
+    /// </summary>
+    private static string Describe(string what, UploadResult result) =>
+        $"{what}: {(int)result.StatusCode} {result.StatusCode}, "
+        + $"location '{result.Location?.ToString() ?? "(none)"}', "
+        + $"message: {ErrorText(result.ResponseBody)}";
+
+    private static string ErrorText(string? body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return "(no body)";
+        }
+
+        var match = ValidationSummaryRegex().Match(body);
+        return match.Success
+            ? match.Groups["message"].Value.Trim()
+            : "(no validation summary)";
+    }
+
+    [GeneratedRegex(
+        "validation-summary-errors[^>]*>\\s*<ul>\\s*<li>(?<message>[^<]*)</li>",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ValidationSummaryRegex();
 
     private static async Task MeasureAsync(
         ConcurrentBag<TimeSpan> durations,
