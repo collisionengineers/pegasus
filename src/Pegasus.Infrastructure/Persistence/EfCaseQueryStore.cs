@@ -199,7 +199,7 @@ public sealed class EfCaseQueryStore(
         var activeLease = workflow.EditLeaseHolder is { } holder
             && workflow.EditLeaseExpiresAtUtc is { } expiresAtUtc
             && workflow.EditLeaseOperationKey is { Length: > 0 } operationKey
-            && expiresAtUtc > timeProvider.GetUtcNow()
+            && CaseEditAuthority.IsHeld(expiresAtUtc, timeProvider.GetUtcNow())
                 ? new CaseEditLeaseSnapshot(holder, expiresAtUtc, operationKey)
                 : null;
 

@@ -384,10 +384,24 @@ public sealed partial class QdosTriageIntegrationTests
             "link_case",
             "Must not bypass another holder",
             KeyValuePair.Create("caseId", caseId.ToString("D")));
+        // The holder is disclosed by staff account, never by identifier, and the wording and
+        // clock are the ones the case workspace uses.
         Assert.Contains(
-            $"unavailable while held by {otherHolder.SubjectId}",
+            "Case locked - ",
             unavailableCaseHtml,
             StringComparison.Ordinal);
+        Assert.Contains(
+            "is editing the case",
+            unavailableCaseHtml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Editing becomes available at",
+            unavailableCaseHtml,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            otherHolder.SubjectId,
+            unavailableCaseHtml,
+            StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(
             "value=\"link_case\"",
             unavailableCaseHtml,

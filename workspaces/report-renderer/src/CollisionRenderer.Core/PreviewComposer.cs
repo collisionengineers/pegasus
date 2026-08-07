@@ -8,7 +8,8 @@ namespace CollisionRenderer.Core;
 /// invalid draft yields a friendly best-effort page rather than throwing.</summary>
 public sealed record PreviewResult
 {
-    /// <summary>A complete, self-contained HTML document ready for a WebView2.</summary>
+    /// <summary>A complete, self-contained HTML document ready for an isolated
+    /// preview surface.</summary>
     public required string Html { get; init; }
 
     /// <summary>True when the HTML is a placeholder/last-resort page rather than a

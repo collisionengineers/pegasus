@@ -819,45 +819,18 @@ internal sealed class EfVehicleWorkflowStore(
         }
     }
 
-    private static void RequireVersion(CaseWorkflowEntity workflow, long expectedVersion)
-    {
-        if (workflow.Version != expectedVersion)
-        {
-            throw new CaseVersionConflictException(workflow.CaseId, expectedVersion, workflow.Version);
-        }
-    }
+    private static void RequireVersion(CaseWorkflowEntity workflow, long expectedVersion) =>
+        CaseMutationGuard.RequireVersion(workflow, expectedVersion);
 
     private static void RequireLease(
         CaseWorkflowEntity workflow,
         ActionActor actor,
         string leaseToken,
-        DateTimeOffset nowUtc)
-    {
-        if (workflow.EditLeaseExpiresAtUtc is null
-            || workflow.EditLeaseExpiresAtUtc <= nowUtc
-            || workflow.EditLeaseTokenHash is null
-            || workflow.EditLeaseHolder is null)
-        {
-            throw new CaseEditLeaseExpiredException(workflow.CaseId);
-        }
-        if (!string.Equals(workflow.EditLeaseHolder, actor.SubjectId, StringComparison.Ordinal)
-            || !CryptographicOperations.FixedTimeEquals(
-                Convert.FromHexString(workflow.EditLeaseTokenHash),
-                Convert.FromHexString(Hash(leaseToken))))
-        {
-            throw new CaseEditLeaseConflictException(workflow.CaseId);
-        }
-    }
+        DateTimeOffset nowUtc) =>
+        CaseMutationGuard.RequireLease(workflow, actor, leaseToken, nowUtc);
 
-    private static void ClearLease(CaseWorkflowEntity workflow)
-    {
-        workflow.EditLeaseToken = null;
-        workflow.EditLeaseTokenHash = null;
-        workflow.EditLeaseRequestHash = null;
-        workflow.EditLeaseHolder = null;
-        workflow.EditLeaseOperationKey = null;
-        workflow.EditLeaseExpiresAtUtc = null;
-    }
+    private static void ClearLease(CaseWorkflowEntity workflow) =>
+        CaseMutationGuard.ClearLease(workflow);
 
     private static void AddWorkflowEvent(
         PegasusDbContext context,

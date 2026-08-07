@@ -5,7 +5,32 @@ namespace Pegasus.Core.Intake;
 
 public static class IntakeEnvelopeLimits
 {
+    /// <summary>
+    /// One file uploaded through the staff form, which arrives inside one
+    /// bounded multipart HTTP request.
+    /// </summary>
     public const int MaximumContentLength = 10 * 1024 * 1024;
+
+    /// <summary>
+    /// One received mailbox message, envelope and every attachment together.
+    /// </summary>
+    /// <remarks>
+    /// A received instruction is not an uploaded file. The staff form takes
+    /// one file, so 10 MiB bounds one file; an instruction email carries the
+    /// covering message plus the 2–20+ documents and photographs of the job,
+    /// and applying the one-file figure to the whole envelope refused real
+    /// QDOS instructions outright — a 16.69 MB forward was rejected as
+    /// <c>message_too_large</c> on 2026-08-05 without ever being read.
+    ///
+    /// This bound is deliberately permissive rather than a capacity claim.
+    /// Exchange Online will not carry a message anywhere near it, the reader
+    /// still enforces its own nesting, entity and decoded-byte limits, and
+    /// the poll materializes a message in memory — so the practical ceiling
+    /// is far lower and is set by the Worker instance, not by this number.
+    /// It exists so that a genuine instruction is read and decided rather
+    /// than refused at the door.
+    /// </remarks>
+    public const long MaximumMailboxContentLength = 750L * 1024 * 1024;
 }
 
 /// <summary>

@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Triage;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Intake;
 
@@ -403,21 +405,23 @@ public sealed class ReceiveIntake(
             throw new InvalidDataException("The intake source is empty.");
         }
 
-        if (source.Content.Length > IntakeEnvelopeLimits.MaximumContentLength)
+        // A received message and an uploaded file do not share a size bound:
+        // the form takes one file, a mailbox message carries the whole job.
+        var maximumContentLength = source.SourceIdentity.Channel switch
         {
-            throw new InvalidDataException("The intake source exceeds the 10 MB limit.");
-        }
-
-        _ = source.SourceIdentity.Channel switch
-        {
-            IntakeSourceChannel.ManualUpload => true,
-            IntakeSourceChannel.Mailbox => true,
-            IntakeSourceChannel.Automation => true,
+            IntakeSourceChannel.ManualUpload => IntakeEnvelopeLimits.MaximumContentLength,
+            IntakeSourceChannel.Mailbox => IntakeEnvelopeLimits.MaximumMailboxContentLength,
+            IntakeSourceChannel.Automation => IntakeEnvelopeLimits.MaximumContentLength,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(source),
                 source.SourceIdentity.Channel,
                 "The intake source channel is not supported.")
         };
+        if (source.Content.Length > maximumContentLength)
+        {
+            throw new InvalidDataException("The intake source exceeds its channel's size limit.");
+        }
+
         var sourceHash = Convert.ToHexString(SHA256.HashData(source.Content.Span));
         var existing = await workStore.FindBySourceIdentityAsync(
             source.SourceIdentity,
@@ -787,11 +791,20 @@ public sealed class ProcessQueuedIntake(
         {
             throw;
         }
-        catch (Exception)
+        catch (Exception exception)
         {
             // An exhausted reference sequence, an unknown principal, or a
-            // concurrent allocation. The receipt stays visible and a person can
-            // still create the case by hand.
+            // concurrent allocation. Staying non-blocking is right — the
+            // receipt is already durable and a person can still create the
+            // case by hand — but it was also silent, which is not. Production
+            // holds no Principal at all, so the first definitive instruction
+            // to arrive would have failed here and left a receipt reading
+            // "a case was created" with no case behind it. Record the failure
+            // where the invocation is already being observed.
+            var activity = Activity.Current;
+            activity?.SetTag("intake.allocation_failed", true);
+            activity?.SetTag("intake.allocation_failure_type", exception.GetType().FullName);
+            activity?.SetTag("intake.receipt_id", receipt.Id);
             return false;
         }
     }
@@ -1215,10 +1228,11 @@ internal static class IntakeCommandValidation
         }
         ArgumentOutOfRangeException.ThrowIfNegative(expectedVersion);
         ArgumentException.ThrowIfNullOrWhiteSpace(editLeaseToken);
-        if (editLeaseToken.Length > 64)
+        if (editLeaseToken.Length > CaseEditAuthority.LeaseTokenLength)
         {
             throw new ArgumentException(
-                "The case edit lease token must be 64 characters or fewer.",
+                "The case edit lease token must be "
+                + $"{CaseEditAuthority.LeaseTokenLength} characters or fewer.",
                 nameof(editLeaseToken));
         }
     }

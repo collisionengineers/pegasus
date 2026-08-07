@@ -10,13 +10,22 @@ public sealed class LocalApprovedInboxOptions : Pegasus.Infrastructure.Email.IAp
 {
     public const string RequiredRuntimeProfile = "DevelopmentOffline";
 
+    /// <param name="maximumContentLength">
+    /// The mailbox envelope bound this adapter materializes up to. It must be
+    /// the bound Core enforces, because a message this adapter streams past is
+    /// one Core has to recognize as a valid oversize rejection. It is a
+    /// parameter only so that a test can exercise both sides of the boundary
+    /// without writing the production number to disk.
+    /// </param>
     public LocalApprovedInboxOptions(
         string runtimeProfile,
         string mailboxId,
         string mailboxAddress,
         string rootPath,
-        string inboxFolderIdentity = "inbox")
+        string inboxFolderIdentity = "inbox",
+        long maximumContentLength = IntakeEnvelopeLimits.MaximumMailboxContentLength)
     {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumContentLength);
         if (!string.Equals(runtimeProfile, RequiredRuntimeProfile, StringComparison.Ordinal))
         {
             throw new InvalidOperationException(
@@ -56,6 +65,7 @@ public sealed class LocalApprovedInboxOptions : Pegasus.Infrastructure.Email.IAp
         MailboxAddress = normalizedAddress;
         RootPath = Path.GetFullPath(rootPath);
         InboxFolderIdentity = normalizedFolder;
+        MaximumContentLength = maximumContentLength;
     }
 
     public string MailboxId { get; }
@@ -70,6 +80,8 @@ public sealed class LocalApprovedInboxOptions : Pegasus.Infrastructure.Email.IAp
     public string RootPath { get; }
 
     public string InboxFolderIdentity { get; }
+
+    public long MaximumContentLength { get; }
 }
 
 internal sealed class LocalDurableApprovedInboxSource(
@@ -350,7 +362,7 @@ internal sealed class LocalDurableApprovedInboxSource(
             return new(Convert.ToHexString(streamedHash), null, sourceLength, null);
         }
 
-        if (sourceLength > IntakeEnvelopeLimits.MaximumContentLength)
+        if (sourceLength > options.MaximumContentLength)
         {
             var retained = await RetainStreamAsync(stream, sourceLength, cancellationToken);
             return new(

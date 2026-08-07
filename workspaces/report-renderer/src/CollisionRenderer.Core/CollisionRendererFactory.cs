@@ -5,8 +5,8 @@ using CollisionRenderer.Core.Templating;
 namespace CollisionRenderer.Core;
 
 /// <summary>
-/// Composition root. Every host (CLI, desktop, API) builds its renderer here, so
-/// they share one identical pipeline — the guarantee behind GUI/CLI feature parity.
+/// Composition root. Every host (CLI, API, MCP) builds its renderer here, so they
+/// share one identical pipeline — the guarantee behind cross-host feature parity.
 /// </summary>
 public static class CollisionRendererFactory
 {
@@ -21,11 +21,15 @@ public static class CollisionRendererFactory
     /// the renderer uses (so the preview matches the PDF body), but skips validation
     /// and the Chromium step so it is safe to call on every keystroke.
     /// </summary>
-    public static IPreviewComposer CreatePreviewComposer()
+    /// <param name="timeProvider">
+    /// Clock for the fallback document date when a draft supplies none. Defaults to
+    /// <see cref="TimeProvider.System"/>.
+    /// </param>
+    public static IPreviewComposer CreatePreviewComposer(TimeProvider? timeProvider = null)
     {
         var brand = BrandAssets.Default;
         var catalog = TemplateCatalog.Default;
-        return new PreviewComposer(new HtmlComposer(brand, catalog), catalog, brand);
+        return new PreviewComposer(new HtmlComposer(brand, catalog, timeProvider), catalog, brand);
     }
 
     /// <summary>
@@ -33,11 +37,15 @@ public static class CollisionRendererFactory
     /// backend (e.g. a fake in tests); otherwise the Chromium engine is used and
     /// owned/disposed by the returned renderer.
     /// </summary>
-    public static IDocumentRenderer CreateRenderer(IPdfEngine? engine = null)
+    /// <param name="timeProvider">
+    /// Clock for the fallback document date when a payload supplies none. Defaults to
+    /// <see cref="TimeProvider.System"/>.
+    /// </param>
+    public static IDocumentRenderer CreateRenderer(IPdfEngine? engine = null, TimeProvider? timeProvider = null)
     {
         var brand = BrandAssets.Default;
         var catalog = TemplateCatalog.Default;
-        var composer = new HtmlComposer(brand, catalog);
+        var composer = new HtmlComposer(brand, catalog, timeProvider);
         var validator = new PayloadValidator();
 
         if (engine is null)
