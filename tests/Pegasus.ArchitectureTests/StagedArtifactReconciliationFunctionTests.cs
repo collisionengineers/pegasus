@@ -62,6 +62,11 @@ public sealed class StagedArtifactReconciliationFunctionTests
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 
+        public Task<IntakeWorkItem?> FindWorkItemAsync(
+            Guid stagedReceiptId,
+            CancellationToken cancellationToken) =>
+            throw UnexpectedCall();
+
         public Task<ReceivedIntake> ReceiveAsync(
             IntakeStagedReceipt receipt,
             string operationKey,

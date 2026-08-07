@@ -104,9 +104,11 @@ public sealed class ProcessIntakeSubmission(
     IIntakeWorkStore workStore) : IIntakeSubmission
 {
     /// <summary>
-    /// How long a request that lost the processing claim waits for the request
-    /// that won it: 200 attempts at 50ms, so ten seconds. Well past the observed
+    /// The ceiling on waiting for a request that is actively processing this
+    /// receipt: 100 attempts at 100ms, so ten seconds. Well past the observed
     /// processing time for one upload, and far short of any request timeout.
+    /// Normally unreachable — the wait ends as soon as the winner finishes, or
+    /// as soon as it stops processing.
     /// </summary>
     /// <remarks>
     /// Deliberately the real clock and not the injected <c>TimeProvider</c>.
@@ -115,19 +117,10 @@ public sealed class ProcessIntakeSubmission(
     /// to a fixed instant, and a frozen clock would make this wait never end.
     /// Nothing here is recorded, compared, or reasoned about as a time.
     /// </remarks>
-    private const int CompletionAttempts = 200;
+    private const int CompletionAttempts = 100;
 
-    private static readonly TimeSpan CompletionPollInterval = TimeSpan.FromMilliseconds(50);
+    private static readonly TimeSpan CompletionPollInterval = TimeSpan.FromMilliseconds(100);
 
-    /// <summary>
-    /// How many times a recoverable processing failure is retried inside the
-    /// request, and how long between attempts. Enough to ride out lock
-    /// contention from other staff uploading at the same moment; short enough
-    /// that a genuinely broken file still reports quickly.
-    /// </summary>
-    private const int ProcessingAttempts = 4;
-
-    private static readonly TimeSpan ProcessingRetryDelay = TimeSpan.FromMilliseconds(250);
 
     public async Task<IntakeSubmissionResult> ExecuteAsync(
         IntakeSource source,
@@ -141,16 +134,46 @@ public sealed class ProcessIntakeSubmission(
             source,
             operationKey,
             cancellationToken);
-        await ProcessAsync(received.StagedReceiptId, cancellationToken);
-        var evaluation = await AwaitCompletedEvaluationAsync(
+        // Waiting is only worth it when processing got as far as handing the
+        // receipt to someone. If this request's own attempt fell over, the item
+        // it may already have leased is going nowhere until the Worker recovers
+        // it, and waiting on ourselves is just ten seconds of nothing.
+        var processed = await TryProcessAsync(received.StagedReceiptId, cancellationToken);
+        var evaluation = processed
+            ? await AwaitCompletedEvaluationAsync(received.StagedReceiptId, cancellationToken)
+            : await workStore.GetCompletedEvaluationAsync(
+                received.StagedReceiptId,
+                cancellationToken);
+        if (evaluation is not null)
+        {
+            return new(
+                evaluation.ProcessedReceiptId,
+                received.IsDuplicate,
+                IntakeSubmissionDisposition.Processed);
+        }
+
+        // No result yet. That is not the same as no result ever, and the
+        // difference is the whole answer the operator gets.
+        //
+        // Processing that hits a recoverable failure — lock contention from
+        // another upload, most often — is not lost: ProcessQueuedIntake records
+        // it and schedules a retry, leaving the work item alive and due shortly.
+        // It returns normally when it does that, because from its side nothing
+        // went wrong. Reading no evaluation and calling it a failed upload made
+        // "we are still working on this" indistinguishable from "this file is
+        // broken", and staff were told to try again for a file that was already
+        // on its way to becoming a case.
+        var workItem = await workStore.FindWorkItemAsync(
             received.StagedReceiptId,
-            cancellationToken)
-            ?? throw new InvalidOperationException(
+            cancellationToken);
+        return workItem is not null
+            && workItem.State is not (IntakeWorkState.Completed or IntakeWorkState.Failed)
+            ? new(
+                received.StagedReceiptId,
+                received.IsDuplicate,
+                IntakeSubmissionDisposition.Queued)
+            : throw new InvalidOperationException(
                 "Inline intake processing did not persist a completed evaluation revision.");
-        return new(
-            evaluation.ProcessedReceiptId,
-            received.IsDuplicate,
-            IntakeSubmissionDisposition.Processed);
     }
 
     /// <summary>
@@ -173,34 +196,35 @@ public sealed class ProcessIntakeSubmission(
     /// until the answer exists.
     /// </remarks>
     /// <summary>
-    /// Processes the staged receipt, retrying a recoverable failure.
+    /// Processes the staged receipt. False when a recoverable failure stopped
+    /// this request from finishing the work — not that the work is lost.
     /// </summary>
     /// <remarks>
     /// Several staff uploading at once contend for the same tables, and the
     /// serializable reads intake uses turn that contention into deadlocks and
-    /// lock timeouts. The Worker survives those because a queued item is simply
-    /// retried later; a person standing in front of the page has no later, so an
-    /// upload that lost a deadlock told them the file could not be processed and
-    /// left them to guess whether to try again. The work is idempotent — the
-    /// staged receipt is already durable and the processing claim is leased — so
-    /// the request retries it a few times before giving up.
+    /// lock timeouts. The staged receipt is already durable and the work item is
+    /// still alive — dispatched, or leased and recovered by the Worker once the
+    /// lease expires — so nothing here is lost and nothing needs undoing.
+    ///
+    /// Deliberately no in-request retry. Retrying four times took the upload to
+    /// roughly ten seconds under this contention (measured: writes clustered at
+    /// 4.7s and 9.7s against a 3s budget) and still often ended with no result,
+    /// because each attempt blocks on the same locks. Answering "received, in
+    /// progress" in a hundred milliseconds is both faster and more honest than
+    /// making the operator wait ten seconds for the same answer.
     /// </remarks>
-    private async Task ProcessAsync(Guid stagedReceiptId, CancellationToken cancellationToken)
+    private async Task<bool> TryProcessAsync(Guid stagedReceiptId, CancellationToken cancellationToken)
     {
-        for (var attempt = 0; ; attempt++)
+        try
         {
-            try
-            {
-                await processQueuedIntake.ExecuteAsync(stagedReceiptId, cancellationToken);
-                return;
-            }
-            catch (Exception exception) when (
-                attempt < ProcessingAttempts
-                && exception is not OperationCanceledException
-                && IntakeExceptionPolicy.IsRecoverable(exception))
-            {
-                await Task.Delay(ProcessingRetryDelay, cancellationToken);
-            }
+            await processQueuedIntake.ExecuteAsync(stagedReceiptId, cancellationToken);
+            return true;
+        }
+        catch (Exception exception) when (
+            exception is not OperationCanceledException
+            && IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            return false;
         }
     }
 
@@ -216,6 +240,17 @@ public sealed class ProcessIntakeSubmission(
             if (evaluation is not null)
             {
                 return evaluation;
+            }
+
+            // Only another request actively finishing this receipt is worth
+            // waiting for. Work pushed onto its retry is due in half a minute at
+            // the earliest and will be done by the Worker, so holding the page
+            // open for it just makes the operator wait to be told the same
+            // thing. Anything else has no result coming either.
+            var workItem = await workStore.FindWorkItemAsync(stagedReceiptId, cancellationToken);
+            if (workItem is null || workItem.State is not IntakeWorkState.Processing)
+            {
+                return null;
             }
 
             if (attempt >= CompletionAttempts)
@@ -248,6 +283,14 @@ public interface IIntakeWorkStore
     Task<IntakeWorkItem?> ClaimDispatchAsync(
         DateTimeOffset nowUtc,
         TimeSpan leaseDuration,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The work item for a staged receipt, whoever holds it. Read-only: this
+    /// asks whether the work is still in hand, it does not claim it.
+    /// </summary>
+    Task<IntakeWorkItem?> FindWorkItemAsync(
+        Guid stagedReceiptId,
         CancellationToken cancellationToken);
 
     Task MarkDispatchedAsync(

@@ -108,21 +108,24 @@ release claim:
 
 ## Next (ordered queue — take from the top)
 
-- Concurrent staff uploads lose their result (PR 357 review, diagnosed not
-  fixed — this is the `qdos-pressure` acceptance gate and it is red).
-  `EightConcurrentStaffCompleteBoundedCallerPressureWithoutLostReceipts` fails
-  reproducibly: under eight concurrent staff, several uploads never get a
-  completed evaluation for their **own** staged receipt. `ProcessQueuedIntake`
-  cannot claim the work item and returns having done nothing, no other request
-  is processing that receipt, and the inline wait times out into "The file
-  could not be processed." The receipt is durable throughout — nothing is lost
-  — but the operator is told their upload failed when it did not, and may
-  upload again. The replay half of the gate is fixed and passing; this half is
-  the work-item claim and lease lifecycle under concurrency
-  (`ClaimProcessingAsync`, the five-minute `ProcessingLeaseDuration`, and who
-  is expected to process a staged receipt nobody holds), which is a design
-  question rather than a patch. `qdos-pressure` passes on `dev`, so this
-  arrived with the inline-processing change
+- **Decide what a manual upload may cost the operator** (PR 357 review — this
+  is the `qdos-pressure` acceptance gate and it is red on the timing budget
+  alone). The correctness half is fixed: no upload is told it failed when its
+  work is still scheduled, every staged receipt survives, no work item ends in
+  `failed`, and the concurrent-replay test passes. What remains is speed.
+  Processing now happens while the operator waits, and under the gate's eight
+  concurrent staff one upload takes **3.9s at best and up to 11.7s** (measured
+  on the dev workstation: 3959, 3959, 3961, 3966, 3967, 3967, 3967, 8750,
+  8860, 11677 ms), against a `Warm write p95 <= 3s` budget that was written
+  when an upload only staged the file and returned in ~100ms. The cost is lock
+  contention inside the intake write path under serializable isolation; it is
+  not the request-level logic, which was tried both with and without an
+  in-request retry to the same effect. Three ways out, and it is an operator
+  call which: accept slower uploads and re-baseline the budget with a stated
+  number; keep uploads fast by answering "received, in progress" without
+  waiting for the result; or reduce the contention in the intake write path.
+  Not a correctness risk either way — the work completes and the Worker picks
+  up anything the request could not finish
   (task/upload-case-creation-and-inbox review, 2026-08-07).
 - Mailbox identity change stalls or duplicates inbound mail (PR 357 review,
   diagnosed not fixed — take this before the next mailbox is onboarded).
