@@ -16,7 +16,7 @@ $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
 $exeName = if ($IsWindows) { 'collisionrenderer.exe' } else { 'collisionrenderer' }
-$exe = Join-Path $root "src/CollisionRenderer.Cli/bin/$Configuration/net8.0/$exeName"
+$exe = Join-Path $root "src/CollisionRenderer.Cli/bin/$Configuration/net10.0/$exeName"
 if (-not (Test-Path $exe)) {
     Write-Host 'Building CLI...' -ForegroundColor Cyan
     dotnet build src/CollisionRenderer.Cli/CollisionRenderer.Cli.csproj -c $Configuration | Out-Null

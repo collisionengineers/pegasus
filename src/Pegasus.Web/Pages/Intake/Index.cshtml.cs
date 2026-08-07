@@ -6,6 +6,7 @@ using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Intake;
 
@@ -128,15 +129,52 @@ public sealed class IndexModel(
     /// <summary>
     /// A failure an operator can act on, never the recorded failure code.
     /// </summary>
-    public static string MailFailureSentence(string? failureCode) => failureCode switch
+    /// <remarks>
+    /// Two different things land in this list. A polling failure is about the
+    /// mailbox, and "the last message from this mailbox" is true of it. A
+    /// refused message is about one message, and that sentence is a false
+    /// claim about it — the mailbox is being polled perfectly well. Every code
+    /// a refused message can carry is named here, so the mailbox-shaped
+    /// fallback only survives for a code nobody has seen.
+    ///
+    /// A refused message names its size, because size is the whole answer for
+    /// the refusal that has actually happened: a 16.7 MB QDOS forward was
+    /// turned away on 2026-08-05 and the row said only that something could
+    /// not be processed.
+    /// </remarks>
+    public static string MailFailureSentence(string? failureCode, long? sourceLength = null)
     {
-        null or "" => "This message could not be processed.",
-        "source_unavailable" => "The message could not be read from the mailbox.",
-        "sent_mailbox_not_approved" => "The mailbox it was sent from is not an approved mailbox.",
-        "sent_source_throttled" => "The mailbox refused further reads for a while.",
-        "sent_evidence_poll_failure" => "The sent folder could not be read.",
-        _ => "The last message from this mailbox could not be processed."
-    };
+        var size = sourceLength is { } bytes
+            ? $" It is {OperatorLabels.FileSize(bytes)}."
+            : string.Empty;
+        return failureCode switch
+        {
+            null or "" => "This message could not be processed.",
+            "source_unavailable" => "The message could not be read from the mailbox.",
+            "sent_mailbox_not_approved" => "The mailbox it was sent from is not an approved mailbox.",
+            "sent_source_throttled" => "The mailbox refused further reads for a while.",
+            "sent_evidence_poll_failure" => "The sent folder could not be read.",
+            "message_too_large" =>
+                $"This message is larger than the {OperatorLabels.FileSize(IntakeEnvelopeLimits.MaximumMailboxContentLength)} "
+                    + $"limit, so it was kept but not read.{size}",
+            "empty_message" => "This message arrived with no content, so there was nothing to read.",
+            "missing_message_identity" or "message_identity_too_long" =>
+                "This message did not carry a usable identity, so it could not be tracked.",
+            "missing_message_file_name" or "invalid_message_file_name" or "message_file_name_too_long" =>
+                "This message did not carry a usable file name, so it could not be retained.",
+            "immutable_source_changed" =>
+                "This message changed in the mailbox after it was first seen, so it was kept unread for review.",
+            "immutable_source_missing" =>
+                "This message was no longer in the mailbox when it came to be read.",
+            "source_identity_conflict" =>
+                "A different message is already recorded under this message's identity.",
+            "artifact_retention_failure" =>
+                "This message could not be kept safely, so it was not processed.",
+            "invalid_mailbox_source" => "The mailbox returned something that could not be read.",
+            "mailbox_poll_failure" => "The last message from this mailbox could not be processed.",
+            _ => "The last message from this mailbox could not be processed."
+        };
+    }
 
     public static string DecisionLabel(IntakeDecision decision) => decision switch
     {

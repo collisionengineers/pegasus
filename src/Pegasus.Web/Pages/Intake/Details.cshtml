@@ -5,13 +5,38 @@
 @using Pegasus.Core.Intake
 @{
     ViewData["Title"] = "Intake review";
+
+    @* Allocation runs after the decision is persisted and is deliberately
+       non-blocking, so a definitive receipt can exist with no case behind it —
+       an unknown Principal or an exhausted reference sequence both land here.
+       The stored decision and reason are written before that is known, so on
+       their own they claim a case that may not exist. Say what is true. *@
+    var allocationIncomplete = Model.Receipt.Decision == IntakeDecision.CaseCreated
+        && Model.Receipt.CurrentCaseId is null;
 }
 
 <header class="page-heading">
     <div>
         <p class="eyebrow">Intake review</p>
-        <h1>@DetailsModel.DecisionLabel(Model.Receipt.Decision)</h1>
-        <p class="lede">@Model.Receipt.DecisionReason</p>
+        @if (allocationIncomplete)
+        {
+            @* The create-case form renders for Needs sorting only (below), and
+               the handler refuses anything else, so this copy describes what
+               exists today rather than pointing at a control that is not on the
+               page. The recovery action belongs to the upload/inbox claim. *@
+            <h1>Case not created</h1>
+            <p class="lede">
+                This is a definitive instruction, but no case reference was
+                allocated for it. Ask an Administrator to check that its
+                Principal exists and is active; the instruction can be turned
+                into a case once it is resolved.
+            </p>
+        }
+        else
+        {
+            <h1>@DetailsModel.DecisionLabel(Model.Receipt.Decision)</h1>
+            <p class="lede">@Model.Receipt.DecisionReason</p>
+        }
     </div>
     <a class="secondary-action" asp-page="/Intake/Index">Back to received items</a>
 </header>

@@ -7,69 +7,14 @@
 Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 <agent>)`. Nothing is in flight unless it is claimed here on `origin/dev`.
 
-- Report renderer integration planning: plan the retirement of the
-  `workspaces/report-renderer/` source import into the monolith — locate the
-  Core render port seam and Infrastructure adapter placement that RPT-01–05
-  and EXT-08 would activate through, fold the workspace's own documentation
-  into the canonical docs, plan the renderer's .NET 8 → repository-TFM
-  uplift, plan the `docs/reference/rendererref1` blueprint and report-template
-  intake, plan promotion of the renderer's pre-existing MCP server as the
-  replacement for the current `.mcpb` packaging (MCP-01–04 follow-ups), and
-  plan removal of any remaining renderer desktop/UI elements. Draft planning
-  documents under `docs/temp-plans/` only: no activation, no `Pegasus.slnx`
-  change, no caller, no workspace deletion, and no acceptance in this task —
-  every integration stays behind the workspace register's activation
-  conditions and needs its own ADR and implementation task (branch
-  task/report-renderer-integration, taken 2026-08-03, by claude).
-- Report renderer workspace uplift: execute the unblocked, operator-decided
-  part of the `report-renderer-integration` plan set, all of it inside
-  `workspaces/report-renderer/` — remove the WinUI 3 desktop host and its
-  `design/assets/report-renderer/gui/` package assets (keeping
-  `PreviewComposer` and every template, stylesheet, logo and signature
-  asset), upgrade Scriban 5.12.1 → 7.2.6 against composed-HTML parity
-  evidence and retire the `NU1901-1904` suppression, uplift the six
-  remaining projects to `net10.0` with the package bumps, repair the
-  Dockerfile's non-existent `v1.61.0-jammy` base tag, replace `Format.Today`'s
-  machine-local `DateTime.Now` with a `TimeProvider`/Europe-London seam, and
-  correct `docs/operations.md`'s wrong Windows-only TFM row. Supersedes and
-  closes the planning claim above. No relocation into `src/`, no
-  `Pegasus.slnx` change, no Core port, no caller, no MCP consolidation, no
-  template work and no capability advanced — those stay blocked on the
-  operator questions the plan set records (branch
-  task/report-renderer-workspace-uplift, taken 2026-08-05, by claude).
-- CASE-27 edit-lease continuity and conflict recovery for both callers
-  (MCP-02/MCP-04): close the gaps between
-  `docs/requirements.md` "Case edit authority and recovery" and shipped
-  behaviour — expired leases must read as free everywhere they are projected
-  (Triage and Operations still narrate a past expiry as held), authorised
-  non-holders must see the holder and when edit authority frees, a rejected
-  editor must keep their proposed values for comparison instead of losing the
-  post to a bare redirect, the Automation Actor must be able to renew rather
-  than only begin/end, and the triplicated mutation guard collapses to one
-  Core-owned implementation with a single lease-token length contract. Staff
-  Web and the Automation Actor exercise the same guard and the same
-  reacquisition path; no takeover, no force-save, no Administrator bypass, no
-  lease vocabulary in operator copy (branch task/case-edit-lease-continuity,
-  taken 2026-08-05, by claude).
-- A QDOS email forwarded to the instructions mailbox did not create a case:
-  diagnose it against production read-only along the intake chain (Graph poll →
-  staged artifact → dispatch → `ProcessIntake` decision → allocation), name the
-  failing link with live evidence, and fix what is genuinely defective. Reads
-  are authorised for `pegasus-prod-appi-252ow37gij`,
-  `pegasus-prod-worker-252ow37gij`, `pegtrans252ow37gij`, the `pegasus`
-  database, and the `instructions@collisionengineers.co.uk` message; every
-  production mutation stops for separate approval. No edits to the files
-  `task/upload-case-creation-and-inbox` owns and no widening of an accepted
-  fail-closed policy — findings that are operator decisions go to
-  `docs/open-decisions.md` (branch task/qdos-forward-intake-failure, taken
-  2026-08-05, by claude).
-
 ## Merged, not deployed
 
 The estate serves **release 7** (2026-08-05, revision `32feefa…`). It no longer
-carries every source change in `dev`: PR 357
-(task/upload-case-creation-and-inbox) merged a functional change that has never
-been deployed. The deployed-evidence record is owned by
+carries every source change in `dev`: PRs 342 (CASE-27 edit authority), 356 (a
+real instruction email gets in) and 357 (manual upload creates a case, and the
+Inbox shows mail) each merged functional changes that have never been deployed.
+PR 340 also merged but is `workspaces/` source no application build compiles, so
+it changes no deployed artifact. The deployed-evidence record is owned by
 [operations § Production environment](docs/operations.md#production-environment).
 
 Awaiting a release:
@@ -87,6 +32,23 @@ Awaiting a release:
   before activation. Evidence is local-caller tier only: a clean
   Release build and green Core, architecture and CI-filtered integration
   suites. Nothing here is live-verified, and UI-10 is not claimed as accepted.
+- **Report renderer workspace uplift** closes both the
+  `report-renderer-integration` planning claim (PR 331, closed as superseded —
+  its plan set lands here unmodified) and the `report-renderer-workspace-uplift`
+  claim. Inside `workspaces/report-renderer/` only: the WinUI 3 desktop host and
+  its 12 `design/assets/report-renderer/gui/` package assets are gone; Scriban is
+  7.2.6 and the `NU1901`–`NU1904` suppression is retired, taking the workspace
+  from 14 advisories (one Critical, `GHSA-5wr9-m6jw-xx44`, CVSS 9.1) to none
+  under `net10.0`'s full transitive audit; the six remaining projects are
+  `net10.0`; the Dockerfile's non-existent `v1.61.0-jammy` base tag is corrected
+  to `v1.61.0-noble`; and `Format.Today` takes a `TimeProvider` converted to
+  Europe/London instead of reading machine-local `DateTime.Now`. Workspace ADRs
+  0012–0014 record the three decisions. Evidence is **tier 1 only** — 236 tests
+  passing (216 before), clean build, composed-HTML parity across 12 template
+  identifiers × 3 densities. **Nothing is deployed and no capability advanced.**
+  There is still no Pegasus caller, no `Pegasus.slnx` entry and no Core render
+  port. The container was **not** built (no Docker on the workstation) and the
+  `.mcpb` bundle was not launched under .NET 10.
 
 Two things are deployed as code without being active, and neither is a
 release claim:
@@ -169,6 +131,23 @@ release claim:
   `IntakeManualAssociation` rather than `CaseIntakeLinks`; and `/Cases/Create`
   without a `receiptId` throws out of `GetIntake` instead of returning the
   styled not-found.
+- Production holds no Principal at all, so no QDOS instruction can become a
+  case there whatever intake decides. `SELECT COUNT(*) FROM Principals` on
+  `pegasus-prod-sql-252ow37gij/pegasus` returned 0 on 2026-08-05, and
+  `EfCaseAcceptanceStore` throws "The active principal 'QDOS' does not exist"
+  without one. Path step 2 cannot complete until the QDOS Organization and
+  Principal exist on the estate: decide whether they are created through
+  Administration by the operator or seeded by a bootstrap script, then do it
+  and record the evidence. Until then a definitive instruction reaches
+  allocation and stops there — `AllocateCaseIfDefinitiveAsync` is deliberately
+  non-blocking, so it leaves a receipt behind rather than failing the intake.
+  Decide with it what re-drives allocation for a receipt already stranded:
+  nothing routine reprocesses a completed work item, and the intake review
+  screen offers the create-case form for `Needs sorting` only, so a receipt
+  stuck this way stays stuck even once the Principal exists
+  (found diagnosing the 2026-08-05 QDOS forward,
+  task/qdos-forward-intake-failure).
+
 - Send to AI work-request integrity (PR 332 review): the reasoned `Cancelled`
   outcome the plan requires has no caller at all — `ICancelAiWorkRequest` is
   registered and unit-tested but nothing in the application invokes it, so
@@ -376,6 +355,24 @@ release claim:
   a guard so an unresolvable `RedirectToPage` target cannot 500 the Upload
   handler — URL generation runs after the handler returns, outside its catch
   (task/upload-case-creation-and-inbox review, 2026-08-06).
+- Decide the retained plaintext `EditLeaseToken` column: it sits beside its
+  own hash so an exact claim replay can return the opaque token, which makes
+  it a secret at rest. Removing it changes the accepted replay contract, so
+  it needs a decision, not a patch
+  (task/case-edit-lease-continuity, 2026-08-05).
+- Identifier and clock debt on the case surfaces, for the queued Cases page
+  rework: `_CaseSummary.cshtml` renders `AssignedEngineerId` and the approval
+  `SubjectId` as raw GUIDs, and Triage's non-editing timestamps still use
+  `ToLocalTime()` rather than the Europe/London wall clock the edit-authority
+  copy now uses. Both are banned by
+  `docs/ui-work/ui-standards-and-review.md`; the edit-authority panels were
+  cleared but the rest of the pages were out of that task's line
+  (task/case-edit-lease-continuity review, 2026-08-05).
+- After the Operations requests rework: `RecoverableLeaseCaseIds`,
+  `LeaseCaseId` and `LeaseLabel` on `Requests.cshtml.cs` may have lost their
+  last view caller now that the page shows no editing state — confirm and
+  delete what is unwired
+  (task/case-edit-lease-continuity merge, 2026-08-05).
 - Decide the unbuilt approved UI packages (audit total 17; the recovered
   set carries a page-5 numbering collision, so work from the named list
   rather than the count): the operator-approved
@@ -473,7 +470,75 @@ release claim:
   carries their durable content before deletion) (repository audit,
   2026-08-06).
 
+- Reconcile the report-renderer MCP plan with the merged AI-09 work: PR 332
+  landed an `automation.assessment` scope, five Automation Actor tools and the
+  Automation Actor ADR, so the renderer plan's assumed 9-tool inventory and its
+  recommendation to write that ADR are both superseded. Any later render tool
+  joins the inventory PR 332 left behind
+  (task/report-renderer-integration, 2026-08-03).
+- Capability-inventory questions raised by the renderer planning, each needing
+  an operator answer before the work it gates can start: RPT-02 requires a
+  four-member outcome enum that no accepted source defines (requirements name
+  two Assessment findings); ENG-01's "one canonical repair specification"
+  contradicts RPT-03's conservative-and-maximised pair, and resolving it
+  changes what ENG-01 must build; four new rows are proposed for the five
+  templates that map to no capability, and two templates are proposed for
+  retirement; and RPT-03 has no renderer template at all
+  (task/report-renderer-integration, 2026-08-03).
+- Lifecycle defect found while planning the renderer consumer chain:
+  correcting a sent report requires reopening to `ReportPreparation`, which is
+  exactly the state in which `UnlinkReportEvidence` becomes permitted, so a
+  correction makes final send evidence unlinkable — contradicting the rule
+  that the report-sent event stays final. Nothing hits it today because no
+  workflow returns a post-report case to report preparation. Sits inside the
+  CASE-23 open decision (task/report-renderer-integration, 2026-08-03).
+- Renderer container and `.mcpb` proofs the uplift could not run: build
+  `workspaces/report-renderer/Dockerfile` on a Docker-capable host to prove the
+  corrected `v1.61.0-noble` base actually publishes and runs a `net10.0` render,
+  and build and launch the `.mcpb` bundle once under .NET 10 to prove the
+  single-file Playwright driver still resolves. Both are configuration fixes
+  today, not proven builds. Moving jammy → noble also shifts Ubuntu 22.04 → 24.04
+  with its font and ICU versions, and there is no valid "before" image because
+  the `v1.61.0-jammy` tag never existed — so the first noble render is a new
+  baseline, not a comparison
+  (task/report-renderer-workspace-uplift, 2026-08-05).
+- Renderer analyzer strictness and lock files, both deferred by the uplift and
+  recorded in workspace ADR-0014: the workspace still sets its own relaxed build
+  properties and inherits nothing from the repository root, so
+  `TreatWarningsAsErrors` is off and an estimated low-hundreds of diagnostics
+  wait behind relocation; and the workspace has no `packages.lock.json` files, so
+  its CI lane correctly cannot use `--locked-mode`. Decide both before, not
+  during, any move into `src/`
+  (task/report-renderer-workspace-uplift, 2026-08-05).
+- Renderer density reaches one template only: `HtmlComposer` passes the density
+  through to `market-valuation-evidence` and not to the evidence pack, fee note
+  or expert report, so eleven of the twelve identifiers compose byte-identically
+  at Normal, Compact and UltraCompact. Observed while proving render parity;
+  pre-existing, not introduced. Decide whether auto-fit is meant to apply to
+  those bodies before density enters any issued-artifact contract
+  (task/report-renderer-workspace-uplift, 2026-08-05).
+
 ## Waiting (each line names its unblock condition)
+
+- Report-renderer relocation into the monolith — blocked on three operator
+  decisions recorded in the plan set: whether the `.mcpb` stdio host is frozen
+  as a built artefact, kept in a reduced workspace, or republished, since
+  parity-first and workspace retirement cannot both be executed at once; where
+  rendering executes in production, given there is no Web Dockerfile and the
+  default `aspnet:10.0` base has neither Chromium nor the Liberation fonts and
+  `PublishContainer` cannot install them; and whether unaccepted report wording
+  and the three provenance-sensitive signature images may ship in the production
+  assembly behind a closed gate. The Core render contract, the ADR and the
+  staged route are drafted and waiting. The workspace-local uplift that had to
+  precede any of this is done
+  (task/report-renderer-workspace-uplift, 2026-08-05).
+- Report rendering capabilities RPT-01–05 and EXT-08 — blocked on accepted
+  CASE-31, ENG-01 and ENG-02 data, which requirements sequences ahead of them
+  and none of which exists, and on the open report-wording decision. With
+  `DESIGN_SPEC` superseded by the 2026-08-03 operator decision, the RPT
+  specification must now come from those three capabilities plus operator
+  answers; the field-level contract the renderer will demand of them is
+  drafted (task/report-renderer-integration, 2026-08-03).
 
 - Obsolete predecessor vault purge — five soft-deleted `uksouth` vaults on two
   platform-scheduled dates: `cespk-pg-kv-dev`, `cespkevakvufa3ci`, and

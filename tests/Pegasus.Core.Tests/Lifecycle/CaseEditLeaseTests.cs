@@ -92,6 +92,50 @@ public sealed class CaseEditLeaseTests
         Assert.Null(store.ClaimRequest);
     }
 
+    [Fact]
+    public async Task RenewAndReleaseRejectATokenLongerThanOneCanEverBeIssued()
+    {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var caseId = Guid.NewGuid();
+        var overLengthToken = new string('a', CaseEditAuthority.LeaseTokenLength + 1);
+        var store = new RecordingLeaseStore(
+            new(caseId, "unused", actor.SubjectId, 0, DateTimeOffset.MaxValue));
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            new RenewCaseEditLease(store).ExecuteAsync(
+                new(caseId, 0, actor, "renew-lease", overLengthToken),
+                default));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            new ReleaseCaseEditLease(store).ExecuteAsync(
+                new(caseId, actor, "release-lease", overLengthToken),
+                default));
+
+        Assert.Null(store.RenewRequest);
+        Assert.Null(store.ReleaseRequest);
+    }
+
+    [Fact]
+    public void MutationValidationRejectsATokenLongerThanOneCanEverBeIssued()
+    {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var request = new ChangeCaseStateRequest(
+            Guid.NewGuid(),
+            0,
+            actor,
+            "change-state",
+            "A settled reason",
+            new string('a', CaseEditAuthority.LeaseTokenLength + 1));
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => CaseLifecycleRules.ValidateMutation(request));
+
+        CaseLifecycleRules.ValidateMutation(
+            request with
+            {
+                EditLeaseToken = new string('a', CaseEditAuthority.LeaseTokenLength)
+            });
+    }
+
     private sealed class RecordingLeaseStore(CaseEditLease claimResult) : ILeaseCaseForEdit
     {
         public ClaimCaseEditLeaseRequest? ClaimRequest { get; private set; }

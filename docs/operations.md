@@ -63,7 +63,7 @@ What Windows gives this project that Linux does not:
 | `dotnet dev-certs https --trust` | Trust works directly. On Linux it populates per-user NSS and OpenSSL stores and needs `libnss3-tools` plus `SSL_CERT_DIR`. |
 | The `win-x64` migration bundle and authorised release terminal | Fixed by ADR-0007; see above. |
 | The Entra interactive authentication broker, and the `SqlServer` and `ExchangeOnlineManagement` modules | Used by the approved live-work profile. |
-| `scripts/email-eval-desktop` and `CollisionRenderer.Gui` | These target `net10.0-windows` with Windows Forms and WinUI 3 respectively. Neither framework has a Linux implementation, so both are Windows-only by construction. |
+| `scripts/email-eval-desktop` | It targets `net10.0-windows` with Windows Forms, which has no Linux implementation, so it is Windows-only by construction. |
 
 A 2026-07-27 currency check found:
 
@@ -72,6 +72,8 @@ A 2026-07-27 currency check found:
 - Worker 2.52.0 and Worker SDK 2.0.7 above Microsoft’s stated minimums.
 
 These vendor facts can drift. Refresh them before changing the SDK, target framework, Functions host, or release platform.
+
+Re-checked 2026-08-05 when `workspaces/report-renderer/` moved from `net8.0` to `net10.0` and its SDK pin from `10.0.300` to `10.0.302`. The three vendor facts above are unchanged; no repository target framework outside that workspace moved.
 
 ### Checkout path
 
