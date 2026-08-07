@@ -5,12 +5,62 @@ using Pegasus.Core.Identity;
 
 namespace Pegasus.Infrastructure.Persistence;
 
+/// <summary>
+/// One Approved inbound-intake row exactly as stored, identities possibly absent.
+/// </summary>
+internal sealed record ApprovedIntakeMailboxCandidate(
+    string Address,
+    string? MailboxIdentity,
+    string? InboxFolderIdentity);
+
 public sealed class EfApprovedMailboxStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider) : IApprovedMailboxStore
+    TimeProvider timeProvider) : IApprovedMailboxStore, IApprovedIntakeMailboxes
 {
     private const string AggregateType = "approved_mailbox";
     private const string EventKind = "approved_mailbox_updated";
+
+    /// <summary>
+    /// The raw estate view: only rows that are Approved, scoped to inbound intake, and
+    /// fully identified. Rows still awaiting their tenant identities are absent, so the
+    /// caller cannot poll a mailbox nobody has identified. Ordered by address so a tick
+    /// visits the estate in the same order every time.
+    /// </summary>
+    public async Task<IReadOnlyList<ApprovedIntakeMailbox>> ListPollableAsync(
+        CancellationToken cancellationToken)
+    {
+        var candidates = await ListInboundIntakeCandidatesAsync(cancellationToken);
+        return candidates
+            .Where(item => item.MailboxIdentity is not null && item.InboxFolderIdentity is not null)
+            .Select(item => new ApprovedIntakeMailbox(
+                item.MailboxIdentity!,
+                item.Address,
+                item.InboxFolderIdentity!))
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Every Approved inbound-intake row, including rows still awaiting their tenant
+    /// identities, so a composition that carries a configuration fallback can decide
+    /// what to do about them. Ordered by address, so a tick visits the estate in the
+    /// same order every time.
+    /// </summary>
+    internal async Task<IReadOnlyList<ApprovedIntakeMailboxCandidate>>
+        ListInboundIntakeCandidatesAsync(CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var approvedState = ApprovedMailboxState.Approved.ToString();
+        return await context.Set<ApprovedMailboxEntity>()
+            .AsNoTracking()
+            .Where(item => item.State == approvedState && item.AllowInboundIntake)
+            .OrderBy(item => item.Address)
+            .ThenBy(item => item.Id)
+            .Select(item => new ApprovedIntakeMailboxCandidate(
+                item.Address,
+                item.MailboxIdentity,
+                item.InboxFolderIdentity))
+            .ToListAsync(cancellationToken);
+    }
 
     public async Task<IReadOnlyList<ApprovedMailbox>> ListAsync(
         CancellationToken cancellationToken)
@@ -97,6 +147,9 @@ public sealed class EfApprovedMailboxStore(
                 Id = request.MailboxId,
                 Address = request.Address,
                 State = request.State.ToString(),
+                MailboxIdentity = request.MailboxIdentity,
+                InboxFolderIdentity = request.InboxFolderIdentity,
+                SentFolderIdentity = request.SentFolderIdentity,
                 Version = 1
             };
             context.Set<ApprovedMailboxEntity>().Add(entity);
@@ -115,6 +168,22 @@ public sealed class EfApprovedMailboxStore(
             }
 
             before = Snapshot(entity);
+            // Rebinding an identity would orphan or alias the per-mailbox cursor row,
+            // whose primary key is the mailbox identity. A bound value may be re-sent
+            // unchanged, or omitted; it may never be changed. Moving a mailbox is
+            // therefore disable-and-add, never edit.
+            entity.MailboxIdentity = BindIdentity(entity.MailboxIdentity, request.MailboxIdentity);
+            entity.InboxFolderIdentity =
+                BindIdentity(entity.InboxFolderIdentity, request.InboxFolderIdentity);
+            entity.SentFolderIdentity =
+                BindIdentity(entity.SentFolderIdentity, request.SentFolderIdentity);
+            if (before.IdentityIsBound
+                && !string.Equals(entity.Address, request.Address, StringComparison.Ordinal))
+            {
+                throw new ApprovedMailboxUpdateException(
+                    ApprovedMailboxUpdateError.MailboxIdentityImmutable);
+            }
+
             entity.Address = request.Address;
             entity.State = request.State.ToString();
             entity.Version = checked(entity.Version + 1);
@@ -127,6 +196,19 @@ public sealed class EfApprovedMailboxStore(
                 cancellationToken))
         {
             throw new ApprovedMailboxUpdateException(ApprovedMailboxUpdateError.DuplicateAddress);
+        }
+
+        var mailboxIdentity = entity.MailboxIdentity;
+        if (mailboxIdentity is not null
+            && await context.Set<ApprovedMailboxEntity>()
+                .AsNoTracking()
+                .AnyAsync(
+                    item => item.MailboxIdentity == mailboxIdentity
+                        && item.Id != request.MailboxId,
+                    cancellationToken))
+        {
+            throw new ApprovedMailboxUpdateException(
+                ApprovedMailboxUpdateError.DuplicateMailboxIdentity);
         }
 
         entity.AllowInboundIntake =
@@ -181,6 +263,11 @@ public sealed class EfApprovedMailboxStore(
             || snapshot.Address != request.Address
             || snapshot.State != request.State
             || snapshot.Version != expectedResultVersion
+            // The recorded identities are part of what the operation did, so a replay
+            // that presents different ones is a different operation, not a repeat.
+            || !IdentityMatchesReplay(snapshot.MailboxIdentity, request.MailboxIdentity)
+            || !IdentityMatchesReplay(snapshot.InboxFolderIdentity, request.InboxFolderIdentity)
+            || !IdentityMatchesReplay(snapshot.SentFolderIdentity, request.SentFolderIdentity)
             || !snapshot.RouteScopes.OrderBy(scope => scope).SequenceEqual(requestedRoutes))
         {
             throw new ApprovedMailboxUpdateException(
@@ -190,11 +277,37 @@ public sealed class EfApprovedMailboxStore(
         return Map(snapshot);
     }
 
+    /// <summary>
+    /// A replayed request may omit an identity the recorded operation had already bound,
+    /// exactly as a live update may; a differing non-null value is a conflict.
+    /// </summary>
+    private static bool IdentityMatchesReplay(string? recorded, string? presented) =>
+        presented is null || string.Equals(recorded, presented, StringComparison.Ordinal);
+
+    private static string? BindIdentity(string? current, string? requested)
+    {
+        if (requested is null || string.Equals(current, requested, StringComparison.Ordinal))
+        {
+            return current ?? requested;
+        }
+
+        if (current is not null)
+        {
+            throw new ApprovedMailboxUpdateException(
+                ApprovedMailboxUpdateError.MailboxIdentityImmutable);
+        }
+
+        return requested;
+    }
+
     private static MailboxSnapshot Snapshot(ApprovedMailboxEntity entity) => new(
         entity.Id,
         entity.Address,
         Routes(entity),
         ParseState(entity.State),
+        entity.MailboxIdentity,
+        entity.InboxFolderIdentity,
+        entity.SentFolderIdentity,
         entity.Version);
 
     private static ApprovedMailbox Map(ApprovedMailboxEntity entity) => Map(Snapshot(entity));
@@ -204,6 +317,10 @@ public sealed class EfApprovedMailboxStore(
         snapshot.Address,
         snapshot.RouteScopes,
         snapshot.State,
+        snapshot.MailboxIdentity,
+        snapshot.InboxFolderIdentity,
+        snapshot.SentFolderIdentity,
+        snapshot.IdentityIsBound,
         snapshot.Version);
 
     private static ApprovedMailboxRouteScope[] Routes(ApprovedMailboxEntity entity)
@@ -231,5 +348,11 @@ public sealed class EfApprovedMailboxStore(
         string Address,
         IReadOnlyList<ApprovedMailboxRouteScope> RouteScopes,
         ApprovedMailboxState State,
-        int Version);
+        string? MailboxIdentity,
+        string? InboxFolderIdentity,
+        string? SentFolderIdentity,
+        int Version)
+    {
+        public bool IdentityIsBound => MailboxIdentity is not null;
+    }
 }

@@ -24,6 +24,7 @@ using Pegasus.Infrastructure.Vision;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Azure.Core;
 
 namespace Pegasus.Infrastructure;
@@ -59,6 +60,14 @@ public static class DependencyInjection
         services.AddScoped<IIntakeReceiptQueries>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
         services.AddScoped<IListIntake, ListIntake>();
         services.AddScoped<IGetIntake, GetIntake>();
+        // The read half of retained mail only. The write port is registered by the
+        // poll compositions below, so nothing in Web can add a retained message.
+        services.AddScoped<EfRetainedMailboxMessageStore>();
+        services.AddScoped<IRetainedMailQueries>(
+            provider => provider.GetRequiredService<EfRetainedMailboxMessageStore>());
+        services.AddScoped<ListRetainedMail>();
+        services.AddScoped<GetRetainedMail>();
+        services.AddScoped<GetRetainedMailFreshness>();
         services.AddScoped<IDownloadIntakeSource, DownloadIntakeSource>();
         services.AddScoped<IIntakeMutationStore, EfIntakeMutationStore>();
         services.AddScoped<IAutomaticCaseAssociationStore, EfIntakeMutationStore>();
@@ -203,6 +212,9 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfApprovedMailboxStore>());
         services.AddScoped<IApprovedMailboxPolicy>(
             provider => provider.GetRequiredService<EfApprovedMailboxStore>());
+        services.AddScoped<IApprovedIntakeMailboxes>(
+            provider => provider.GetRequiredService<EfApprovedMailboxStore>());
+        services.AddScoped<IApprovedMailboxPollStatusQueries, EfApprovedMailboxPollStatusQueries>();
         services.AddScoped<ListApprovedMailboxes>();
         services.AddScoped<UpdateApprovedMailbox>();
         services.AddScoped<EfCaseWorkflowStore>();
@@ -389,6 +401,14 @@ public static class DependencyInjection
             provider.GetRequiredService<LocalApprovedInboxOptions>());
         services.AddSingleton<IApprovedInboxSource, LocalDurableApprovedInboxSource>();
         services.AddScoped<IApprovedInboxPollStore, EfApprovedInboxPollStore>();
+        // Only a polling composition carries the configuration fallback; Web reads the
+        // estate as saved and never borrows a mailbox identity from configuration. The
+        // fallback reports an unidentified mailbox by address, so it needs logging even
+        // in a host that composed none.
+        services.AddLogging();
+        services.AddScoped<IApprovedIntakeMailboxes, ConfiguredApprovedIntakeMailboxes>();
+        services.AddScoped<IRetainedMailboxMessageStore>(
+            provider => provider.GetRequiredService<EfRetainedMailboxMessageStore>());
         services.AddScoped<PollApprovedInbox>();
         return services;
     }
@@ -486,12 +506,20 @@ public static class DependencyInjection
         });
         services.AddSingleton(provider => new GraphMailClient(
             provider.GetRequiredService<TokenCredential>(),
-            provider.GetRequiredService<GraphApprovedMailboxOptions>(),
+            provider.GetRequiredService<GraphApprovedMailboxOptions>().BaseUri,
             provider.GetRequiredService<HttpClient>()));
         services.AddSingleton<IApprovedInboxSource, GraphApprovedInboxSource>();
         services.AddSingleton<IApprovedSentSource, GraphApprovedSentSource>();
         services.AddScoped<IApprovedInboxPollStore, EfApprovedInboxPollStore>();
         services.AddScoped<ISentEvidencePollStore, EfSentEvidencePollStore>();
+        // Only a polling composition carries the configuration fallback; Web reads the
+        // estate as saved and never borrows a mailbox identity from configuration. The
+        // fallback reports an unidentified mailbox by address, so it needs logging even
+        // in a host that composed none.
+        services.AddLogging();
+        services.AddScoped<IApprovedIntakeMailboxes, ConfiguredApprovedIntakeMailboxes>();
+        services.AddScoped<IRetainedMailboxMessageStore>(
+            provider => provider.GetRequiredService<EfRetainedMailboxMessageStore>());
         services.AddScoped<PollApprovedInbox>();
         services.AddScoped<PollSentEvidence>();
         services.AddSingleton(VehicleLookupAvailability.ProductionLive);

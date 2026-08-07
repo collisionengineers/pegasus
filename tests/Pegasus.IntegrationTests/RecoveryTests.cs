@@ -125,7 +125,7 @@ public sealed class RecoveryTests
         await processor.ExecuteAsync(received.StagedReceiptId);
 
         var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
-        var retained = Assert.Single(await receipts.ListAsync(null, CancellationToken.None));
+        var retained = Assert.Single((await receipts.ListAsync(null, 1, 100, CancellationToken.None)).Items);
         Assert.Equal(IntakeDecision.CaseCreated, retained.Decision);
         var evaluation = Assert.IsType<IntakeEvaluationRevision>(
             await store.GetCompletedEvaluationAsync(

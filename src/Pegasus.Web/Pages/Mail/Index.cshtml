@@ -1,0 +1,133 @@
+@page "/Inbox"
+@using Pegasus.Core.Intake
+@using Pegasus.Web.Presentation
+@model Pegasus.Web.Pages.Mail.IndexModel
+@{
+    ViewData["Title"] = "Inbox";
+    ViewData["RefreshStatus"] = Pegasus.Web.Pages.Mail.IndexModel.FreshnessStatus(Model.Freshness.State);
+    ViewData["RefreshFields"] = Model.RefreshFields;
+}
+
+@* No lede. The tabs, the rows and the freshness element are the explanation. *@
+<header class="page-heading">
+    <h1>Inbox</h1>
+    <partial name="Shared/_FreshnessBanner" model="Model.Freshness.LastSuccessfulUpdateAtUtc" />
+</header>
+
+@if (Model.Mailboxes.Count > 1)
+{
+    <nav class="tabs" aria-label="Mailbox">
+        <a asp-page="/Mail/Index" asp-route-folder="@Model.FolderRouteValue"
+           aria-current="@(Model.MailboxFilter is null ? "page" : null)">All mailboxes</a>
+        @foreach (var mailbox in Model.Mailboxes)
+        {
+            <a asp-page="/Mail/Index" asp-route-mailbox="@mailbox.MailboxId"
+               asp-route-folder="@Model.FolderRouteValue"
+               aria-current="@(Model.MailboxFilter == mailbox.MailboxId ? "page" : null)">@mailbox.MailboxAddress</a>
+        }
+    </nav>
+}
+
+<nav class="subtabs section-gap" aria-label="Folder">
+    @foreach (var folder in new[] { MailFolderScope.Inbox, MailFolderScope.Sent, MailFolderScope.DeletedItems })
+    {
+        <a asp-page="/Mail/Index" asp-route-mailbox="@Model.MailboxFilter"
+           asp-route-folder="@(folder == MailFolderScope.Inbox ? null : Pegasus.Web.Pages.Mail.IndexModel.FolderCode(folder))"
+           aria-current="@(Model.Folder == folder ? "page" : null)">@Pegasus.Web.Pages.Mail.IndexModel.FolderLabel(folder)</a>
+    }
+</nav>
+
+<section class="panel" aria-label="Retained messages">
+    @if (Model.Results.Items.Count == 0)
+    {
+        @* An empty scope says which of the three reasons it is empty for. A blank
+           list that could equally mean "nothing arrived", "nothing is kept here"
+           or "everything here predates retention" tells the operator nothing. *@
+        @if (Model.Folder != MailFolderScope.Inbox)
+        {
+            <p class="empty-state">
+                @Pegasus.Web.Pages.Mail.IndexModel.FolderLabel(Model.Folder) messages are not kept in Pegasus yet.
+                Only received mail is retained.
+            </p>
+        }
+        else if (Model.Results.HasUnretainedHistory)
+        {
+            <p class="empty-state">
+                Nothing here yet. Messages are kept from the point this screen started
+                keeping them; anything received before that was processed but is not
+                shown here.
+            </p>
+        }
+        else
+        {
+            <p class="empty-state">No mail has been received.</p>
+        }
+    }
+    else
+    {
+        <div class="queue-list">
+            @foreach (var item in Model.Results.Items)
+            {
+                <a asp-page="/Mail/Message" asp-route-id="@item.Id"
+                   asp-route-mailbox="@Model.MailboxFilter"
+                   asp-route-folder="@Model.FolderRouteValue"
+                   asp-route-pageNumber="@(Model.Results.Page > 1 ? Model.Results.Page : (int?)null)"
+                   data-state="@(item.IsRead ? "read" : "unread")">
+                    <span>
+                        <strong>
+                            @Pegasus.Web.Pages.Mail.IndexModel.SenderLine(item)
+                            @if (!item.IsRead)
+                            {
+                                @* Weight alone is not a state. The word is. *@
+                                <span class="vh">Unread</span>
+                            }
+                        </strong>
+                        @if (item.SenderAddress is { Length: > 0 } address
+                             && !string.Equals(address, Pegasus.Web.Pages.Mail.IndexModel.SenderLine(item), StringComparison.Ordinal))
+                        {
+                            <small>@address</small>
+                        }
+                    </span>
+                    <span>
+                        <strong>@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)</strong>
+                        @if (!string.IsNullOrWhiteSpace(item.BodyExcerpt))
+                        {
+                            <small>@item.BodyExcerpt</small>
+                        }
+                    </span>
+                    <span>
+                        <time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.ReceivedAtUtc)</time>
+                        @if (item.AttachmentCount > 0)
+                        {
+                            <small>@item.AttachmentCount attachment@(item.AttachmentCount == 1 ? string.Empty : "s")</small>
+                        }
+                        @if (!item.MailboxIsPolled)
+                        {
+                            <partial name="Shared/_StatusChip" model="@("No longer polled")" />
+                        }
+                    </span>
+                </a>
+            }
+        </div>
+    }
+</section>
+
+@if (Model.Results.TotalPages > 1)
+{
+    @* Accessible pagination, never infinite scrolling. *@
+    <nav class="pager" aria-label="Pages">
+        @if (Model.Results.Page > 1)
+        {
+            <a asp-page="/Mail/Index" asp-route-mailbox="@Model.MailboxFilter"
+               asp-route-folder="@Model.FolderRouteValue"
+               asp-route-pageNumber="@(Model.Results.Page - 1)">Previous</a>
+        }
+        <span class="pager__context">Page @Model.Results.Page of @Model.Results.TotalPages</span>
+        @if (Model.Results.Page < Model.Results.TotalPages)
+        {
+            <a asp-page="/Mail/Index" asp-route-mailbox="@Model.MailboxFilter"
+               asp-route-folder="@Model.FolderRouteValue"
+               asp-route-pageNumber="@(Model.Results.Page + 1)">Next</a>
+        }
+    </nav>
+}

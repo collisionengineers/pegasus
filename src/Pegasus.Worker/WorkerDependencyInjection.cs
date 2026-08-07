@@ -165,11 +165,21 @@ public static class WorkerDependencyInjection
             ?? throw new InvalidOperationException("ApprovedInbox:MailboxAddress is required.");
         var localPath = configuration["ApprovedInbox:LocalRootPath"]
             ?? throw new InvalidOperationException("ApprovedInbox:LocalRootPath is required.");
-        return new(
-            DevelopmentOfflineProfile,
-            mailboxId,
-            mailboxAddress,
-            Path.GetFullPath(Path.Combine(environment.ContentRootPath, localPath)));
+        // Optional: the offline root is now the root of a local mailbox estate, and each
+        // mailbox reads one folder beneath it. Existing settings keep the default.
+        var inboxFolderIdentity = configuration["ApprovedInbox:InboxFolderIdentity"];
+        return string.IsNullOrWhiteSpace(inboxFolderIdentity)
+            ? new(
+                DevelopmentOfflineProfile,
+                mailboxId,
+                mailboxAddress,
+                Path.GetFullPath(Path.Combine(environment.ContentRootPath, localPath)))
+            : new(
+                DevelopmentOfflineProfile,
+                mailboxId,
+                mailboxAddress,
+                Path.GetFullPath(Path.Combine(environment.ContentRootPath, localPath)),
+                inboxFolderIdentity);
     }
 
     private static LocalApprovedSentOptions GetLocalApprovedSentOptions(

@@ -240,7 +240,7 @@ public sealed class OrganizationAdministrationPersistenceTests
         var predecessor = await createPrincipal.ExecuteAsync(
             new(
                 organization.Id,
-                QdosAlphaCaseActivationPolicy.PrincipalCode,
+                QdosPrincipal.Code,
                 Administrator,
                 "principal:create:replacement"),
             default);
@@ -401,7 +401,7 @@ public sealed class OrganizationAdministrationPersistenceTests
                         false)
                 ],
                 new(
-                    QdosAlphaCaseActivationPolicy.PrincipalCode,
+                    QdosPrincipal.Code,
                     "Replacement claimant",
                     "REPLACEMENT-001",
                     "AB12CDE",

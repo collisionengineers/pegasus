@@ -277,6 +277,38 @@ Operations-first is selected for the QDOS-alpha shell. Worklist-first and Case-f
 |---|---|---|---|
 | Completion of the full design route for each later UI capability, using the canonical [design process](../design/README.md) rather than inheriting raster details. | Treating comparison material or raster details as requirements could constrain later capabilities to an unaccepted interaction model. | Keep the operations-first alpha shell. Require later UI capabilities to re-enter complete design before activation. | Has the later UI capability completed the full design route without treating comparison evidence or raster details as accepted requirements? |
 
+## Mail workspace freshness threshold and retention start
+
+The mail workspace ships reading retained messages. Two of its numbers are
+provisional and are recorded here rather than presented as settled.
+
+| Decision | Evidence needed | Impact | Recommended default | Decision question |
+|---|---|---|---|---|
+| Stale threshold | Observed poll behaviour under real load: how often a tick is genuinely late, and how long an operator can act on mail without knowing polling has stopped. | Too short and the chip cries wolf on every slow tick; too long and a stopped Worker is invisible while staff work from a list that is no longer arriving. | Ship the provisional 15 minutes (fifteen missed one-minute ticks), recorded in `GetRetainedMailFreshness.StaleAfter`. | How long after the last successful poll should the workspace stop calling its data current? |
+| Historical mail | Whether operators need messages received before message-level retention began, and if so what a reconstruction from retained artifacts could honestly recover. | A backfill invents display material for messages whose MIME was retained but never parsed for display, and would present reconstructed fields as if they had been read at poll time. | Start empty. The list surfaces `HasUnretainedHistory` and says the gap exists rather than presenting nothing as "nothing was received". | Should retained mail be backfilled for messages polled before retention began? |
+
+## Manual upload in a deployed environment
+
+[ADR-0003](adr/0003-pdfpig-for-first-qdos-slice.md) states that the manual
+upload route "must not be enabled in a deployed environment until authenticated
+intake and approved durable source custody are implemented". Shipped behaviour
+has drifted from that: the nav item and the `/Upload` page are reachable in
+Production today, and this task made that route the way a manual upload becomes
+a case. The prohibition was neither honoured nor withdrawn.
+
+Only one of its two conditions is clearly met. `UploadModel` is `[Authorize]`
+with explicit roles, so authenticated intake holds — and held before this task.
+Durable source custody does not: the same ADR paragraph records that the upload
+path retains its assets "in ignored local content-addressed storage… not
+production Blob staging, Box custody, backup, or retention", which remains true.
+
+An ADR body is immutable and amendable only on an explicit operator
+instruction, so the discrepancy is recorded here rather than edited away.
+
+| Decision | Evidence needed | Impact | Recommended default | Decision question |
+|---|---|---|---|---|
+| Manual upload deployment status | Which custody path a deployed manual upload actually writes to, and whether that satisfies "approved durable source custody" as ADR-0003 meant it. | The route is reachable in Production now. Leaving the contradiction unresolved means either an unenforced prohibition or an undocumented permission, and the release record cannot state which. | Neither enable nor disable it on this task's authority. Resolve the custody question first, then either amend ADR-0003 by operator instruction or gate `/Upload` to match it. | Is the manual upload route permitted in a deployed environment, and on what custody evidence? |
+
 ## Azure ownership and retirement targets
 
 Azure ownership changes and retirement are separate exact-target decisions. The

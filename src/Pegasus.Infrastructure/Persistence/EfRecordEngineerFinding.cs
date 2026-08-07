@@ -61,8 +61,9 @@ internal sealed class EfRecordEngineerFinding(
         RequireLease(workflow, request.Actor, request.EditLeaseToken, recordedAtUtc);
 
         var caseType = ParseCaseType(workflow.Case.Type);
-        _ = QdosAlphaCaseActivationPolicy.RequireActivatedPrincipal(
-            workflow.Case.Principal.Code);
+        // The principal was settled when the case was allocated and is
+        // immutable after it. Re-asserting which principal it is here refused
+        // engineer findings on perfectly valid non-QDOS cases.
         var state = ParseLifecycleState(workflow.State);
         EngineerFindingPolicy.RequireAssignedInspectionAndAudit(
             caseType,

@@ -270,6 +270,17 @@ public sealed class EfIntakeWorkStore(
             clearFailure: false,
             cancellationToken);
 
+    public async Task<IntakeWorkItem?> FindWorkItemAsync(
+        Guid stagedReceiptId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var item = await context.IntakeWorkItems
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.StagedReceiptId == stagedReceiptId, cancellationToken);
+        return item is null ? null : Map(item);
+    }
+
     public async Task<(IntakeWorkItem WorkItem, IntakeStagedReceipt Receipt)?> ClaimProcessingAsync(
         Guid stagedReceiptId,
         DateTimeOffset nowUtc,

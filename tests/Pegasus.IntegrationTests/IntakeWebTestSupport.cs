@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -16,6 +17,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using MimeKit;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
 
 namespace Pegasus.IntegrationTests;
@@ -326,76 +328,230 @@ internal static partial class IntakeWebDriver
         return await ProcessQueuedAsync(factory, upload, cancellationToken);
     }
 
+    /// <summary>
+    /// Reads the upload to the point where the receipt it produced can be
+    /// opened, and points the result at the received-item screen.
+    /// </summary>
+    /// <remarks>
+    /// This used to be the only way an upload ever got processed: the page
+    /// staged the bytes and returned, and this helper drove
+    /// <c>DispatchPendingIntakeWork</c> by hand to stand in for the Worker
+    /// timer. Manual upload now reads the file while the operator waits, so
+    /// for that caller the evaluation is already complete before the redirect
+    /// arrives and there is nothing to dispatch — asserting that a dispatch
+    /// happened would fail on work that has already been done.
+    ///
+    /// The dispatch loop stays for the mailbox and automation callers, which
+    /// genuinely still queue.
+    ///
+    /// Either way the result is pointed at <c>/Received/{id}</c>, because that is
+    /// what the callers of this helper want next: the retained record of what
+    /// arrived. Where the upload itself landed is a separate question, asked
+    /// with <see cref="Landing"/>, <see cref="CreateScreenReceiptId"/> or
+    /// <see cref="CaseId"/>.
+    /// </remarks>
     public static async Task<UploadResult> ProcessQueuedAsync(
         IntakeWebApplicationFactory factory,
         UploadResult upload,
         CancellationToken cancellationToken = default)
     {
-        var stagedReceiptId = QueuedReceiptId(upload);
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
-        var workStore = services.GetRequiredService<IIntakeWorkStore>();
-        var processor = services.GetRequiredService<ProcessQueuedIntake>();
-        var dispatcher = new DispatchPendingIntakeWork(
-            workStore,
-            new ImmediateIntakeWorkEnqueuer(processor),
-            services.GetRequiredService<TimeProvider>());
-        var evaluation = await workStore.GetCompletedEvaluationAsync(
-            stagedReceiptId,
-            cancellationToken);
-        while (evaluation is null)
+
+        // The token the upload was posted under identifies its receipt exactly,
+        // whatever the page did next. Where the redirect names a case it cannot
+        // be trusted for this: an image set that joins an existing case lands on
+        // that case, whose origin receipt is the instruction's, not the image's.
+        var byToken = upload.ExternalReceiptToken is null
+            ? null
+            : await TryResolveByTokenAsync(services, upload.ExternalReceiptToken, cancellationToken);
+        if (byToken is { } tokenReceiptId)
         {
-            var dispatched = await dispatcher.ExecuteAsync(1, cancellationToken);
-            Assert.Equal(1, dispatched);
-            evaluation = await workStore.GetCompletedEvaluationAsync(
-                stagedReceiptId,
-                cancellationToken);
+            return upload with
+            {
+                Location = new Uri(
+                    $"/Received/{tokenReceiptId:D}" + (IsDuplicateLanding(upload) ? "?duplicate=true" : string.Empty),
+                    UriKind.Relative),
+                ProcessedReceiptId = tokenReceiptId
+            };
         }
 
-        var query = ParseLocationQuery(upload);
-        var duplicate = query.TryGetValue("duplicate", out var values)
-            && bool.TryParse(values.SingleOrDefault(), out var parsed)
-            && parsed;
-        var detailLocation = $"/Intake/{evaluation.ProcessedReceiptId:D}"
-            + (duplicate ? "?duplicate=true" : string.Empty);
+        Guid processedReceiptId;
+        var landing = Landing(upload);
+        if (landing.ReceiptId is { } inlineReceiptId)
+        {
+            processedReceiptId = inlineReceiptId;
+        }
+        else if (landing.CaseId is { } allocatedCaseId)
+        {
+            var contextFactory = services
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+            processedReceiptId = await context.CaseIntakeLinks
+                .AsNoTracking()
+                .Where(link => link.CaseId == allocatedCaseId)
+                .Select(link => link.IntakeReceiptId)
+                .SingleAsync(cancellationToken);
+        }
+        else
+        {
+            var stagedReceiptId = landing.StagedReceiptId
+                ?? throw new InvalidOperationException(
+                    $"The upload landed on '{upload.Location}', which names nothing that can be processed.");
+            var workStore = services.GetRequiredService<IIntakeWorkStore>();
+            var processor = services.GetRequiredService<ProcessQueuedIntake>();
+            var dispatcher = new DispatchPendingIntakeWork(
+                workStore,
+                new ImmediateIntakeWorkEnqueuer(processor),
+                services.GetRequiredService<TimeProvider>());
+            var evaluation = await workStore.GetCompletedEvaluationAsync(
+                stagedReceiptId,
+                cancellationToken);
+            while (evaluation is null)
+            {
+                var dispatched = await dispatcher.ExecuteAsync(1, cancellationToken);
+                Assert.Equal(1, dispatched);
+                evaluation = await workStore.GetCompletedEvaluationAsync(
+                    stagedReceiptId,
+                    cancellationToken);
+            }
+
+            processedReceiptId = evaluation.ProcessedReceiptId;
+        }
+
+        var detailLocation = $"/Received/{processedReceiptId:D}"
+            + (landing.IsDuplicate ? "?duplicate=true" : string.Empty);
         return upload with
         {
             Location = new Uri(detailLocation, UriKind.Relative),
-            ProcessedReceiptId = evaluation.ProcessedReceiptId
+            ProcessedReceiptId = processedReceiptId
         };
+    }
+
+    /// <summary>
+    /// The processed receipt an upload produced, found by the token it was
+    /// posted under, or null where processing has not produced one yet.
+    /// </summary>
+    private static async Task<Guid?> TryResolveByTokenAsync(
+        IServiceProvider services,
+        string externalReceiptToken,
+        CancellationToken cancellationToken)
+    {
+        // The page canonicalises the token, so a caller that posted it in a
+        // different case is looking for the canonical form.
+        var token = Guid.TryParseExact(externalReceiptToken, "N", out var parsed)
+            ? parsed.ToString("N")
+            : externalReceiptToken;
+        var store = services.GetRequiredService<IIntakeReceiptStore>();
+        var receipt = await store.FindBySourceIdentityAsync(
+            new(IntakeSourceChannel.ManualUpload, token),
+            cancellationToken);
+        return receipt?.Id;
+    }
+
+    private static bool IsDuplicateLanding(UploadResult upload) =>
+        upload.StatusCode == HttpStatusCode.Redirect
+        && upload.Location is not null
+        && Landing(upload).IsDuplicate;
+
+    /// <summary>
+    /// What the upload's redirect names.
+    /// </summary>
+    /// <remarks>
+    /// There are three landing places now, and they mean different things: the
+    /// case the file allocated, the create screen for readable material that
+    /// did not allocate one, and the received item for everything else. The
+    /// legacy <c>received</c> and <c>queuedReceiptId</c> query keys are still
+    /// read for callers that stage rather than process.
+    /// </remarks>
+    public static UploadLanding Landing(UploadResult result)
+    {
+        Assert.Equal(HttpStatusCode.Redirect, result.StatusCode);
+        Assert.NotNull(result.Location);
+        var location = result.Location!.OriginalString;
+        var path = location.Split('?', 2)[0];
+        var query = ParseLocationQuery(result);
+        var isDuplicate = query.TryGetValue("duplicate", out var duplicateValues)
+            && bool.TryParse(duplicateValues.SingleOrDefault(), out var parsedDuplicate)
+            && parsedDuplicate;
+
+        if (query.TryGetValue("receiptId", out var createValues)
+            && Guid.TryParse(createValues.SingleOrDefault(), out var createReceiptId))
+        {
+            return new(createReceiptId, null, null, IsCreateScreen: true, isDuplicate);
+        }
+
+        if (query.TryGetValue("received", out var receivedValues)
+            && Guid.TryParse(receivedValues.SingleOrDefault(), out var receivedId))
+        {
+            return new(null, null, receivedId, IsCreateScreen: false, isDuplicate);
+        }
+
+        if (query.TryGetValue("queuedReceiptId", out var queuedValues)
+            && Guid.TryParse(queuedValues.SingleOrDefault(), out var queuedId))
+        {
+            return new(null, null, queuedId, IsCreateScreen: false, isDuplicate);
+        }
+
+        var lastSegment = path.Split('/', StringSplitOptions.RemoveEmptyEntries).LastOrDefault();
+        if (!Guid.TryParse(lastSegment, out var pathId))
+        {
+            return new(null, null, null, IsCreateScreen: false, isDuplicate);
+        }
+
+        return path.StartsWith("/Cases/", StringComparison.OrdinalIgnoreCase)
+            ? new(null, pathId, null, IsCreateScreen: false, isDuplicate)
+            : new(pathId, null, null, IsCreateScreen: false, isDuplicate);
     }
 
     /// <summary>
     /// The receipt an upload produced, read from where the upload lands.
     /// </summary>
-    /// <remarks>
-    /// An upload now redirects to the item it created rather than back to a
-    /// list with the identifier tacked on as a query parameter, so the id is
-    /// in the path. The query form is still read for any caller that produces
-    /// it.
-    /// </remarks>
-    public static Guid QueuedReceiptId(UploadResult result)
+    public static Guid QueuedReceiptId(UploadResult result) => ReceiptId(result);
+
+    /// <summary>
+    /// The receipt id from a landing on the create screen, asserting that the
+    /// upload did in fact open it.
+    /// </summary>
+    public static Guid CreateScreenReceiptId(UploadResult result)
     {
-        Assert.Equal(HttpStatusCode.Redirect, result.StatusCode);
-        var query = ParseLocationQuery(result);
-        if (query.TryGetValue("received", out var receivedValues)
-            && Guid.TryParse(receivedValues.SingleOrDefault(), out var receivedId))
-        {
-            return receivedId;
-        }
-
-        if (query.TryGetValue("queuedReceiptId", out var values)
-            && Guid.TryParse(values.SingleOrDefault(), out var queuedId))
-        {
-            return queuedId;
-        }
-
-        Assert.NotNull(result.Location);
-        var path = result.Location!.OriginalString.Split('?', 2)[0];
+        var landing = Landing(result);
         Assert.True(
-            Guid.TryParse(path.Split('/', StringSplitOptions.RemoveEmptyEntries).Last(), out var id),
-            $"The upload should land on the item it created; it landed on '{result.Location}'.");
-        return id;
+            landing.IsCreateScreen && landing.ReceiptId is not null,
+            $"The upload should have opened the create screen; it landed on '{result.Location}'.");
+        return landing.ReceiptId!.Value;
+    }
+
+    /// <summary>
+    /// The one receipt in the database.
+    /// </summary>
+    /// <remarks>
+    /// A file that could not be read has no next screen to go to, so the
+    /// upload reports the failure on the page the operator is still looking at
+    /// and the redirect that used to carry the identifier is gone. The receipt
+    /// is still retained, and for a single-upload test this is how to find it.
+    /// </remarks>
+    public static async Task<Guid> SoleReceiptIdAsync(
+        IntakeWebApplicationFactory factory,
+        CancellationToken cancellationToken = default)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var receipts = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
+        var all = await receipts.ListAsync(null, 1, 100, cancellationToken);
+        return Assert.Single(all.Items).Id;
+    }
+
+    /// <summary>
+    /// The case an upload allocated on its own, asserting that it allocated
+    /// one.
+    /// </summary>
+    public static Guid CaseId(UploadResult result)
+    {
+        var landing = Landing(result);
+        Assert.True(
+            landing.CaseId is not null,
+            $"The upload should have landed on the case it created; it landed on '{result.Location}'.");
+        return landing.CaseId!.Value;
     }
 
     public static async Task<string> GetAntiforgeryTokenAsync(
@@ -453,21 +609,29 @@ internal static partial class IntakeWebDriver
 
         using var response = await client.PostAsync("/Upload", multipart, cancellationToken);
         var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
-        return new(response.StatusCode, response.Headers.Location, responseBody);
+        return new(
+            response.StatusCode,
+            response.Headers.Location,
+            responseBody,
+            ExternalReceiptToken: externalReceiptToken);
     }
 
     public static Guid ReceiptId(UploadResult result)
     {
-        Assert.Equal(HttpStatusCode.Redirect, result.StatusCode);
-        Assert.NotNull(result.Location);
         if (result.ProcessedReceiptId is { } processedReceiptId)
         {
             return processedReceiptId;
         }
 
-        var path = result.Location!.OriginalString.Split('?', 2)[0];
-        Assert.True(Guid.TryParse(path.Split('/', StringSplitOptions.RemoveEmptyEntries).Last(), out var id));
-        return id;
+        var landing = Landing(result);
+        Assert.True(
+            landing.CaseId is null,
+            $"'{result.Location}' names a case, not a receipt; use CaseId or ProcessQueuedAsync.");
+        var id = landing.ReceiptId ?? landing.StagedReceiptId;
+        Assert.True(
+            id is not null,
+            $"The upload should land on the item it created; it landed on '{result.Location}'.");
+        return id!.Value;
     }
 
     private static Dictionary<string, Microsoft.Extensions.Primitives.StringValues> ParseLocationQuery(
@@ -476,8 +640,9 @@ internal static partial class IntakeWebDriver
         Assert.NotNull(result.Location);
         var location = result.Location!.OriginalString;
         var queryIndex = location.IndexOf('?', StringComparison.Ordinal);
-        Assert.True(queryIndex >= 0);
-        return QueryHelpers.ParseQuery(location[queryIndex..]);
+        return queryIndex < 0
+            ? []
+            : QueryHelpers.ParseQuery(location[queryIndex..]);
     }
 
     private sealed class ImmediateIntakeWorkEnqueuer(ProcessQueuedIntake processor)
@@ -503,7 +668,24 @@ internal sealed record UploadResult(
     HttpStatusCode StatusCode,
     Uri? Location,
     string ResponseBody,
-    Guid? ProcessedReceiptId = null);
+    Guid? ProcessedReceiptId = null,
+    string? ExternalReceiptToken = null);
+
+/// <summary>
+/// What an upload's redirect names.
+/// </summary>
+/// <param name="ReceiptId">The processed receipt, where the redirect names one.</param>
+/// <param name="CaseId">The case the file allocated, where it allocated one.</param>
+/// <param name="StagedReceiptId">
+/// The staged receipt of a caller that queued rather than processed, which
+/// still has to be dispatched before there is anything to read.
+/// </param>
+internal sealed record UploadLanding(
+    Guid? ReceiptId,
+    Guid? CaseId,
+    Guid? StagedReceiptId,
+    bool IsCreateScreen,
+    bool IsDuplicate);
 
 internal sealed record UploadFormTokens(string AntiforgeryToken, string ExternalReceiptToken);
 
@@ -525,7 +707,7 @@ internal static class IntakeTestEvidence
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var receipts = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
-        Assert.Empty(await receipts.ListAsync(null, CancellationToken.None));
+        Assert.Empty((await receipts.ListAsync(null, 1, 100, CancellationToken.None)).Items);
     }
 }
 

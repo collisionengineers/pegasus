@@ -7,36 +7,31 @@
 Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 <agent>)`. Nothing is in flight unless it is claimed here on `origin/dev`.
 
-- Manual upload creates a case, and the Inbox becomes a mail viewer
-  (INT-01/INT-19/INT-26, UI-10 pulled forward): a manual upload must be
-  processed on the spot and land on a prefilled, editable case-creation
-  screen. Today `src/Pegasus.Web/Program.cs:567` binds `IIntakeSubmission` to
-  the queue-only `ReceiveIntake`, so `Upload.cshtml.cs` always returns
-  "being processed" and both of its other branches are unreachable; the file
-  then waits on a Worker timer and only becomes a case if the QDOS extraction
-  policy returns `Applicable` with a principal. Retire the
-  `QdosAlphaCaseActivationPolicy` activated-principal gate in favour of "the
-  principal must exist and be active" so staff can allocate against any
-  registered principal — automatic non-QDOS identification stays out of
-  scope. Then separate the two surfaces the nav conflates
-  (`_Layout.cshtml:42` points "Inbox" at the intake receipt list): build the
-  mail workspace over retained messages and give the received-items list an
-  honest name. Administration gains additional mailboxes and per-mailbox
-  enable/disable driving the intake poll, which is single-mailbox
-  config-bound today, by extending the existing `ApprovedMailbox`
-  administration to the intake route scope (branch
-  task/upload-case-creation-and-inbox, taken 2026-08-05, by claude).
-
 ## Merged, not deployed
 
-Nothing that needs a release. The estate serves **release 7** (2026-08-05,
-revision `32feefa…`), which carries every source change in `dev` and `main`.
-`dev` and `main` have since advanced by documentation commits and by
-`workspaces/` source that no application build compiles; they change no built
-artifact, so they ride the next functional release rather than justifying one.
-The deployed-evidence record is owned by
+The estate serves **release 7** (2026-08-05, revision `32feefa…`). It no longer
+carries every source change in `dev`: PRs 342 (CASE-27 edit authority), 356 (a
+real instruction email gets in) and 357 (manual upload creates a case, and the
+Inbox shows mail) each merged functional changes that have never been deployed.
+PR 340 also merged but is `workspaces/` source no application build compiles, so
+it changes no deployed artifact. The deployed-evidence record is owned by
 [operations § Production environment](docs/operations.md#production-environment).
 
+Awaiting a release:
+
+- **Manual upload creates a case, and the Inbox shows mail** (PR 357). The
+  Upload page reads the file inline and lands on a new `/Cases/Create` screen;
+  the QDOS-only principal gate is gone; approved mailboxes carry their own
+  Graph identity and enabled state and drive the intake poll; `/Inbox` is a
+  viewer over a new retained-message read model and the receipt list moved to
+  `/Received`. Three migrations ship with it —
+  `20260805210236_ApprovedMailboxGraphIdentity`,
+  `20260805223036_RetainedMailboxMessages` and
+  `20260806090000_ApprovedInboxPollStateIdentityAdoption`, the last recreating
+  two foreign keys as `ON UPDATE CASCADE` — so a release must run `efbundle`
+  before activation. Evidence is local-caller tier only: a clean
+  Release build and green Core, architecture and CI-filtered integration
+  suites. Nothing here is live-verified, and UI-10 is not claimed as accepted.
 - **Report renderer workspace uplift** closes both the
   `report-renderer-integration` planning claim (PR 331, closed as superseded —
   its plan set lands here unmodified) and the `report-renderer-workspace-uplift`
@@ -75,6 +70,67 @@ release claim:
 
 ## Next (ordered queue — take from the top)
 
+- Reduce contention in the intake write path, or decide it does not matter.
+  Operator decision 2026-08-07: the `qdos-pressure` write budget was
+  re-baselined from 3s to 20s rather than chase this now, because the 3s
+  number was written when an upload staged the bytes and returned (~100ms) and
+  an upload now extracts, evaluates and allocates the case before answering.
+  Under the gate's eight simultaneous staff those run as serializable
+  transactions that queue behind each other: 3959, 3959, 3961, 3966, 3967,
+  3967, 3967, 8750, 8860, 11677 ms on the dev workstation. **Accepted cost:
+  concurrent uploads take about four seconds each, worst case twelve.** A
+  single uncontended upload is unaffected and is what staff actually
+  experience. This is not a correctness risk — no receipt is lost, no upload is
+  misreported, and the Worker finishes anything a request could not. The
+  isolation causing the contention is what enforces one receipt per source and
+  one reference per case, so it must not be loosened for speed; the real work
+  is reducing how much of that transaction an upload holds. Take this if real
+  concurrent use appears, and re-measure on CI or production hardware first —
+  the figures above are one workstation
+  (task/upload-case-creation-and-inbox review, 2026-08-07).
+- Mailbox identity change stalls or duplicates inbound mail (PR 357 review,
+  diagnosed not fixed — take this before the next mailbox is onboarded).
+  `AdoptStateForAddressAsync` re-keys the poll state and carries the delta
+  cursor. Against Graph that cursor is a URI scoped to the identity that
+  minted it, and `GraphApprovedSources.ValidateDeltaUri` compares the path
+  against the identity now in force, so every tick after an administrator
+  first saves a real mailbox or Inbox-folder identity throws and the failure
+  path keeps the cursor — inbound mail stops permanently, on the documented
+  fallback-retirement path rather than an edge case. Clearing the cursor was
+  tried and is **not** the fix: `MailboxIntake.PrepareMessage` builds the
+  external receipt token from `mailboxId + ImmutableMessageId`, so a replay
+  after the re-key re-receives every message still in the folder under a new
+  identity and writes duplicate receipts (measured: the estate test's receipt
+  count went from 2 to 3). Either the receipt token stops embedding the
+  mutable mailbox identity, or adoption rewrites the stored tokens with it, or
+  recovery dedupes on `ImmutableMessageId`; the folder identity is also not
+  stored on the poll state, so a folder-only change is undetectable today
+  (task/upload-case-creation-and-inbox review, 2026-08-06).
+- Thirteen P2 review findings on the upload/Inbox work, none of them fixed in
+  PR 357 (task/upload-case-creation-and-inbox review, 2026-08-06): a mailbox
+  identity change cannot be recovered by disable-and-add because the address
+  stays unique across disabled rows; standalone-Audit inputs are absent from
+  the HTML until a first submission fails, because the case-type dropdown has
+  no script or reload; retained-mail freshness takes the newest completion
+  across mailboxes, so one healthy mailbox hides another that is stale or
+  failing; retained threads group on conversation identity alone, so copies of
+  one thread in two approved folders merge into a cross-mailbox thread;
+  `ImageIntakeRegistered` uploads land on the received-item page instead of
+  Image intake; the mailbox filter disappears when only one mailbox has mail,
+  losing the per-mailbox scope the capability claims; the estate caps a
+  configured Inbox folder identity at 200 characters while
+  `GraphApprovedMailboxOptions.Create` still accepts 500, so a 201–500
+  character configured fallback fails the whole tick; a staff-corrected draft
+  value is labelled `Extracted` because any candidate exists rather than the
+  one displayed; negative `VehicleMileage` is not rejected server-side even
+  though `CaseDataOperations` rejects it later; an `OcrRequired` receipt
+  opened from Received items hides the only link to the create screen;
+  `/Administration/Mailboxes` renders both poll times with `:u` instead of
+  `OperatorLabels.OfficeTime`, so they read an hour early in BST; Inbox detail
+  reports "Not associated with a case" for correspondence linked through
+  `IntakeManualAssociation` rather than `CaseIntakeLinks`; and `/Cases/Create`
+  without a `receiptId` throws out of `GetIntake` instead of returning the
+  styled not-found.
 - Production holds no Principal at all, so no QDOS instruction can become a
   case there whatever intake decides. `SELECT COUNT(*) FROM Principals` on
   `pegasus-prod-sql-252ow37gij/pegasus` returned 0 on 2026-08-05, and
@@ -274,6 +330,31 @@ release claim:
   contract to an ADR — with the temp plan deleted it is owned only by
   architecture.md/operations.md prose
   (task/mcp-automation-actor review, 2026-08-03).
+- Bound the approved-mailbox identity against the receipt-token limit:
+  `PollApprovedInbox.MaximumExternalReceiptTokenLength = 200` bounds
+  `{mailboxId.Length}:{mailboxId}{immutableMessageId}`, so a long
+  administrator-entered mailbox identity (now up to 100 characters) shortens
+  the headroom before a real Graph message is quarantined as
+  `message_identity_too_long`. Pre-existing risk, made reachable by
+  administrator input in ADR-0022; decide whether to tighten the identity
+  bound, widen the token, or key the receipt token on something shorter
+  (task/upload-case-creation-and-inbox part E, 2026-08-05).
+- `Administration/Automation/Activity.cshtml`'s pager is silently broken, the
+  same way the received-items and mail pagers were: `asp-route-page` does
+  nothing, because `page` is the reserved Razor Pages route key and `asp-page`
+  overwrites it, so Next emits a link with no page. Both fixed pagers now use
+  `pageNumber`; this one was out of scope. Sweep for any other
+  `asp-route-page` before assuming these are the last three
+  (task/upload-case-creation-and-inbox review, 2026-08-06).
+- Finish the operator-language sweep the route rename started. `/Intake` and
+  `/ImageIntake` are gone as URLs, but the receipt and vehicle-image pages
+  still say "Intake review", "Intake resolution", "Block intake" and "Register
+  Image intake" in visible copy, which `docs/operator-notes.md:378` forbids.
+  Also missing: an `/Inbox/{id}` accessibility case (the audited routes render
+  without a seeded record, so a retained message needs a browser fixture), and
+  a guard so an unresolvable `RedirectToPage` target cannot 500 the Upload
+  handler — URL generation runs after the handler returns, outside its catch
+  (task/upload-case-creation-and-inbox review, 2026-08-06).
 - Decide the retained plaintext `EditLeaseToken` column: it sits beside its
   own hash so an exact claim replay can return the opaque token, which makes
   it a secret at rest. Removing it changes the accepted replay contract, so
