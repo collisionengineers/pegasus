@@ -32,11 +32,18 @@ public sealed class HtmlComposer : IHtmlComposer
 
     private readonly BrandAssets _brand;
     private readonly ITemplateCatalog _catalog;
+    private readonly TimeProvider _timeProvider;
 
-    public HtmlComposer(BrandAssets brand, ITemplateCatalog catalog)
+    /// <param name="timeProvider">
+    /// Clock used only when a payload supplies no document date. Defaults to
+    /// <see cref="TimeProvider.System"/>; inject a fixed provider to make the
+    /// fallback date deterministic.
+    /// </param>
+    public HtmlComposer(BrandAssets brand, ITemplateCatalog catalog, TimeProvider? timeProvider = null)
     {
         _brand = brand;
         _catalog = catalog;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public ComposedDocument Compose(TemplateDescriptor descriptor, object model, Density density)
@@ -487,8 +494,9 @@ public sealed class HtmlComposer : IHtmlComposer
     private static string OurRef(DocumentMeta meta, string fallback) =>
         string.IsNullOrWhiteSpace(meta.OurRef) ? fallback : meta.OurRef!;
 
-    private static string ResolveDate(DocumentMeta meta) =>
-        string.IsNullOrWhiteSpace(meta.Date) ? Format.Today() : meta.Date!;
+    // An explicit caller-supplied date always wins; the ambient clock is the fallback.
+    private string ResolveDate(DocumentMeta meta) =>
+        string.IsNullOrWhiteSpace(meta.Date) ? Format.Today(_timeProvider) : meta.Date!;
 
     private static string FormatPercent(decimal rate)
     {
