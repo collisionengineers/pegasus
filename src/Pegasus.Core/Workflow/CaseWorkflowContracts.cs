@@ -130,16 +130,20 @@ public sealed class CaseVersionConflictException(Guid caseId, long expectedVersi
     public long ActualVersion { get; } = actualVersion;
 }
 
-public sealed class CaseEditLeaseConflictException(Guid caseId)
+public sealed class CaseEditLeaseConflictException(Guid caseId, long caseVersion)
     : InvalidOperationException($"Case '{caseId}' is currently being edited by another actor.")
 {
     public Guid CaseId { get; } = caseId;
+
+    public long CaseVersion { get; } = caseVersion;
 }
 
-public sealed class CaseEditLeaseExpiredException(Guid caseId)
+public sealed class CaseEditLeaseExpiredException(Guid caseId, long caseVersion)
     : InvalidOperationException($"The edit lease for case '{caseId}' is no longer valid.")
 {
     public Guid CaseId { get; } = caseId;
+
+    public long CaseVersion { get; } = caseVersion;
 }
 
 public sealed class CaseOperationConflictException(Guid caseId, string operationKey)
