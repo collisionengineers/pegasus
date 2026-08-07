@@ -1,4 +1,4 @@
-# NOW — updated 2026-08-06
+# NOW — updated 2026-08-07
 
 (Anything here older than 14 days is stale: delete it, don't investigate it.)
 
@@ -9,46 +9,21 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 
 ## Merged, not deployed
 
-The estate serves **release 7** (2026-08-05, revision `32feefa…`). It no longer
-carries every source change in `dev`: PRs 342 (CASE-27 edit authority), 356 (a
-real instruction email gets in) and 357 (manual upload creates a case, and the
-Inbox shows mail) each merged functional changes that have never been deployed.
-PR 340 also merged but is `workspaces/` source no application build compiles, so
-it changes no deployed artifact. The deployed-evidence record is owned by
+The estate serves **release 8** (2026-08-07, revision `ded44fd7…`, image
+`sha256:c993eb0e…`, Web revision `pegasus-prod-web-252ow37gij--ded44fd7be0a`),
+which carries every source change in `dev` and `main`. PRs 342, 356 and 357 are
+deployed; PR 340 is `workspaces/` source no application build compiles. Its
+three migrations were applied explicitly before activation and verified against
+`__EFMigrationsHistory`. Smoke passed: health, exact version and source-SHA, and
+the anonymous `/Cases` redirect to the https sign-in route. The
+deployed-evidence record is owned by
 [operations § Production environment](docs/operations.md#production-environment).
 
-Awaiting a release:
-
-- **Manual upload creates a case, and the Inbox shows mail** (PR 357). The
-  Upload page reads the file inline and lands on a new `/Cases/Create` screen;
-  the QDOS-only principal gate is gone; approved mailboxes carry their own
-  Graph identity and enabled state and drive the intake poll; `/Inbox` is a
-  viewer over a new retained-message read model and the receipt list moved to
-  `/Received`. Three migrations ship with it —
-  `20260805210236_ApprovedMailboxGraphIdentity`,
-  `20260805223036_RetainedMailboxMessages` and
-  `20260806090000_ApprovedInboxPollStateIdentityAdoption`, the last recreating
-  two foreign keys as `ON UPDATE CASCADE` — so a release must run `efbundle`
-  before activation. Evidence is local-caller tier only: a clean
-  Release build and green Core, architecture and CI-filtered integration
-  suites. Nothing here is live-verified, and UI-10 is not claimed as accepted.
-- **Report renderer workspace uplift** closes both the
-  `report-renderer-integration` planning claim (PR 331, closed as superseded —
-  its plan set lands here unmodified) and the `report-renderer-workspace-uplift`
-  claim. Inside `workspaces/report-renderer/` only: the WinUI 3 desktop host and
-  its 12 `design/assets/report-renderer/gui/` package assets are gone; Scriban is
-  7.2.6 and the `NU1901`–`NU1904` suppression is retired, taking the workspace
-  from 14 advisories (one Critical, `GHSA-5wr9-m6jw-xx44`, CVSS 9.1) to none
-  under `net10.0`'s full transitive audit; the six remaining projects are
-  `net10.0`; the Dockerfile's non-existent `v1.61.0-jammy` base tag is corrected
-  to `v1.61.0-noble`; and `Format.Today` takes a `TimeProvider` converted to
-  Europe/London instead of reading machine-local `DateTime.Now`. Workspace ADRs
-  0012–0014 record the three decisions. Evidence is **tier 1 only** — 236 tests
-  passing (216 before), clean build, composed-HTML parity across 12 template
-  identifiers × 3 densities. **Nothing is deployed and no capability advanced.**
-  There is still no Pegasus caller, no `Pegasus.slnx` entry and no Core render
-  port. The container was **not** built (no Docker on the workstation) and the
-  `.mcpb` bundle was not launched under .NET 10.
+**Nothing here is live-verified beyond smoke.** No browser journey has exercised
+the upload-to-case path, the Inbox, or CASE-27 edit authority against the
+deployed estate, and UI-10 is not claimed as accepted. Release 6 is the standing
+warning: live verification found six defects local testing could not, because a
+count query and a rendered time cannot be proved locally.
 
 Two things are deployed as code without being active, and neither is a
 release claim:
@@ -69,6 +44,32 @@ release claim:
   start.
 
 ## Next (ordered queue — take from the top)
+
+- **`Invoke-AzureDatabaseBootstrap.ps1` cannot pass after release 6, so the
+  runtime-role effective-permission check did not complete for release 8.** Its
+  expected matrix is built from `20260729199000_RuntimeRoleReconciliation`
+  alone, so every grant a later migration adds reads as unapproved drift. At
+  release 8 all 24 differences were `=>` — extra in the database, none missing
+  — and each traces to a reviewed migration (release 6's `AiWorkRequests`,
+  `SendToAiControl`, `CaseAssessmentFields`, `CaseEstimateLines`; release 8's
+  `RetainedMailboxMessages` and `RetainedMailboxAttachments`, granted at
+  `20260805223036_RetainedMailboxMessages:136-145`). The principal creation and
+  effective-permission guards ran before the assertion, so the estate is not
+  unverified in that respect, but the matrix comparison and everything after it
+  were skipped. Build the expected matrix from the full migration set, then run
+  the script against production to close the gap this release left open
+  (release 8, 2026-08-07).
+- Reconcile the local `azd` environment with the estate, or stop trusting it.
+  Release 8's provision failed because `.azure/pegasus-prod/.env` still pointed
+  the Box secret references at `cespkboxkvv76a47`, a vault soft-deleted on
+  2026-08-03 during consolidation — two days before release 7 deployed
+  successfully from the same environment. Its recorded image digest and revision
+  suffix were still release 3's. The running Container App held the truth: the
+  secret versions were unchanged and only the vault host had moved to
+  `pegasusprodkv252ow37g`. Either the release route reads the deployed resource
+  rather than the local environment, or the environment is refreshed and checked
+  as a release step. Also note `cespkboxkvv76a47` and `cespkenrichkvgi62sd` are
+  scheduled to purge 2026-08-10 (release 8, 2026-08-07).
 
 - Reduce contention in the intake write path, or decide it does not matter.
   Operator decision 2026-08-07: the `qdos-pressure` write budget was
