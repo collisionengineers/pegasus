@@ -103,6 +103,32 @@ public sealed class ProcessIntakeSubmission(
     ProcessQueuedIntake processQueuedIntake,
     IIntakeWorkStore workStore) : IIntakeSubmission
 {
+    /// <summary>
+    /// How long a request that lost the processing claim waits for the request
+    /// that won it: 200 attempts at 50ms, so ten seconds. Well past the observed
+    /// processing time for one upload, and far short of any request timeout.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately the real clock and not the injected <c>TimeProvider</c>.
+    /// This is a wait on another in-flight request finishing, not a business
+    /// instant: <c>TimeProvider</c> carries the domain clock, which tests freeze
+    /// to a fixed instant, and a frozen clock would make this wait never end.
+    /// Nothing here is recorded, compared, or reasoned about as a time.
+    /// </remarks>
+    private const int CompletionAttempts = 200;
+
+    private static readonly TimeSpan CompletionPollInterval = TimeSpan.FromMilliseconds(50);
+
+    /// <summary>
+    /// How many times a recoverable processing failure is retried inside the
+    /// request, and how long between attempts. Enough to ride out lock
+    /// contention from other staff uploading at the same moment; short enough
+    /// that a genuinely broken file still reports quickly.
+    /// </summary>
+    private const int ProcessingAttempts = 4;
+
+    private static readonly TimeSpan ProcessingRetryDelay = TimeSpan.FromMilliseconds(250);
+
     public async Task<IntakeSubmissionResult> ExecuteAsync(
         IntakeSource source,
         string operationKey,
@@ -115,8 +141,8 @@ public sealed class ProcessIntakeSubmission(
             source,
             operationKey,
             cancellationToken);
-        await processQueuedIntake.ExecuteAsync(received.StagedReceiptId, cancellationToken);
-        var evaluation = await workStore.GetCompletedEvaluationAsync(
+        await ProcessAsync(received.StagedReceiptId, cancellationToken);
+        var evaluation = await AwaitCompletedEvaluationAsync(
             received.StagedReceiptId,
             cancellationToken)
             ?? throw new InvalidOperationException(
@@ -125,6 +151,80 @@ public sealed class ProcessIntakeSubmission(
             evaluation.ProcessedReceiptId,
             received.IsDuplicate,
             IntakeSubmissionDisposition.Processed);
+    }
+
+    /// <summary>
+    /// The completed evaluation for this staged receipt, waiting for it if
+    /// another request is still producing it.
+    /// </summary>
+    /// <remarks>
+    /// One upload replayed concurrently is one piece of work: the requests all
+    /// resolve to the same staged receipt, exactly one of them wins
+    /// <c>ClaimProcessingAsync</c>, and the others return from
+    /// <see cref="ProcessQueuedIntake"/> having done nothing — correctly, because
+    /// the work is in hand. Reading the evaluation immediately after that and
+    /// treating its absence as a failure made losing the race indistinguishable
+    /// from the file being unreadable, so the operator was told "the file could
+    /// not be processed" for an upload that was processing normally. Two staff
+    /// uploading at the same moment hit the same thing.
+    ///
+    /// Waiting is the whole fix: no second receipt is staged, no second case is
+    /// allocated, and nothing is retried — this request just does not answer
+    /// until the answer exists.
+    /// </remarks>
+    /// <summary>
+    /// Processes the staged receipt, retrying a recoverable failure.
+    /// </summary>
+    /// <remarks>
+    /// Several staff uploading at once contend for the same tables, and the
+    /// serializable reads intake uses turn that contention into deadlocks and
+    /// lock timeouts. The Worker survives those because a queued item is simply
+    /// retried later; a person standing in front of the page has no later, so an
+    /// upload that lost a deadlock told them the file could not be processed and
+    /// left them to guess whether to try again. The work is idempotent — the
+    /// staged receipt is already durable and the processing claim is leased — so
+    /// the request retries it a few times before giving up.
+    /// </remarks>
+    private async Task ProcessAsync(Guid stagedReceiptId, CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                await processQueuedIntake.ExecuteAsync(stagedReceiptId, cancellationToken);
+                return;
+            }
+            catch (Exception exception) when (
+                attempt < ProcessingAttempts
+                && exception is not OperationCanceledException
+                && IntakeExceptionPolicy.IsRecoverable(exception))
+            {
+                await Task.Delay(ProcessingRetryDelay, cancellationToken);
+            }
+        }
+    }
+
+    private async Task<IntakeEvaluationRevision?> AwaitCompletedEvaluationAsync(
+        Guid stagedReceiptId,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            var evaluation = await workStore.GetCompletedEvaluationAsync(
+                stagedReceiptId,
+                cancellationToken);
+            if (evaluation is not null)
+            {
+                return evaluation;
+            }
+
+            if (attempt >= CompletionAttempts)
+            {
+                return null;
+            }
+
+            await Task.Delay(CompletionPollInterval, cancellationToken);
+        }
     }
 }
 
