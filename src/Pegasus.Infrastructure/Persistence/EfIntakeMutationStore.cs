@@ -169,16 +169,24 @@ internal sealed class EfIntakeMutationStore(
                         nameof(request));
                 ApplyResolvedDraft(receipt, correctedDraft);
                 ApplyDraftToReviewFields(receipt, correctedDraft);
-                var isComplete = InstructionDraftCompleteness.IsComplete(correctedDraft);
+                // Only identity-critical facts fail a correction closed. Thin
+                // ordinary detail is not a blocked intake: the requirement is to
+                // allocate once Principal and Case type are established and
+                // carry the gap on the case as `Not ready`. Blocking on it made
+                // `Blocked intake` mean "some field is empty", which is not its
+                // settled meaning, and left real instructions with no case.
+                var missing = InstructionDraftCompleteness
+                    .MissingIdentityCriticalFieldNames(correctedDraft);
+                var canBecomeCase = missing.Count == 0;
                 receipt.Decision = EfIntakeReceiptStore.ToCode(
-                    isComplete ? IntakeDecision.CaseCreated : IntakeDecision.BlockedIntake);
-                receipt.DecisionReason = isComplete
+                    canBecomeCase ? IntakeDecision.CaseCreated : IntakeDecision.BlockedIntake);
+                receipt.DecisionReason = canBecomeCase
                     ? "The intake correction produced a reviewable instruction draft."
-                    : "The intake correction was retained but required instruction fields remain unresolved.";
-                receipt.FailureCode = isComplete ? null : "blocked_intake";
-                receipt.FailureReason = isComplete
+                    : "The intake correction was retained but the instruction does not say which claim it is about.";
+                receipt.FailureCode = canBecomeCase ? null : "blocked_intake";
+                receipt.FailureReason = canBecomeCase
                     ? null
-                    : "Required instruction fields remain unresolved.";
+                    : $"{string.Join(", ", missing)} remains unresolved.";
                 return Task.CompletedTask;
             },
             occurredAtUtc,

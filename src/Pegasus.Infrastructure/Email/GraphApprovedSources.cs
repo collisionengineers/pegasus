@@ -369,10 +369,25 @@ internal sealed class GraphApprovedInboxSource(GraphMailClient client) : IApprov
         }
         catch (FormatException)
         {
-            // The message is still received, retained and processed; only its
-            // display view is unavailable, and the workspace shows the gap rather
-            // than the poll refusing the message.
-            return null;
+            // Only the MIME display view is unavailable. Returning null here
+            // used to skip the retained row entirely, so the message was
+            // received and processed while the workspace showed nothing at all —
+            // silently, with the received-item record and the Inbox disagreeing
+            // about whether the mail exists. Graph's own facts are still good,
+            // so the row is written from those with the display fields empty:
+            // the workspace shows the gap, which is what the poll intended.
+            return new(
+                inboxFolderId,
+                item.ConversationId,
+                item.InternetMessageId,
+                SenderAddress: null,
+                SenderDisplayName: null,
+                ToAddresses: [],
+                CcAddresses: [],
+                Subject: null,
+                BodyPlainText: null,
+                Attachments: [],
+                item.IsRead);
         }
     }
 

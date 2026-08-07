@@ -195,7 +195,7 @@ public sealed partial class CaseCreateWebTests
     }
 
     [Fact]
-    public async Task CreateRefusesWhenARequiredFieldIsBlankAndLeavesTheReceiptUnchanged()
+    public async Task CreateRefusesWhenAnIdentityCriticalFieldIsBlankAndLeavesTheReceiptUnchanged()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -205,7 +205,7 @@ public sealed partial class CaseCreateWebTests
 
         var form = await OpenCreateScreenAsync(client, receipt.Id);
         var fields = KeyedFields();
-        fields["VehicleMake"] = string.Empty;
+        fields["VehicleRegistration"] = string.Empty;
 
         using var response = await PostCreateAsync(client, form, fields);
         var html = await response.Content.ReadAsStringAsync();
@@ -215,7 +215,7 @@ public sealed partial class CaseCreateWebTests
         // the trap this screen exists to close.
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains(
-            "Vehicle make is needed before this item can become a case.",
+            "Vehicle registration is needed before this item can become a case.",
             html,
             StringComparison.Ordinal);
         Assert.Equal(
@@ -223,6 +223,37 @@ public sealed partial class CaseCreateWebTests
             await ReadReceiptVersionAsync(factory.Services, receipt.Id));
         Assert.Equal(0, await CountEventsAsync(factory.Services, "intake_resolved"));
         Assert.Equal(0, await CountAsync(factory.Services, "Cases"));
+    }
+
+    /// <summary>
+    /// Thin ordinary detail must not stop a reference being allocated.
+    /// <c>requirements.md</c>: once safe processing establishes Principal and
+    /// Case type, allocate the Case/PO and retain incomplete ordinary detail as
+    /// `Not ready`. Refusing here instead left a real instruction with no case.
+    /// </summary>
+    [Fact]
+    public async Task CreateAllocatesWhenOrdinaryDetailIsThin()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var receipt = await CreateBareReceiptAsync(factory.Services);
+        await SeedPrincipalAsync(factory.Services, PrincipalCode);
+
+        var form = await OpenCreateScreenAsync(client, receipt.Id);
+        var fields = KeyedFields();
+        fields["VehicleMake"] = string.Empty;
+        fields["VehicleModel"] = string.Empty;
+        fields["VehicleMileage"] = string.Empty;
+        fields["AccidentCircumstances"] = string.Empty;
+
+        using var response = await PostCreateAsync(client, form, fields);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(1, await CountAsync(factory.Services, "Cases"));
+        Assert.DoesNotContain(
+            "is needed before this item can become a case",
+            await response.Content.ReadAsStringAsync(),
+            StringComparison.Ordinal);
     }
 
     [Fact]

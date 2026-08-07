@@ -108,6 +108,49 @@ release claim:
 
 ## Next (ordered queue — take from the top)
 
+- Mailbox identity change stalls or duplicates inbound mail (PR 357 review,
+  diagnosed not fixed — take this before the next mailbox is onboarded).
+  `AdoptStateForAddressAsync` re-keys the poll state and carries the delta
+  cursor. Against Graph that cursor is a URI scoped to the identity that
+  minted it, and `GraphApprovedSources.ValidateDeltaUri` compares the path
+  against the identity now in force, so every tick after an administrator
+  first saves a real mailbox or Inbox-folder identity throws and the failure
+  path keeps the cursor — inbound mail stops permanently, on the documented
+  fallback-retirement path rather than an edge case. Clearing the cursor was
+  tried and is **not** the fix: `MailboxIntake.PrepareMessage` builds the
+  external receipt token from `mailboxId + ImmutableMessageId`, so a replay
+  after the re-key re-receives every message still in the folder under a new
+  identity and writes duplicate receipts (measured: the estate test's receipt
+  count went from 2 to 3). Either the receipt token stops embedding the
+  mutable mailbox identity, or adoption rewrites the stored tokens with it, or
+  recovery dedupes on `ImmutableMessageId`; the folder identity is also not
+  stored on the poll state, so a folder-only change is undetectable today
+  (task/upload-case-creation-and-inbox review, 2026-08-06).
+- Thirteen P2 review findings on the upload/Inbox work, none of them fixed in
+  PR 357 (task/upload-case-creation-and-inbox review, 2026-08-06): a mailbox
+  identity change cannot be recovered by disable-and-add because the address
+  stays unique across disabled rows; standalone-Audit inputs are absent from
+  the HTML until a first submission fails, because the case-type dropdown has
+  no script or reload; retained-mail freshness takes the newest completion
+  across mailboxes, so one healthy mailbox hides another that is stale or
+  failing; retained threads group on conversation identity alone, so copies of
+  one thread in two approved folders merge into a cross-mailbox thread;
+  `ImageIntakeRegistered` uploads land on the received-item page instead of
+  Image intake; the mailbox filter disappears when only one mailbox has mail,
+  losing the per-mailbox scope the capability claims; the estate caps a
+  configured Inbox folder identity at 200 characters while
+  `GraphApprovedMailboxOptions.Create` still accepts 500, so a 201–500
+  character configured fallback fails the whole tick; a staff-corrected draft
+  value is labelled `Extracted` because any candidate exists rather than the
+  one displayed; negative `VehicleMileage` is not rejected server-side even
+  though `CaseDataOperations` rejects it later; an `OcrRequired` receipt
+  opened from Received items hides the only link to the create screen;
+  `/Administration/Mailboxes` renders both poll times with `:u` instead of
+  `OperatorLabels.OfficeTime`, so they read an hour early in BST; Inbox detail
+  reports "Not associated with a case" for correspondence linked through
+  `IntakeManualAssociation` rather than `CaseIntakeLinks`; and `/Cases/Create`
+  without a `receiptId` throws out of `GetIntake` instead of returning the
+  styled not-found.
 - Send to AI work-request integrity (PR 332 review): the reasoned `Cancelled`
   outcome the plan requires has no caller at all — `ICancelAiWorkRequest` is
   registered and unit-tested but nothing in the application invokes it, so

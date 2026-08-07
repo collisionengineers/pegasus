@@ -535,7 +535,10 @@ public sealed partial class CreateModel(
             InstructionDate,
             EffectiveInspectionAddress(),
             InspectionDate);
-        foreach (var missing in InstructionDraftCompleteness.MissingFieldNames(draft))
+        // Only identity-critical detail blocks allocation. Thin ordinary detail
+        // is retained on the case in `Not ready`, which is what the requirement
+        // asks for once Principal and Case type are established.
+        foreach (var missing in InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(draft))
         {
             ModelState.AddModelError(
                 string.Empty,
@@ -719,11 +722,16 @@ public sealed partial class CreateModel(
         ReceiptId = receipt.Id;
         ConfirmedStandaloneAuditEvidence =
             await standaloneAuditEvidenceQueries.GetForReceiptAsync(receiptId, cancellationToken);
-        var suggestedPrincipalCode = receipt.InstructionDraft?.SuggestedPrincipalCode;
-        ProviderIsImageBased = !string.IsNullOrWhiteSpace(suggestedPrincipalCode)
-            && await providerInspectionModeStore.GetForPrincipalAsync(
-                suggestedPrincipalCode,
-                cancellationToken) == CaseInspectionMode.ImageBasedAssessment;
+        // The mode belongs to the principal the case is actually allocated
+        // against. On the first GET that is the extracted suggestion, but as
+        // soon as an operator confirms a different principal it is theirs —
+        // otherwise reassigning an extracted image-based draft to a
+        // physical-address principal silently skips address confirmation and
+        // records "Image Based Assessment" against a provider that inspects in
+        // person.
+        var effectivePrincipalCode = Optional(PrincipalCode)
+            ?? receipt.InstructionDraft?.SuggestedPrincipalCode;
+        ProviderIsImageBased = await IsImageBasedAsync(effectivePrincipalCode, cancellationToken);
         AddressResolution = await addressResolutionStore.GetAsync(receiptId, cancellationToken)
             ?? new(
                 receiptId,
@@ -735,6 +743,14 @@ public sealed partial class CreateModel(
                 null);
         return null;
     }
+
+    private async Task<bool> IsImageBasedAsync(
+        string? principalCode,
+        CancellationToken cancellationToken) =>
+        !string.IsNullOrWhiteSpace(principalCode)
+        && await providerInspectionModeStore.GetForPrincipalAsync(
+            principalCode.Trim().ToUpperInvariant(),
+            cancellationToken) == CaseInspectionMode.ImageBasedAssessment;
 
     private static string? Optional(string? value)
     {
