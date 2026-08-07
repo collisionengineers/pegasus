@@ -402,7 +402,11 @@ public static class CaseLifecycleRules
         ValidateCaseAndVersion(request.CaseId, request.ExpectedVersion);
         ValidateActorAndOperation(request.Actor, request.OperationKey);
         RequireText(request.Reason, "A reason is required.", 500, nameof(request));
-        RequireText(request.EditLeaseToken, "An active edit lease token is required.", 128, nameof(request));
+        RequireText(
+            request.EditLeaseToken,
+            "An active edit lease token is required.",
+            CaseEditAuthority.LeaseTokenLength,
+            nameof(request));
     }
 
 

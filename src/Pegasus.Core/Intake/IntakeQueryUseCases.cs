@@ -32,12 +32,11 @@ public sealed class ListIntake(IIntakeReceiptQueries queries) : IListIntake
                 "The intake decision is not recognized.");
         }
 
-        var matches = await queries.ListAsync(query.Decision, cancellationToken);
-        var items = matches
-            .Skip((query.Page - 1) * query.PageSize)
-            .Take(query.PageSize)
-            .ToArray();
-        return new(items, query.Page, query.PageSize, matches.Count);
+        return await queries.ListAsync(
+            query.Decision,
+            query.Page,
+            query.PageSize,
+            cancellationToken);
     }
 }
 

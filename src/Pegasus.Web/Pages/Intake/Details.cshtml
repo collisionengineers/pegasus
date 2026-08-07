@@ -1,18 +1,44 @@
-@page "/Intake/{id:guid}"
+@* The folder is the internal domain name; the route is the operator's. *@
+@page "/Received/{id:guid}"
 @model Pegasus.Web.Pages.Intake.DetailsModel
 @using Pegasus.Core.ImageIntake
 @using Pegasus.Core.Intake
 @{
     ViewData["Title"] = "Intake review";
+
+    @* Allocation runs after the decision is persisted and is deliberately
+       non-blocking, so a definitive receipt can exist with no case behind it —
+       an unknown Principal or an exhausted reference sequence both land here.
+       The stored decision and reason are written before that is known, so on
+       their own they claim a case that may not exist. Say what is true. *@
+    var allocationIncomplete = Model.Receipt.Decision == IntakeDecision.CaseCreated
+        && Model.Receipt.CurrentCaseId is null;
 }
 
 <header class="page-heading">
     <div>
         <p class="eyebrow">Intake review</p>
-        <h1>@DetailsModel.DecisionLabel(Model.Receipt.Decision)</h1>
-        <p class="lede">@Model.Receipt.DecisionReason</p>
+        @if (allocationIncomplete)
+        {
+            @* The create-case form renders for Needs sorting only (below), and
+               the handler refuses anything else, so this copy describes what
+               exists today rather than pointing at a control that is not on the
+               page. The recovery action belongs to the upload/inbox claim. *@
+            <h1>Case not created</h1>
+            <p class="lede">
+                This is a definitive instruction, but no case reference was
+                allocated for it. Ask an Administrator to check that its
+                Principal exists and is active; the instruction can be turned
+                into a case once it is resolved.
+            </p>
+        }
+        else
+        {
+            <h1>@DetailsModel.DecisionLabel(Model.Receipt.Decision)</h1>
+            <p class="lede">@Model.Receipt.DecisionReason</p>
+        }
     </div>
-    <a class="secondary-action" asp-page="/Intake/Index">Receive another</a>
+    <a class="secondary-action" asp-page="/Intake/Index">Back to received items</a>
 </header>
 
 @if (TempData["UploadOutcomeMessage"] is string uploadOutcome)
@@ -164,37 +190,19 @@ else if (Model.IsDuplicate)
         <h2 id="intake-resolution-title" class="section-label">Intake resolution</h2>
         <p>Every correction, block and re-evaluation is versioned and retained in permanent history.</p>
 
-        @if (Model.Receipt.InstructionDraft is { } correctionDraft)
+        @* Correcting the detail belongs on the create screen now, where the
+           same values are confirmed on the way to a case. It survives here for
+           one reason: a blocked item has no other route forward, and deleting
+           this form would strand it. The field markup itself lives once, in the
+           shared partial both screens render. *@
+        @if (Model.Receipt.Decision == IntakeDecision.BlockedIntake)
         {
             <form method="post" asp-page-handler="CorrectDraft" asp-route-id="@Model.Receipt.Id">
                 <input type="hidden" name="expectedVersion" value="@Model.Receipt.Version" />
                 <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
                 <label for="correction-reason">Reason for correction</label>
                 <textarea id="correction-reason" name="reason" maxlength="500" rows="2" required></textarea>
-                <label for="suggested-principal-code">Suggested principal code</label>
-                <input id="suggested-principal-code" name="suggestedPrincipalCode" value="@correctionDraft.SuggestedPrincipalCode" maxlength="20" />
-                <label for="claimant-name">Claimant name</label>
-                <input id="claimant-name" name="claimantName" value="@correctionDraft.ClaimantName" maxlength="200" />
-                <label for="claim-number">Claim number</label>
-                <input id="claim-number" name="claimNumber" value="@correctionDraft.ClaimNumber" maxlength="100" />
-                <label for="vehicle-registration">Vehicle registration</label>
-                <input id="vehicle-registration" name="vehicleRegistration" value="@correctionDraft.VehicleRegistration" maxlength="20" />
-                <label for="vehicle-make">Vehicle make</label>
-                <input id="vehicle-make" name="vehicleMake" value="@correctionDraft.VehicleMake" maxlength="100" />
-                <label for="vehicle-model">Vehicle model</label>
-                <input id="vehicle-model" name="vehicleModel" value="@correctionDraft.VehicleModel" maxlength="100" />
-                <label for="vehicle-mileage">Vehicle mileage</label>
-                <input id="vehicle-mileage" name="vehicleMileage" type="number" min="0" value="@correctionDraft.VehicleMileage" />
-                <label for="accident-circumstances">Accident circumstances</label>
-                <textarea id="accident-circumstances" name="accidentCircumstances" maxlength="4000" rows="3">@correctionDraft.AccidentCircumstances</textarea>
-                <label for="date-of-incident">Date of incident</label>
-                <input id="date-of-incident" name="dateOfIncident" type="date" value="@correctionDraft.DateOfIncident?.ToString("yyyy-MM-dd")" />
-                <label for="instruction-date">Instruction date</label>
-                <input id="instruction-date" name="instructionDate" type="date" value="@correctionDraft.InstructionDate?.ToString("yyyy-MM-dd")" />
-                <label for="inspection-address">Inspection address</label>
-                <textarea id="inspection-address" name="inspectionAddress" maxlength="1000" rows="3">@correctionDraft.InspectionAddress</textarea>
-                <label for="inspection-date">Inspection date</label>
-                <input id="inspection-date" name="inspectionDate" type="date" value="@correctionDraft.InspectionDate?.ToString("yyyy-MM-dd")" />
+                <partial name="_InstructionDraftFields" model="Model.DraftFields" />
                 <button type="submit" class="primary-action">Record corrected draft</button>
             </form>
         }
@@ -327,47 +335,40 @@ else if (Model.IsDuplicate)
     }
     else if (Model.AddressResolution.Evaluation.Suggestion is { } addressSuggestion)
     {
+        @* Read-only here. Settling the address is part of creating the case,
+           so it is asked once, on the create screen, alongside everything else
+           the same decision depends on. *@
         <dl class="detail-list">
-            <div><dt>Suggestion</dt><dd>@addressSuggestion.Value</dd></div>
+            <div><dt>Address found in the document</dt><dd>@addressSuggestion.Value</dd></div>
             <div><dt>Evidence type</dt><dd>@(addressSuggestion.Kind == Pegasus.Core.Address.InspectionAddressEvidenceKind.ImageBasedAssessment ? "Image Based Assessment instruction" : "Extracted physical address")</dd></div>
-            <div><dt>Status</dt><dd>@Model.AddressResolution.State</dd></div>
+            <div><dt>Status</dt><dd>@Pegasus.Web.Pages.Intake.DetailsModel.AddressStateLabel(Model.AddressResolution.State)</dd></div>
             @if (Model.AddressResolution.ResolvedValue is not null)
             {
                 <div><dt>Confirmed value</dt><dd>@Model.AddressResolution.ResolvedValue</dd></div>
                 <div><dt>Confirmed</dt><dd>@OperatorLabels.OfficeTime(Model.AddressResolution.ResolvedAtUtc, "Not recorded")</dd></div>
-                <div><dt>Confirmed by</dt><dd>Staff @Model.AddressResolution.ResolvedByStaffId</dd></div>
             }
         </dl>
         <h3 class="section-label">Source provenance</h3>
         <ul class="plain-list">
             @foreach (var provenance in addressSuggestion.Provenance)
             {
-                <li>@provenance.SourceLabel · @provenance.Source · @provenance.PolicyKey v@provenance.PolicyVersion</li>
+                <li>Extracted from @provenance.SourceLabel</li>
             }
         </ul>
-
-        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
-        <form method="post" asp-page-handler="AcceptAddress" asp-route-id="@Model.Receipt.Id">
-            <input asp-for="ExpectedAddressReceiptVersion" type="hidden" />
-            <input asp-for="AddressSuggestionFingerprint" type="hidden" />
-            <input asp-for="AddressOperationId" type="hidden" />
-            <button type="submit" class="primary-action">Accept suggestion</button>
-        </form>
-
-        <form method="post" asp-page-handler="CorrectAddress" asp-route-id="@Model.Receipt.Id">
-            <input asp-for="ExpectedAddressReceiptVersion" type="hidden" />
-            <input asp-for="AddressSuggestionFingerprint" type="hidden" />
-            <input asp-for="AddressOperationId" type="hidden" />
-            <label asp-for="CorrectedInspectionAddress">Corrected inspection address</label>
-            <textarea asp-for="CorrectedInspectionAddress" maxlength="1000" rows="3"></textarea>
-            <span asp-validation-for="CorrectedInspectionAddress" class="field-validation"></span>
-            <button type="submit" class="secondary-action">Record correction</button>
-        </form>
+    }
+    else if (Model.AddressResolution.ResolvedValue is { } suppliedAddress)
+    {
+        <dl class="detail-list">
+            <div><dt>Inspection address</dt><dd>@suppliedAddress</dd></div>
+            <div><dt>Status</dt><dd>@Pegasus.Web.Pages.Intake.DetailsModel.AddressStateLabel(Model.AddressResolution.State)</dd></div>
+            <div><dt>Recorded</dt><dd>@OperatorLabels.OfficeTime(Model.AddressResolution.ResolvedAtUtc, "Not recorded")</dd></div>
+        </dl>
+        <p>Nothing in the file said where the vehicle is, so a member of staff entered this address.</p>
     }
     else
     {
         <p class="failure-detail">
-            Missing or conflicting physical-address evidence remains unresolved. Pegasus will not infer an address from a spreadsheet, geocoder or model.
+            Missing or conflicting physical-address evidence remains unresolved. Pegasus will not infer an address from a spreadsheet, geocoder or model. A member of staff can enter the location when the case is created.
         </p>
         @if (Model.AddressResolution.Evaluation.ConflictingEvidence.Count > 0)
         {
@@ -385,83 +386,16 @@ else if (Model.IsDuplicate)
 </section>
 
 
-@* This form is INT-26, the staff-resolved manual creation path, and it belongs
-   to Needs sorting alone. A definitive instruction no longer waits for it: the
-   case and its reference already exist by the time this page is opened. What
-   is left here is the genuinely ambiguous material a person has to sort. *@
-@if (Model.Receipt.Decision == Pegasus.Core.Intake.IntakeDecision.NeedsSorting)
+@* There is exactly one acceptance caller in the application, and it is not
+   here. This screen is the record of what arrived and what was decided about
+   it; turning it into a case is a separate screen with its own confirmation,
+   reached from this link. *@
+@if (Model.CanCreateCase)
 {
-    <section class="panel form-panel section-gap" aria-labelledby="accept-title">
-        <h2 id="accept-title" class="section-label">Create a case from this item</h2>
-        <p>Confirm the principal, case type and evidence completeness before allocating an immutable case reference.</p>
-        <form method="post" asp-page-handler="Accept" asp-route-id="@Model.Receipt.Id">
-            <input asp-for="AcceptanceOperationKey" type="hidden" />
-            <input asp-for="ReviewedReceiptVersion" type="hidden" />
-            <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
-            <label asp-for="AcceptanceReason">Reason for accepting this intake</label>
-            <textarea asp-for="AcceptanceReason" maxlength="500" rows="3" required></textarea>
-            <span asp-validation-for="AcceptanceReason" class="field-validation"></span>
-
-
-            <label asp-for="PrincipalCode">Confirmed principal code</label>
-            <input asp-for="PrincipalCode" maxlength="20" autocomplete="off" />
-            <span asp-validation-for="PrincipalCode" class="field-validation"></span>
-
-            <label asp-for="CaseType">Case type</label>
-            <select asp-for="CaseType">
-                <option value="@Pegasus.Core.Cases.CaseType.Inspection">Inspection</option>
-                <option value="@Pegasus.Core.Cases.CaseType.Audit">Standalone Audit</option>
-                <option value="@Pegasus.Core.Cases.CaseType.InspectionAndAudit">Inspection and Audit</option>
-            </select>
-            <span asp-validation-for="CaseType" class="field-validation"></span>
-
-            <label asp-for="StandaloneAuditAssessment">Standalone Audit assessment</label>
-            <select asp-for="StandaloneAuditAssessment">
-                <option value="">Not applicable</option>
-                <option value="@Pegasus.Core.Cases.AuditAssessment.Repairable">Repairable</option>
-                <option value="@Pegasus.Core.Cases.AuditAssessment.TotalLoss">Total loss</option>
-            </select>
-            <span asp-validation-for="StandaloneAuditAssessment" class="field-validation"></span>
-            <small>For a standalone Audit, this assessment is retained with the selected original Engineer report and confirming staff identity.</small>
-
-            <label asp-for="StandaloneAuditOriginalReportAssetId">Retained original Engineer report</label>
-            <select asp-for="StandaloneAuditOriginalReportAssetId">
-                <option value="">Not applicable</option>
-                @foreach (var asset in Model.Receipt.AssetRecords.Where(
-                    asset => asset.Kind is IntakeAssetKind.Source or IntakeAssetKind.Attachment))
-                {
-                    <option value="@asset.Id">@asset.FileName · @asset.SourceLabel</option>
-                }
-            </select>
-            <span asp-validation-for="StandaloneAuditOriginalReportAssetId" class="field-validation"></span>
-
-            <label asp-for="StandaloneAuditEvidenceReason">Original-report confirmation reason</label>
-            <textarea asp-for="StandaloneAuditEvidenceReason" maxlength="500" rows="3"></textarea>
-            <span asp-validation-for="StandaloneAuditEvidenceReason" class="field-validation"></span>
-            @if (Model.ConfirmedStandaloneAuditEvidence is not null)
-            {
-                <small>This original-report evidence is already confirmed and immutable. Accepting reuses its retained identity.</small>
-            }
-
-            <label>
-                <input asp-for="InstructionComplete" />
-                Instruction evidence is complete
-            </label>
-            <label>
-                <input asp-for="InstructionConfirmedByStaff" />
-                I have confirmed the instruction evidence
-            </label>
-            <label>
-                <input asp-for="ImagesComplete" />
-                Image evidence is complete
-            </label>
-            <label>
-                <input asp-for="ImagesConfirmedByStaff" />
-                I have confirmed the image evidence
-            </label>
-
-            <button type="submit" class="primary-action">Accept and allocate case reference</button>
-        </form>
+    <section class="panel section-gap" aria-labelledby="create-case-title">
+        <h2 id="create-case-title" class="section-label">Create a case from this item</h2>
+        <p>Check the detail that was read from the file, confirm the principal and evidence, and allocate the reference.</p>
+        <a class="primary-action" asp-page="/Cases/Create" asp-route-receiptId="@Model.Receipt.Id">Create a case</a>
     </section>
 }
 

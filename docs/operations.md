@@ -10,7 +10,7 @@ Use these evidence states literally and independently:
 
 Compilation, registration, mocks, local execution, deployment, live-service observation, and operator acceptance are different conclusions. Describe code as **Implemented** only when source exists and is connected as claimed; reserve **Called** for a genuine input traversing a real Web or Worker entry point. Direct dependency-injection resolution, registration, host startup, an emulator, source workspace, or benchmark harness is not caller proof.
 
-The authenticated `/Intake` `ReceiveIntake` POST handler through `ProcessIntake` is the manual HTTP intake entry point. The Worker has implemented timer and queue-triggered callers for intake dispatch, inbox polling, due work, sent evidence, staged-artifact reconciliation, and external work. Those source-level callers are not deployment, live traffic, or acceptance evidence; starting a Functions host alone remains host evidence only.
+The authenticated `/Upload` POST through `ProcessIntakeSubmission` is the manual HTTP intake entry point; `/Received` is the read-only record of what it and mailbox polling produced, and `/Inbox` is the read-only workspace over retained messages. The Worker has implemented timer and queue-triggered callers for intake dispatch, inbox polling, due work, sent evidence, staged-artifact reconciliation, and external work. Those source-level callers are not deployment, live traffic, or acceptance evidence; starting a Functions host alone remains host evidence only.
 
 Every external read, mutation, billed call, data transfer, credential change, deployment, recovery exercise, or resource retirement requires explicit approval after showing the exact target, scope, operation, data class, cost exposure, and rollback path. Installed tools, repository configuration, credentials, and authentication never grant authority by themselves.
 
@@ -63,7 +63,7 @@ What Windows gives this project that Linux does not:
 | `dotnet dev-certs https --trust` | Trust works directly. On Linux it populates per-user NSS and OpenSSL stores and needs `libnss3-tools` plus `SSL_CERT_DIR`. |
 | The `win-x64` migration bundle and authorised release terminal | Fixed by ADR-0007; see above. |
 | The Entra interactive authentication broker, and the `SqlServer` and `ExchangeOnlineManagement` modules | Used by the approved live-work profile. |
-| `scripts/email-eval-desktop` and `CollisionRenderer.Gui` | These target `net10.0-windows` with Windows Forms and WinUI 3 respectively. Neither framework has a Linux implementation, so both are Windows-only by construction. |
+| `scripts/email-eval-desktop` | It targets `net10.0-windows` with Windows Forms, which has no Linux implementation, so it is Windows-only by construction. |
 
 A 2026-07-27 currency check found:
 
@@ -72,6 +72,8 @@ A 2026-07-27 currency check found:
 - Worker 2.52.0 and Worker SDK 2.0.7 above Microsoft’s stated minimums.
 
 These vendor facts can drift. Refresh them before changing the SDK, target framework, Functions host, or release platform.
+
+Re-checked 2026-08-05 when `workspaces/report-renderer/` moved from `net8.0` to `net10.0` and its SDK pin from `10.0.300` to `10.0.302`. The three vendor facts above are unchanged; no repository target framework outside that workspace moved.
 
 ### Checkout path
 
@@ -489,6 +491,68 @@ across a mode change fails closed with an operation conflict instead of
 deduplicating, and an acceptance in flight during the change is rejected and
 must be retried from a reloaded intake receipt.
 
+## Approved mailbox estate
+
+The approved-mailbox allowlist is the authority for which mailboxes inbound
+Intake polls, under
+[ADR-0022](adr/0022-approved-mailbox-identity-and-enablement-database-setting.md).
+Each row carries the exact tenant identity a poll needs — a mailbox identity,
+an Inbox folder identity, and a Sent folder identity — alongside the address,
+route scopes, and `Approved`/`Disabled` state it already carried. All three are
+nullable so an administrator can save a row `Disabled` while the tenant grant
+is still outstanding; a row saved `Approved` must carry the identities its
+route scopes need, and Pegasus refuses the save otherwise.
+
+An identity is immutable once saved, and the address is immutable once a
+mailbox identity is bound: the mailbox identity is the primary key of that
+mailbox's `ApprovedInboxPollStates` cursor row. Moving a mailbox is
+disable-and-add, never edit.
+
+The seeded production row keeps its identities `NULL` after the upgrade. Its
+real Graph identities are deployment configuration, read from azd environment
+variables into `Graph:MailboxId` and `Graph:InboxFolderId`, and are not in this
+repository. A polling host therefore carries a read-only fallback: an Approved
+inbound row with no saved identities whose address matches the configured
+mailbox is polled under exactly the identities the deployment already uses. A
+saved identity always wins; configuration never overrides one. A row with no
+identities and no configuration match is skipped and logged by address. No
+manual step is needed to keep the existing mailbox polling across this upgrade.
+
+### Disabling a mailbox
+
+Disabling stops polling at the next tick, for both the Inbox and Sent routes.
+It deletes nothing: retained receipts, assets, staged artifacts, quarantined
+messages, and case associations all stay, and the cursor row is preserved so
+re-enabling resumes rather than restarts. Note honestly that a Graph delta
+token expires after roughly a week of disuse; on resume Graph answers 410 Gone
+and the folder is re-enumerated. That is a re-read, not a re-ingest — intake
+deduplicates on the operation key and the source identity — so no second
+receipt, case, or reference appears. A poll already inside a page finishes that
+page; disabling is effective within one poll page, never mid-message.
+
+### Runbook: admitting a new mailbox to the tenant
+
+Approving a mailbox in Pegasus grants no Exchange access, and Pegasus cannot
+request or grant it. These steps are for a human with Microsoft 365 tenant
+rights and are not executed from this repository:
+
+1. Confirm the Pegasus application registration holds the `Mail.Read`
+   application permission with tenant admin consent.
+2. Add the new mailbox to the Exchange Online application access policy that
+   scopes the application, so it may read that mailbox and no other.
+3. Record, as the evidence for this action: the tenant, the application object
+   id, the mailbox address, the policy scope group, who approved it, and when.
+4. In Pegasus, add the approved-mailbox row with its mailbox and folder
+   identities and a reason, saving it `Disabled` until step 2 is confirmed,
+   then set it `Approved`.
+5. Confirm on `/Administration/Mailboxes` that the mailbox reports a completed
+   poll. Until the tenant admits the application, polling that mailbox alone
+   fails with `mailbox_access_denied`, which the page reports as the tenant not
+   having granted access.
+
+Per-tick Graph cost grows linearly with the estate: the message bound is per
+mailbox, so an estate of *n* mailboxes may read *n* × 50 messages a minute.
+
 ## Local setup and run
 
 Run these commands from PowerShell 7 at the repository root:
@@ -597,6 +661,7 @@ Configuration ownership is:
 | Development profile and launch path | `src/Pegasus.Web/Properties/launchSettings.json` |
 | Ignored local state | `artifacts/` |
 | Target Azure parameters and topology | `infra/`, `azure.yaml`, and `.azure/deployment-plan.md` |
+| Which mailboxes inbound Intake polls, and their exact tenant identities | The `ApprovedMailboxes` allowlist, edited on `/Administration/Mailboxes` ([ADR-0022](adr/0022-approved-mailbox-identity-and-enablement-database-setting.md)). `Graph:MailboxId` and `Graph:InboxFolderId` are retained as the read-only bootstrap fallback for the already-deployed mailbox and as the Sent route's own configuration. |
 
 Tool availability does not authorize external action.
 
@@ -837,7 +902,7 @@ dotnet test ./tests/Pegasus.IntegrationTests --filter Category=Corpus
 The retained evidence observations are qualified as follows:
 
 - A 2026-07-23 corpus inventory describes only the observed local scope and safety boundary; it does not prove current contents, extraction accuracy, workflow behavior, deployment, or acceptance.
-- A 2026-07-23 multi-format evaluation used controlled protocol fixtures and pinned genuine samples through the historical Development-only `POST /Intake/Qdos`. The current route is the authenticated `/Intake` `ReceiveIntake` POST handler through `ProcessIntake`. The historical result records sampled QDOS-policy behavior and failure boundaries, not current-caller execution, complete workflow, field-level accuracy, Worker/Graph/Box/Azure behavior, or production acceptance.
+- A 2026-07-23 multi-format evaluation used controlled protocol fixtures and pinned genuine samples through the historical Development-only `POST /Intake/Qdos`. The current route is the authenticated `/Upload` POST through `ProcessIntakeSubmission`. The historical result records sampled QDOS-policy behavior and failure boundaries, not current-caller execution, complete workflow, field-level accuracy, Worker/Graph/Box/Azure behavior, or production acceptance.
 - A 2026-07-23 embedded-PDF benchmark used 74 unique PDFs and 567 reported pages from an immutable local QDOS cohort through a disposable benchmark harness. It records comparative embedded-text decoding and marker coverage only; it does not prove literal field accuracy, OCR, future layouts, production runtime behavior, or operator acceptance.
 
 ### Planned EML evaluator

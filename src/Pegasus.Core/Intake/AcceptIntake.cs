@@ -56,8 +56,7 @@ public sealed class AcceptIntake(
             throw new ArgumentOutOfRangeException(nameof(request), "The case type is invalid.");
         }
 
-        var principalCode = QdosAlphaCaseActivationPolicy.RequireActivatedPrincipal(
-            request.PrincipalCode);
+        var principalCode = CasePrincipalCode.Normalize(request.PrincipalCode);
         if (request.CaseType == CaseType.Audit
             && request.StandaloneAuditEvidenceId is null)
         {

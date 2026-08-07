@@ -1,4 +1,8 @@
+using System.Collections.Frozen;
+using System.Globalization;
 using System.Security.Claims;
+using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -54,6 +58,7 @@ public sealed partial class DetailsModel(
     ICreateRequestUploadLink createRequestUploadLink,
     IRevokeRequestUploadLink revokeRequestUploadLink,
     IImageIntakeQueries imageIntakeQueries,
+    IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
     TimeProvider timeProvider,
     ILogger<DetailsModel> logger) : PageModel
 {
@@ -66,6 +71,87 @@ public sealed partial class DetailsModel(
     private const string ClaimLeaseCaseIdKey = "CaseClaimLeaseCaseId";
     private const string RenewLeaseOperationKeyName = "CaseRenewLeaseOperationKey";
     private const string ReleaseLeaseOperationKeyName = "CaseReleaseLeaseOperationKey";
+    private const string ProposedValuesKey = "CaseProposedValues";
+    private const string ProposedValuesCaseIdKey = "CaseProposedValuesCaseId";
+    private const string ProposedValuesDroppedKey = "CaseProposedValuesDropped";
+    private const string ProposedValuesShortenedKey = "CaseProposedValuesShortened";
+
+    /// <summary>
+    /// The retained payload is bounded so one refusal cannot grow the response without limit.
+    /// Cookie TempData chunks across cookies, so the ceiling is a deliberate budget rather than a
+    /// hard 4 KB wall: the per-value cap matches the longest field an edit form accepts, and the
+    /// total holds an ordinary case-data save with circumstances, address, and reason together.
+    /// Nothing is trimmed or discarded quietly — both outcomes are stated in the panel.
+    /// </summary>
+    private const int MaximumRetainedProposedCharacters = 8000;
+    private const int MaximumRetainedProposedValueCharacters = 2000;
+
+    /// <summary>
+    /// The values an operator types or chooses as case content. Identifiers, versions, keys,
+    /// tokens, and the fields that only route a command are never retained, so the comparison
+    /// shows editorial work and never an identifier.
+    /// </summary>
+    private static readonly FrozenSet<string> RetainableFormFields = new[]
+    {
+        "claimantName",
+        "claimNumber",
+        "vehicleRegistration",
+        "vehicleMake",
+        "vehicleModel",
+        "vehicleMileage",
+        "vehicleMileageUnit",
+        "accidentCircumstances",
+        "incidentDate",
+        "contactName",
+        "contactEmailAddress",
+        "contactPhoneNumber",
+        "instructionDate",
+        "vatStatus",
+        "inspectionDate",
+        "inspectionDeadline",
+        "inspectionAddress",
+        "inspectionMode",
+        "registration",
+        "make",
+        "model",
+        "mileage",
+        "mileageUnit",
+        "reason",
+        "note",
+        "description",
+        "channel",
+        "targetPartyOrAddress",
+        "outcome",
+        "assessment",
+        "evidenceReference",
+        "artifactIdentity",
+        "replacementPrincipalCode",
+        "semanticRole",
+        "expiresAtUtc",
+        "attemptedAtUtc",
+        "instructionComplete",
+        "imagesComplete",
+        "instructionsComplete",
+        "instructionConfirmedByStaff",
+        "imagesConfirmedByStaff",
+        "instructionsReviewedByStaff",
+        "imagesReviewedByStaff"
+    }.ToFrozenSet(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The retainable fields posted by a checkbox. Each carries a trailing hidden false, so an
+    /// unchecked box still submits and a proposed "no" survives the refusal instead of vanishing.
+    /// </summary>
+    private static readonly FrozenSet<string> BooleanFormFields = new[]
+    {
+        "instructionComplete",
+        "imagesComplete",
+        "instructionsComplete",
+        "instructionConfirmedByStaff",
+        "imagesConfirmedByStaff",
+        "instructionsReviewedByStaff",
+        "imagesReviewedByStaff"
+    }.ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>
     /// Which section of the case container is open.
@@ -93,6 +179,25 @@ public sealed partial class DetailsModel(
         (Case?.Documents.Count ?? 0) + ImageIntakes.Count;
 
     public CaseDetails? Case { get; private set; }
+
+    /// <summary>
+    /// The values a refused editor submitted, held for comparison against the values the case now
+    /// holds. There is no control that applies, merges, or forces them: the only way forward is to
+    /// enter edit mode again and retype.
+    /// </summary>
+    public IReadOnlyList<ProposedCaseValue> ProposedValues { get; private set; } = [];
+
+    public bool ProposedValuesWereDropped { get; private set; }
+
+    public bool ProposedValuesWereShortened { get; private set; }
+
+    /// <summary>
+    /// Who holds edit authority, as an operator may see them. Null when nobody is editing; a
+    /// holder whose account cannot be resolved is still disclosed, without an identifier.
+    /// </summary>
+    public CaseEditAuthorityHolder? EditAuthorityHolder { get; private set; }
+
+    public bool ViewerHoldsEditAuthority { get; private set; }
 
     public bool QueryFailed { get; private set; }
 
@@ -132,6 +237,8 @@ public sealed partial class DetailsModel(
             }
             ImageIntakes = await imageIntakeQueries.ListForCaseAsync(id, cancellationToken);
             RestoreLeaseState(id, actor);
+            RestoreProposedValues(id);
+            await DescribeEditAuthorityHolderAsync(actor, cancellationToken);
             ManualChaseAttemptedAtUtc = timeProvider.GetUtcNow();
             return Page();
         }
@@ -844,6 +951,7 @@ public sealed partial class DetailsModel(
         {
             LogCaseCommandFailed(logger, id, "create_linked_replacement", exception);
             HandleLeaseFailure(id, editLeaseToken, exception);
+            RetainProposedValues(id);
             TempData["CaseError"] =
                 "The corrected replacement could not be created because the case changed or the request is not permitted.";
         }
@@ -1023,6 +1131,7 @@ public sealed partial class DetailsModel(
         {
             LogCaseCommandFailed(logger, id, "generate_eva_handoff", exception);
             HandleLeaseFailure(id, editLeaseToken, exception);
+            RetainProposedValues(id);
             TempData["CaseError"] =
                 "The EVA handoff was not generated because the case changed, edit mode was lost, or bundle generation is unavailable.";
         }
@@ -1086,6 +1195,7 @@ public sealed partial class DetailsModel(
         {
             LogCaseCommandFailed(logger, id, "add_case_document", exception);
             HandleLeaseFailure(id, editLeaseToken, exception);
+            RetainProposedValues(id);
             TempData["CaseError"] =
                 "The document could not be retained because the case changed, edit mode was lost, or custody is unavailable.";
         }
@@ -1177,6 +1287,7 @@ public sealed partial class DetailsModel(
         {
             LogCaseCommandFailed(logger, id, "create_box_file_request", exception);
             HandleLeaseFailure(id, editLeaseToken, exception);
+            RetainProposedValues(id);
             TempData["CaseError"] =
                 "The Box file request could not be created because the case changed, edit mode was lost, or the service is unavailable.";
         }
@@ -1253,6 +1364,7 @@ public sealed partial class DetailsModel(
         {
             LogCaseCommandFailed(logger, id, "create_request_upload_link", exception);
             HandleLeaseFailure(id, editLeaseToken, exception);
+            RetainProposedValues(id);
             TempData["CaseError"] =
                 "The upload request could not be created because the case changed, edit mode was lost, or requests are unavailable.";
         }
@@ -1315,6 +1427,7 @@ public sealed partial class DetailsModel(
         {
             LogCaseCommandFailed(logger, id, commandName, exception);
             HandleLeaseFailure(id, editLeaseToken, exception);
+            RetainProposedValues(id);
             TempData["CaseError"] =
                 "The case action was not applied because the case changed, edit mode was lost, or the action is not permitted.";
         }
@@ -1349,6 +1462,7 @@ public sealed partial class DetailsModel(
         {
             LogCaseCommandFailed(logger, id, commandName, exception);
             HandleLeaseFailure(id, editLeaseToken, exception);
+            RetainProposedValues(id);
             TempData["CaseError"] =
                 "The case action was not applied because the item is unavailable, changed, or not part of this case.";
         }
@@ -1361,8 +1475,9 @@ public sealed partial class DetailsModel(
 
     private void RestoreLeaseState(Guid caseId, ActionActor actor)
     {
+        // An expired lease is already absent from the projection, so this page keeps no second rule.
         var activeLease = Case!.ActiveEditLease;
-        if (activeLease is null || activeLease.ExpiresAtUtc <= timeProvider.GetUtcNow())
+        if (activeLease is null)
         {
             if (!string.IsNullOrWhiteSpace(PeekLeaseToken())
                 || PeekGuid(LeaseCaseIdKey) is not null)
@@ -1446,9 +1561,245 @@ public sealed partial class DetailsModel(
         TempData[LeaseTokenKey] = new[] { leaseToken };
     }
 
+    private async Task DescribeEditAuthorityHolderAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        if (Case?.ActiveEditLease is not { } activeLease)
+        {
+            return;
+        }
+
+        ViewerHoldsEditAuthority = string.Equals(
+            activeLease.Holder,
+            actor.SubjectId,
+            StringComparison.Ordinal);
+        EditAuthorityHolder = ViewerHoldsEditAuthority
+            ? CaseEditAuthorityHolder.Unnamed
+            : await describeEditAuthorityHolder.ExecuteAsync(
+                activeLease.Holder,
+                actor,
+                cancellationToken);
+    }
+
+    /// <summary>
+    /// Carries the refused form's own submitted values through the post-redirect-get so the editor
+    /// can compare them with the reloaded case. No lease token, version, or case identifier beyond
+    /// the route value is retained, and an oversized payload is reported rather than discarded.
+    /// </summary>
+    private void RetainProposedValues(Guid caseId)
+    {
+        if (!Request.HasFormContentType)
+        {
+            return;
+        }
+
+        var wasShortened = false;
+        var submitted = Request.Form
+            .Where(field => RetainableFormFields.Contains(field.Key))
+            .Select(field => new
+            {
+                field.Key,
+                // A checked box posts "true" followed by its hidden "false"; the model binder reads
+                // the first entry, so retention reads the first entry too rather than joining both.
+                Value = BooleanFormFields.Contains(field.Key)
+                    ? field.Value.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty
+                    : string.Join(", ", field.Value.Where(value => !string.IsNullOrWhiteSpace(value)))
+            })
+            .Where(field => !string.IsNullOrWhiteSpace(field.Value)
+                && !Guid.TryParse(field.Value, out _))
+            .Select(field =>
+            {
+                if (field.Value.Length <= MaximumRetainedProposedValueCharacters)
+                {
+                    return new RetainedProposedValue(field.Key, field.Value);
+                }
+
+                wasShortened = true;
+                return new RetainedProposedValue(
+                    field.Key,
+                    field.Value[..MaximumRetainedProposedValueCharacters]);
+            })
+            .ToArray();
+        if (submitted.Length == 0)
+        {
+            return;
+        }
+
+        TempData[ProposedValuesCaseIdKey] = caseId;
+        var payload = JsonSerializer.Serialize(submitted);
+        if (payload.Length > MaximumRetainedProposedCharacters)
+        {
+            TempData.Remove(ProposedValuesKey);
+            TempData.Remove(ProposedValuesShortenedKey);
+            TempData[ProposedValuesDroppedKey] = true;
+            return;
+        }
+
+        TempData.Remove(ProposedValuesDroppedKey);
+        TempData[ProposedValuesShortenedKey] = wasShortened;
+        TempData[ProposedValuesKey] = payload;
+    }
+
+    /// <summary>
+    /// Reads the retained values only for the case they were submitted against. A refusal on one
+    /// case survives a visit to another, so nothing is consumed until it belongs to this page.
+    /// </summary>
+    private void RestoreProposedValues(Guid caseId)
+    {
+        if (PeekGuid(ProposedValuesCaseIdKey) != caseId)
+        {
+            TempData.Keep(ProposedValuesCaseIdKey);
+            TempData.Keep(ProposedValuesKey);
+            TempData.Keep(ProposedValuesDroppedKey);
+            TempData.Keep(ProposedValuesShortenedKey);
+            return;
+        }
+
+        TempData.Remove(ProposedValuesCaseIdKey);
+        var payload = TempData[ProposedValuesKey] as string;
+        ProposedValuesWereDropped = TempData[ProposedValuesDroppedKey] is true;
+        ProposedValuesWereShortened = TempData[ProposedValuesShortenedKey] is true;
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            return;
+        }
+
+        RetainedProposedValue[]? retained;
+        try
+        {
+            retained = JsonSerializer.Deserialize<RetainedProposedValue[]>(payload);
+        }
+        catch (JsonException)
+        {
+            ProposedValuesWereDropped = true;
+            return;
+        }
+
+        ProposedValues = retained is null
+            ? []
+            : retained
+                .Select(value => new ProposedCaseValue(
+                    FieldLabel(value.Field),
+                    DisplayValue(value.Field, value.Value),
+                    CurrentValue(value.Field)))
+                .ToArray();
+    }
+
+    /// <summary>
+    /// Renders a proposed checkbox value in the same words as the current one, so the two columns
+    /// compare rather than reading "true" beside "Yes".
+    /// </summary>
+    private static string DisplayValue(string field, string value) =>
+        BooleanFormFields.Contains(field)
+            ? YesOrNo(string.Equals(value, "true", StringComparison.OrdinalIgnoreCase))
+            : value;
+
+    private static string YesOrNo(bool value) => value ? "Yes" : "No";
+
+    private string? CurrentValue(string field)
+    {
+        if (Case?.Data is not { } data)
+        {
+            return null;
+        }
+
+        return field switch
+        {
+            "claimantName" => data.Claimant.Name.Confirmed?.Value,
+            "claimNumber" => data.Claim.Number.Confirmed?.Value,
+            "vehicleRegistration" => data.Vehicle.Registration.Confirmed?.Value,
+            "vehicleMake" => data.Vehicle.Make.Confirmed?.Value,
+            "vehicleModel" => data.Vehicle.Model.Confirmed?.Value,
+            "vehicleMileage" => data.Vehicle.Mileage.Confirmed?.Value.ToString(
+                CultureInfo.InvariantCulture),
+            "vehicleMileageUnit" => data.Vehicle.MileageUnit.Confirmed?.Value,
+            "accidentCircumstances" => data.Accident.Circumstances.Confirmed?.Value,
+            "incidentDate" => data.Accident.IncidentDate.Confirmed?.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            "contactName" => data.Contact.Name.Confirmed?.Value,
+            "contactEmailAddress" => data.Contact.EmailAddress.Confirmed?.Value,
+            "contactPhoneNumber" => data.Contact.PhoneNumber.Confirmed?.Value,
+            "instructionDate" => data.Instruction.InstructionDate.Confirmed?.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            "vatStatus" => data.Instruction.VatStatus.Confirmed?.Value,
+            "inspectionDate" => data.Inspection.InspectionDate.Confirmed?.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            "inspectionDeadline" => data.Inspection.Deadline.Confirmed?.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            "inspectionAddress" => data.Inspection.Address.Confirmed?.Value,
+            "inspectionMode" => data.Inspection.Mode.Confirmed?.Value.ToString(),
+
+            // The corrected-vehicle-suggestion form posts unprefixed names against the same case
+            // fields, so the case's confirmed vehicle values are what it is compared with.
+            "registration" => data.Vehicle.Registration.Confirmed?.Value,
+            "make" => data.Vehicle.Make.Confirmed?.Value,
+            "model" => data.Vehicle.Model.Confirmed?.Value,
+            "mileage" => data.Vehicle.Mileage.Confirmed?.Value.ToString(
+                CultureInfo.InvariantCulture),
+            "mileageUnit" => data.Vehicle.MileageUnit.Confirmed?.Value,
+
+            // Two handlers name the same completeness flags differently; both compare against the
+            // one projected value.
+            "instructionComplete" or "instructionsComplete" =>
+                YesOrNo(data.Completeness.Values.InstructionComplete),
+            "imagesComplete" => YesOrNo(data.Completeness.Values.ImagesComplete),
+            "instructionConfirmedByStaff" or "instructionsReviewedByStaff" =>
+                YesOrNo(data.Completeness.Values.InstructionConfirmedByStaff),
+            "imagesConfirmedByStaff" or "imagesReviewedByStaff" =>
+                YesOrNo(data.Completeness.Values.ImagesConfirmedByStaff),
+            _ => null
+        };
+    }
+
+    private static string FieldLabel(string field) => field switch
+    {
+        "claimantName" => "Claimant",
+        "claimNumber" => "Claim number",
+        "vehicleRegistration" => "Registration",
+        "vehicleMake" => "Vehicle make",
+        "vehicleModel" => "Vehicle model",
+        "vehicleMileage" => "Mileage",
+        "vehicleMileageUnit" => "Mileage unit",
+        "accidentCircumstances" => "Accident circumstances",
+        "incidentDate" => "Incident date",
+        "contactName" => "Contact name",
+        "contactEmailAddress" => "Contact email",
+        "contactPhoneNumber" => "Contact phone",
+        "instructionDate" => "Instruction date",
+        "vatStatus" => "VAT status",
+        "inspectionDate" => "Inspection date",
+        "inspectionDeadline" => "Inspection deadline",
+        "inspectionAddress" => "Inspection address",
+        "inspectionMode" => "Inspection mode",
+        "reason" => "Reason",
+
+        // The completeness flags are labelled as the form the editor was looking at labelled them.
+        "instructionComplete" or "instructionsComplete" => "Instructions complete",
+        "imagesComplete" => "Images complete",
+        "instructionConfirmedByStaff" or "instructionsReviewedByStaff" =>
+            "Instructions staff-reviewed",
+        "imagesConfirmedByStaff" or "imagesReviewedByStaff" => "Images staff-reviewed",
+        _ => Humanize(field)
+    };
+
+    private static string Humanize(string field)
+    {
+        var text = new StringBuilder(field.Length + 8);
+        foreach (var character in field)
+        {
+            if (char.IsUpper(character) && text.Length > 0)
+            {
+                text.Append(' ');
+                text.Append(char.ToLowerInvariant(character));
+                continue;
+            }
+
+            text.Append(text.Length == 0 ? char.ToUpperInvariant(character) : character);
+        }
+
+        return text.ToString();
+    }
+
     private void HandleLeaseFailure(Guid caseId, string? editLeaseToken, Exception exception)
     {
-        if (IsLeaseLoss(exception))
+        if (RequiresReacquisition(exception))
         {
             ClearLeaseState();
         }
@@ -1500,8 +1851,19 @@ public sealed partial class DetailsModel(
         TempData.Remove(ClaimLeaseCaseIdKey);
     }
 
+    /// <summary>The lease itself is gone: it expired, or another actor holds it.</summary>
     private static bool IsLeaseLoss(Exception exception) =>
         exception is CaseEditLeaseExpiredException or CaseEditLeaseConflictException;
+
+    /// <summary>
+    /// The refused mutations after which the editor must reacquire rather than resubmit. A lost
+    /// lease is one; so is a stale version, because the requirement makes the rejected editor
+    /// "reload and reacquire rather than merge or force the save". Clearing this page's lease state
+    /// does not release the server-owned authority, so a holder who did nothing wrong keeps it and
+    /// simply re-enters edit mode deliberately rather than saving over newer work.
+    /// </summary>
+    private static bool RequiresReacquisition(Exception exception) =>
+        IsLeaseLoss(exception) || exception is CaseVersionConflictException;
 
     private bool TryGetActor(out ActionActor actor)
     {
@@ -1577,4 +1939,11 @@ public sealed partial class DetailsModel(
         Guid caseId,
         string commandName,
         Exception exception);
+
+    private sealed record RetainedProposedValue(string Field, string Value);
 }
+
+/// <summary>
+/// One field of a refused submission beside the value the case now holds, for comparison only.
+/// </summary>
+public sealed record ProposedCaseValue(string Label, string Proposed, string? Current);

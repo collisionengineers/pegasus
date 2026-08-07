@@ -1,5 +1,6 @@
 using ModelContextProtocol;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Web.Mcp;
 
@@ -8,7 +9,10 @@ namespace Pegasus.Web.Mcp;
 /// carry deliberately safe messages (version conflicts, lease state,
 /// operation replays, validation refusals) and pass through; anything
 /// unexpected collapses to a generic failure so no infrastructure detail
-/// crosses the boundary.
+/// crosses the boundary. The three edit-guard refusals name which guard
+/// refused and the current case version, so the Automation Actor can reload
+/// and reacquire rather than retry blindly; no token or other holder material
+/// crosses the boundary with them.
 /// </summary>
 internal static class AutomationMcpErrors
 {
@@ -27,6 +31,25 @@ internal static class AutomationMcpErrors
         {
             throw new McpException(
                 "The Automation actor is not authorized for this action.");
+        }
+        catch (CaseEditLeaseExpiredException exception)
+        {
+            throw new McpException(
+                "Refused: no active edit authority is held for this case. The case is at version "
+                + $"{exception.CaseVersion}; claim edit authority again with pegasus_case_edit_begin.");
+        }
+        catch (CaseEditLeaseConflictException exception)
+        {
+            throw new McpException(
+                "Refused: case edit authority is held by another actor. The case is at version "
+                + $"{exception.CaseVersion}; reload and reacquire rather than retrying.");
+        }
+        catch (CaseVersionConflictException exception)
+        {
+            throw new McpException(
+                "Refused: the case changed since it was read. The case is at version "
+                + $"{exception.ActualVersion}, not {exception.ExpectedVersion}; reload and "
+                + "reacquire rather than retrying.");
         }
         catch (Exception exception) when (
             exception is ArgumentException

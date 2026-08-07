@@ -564,6 +564,16 @@ builder.Services.AddScoped<IStagedArtifactAuthority>(serviceProvider =>
     serviceProvider.GetRequiredService<EfIntakeWorkStore>());
 builder.Services.AddScoped<ReceiveIntake>();
 builder.Services.AddScoped<ProcessQueuedIntake>();
+// Two submissions, because the two callers want different things.
+//
+// A person uploading a file is standing in front of the answer: the page has
+// to say what the file became and send them to the case, or to the screen
+// that creates one. Only inline processing can answer that, so the Upload
+// page takes ProcessIntakeSubmission directly.
+//
+// The automation ingress has nobody waiting. It keeps the queue-only
+// ReceiveIntake, which stages the bytes and returns.
+builder.Services.AddScoped<ProcessIntakeSubmission>();
 builder.Services.AddScoped<IIntakeSubmission>(serviceProvider =>
     serviceProvider.GetRequiredService<ReceiveIntake>());
 // The consolidated Automation activity read model backs the Administration
@@ -712,42 +722,24 @@ if (!app.Environment.IsDevelopment())
     });
 }
 
-// Staff read the intake list, detail, and retained source wherever intake is
-// composed. Manual local upload (POST /Intake?handler=ReceiveIntake) stays a
-// DevelopmentOffline-only capability and keeps returning 404 in Production.
+// The whole received-item surface — the list, an item, and its retained source
+// — is present only where intake is composed, and returns 404 everywhere else.
+// The mail workspace at /Inbox joins it: retained mail exists only where polling
+// is composed, so a deployment without it has no messages to show and says 404
+// rather than rendering a permanently empty screen.
+//
+// The second gate that used to sit here refused POST /Intake?handler=ReceiveIntake
+// when local intake was off. That handler stopped existing when manual upload
+// moved to its own /Upload page, and no screen has produced that query string
+// since, so the branch matched nothing. Creating a case now happens at
+// /Cases/Create, outside these routes, which is deliberate: it is a staff action
+// in every runtime profile and must not inherit a development-only gate.
 if (!intakeSurfaceEnabled)
 {
     app.Use(async (context, next) =>
     {
-        if (context.Request.Path.StartsWithSegments("/Intake"))
-        {
-            context.Response.StatusCode = StatusCodes.Status404NotFound;
-            return;
-        }
-
-        await next(context);
-    });
-}
-else if (!localIntakeEnabled)
-{
-    // Only the manual upload handler on the intake index is Development-only. The
-    // /Intake/{id} review actions — accept, correct draft, block, link case — are
-    // the production staff path to Case/PO allocation and must stay reachable.
-    app.Use(async (context, next) =>
-    {
-        // Only the manual upload handler is Development-only, which is what
-        // this gate has always said it does. It used to block every POST to
-        // the Inbox index, so any other action that landed there — retrying a
-        // mailbox that failed to deliver, for one — was refused in Production
-        // for no stated reason.
-        var isReceiveIntakeHandler = string.Equals(
-            context.Request.Query["handler"],
-            "ReceiveIntake",
-            StringComparison.OrdinalIgnoreCase);
-        if (context.Request.Path.StartsWithSegments("/Intake")
-            && !HttpMethods.IsGet(context.Request.Method)
-            && !HttpMethods.IsHead(context.Request.Method)
-            && isReceiveIntakeHandler)
+        if (context.Request.Path.StartsWithSegments("/Received")
+            || context.Request.Path.StartsWithSegments("/Inbox"))
         {
             context.Response.StatusCode = StatusCodes.Status404NotFound;
             return;

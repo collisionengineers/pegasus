@@ -54,7 +54,7 @@ public sealed class OperatorJourneyTests
 
         await support.GoToAsync("/");
         await support.Page.Locator(".metric-strip a.metric", new PageLocatorOptions { HasText = "Needs sorting" }).ClickAsync();
-        Assert.Equal("/Intake?decision=needs_sorting", new Uri(support.Page.Url).PathAndQuery);
+        Assert.Equal("/Received?decision=needs_sorting", new Uri(support.Page.Url).PathAndQuery);
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public sealed class OperatorJourneyTests
         var unknownRequest = await support.GoToAsync("/Uploads/not-an-accepted-token");
         Assert.Equal(404, unknownRequest.Status);
 
-        var unknownEvaHandoff = await support.GoToAsync($"/Intake/EvaHandoff/{Guid.NewGuid():D}");
+        var unknownEvaHandoff = await support.GoToAsync($"/Received/EvaHandoff/{Guid.NewGuid():D}");
         Assert.Equal(404, unknownEvaHandoff.Status);
     }
 

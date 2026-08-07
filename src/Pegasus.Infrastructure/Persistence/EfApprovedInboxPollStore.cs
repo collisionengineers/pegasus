@@ -2,58 +2,68 @@ using System.Data;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Intake;
-using Pegasus.Infrastructure.Email;
 using Microsoft.EntityFrameworkCore;
 
 namespace Pegasus.Infrastructure.Persistence;
 
 internal sealed class EfApprovedInboxPollStore(
-    IDbContextFactory<PegasusDbContext> contextFactory,
-    IApprovedInboxSourceSettings options,
-    IApprovedMailboxPolicy approvedMailboxPolicy) : IApprovedInboxPollStore
+    IDbContextFactory<PegasusDbContext> contextFactory) : IApprovedInboxPollStore
 {
     public async Task<ApprovedInboxPollLease?> ClaimAsync(
+        ApprovedIntakeMailbox mailbox,
         DateTimeOffset nowUtc,
         TimeSpan leaseDuration,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(mailbox);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(
             leaseDuration,
             TimeSpan.Zero);
 
-        if (!await approvedMailboxPolicy.IsApprovedAsync(
-                options.MailboxAddress,
-                ApprovedMailboxRouteScope.InboundIntake,
-                cancellationToken))
-        {
-            throw new UnauthorizedAccessException(
-                "The configured mailbox is not approved for inbound intake.");
-        }
-
+        var mailboxId = mailbox.MailboxId;
+        var mailboxAddress = mailbox.Address;
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
             cancellationToken);
+
+        // Re-assert approval inside the claiming transaction rather than before it, so a
+        // disable committed between listing and claiming cannot slip a poll through. A
+        // withdrawn mailbox yields no lease; it is not an error.
+        var approvedState = ApprovedMailboxState.Approved.ToString();
+        var stillApproved = await context.Set<ApprovedMailboxEntity>()
+            .AnyAsync(
+                item => item.Address == mailboxAddress
+                    && item.State == approvedState
+                    && item.AllowInboundIntake,
+                cancellationToken);
+        if (!stillApproved)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return null;
+        }
+
         var state = await context.ApprovedInboxPollStates.SingleOrDefaultAsync(
-            item => item.MailboxId == options.MailboxId,
-            cancellationToken);
+                item => item.MailboxId == mailboxId,
+                cancellationToken)
+            ?? await AdoptStateForAddressAsync(context, mailboxId, mailboxAddress, cancellationToken);
         if (state is null)
         {
             state = new()
             {
-                MailboxId = options.MailboxId,
-                MailboxAddress = options.MailboxAddress,
+                MailboxId = mailboxId,
+                MailboxAddress = mailboxAddress,
                 DueAtUtc = nowUtc
             };
             context.ApprovedInboxPollStates.Add(state);
         }
         else if (!string.Equals(
                      state.MailboxAddress,
-                     options.MailboxAddress,
+                     mailboxAddress,
                      StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
-                "The configured approved mailbox identity is already bound to another address.");
+                "The approved mailbox identity is already bound to another address.");
         }
 
         if ((state.LeaseToken is null) != (state.LeaseExpiresAtUtc is null))
@@ -76,8 +86,68 @@ internal sealed class EfApprovedInboxPollStore(
         return new(
             state.MailboxId,
             state.MailboxAddress,
+            mailbox.InboxFolderIdentity,
             state.Cursor,
             state.LeaseToken);
+    }
+
+    /// <summary>
+    /// Takes over the poll state this address already has, when it carries a
+    /// different mailbox identity, and returns it re-keyed to the identity now
+    /// in force. Null when the address has no poll state at all.
+    /// </summary>
+    /// <remarks>
+    /// One address has one poll state — <c>MailboxAddress</c> is unique — so
+    /// looking a state up by identity alone is not enough. The deployed mailbox
+    /// polls under the deployment's configured fallback identity until an
+    /// administrator saves the mailbox's real one, which is exactly how the
+    /// fallback is meant to retire. Inserting a second row for the same address
+    /// at that moment violates the unique index on that tick and on every tick
+    /// after it, stopping all inbound intake permanently.
+    ///
+    /// Adoption is also the right answer rather than merely the safe one: the
+    /// row carries the delta cursor, so re-keying it resumes where the mailbox
+    /// had got to instead of replaying or skipping mail, which is the
+    /// disable-and-resume promise ADR-0022 makes. A primary key cannot be
+    /// changed through a tracked entity, so the re-key is a statement; the
+    /// retained-message and quarantine rows that reference it follow by
+    /// cascade, and the whole thing is inside the claiming transaction.
+    ///
+    /// Known gap, queued in NOW.md: against Graph the carried cursor is a URI
+    /// scoped to the identity that minted it, so ValidateDeltaUri rejects it
+    /// after the re-key and the mailbox stalls. Simply clearing the cursor is
+    /// not the fix — the external receipt token embeds the mailbox identity
+    /// (MailboxIntake.PrepareMessage), so a replay after adoption re-receives
+    /// every message in the folder under a new identity and duplicates the
+    /// receipts. Both halves have to move together.
+    /// </remarks>
+    private static async Task<ApprovedInboxPollStateEntity?> AdoptStateForAddressAsync(
+        PegasusDbContext context,
+        string mailboxId,
+        string mailboxAddress,
+        CancellationToken cancellationToken)
+    {
+        var adopted = await context.ApprovedInboxPollStates
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                item => item.MailboxAddress == mailboxAddress,
+                cancellationToken);
+        if (adopted is null)
+        {
+            return null;
+        }
+
+        var previousMailboxId = adopted.MailboxId;
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            UPDATE ApprovedInboxPollStates
+            SET MailboxId = {mailboxId}
+            WHERE MailboxId = {previousMailboxId}
+            """,
+            cancellationToken);
+        return await context.ApprovedInboxPollStates.SingleAsync(
+            item => item.MailboxId == mailboxId,
+            cancellationToken);
     }
 
     public Task AdvanceAsync(

@@ -16,61 +16,56 @@ public sealed class QdosIntakeWebTests
     private const string NeedsSortingEmailHash = "28F896A1A20ACBE869570B78A2A5722B7AA514A5216150A8B86EEF5AFC47B65B";
 
     [Fact]
-    public async Task AuthenticatedManualUploadQueuesThroughReceiveIntakeAndPrgsToTheList()
+    public async Task ReadableManualUploadIsProcessedOnTheSpotAndOpensTheCreateScreen()
     {
         using var factory = new IntakeWebApplicationFactory(
             "Development",
             localIntakeEnabled: true);
         using var client = IntakeWebDriver.CreateClient(factory);
         const string receiptToken = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        var email = IntakeTestEvidence.CreateEmail(
+            "ordinary-correspondence.eml",
+            "Please review this ordinary correspondence.");
 
         var upload = await IntakeWebDriver.UploadAsync(
             client,
-            "queued-intake.txt",
-            "text/plain",
-            [49],
+            email.FileName,
+            email.MediaType,
+            email.Content,
             receiptToken);
 
-        // Queued work has not been processed yet, so there is no record to
-        // open and the Upload page says so. It used to redirect to a list that
-        // then read "No intake receipts match this view" while the banner
-        // claimed success — the thing the operator had just sent existed
-        // nowhere they could see it.
-        Assert.Equal(HttpStatusCode.Redirect, upload.StatusCode);
-        Assert.NotNull(upload.Location);
-        Assert.StartsWith(
-            "/Upload",
-            upload.Location!.OriginalString,
-            StringComparison.Ordinal);
-        var queuedReceiptId = IntakeWebDriver.QueuedReceiptId(upload);
-        using var queue = await client.GetAsync(upload.Location);
-        queue.EnsureSuccessStatusCode();
-        var html = await queue.Content.ReadAsStringAsync();
-        Assert.Contains(
-            "queued-intake.txt was received and is being processed.",
-            html,
-            StringComparison.Ordinal);
+        // The file is read while the operator waits, so the upload ends on the
+        // thing the file became rather than on a page claiming it "is being
+        // processed" while the list below reads "No intake receipts match this
+        // view". Readable material that did not allocate its own case goes to
+        // the create screen, because deciding that is the next thing to do.
+        var receiptId = IntakeWebDriver.CreateScreenReceiptId(upload);
+        using var createScreen = await client.GetAsync(upload.Location);
+        createScreen.EnsureSuccessStatusCode();
+        var html = await createScreen.Content.ReadAsStringAsync();
+        Assert.Contains("New case", html, StringComparison.Ordinal);
+        // The dash in the sentence is encoded by the default HTML encoder, so
+        // the assertion stays on the part that is the operator's own words.
+        Assert.Contains("ordinary-correspondence.eml received", html, StringComparison.Ordinal);
+        Assert.Contains("check the details and create the case.", html, StringComparison.Ordinal);
 
         var duplicate = await IntakeWebDriver.UploadAsync(
             client,
-            "queued-intake.txt",
-            "text/plain",
-            [49],
+            email.FileName,
+            email.MediaType,
+            email.Content,
             receiptToken);
-        Assert.Equal(HttpStatusCode.Redirect, duplicate.StatusCode);
-        Assert.NotNull(duplicate.Location);
-        Assert.Equal(
-            "/Upload",
-            duplicate.Location!.OriginalString.Split('?', 2)[0]);
-        Assert.Equal(queuedReceiptId, IntakeWebDriver.QueuedReceiptId(duplicate));
-        using var duplicateQueue = await client.GetAsync(duplicate.Location);
-        duplicateQueue.EnsureSuccessStatusCode();
-        var duplicateHtml = await duplicateQueue.Content.ReadAsStringAsync();
+        Assert.Equal(receiptId, IntakeWebDriver.CreateScreenReceiptId(duplicate));
+        using var duplicateScreen = await client.GetAsync(duplicate.Location);
+        duplicateScreen.EnsureSuccessStatusCode();
+        var duplicateHtml = await duplicateScreen.Content.ReadAsStringAsync();
         Assert.Contains(
-            "queued-intake.txt was already received. No duplicate was created.",
+            "ordinary-correspondence.eml was already received. No duplicate was created",
             duplicateHtml,
             StringComparison.Ordinal);
 
+        // The queue-only composition still binds the automation ingress, which
+        // has no operator waiting on a screen.
         await using var scope = factory.Services.CreateAsyncScope();
         Assert.IsType<ReceiveIntake>(
             scope.ServiceProvider.GetRequiredService<IIntakeSubmission>());
@@ -125,7 +120,7 @@ public sealed class QdosIntakeWebTests
         var receipt = await GetReceiptAsync(factory, receiptId);
         using var review = await client.GetAsync(upload.Location);
         var reviewHtml = await review.Content.ReadAsStringAsync();
-        using var queue = await client.GetAsync("/Intake");
+        using var queue = await client.GetAsync("/Received");
         var queueHtml = await queue.Content.ReadAsStringAsync();
 
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
@@ -168,7 +163,7 @@ public sealed class QdosIntakeWebTests
         Assert.Contains("already processed", duplicateHtml, StringComparison.OrdinalIgnoreCase);
         await using var scope = factory.Services.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
-        Assert.Equal(2, (await queries.ListAsync(null, CancellationToken.None)).Count);
+        Assert.Equal(2, (await queries.ListAsync(null, 1, 100, CancellationToken.None)).TotalCount);
     }
 
     [GenuineQdosCorpusFact(ForwardedEmailHash, ConfirmedInputTwoHash)]
@@ -238,8 +233,8 @@ public sealed class QdosIntakeWebTests
 
         await using var scope = factory.Services.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
-        var receipts = await queries.ListAsync(IntakeDecision.CaseCreated, CancellationToken.None);
-        Assert.Equal(5, receipts.Count);
+        var receipts = await queries.ListAsync(IntakeDecision.CaseCreated, 1, 100, CancellationToken.None);
+        Assert.Equal(5, receipts.TotalCount);
     }
 
     [GenuineQdosCorpusFact(ForwardedEmailHash, NeedsSortingEmailHash)]
@@ -261,7 +256,7 @@ public sealed class QdosIntakeWebTests
         var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
         var counts = await queries.GetCountsAsync(CancellationToken.None);
         var dashboard = await client.GetStringAsync("/");
-        var sortingQueue = await client.GetStringAsync("/Intake?decision=needs_sorting");
+        var sortingQueue = await client.GetStringAsync("/Received?decision=needs_sorting");
 
         Assert.Equal(new IntakeQueueCounts(1, 1), counts);
         Assert.Contains(

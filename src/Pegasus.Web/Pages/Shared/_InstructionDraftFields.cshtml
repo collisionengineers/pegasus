@@ -1,0 +1,110 @@
+@model Pegasus.Web.Presentation.InstructionDraftFieldsView
+@*
+    The eleven instruction values, once. The create screen and the correction
+    form on a blocked received item both render this; a second copy would be a
+    second place to forget a field or let the two screens disagree about what
+    "required" means.
+*@
+@{
+    var draft = Model.Draft;
+}
+
+@if (Model.IncludePrincipalCode)
+{
+    <label for="draft-suggested-principal-code">Suggested principal code</label>
+    <input id="draft-suggested-principal-code" name="SuggestedPrincipalCode" value="@draft?.SuggestedPrincipalCode" maxlength="20" autocomplete="off" />
+    @foreach (var candidate in Model.CandidatesFor("Suggested principal"))
+    {
+        <small>Extracted from @candidate.SourceLabel: @candidate.Value</small>
+    }
+}
+
+<label for="draft-claimant-name">Claimant name</label>
+<input id="draft-claimant-name" name="ClaimantName" value="@draft?.ClaimantName" maxlength="200" autocomplete="off" />
+<small>@Model.ProvenanceWord("Claimant name")</small>
+@foreach (var candidate in Model.CandidatesFor("Claimant name"))
+{
+    <small>Extracted from @candidate.SourceLabel: @candidate.Value</small>
+}
+
+<label for="draft-claim-number">Claim number</label>
+<input id="draft-claim-number" name="ClaimNumber" value="@draft?.ClaimNumber" maxlength="100" autocomplete="off" />
+<small>@Model.ProvenanceWord("Claim number")</small>
+@foreach (var candidate in Model.CandidatesFor("Claim number"))
+{
+    <small>Extracted from @candidate.SourceLabel: @candidate.Value</small>
+}
+
+<label for="draft-vehicle-registration">Vehicle registration</label>
+<input id="draft-vehicle-registration" name="VehicleRegistration" value="@draft?.VehicleRegistration" maxlength="20" autocomplete="off" />
+<small>@Model.ProvenanceWord("Vehicle registration")</small>
+@foreach (var candidate in Model.CandidatesFor("Vehicle registration"))
+{
+    <small>Extracted from @candidate.SourceLabel: @candidate.Value</small>
+}
+
+<label for="draft-vehicle-make">Vehicle make</label>
+<input id="draft-vehicle-make" name="VehicleMake" value="@draft?.VehicleMake" maxlength="100" autocomplete="off" />
+<small>@Model.ProvenanceWord("Vehicle make")</small>
+@foreach (var candidate in Model.CandidatesFor("Vehicle make"))
+{
+    <small>Extracted from @candidate.SourceLabel: @candidate.Value</small>
+}
+
+<label for="draft-vehicle-model">Vehicle model</label>
+<input id="draft-vehicle-model" name="VehicleModel" value="@draft?.VehicleModel" maxlength="100" autocomplete="off" />
+<small>@Model.ProvenanceWord("Vehicle model")</small>
+@foreach (var candidate in Model.CandidatesFor("Vehicle model"))
+{
+    <small>Extracted from @candidate.SourceLabel: @candidate.Value</small>
+}
+
+<label for="draft-vehicle-mileage">Vehicle mileage</label>
+<input id="draft-vehicle-mileage" name="VehicleMileage" type="number" min="0" value="@draft?.VehicleMileage" />
+<small>@Model.ProvenanceWord("Vehicle mileage")</small>
+@foreach (var candidate in Model.CandidatesFor("Vehicle mileage"))
+{
+    <small>Extracted from @candidate.SourceLabel: @candidate.Value</small>
+}
+
+<label for="draft-accident-circumstances">Accident circumstances</label>
+<textarea id="draft-accident-circumstances" name="AccidentCircumstances" maxlength="4000" rows="3">@draft?.AccidentCircumstances</textarea>
+<small>@Model.ProvenanceWord("Accident circumstances")</small>
+@foreach (var candidate in Model.CandidatesFor("Accident circumstances"))
+{
+    <small>Extracted from @candidate.SourceLabel: @candidate.Value</small>
+}
+
+<label for="draft-date-of-incident">Date of incident</label>
+<input id="draft-date-of-incident" name="DateOfIncident" type="date" value="@draft?.DateOfIncident?.ToString("yyyy-MM-dd")" />
+<small>@Model.ProvenanceWord("Date of incident")</small>
+@foreach (var candidate in Model.CandidatesFor("Date of incident"))
+{
+    <small>Extracted from @candidate.SourceLabel: @candidate.Value</small>
+}
+
+<label for="draft-instruction-date">Instruction date</label>
+<input id="draft-instruction-date" name="InstructionDate" type="date" value="@draft?.InstructionDate?.ToString("yyyy-MM-dd")" />
+<small>@Model.ProvenanceWord("Instruction date")</small>
+@foreach (var candidate in Model.CandidatesFor("Instruction date"))
+{
+    <small>Extracted from @candidate.SourceLabel: @candidate.Value</small>
+}
+
+@if (Model.IncludeInspectionAddress)
+{
+    <label for="draft-inspection-address">Inspection address</label>
+    <textarea id="draft-inspection-address" name="InspectionAddress" maxlength="1000" rows="3">@draft?.InspectionAddress</textarea>
+    @foreach (var candidate in Model.CandidatesFor("Inspection address"))
+    {
+        <small>Extracted from @candidate.SourceLabel: @candidate.Value</small>
+    }
+}
+
+<label for="draft-inspection-date">Inspection date</label>
+<input id="draft-inspection-date" name="InspectionDate" type="date" value="@draft?.InspectionDate?.ToString("yyyy-MM-dd")" />
+<small>@Model.ProvenanceWord("Inspection date")</small>
+@foreach (var candidate in Model.CandidatesFor("Inspection date"))
+{
+    <small>Extracted from @candidate.SourceLabel: @candidate.Value</small>
+}

@@ -1,0 +1,284 @@
+using Pegasus.Core.Identity;
+
+namespace Pegasus.Core.Intake;
+
+/// <summary>
+/// The folder a retained message was read from. Only <see cref="Inbox"/> is written
+/// today; the other two are declared because the workspace names them as scopes an
+/// operator can select, and a scope that cannot be expressed cannot be refused
+/// either.
+/// </summary>
+public enum MailFolderScope
+{
+    Inbox,
+    Sent,
+    DeletedItems
+}
+
+/// <summary>
+/// Which slice of retained mail the operator is looking at. A null
+/// <paramref name="MailboxId"/> is the default all-mailboxes view.
+/// </summary>
+public sealed record MailWorkspaceScope(string? MailboxId, MailFolderScope Folder);
+
+public sealed record RetainedMailSummary(
+    Guid Id,
+    string MailboxId,
+    string MailboxAddress,
+    bool MailboxIsPolled,
+    string? SenderAddress,
+    string? SenderDisplayName,
+    string? Subject,
+    string? BodyExcerpt,
+    DateTimeOffset ReceivedAtUtc,
+    bool IsRead,
+    int AttachmentCount,
+    IntakeDecision? ProcessingOutcome,
+    Guid? IntakeReceiptId,
+    Guid? CaseId,
+    string? CaseReference);
+
+/// <summary>
+/// One page of retained mail.
+/// </summary>
+/// <param name="HasUnretainedHistory">
+/// True where a mailbox has completed a poll but the retained read model holds
+/// nothing for the selected scope. Message-level retention starts from the tick
+/// that first wrote it: everything polled before then produced a receipt and an
+/// artifact but no retained row, and no backfill reconstructs it. The workspace
+/// says so rather than presenting an empty list as "nothing was ever received".
+/// </param>
+public sealed record RetainedMailPage(
+    IReadOnlyList<RetainedMailSummary> Items,
+    int Page,
+    int PageSize,
+    int TotalCount,
+    bool HasUnretainedHistory)
+{
+    public int TotalPages => TotalCount == 0
+        ? 1
+        : (int)Math.Ceiling((double)TotalCount / PageSize);
+}
+
+public sealed record RetainedMailAttachment(
+    string FileName,
+    string MediaType,
+    long ContentLength);
+
+public sealed record RetainedMailThreadEntry(
+    Guid Id,
+    string? SenderDisplayName,
+    string? SenderAddress,
+    string? Subject,
+    DateTimeOffset ReceivedAtUtc);
+
+public sealed record RetainedMailDetail(
+    RetainedMailSummary Summary,
+    IReadOnlyList<string> ToAddresses,
+    IReadOnlyList<string> CcAddresses,
+    string? BodyPlainText,
+    IReadOnlyList<RetainedMailAttachment> Attachments,
+    IReadOnlyList<RetainedMailThreadEntry> Thread,
+    MailFolderScope Folder,
+    MailClassificationOutcome? ClassificationOutcome,
+    MailRouteDisposition? RouteDisposition);
+
+/// <summary>
+/// One mailbox the workspace can scope to, and whether the estate still polls it.
+/// </summary>
+/// <remarks>
+/// Deliberately not read through <c>ListApprovedMailboxes</c>: that use case
+/// requires <see cref="StaffAccessRight.ManageApprovedMailboxes"/>, which a
+/// caseworker does not hold, and the workspace is a casework surface. What the
+/// tabs need is the set of mailboxes that actually have retained mail, which the
+/// read model already knows.
+/// </remarks>
+public sealed record RetainedMailMailbox(
+    string MailboxId,
+    string MailboxAddress,
+    bool IsPolled);
+
+public enum MailFreshnessState
+{
+    Current,
+    Stale,
+    Unavailable
+}
+
+public sealed record MailFreshness(
+    MailFreshnessState State,
+    DateTimeOffset? LastSuccessfulUpdateAtUtc);
+
+/// <summary>
+/// What inbound polling has managed for one mailbox, as the read model sees it.
+/// Raw facts only: turning them into a freshness state is policy and belongs to
+/// <see cref="GetRetainedMailFreshness"/>.
+/// </summary>
+public sealed record MailPollHealth(
+    string MailboxId,
+    DateTimeOffset? LastCompletedAtUtc,
+    string? LastFailureCode,
+    DateTimeOffset DueAtUtc);
+
+public interface IRetainedMailQueries
+{
+    Task<RetainedMailPage> ListAsync(
+        MailWorkspaceScope scope,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken);
+
+    Task<RetainedMailDetail?> GetAsync(Guid id, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<MailPollHealth>> ListPollHealthAsync(
+        CancellationToken cancellationToken);
+}
+
+public sealed class ListRetainedMail(IRetainedMailQueries queries)
+{
+    private readonly IRetainedMailQueries queries =
+        queries ?? throw new ArgumentNullException(nameof(queries));
+
+    public async Task<RetainedMailPage> ExecuteAsync(
+        ActionActor actor,
+        MailWorkspaceScope scope,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if (page is < 1 or > 10_000)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(page),
+                "The requested page is outside the supported range.");
+        }
+        if (pageSize is < 1 or > 100)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(pageSize),
+                "The requested page size is outside the supported range.");
+        }
+        if (!Enum.IsDefined(scope.Folder))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(scope),
+                "The mail folder scope is not recognized.");
+        }
+        if (scope.MailboxId is { } mailboxId
+            && (string.IsNullOrWhiteSpace(mailboxId) || mailboxId.Length > 100))
+        {
+            throw new ArgumentException(
+                "The mailbox identity is outside the supported range.",
+                nameof(scope));
+        }
+
+        return await queries.ListAsync(scope, page, pageSize, cancellationToken);
+    }
+
+    public Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken = default)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        return queries.ListMailboxesAsync(cancellationToken);
+    }
+}
+
+public sealed class GetRetainedMail(IRetainedMailQueries queries)
+{
+    private readonly IRetainedMailQueries queries =
+        queries ?? throw new ArgumentNullException(nameof(queries));
+
+    public Task<RetainedMailDetail?> ExecuteAsync(
+        ActionActor actor,
+        Guid messageId,
+        CancellationToken cancellationToken = default)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if (messageId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "A retained message identifier is required.",
+                nameof(messageId));
+        }
+
+        return queries.GetAsync(messageId, cancellationToken);
+    }
+}
+
+public sealed class GetRetainedMailFreshness(
+    IRetainedMailQueries queries,
+    TimeProvider timeProvider)
+{
+    private readonly IRetainedMailQueries queries =
+        queries ?? throw new ArgumentNullException(nameof(queries));
+    private readonly TimeProvider timeProvider =
+        timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+
+    /// <summary>
+    /// How long after the last successful poll the workspace stops calling its data
+    /// current.
+    /// </summary>
+    /// <remarks>
+    /// PROVISIONAL. Inbound polling is a one-minute timer, so fifteen minutes is
+    /// fifteen consecutive missed ticks — long enough that a single slow or skipped
+    /// run never shows a chip, short enough that a stopped Worker is visible within
+    /// a quarter of an hour. No operator statement fixes this number; it is recorded
+    /// as open in docs/open-decisions.md and moves when observed behaviour, not
+    /// taste, says it should.
+    /// </remarks>
+    public static readonly TimeSpan StaleAfter = TimeSpan.FromMinutes(15);
+
+    public async Task<MailFreshness> ExecuteAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken = default)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        var health = await queries.ListPollHealthAsync(cancellationToken);
+        var nowUtc = timeProvider.GetUtcNow();
+        return Evaluate(health, nowUtc);
+    }
+
+    /// <summary>
+    /// Unavailable means the workspace cannot say anything true about how current it
+    /// is: either nothing has ever polled, or every mailbox is sitting on a recorded
+    /// failure and backing off. Anything else reports the newest successful poll and
+    /// is stale once that is older than <see cref="StaleAfter"/>.
+    /// </summary>
+    public static MailFreshness Evaluate(
+        IReadOnlyList<MailPollHealth> health,
+        DateTimeOffset nowUtc)
+    {
+        ArgumentNullException.ThrowIfNull(health);
+        if (health.Count == 0)
+        {
+            return new(MailFreshnessState.Unavailable, null);
+        }
+
+        var lastCompleted = health
+            .Select(item => item.LastCompletedAtUtc)
+            .Where(item => item is not null)
+            .DefaultIfEmpty(null)
+            .Max();
+        if (health.All(item => item.LastFailureCode is not null && item.DueAtUtc > nowUtc))
+        {
+            return new(MailFreshnessState.Unavailable, lastCompleted);
+        }
+
+        if (lastCompleted is not { } completedAtUtc)
+        {
+            return new(MailFreshnessState.Unavailable, null);
+        }
+
+        return new(
+            nowUtc - completedAtUtc > StaleAfter
+                ? MailFreshnessState.Stale
+                : MailFreshnessState.Current,
+            completedAtUtc);
+    }
+}

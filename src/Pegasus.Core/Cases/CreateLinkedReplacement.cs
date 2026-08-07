@@ -34,8 +34,7 @@ public sealed class CreateLinkedReplacement(
         RequireText(request.OperationKey, 100, "An operation key is required.", nameof(request));
         RequireText(request.Reason, 500, "A replacement reason is required.", nameof(request));
         RequireText(request.EditLeaseToken, 128, "An active edit lease token is required.", nameof(request));
-        var principalCode = QdosAlphaCaseActivationPolicy.RequireActivatedPrincipal(
-            request.ReplacementPrincipalCode);
+        var principalCode = CasePrincipalCode.Normalize(request.ReplacementPrincipalCode);
 
         return _store.CreateAsync(
             request with

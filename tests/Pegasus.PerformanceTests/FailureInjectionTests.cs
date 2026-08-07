@@ -80,10 +80,34 @@ public sealed class FailureInjectionTests
 
             var results = await Task.WhenAll(requests);
 
-            Assert.All(results, result => Assert.Equal(HttpStatusCode.Redirect, result.StatusCode));
-            Assert.Single(results.Select(IntakeWebDriver.QueuedReceiptId).Distinct());
-            await IntakeWebDriver.ProcessQueuedAsync(factory, results[0]);
+            // Every request answers, and answers the same thing. The upload is
+            // processed while the operator waits now, so the landing is the case
+            // the instruction became rather than a queued receipt — but one
+            // upload replayed eight times is still one piece of work, and eight
+            // identical landings is what says so. Losing the processing race is
+            // not a failure: a request that lost it waits for the winner.
+            Assert.All(
+                results,
+                result => Assert.True(
+                    result.StatusCode == HttpStatusCode.Redirect,
+                    $"A replayed upload answered {(int)result.StatusCode} {result.StatusCode} "
+                        + $"instead of redirecting. Body: {result.ResponseBody}"));
+            // Not "every landing is identical": requests that read the receipt
+            // before the case allocation committed land on the create screen for
+            // that same receipt, which then sends them to the case. Both are
+            // right about the same work. What must not vary is what was written.
+            Assert.All(
+                results,
+                result => Assert.True(
+                    result.Location is not null
+                        && result.Location.ToString().StartsWith("/Cases", StringComparison.Ordinal),
+                    $"A replayed upload landed on '{result.Location}'."));
+
+            // The claim the name makes, counted from the tables: one receipt,
+            // and — because a definitive instruction now allocates while the
+            // operator waits — exactly one case, not eight.
             Assert.Equal(1, await CountReceiptsAsync(factory));
+            Assert.Equal(1, await CountCasesAsync(factory));
         }
         finally
         {
@@ -105,7 +129,18 @@ public sealed class FailureInjectionTests
     /// instruction — which now allocates its case at processing time — is
     /// correctly absent from it and would read as a lost receipt.
     /// </remarks>
-    private static async Task<int> CountReceiptsAsync(IntakeWebApplicationFactory factory)
+    private static Task<int> CountReceiptsAsync(IntakeWebApplicationFactory factory) =>
+        CountAsync(factory, "SELECT COUNT(*) FROM IntakeReceipts");
+
+    /// <summary>
+    /// How many cases exist. A replayed upload that allocated a second reference
+    /// would be the worst outcome this test can catch, and a reference is never
+    /// reused, so it is counted rather than inferred.
+    /// </summary>
+    private static Task<int> CountCasesAsync(IntakeWebApplicationFactory factory) =>
+        CountAsync(factory, "SELECT COUNT(*) FROM Cases");
+
+    private static async Task<int> CountAsync(IntakeWebApplicationFactory factory, string sql)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var contextFactory = scope.ServiceProvider
@@ -114,7 +149,7 @@ public sealed class FailureInjectionTests
         var connection = context.Database.GetDbConnection();
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT COUNT(*) FROM IntakeReceipts";
+        command.CommandText = sql;
         return Convert.ToInt32(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture);
     }
 

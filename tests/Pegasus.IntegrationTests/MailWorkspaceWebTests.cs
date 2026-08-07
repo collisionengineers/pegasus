@@ -1,0 +1,328 @@
+using System.Net;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
+using Pegasus.Infrastructure.Persistence;
+
+namespace Pegasus.IntegrationTests;
+
+/// <summary>
+/// The mail workspace through the real page pipeline: what an operator sees, what
+/// the filters carry, and the fact that nothing on it can change anything.
+/// </summary>
+[Trait("Category", "SqlServer")]
+public sealed class MailWorkspaceWebTests
+{
+    private static readonly DateTimeOffset NowUtc = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
+
+    private const string FirstMailboxId = "instructions";
+    private const string FirstMailboxAddress = "instructions@collisionengineers.co.uk";
+    private const string SecondMailboxId = "reports";
+    private const string SecondMailboxAddress = "reports@collisionengineers.co.uk";
+
+    [Fact]
+    public async Task TheDefaultViewIsEveryMailboxNewestFirstWithExcerptsAndNoMutation()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 2);
+        await SeedAsync(factory, SecondMailboxId, SecondMailboxAddress, count: 1);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, "/Inbox");
+
+        Assert.Contains("instructions@collisionengineers.co.uk", html, StringComparison.Ordinal);
+        Assert.Contains("reports@collisionengineers.co.uk", html, StringComparison.Ordinal);
+        Assert.Contains("Message 1 from instructions", html, StringComparison.Ordinal);
+        // The excerpt sits beneath the sender and the subject.
+        Assert.Contains("Please inspect the vehicle", html, StringComparison.Ordinal);
+        // Unread is a word, not only a weight.
+        Assert.Contains(">Unread<", html, StringComparison.Ordinal);
+
+        // Newest first: the second message of the first mailbox is the newest.
+        var newest = html.IndexOf("Message 1 from instructions", StringComparison.Ordinal);
+        var oldest = html.IndexOf("Message 0 from instructions", StringComparison.Ordinal);
+        Assert.True(newest < oldest, "The list must default to newest received first.");
+
+        // A viewer changes nothing. The only POST form the screen carries is the
+        // layout's sign-out.
+        Assert.Equal(1, CountOccurrences(html, "method=\"post\""));
+        Assert.Contains("/Account/SignOut", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ScopingAndPagingCarryTheMailboxFolderAndPageForward()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 30);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var scoped = await GetHtmlAsync(client, $"/Inbox?mailbox={FirstMailboxId}");
+
+        Assert.Contains($"/Inbox?mailbox={FirstMailboxId}&amp;pageNumber=2", scoped, StringComparison.Ordinal);
+        Assert.Contains("Page 1 of 2", scoped, StringComparison.Ordinal);
+
+        var secondPage = await GetHtmlAsync(client, $"/Inbox?mailbox={FirstMailboxId}&pageNumber=2");
+        Assert.Contains("Page 2 of 2", secondPage, StringComparison.Ordinal);
+        // The row link carries the exact list position back into detail.
+        Assert.Contains($"mailbox={FirstMailboxId}&amp;pageNumber=2", secondPage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheRefreshFormCarriesTheActiveFilterAndPage()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 30);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, $"/Inbox?mailbox={FirstMailboxId}&pageNumber=2");
+
+        // Refresh reruns the query the operator is looking at. A bare GET form
+        // submits nothing and silently resets the screen to page one of
+        // everything, which the requirement forbids.
+        var form = Between(html, "<form method=\"get\" data-refresh-form>", "</form>");
+        Assert.Contains(
+            $"name=\"mailbox\" value=\"{FirstMailboxId}\"",
+            form,
+            StringComparison.Ordinal);
+        Assert.Contains("name=\"pageNumber\" value=\"2\"", form, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task FreshnessReportsTheLastSuccessfulPollAndTurnsStale()
+    {
+        var clock = new MovableTimeProvider(NowUtc);
+        using var factory = new IntakeWebApplicationFactory(clock);
+        await SeedAsync(
+            factory,
+            FirstMailboxId,
+            FirstMailboxAddress,
+            count: 1,
+            lastCompletedAtUtc: NowUtc.AddMinutes(-1));
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var current = await GetHtmlAsync(client, "/Inbox");
+        Assert.Contains("Updated", current, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Stale<", current, StringComparison.Ordinal);
+
+        clock.Advance(GetRetainedMailFreshness.StaleAfter + TimeSpan.FromMinutes(1));
+        var stale = await GetHtmlAsync(client, "/Inbox");
+
+        Assert.Contains(">Stale<", stale, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AMailboxThatHasNeverPolledReportsUnavailableRatherThanAnOldTime()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, "/Inbox");
+
+        Assert.Contains("Never updated", html, StringComparison.Ordinal);
+        Assert.Contains(">Unavailable<", html, StringComparison.Ordinal);
+        Assert.Contains("No mail has been received.", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SentAndDeletedScopesNameWhatIsNotKeptRatherThanBeingAbsent()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var sent = await GetHtmlAsync(client, "/Inbox?folder=sent");
+        var deleted = await GetHtmlAsync(client, "/Inbox?folder=deleted");
+
+        Assert.Contains("Sent messages are not kept in Pegasus yet.", sent, StringComparison.Ordinal);
+        Assert.Contains(
+            "Deleted items messages are not kept in Pegasus yet.",
+            deleted,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AnUnknownFolderScopeIsNotFound()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var response = await client.GetAsync("/Inbox?folder=archive");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task MessageDetailShowsTheBodyAttachmentsThreadOutcomeAndTheWayBack()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 2);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var query = $"?mailbox={FirstMailboxId}&pageNumber=1";
+        var message = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}{query}");
+
+        Assert.Contains("Please inspect the vehicle", message, StringComparison.Ordinal);
+        Assert.Contains("intake@collisionengineers.co.uk", message, StringComparison.Ordinal);
+        // Nothing was processed, so the state strip says so rather than blanking.
+        Assert.Contains("Not yet processed", message, StringComparison.Ordinal);
+        Assert.Contains("Not associated with a case.", message, StringComparison.Ordinal);
+        // Back reconstructs the exact list position.
+        Assert.Contains($"/Inbox?mailbox={FirstMailboxId}", message, StringComparison.Ordinal);
+        // A viewer: the layout's sign-out is still the only POST on the screen.
+        Assert.Equal(1, CountOccurrences(message, "method=\"post\""));
+
+        var attachments = await GetHtmlAsync(
+            client,
+            $"/Inbox/{ids[0]:D}{query}&section=attachments");
+        Assert.Contains("estimate.pdf", attachments, StringComparison.Ordinal);
+        // Megabytes, never bytes.
+        Assert.Contains("under 0.1 MB", attachments, StringComparison.Ordinal);
+        Assert.DoesNotContain("2048", attachments, StringComparison.Ordinal);
+
+        var thread = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}{query}&section=thread");
+        Assert.Contains("Message 0 from instructions", thread, StringComparison.Ordinal);
+        Assert.Contains("Message 1 from instructions", thread, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AMessageOpenedFromAScopeItIsNotInStillRendersWithTheWayBack()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}?mailbox={SecondMailboxId}");
+
+        Assert.Contains(
+            "This message is no longer in the view you opened it from.",
+            html,
+            StringComparison.Ordinal);
+        Assert.Contains("Back to Inbox", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AnUnknownMessageIsNotFound()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var response = await client.GetAsync($"/Inbox/{Guid.NewGuid():D}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task TheNavigationSeparatesTheInboxFromTheReceivedItemRecord()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, "/Inbox");
+
+        Assert.Contains("href=\"/Inbox\"", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/Received\"", html, StringComparison.Ordinal);
+        Assert.Contains(">Received items<", html, StringComparison.Ordinal);
+    }
+
+    private static async Task<string> GetHtmlAsync(HttpClient client, string route)
+    {
+        using var response = await client.GetAsync(route);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return await response.Content.ReadAsStringAsync();
+    }
+
+    private static int CountOccurrences(string text, string value)
+    {
+        var count = 0;
+        var index = text.IndexOf(value, StringComparison.Ordinal);
+        while (index >= 0)
+        {
+            count++;
+            index = text.IndexOf(value, index + value.Length, StringComparison.Ordinal);
+        }
+
+        return count;
+    }
+
+    private static string Between(string text, string start, string end)
+    {
+        var from = text.IndexOf(start, StringComparison.Ordinal);
+        Assert.True(from >= 0, $"'{start}' was not rendered.");
+        var to = text.IndexOf(end, from, StringComparison.Ordinal);
+        Assert.True(to > from, $"'{end}' was not rendered after '{start}'.");
+        return text[from..to];
+    }
+
+    private static async Task<Guid[]> SeedAsync(
+        IntakeWebApplicationFactory factory,
+        string mailboxId,
+        string mailboxAddress,
+        int count,
+        DateTimeOffset? lastCompletedAtUtc = null)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            if (!await context.ApprovedInboxPollStates.AnyAsync(item => item.MailboxId == mailboxId))
+            {
+                context.ApprovedInboxPollStates.Add(new()
+                {
+                    MailboxId = mailboxId,
+                    MailboxAddress = mailboxAddress,
+                    DueAtUtc = NowUtc,
+                    LastCompletedAtUtc = lastCompletedAtUtc ?? NowUtc.AddMinutes(-1)
+                });
+                await context.SaveChangesAsync();
+            }
+        }
+
+        var store = scope.ServiceProvider.GetRequiredService<EfRetainedMailboxMessageStore>();
+        for (var index = 0; index < count; index++)
+        {
+            var identity = $"{mailboxId}-{index}";
+            await store.RetainAsync(
+                new(
+                    mailboxId,
+                    mailboxAddress,
+                    identity,
+                    $"{mailboxId.Length}:{mailboxId}{identity}",
+                    NowUtc.AddMinutes(-count + index),
+                    1024,
+                    new string('A', 64),
+                    new(
+                        "inbox",
+                        $"conversation-{mailboxId}",
+                        $"<{identity}@example.invalid>",
+                        "sender@example.invalid",
+                        "A Sender",
+                        ["intake@collisionengineers.co.uk"],
+                        [],
+                        $"Message {index} from {mailboxId}",
+                        "Please inspect the vehicle at the address supplied.",
+                        [new("estimate.pdf", "application/pdf", 2048)],
+                        IsRead: false),
+                    NowUtc),
+                CancellationToken.None);
+        }
+
+        await using var readContext = await contextFactory.CreateDbContextAsync();
+        return await readContext.RetainedMailboxMessages
+            .AsNoTracking()
+            .Where(item => item.MailboxId == mailboxId)
+            .OrderByDescending(item => item.ReceivedAtUtc)
+            .Select(item => item.Id)
+            .ToArrayAsync();
+    }
+
+    private sealed class MovableTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        private DateTimeOffset now = utcNow;
+
+        internal void Advance(TimeSpan amount) => now = now.Add(amount);
+
+        public override DateTimeOffset GetUtcNow() => now;
+    }
+}

@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Triage;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Intake;
 
@@ -103,6 +105,25 @@ public sealed class ProcessIntakeSubmission(
     ProcessQueuedIntake processQueuedIntake,
     IIntakeWorkStore workStore) : IIntakeSubmission
 {
+    /// <summary>
+    /// The ceiling on waiting for a request that is actively processing this
+    /// receipt: 100 attempts at 100ms, so ten seconds. Well past the observed
+    /// processing time for one upload, and far short of any request timeout.
+    /// Normally unreachable — the wait ends as soon as the winner finishes, or
+    /// as soon as it stops processing.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately the real clock and not the injected <c>TimeProvider</c>.
+    /// This is a wait on another in-flight request finishing, not a business
+    /// instant: <c>TimeProvider</c> carries the domain clock, which tests freeze
+    /// to a fixed instant, and a frozen clock would make this wait never end.
+    /// Nothing here is recorded, compared, or reasoned about as a time.
+    /// </remarks>
+    private const int CompletionAttempts = 100;
+
+    private static readonly TimeSpan CompletionPollInterval = TimeSpan.FromMilliseconds(100);
+
+
     public async Task<IntakeSubmissionResult> ExecuteAsync(
         IntakeSource source,
         string operationKey,
@@ -115,16 +136,132 @@ public sealed class ProcessIntakeSubmission(
             source,
             operationKey,
             cancellationToken);
-        await processQueuedIntake.ExecuteAsync(received.StagedReceiptId, cancellationToken);
-        var evaluation = await workStore.GetCompletedEvaluationAsync(
+        // Waiting is only worth it when processing got as far as handing the
+        // receipt to someone. If this request's own attempt fell over, the item
+        // it may already have leased is going nowhere until the Worker recovers
+        // it, and waiting on ourselves is just ten seconds of nothing.
+        var processed = await TryProcessAsync(received.StagedReceiptId, cancellationToken);
+        var evaluation = processed
+            ? await AwaitCompletedEvaluationAsync(received.StagedReceiptId, cancellationToken)
+            : await workStore.GetCompletedEvaluationAsync(
+                received.StagedReceiptId,
+                cancellationToken);
+        if (evaluation is not null)
+        {
+            return new(
+                evaluation.ProcessedReceiptId,
+                received.IsDuplicate,
+                IntakeSubmissionDisposition.Processed);
+        }
+
+        // No result yet. That is not the same as no result ever, and the
+        // difference is the whole answer the operator gets.
+        //
+        // Processing that hits a recoverable failure — lock contention from
+        // another upload, most often — is not lost: ProcessQueuedIntake records
+        // it and schedules a retry, leaving the work item alive and due shortly.
+        // It returns normally when it does that, because from its side nothing
+        // went wrong. Reading no evaluation and calling it a failed upload made
+        // "we are still working on this" indistinguishable from "this file is
+        // broken", and staff were told to try again for a file that was already
+        // on its way to becoming a case.
+        var workItem = await workStore.FindWorkItemAsync(
             received.StagedReceiptId,
-            cancellationToken)
-            ?? throw new InvalidOperationException(
+            cancellationToken);
+        return workItem is not null
+            && workItem.State is not (IntakeWorkState.Completed or IntakeWorkState.Failed)
+            ? new(
+                received.StagedReceiptId,
+                received.IsDuplicate,
+                IntakeSubmissionDisposition.Queued)
+            : throw new InvalidOperationException(
                 "Inline intake processing did not persist a completed evaluation revision.");
-        return new(
-            evaluation.ProcessedReceiptId,
-            received.IsDuplicate,
-            IntakeSubmissionDisposition.Processed);
+    }
+
+    /// <summary>
+    /// The completed evaluation for this staged receipt, waiting for it if
+    /// another request is still producing it.
+    /// </summary>
+    /// <remarks>
+    /// One upload replayed concurrently is one piece of work: the requests all
+    /// resolve to the same staged receipt, exactly one of them wins
+    /// <c>ClaimProcessingAsync</c>, and the others return from
+    /// <see cref="ProcessQueuedIntake"/> having done nothing — correctly, because
+    /// the work is in hand. Reading the evaluation immediately after that and
+    /// treating its absence as a failure made losing the race indistinguishable
+    /// from the file being unreadable, so the operator was told "the file could
+    /// not be processed" for an upload that was processing normally. Two staff
+    /// uploading at the same moment hit the same thing.
+    ///
+    /// Waiting is the whole fix: no second receipt is staged, no second case is
+    /// allocated, and nothing is retried — this request just does not answer
+    /// until the answer exists.
+    /// </remarks>
+    /// <summary>
+    /// Processes the staged receipt. False when a recoverable failure stopped
+    /// this request from finishing the work — not that the work is lost.
+    /// </summary>
+    /// <remarks>
+    /// Several staff uploading at once contend for the same tables, and the
+    /// serializable reads intake uses turn that contention into deadlocks and
+    /// lock timeouts. The staged receipt is already durable and the work item is
+    /// still alive — dispatched, or leased and recovered by the Worker once the
+    /// lease expires — so nothing here is lost and nothing needs undoing.
+    ///
+    /// Deliberately no in-request retry. Retrying four times took the upload to
+    /// roughly ten seconds under this contention (measured: writes clustered at
+    /// 4.7s and 9.7s against a 3s budget) and still often ended with no result,
+    /// because each attempt blocks on the same locks. Answering "received, in
+    /// progress" in a hundred milliseconds is both faster and more honest than
+    /// making the operator wait ten seconds for the same answer.
+    /// </remarks>
+    private async Task<bool> TryProcessAsync(Guid stagedReceiptId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await processQueuedIntake.ExecuteAsync(stagedReceiptId, cancellationToken);
+            return true;
+        }
+        catch (Exception exception) when (
+            exception is not OperationCanceledException
+            && IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            return false;
+        }
+    }
+
+    private async Task<IntakeEvaluationRevision?> AwaitCompletedEvaluationAsync(
+        Guid stagedReceiptId,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            var evaluation = await workStore.GetCompletedEvaluationAsync(
+                stagedReceiptId,
+                cancellationToken);
+            if (evaluation is not null)
+            {
+                return evaluation;
+            }
+
+            // Only another request actively finishing this receipt is worth
+            // waiting for. Work pushed onto its retry is due in half a minute at
+            // the earliest and will be done by the Worker, so holding the page
+            // open for it just makes the operator wait to be told the same
+            // thing. Anything else has no result coming either.
+            var workItem = await workStore.FindWorkItemAsync(stagedReceiptId, cancellationToken);
+            if (workItem is null || workItem.State is not IntakeWorkState.Processing)
+            {
+                return null;
+            }
+
+            if (attempt >= CompletionAttempts)
+            {
+                return null;
+            }
+
+            await Task.Delay(CompletionPollInterval, cancellationToken);
+        }
     }
 }
 
@@ -148,6 +285,14 @@ public interface IIntakeWorkStore
     Task<IntakeWorkItem?> ClaimDispatchAsync(
         DateTimeOffset nowUtc,
         TimeSpan leaseDuration,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The work item for a staged receipt, whoever holds it. Read-only: this
+    /// asks whether the work is still in hand, it does not claim it.
+    /// </summary>
+    Task<IntakeWorkItem?> FindWorkItemAsync(
+        Guid stagedReceiptId,
         CancellationToken cancellationToken);
 
     Task MarkDispatchedAsync(
@@ -260,21 +405,23 @@ public sealed class ReceiveIntake(
             throw new InvalidDataException("The intake source is empty.");
         }
 
-        if (source.Content.Length > IntakeEnvelopeLimits.MaximumContentLength)
+        // A received message and an uploaded file do not share a size bound:
+        // the form takes one file, a mailbox message carries the whole job.
+        var maximumContentLength = source.SourceIdentity.Channel switch
         {
-            throw new InvalidDataException("The intake source exceeds the 10 MB limit.");
-        }
-
-        _ = source.SourceIdentity.Channel switch
-        {
-            IntakeSourceChannel.ManualUpload => true,
-            IntakeSourceChannel.Mailbox => true,
-            IntakeSourceChannel.Automation => true,
+            IntakeSourceChannel.ManualUpload => IntakeEnvelopeLimits.MaximumContentLength,
+            IntakeSourceChannel.Mailbox => IntakeEnvelopeLimits.MaximumMailboxContentLength,
+            IntakeSourceChannel.Automation => IntakeEnvelopeLimits.MaximumContentLength,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(source),
                 source.SourceIdentity.Channel,
                 "The intake source channel is not supported.")
         };
+        if (source.Content.Length > maximumContentLength)
+        {
+            throw new InvalidDataException("The intake source exceeds its channel's size limit.");
+        }
+
         var sourceHash = Convert.ToHexString(SHA256.HashData(source.Content.Span));
         var existing = await workStore.FindBySourceIdentityAsync(
             source.SourceIdentity,
@@ -644,11 +791,20 @@ public sealed class ProcessQueuedIntake(
         {
             throw;
         }
-        catch (Exception)
+        catch (Exception exception)
         {
             // An exhausted reference sequence, an unknown principal, or a
-            // concurrent allocation. The receipt stays visible and a person can
-            // still create the case by hand.
+            // concurrent allocation. Staying non-blocking is right — the
+            // receipt is already durable and a person can still create the
+            // case by hand — but it was also silent, which is not. Production
+            // holds no Principal at all, so the first definitive instruction
+            // to arrive would have failed here and left a receipt reading
+            // "a case was created" with no case behind it. Record the failure
+            // where the invocation is already being observed.
+            var activity = Activity.Current;
+            activity?.SetTag("intake.allocation_failed", true);
+            activity?.SetTag("intake.allocation_failure_type", exception.GetType().FullName);
+            activity?.SetTag("intake.receipt_id", receipt.Id);
             return false;
         }
     }
@@ -1072,10 +1228,11 @@ internal static class IntakeCommandValidation
         }
         ArgumentOutOfRangeException.ThrowIfNegative(expectedVersion);
         ArgumentException.ThrowIfNullOrWhiteSpace(editLeaseToken);
-        if (editLeaseToken.Length > 64)
+        if (editLeaseToken.Length > CaseEditAuthority.LeaseTokenLength)
         {
             throw new ArgumentException(
-                "The case edit lease token must be 64 characters or fewer.",
+                "The case edit lease token must be "
+                + $"{CaseEditAuthority.LeaseTokenLength} characters or fewer.",
                 nameof(editLeaseToken));
         }
     }

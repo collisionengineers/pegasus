@@ -332,16 +332,8 @@ public sealed class EfCaseTaskStore(
                 : new(true, staff.IsEnabled));
     }
 
-    private static void RequireCaseVersion(CaseWorkflowEntity workflow, long expectedVersion)
-    {
-        if (workflow.Version != expectedVersion)
-        {
-            throw new CaseVersionConflictException(
-                workflow.CaseId,
-                expectedVersion,
-                workflow.Version);
-        }
-    }
+    private static void RequireCaseVersion(CaseWorkflowEntity workflow, long expectedVersion) =>
+        CaseMutationGuard.RequireVersion(workflow, expectedVersion);
 
     private static void RequireTaskVersion(CaseTaskEntity task, long expectedVersion)
     {
@@ -355,35 +347,11 @@ public sealed class EfCaseTaskStore(
         CaseWorkflowEntity workflow,
         ActionActor actor,
         string token,
-        DateTimeOffset now)
-    {
-        if (workflow.EditLeaseExpiresAtUtc is null
-            || workflow.EditLeaseExpiresAtUtc <= now
-            || workflow.EditLeaseTokenHash is null
-            || workflow.EditLeaseHolder is null)
-        {
-            throw new CaseEditLeaseExpiredException(workflow.CaseId);
-        }
+        DateTimeOffset now) =>
+        CaseMutationGuard.RequireLease(workflow, actor, token, now);
 
-        var suppliedHash = Hash(token);
-        if (!string.Equals(workflow.EditLeaseHolder, actor.SubjectId, StringComparison.Ordinal)
-            || !CryptographicOperations.FixedTimeEquals(
-                Convert.FromHexString(workflow.EditLeaseTokenHash),
-                Convert.FromHexString(suppliedHash)))
-        {
-            throw new CaseEditLeaseConflictException(workflow.CaseId);
-        }
-    }
-
-    private static void ClearLease(CaseWorkflowEntity workflow)
-    {
-        workflow.EditLeaseToken = null;
-        workflow.EditLeaseTokenHash = null;
-        workflow.EditLeaseRequestHash = null;
-        workflow.EditLeaseHolder = null;
-        workflow.EditLeaseOperationKey = null;
-        workflow.EditLeaseExpiresAtUtc = null;
-    }
+    private static void ClearLease(CaseWorkflowEntity workflow) =>
+        CaseMutationGuard.ClearLease(workflow);
 
     private static void AddHistory(
         PegasusDbContext context,
