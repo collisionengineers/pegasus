@@ -175,11 +175,14 @@ The current enforced resource limits are:
 | --- | --- |
 | ASP.NET Core multipart request | 10 MiB file allowance plus 64 KiB for the multipart envelope |
 | PageModel file | One file; 10 MiB |
+| Received mailbox message | One message, envelope and attachments together; 750 MiB |
 | PDF reader | 5,242,880 extracted characters; 512 discrete image objects; 100,000,000 decoded image-sample pixels; 25 MiB extracted image bytes; 30 seconds |
 | EML reader | Eight nested-message levels; 128 MIME entities; 25 MiB cumulatively decoded MIME bytes |
 | DOCX reader | 512 package entries; 50 MiB total uncompressed bytes; 10 MiB for each XML or relationship part; 25 MiB total image bytes |
 
 The multipart boundary is enforced before Core. Reader-limit outcomes remain visible and cannot allocate a case or reference.
+
+A received message and an uploaded file are bounded separately. The upload figure bounds one file arriving in one HTTP request; an instruction email carries the covering message plus the documents and photographs of the job, and the two shared one figure until a 16.7 MB QDOS instruction was refused unread on 2026-08-05. The mailbox figure is permissive by intent rather than a capacity claim: the reader limits above still apply to what it admits, the poll materialises a message in memory, and no mail transport carries anything near it — the practical ceiling is set by the Worker instance.
 
 ### Source reading and retained evidence
 

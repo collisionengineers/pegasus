@@ -160,7 +160,7 @@ else
                                 </td>
                                 @* The recorded failure code never renders; the
                                    sentence it maps to does. *@
-                                <td>@Pegasus.Web.Pages.Intake.IndexModel.MailFailureSentence(item.FailureCode)</td>
+                                <td>@Pegasus.Web.Pages.Intake.IndexModel.MailFailureSentence(item.FailureCode, item.SourceLength)</td>
                                 <td><time datetime="@item.LastActivityAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.LastActivityAtUtc)</time></td>
                                 <td>
                                     @if (item.CanRetry)
