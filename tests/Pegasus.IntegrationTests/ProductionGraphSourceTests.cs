@@ -24,11 +24,10 @@ public sealed class ProductionGraphSourceTests
         });
         var options = Options();
         var source = new GraphApprovedInboxSource(
-            options,
-            new GraphMailClient(new FixedCredential(), options, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
 
         var page = await source.ReadAsync(
-            new(options.MailboxId, options.MailboxAddress, null, "lease"),
+            new(options.MailboxId, options.MailboxAddress, options.InboxFolderId, null, "lease"),
             10,
             CancellationToken.None);
 
@@ -52,11 +51,10 @@ public sealed class ProductionGraphSourceTests
             "inbox-folder==",
             "sent-folder==");
         var source = new GraphApprovedInboxSource(
-            options,
-            new GraphMailClient(new FixedCredential(), options, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
 
         var page = await source.ReadAsync(
-            new(options.MailboxId, options.MailboxAddress, null, "lease"),
+            new(options.MailboxId, options.MailboxAddress, options.InboxFolderId, null, "lease"),
             10,
             CancellationToken.None);
 
@@ -67,22 +65,110 @@ public sealed class ProductionGraphSourceTests
             cursor.PageUri.GetComponents(UriComponents.Path, UriFormat.Unescaped));
     }
 
+    /// <summary>
+    /// The lease's own folder is what bounds the read. A persisted cursor pointing at a
+    /// different folder of the same mailbox is refused before Graph is called, so the
+    /// estate cannot be widened by a stale cursor.
+    /// </summary>
     [Fact]
-    public async Task InboxRejectsAnOutOfScopeMailboxBeforeCallingGraph()
+    public async Task InboxRejectsACursorForAnotherFolderOfTheSameMailboxBeforeCallingGraph()
     {
         var calls = 0;
         var handler = new DelegateHandler(_ => { calls++; return Response(HttpStatusCode.OK, "{}"); });
         var options = Options();
         var source = new GraphApprovedInboxSource(
-            options,
-            new GraphMailClient(new FixedCredential(), options, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+        var otherFolderCursor = GraphCursor.Serialize(
+            new Uri("https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/other-folder/messages/delta?$deltatoken=x"),
+            0);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => source.ReadAsync(
-            new("other-mailbox", options.MailboxAddress, null, "lease"),
+            new(options.MailboxId, options.MailboxAddress, options.InboxFolderId, otherFolderCursor, "lease"),
             10,
             CancellationToken.None));
 
         Assert.Equal(0, calls);
+    }
+
+    [Theory]
+    [InlineData("has space", "inbox-folder")]
+    [InlineData("mailbox-id", "has space")]
+    [InlineData("mailbox-id", " ")]
+    public async Task InboxRefusesALeaseWithoutAnExactMailboxAndFolderIdentity(
+        string mailboxId,
+        string inboxFolderIdentity)
+    {
+        var calls = 0;
+        var handler = new DelegateHandler(_ => { calls++; return Response(HttpStatusCode.OK, "{}"); });
+        var options = Options();
+        var source = new GraphApprovedInboxSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => source.ReadAsync(
+            new(mailboxId, options.MailboxAddress, inboxFolderIdentity, null, "lease"),
+            10,
+            CancellationToken.None));
+
+        Assert.Equal(0, calls);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    public async Task InboxReportsATenantThatHasNotAdmittedTheApplicationToThisMailbox(
+        HttpStatusCode status)
+    {
+        var handler = new DelegateHandler(_ => Response(status, "{}"));
+        var options = Options();
+        var source = new GraphApprovedInboxSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+
+        await Assert.ThrowsAsync<ApprovedMailboxAccessDeniedException>(() => source.ReadAsync(
+            new(options.MailboxId, options.MailboxAddress, options.InboxFolderId, null, "lease"),
+            10,
+            CancellationToken.None));
+    }
+
+    /// <summary>
+    /// The same singleton client reads a second mailbox in the same tick without being
+    /// rebuilt, because it no longer closes over one mailbox.
+    /// </summary>
+    [Fact]
+    public async Task OneClientReadsTwoMailboxesEachInsideItsOwnFolder()
+    {
+        var paths = new List<string>();
+        var handler = new DelegateHandler(request =>
+        {
+            paths.Add(request.RequestUri!.AbsolutePath);
+            var mailbox = request.RequestUri.AbsolutePath.Contains("mailbox-two", StringComparison.Ordinal)
+                ? "mailbox-two"
+                : "mailbox-id";
+            var folder = string.Equals(mailbox, "mailbox-two", StringComparison.Ordinal)
+                ? "inbox-two"
+                : "inbox-folder";
+            return Response(
+                HttpStatusCode.OK,
+                $$"""{"value":[],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/{{mailbox}}/mailFolders/{{folder}}/messages/delta?$deltatoken=final"}""");
+        });
+        var options = Options();
+        var source = new GraphApprovedInboxSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+
+        await source.ReadAsync(
+            new("mailbox-id", "a@collisionengineers.co.uk", "inbox-folder", null, "lease-1"),
+            10,
+            CancellationToken.None);
+        await source.ReadAsync(
+            new("mailbox-two", "b@collisionengineers.co.uk", "inbox-two", null, "lease-2"),
+            10,
+            CancellationToken.None);
+
+        Assert.Contains(
+            paths,
+            path => path.Contains("mailbox-id/mailFolders/inbox-folder", StringComparison.Ordinal));
+        Assert.Contains(
+            paths,
+            path => path.Contains("mailbox-two/mailFolders/inbox-two", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -102,14 +188,13 @@ public sealed class ProductionGraphSourceTests
         });
         var options = Options();
         var source = new GraphApprovedInboxSource(
-            options,
-            new GraphMailClient(new FixedCredential(), options, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
         var staleCursor = GraphCursor.Serialize(
             new Uri("https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=stale"),
             0);
 
         var page = await source.ReadAsync(
-            new(options.MailboxId, options.MailboxAddress, staleCursor, "lease"),
+            new(options.MailboxId, options.MailboxAddress, options.InboxFolderId, staleCursor, "lease"),
             10,
             CancellationToken.None);
 
@@ -124,14 +209,13 @@ public sealed class ProductionGraphSourceTests
         var handler = new DelegateHandler(_ => { calls++; return Response(HttpStatusCode.OK, "{}"); });
         var options = Options();
         var source = new GraphApprovedInboxSource(
-            options,
-            new GraphMailClient(new FixedCredential(), options, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
         var escapedCursor = GraphCursor.Serialize(
             new Uri("https://graph.microsoft.com/v1.0/users/other/mailFolders/other/messages/delta?$deltatoken=x"),
             0);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => source.ReadAsync(
-            new(options.MailboxId, options.MailboxAddress, escapedCursor, "lease"),
+            new(options.MailboxId, options.MailboxAddress, options.InboxFolderId, escapedCursor, "lease"),
             10,
             CancellationToken.None));
 
@@ -159,11 +243,10 @@ public sealed class ProductionGraphSourceTests
         });
         var options = Options();
         var source = new GraphApprovedInboxSource(
-            options,
-            new GraphMailClient(new FixedCredential(), options, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => source.ReadAsync(
-            new(options.MailboxId, options.MailboxAddress, null, "lease"),
+            new(options.MailboxId, options.MailboxAddress, options.InboxFolderId, null, "lease"),
             10,
             CancellationToken.None));
 
@@ -182,7 +265,7 @@ public sealed class ProductionGraphSourceTests
         var options = Options();
         var source = new GraphApprovedSentSource(
             options,
-            new GraphMailClient(new FixedCredential(), options, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
 
         var error = await Assert.ThrowsAsync<ApprovedSentSourceThrottledException>(() => source.ReadAsync(
             new(options.MailboxId, options.MailboxAddress, options.SentFolderId, null, "lease"),
@@ -200,13 +283,17 @@ public sealed class ProductionGraphSourceTests
             : Response(HttpStatusCode.OK,
                 """{"value":[{"id":"immutable-1","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z"},{"id":"immutable-2","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:01:00Z"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=final"}"""));
         var options = Options();
-        var source = new GraphApprovedInboxSource(options,
-            new GraphMailClient(new FixedCredential(), options, new HttpClient(handler)));
+        var source = new GraphApprovedInboxSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
 
         var first = await source.ReadAsync(
-            new(options.MailboxId, options.MailboxAddress, null, "lease-1"), 1, CancellationToken.None);
+            new(options.MailboxId, options.MailboxAddress, options.InboxFolderId, null, "lease-1"),
+            1,
+            CancellationToken.None);
         var second = await source.ReadAsync(
-            new(options.MailboxId, options.MailboxAddress, first.NextCursor, "lease-2"), 1, CancellationToken.None);
+            new(options.MailboxId, options.MailboxAddress, options.InboxFolderId, first.NextCursor, "lease-2"),
+            1,
+            CancellationToken.None);
 
         Assert.Equal("immutable-1", Assert.Single(first.Messages).ImmutableMessageId);
         Assert.Equal("immutable-2", Assert.Single(second.Messages).ImmutableMessageId);

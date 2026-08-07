@@ -774,7 +774,7 @@ public sealed class CaseTaskArchivePersistenceTests
                     await context.Database.ExecuteSqlInterpolatedAsync(
                         $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {StartUtc})");
                     await context.Database.ExecuteSqlInterpolatedAsync(
-                        $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {QdosAlphaCaseActivationPolicy.PrincipalCode}, {lineageId}, {true}, {0L})");
+                        $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {QdosPrincipal.Code}, {lineageId}, {true}, {0L})");
 
                     await InsertReceiptAsync(context, Guid.Parse("10000000-0000-0000-0000-000000000001"), 1);
                     await InsertReceiptAsync(context, Guid.Parse("10000000-0000-0000-0000-000000000002"), 2);

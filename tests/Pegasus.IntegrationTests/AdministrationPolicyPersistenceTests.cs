@@ -66,7 +66,11 @@ public sealed class AdministrationPolicyPersistenceTests
             initial.Version,
             actor,
             "Approve exact Sent evidence alongside inbound Intake",
-            "approved-mailbox-update-1");
+            "approved-mailbox-update-1",
+            // Approving a row now requires the exact tenant identities its routes read.
+            "instructions-mailbox",
+            "instructions-inbox",
+            "instructions-sent");
 
         var updated = await command.ExecuteAsync(request, default);
         var replay = await command.ExecuteAsync(request, default);
@@ -77,6 +81,11 @@ public sealed class AdministrationPolicyPersistenceTests
         Assert.Equal(updated.State, replay.State);
         Assert.Equal(updated.Version, replay.Version);
         Assert.Equal(updated.RouteScopes, replay.RouteScopes);
+        Assert.Equal("instructions-mailbox", updated.MailboxIdentity);
+        Assert.Equal("instructions-inbox", updated.InboxFolderIdentity);
+        Assert.Equal("instructions-sent", updated.SentFolderIdentity);
+        Assert.True(updated.IdentityIsBound);
+        Assert.Equal(updated.MailboxIdentity, replay.MailboxIdentity);
         Assert.True(await policy.IsApprovedAsync(
             initial.Address,
             ApprovedMailboxRouteScope.InboundIntake,
@@ -108,5 +117,23 @@ public sealed class AdministrationPolicyPersistenceTests
             initial.Address,
             ApprovedMailboxRouteScope.SentEvidence,
             default));
+
+        // Disabling preserves the bound identities; rebinding one is refused, because it
+        // would orphan or alias this mailbox's cursor row.
+        Assert.Equal("instructions-mailbox", disabled.MailboxIdentity);
+        var rebind = await Assert.ThrowsAsync<ApprovedMailboxUpdateException>(
+            () => command.ExecuteAsync(
+                request with
+                {
+                    ExpectedVersion = disabled.Version,
+                    MailboxIdentity = "a-different-mailbox",
+                    Reason = "Attempt to rebind the mailbox identity",
+                    OperationKey = "approved-mailbox-rebind-1"
+                },
+                default));
+        Assert.Equal(ApprovedMailboxUpdateError.MailboxIdentityImmutable, rebind.Error);
+        Assert.Equal(
+            "instructions-mailbox",
+            Assert.Single(await list.ExecuteAsync(actor, default)).MailboxIdentity);
     }
 }

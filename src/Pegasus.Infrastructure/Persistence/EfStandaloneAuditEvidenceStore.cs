@@ -70,10 +70,17 @@ internal sealed class EfStandaloneAuditEvidenceStore(
             throw new DbUpdateConcurrencyException(
                 "The intake receipt changed before its original-report evidence could be confirmed.");
         }
-        if (!string.Equals(receipt.Decision, "draft_ready", StringComparison.Ordinal))
+        // This read `draft_ready` — the decision code removed with the manual
+        // acceptance gate. No receipt written since carries it, so standalone
+        // Audit evidence could not be confirmed for anything at all, and the
+        // Audit branch of case creation was unreachable. The rule it meant to
+        // state is the one acceptance itself applies: only pre-case material
+        // can carry the evidence that turns it into a case.
+        if (!IntakeDecisionPolicy.CanBecomeCase(
+                EfIntakeReceiptStore.ParseDecision(receipt.Decision)))
         {
             throw new InvalidOperationException(
-                "Standalone Audit evidence can be confirmed only for a reviewable instruction draft.");
+                "Standalone Audit evidence can be confirmed only for an item that can still become a case.");
         }
 
         var originalReport = await context.IntakeAssets

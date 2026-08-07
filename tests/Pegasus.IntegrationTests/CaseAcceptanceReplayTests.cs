@@ -21,7 +21,7 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed partial class CaseAcceptanceReplayTests
 {
-    private const string PrincipalCode = QdosAlphaCaseActivationPolicy.PrincipalCode;
+    private const string PrincipalCode = QdosPrincipal.Code;
     private static readonly DateTimeOffset RecordedAtUtc =
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
     private static readonly ActionActor AcceptingActor = ActionActor.Staff(
@@ -249,81 +249,11 @@ public sealed partial class CaseAcceptanceReplayTests
     }
 
 
-    [Fact]
-    public async Task ReviewPostUsesVersionRenderedInAcceptanceFormInsteadOfReloadedVersion()
-    {
-        using var baseFactory = new IntakeWebApplicationFactory();
-        var addressStore = new MutableAddressResolutionStore();
-        var acceptIntake = new VersionCheckingAcceptIntake();
-        using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<IInspectionAddressResolutionStore>();
-                services.AddSingleton<IInspectionAddressResolutionStore>(addressStore);
-                services.RemoveAll<IAcceptIntake>();
-                services.AddSingleton<IAcceptIntake>(acceptIntake);
-            }));
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost")
-        });
-        var receipt = await CreateReadyReceiptAsync(factory.Services, PrincipalCode);
-        var reviewedVersion = await ReadReceiptVersionAsync(factory.Services);
-        addressStore.SetReceipt(receipt.Id, reviewedVersion);
-        acceptIntake.CurrentReceiptVersion = reviewedVersion;
-
-        using var reviewResponse = await client.GetAsync($"/Intake/{receipt.Id}");
-        reviewResponse.EnsureSuccessStatusCode();
-        var reviewHtml = await reviewResponse.Content.ReadAsStringAsync();
-        var antiforgeryToken = InputValue(reviewHtml, "__RequestVerificationToken");
-        var operationKey = InputValue(reviewHtml, "AcceptanceOperationKey");
-        var renderedVersion = long.Parse(
-            InputValue(reviewHtml, "ReviewedReceiptVersion"),
-            CultureInfo.InvariantCulture);
-        Assert.Equal(reviewedVersion, renderedVersion);
-
-        addressStore.ReceiptVersion++;
-        acceptIntake.CurrentReceiptVersion++;
-        using var content = new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["__RequestVerificationToken"] = antiforgeryToken,
-            ["AcceptanceOperationKey"] = operationKey,
-            ["ReviewedReceiptVersion"] = renderedVersion.ToString(CultureInfo.InvariantCulture),
-            ["AcceptanceReason"] = "Reviewed the retained evidence and confirmed acceptance.",
-            ["PrincipalCode"] = PrincipalCode,
-            ["CaseType"] = CaseType.Inspection.ToString(),
-            ["StandaloneAuditAssessment"] = string.Empty,
-            ["InstructionComplete"] = bool.TrueString,
-            ["ImagesComplete"] = bool.TrueString,
-            ["InstructionConfirmedByStaff"] = bool.TrueString,
-            ["ImagesConfirmedByStaff"] = bool.TrueString
-        });
-
-        using var response = await client.PostAsync(
-            $"/Intake/{receipt.Id}?handler=Accept",
-            content);
-        var responseHtml = await response.Content.ReadAsStringAsync();
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(1, acceptIntake.Attempts);
-        var capturedRequest = Assert.IsType<AcceptIntakeRequest>(acceptIntake.LastRequest);
-        Assert.Equal(renderedVersion, capturedRequest.ExpectedVersion);
-        Assert.NotEqual(addressStore.ReceiptVersion, capturedRequest.ExpectedVersion);
-        Assert.Equal(ActorKind.Staff, capturedRequest.Actor.Kind);
-        Assert.Equal(
-            DevelopmentOfflineIdentity.AdministratorId.ToString("D"),
-            capturedRequest.Actor.SubjectId);
-        Assert.Contains(StaffRole.Administrator, capturedRequest.Actor.Roles);
-        Assert.Equal($"intake-accept:{operationKey}", capturedRequest.OperationKey);
-        Assert.Equal(
-            "Reviewed the retained evidence and confirmed acceptance.",
-            capturedRequest.Reason);
-        Assert.Contains(
-            "The case could not be accepted. No reference was allocated",
-            responseHtml,
-            StringComparison.Ordinal);
-    }
+    // ReviewPostUsesVersionRenderedInAcceptanceFormInsteadOfReloadedVersion
+    // moved with the form it guarded. Acceptance no longer has a caller on the
+    // received-item screen, so the guard now lives at
+    // CaseCreateWebTests.CreatePostUsesTheVersionRenderedInTheFormInsteadOfAReloadedVersion,
+    // pointed at the create screen.
 
     private static async Task<IntakeReceipt> CreateReadyReceiptAsync(
         IServiceProvider services,
@@ -508,23 +438,6 @@ public sealed partial class CaseAcceptanceReplayTests
         }
     }
 
-    private static string InputValue(string html, string name)
-    {
-        var match = InputTagRegex().Matches(html)
-            .Cast<Match>()
-            .FirstOrDefault(candidate => string.Equals(
-                WebUtility.HtmlDecode(candidate.Groups["name"].Value),
-                name,
-                StringComparison.Ordinal));
-        Assert.True(match is not null, $"The review form must render input '{name}'.");
-        return WebUtility.HtmlDecode(match!.Groups["value"].Value);
-    }
-
-    [GeneratedRegex(
-        "<input\\b(?=[^>]*\\bname=\"(?<name>[^\"]+)\")(?=[^>]*\\bvalue=\"(?<value>[^\"]*)\")[^>]*>",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex InputTagRegex();
-
     private sealed record AcceptancePersistence(
         long ExpectedIntakeVersion,
         string CommandFingerprint,
@@ -533,81 +446,4 @@ public sealed partial class CaseAcceptanceReplayTests
         string ActorSubjectId,
         string ActorRolesJson,
         string Reason);
-
-    private sealed class MutableAddressResolutionStore : IInspectionAddressResolutionStore
-    {
-        private static readonly Guid StaffId = Guid.Parse("11111111-1111-1111-1111-111111111111");
-        private Guid receiptId;
-
-        public long ReceiptVersion { get; set; }
-
-        public void SetReceipt(Guid value, long version)
-        {
-            receiptId = value;
-            ReceiptVersion = version;
-        }
-
-        public Task<InspectionAddressResolutionSnapshot?> GetAsync(
-            Guid intakeReceiptId,
-            CancellationToken cancellationToken)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (intakeReceiptId != receiptId)
-            {
-                return Task.FromResult<InspectionAddressResolutionSnapshot?>(null);
-            }
-
-            InspectionAddressResolutionSnapshot snapshot = new(
-                intakeReceiptId,
-                ReceiptVersion,
-                InspectionAddressResolutionState.Accepted,
-                new(
-                    new(
-                        "Image Based Assessment",
-                        InspectionAddressEvidenceKind.ImageBasedAssessment,
-                        [],
-                        new string('a', 64)),
-                    []),
-                "Image Based Assessment",
-                StaffId,
-                RecordedAtUtc);
-            return Task.FromResult<InspectionAddressResolutionSnapshot?>(snapshot);
-        }
-
-        public Task<InspectionAddressResolutionSnapshot> ResolveAsync(
-            InspectionAddressResolutionRequest request,
-            CancellationToken cancellationToken) =>
-            Task.FromException<InspectionAddressResolutionSnapshot>(
-                new NotSupportedException("This focused test does not mutate address resolution."));
-    }
-
-    private sealed class VersionCheckingAcceptIntake : IAcceptIntake
-    {
-        public long CurrentReceiptVersion { get; set; }
-
-        public int Attempts { get; private set; }
-
-        public AcceptIntakeRequest? LastRequest { get; private set; }
-
-        public Task<CaseAcceptanceOutcome> ExecuteAsync(
-            AcceptIntakeRequest request,
-            CancellationToken cancellationToken)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            Attempts++;
-            LastRequest = request;
-            if (request.ExpectedVersion != CurrentReceiptVersion)
-            {
-                return Task.FromException<CaseAcceptanceOutcome>(
-                    new DbUpdateConcurrencyException("The rendered intake version is stale."));
-            }
-
-            return Task.FromResult(new CaseAcceptanceOutcome(
-                new(Guid.NewGuid(), request.PrincipalCode, 2031, 1, "REPLAY31001"),
-                CaseInitialState.Review,
-                CaseCustodyState.Pending,
-                Guid.NewGuid(),
-                false));
-        }
-    }
 }

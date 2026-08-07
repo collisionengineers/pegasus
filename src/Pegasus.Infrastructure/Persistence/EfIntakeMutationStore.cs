@@ -169,16 +169,24 @@ internal sealed class EfIntakeMutationStore(
                         nameof(request));
                 ApplyResolvedDraft(receipt, correctedDraft);
                 ApplyDraftToReviewFields(receipt, correctedDraft);
-                var isComplete = HasRequiredInstructionFields(correctedDraft);
+                // Only identity-critical facts fail a correction closed. Thin
+                // ordinary detail is not a blocked intake: the requirement is to
+                // allocate once Principal and Case type are established and
+                // carry the gap on the case as `Not ready`. Blocking on it made
+                // `Blocked intake` mean "some field is empty", which is not its
+                // settled meaning, and left real instructions with no case.
+                var missing = InstructionDraftCompleteness
+                    .MissingIdentityCriticalFieldNames(correctedDraft);
+                var canBecomeCase = missing.Count == 0;
                 receipt.Decision = EfIntakeReceiptStore.ToCode(
-                    isComplete ? IntakeDecision.CaseCreated : IntakeDecision.BlockedIntake);
-                receipt.DecisionReason = isComplete
+                    canBecomeCase ? IntakeDecision.CaseCreated : IntakeDecision.BlockedIntake);
+                receipt.DecisionReason = canBecomeCase
                     ? "The intake correction produced a reviewable instruction draft."
-                    : "The intake correction was retained but required instruction fields remain unresolved.";
-                receipt.FailureCode = isComplete ? null : "blocked_intake";
-                receipt.FailureReason = isComplete
+                    : "The intake correction was retained but the instruction does not say which claim it is about.";
+                receipt.FailureCode = canBecomeCase ? null : "blocked_intake";
+                receipt.FailureReason = canBecomeCase
                     ? null
-                    : "Required instruction fields remain unresolved.";
+                    : $"{string.Join(", ", missing)} remains unresolved.";
                 return Task.CompletedTask;
             },
             occurredAtUtc,
@@ -755,44 +763,88 @@ internal sealed class EfIntakeMutationStore(
         entity.InspectionAddress = draft.InspectionAddress;
         receipt.InstructionDraft = entity;
     }
+    /// <summary>
+    /// Puts the corrected values back onto the review fields, and records the
+    /// staff member as the source of anything they keyed themselves.
+    /// </summary>
+    /// <remarks>
+    /// This used only to overwrite <c>SuggestedValue</c> on fields extraction
+    /// had already produced, which left two holes. A value a person typed where
+    /// extraction found nothing had no review field at all, so acceptance threw
+    /// "has no unambiguous source provenance" and a wholly hand-keyed item could
+    /// not become a case. And a value a person typed <em>over</em> an extracted
+    /// one kept the extracted candidate as its only provenance, so the case
+    /// recorded a staff correction as though the document had said it.
+    ///
+    /// Both are answered the same way: the keyed value becomes a candidate in
+    /// its own right, sourced to the staff correction. Nothing is invented —
+    /// the candidate says exactly where the value came from.
+    ///
+    /// A staff candidate is deliberately not content evidence, so
+    /// <see cref="Pegasus.Core.Address.Ext18InspectionAddressPolicy"/> ignores
+    /// it: a typed address can never come back as an extracted suggestion, and
+    /// an address fingerprint rendered on a screen does not move underneath the
+    /// person looking at it.
+    /// </remarks>
     private static void ApplyDraftToReviewFields(
         IntakeReceiptEntity receipt,
         InstructionDraft draft)
     {
-        var fields = EfIntakeReceiptStore.DeserializeFields(receipt.FieldsJson)
-            .Select(field => field with
+        (string Name, string? Value)[] drafted =
+        [
+            ("Claimant name", draft.ClaimantName),
+            ("Claim number", draft.ClaimNumber),
+            ("Vehicle registration", draft.VehicleRegistration),
+            ("Vehicle make", draft.VehicleMake),
+            ("Vehicle model", draft.VehicleModel),
+            ("Vehicle mileage", draft.VehicleMileage?.ToString(CultureInfo.InvariantCulture)),
+            ("Accident circumstances", draft.AccidentCircumstances),
+            ("Date of incident", draft.DateOfIncident?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
+            ("Instruction date", draft.InstructionDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
+            ("Inspection address", draft.InspectionAddress),
+            ("Inspection date", draft.InspectionDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))
+        ];
+        var fields = EfIntakeReceiptStore.DeserializeFields(receipt.FieldsJson).ToList();
+        foreach (var (name, value) in drafted)
+        {
+            var index = fields.FindIndex(
+                field => string.Equals(field.Name, name, StringComparison.Ordinal));
+            if (index < 0)
             {
-                SuggestedValue = field.Name switch
+                if (!string.IsNullOrWhiteSpace(value))
                 {
-                    "Claimant name" => draft.ClaimantName,
-                    "Claim number" => draft.ClaimNumber,
-                    "Vehicle registration" => draft.VehicleRegistration,
-                    "Vehicle make" => draft.VehicleMake,
-                    "Vehicle model" => draft.VehicleModel,
-                    "Vehicle mileage" => draft.VehicleMileage?.ToString(CultureInfo.InvariantCulture),
-                    "Accident circumstances" => draft.AccidentCircumstances,
-                    "Date of incident" => draft.DateOfIncident?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                    "Instruction date" => draft.InstructionDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                    "Inspection address" => draft.InspectionAddress,
-                    "Inspection date" => draft.InspectionDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                    _ => field.SuggestedValue
+                    fields.Add(new(name, value, [StaffCandidate(value)], false, false));
                 }
-            })
-            .ToArray();
-        receipt.FieldsJson = EfIntakeReceiptStore.SerializeFields(fields);
+
+                continue;
+            }
+
+            var field = fields[index];
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                fields[index] = field with { SuggestedValue = value };
+                continue;
+            }
+
+            var candidates = field.Candidates.Any(candidate =>
+                    string.Equals(candidate.Value, value, StringComparison.OrdinalIgnoreCase))
+                ? field.Candidates
+                : [.. field.Candidates, StaffCandidate(value)];
+            // The conflict is gone because a person settled it by stating the
+            // value; the losing candidates stay on the record.
+            fields[index] = field with
+            {
+                SuggestedValue = value,
+                Candidates = candidates,
+                HasConflict = false
+            };
+        }
+
+        receipt.FieldsJson = EfIntakeReceiptStore.SerializeFields([.. fields]);
     }
 
-    private static bool HasRequiredInstructionFields(InstructionDraft draft) =>
-        !string.IsNullOrWhiteSpace(draft.ClaimantName)
-        && !string.IsNullOrWhiteSpace(draft.ClaimNumber)
-        && !string.IsNullOrWhiteSpace(draft.VehicleRegistration)
-        && !string.IsNullOrWhiteSpace(draft.VehicleMake)
-        && !string.IsNullOrWhiteSpace(draft.VehicleModel)
-        && draft.VehicleMileage is not null
-        && !string.IsNullOrWhiteSpace(draft.AccidentCircumstances)
-        && draft.DateOfIncident is not null
-        && draft.InstructionDate is not null
-        && !string.IsNullOrWhiteSpace(draft.InspectionAddress);
+    private static InstructionFieldCandidate StaffCandidate(string value) =>
+        new(value, IntakeEvidenceSource.StaffCorrection, "keyed by staff");
 
     private static string Snapshot(IntakeReceiptEntity receipt) => JsonSerializer.Serialize(new
     {

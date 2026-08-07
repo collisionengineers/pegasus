@@ -22,6 +22,7 @@ public sealed class LocalApprovedInboxOptions : Pegasus.Infrastructure.Email.IAp
         string mailboxId,
         string mailboxAddress,
         string rootPath,
+        string inboxFolderIdentity = "inbox",
         long maximumContentLength = IntakeEnvelopeLimits.MaximumMailboxContentLength)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumContentLength);
@@ -47,9 +48,23 @@ public sealed class LocalApprovedInboxOptions : Pegasus.Infrastructure.Email.IAp
             throw new ArgumentException("The approved mailbox address is invalid.", nameof(mailboxAddress));
         }
 
+        ArgumentException.ThrowIfNullOrWhiteSpace(inboxFolderIdentity);
+        var normalizedFolder = inboxFolderIdentity.Trim();
+        if (normalizedFolder.Length > 200
+            || !string.Equals(
+                Path.GetFileName(normalizedFolder),
+                normalizedFolder,
+                StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                "The approved Inbox folder identity must be a single path segment.",
+                nameof(inboxFolderIdentity));
+        }
+
         MailboxId = mailboxId.Trim();
         MailboxAddress = normalizedAddress;
         RootPath = Path.GetFullPath(rootPath);
+        InboxFolderIdentity = normalizedFolder;
         MaximumContentLength = maximumContentLength;
     }
 
@@ -57,7 +72,14 @@ public sealed class LocalApprovedInboxOptions : Pegasus.Infrastructure.Email.IAp
 
     public string MailboxAddress { get; }
 
+    /// <summary>
+    /// The root of the local mailbox estate. Each mailbox reads one folder directly
+    /// beneath it, named by the folder identity its lease carries, so the offline
+    /// profile can hold more than one approved mailbox.
+    /// </summary>
     public string RootPath { get; }
+
+    public string InboxFolderIdentity { get; }
 
     public long MaximumContentLength { get; }
 }
@@ -77,22 +99,35 @@ internal sealed class LocalDurableApprovedInboxSource(
     {
         ArgumentNullException.ThrowIfNull(lease);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumMessages);
-        if (!string.Equals(lease.MailboxId, options.MailboxId, StringComparison.Ordinal)
-            || !string.Equals(
-                lease.MailboxAddress,
-                options.MailboxAddress,
-                StringComparison.OrdinalIgnoreCase))
+
+        // Which mailbox may be read is settled by the approved estate, not by this
+        // adapter. What it still owns is refusing to leave its own root: the folder
+        // identity must be one plain segment that resolves directly beneath it.
+        var folder = lease.InboxFolderIdentity;
+        if (string.IsNullOrWhiteSpace(folder)
+            || !string.Equals(Path.GetFileName(folder), folder, StringComparison.Ordinal))
         {
             throw new UnauthorizedAccessException(
-                "The claimed mailbox is not the configured immutable local approved inbox.");
+                "The approved Inbox folder identity is not a single local folder segment.");
         }
 
-        var root = new DirectoryInfo(options.RootPath);
+        var rootPath = Path.GetFullPath(options.RootPath);
+        var directory = Path.GetFullPath(Path.Combine(rootPath, folder));
+        if (!string.Equals(
+                Path.TrimEndingDirectorySeparator(Path.GetDirectoryName(directory) ?? string.Empty),
+                Path.TrimEndingDirectorySeparator(rootPath),
+                StringComparison.Ordinal))
+        {
+            throw new UnauthorizedAccessException(
+                "The approved Inbox folder resolved outside the immutable local root.");
+        }
+
+        var root = new DirectoryInfo(directory);
         root.Refresh();
         if (!root.Exists)
         {
             throw new DirectoryNotFoundException(
-                "The configured immutable local approved-inbox root does not exist.");
+                "The configured immutable local approved-inbox folder does not exist.");
         }
 
         if ((root.Attributes & FileAttributes.ReparsePoint) != 0)
@@ -239,11 +274,61 @@ internal sealed class LocalDurableApprovedInboxSource(
                         "message_too_large",
                         read.SourceLength,
                         read.Hash,
-                        read.RetentionKey)
+                        read.RetentionKey),
+                // Only the branch that materialised the content can read it. A
+                // message already observed is re-hashed without being retained, and
+                // one the adapter rejected has no content to read, so neither
+                // carries display metadata.
+                RetainedMetadata = read.Content is null || read.RetentionKey is not null
+                    ? null
+                    : await ReadRetainedMetadataAsync(
+                        read.Content,
+                        folder,
+                        cancellationToken)
             });
         }
 
         return new(messages, serializedNextCursor);
+    }
+
+    /// <summary>
+    /// The display facts of a newly observed local message, read from the bytes the
+    /// poll already holds.
+    /// </summary>
+    /// <remarks>
+    /// Local files have no provider identities: the folder is the lease's own
+    /// folder, the conversation is whatever the MIME References chain says, and read
+    /// state is false because a file on disk has never been read by anybody.
+    /// </remarks>
+    private static async Task<RetainedMailboxMessageMetadata?> ReadRetainedMetadataAsync(
+        byte[] content,
+        string folderIdentity,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var stream = new MemoryStream(content, writable: false);
+            var display = await LocalEmailDisplayReader.ReadAsync(stream, cancellationToken);
+            return new(
+                folderIdentity,
+                display.ThreadIdentity,
+                display.MessageIdentity,
+                display.SenderAddress,
+                display.SenderDisplayName,
+                display.ToAddresses ?? [],
+                display.CcAddresses ?? [],
+                string.IsNullOrWhiteSpace(display.Subject) ? null : display.Subject,
+                string.IsNullOrWhiteSpace(display.Body) ? null : display.Body,
+                display.Attachments ?? [],
+                IsRead: false);
+        }
+        catch (FormatException)
+        {
+            // An unparseable .eml still becomes an intake source, and the reader
+            // behind that records what it could not read. Refusing the whole poll
+            // over a display view nobody has asked for yet would be worse.
+            return null;
+        }
     }
 
     private async Task<ImmutableFileRead> ReadImmutableFileAsync(

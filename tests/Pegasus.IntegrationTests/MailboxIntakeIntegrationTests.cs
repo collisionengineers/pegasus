@@ -16,6 +16,8 @@ public sealed class MailboxIntakeIntegrationTests
     private static readonly DateTimeOffset RecordedAtUtc =
         new(2031, 7, 8, 9, 10, 0, TimeSpan.Zero);
 
+    private const string DefaultInboxFolderIdentity = "inbox";
+
     /// <summary>
     /// The mailbox envelope bound these tests run against.
     /// </summary>
@@ -316,11 +318,14 @@ public sealed class MailboxIntakeIntegrationTests
             Path.GetTempPath(),
             "Pegasus.MailboxIntakeIntegrationTests",
             Guid.NewGuid().ToString("N"));
+        // The local root is now the root of a mailbox estate: each mailbox reads the
+        // folder its lease names, directly beneath it.
         var inboxRoot = Path.Combine(workingRoot, "approved-inbox");
+        var inboxFolder = Path.Combine(inboxRoot, DefaultInboxFolderIdentity);
         var artifactRoot = Path.Combine(workingRoot, "artifacts");
-        Directory.CreateDirectory(inboxRoot);
+        Directory.CreateDirectory(inboxFolder);
         await File.WriteAllBytesAsync(
-            Path.Combine(inboxRoot, "0001-forwarded.eml"),
+            Path.Combine(inboxFolder, "0001-forwarded.eml"),
             CreateForwardedProtocolMessage());
 
         try
@@ -371,7 +376,7 @@ public sealed class MailboxIntakeIntegrationTests
             await using (var scope = database.CreateAsyncScope())
             {
                 var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
-                var summary = Assert.Single(await queries.ListAsync(null, CancellationToken.None));
+                var summary = Assert.Single((await queries.ListAsync(null, 1, 100, CancellationToken.None)).Items);
                 var receipt = Assert.IsType<IntakeReceipt>(
                     await queries.GetAsync(summary.Id, CancellationToken.None));
                 Assert.Equal(IntakeSourceChannel.Mailbox, receipt.SourceIdentity.Channel);
@@ -406,14 +411,15 @@ public sealed class MailboxIntakeIntegrationTests
             Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(workingRoot);
         var inboxRoot = Path.Combine(workingRoot, "approved-inbox");
-        Directory.CreateDirectory(inboxRoot);
-        var poisonPath = Path.Combine(inboxRoot, "0001-poison.eml");
+        var inboxFolder = Path.Combine(inboxRoot, DefaultInboxFolderIdentity);
+        Directory.CreateDirectory(inboxFolder);
+        var poisonPath = Path.Combine(inboxFolder, "0001-poison.eml");
         await CreateSizedFileAsync(
             poisonPath,
             TestMailboxContentLength + 1L);
         var validContent = CreateForwardedProtocolMessage();
         await File.WriteAllBytesAsync(
-            Path.Combine(inboxRoot, "0002-valid.eml"),
+            Path.Combine(inboxFolder, "0002-valid.eml"),
             validContent);
 
         try
@@ -437,13 +443,16 @@ public sealed class MailboxIntakeIntegrationTests
                         "instructions",
                         "instructions@collisionengineers.co.uk",
                         inboxRoot,
-                        TestMailboxContentLength));
+                        maximumContentLength: TestMailboxContentLength));
                     services.AddScoped(provider => new PollApprovedInbox(
+                        provider.GetRequiredService<IApprovedIntakeMailboxes>(),
+                        provider.GetRequiredService<IApprovedMailboxPolicy>(),
                         provider.GetRequiredService<IApprovedInboxPollStore>(),
                         provider.GetRequiredService<IApprovedInboxSource>(),
                         provider.GetRequiredService<IIntakeArtifactStore>(),
                         provider.GetRequiredService<IIntakeQuarantineArtifactStore>(),
                         provider.GetRequiredService<ReceiveIntake>(),
+                        provider.GetRequiredService<IRetainedMailboxMessageStore>(),
                         provider.GetRequiredService<TimeProvider>(),
                         TestMailboxContentLength));
                 });
@@ -537,12 +546,13 @@ public sealed class MailboxIntakeIntegrationTests
             Path.GetTempPath(),
             "Pegasus.MailboxEnvelopeLimitIntegrationTests",
             Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(workingRoot);
+        var inboxFolder = Path.Combine(workingRoot, DefaultInboxFolderIdentity);
+        Directory.CreateDirectory(inboxFolder);
         await CreateSizedFileAsync(
-            Path.Combine(workingRoot, "0001-boundary.eml"),
+            Path.Combine(inboxFolder, "0001-boundary.eml"),
             TestMailboxContentLength);
         await CreateSizedFileAsync(
-            Path.Combine(workingRoot, "0002-oversize.eml"),
+            Path.Combine(inboxFolder, "0002-oversize.eml"),
             TestMailboxContentLength + 1L);
 
         try
@@ -561,13 +571,14 @@ public sealed class MailboxIntakeIntegrationTests
                     "instructions",
                     "instructions@collisionengineers.co.uk",
                     workingRoot,
-                    TestMailboxContentLength));
+                    maximumContentLength: TestMailboxContentLength));
                 await using var provider = services.BuildServiceProvider(validateScopes: true);
                 var source = provider.GetRequiredService<IApprovedInboxSource>();
                 var page = await source.ReadAsync(
                     new(
                         "instructions",
                         "instructions@collisionengineers.co.uk",
+                        DefaultInboxFolderIdentity,
                         null,
                         "boundary-lease"),
                     10,
@@ -606,7 +617,7 @@ public sealed class MailboxIntakeIntegrationTests
                 "instructions",
                 "instructions@collisionengineers.co.uk",
                 workingRoot,
-                TestMailboxContentLength));
+                maximumContentLength: TestMailboxContentLength));
             await using var restartedProvider =
                 restartedServices.BuildServiceProvider(validateScopes: true);
             var restartedSource =
@@ -615,6 +626,7 @@ public sealed class MailboxIntakeIntegrationTests
                 new(
                     "instructions",
                     "instructions@collisionengineers.co.uk",
+                    DefaultInboxFolderIdentity,
                     nextCursor,
                     "restarted-boundary-lease"),
                 10,
@@ -791,9 +803,10 @@ public sealed class MailboxIntakeIntegrationTests
             Path.GetTempPath(),
             "Pegasus.MailboxKnownSourceTerminalIntegrationTests",
             Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(workingRoot);
-        var itemPath = Path.Combine(workingRoot, "0001-observed.eml");
-        var laterPath = Path.Combine(workingRoot, "0002-later.eml");
+        var inboxFolder = Path.Combine(workingRoot, DefaultInboxFolderIdentity);
+        Directory.CreateDirectory(inboxFolder);
+        var itemPath = Path.Combine(inboxFolder, "0001-observed.eml");
+        var laterPath = Path.Combine(inboxFolder, "0002-later.eml");
         var originalContent = CreateForwardedProtocolMessage();
         var changedContent = originalContent.ToArray();
         changedContent[^1] ^= 1;

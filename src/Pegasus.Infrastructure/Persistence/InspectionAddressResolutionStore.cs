@@ -72,15 +72,33 @@ public sealed class InspectionAddressResolutionStore(
         }
 
         var evaluation = Evaluate(receipt);
-        var suggestion = evaluation.Suggestion
-            ?? throw new InvalidOperationException(
-                "Missing or conflicting inspection-address evidence cannot be resolved by this policy.");
-        if (!string.Equals(
-                suggestion.Fingerprint,
-                request.SuggestionFingerprint,
-                StringComparison.Ordinal))
+        InspectionAddressSuggestion? suggestion;
+        if (request.Decision == InspectionAddressStaffDecision.SupplyAddress)
         {
-            throw new InspectionAddressResolutionConcurrencyException();
+            // Supplying answers material that carries no address evidence at
+            // all. Where extraction did find one, a person has to look at it
+            // and accept or correct it; letting a typed value quietly displace
+            // extracted evidence is how an unexamined address gets onto a case.
+            if (evaluation.Suggestion is not null)
+            {
+                throw new InvalidOperationException(
+                    "An extracted inspection-address suggestion must be accepted or corrected, not replaced.");
+            }
+
+            suggestion = null;
+        }
+        else
+        {
+            suggestion = evaluation.Suggestion
+                ?? throw new InvalidOperationException(
+                    "Missing or conflicting inspection-address evidence cannot be resolved by this policy.");
+            if (!string.Equals(
+                    suggestion.Fingerprint,
+                    request.SuggestionFingerprint,
+                    StringComparison.Ordinal))
+            {
+                throw new InspectionAddressResolutionConcurrencyException();
+            }
         }
 
         if (receipt.InstructionDraft is null)
@@ -90,7 +108,7 @@ public sealed class InspectionAddressResolutionStore(
         }
 
         var previousValue = receipt.InstructionDraft.InspectionAddress;
-        var resolvedValue = ResolveValue(request, suggestion.Value);
+        var resolvedValue = ResolveValue(request, suggestion?.Value);
         var resolvedAtUtc = timeProvider.GetUtcNow();
         if (resolvedAtUtc.Offset != TimeSpan.Zero)
         {
@@ -98,21 +116,35 @@ public sealed class InspectionAddressResolutionStore(
         }
 
         var staffId = Guid.Parse(request.Actor.SubjectId);
-        var state = request.Decision == InspectionAddressStaffDecision.AcceptSuggestion
-            ? InspectionAddressResolutionState.Accepted
-            : InspectionAddressResolutionState.Corrected;
+        var state = request.Decision switch
+        {
+            InspectionAddressStaffDecision.AcceptSuggestion =>
+                InspectionAddressResolutionState.Accepted,
+            InspectionAddressStaffDecision.CorrectSuggestion =>
+                InspectionAddressResolutionState.Corrected,
+            _ => InspectionAddressResolutionState.Supplied
+        };
         var persistedResolution = new PersistedResolution(
-            state == InspectionAddressResolutionState.Accepted ? "accepted" : "corrected",
+            ToStateCode(state),
             resolvedValue,
-            suggestion.Fingerprint,
+            suggestion?.Fingerprint ?? string.Empty,
             staffId,
             resolvedAtUtc,
             request.OperationId);
-        var humanDetail = state == InspectionAddressResolutionState.Accepted
-            ? "Inspection address accepted by staff from extracted intake evidence."
-            : "Inspection address corrected by staff from extracted intake evidence.";
+        var humanDetail = state switch
+        {
+            InspectionAddressResolutionState.Accepted =>
+                "Inspection address accepted by staff from extracted intake evidence.",
+            InspectionAddressResolutionState.Corrected =>
+                "Inspection address corrected by staff from extracted intake evidence.",
+            _ => "Inspection address supplied by staff; no address evidence was extracted from the source."
+        };
         evidence.Add(new(
-            ToCode(suggestion.Provenance[0].Source),
+            // A supplied address has no extracted provenance to name, because
+            // there was none; the staff member who typed it is the source.
+            ToCode(suggestion is null
+                ? IntakeEvidenceSource.StaffCorrection
+                : suggestion.Provenance[0].Source),
             "strong",
             "information",
             ResolutionSignalPrefix + EncodeResolution(persistedResolution),
@@ -132,9 +164,12 @@ public sealed class InspectionAddressResolutionStore(
             Id = request.OperationId,
             AggregateType = "intake_receipt",
             AggregateId = receipt.Id.ToString("D"),
-            EventKind = state == InspectionAddressResolutionState.Accepted
-                ? "inspection_address_accepted"
-                : "inspection_address_corrected",
+            EventKind = state switch
+            {
+                InspectionAddressResolutionState.Accepted => "inspection_address_accepted",
+                InspectionAddressResolutionState.Corrected => "inspection_address_corrected",
+                _ => "inspection_address_supplied"
+            },
             ActorKind = request.Actor.Kind.ToString(),
             ActorSubjectId = request.Actor.SubjectId,
             ActorRolesJson = JsonSerializer.Serialize(roles, JsonOptions),
@@ -177,11 +212,7 @@ public sealed class InspectionAddressResolutionStore(
         var latest = persistedEvidence
             .Select(TryReadResolution)
             .LastOrDefault(item => item is not null);
-        var current = latest is not null
-            && evaluation.Suggestion is { } suggestion
-            && string.Equals(latest.SuggestionFingerprint, suggestion.Fingerprint, StringComparison.Ordinal)
-            ? latest
-            : null;
+        var current = IsStillCurrent(latest, evaluation) ? latest : null;
         var state = current is null
             ? evaluation.Suggestion is null
                 ? InspectionAddressResolutionState.Unresolved
@@ -197,6 +228,50 @@ public sealed class InspectionAddressResolutionStore(
             current?.OccurredAtUtc);
     }
 
+    /// <summary>
+    /// Whether a persisted resolution still answers the evidence in front of
+    /// the reader.
+    /// </summary>
+    /// <remarks>
+    /// For an accepted or corrected resolution the test is the fingerprint:
+    /// the staff member settled a specific suggestion, and if the suggestion
+    /// has moved, their answer no longer applies.
+    ///
+    /// A supplied resolution has no fingerprint, because there was no
+    /// suggestion — that absence is exactly what it answers. So it stays
+    /// current only while the absence holds. If a later re-evaluation produces
+    /// a suggestion, the supplied value is superseded and the item reads as
+    /// <see cref="InspectionAddressResolutionState.Suggested"/> again, so a
+    /// person looks at the newly found evidence rather than a case being
+    /// created against a hand-typed address that the source now contradicts.
+    /// Applying the fingerprint rule to a supplied resolution instead would
+    /// make every supplied address read back as unresolved, and the feature
+    /// would silently do nothing.
+    ///
+    /// Neither rule can fire after acceptance: accepted intake evidence is
+    /// immutable, refused above before anything is written.
+    /// </remarks>
+    private static bool IsStillCurrent(
+        PersistedResolution? latest,
+        InspectionAddressEvaluation evaluation)
+    {
+        if (latest is null)
+        {
+            return false;
+        }
+
+        if (string.Equals(latest.State, "supplied", StringComparison.Ordinal))
+        {
+            return evaluation.Suggestion is null;
+        }
+
+        return evaluation.Suggestion is { } suggestion
+            && string.Equals(
+                latest.SuggestionFingerprint,
+                suggestion.Fingerprint,
+                StringComparison.Ordinal);
+    }
+
     private static InspectionAddressEvaluation Evaluate(IntakeReceiptEntity receipt) =>
         Ext18InspectionAddressPolicy.Evaluate(
             DeserializeFields(receipt.FieldsJson),
@@ -205,7 +280,7 @@ public sealed class InspectionAddressResolutionStore(
 
     private static string ResolveValue(
         InspectionAddressResolutionRequest request,
-        string suggestion)
+        string? suggestion)
     {
         if (request.Decision == InspectionAddressStaffDecision.AcceptSuggestion)
         {
@@ -216,16 +291,19 @@ public sealed class InspectionAddressResolutionStore(
                     nameof(request));
             }
 
-            return suggestion;
+            return suggestion!;
         }
 
         var corrected = request.CorrectedValue!.Trim();
         if (corrected.Length > 1000)
         {
             throw new ArgumentException(
-                "The corrected inspection address cannot exceed 1000 characters.",
+                "The inspection address cannot exceed 1000 characters.",
                 nameof(request));
         }
+        // The exact-extraction rule applies to a supplied address as much as a
+        // corrected one: the assessment mode is something an instruction says,
+        // never something an operator can type their way into.
         if (string.Equals(
                 corrected,
                 Ext18InspectionAddressPolicy.ImageBasedAssessment,
@@ -235,7 +313,8 @@ public sealed class InspectionAddressResolutionStore(
                 "Image Based Assessment can be selected only from an exact extracted instruction.",
                 nameof(request));
         }
-        if (string.Equals(corrected, suggestion, StringComparison.Ordinal))
+        if (suggestion is not null
+            && string.Equals(corrected, suggestion, StringComparison.Ordinal))
         {
             throw new ArgumentException(
                 "Use acceptance when the inspection-address suggestion is unchanged.",
@@ -258,11 +337,27 @@ public sealed class InspectionAddressResolutionStore(
         {
             throw new ArgumentOutOfRangeException(nameof(request), "The staff decision is invalid.");
         }
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.SuggestionFingerprint);
-        if (request.SuggestionFingerprint.Length != 64
-            || request.SuggestionFingerprint.Any(character => !char.IsAsciiHexDigit(character)))
+        if (request.Decision == InspectionAddressStaffDecision.SupplyAddress)
         {
-            throw new ArgumentException("The suggestion fingerprint is invalid.", nameof(request));
+            // A fingerprint says the caller was looking at a suggestion, which
+            // is the one situation supplying may not cover. Refuse rather than
+            // ignore it: the form and the command have to agree about what the
+            // operator was shown.
+            if (!string.IsNullOrEmpty(request.SuggestionFingerprint))
+            {
+                throw new ArgumentException(
+                    "A supplied inspection address cannot carry a suggestion fingerprint.",
+                    nameof(request));
+            }
+        }
+        else
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(request.SuggestionFingerprint);
+            if (request.SuggestionFingerprint.Length != 64
+                || request.SuggestionFingerprint.Any(character => !char.IsAsciiHexDigit(character)))
+            {
+                throw new ArgumentException("The suggestion fingerprint is invalid.", nameof(request));
+            }
         }
         ArgumentNullException.ThrowIfNull(request.Actor);
         if (request.Actor.Kind != ActorKind.Staff
@@ -276,10 +371,11 @@ public sealed class InspectionAddressResolutionStore(
         {
             throw new ArgumentException("The correlation identifier cannot exceed 100 characters.", nameof(request));
         }
-        if (request.Decision == InspectionAddressStaffDecision.CorrectSuggestion
+        if (request.Decision is InspectionAddressStaffDecision.CorrectSuggestion
+                or InspectionAddressStaffDecision.SupplyAddress
             && string.IsNullOrWhiteSpace(request.CorrectedValue))
         {
-            throw new ArgumentException("A corrected inspection address is required.", nameof(request));
+            throw new ArgumentException("An inspection address is required.", nameof(request));
         }
     }
 
@@ -287,15 +383,23 @@ public sealed class InspectionAddressResolutionStore(
         InspectionAddressResolutionRequest request,
         PersistedResolution duplicate)
     {
-        var expectedState = request.Decision == InspectionAddressStaffDecision.AcceptSuggestion
-            ? "accepted"
-            : "corrected";
+        var isSupply = request.Decision == InspectionAddressStaffDecision.SupplyAddress;
+        var expectedState = request.Decision switch
+        {
+            InspectionAddressStaffDecision.AcceptSuggestion => "accepted",
+            InspectionAddressStaffDecision.CorrectSuggestion => "corrected",
+            _ => "supplied"
+        };
+        // A supplied resolution persisted no fingerprint, because there was no
+        // suggestion to fingerprint. Comparing one would make every replay of a
+        // supplied address throw instead of returning what it already wrote.
         if (!string.Equals(duplicate.State, expectedState, StringComparison.Ordinal)
-            || !string.Equals(
-                duplicate.SuggestionFingerprint,
-                request.SuggestionFingerprint,
-                StringComparison.Ordinal)
-            || (request.Decision == InspectionAddressStaffDecision.CorrectSuggestion
+            || (!isSupply
+                && !string.Equals(
+                    duplicate.SuggestionFingerprint,
+                    request.SuggestionFingerprint,
+                    StringComparison.Ordinal))
+            || (request.Decision != InspectionAddressStaffDecision.AcceptSuggestion
                 && !string.Equals(duplicate.Value, request.CorrectedValue?.Trim(), StringComparison.Ordinal)))
         {
             throw new InvalidOperationException(
@@ -333,10 +437,20 @@ public sealed class InspectionAddressResolutionStore(
         }
     }
 
+    private static string ToStateCode(InspectionAddressResolutionState state) => state switch
+    {
+        InspectionAddressResolutionState.Accepted => "accepted",
+        InspectionAddressResolutionState.Corrected => "corrected",
+        InspectionAddressResolutionState.Supplied => "supplied",
+        _ => throw new InvalidOperationException(
+            $"Inspection-address resolution state '{state}' is not persistable.")
+    };
+
     private static InspectionAddressResolutionState ParseState(string state) => state switch
     {
         "accepted" => InspectionAddressResolutionState.Accepted,
         "corrected" => InspectionAddressResolutionState.Corrected,
+        "supplied" => InspectionAddressResolutionState.Supplied,
         _ => throw new InvalidDataException($"Unknown inspection-address resolution state '{state}'.")
     };
 
@@ -381,6 +495,7 @@ public sealed class InspectionAddressResolutionStore(
         IntakeEvidenceSource.Subject => "subject",
         IntakeEvidenceSource.FileName => "file_name",
         IntakeEvidenceSource.MimeType => "mime_type",
+        IntakeEvidenceSource.StaffCorrection => "staff_correction",
         IntakeEvidenceSource.SystemDefault => "system_default",
         _ => throw new InvalidOperationException($"Unknown intake evidence source '{(int)source}'.")
     };
@@ -395,6 +510,7 @@ public sealed class InspectionAddressResolutionStore(
         "subject" => IntakeEvidenceSource.Subject,
         "file_name" => IntakeEvidenceSource.FileName,
         "mime_type" => IntakeEvidenceSource.MimeType,
+        "staff_correction" => IntakeEvidenceSource.StaffCorrection,
         "system_default" => IntakeEvidenceSource.SystemDefault,
         _ => throw new InvalidDataException($"Unknown persisted intake evidence source '{source}'.")
     };

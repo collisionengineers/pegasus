@@ -44,7 +44,10 @@
 <section aria-labelledby="email-activity-title">
     <h2 id="email-activity-title" class="section-label">E-mail activity</h2>
     <div class="metric-strip metric-strip--3">
-        <a class="metric" asp-page="/Intake/Index">
+        @* The count is of mail that arrived, so it opens the mail workspace.
+           The two beside it are processing outcomes over receipts, so they stay
+           on Received items. *@
+        <a class="metric" asp-page="/Mail/Index">
             <span class="metric__label">
                 <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-file-text" /></svg>
                 Received today

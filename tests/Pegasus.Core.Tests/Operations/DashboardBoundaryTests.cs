@@ -102,10 +102,12 @@ public sealed class DashboardBoundaryTests
         public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
             Task.FromResult(new IntakeQueueCounts(0, 0));
 
-        public Task<IReadOnlyList<IntakeReceiptSummary>> ListAsync(
+        public Task<IntakeListPage> ListAsync(
             IntakeDecision? decision,
+            int page,
+            int pageSize,
             CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<IntakeReceiptSummary>>([]);
+            Task.FromResult(new IntakeListPage([], page, pageSize, 0));
 
         public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult<IntakeReceipt?>(null);

@@ -655,6 +655,18 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<bool>("AllowSentEvidence")
                         .HasColumnType("bit");
 
+                    b.Property<string>("InboxFolderIdentity")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("MailboxIdentity")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("SentFolderIdentity")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<string>("State")
                         .IsRequired()
                         .HasMaxLength(40)
@@ -667,6 +679,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Address")
                         .IsUnique();
+
+                    b.HasIndex("MailboxIdentity")
+                        .IsUnique()
+                        .HasFilter("[MailboxIdentity] IS NOT NULL");
 
                     b.ToTable("ApprovedMailboxes", (string)null);
 
@@ -4100,6 +4116,146 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("RequestUploadReceipts", (string)null);
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RetainedMailboxAttachmentEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("ContentLength")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<string>("MediaType")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("Ordinal")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("RetainedMailboxMessageId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RetainedMailboxMessageId", "Ordinal")
+                        .IsUnique();
+
+                    b.ToTable("RetainedMailboxAttachments", (string)null);
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RetainedMailboxMessageEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BodyExcerpt")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<string>("BodyPlainText")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CcAddressesJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ConversationIdentity")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ExternalReceiptToken")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("FolderIdentity")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("FolderScope")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("ImmutableMessageId")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("InternetMessageIdentity")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("MailboxAddress")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("nvarchar(320)");
+
+                    b.Property<string>("MailboxId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset>("ReceivedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("RetainedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("SenderAddress")
+                        .HasMaxLength(320)
+                        .HasColumnType("nvarchar(320)");
+
+                    b.Property<string>("SenderDisplayName")
+                        .HasMaxLength(320)
+                        .HasColumnType("nvarchar(320)");
+
+                    b.Property<long>("SourceLength")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("SourceSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nchar(64)")
+                        .IsFixedLength();
+
+                    b.Property<string>("Subject")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("ToAddressesJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversationIdentity");
+
+                    b.HasIndex("ExternalReceiptToken");
+
+                    b.HasIndex("MailboxId", "ImmutableMessageId")
+                        .IsUnique();
+
+                    b.HasIndex("ReceivedAtUtc", "Id")
+                        .IsDescending(true, false);
+
+                    b.HasIndex("MailboxId", "FolderScope", "ReceivedAtUtc", "Id")
+                        .IsDescending(false, false, true, false);
+
+                    b.ToTable("RetainedMailboxMessages", (string)null);
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.SecurityEventEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5605,6 +5761,26 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RetainedMailboxAttachmentEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.RetainedMailboxMessageEntity", "RetainedMailboxMessage")
+                        .WithMany("Attachments")
+                        .HasForeignKey("RetainedMailboxMessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RetainedMailboxMessage");
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RetainedMailboxMessageEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.ApprovedInboxPollStateEntity", null)
+                        .WithMany()
+                        .HasForeignKey("MailboxId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.SentEmailEvidenceEntity", b =>
                 {
                     b.HasOne("Pegasus.Infrastructure.Persistence.TriageEntity", "Triage")
@@ -5824,6 +6000,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ProviderReferenceEntity", b =>
                 {
                     b.Navigation("DomainEvidence");
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RetainedMailboxMessageEntity", b =>
+                {
+                    b.Navigation("Attachments");
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.SentEmailEvidenceEntity", b =>
