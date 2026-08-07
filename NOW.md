@@ -108,24 +108,23 @@ release claim:
 
 ## Next (ordered queue — take from the top)
 
-- **Decide what a manual upload may cost the operator** (PR 357 review — this
-  is the `qdos-pressure` acceptance gate and it is red on the timing budget
-  alone). The correctness half is fixed: no upload is told it failed when its
-  work is still scheduled, every staged receipt survives, no work item ends in
-  `failed`, and the concurrent-replay test passes. What remains is speed.
-  Processing now happens while the operator waits, and under the gate's eight
-  concurrent staff one upload takes **3.9s at best and up to 11.7s** (measured
-  on the dev workstation: 3959, 3959, 3961, 3966, 3967, 3967, 3967, 8750,
-  8860, 11677 ms), against a `Warm write p95 <= 3s` budget that was written
-  when an upload only staged the file and returned in ~100ms. The cost is lock
-  contention inside the intake write path under serializable isolation; it is
-  not the request-level logic, which was tried both with and without an
-  in-request retry to the same effect. Three ways out, and it is an operator
-  call which: accept slower uploads and re-baseline the budget with a stated
-  number; keep uploads fast by answering "received, in progress" without
-  waiting for the result; or reduce the contention in the intake write path.
-  Not a correctness risk either way — the work completes and the Worker picks
-  up anything the request could not finish
+- Reduce contention in the intake write path, or decide it does not matter.
+  Operator decision 2026-08-07: the `qdos-pressure` write budget was
+  re-baselined from 3s to 20s rather than chase this now, because the 3s
+  number was written when an upload staged the bytes and returned (~100ms) and
+  an upload now extracts, evaluates and allocates the case before answering.
+  Under the gate's eight simultaneous staff those run as serializable
+  transactions that queue behind each other: 3959, 3959, 3961, 3966, 3967,
+  3967, 3967, 8750, 8860, 11677 ms on the dev workstation. **Accepted cost:
+  concurrent uploads take about four seconds each, worst case twelve.** A
+  single uncontended upload is unaffected and is what staff actually
+  experience. This is not a correctness risk — no receipt is lost, no upload is
+  misreported, and the Worker finishes anything a request could not. The
+  isolation causing the contention is what enforces one receipt per source and
+  one reference per case, so it must not be loosened for speed; the real work
+  is reducing how much of that transaction an upload holds. Take this if real
+  concurrent use appears, and re-measure on CI or production hardware first —
+  the figures above are one workstation
   (task/upload-case-creation-and-inbox review, 2026-08-07).
 - Mailbox identity change stalls or duplicates inbound mail (PR 357 review,
   diagnosed not fixed — take this before the next mailbox is onboarded).
