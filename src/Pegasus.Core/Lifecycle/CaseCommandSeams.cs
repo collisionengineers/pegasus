@@ -218,7 +218,7 @@ internal static class CaseCommandSeamRules
         RequireText(
             request.LeaseToken,
             "An active edit lease token is required.",
-            128,
+            CaseEditAuthority.LeaseTokenLength,
             nameof(request));
         return request with { OperationKey = request.OperationKey.Trim() };
     }
@@ -235,7 +235,7 @@ internal static class CaseCommandSeamRules
         RequireText(
             request.LeaseToken,
             "An active edit lease token is required.",
-            128,
+            CaseEditAuthority.LeaseTokenLength,
             nameof(request));
         return request with { OperationKey = request.OperationKey.Trim() };
     }

@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Triage;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Intake;
 
@@ -1084,10 +1085,11 @@ internal static class IntakeCommandValidation
         }
         ArgumentOutOfRangeException.ThrowIfNegative(expectedVersion);
         ArgumentException.ThrowIfNullOrWhiteSpace(editLeaseToken);
-        if (editLeaseToken.Length > 64)
+        if (editLeaseToken.Length > CaseEditAuthority.LeaseTokenLength)
         {
             throw new ArgumentException(
-                "The case edit lease token must be 64 characters or fewer.",
+                "The case edit lease token must be "
+                + $"{CaseEditAuthority.LeaseTokenLength} characters or fewer.",
                 nameof(editLeaseToken));
         }
     }
