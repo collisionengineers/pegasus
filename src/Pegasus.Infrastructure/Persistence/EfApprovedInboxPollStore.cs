@@ -112,6 +112,14 @@ internal sealed class EfApprovedInboxPollStore(
     /// changed through a tracked entity, so the re-key is a statement; the
     /// retained-message and quarantine rows that reference it follow by
     /// cascade, and the whole thing is inside the claiming transaction.
+    ///
+    /// Known gap, queued in NOW.md: against Graph the carried cursor is a URI
+    /// scoped to the identity that minted it, so ValidateDeltaUri rejects it
+    /// after the re-key and the mailbox stalls. Simply clearing the cursor is
+    /// not the fix — the external receipt token embeds the mailbox identity
+    /// (MailboxIntake.PrepareMessage), so a replay after adoption re-receives
+    /// every message in the folder under a new identity and duplicates the
+    /// receipts. Both halves have to move together.
     /// </remarks>
     private static async Task<ApprovedInboxPollStateEntity?> AdoptStateForAddressAsync(
         PegasusDbContext context,

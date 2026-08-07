@@ -73,6 +73,44 @@ public sealed class InstructionDraftCompletenessTests
         Assert.True(InstructionDraftCompleteness.IsComplete(draft));
     }
 
+    /// <summary>
+    /// The allocation gate is narrower than the completeness rule on purpose:
+    /// `requirements.md` fails closed on identity-critical route facts, then
+    /// requires allocation with thin ordinary detail retained as `Not ready`.
+    /// </summary>
+    [Theory]
+    [InlineData("Claimant name")]
+    [InlineData("Claim number")]
+    [InlineData("Vehicle registration")]
+    public void AMissingIdentityCriticalFieldStopsAllocation(string fieldName) =>
+        Assert.Equal(
+            [fieldName],
+            InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(Without(fieldName)));
+
+    [Theory]
+    [InlineData("Vehicle make")]
+    [InlineData("Vehicle model")]
+    [InlineData("Vehicle mileage")]
+    [InlineData("Accident circumstances")]
+    [InlineData("Date of incident")]
+    [InlineData("Instruction date")]
+    [InlineData("Inspection address")]
+    public void ThinOrdinaryDetailDoesNotStopAllocation(string fieldName)
+    {
+        var draft = Without(fieldName);
+
+        // Still incomplete — the case will carry the gap and sit in `Not ready`.
+        Assert.False(InstructionDraftCompleteness.IsComplete(draft));
+        Assert.Empty(InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(draft));
+    }
+
+    [Fact]
+    public void AnEmptyDraftNamesEveryIdentityCriticalFieldAndNoOther() =>
+        Assert.Equal(
+            ["Claimant name", "Claim number", "Vehicle registration"],
+            InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(
+                new(null, null, null, null, null, null, null, null, null, null, null)));
+
     private static InstructionDraft Complete() => new(
         "QDOS",
         "Controlled Claimant",
