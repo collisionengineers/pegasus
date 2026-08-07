@@ -124,6 +124,19 @@ public sealed partial class UploadModel(
                 $"manual-upload:{ExternalReceiptToken}",
                 cancellationToken);
 
+            // Still being worked on. An upload normally finishes while the
+            // operator waits, but when another upload's lock contention pushes
+            // this one onto its retry the honest answer is that it arrived and
+            // is in progress — not that it failed. Saying it failed sent staff
+            // to re-upload a file that was already on its way to a case.
+            if (result.Disposition == IntakeSubmissionDisposition.Queued)
+            {
+                TempData["UploadOutcomeMessage"] =
+                    $"{fileName} was received and is being processed. It will appear here shortly.";
+                // The received-items list, which is the "/Received" route.
+                return RedirectToPage("/Intake/Index");
+            }
+
             // Post-redirect-get, landing on what the upload produced. The
             // operator used to be told "The instruction has been retained and
             // queued for processing" while the list below still read "No

@@ -64,25 +64,40 @@ public sealed partial class CapacitySoakTests
         Assert.Equal(28, readDurations.Count);
         Assert.Equal(10, writeDurations.Count);
         Assert.True(Percentile95(readDurations) <= TimeSpan.FromSeconds(2),
-            $"Warm read p95 was {Percentile95(readDurations).TotalMilliseconds:F0} ms.");
+            $"Warm read p95 was {Percentile95(readDurations).TotalMilliseconds:F0} ms. {Spread(readDurations)}");
         Assert.True(Percentile95(writeDurations) <= TimeSpan.FromSeconds(3),
-            $"Warm write p95 was {Percentile95(writeDurations).TotalMilliseconds:F0} ms.");
+            $"Warm write p95 was {Percentile95(writeDurations).TotalMilliseconds:F0} ms. {Spread(writeDurations)}");
 
-        // Counted from the table, not from the operator's queue: "no receipt
+        // Counted from the tables, not from the operator's queue: "no receipt
         // was lost under pressure" is a persistence claim, and the queue
         // deliberately excludes receipts that produced a case — which every
         // definitive instruction here now does, at processing time.
+        //
+        // The durable thing every upload must have is its staged receipt. A
+        // processed receipt only exists once processing finishes, and under this
+        // much contention some uploads are pushed onto their retry — which is
+        // why the answer they gave the operator is asserted above, and why what
+        // must never happen is a work item that gave up.
         await using var scope = factory.Services.CreateAsyncScope();
         await using var context = await scope.ServiceProvider
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
             .CreateDbContextAsync();
         var connection = context.Database.GetDbConnection();
         await connection.OpenAsync();
-        await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT COUNT(*) FROM IntakeReceipts";
+
+        Assert.Equal(10, await CountAsync(connection, "SELECT COUNT(*) FROM IntakeStagedReceipts"));
         Assert.Equal(
-            10,
-            Convert.ToInt32(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture));
+            0,
+            await CountAsync(
+                connection,
+                "SELECT COUNT(*) FROM IntakeWorkItems WHERE State = 'failed'"));
+    }
+
+    private static async Task<int> CountAsync(System.Data.Common.DbConnection connection, string sql)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        return Convert.ToInt32(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture);
     }
 
     private static async Task RunWorkerAsync(
@@ -227,6 +242,17 @@ public sealed partial class CapacitySoakTests
         durations.Add(stopwatch.Elapsed);
         return result;
     }
+
+    /// <summary>
+    /// Every sample, in order. A p95 on its own cannot say whether one request
+    /// was slow or all of them were, and that is the difference between a stall
+    /// and a budget that no longer fits what an upload now does.
+    /// </summary>
+    private static string Spread(IEnumerable<TimeSpan> samples) =>
+        "All (ms): "
+        + string.Join(
+            ", ",
+            samples.Order().Select(sample => sample.TotalMilliseconds.ToString("F0", CultureInfo.InvariantCulture)));
 
     private static TimeSpan Percentile95(IEnumerable<TimeSpan> samples)
     {
