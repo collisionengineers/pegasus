@@ -1033,6 +1033,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 8 | 2026-08-07 | `ded44fd7…` | `sha256:c993eb0e…` | `pegasus-prod-web-252ow37gij--ded44fd7be0a` | three 2026-08-05/06 migrations |
   | 7 | 2026-08-05 | `32feefa…` | `sha256:c8a0ebac…` | `pegasus-prod-web-252ow37gij--32feefacc388` | none |
   | 6 | 2026-08-05 | `474a0924…` | `sha256:b2ceaf37…` | `pegasus-prod-web-252ow37gij--474a0924a6ba` | `20260803205759_SendToAiAssessmentToolset` |
   | 5 | 2026-08-04 | `c6571f7…` | `sha256:29d4fcff…` | `pegasus-prod-web-252ow37gij--c6571f771aab` | none |
@@ -1042,6 +1043,39 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   | 1 | 2026-08-02 | `94997dd0…` | — | — | initial |
 
   What each release proved beyond smoke:
+
+  - **Release 8** carried PRs 342, 356 and 357 — CASE-27 edit authority, the
+    mailbox envelope bound that had been refusing real QDOS instructions, and
+    manual upload creating a case with `/Inbox` becoming a mail viewer. PR 340
+    rode along as `workspaces/` source no application build compiles. Its three
+    migrations were applied explicitly before activation and verified against
+    `__EFMigrationsHistory`.
+
+    Two things this release found, both recorded because they are properties of
+    the release route rather than of any one change:
+
+    - **The local `azd` environment drifts from the estate and is not
+      authoritative.** Provision failed because it still pointed the Box secret
+      references at `cespkboxkvv76a47`, a vault soft-deleted on 2026-08-03
+      during consolidation — two days *before* release 7 deployed successfully
+      from the same environment. Its recorded image digest and revision suffix
+      were release 3's. The running Container App was the source of truth; the
+      secret versions were unchanged and only the vault host moved to
+      `pegasusprodkv252ow37g`. Read the deployed resource, not the local
+      environment, when a provision disagrees with a working estate.
+    - **`Invoke-AzureDatabaseBootstrap.ps1` cannot pass after release 6.** Its
+      expected matrix is read from `20260729199000_RuntimeRoleReconciliation`
+      alone, so every grant added by a later migration reads as unapproved
+      drift. All 24 differences were `=>` — extra in the database, none
+      missing — and each traces to a reviewed migration: release 6's
+      `AiWorkRequests`/`SendToAiControl`/`CaseAssessmentFields`/
+      `CaseEstimateLines`, and this release's `RetainedMailboxMessages`/
+      `RetainedMailboxAttachments` granted at
+      `20260805223036_RetainedMailboxMessages:136-145`. The principal creation
+      and effective-permission guards ran before the assertion; the matrix
+      comparison is what failed. **The runtime-role effective-permission check
+      was therefore not completed for this release**, and the script needs its
+      matrix built from the full migration set before the next one.
 
   - **Release 7** carried the six defects that live verification of release 6
     found, and is the first release whose Worker redeploy and revision
