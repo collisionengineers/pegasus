@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>CollisionRenderer.Mcp</RootNamespace>
     <AssemblyName>collisionrenderer-mcp</AssemblyName>
     <IsPackable>false</IsPackable>
@@ -10,7 +10,7 @@
 
   <ItemGroup>
     <PackageReference Include="ModelContextProtocol" Version="1.4.0" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.10" />
     <!-- Match Core so Program.cs can drive the shell-only browser install on first run.
          1.61.0 (matches the valuation connector): 1.49.x has a Windows headless-shell
          launch hang (microsoft/playwright issue 34306); 1.61 launches the bundled shell cleanly. -->

@@ -1,16 +1,15 @@
 # Collision Renderer
 
-Collision Renderer is an independent source workspace for producing Collision Engineers Ltd branded PDFs in a consistent house style. A single Core engine serves the command line, Windows GUI, HTTP API and MCP host.
+Collision Renderer is an independent source workspace for producing Collision Engineers Ltd branded PDFs in a consistent house style. A single Core engine serves the command line, HTTP API and MCP host.
 
 > **Workspace boundary:** this directory is retained as source-only, non-caller workspace code. Its hosts can be built and exercised independently, but this repository does not establish integration with, invocation by, or deployment into any other product or environment. Current integration status and activation conditions are maintained in the [workspace integration register](../README.md#integration-status-register).
 
 ## Current workspace
 
-The solution contains five shipped projects and two test projects:
+The solution contains four shipped projects and two test projects:
 
 - `src/CollisionRenderer.Core` — shared rendering, validation, template and authoring engine.
 - `src/CollisionRenderer.Cli` — `collisionrenderer` command-line host.
-- `src/CollisionRenderer.Gui` — WinUI 3 desktop authoring and preview host.
 - `src/CollisionRenderer.Api` — ASP.NET Core HTTP host.
 - `src/CollisionRenderer.Mcp` — standalone MCP stdio host.
 - `tests/CollisionRenderer.Core.Tests` — Core and real-browser rendering tests.
@@ -52,8 +51,6 @@ dotnet run --project src/CollisionRenderer.Cli -- install-browser
 dotnet run --project src/CollisionRenderer.Cli -- forms starter --template fee-note --out fee.json
 dotnet run --project src/CollisionRenderer.Cli -- render --template fee-note --data fee.json --out fee.pdf
 ```
-
-The full solution includes a Windows-only GUI. On Linux or macOS, build the cross-platform projects individually as described in the development guide.
 
 ## Documentation
 
