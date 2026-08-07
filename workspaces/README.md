@@ -41,6 +41,16 @@ documentation corrections and the Pegasus-authored
 imported files and not itself), so current file counts come from
 `git ls-files`, not from these import records.
 
+`report-renderer/` matched its import manifest exactly until 2026-08-05, when it
+took its first post-import divergence: the WinUI 3 desktop host was
+decommissioned, Scriban was upgraded off a version carrying critical advisories,
+and every project moved from `net8.0` to `net10.0` (workspace ADR-0012, ADR-0013
+and ADR-0014). The divergence is substantial and the tracked tree no longer
+matches the recorded file count, byte count or hash. That is expected. The
+provenance row above records the **import snapshot** and is deliberately not
+recalculated — recalculating it would falsify the provenance record. Regenerating
+a manifest is for re-importing from upstream, not for local work.
+
 ## Ownership and activation
 
 The register above is the sole workspace integration-status authority. Local

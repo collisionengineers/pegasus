@@ -6,6 +6,11 @@ using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
 
+/// <summary>
+/// The one persistence-side adapter for the case edit guard. It reads the retained row, compares
+/// the presented token against the retained hash in fixed time, and clears the lease; the refusal
+/// decision itself belongs to <see cref="CaseEditAuthority"/> in Core.
+/// </summary>
 internal static class CaseMutationGuard
 {
     public static void Require(
@@ -32,53 +37,77 @@ internal static class CaseMutationGuard
             throw new CaseTerminalMutationException(workflow.CaseId);
         }
 
-        if (workflow.Version != expectedCaseVersion)
-        {
-            throw new CaseVersionConflictException(
-                workflow.CaseId,
-                expectedCaseVersion,
-                workflow.Version);
-        }
-
-        if (string.IsNullOrWhiteSpace(editLeaseToken)
-            || workflow.EditLeaseExpiresAtUtc is null
-            || workflow.EditLeaseExpiresAtUtc <= nowUtc
-            || string.IsNullOrWhiteSpace(workflow.EditLeaseTokenHash)
-            || string.IsNullOrWhiteSpace(workflow.EditLeaseHolder))
-        {
-            throw new CaseEditLeaseExpiredException(workflow.CaseId);
-        }
-
-        var suppliedHash = SHA256.HashData(Encoding.UTF8.GetBytes(editLeaseToken));
-        byte[] retainedHash;
-        try
-        {
-            retainedHash = Convert.FromHexString(workflow.EditLeaseTokenHash);
-        }
-        catch (FormatException exception)
-        {
-            throw new InvalidDataException(
-                "The retained case edit lease hash is invalid.",
-                exception);
-        }
-
-        if (!string.Equals(workflow.EditLeaseHolder, actor.SubjectId, StringComparison.Ordinal)
-            || retainedHash.Length != suppliedHash.Length
-            || !CryptographicOperations.FixedTimeEquals(retainedHash, suppliedHash))
-        {
-            throw new CaseEditLeaseConflictException(workflow.CaseId);
-        }
+        RequireVersion(workflow, expectedCaseVersion);
+        RequireLease(workflow, actor, editLeaseToken, nowUtc);
     }
 
-    public static void Complete(CaseWorkflowEntity workflow)
+    public static void RequireVersion(CaseWorkflowEntity workflow, long expectedVersion)
     {
         ArgumentNullException.ThrowIfNull(workflow);
-        workflow.Version = checked(workflow.Version + 1);
+        CaseEditAuthority.RequireVersion(workflow.CaseId, workflow.Version, expectedVersion);
+    }
+
+    public static void RequireLease(
+        CaseWorkflowEntity workflow,
+        ActionActor actor,
+        string editLeaseToken,
+        DateTimeOffset nowUtc)
+    {
+        ArgumentNullException.ThrowIfNull(workflow);
+        ArgumentNullException.ThrowIfNull(actor);
+        CaseEditAuthority.RequireLease(
+            workflow.CaseId,
+            workflow.Version,
+            actor.SubjectId,
+            editLeaseToken,
+            workflow.EditLeaseHolder,
+            !string.IsNullOrWhiteSpace(workflow.EditLeaseTokenHash),
+            workflow.EditLeaseExpiresAtUtc,
+            MatchesRetainedHash(workflow.EditLeaseTokenHash, editLeaseToken),
+            nowUtc);
+    }
+
+    public static void ClearLease(CaseWorkflowEntity workflow)
+    {
+        ArgumentNullException.ThrowIfNull(workflow);
         workflow.EditLeaseToken = null;
         workflow.EditLeaseTokenHash = null;
         workflow.EditLeaseRequestHash = null;
         workflow.EditLeaseHolder = null;
         workflow.EditLeaseOperationKey = null;
         workflow.EditLeaseExpiresAtUtc = null;
+    }
+
+    public static void Complete(CaseWorkflowEntity workflow)
+    {
+        ArgumentNullException.ThrowIfNull(workflow);
+        workflow.Version = checked(workflow.Version + 1);
+        ClearLease(workflow);
+    }
+
+    /// <summary>
+    /// A retained hash that cannot be read is a hash the presented token cannot be proven against,
+    /// so it refuses like any other mismatch rather than surfacing a format failure.
+    /// </summary>
+    private static bool MatchesRetainedHash(string? retainedHash, string? presentedToken)
+    {
+        if (string.IsNullOrWhiteSpace(retainedHash) || string.IsNullOrWhiteSpace(presentedToken))
+        {
+            return false;
+        }
+
+        byte[] retained;
+        try
+        {
+            retained = Convert.FromHexString(retainedHash);
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+
+        var presented = SHA256.HashData(Encoding.UTF8.GetBytes(presentedToken));
+        return retained.Length == presented.Length
+            && CryptographicOperations.FixedTimeEquals(retained, presented);
     }
 }

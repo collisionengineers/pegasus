@@ -100,10 +100,20 @@ internal sealed class AutomationActorResolver(
 /// </summary>
 internal sealed class AutomationMcpAuditor(
     IActionHistoryWriter actionHistory,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ILogger<AutomationMcpAuditor> logger)
 {
     private const string AggregateType = "automation_mcp";
 
+    private static readonly Action<ILogger, string, string, string, Exception?> LogMechanicSucceeded =
+        LoggerMessage.Define<string, string, string>(
+            LogLevel.Information,
+            new EventId(1, nameof(RecordDenialAsync)),
+            "Automation MCP {Tool} succeeded for {AggregateId} (correlation {CorrelationId}).");
+
+    /// <summary>
+    /// Records a tool call whose success is itself attributable case work.
+    /// </summary>
     public async Task<TResult> RecordAsync<TResult>(
         AutomationActorContext context,
         string toolName,
@@ -127,6 +137,49 @@ internal sealed class AutomationMcpAuditor(
                 "Succeeded",
                 reason: null,
                 cancellationToken);
+            return result;
+        }
+        catch (Exception exception)
+        {
+            await AppendAsync(
+                context,
+                toolName,
+                aggregateId,
+                operationKey,
+                "Failed",
+                Reason(exception),
+                cancellationToken);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Records a tool call that is lease or adapter mechanics rather than case work. The
+    /// requirement classifies routine renewal, expiry, heartbeat, polling and adapter mechanics as
+    /// telemetry and keeps only a deliberate recovery or a material denial in permanent history, so
+    /// success is logged and refusal is still appended.
+    /// </summary>
+    public async Task<TResult> RecordDenialAsync<TResult>(
+        AutomationActorContext context,
+        string toolName,
+        string aggregateId,
+        string? operationKey,
+        Func<Task<TResult>> action,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentException.ThrowIfNullOrWhiteSpace(toolName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+        ArgumentNullException.ThrowIfNull(action);
+        try
+        {
+            var result = await action();
+            LogMechanicSucceeded(
+                logger,
+                toolName,
+                aggregateId,
+                CorrelationId(context, operationKey),
+                null);
             return result;
         }
         catch (Exception exception)

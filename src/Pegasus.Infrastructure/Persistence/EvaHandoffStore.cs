@@ -757,7 +757,7 @@ public sealed class EvaHandoffStore(
         ArgumentException.ThrowIfNullOrWhiteSpace(request.EditLeaseToken);
         if (request.OperationKey.Length > 100
             || request.Reason.Length > 300
-            || request.EditLeaseToken.Length > 128)
+            || request.EditLeaseToken.Length > CaseEditAuthority.LeaseTokenLength)
         {
             throw new ArgumentException("The EVA operation key, reason, or edit-lease token is too long.", nameof(request));
         }
@@ -767,31 +767,11 @@ public sealed class EvaHandoffStore(
         CaseWorkflowEntity workflow,
         ActionActor actor,
         string token,
-        DateTimeOffset now)
-    {
-        if (workflow.EditLeaseExpiresAtUtc is null
-            || workflow.EditLeaseExpiresAtUtc <= now
-            || workflow.EditLeaseTokenHash is null
-            || workflow.EditLeaseHolder is null)
-        {
-            throw new CaseEditLeaseExpiredException(workflow.CaseId);
-        }
-        if (!string.Equals(workflow.EditLeaseHolder, actor.SubjectId, StringComparison.Ordinal)
-            || !HashesMatch(workflow.EditLeaseTokenHash, Hash(token)))
-        {
-            throw new CaseEditLeaseConflictException(workflow.CaseId);
-        }
-    }
+        DateTimeOffset now) =>
+        CaseMutationGuard.RequireLease(workflow, actor, token, now);
 
-    private static void ClearLease(CaseWorkflowEntity workflow)
-    {
-        workflow.EditLeaseToken = null;
-        workflow.EditLeaseTokenHash = null;
-        workflow.EditLeaseRequestHash = null;
-        workflow.EditLeaseHolder = null;
-        workflow.EditLeaseOperationKey = null;
-        workflow.EditLeaseExpiresAtUtc = null;
-    }
+    private static void ClearLease(CaseWorkflowEntity workflow) =>
+        CaseMutationGuard.ClearLease(workflow);
 
     private static string HashRequest(GenerateEvaHandoffRequest request)
     {
