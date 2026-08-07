@@ -136,6 +136,7 @@ public static class DependencyInjection
             provider.GetRequiredService<EfStaffAccountAdministration>());
         services.AddScoped<IListStaffAccounts, ListStaffAccounts>();
         services.AddScoped<IGetStaffAccount, GetStaffAccount>();
+        services.AddScoped<IDescribeCaseEditAuthorityHolder, DescribeCaseEditAuthorityHolder>();
         services.AddScoped<IGetAccessReview, GetAccessReview>();
         services.AddScoped<IGetRoleAssignments, GetRoleAssignments>();
         services.AddScoped<ICreateStaffAccount, CreateStaffAccount>();

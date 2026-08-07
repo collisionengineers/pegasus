@@ -735,7 +735,7 @@ internal sealed class EfOperationsStore(
             return RequestCaseEditLeaseState.Unknown;
         }
 
-        return hasCaseEditLease && expiresAtUtc > nowUtc
+        return hasCaseEditLease && CaseEditAuthority.IsHeld(expiresAtUtc, nowUtc)
             ? RequestCaseEditLeaseState.Active
             : RequestCaseEditLeaseState.Available;
     }

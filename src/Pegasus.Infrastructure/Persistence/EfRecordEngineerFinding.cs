@@ -183,48 +183,18 @@ internal sealed class EfRecordEngineerFinding(
         entity.Reference,
         entity.AuditReference);
 
-    private static void RequireVersion(CaseWorkflowEntity workflow, long expectedVersion)
-    {
-        if (workflow.Version != expectedVersion)
-        {
-            throw new CaseVersionConflictException(
-                workflow.CaseId,
-                expectedVersion,
-                workflow.Version);
-        }
-    }
+    private static void RequireVersion(CaseWorkflowEntity workflow, long expectedVersion) =>
+        CaseMutationGuard.RequireVersion(workflow, expectedVersion);
 
     private static void RequireLease(
         CaseWorkflowEntity workflow,
         ActionActor actor,
         string leaseToken,
-        DateTimeOffset nowUtc)
-    {
-        if (workflow.EditLeaseExpiresAtUtc is null
-            || workflow.EditLeaseExpiresAtUtc <= nowUtc
-            || string.IsNullOrWhiteSpace(workflow.EditLeaseTokenHash)
-            || string.IsNullOrWhiteSpace(workflow.EditLeaseHolder))
-        {
-            throw new CaseEditLeaseExpiredException(workflow.CaseId);
-        }
-        var suppliedHash = Convert.ToHexString(
-            SHA256.HashData(Encoding.UTF8.GetBytes(leaseToken))).ToLowerInvariant();
-        if (!string.Equals(workflow.EditLeaseHolder, actor.SubjectId, StringComparison.Ordinal)
-            || !FixedTimeHashEquals(workflow.EditLeaseTokenHash, suppliedHash))
-        {
-            throw new CaseEditLeaseConflictException(workflow.CaseId);
-        }
-    }
+        DateTimeOffset nowUtc) =>
+        CaseMutationGuard.RequireLease(workflow, actor, leaseToken, nowUtc);
 
-    private static void ClearLease(CaseWorkflowEntity workflow)
-    {
-        workflow.EditLeaseToken = null;
-        workflow.EditLeaseTokenHash = null;
-        workflow.EditLeaseRequestHash = null;
-        workflow.EditLeaseHolder = null;
-        workflow.EditLeaseOperationKey = null;
-        workflow.EditLeaseExpiresAtUtc = null;
-    }
+    private static void ClearLease(CaseWorkflowEntity workflow) =>
+        CaseMutationGuard.ClearLease(workflow);
 
     private static string RequestHash(
         RecordEngineerFindingRequest request,
