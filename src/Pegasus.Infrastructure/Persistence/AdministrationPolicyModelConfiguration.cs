@@ -33,7 +33,18 @@ internal static class AdministrationPolicyModelConfiguration
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Address).HasMaxLength(320).IsRequired();
             entity.Property(item => item.State).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.MailboxIdentity).HasMaxLength(100);
+            entity.Property(item => item.InboxFolderIdentity).HasMaxLength(200);
+            entity.Property(item => item.SentFolderIdentity).HasMaxLength(200);
             entity.HasIndex(item => item.Address).IsUnique();
+            // Two rows may await their identities, but a supplied identity is exclusive:
+            // it becomes the ApprovedInboxPollStates key, so an alias would share a cursor.
+            entity.HasIndex(item => item.MailboxIdentity)
+                .IsUnique()
+                .HasFilter("[MailboxIdentity] IS NOT NULL");
+            // The seeded production row keeps NULL identities: the real Graph identities
+            // are deployment configuration, not repository content. The read-only
+            // configuration fallback supplies them until an administrator saves them.
             entity.HasData(new ApprovedMailboxEntity
             {
                 Id = InitialInstructionsMailboxId,

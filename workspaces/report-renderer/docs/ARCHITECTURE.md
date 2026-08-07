@@ -10,13 +10,12 @@ This is independent, source-only, non-caller workspace code. The projects can be
 
 ## Project graph
 
-The current solution has five shipped projects and two test projects.
+The current solution has four shipped projects and two test projects.
 
 | Project | Role | Important boundary |
 | --- | --- | --- |
 | `CollisionRenderer.Core` | Shared typed-model-to-PDF engine. | No Windows-only dependency; sole rendering source of truth. |
 | `CollisionRenderer.Cli` | Command-line host, assembly `collisionrenderer`. | Maps commands and files to Core contracts. |
-| `CollisionRenderer.Gui` | WinUI 3 authoring host with WebView2 preview. | Windows-only presentation; renders through Core in-process. |
 | `CollisionRenderer.Api` | ASP.NET Core minimal HTTP API. | Adds HTTP, multipart, batching and optional bearer authentication. |
 | `CollisionRenderer.Mcp` | Standalone MCP stdio host. | Exposes selected Core operations as MCP tools and writes local artefacts. |
 | `CollisionRenderer.Core.Tests` | Core, validation, composition and Chromium integration tests. | May use a fake `IPdfEngine` for deterministic pipeline tests. |
@@ -24,9 +23,8 @@ The current solution has five shipped projects and two test projects.
 
 Current direct package evidence:
 
-- Core: PDFsharp `6.2.4`, Scriban `5.12.1`, Microsoft.Playwright `1.61.0`.
-- GUI: Microsoft.WindowsAppSDK `2.2.0`, CommunityToolkit.Mvvm `8.4.2`, in addition to its Core project reference.
-- MCP: ModelContextProtocol `1.4.0`, Microsoft.Extensions.Hosting `9.0.0`, in addition to its Core project reference.
+- Core: PDFsharp `6.2.4`, Scriban `7.2.6`, Microsoft.Playwright `1.61.0`.
+- MCP: ModelContextProtocol `1.4.0`, Microsoft.Extensions.Hosting `10.0.10`, in addition to its Core project reference.
 
 ## Composition and public contracts
 
@@ -34,9 +32,16 @@ All rendering starts at `CollisionRendererFactory`:
 
 - `CollisionRendererFactory.Catalog` exposes the immutable render catalogue.
 - `CollisionRendererFactory.AuthoringCatalog` exposes Core-owned forms, blank drafts, starter drafts and attachment policies.
-- `CollisionRendererFactory.CreateRenderer(IPdfEngine? engine = null)` creates an `IDocumentRenderer`.
+- `CollisionRendererFactory.CreateRenderer(IPdfEngine? engine = null, TimeProvider? timeProvider = null)` creates an `IDocumentRenderer`.
+- `CollisionRendererFactory.CreatePreviewComposer(TimeProvider? timeProvider = null)` creates an `IPreviewComposer`: the same body HTML the renderer produces, without validation and without Chromium, for a live preview.
 
 When no engine is supplied, Core creates, owns and disposes `ChromiumPdfEngine`. When a caller injects an `IPdfEngine`, the caller owns its lifetime.
+
+## Document date
+
+A payload's `meta.date` always wins. When it is blank, the date falls back to the ambient clock — and that fallback is the **Europe/London** conversion of `TimeProvider.GetUtcNow()`, so the answer is the UK business date regardless of the host's clock zone. A UTC container and a UK desktop during BST therefore agree near midnight instead of disagreeing by a day. `TimeProvider` defaults to `TimeProvider.System`; inject a fixed provider to make the fallback deterministic.
+
+Starter payloads fill date fields with the literal `DD/MM/YYYY`, so the ambient clock is not reached on the starter path.
 
 Principal contracts:
 
@@ -121,10 +126,6 @@ Parity means that document capabilities and render decisions come from Core, not
 
 Lists templates and forms, emits blank/starter/schema JSON, validates, renders, batches, installs Chromium and reports version information. It writes PDF bytes returned by Core and can open the result through the local operating system.
 
-### GUI
-
-Renders Core-owned form definitions as labelled controls, repeaters, tables, question/answer rows, signature selectors and upload slots. JSON remains a diagnostic representation. Preview is a GUI-only concern implemented with WebView2; it does not change PDF production.
-
 ### API
 
 The API registers one `IDocumentRenderer` for the process so the default Chromium instance is reused.
@@ -165,7 +166,7 @@ When any supported token setting is configured, all routes except `/healthz` req
 
 ## Container topology
 
-The workspace `Dockerfile` builds the API and uses the Playwright .NET `v1.61.0-jammy` runtime, which supplies the matching Chromium and native dependencies. The final image adds Liberation and DejaVu fonts for Arial-compatible Linux metrics, enables globalisation, listens on port `8080` and runs the API assembly. It is a portable build artefact; this repository does not claim that it is deployed anywhere.
+The workspace `Dockerfile` builds the API and uses the Playwright .NET `v1.61.0-noble` runtime, which supplies the matching Chromium and native dependencies. The final image adds Liberation and DejaVu fonts for Arial-compatible Linux metrics, enables globalisation, listens on port `8080` and runs the API assembly. It is a portable build artefact; this repository does not claim that it is deployed anywhere.
 
 ## Current limits
 

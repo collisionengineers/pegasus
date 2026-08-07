@@ -53,7 +53,8 @@ internal sealed class EfOperationsStore(
                     poison.MailboxId,
                     mailbox.MailboxAddress,
                     poison.QuarantinedAtUtc,
-                    poison.FailureCode))
+                    poison.FailureCode,
+                    poison.SourceLength))
             .Take(sourceLimit)
             .ToListAsync(cancellationToken);
         var intakeRows = await context.IntakeReceipts
@@ -145,7 +146,8 @@ internal sealed class EfOperationsStore(
             PrincipalCode: null,
             item.FailureCode,
             RetryMailboxId: null,
-            RetryExpectedDueAtUtc: null)));
+            RetryExpectedDueAtUtc: null,
+            item.SourceLength)));
         receivedCandidates.AddRange(intakeRows.Select(item => new EmailOperationProjection(
             $"received-intake:{item.Id:D}",
             EmailOperationDirection.Received,
@@ -735,7 +737,7 @@ internal sealed class EfOperationsStore(
             return RequestCaseEditLeaseState.Unknown;
         }
 
-        return hasCaseEditLease && expiresAtUtc > nowUtc
+        return hasCaseEditLease && CaseEditAuthority.IsHeld(expiresAtUtc, nowUtc)
             ? RequestCaseEditLeaseState.Active
             : RequestCaseEditLeaseState.Available;
     }
@@ -915,7 +917,8 @@ internal sealed class EfOperationsStore(
         string MailboxId,
         string MailboxAddress,
         DateTimeOffset QuarantinedAtUtc,
-        string FailureCode);
+        string FailureCode,
+        long? SourceLength);
 
     private sealed record IntakeEmailRow(
         Guid Id,

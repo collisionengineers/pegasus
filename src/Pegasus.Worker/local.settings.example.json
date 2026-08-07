@@ -14,6 +14,7 @@
     "ApprovedInbox__MailboxId": "instructions",
     "ApprovedInbox__MailboxAddress": "instructions@collisionengineers.co.uk",
     "ApprovedInbox__LocalRootPath": "../../artifacts/local-development/default/approved-inbox",
+    "ApprovedInbox__InboxFolderIdentity": "inbox",
     "ApprovedSent__MailboxId": "instructions",
     "ApprovedSent__MailboxAddress": "instructions@collisionengineers.co.uk",
     "ApprovedSent__SentFolderIdentity": "sent-items",

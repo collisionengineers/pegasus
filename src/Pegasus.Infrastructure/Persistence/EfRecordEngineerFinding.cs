@@ -61,8 +61,9 @@ internal sealed class EfRecordEngineerFinding(
         RequireLease(workflow, request.Actor, request.EditLeaseToken, recordedAtUtc);
 
         var caseType = ParseCaseType(workflow.Case.Type);
-        _ = QdosAlphaCaseActivationPolicy.RequireActivatedPrincipal(
-            workflow.Case.Principal.Code);
+        // The principal was settled when the case was allocated and is
+        // immutable after it. Re-asserting which principal it is here refused
+        // engineer findings on perfectly valid non-QDOS cases.
         var state = ParseLifecycleState(workflow.State);
         EngineerFindingPolicy.RequireAssignedInspectionAndAudit(
             caseType,
@@ -183,48 +184,18 @@ internal sealed class EfRecordEngineerFinding(
         entity.Reference,
         entity.AuditReference);
 
-    private static void RequireVersion(CaseWorkflowEntity workflow, long expectedVersion)
-    {
-        if (workflow.Version != expectedVersion)
-        {
-            throw new CaseVersionConflictException(
-                workflow.CaseId,
-                expectedVersion,
-                workflow.Version);
-        }
-    }
+    private static void RequireVersion(CaseWorkflowEntity workflow, long expectedVersion) =>
+        CaseMutationGuard.RequireVersion(workflow, expectedVersion);
 
     private static void RequireLease(
         CaseWorkflowEntity workflow,
         ActionActor actor,
         string leaseToken,
-        DateTimeOffset nowUtc)
-    {
-        if (workflow.EditLeaseExpiresAtUtc is null
-            || workflow.EditLeaseExpiresAtUtc <= nowUtc
-            || string.IsNullOrWhiteSpace(workflow.EditLeaseTokenHash)
-            || string.IsNullOrWhiteSpace(workflow.EditLeaseHolder))
-        {
-            throw new CaseEditLeaseExpiredException(workflow.CaseId);
-        }
-        var suppliedHash = Convert.ToHexString(
-            SHA256.HashData(Encoding.UTF8.GetBytes(leaseToken))).ToLowerInvariant();
-        if (!string.Equals(workflow.EditLeaseHolder, actor.SubjectId, StringComparison.Ordinal)
-            || !FixedTimeHashEquals(workflow.EditLeaseTokenHash, suppliedHash))
-        {
-            throw new CaseEditLeaseConflictException(workflow.CaseId);
-        }
-    }
+        DateTimeOffset nowUtc) =>
+        CaseMutationGuard.RequireLease(workflow, actor, leaseToken, nowUtc);
 
-    private static void ClearLease(CaseWorkflowEntity workflow)
-    {
-        workflow.EditLeaseToken = null;
-        workflow.EditLeaseTokenHash = null;
-        workflow.EditLeaseRequestHash = null;
-        workflow.EditLeaseHolder = null;
-        workflow.EditLeaseOperationKey = null;
-        workflow.EditLeaseExpiresAtUtc = null;
-    }
+    private static void ClearLease(CaseWorkflowEntity workflow) =>
+        CaseMutationGuard.ClearLease(workflow);
 
     private static string RequestHash(
         RecordEngineerFindingRequest request,

@@ -433,7 +433,10 @@ from the instruction and operator-confirmed; the provider setting determines
 the default mode but never invents or selects a physical address. The
 provider-domain reference package contains no address or address-mode default;
 the setting lives on the Principal record, and no address is ever inferred
-from a provider or domain match.
+from a provider or domain match. Where the source carries no address evidence
+at all, a member of staff supplies the physical location directly at Case
+creation and it is retained with their identity as its source; the prohibition
+is on Pegasus inferring an address, never on a person stating one.
 
 A manual selection of `Image Based Assessment`, and any override of the
 autofilled mode, requires an attributed staff reason in permanent Case
@@ -786,6 +789,18 @@ browsing and reconciliation remain in the email-management workspace.
 The allocated workspace includes read-only search of Deleted Items within each
 exact approved mailbox/folder scope. It does not introduce a backlog scan,
 reconstruction, bulk replay, Case allocation, or mailbox mutation.
+
+Which mailboxes an Outlook/Graph inbound route reads is settled by the approved
+mailbox allowlist, not by deployment configuration. Each approved row carries
+the exact mailbox identity and folder identity the read uses, alongside its
+enabled state, and each mailbox holds its own lease and its own durable cursor,
+so one mailbox's failure or backlog never affects another. Disabling a mailbox
+stops polling at the next tick and deletes nothing: retained messages, receipts,
+assets, quarantined items, and case associations all remain visible, and the
+cursor is preserved so re-enabling resumes rather than restarts. Approving a
+mailbox in Pegasus never grants Exchange access; the Microsoft 365 tenant must
+separately admit the application to that mailbox, and until it does, polling
+that mailbox alone fails and says so.
 
 An Outlook/Graph route must, before activation:
 

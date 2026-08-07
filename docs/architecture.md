@@ -84,9 +84,10 @@ than attempts.
 
 ### Staff Web callers
 
-- `GET /Intake` calls Core `ListIntake`; the `ReceiveIntake` POST handler submits one bounded authenticated manual source and preserves the selected filter/page through PRG. `GET /Intake/{id}` calls `GetIntake`, and its mutations call the named Core intake commands with a server-derived actor, expected versions or case lease, operation key, and reason as applicable.
-- `GET /Intake/{id}/Source` calls Core `DownloadIntakeSource`, which authorises the current staff actor, resolves the receipt-owned source, validates retained length and SHA-256, and returns only a no-sniff attachment with a safe filename and content type.
-- `GET /ImageIntake` calls Core `IImageIntakeQueries` for the association-filtered image-intake receipt list and the exact Image Intake Reference lookup. `GET /ImageIntake/{id}` calls the same detail query plus the receipt's VRM suggestions and, while the record holds no case association, the registration-matched eligible-case candidates; both are read-only authenticated staff pages.
+- `GET /Inbox` calls Core `ListRetainedMail` and `GetRetainedMailFreshness` for the mail workspace: retained messages newest first, scoped by mailbox and folder through the query string alone, with an explicit manual refresh that carries that scope. `GET /Inbox/{id}` calls `GetRetainedMail` for one retained message, its attachments, its retained-scope thread, and its current classification, queue, processing outcome and case association. Both are read-only: the pages carry no handler, and the Web runtime role holds `SELECT` alone on the retained-mail tables.
+- `GET /Received` calls Core `ListIntake` for the received-item record, which pages and counts at the store. `GET /Received/{id}` calls `GetIntake`, and its mutations call the named Core intake commands with a server-derived actor, expected versions or case lease, operation key, and reason as applicable. The page folder stays `Pages/Intake/`, which is the internal domain name; the route is the operator's name for the same thing.
+- `GET /Received/{id}/Source` calls Core `DownloadIntakeSource`, which authorises the current staff actor, resolves the receipt-owned source, validates retained length and SHA-256, and returns only a no-sniff attachment with a safe filename and content type.
+- `GET /VehicleImages` calls Core `IImageIntakeQueries` for the association-filtered image-intake receipt list and the exact Image Intake Reference lookup. `GET /VehicleImages/{id}` calls the same detail query plus the receipt's VRM suggestions and, while the record holds no case association, the registration-matched eligible-case candidates; both are read-only authenticated staff pages.
 - `/Triage` and `/Triage/{id}` are the physical list/detail owners for Core triage queries and commands. The former Development web evaluator is not an application caller; the separately owned desktop evaluator remains outside the Web runtime.
 - Anonymous request submission exists only at `/Uploads/{token}`. The PageModel calls `GetRequestUpload` and one `UploadToRequest` command, uses antiforgery and an idempotent operation key, and presents generic non-disclosing outcomes through PRG.
 - The Case documents surface still implements Box File Request create/revoke (`src/Pegasus.Web/Pages/Cases/Shared/_CaseDocuments.cshtml`). That mechanism is superseded by the operator decision in favour of request-scoped upload links (INT-31) and is pending removal; it must gain no new callers.
@@ -175,11 +176,14 @@ The current enforced resource limits are:
 | --- | --- |
 | ASP.NET Core multipart request | 10 MiB file allowance plus 64 KiB for the multipart envelope |
 | PageModel file | One file; 10 MiB |
+| Received mailbox message | One message, envelope and attachments together; 750 MiB |
 | PDF reader | 5,242,880 extracted characters; 512 discrete image objects; 100,000,000 decoded image-sample pixels; 25 MiB extracted image bytes; 30 seconds |
 | EML reader | Eight nested-message levels; 128 MIME entities; 25 MiB cumulatively decoded MIME bytes |
 | DOCX reader | 512 package entries; 50 MiB total uncompressed bytes; 10 MiB for each XML or relationship part; 25 MiB total image bytes |
 
 The multipart boundary is enforced before Core. Reader-limit outcomes remain visible and cannot allocate a case or reference.
+
+A received message and an uploaded file are bounded separately. The upload figure bounds one file arriving in one HTTP request; an instruction email carries the covering message plus the documents and photographs of the job, and the two shared one figure until a 16.7 MB QDOS instruction was refused unread on 2026-08-05. The mailbox figure is permissive by intent rather than a capacity claim: the reader limits above still apply to what it admits, the poll materialises a message in memory, and no mail transport carries anything near it — the practical ceiling is set by the Worker instance.
 
 ### Source reading and retained evidence
 
@@ -207,7 +211,7 @@ QDOS is the sole concrete extraction policy until another principal has approved
 - Strong instruction content may outrank a weak transport signal such as a staff-forwarding sender.
 - A QDOS-looking sender or filename alone creates neither a draft nor a principal suggestion.
 - The review surface shows classification evidence, ten field suggestions, missing values, conflicts, page-labelled extracted text, OCR-required state, and failure details.
-- When applicability and conversion are unambiguous, the ten typed instruction-draft values are shown read-only while original candidates and provenance remain available.
+- The typed instruction-draft values are read-only on the review surface. They are editable in one place, the create screen, where confirming them is part of creating the case; original candidates and provenance stay visible beside every box. A value a person keys becomes a candidate of its own, sourced to the staff correction, so the case records who said it.
 - An absent instruction date defaults from the receipt clock.
 - The test clock is fixed to 2031, so integration assertions use a 2031 default instruction date.
 
@@ -215,7 +219,7 @@ Suggestions and typed drafts are neither editable nor approved case records. Rec
 
 **Definitive authorised intake allocates its case at processing time.** The durable processing path calls `IAcceptIntake` itself for a receipt whose decision is `CaseCreated`: route accepted, extraction policy `Applicable`, case match not ambiguous, and a principal on the extracted draft. The case enters `Not ready` with nothing confirmed by a person, because thin ordinary detail is never a reason to withhold the reference. Allocation is replay-safe through the evaluation-scoped operation key and non-blocking — a failed allocation leaves material a person can still act on rather than failing a completed receipt.
 
-Two outcomes are deliberately withheld from the automatic path and wait for a person, which is the fail-closed boundary rather than a gate: an **ambiguous** case match or an unresolvable principal (`Needs sorting`), and **standalone Audit** work, whose case cannot be justified until its original-report evidence is confirmed. The staff acceptance form survives as the `Needs sorting` resolution path (`INT-26`), and `EfCaseAcceptanceStore` refuses every other decision, so the boundary does not depend on which caller asks.
+Two outcomes are deliberately withheld from the automatic path and wait for a person, which is the fail-closed boundary rather than a gate: an **ambiguous** case match or an unresolvable principal (`Needs sorting`), and **standalone Audit** work, whose case cannot be justified until its original-report evidence is confirmed. Both are resolved on the create screen (`INT-26`), which is the application's only staff caller of `IAcceptIntake`: it records the confirmed detail, settles the inspection address, confirms standalone Audit evidence and allocates the reference in one ordered sequence, each step taking the version the previous step returned. `EfCaseAcceptanceStore` applies `IntakeDecisionPolicy.CanBecomeCase` inside the transaction, so the boundary does not depend on which caller asks.
 
 ### Idempotency and persisted semantics
 
@@ -304,7 +308,7 @@ artifacts/local-development/default/intake
 
 This is local development evidence, not production Blob staging, Box custody, backup, or accepted recovery.
 
-There is no supported non-Development filesystem fallback: outside the DevelopmentOffline profile, intake artifacts live in Azure Blob, never on the local filesystem. The staff `/Intake` routes are served wherever intake is composed, including the Production runtime profile (composition merged; deployed state is owned by [operations § Production environment](operations.md#production-environment)); only the manual `ReceiveIntake` upload POST still requires the two Development gates and returns `404` otherwise. The current artifact port exposes store and read operations only; Pegasus has no receipt/artifact deletion API, backup command, or proved restore path. Test-harness cleanup and manual removal of an owned ignored run directory are not application deletion or recovery evidence.
+There is no supported non-Development filesystem fallback: outside the DevelopmentOffline profile, intake artifacts live in Azure Blob, never on the local filesystem. The staff `/Received` and `/Inbox` routes are served wherever intake is composed, including the Production runtime profile (composition merged; deployed state is owned by [operations § Production environment](operations.md#production-environment)), and return `404` everywhere else. The current artifact port exposes store and read operations only; Pegasus has no receipt/artifact deletion API, backup command, or proved restore path. Test-harness cleanup and manual removal of an owned ignored run directory are not application deletion or recovery evidence.
 
 The application retains the original source before recording a reviewable receipt:
 
@@ -365,10 +369,48 @@ Deferred capabilities retain only the stable identities and ports necessary for 
 
 The implemented Graph source feeds the existing provider-neutral intake and
 sent-evidence use cases through Worker. It must not copy receipt, extraction,
-categorisation, or workflow rules into Worker. Its production triggers are
-enabled and live-verified under exact Exchange Application RBAC; the current
-production state is owned by
+categorisation, or workflow rules into Worker.
+
+Which mailboxes inbound intake reads is Core-owned and database-backed: Core
+asks the approved-mailbox estate for the pollable mailboxes and iterates them,
+so the decision never sits in a Worker function or in an adapter. The sources
+are stateless with respect to the mailbox — every mailbox and folder identity
+comes from the lease, not from configuration closed over at composition — which
+is what lets one Graph client serve the whole estate. Each mailbox holds its own
+lease, its own cursor, and its own last-failure code, so a mailbox that fails is
+released alone and the rest of the tick continues
+([ADR-0022](adr/0022-approved-mailbox-identity-and-enablement-database-setting.md)).
+Sent-evidence polling remains configuration-driven for one mailbox.
+
+The poll also writes a retained-message read model — mailbox, folder scope,
+immutable and conversation identities, sender, recipients, subject, received
+time, excerpt, attachment names, media types and decoded sizes, and read state
+— which is what the `/Inbox` workspace displays. It is written once, between
+the accepted `ReceiveIntake` and the cursor advance, and never updated: a
+redelivery is refused by the unique index on mailbox and message identity, so
+what the row records is what arrived. The Worker holds `SELECT, INSERT` on
+those tables and Web holds `SELECT` alone.
+
+That read model stores `BodyPlainText`, not only the excerpt. The alternative —
+re-reading the retained MIME artifact on every view, or waiting for the
+processed receipt's evidence — leaves the viewer blank exactly where it is most
+needed: on a workstation with no Worker running, nothing has processed the
+message, and re-reading the artifact per view puts a blob fetch and a MIME
+parse on the read path of a list-and-detail screen. The body is already
+flattened inert text when it is written, so it is stored as the text it will be
+rendered as. Message-level retention starts from the tick that first wrote it;
+nothing backfills earlier mail, and the list surfaces that gap rather than
+presenting an empty scope as "nothing was received"
+([open decisions](open-decisions.md#mail-workspace-freshness-threshold-and-retention-start)).
+
+The Graph mailbox intake route's production triggers are enabled and
+live-verified under exact Exchange Application RBAC; the current production
+state is owned by
 [operations § Production environment](operations.md#production-environment).
+That verification predates the administrator-managed estate and the
+retained-message read model described above, and does not extend to them: both
+are proven at local-caller tier only, and neither has run against a deployed
+environment.
 
 Its adapter boundary provides:
 
@@ -389,7 +431,7 @@ A first Document Intelligence caller may submit only persisted scan-like PDF pag
 
 Provider API and Automation MCP are separate Web ingress boundaries. They must invoke the same Core business actions as staff UI or Worker callers rather than introducing parallel policy engines. The provider API's exact client, actor, authentication, and activation evidence remain separately gated.
 
-The Automation MCP ingress is implemented in `Pegasus.Web` per ADR-0011, ADR-0013 clause 10, and ADR-0021: `ActorKind.Automation` is a Core actor granted exactly the ordinary casework surface (every administration, system-work, and request-upload right is denied and unknown rights fail closed), one seeded OpenIddict client-credentials registration authenticates the single vendor-neutral Automation client, and a streamable-HTTP MCP endpoint at `/mcp` exposes fourteen tools wrapping existing Core case, intake-queue, document, and assessment use cases with per-area scopes (`automation.cases`, `automation.intake`, `automation.documents`, `automation.assessment`). Automation writes are direct writes with logging parity: they present the same edit lease, operation-key replay, and version guard as staff saves, their assessment values are stored unconfirmed for review at manual engineer assignment, professional-finding confirmation stays staff-Engineer-only, and no confirmation, report-approval, or outward-dispatch tool exists. Every tool invocation and material denial is attributable permanent history. The whole surface registers only when `Features:AutomationMcp` enables it in the DevelopmentOffline profile; production exposure and any live caller remain separately approved activation work.
+The Automation MCP ingress is implemented in `Pegasus.Web` per ADR-0011, ADR-0013 clause 10, and ADR-0021: `ActorKind.Automation` is a Core actor granted exactly the ordinary casework surface (every administration, system-work, and request-upload right is denied and unknown rights fail closed), one seeded OpenIddict client-credentials registration authenticates the single vendor-neutral Automation client, and a streamable-HTTP MCP endpoint at `/mcp` exposes fifteen tools wrapping existing Core case, intake-queue, document, and assessment use cases with per-area scopes (`automation.cases`, `automation.intake`, `automation.documents`, `automation.assessment`). Automation writes are direct writes with logging parity: they present the same edit lease, operation-key replay, and version guard as staff saves, they renew that lease through the same Core use case as the staff renew control rather than re-claiming, their assessment values are stored unconfirmed for review at manual engineer assignment, professional-finding confirmation stays staff-Engineer-only, and no confirmation, report-approval, or outward-dispatch tool exists. Every tool invocation and material denial is attributable permanent history. The whole surface registers only when `Features:AutomationMcp` enables it in the DevelopmentOffline profile; production exposure and any live caller remain separately approved activation work.
 
 The Send to AI hand-off (AI-09, ADR-0021) is a second gated boundary beside it: `Pegasus.Core` owns the work-request lifecycle (`AiWork`), `Pegasus.Web` composes the loopback channel transport behind `Features:SendToAi` (DevelopmentOffline only), and the channel carries operator chat only — a case-reference pointer and short instruction out, a short confirmation reply back. Business content returns exclusively through the Automation MCP ingress above; the external channel connector is a non-owned client, never a policy owner, and never part of any deployment.
 
@@ -500,7 +542,7 @@ Development configuration selects:
 
 The `--migrate-development` process validates the local-only profile, applies the committed migration stream, prints completion, and exits. The Web host must then be started separately.
 
-The manual-upload intake handler is deny-by-default: it returns `404` unless both the DevelopmentOffline runtime profile and local-intake feature gate are active. The staff `/Intake` routes themselves are served wherever intake is composed.
+The staff `/Received` and `/Inbox` routes are served wherever intake is composed and return `404` everywhere else. Manual upload has its own `/Upload` page and no longer runs through a separately gated handler on the received-item list.
 
 ## Implementation map
 
@@ -519,11 +561,15 @@ The manual-upload intake handler is deny-by-default: it returns `404` unless bot
 | EF image-intake persistence | `src/Pegasus.Infrastructure/Persistence/EfImageIntakeStore.cs` |
 | Database model and migrations | `src/Pegasus.Infrastructure/Persistence/PegasusDbContext.cs`, `src/Pegasus.Infrastructure/Persistence/Migrations/` |
 | Web composition, feature gates and route safety | `src/Pegasus.Web/Program.cs` |
-| Canonical Intake callers | `src/Pegasus.Web/Pages/Intake/Index.cshtml.cs`, `src/Pegasus.Web/Pages/Intake/Details.cshtml.cs`, `src/Pegasus.Web/Pages/Intake/Source.cshtml.cs` |
+| Core retained-mail read model, use cases and freshness policy | `src/Pegasus.Core/Intake/RetainedMail.cs` |
+| EF retained-mail store (poll write path and workspace read path) | `src/Pegasus.Infrastructure/Persistence/EfRetainedMailboxMessageStore.cs` |
+| Canonical received-item callers (`/Received`) | `src/Pegasus.Web/Pages/Intake/Index.cshtml.cs`, `src/Pegasus.Web/Pages/Intake/Details.cshtml.cs`, `src/Pegasus.Web/Pages/Intake/Source.cshtml.cs` |
+| Canonical mail-workspace callers (`/Inbox`) | `src/Pegasus.Web/Pages/Mail/Index.cshtml.cs`, `src/Pegasus.Web/Pages/Mail/Message.cshtml.cs` |
 | Canonical Triage and public-upload callers | `src/Pegasus.Web/Pages/Triage/`, `src/Pegasus.Web/Pages/Uploads/Request.cshtml.cs` |
 | Genuine-input Web evidence | `tests/Pegasus.IntegrationTests/QdosIntakeWebTests.cs` |
 | Route-denial evidence | `tests/Pegasus.IntegrationTests/LocalIntakeAccessTests.cs` |
 | Stable persistence and unsupported-source evidence | `tests/Pegasus.IntegrationTests/IntakeStablePersistenceTests.cs` |
+| Retained-mail persistence and mail-workspace Web evidence | `tests/Pegasus.IntegrationTests/RetainedMailPersistenceTests.cs`, `tests/Pegasus.IntegrationTests/MailWorkspaceWebTests.cs` |
 | LocalDB migration, concurrency, rollback, and retry evidence | `tests/Pegasus.IntegrationTests/IntakePersistenceIntegrationTests.cs` |
 | Dependency-direction evidence | `tests/Pegasus.ArchitectureTests/DependencyDirectionTests.cs` |
 

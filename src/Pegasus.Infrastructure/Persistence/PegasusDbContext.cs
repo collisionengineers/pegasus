@@ -87,6 +87,10 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         Set<ApprovedInboxPollStateEntity>();
     internal DbSet<ApprovedInboxPoisonMessageEntity> ApprovedInboxPoisonMessages =>
         Set<ApprovedInboxPoisonMessageEntity>();
+    internal DbSet<RetainedMailboxMessageEntity> RetainedMailboxMessages =>
+        Set<RetainedMailboxMessageEntity>();
+    internal DbSet<RetainedMailboxAttachmentEntity> RetainedMailboxAttachments =>
+        Set<RetainedMailboxAttachmentEntity>();
     internal DbSet<ApprovedSentPollStateEntity> ApprovedSentPollStates =>
         Set<ApprovedSentPollStateEntity>();
     internal DbSet<ApprovedSentPollOutcomeEntity> ApprovedSentPollOutcomes =>
