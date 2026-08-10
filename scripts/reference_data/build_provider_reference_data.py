@@ -18,7 +18,8 @@ from xml.etree import ElementTree
 
 SCHEMA_VERSION = 1
 SHEET_NAME = "Sheet1"
-BOOTSTRAP_SOURCE = Path("docs/reference/workproviders-and-repairers/initial.xlsx")
+BOOTSTRAP_SOURCE = Path("reference/workproviders-and-repairers/initial.xlsx")
+BOOTSTRAP_PUBLISHED_SOURCE = "docs/reference/workproviders-and-repairers/initial.xlsx"
 BOOTSTRAP_SOURCE_SHA256 = "e4bf89b0aeef3f1106bf34ed50f74dffc44c5ed748e0ad0811b66ee099b6cd29"
 BOOTSTRAP_VERSION = "provider-domains-v1"
 BOOTSTRAP_OUTPUT = Path(
@@ -146,7 +147,7 @@ def ensure_safe_paths(
     if previous_package_path is not None:
         repository_relative(previous_package_path, repository_root)
 
-    immutable_root = (repository_root / "docs/reference").resolve()
+    immutable_root = (repository_root / "reference").resolve()
     if is_within(package_path, immutable_root) or is_within(staging_root, immutable_root):
         raise AuthoringError("output-collision", "output-under-reference", source=source_name)
 
@@ -354,7 +355,11 @@ def extract_domain_suffix(token: str, source_name: str, row_number: int, code: s
 
 
 def parse_source(
-    source_path: Path, source_name: str, source_hash: str, version: str
+    source_path: Path,
+    source_name: str,
+    source_hash: str,
+    version: str,
+    package_source_name: str | None = None,
 ) -> dict[str, Any]:
     try:
         with zipfile.ZipFile(source_path, "r") as archive:
@@ -489,7 +494,10 @@ def parse_source(
         "schemaVersion": SCHEMA_VERSION,
         "version": version,
         "source": {
-            "path": source_name,
+            # A published package records immutable source provenance. The
+            # physical workbook may later move without republishing that
+            # package version under different bytes.
+            "path": package_source_name or source_name,
             "contentSha256": source_hash,
             "sheet": SHEET_NAME,
             "rowCount": highest_contract_row,
@@ -691,7 +699,13 @@ def main() -> int:
     elif bootstrap:
         raise AuthoringError("source-contract", "bootstrap-does-not-accept-previous", source=source_name)
 
-    package = parse_source(source_path, source_name, source_hash, args.version)
+    package = parse_source(
+        source_path,
+        source_name,
+        source_hash,
+        args.version,
+        BOOTSTRAP_PUBLISHED_SOURCE if bootstrap else source_name,
+    )
     validate_package_object(package, source_name)
 
     if previous_package_path is not None:

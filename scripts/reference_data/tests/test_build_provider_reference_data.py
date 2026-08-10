@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import importlib.util
+import json
 import os
 from pathlib import Path
 import shutil
@@ -14,7 +15,7 @@ import zipfile
 from xml.sax.saxutils import escape
 
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 GENERATOR_PATH = REPOSITORY_ROOT / "scripts/reference_data/build_provider_reference_data.py"
 WRAPPER_PATH = REPOSITORY_ROOT / "scripts/Build-ProviderReferenceData.ps1"
 SPEC = importlib.util.spec_from_file_location("provider_reference_generator", GENERATOR_PATH)
@@ -25,6 +26,42 @@ SPEC.loader.exec_module(GENERATOR)
 
 
 class ProviderReferenceGeneratorTests(unittest.TestCase):
+    def test_bootstrap_moved_source_verifies_published_v1_without_republication(self) -> None:
+        source_path = REPOSITORY_ROOT / GENERATOR.BOOTSTRAP_SOURCE
+        package_path = REPOSITORY_ROOT / GENERATOR.BOOTSTRAP_OUTPUT
+        package_before = package_path.read_bytes()
+        package = json.loads(package_before)
+
+        self.assertEqual(
+            GENERATOR.BOOTSTRAP_PUBLISHED_SOURCE,
+            package["source"]["path"],
+        )
+        self.assertNotEqual(
+            GENERATOR.BOOTSTRAP_SOURCE.as_posix(),
+            GENERATOR.BOOTSTRAP_PUBLISHED_SOURCE,
+        )
+        self.assertEqual(
+            GENERATOR.BOOTSTRAP_SOURCE_SHA256,
+            hashlib.sha256(source_path.read_bytes()).hexdigest(),
+        )
+
+        artifacts = REPOSITORY_ROOT / "artifacts"
+        artifacts.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=artifacts) as temporary_directory:
+            result = self._run_generator(
+                REPOSITORY_ROOT,
+                source_path,
+                GENERATOR.BOOTSTRAP_VERSION,
+                package_path,
+                None,
+                Path(temporary_directory) / "staging",
+                verify=True,
+            )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("status=verified", result.stdout)
+        self.assertEqual(package_before, package_path.read_bytes())
+
     def test_additive_workbook_growth_preserves_v1_and_rejects_mapping_removal(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
@@ -305,6 +342,8 @@ class ProviderReferenceGeneratorTests(unittest.TestCase):
         output: Path,
         previous: Path | None,
         staging: Path,
+        *,
+        verify: bool = False,
     ) -> subprocess.CompletedProcess[str]:
         arguments = [
             sys.executable,
@@ -322,6 +361,8 @@ class ProviderReferenceGeneratorTests(unittest.TestCase):
         ]
         if previous is not None:
             arguments.extend(("--previous-package-path", str(previous)))
+        if verify:
+            arguments.append("--verify")
         return subprocess.run(
             arguments,
             cwd=root,

@@ -7,45 +7,35 @@ the authority rule.
 
 ## Planning process
 
-- [`NOW.md`](NOW.md) is the only work tracker and the multi-agent queue; its
-  authoritative copy is `origin/dev`'s. [Capabilities](docs/capabilities.md)
-  is the roadmap; [open decisions](docs/open-decisions.md) holds unresolved
-  questions; [ADRs](docs/adr/README.md) hold durable technical decisions.
-- Work is taken, not assigned: claim a `NOW.md` task line with a NOW.md-only
-  push to `dev`, work it in a worktree at `../pegasus-worktrees/<slug>` on
-  branch `task/<slug>`, record the plan as `docs/temp-plans/<slug>.md`, PR
-  into `dev`, and merge after an independent plan review and green CI. The
-  full protocol is owned by
-  [engineering](docs/engineering.md#task-workflow).
-- No GitHub issues, labels, milestones, or project boards. Mid-work ideas
-  become one line in the right file, then return to the work at hand.
-- New Markdown files are created only as ADRs or transient
-  `docs/temp-plans/<task-slug>.md` plans; everything else edits an existing
-  canonical file (see the index).
+- [`NOW.md`](NOW.md) is the multi-agent queue; its rules footer owns tracking,
+  claim, and staleness policy. [Capabilities](docs/capabilities.md) is the
+  roadmap; [open decisions](docs/open-decisions.md) holds unresolved questions;
+  [ADRs](docs/adr/README.md) hold durable technical decisions.
+- Claims, worktrees, plans, reviews, merge authority, tracking boundaries, and
+  every Git safety allowance or prohibition are owned by the
+  [engineering task workflow](docs/engineering.md#task-workflow).
+- New Markdown placement is owned by the
+  [documentation index](docs/index.md#new-markdown-files).
 - Prove the actual caller — a registration, a green build, and a deployed
   feature are different claims (evidence tiers:
-  [operations](docs/operations.md#required-evidence-tiers)).
+  [engineering](docs/engineering.md#required-evidence-tiers)).
 
 ## Safety rails
 
 - Work with PowerShell 7 on Windows or Linux, one platform per workstation;
   tracked commands and paths are repository-relative and use forward slashes.
   Platform differences are owned by
-  [operations](docs/operations.md#supported-platform).
+  [the runbook](docs/runbook.md#supported-platform).
 - Canonical local verification: `dotnet restore`, `dotnet build --configuration
-  Release`, and focused/full `dotnet test`.
-- Preserve work that is not yours. Allowed: discarding your own unpushed
-  commits in your own task worktree, merging `origin/dev` into your own task
-  branch, merging your green and reviewed task PR into `dev`, deleting your
-  own merged `task/*` branch and worktree, and maintenance pushes to `dev`
-  limited to `NOW.md` task lines and `docs/temp-plans/` deletions. Still
-  banned: force-pushing anywhere, rewriting `dev` or `main`, stash/reset/
-  clean touching anyone else's work, and broadening staging. Merging `dev`
-  into `main` (the active deployment) only when the operator states
-  `MERGE AUTH GRANTED` in their prompt.
+  Release`, and focused/full `dotnet test`; exact profiles are owned by the
+  [runbook](docs/runbook.md#locked-restore-build-and-test).
+- Preserve work that is not yours. The single authoritative allowed/banned
+  operation list is in the
+  [engineering task workflow](docs/engineering.md#task-workflow).
 - Cloud reads and every Azure, deployment, credential, account, destructive, or
   external write require explicit approval for exact targets. Never delete
-  `rg-collisionspike-dev` as a first step.
+  `rg-collisionspike-dev` as a first step. The approval matrix is owned by the
+  [runbook](docs/runbook.md#live-operation-approval-matrix).
 - `docs/operator-notes.md` is authoritative operator truth: preserve every
   material business statement and stop for user resolution before changing
   meaning. Supplied references and the predecessor are evidence, not
