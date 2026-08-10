@@ -721,13 +721,458 @@ Controlled synthetic fixtures may prove protocols, security controls, and resour
 | Action | Exact scope required | Required approval and evidence |
 | --- | --- | --- |
 | Use an Azure service | Subscription, resource group, resource, operation | Explicit mutation/cost approval, fresh inventory, least-privilege identity |
-| Read or change an Outlook mailbox | Tenant, application, mailbox, folder, action | Exchange Application RBAC approval and negative scope test before the Graph call |
+| Read or change an Outlook mailbox | Tenant, application, mailbox, folder, action | Exchange Application RBAC, or a separately approved named-operator delegated folder grant; always prove the non-target negative scope before the Graph call |
 | Use Box or another vendor sandbox | Enterprise/account, folder/project, operation | Credential/data approval and controlled non-corpus input |
 | Use the approved Box integration-test target | Folder `392761581105`; local or explicitly approved non-production deployment; create and update controlled non-corpus artifacts only | Approved disposable test subtree; no delete, move, copy, share, broader folder access, or credential exposure; production case custody belongs only to the activated production caller under the decided root `405543781910` |
 | Send a document to OCR, vision, AI, or another processor | Service, region, model, input class | Data, licence, cost, and security approval; corpus remains prohibited unless separately authorised |
 | Deploy, restore, fail over, or retire | Exact environment (isolated local development or production only, per ADR-0014) and recoverable target | Explicit operation approval for the exact target, fresh inventory, rollback path, retained source data |
 
 Offline profiles contain no live credentials. A selected live profile must require an allowlisted tenant, subscription, account, mailbox, folder, resource, and action, and reject missing or broader scope before constructing the external client.
+
+## Production intake clean baseline
+
+This is a future Ticket 3 production procedure. Merging or approving the
+tooling ticket or PR does **not** authorize any grant, readback, cleanup, or
+production execution. Each administrative mutation needs exact-target
+authority, then `Execute` needs a second approval naming the generated
+manifest SHA-256. Keep all nine Worker functions disabled throughout the
+operation.
+
+The maintenance boundary is deliberately narrow:
+
+- named operator `digital@collisionengineers.co.uk`, interactive MFA, exact
+  tenant, and a dedicated credential-free Entra public client;
+- delegated `Mail.Read.Shared` plus Exchange `Reviewer` on only
+  `instructions@collisionengineers.co.uk:\Inbox`; no application Mail
+  permission, Full Access, Send As, Send on Behalf, edit, or delete grant;
+- SQL `public`, `db_datareader`, and `db_datawriter` only, on database
+  `pegasus` at `pegasus-prod-sql-252ow37gij.database.windows.net`;
+- direct Storage Blob Data Contributor and Storage Queue Data Contributor
+  assignments only, on storage account `pegcustody252ow37gij`; and
+- no tenant directory role, subscription Owner/Contributor, inherited or
+  unknown Azure assignment, Blob Data Owner, storage-key action, application
+  password/certificate, managed identity, or Worker impersonation.
+
+Cases/POs, Triage, Principals, organisations, users, custody records, Box
+objects, Sent-mail evidence, and every other retained business record are
+never cleanup targets. Outlook content is never moved, marked read,
+categorized, edited, or deleted. A blocked SQL network path is a stop
+condition; do not add or change a firewall rule without separate authority for
+the exact address, duration, and removal readback.
+
+### Gate 1: administrative onboarding and independent readback
+
+Run this gate only from the separately authorised Ticket 3 administrator
+session. It is not the maintenance-operator session. The public-client,
+permission, Exchange, Azure RBAC, and SQL forms below follow the current
+[Azure CLI public-client](https://learn.microsoft.com/en-us/cli/azure/ad/app),
+[delegated-permission](https://learn.microsoft.com/en-us/cli/azure/ad/app/permission),
+[Azure RBAC](https://learn.microsoft.com/en-us/cli/azure/role/assignment), and
+[Exchange folder-permission](https://learn.microsoft.com/en-us/powershell/module/exchangepowershell/add-mailboxfolderpermission)
+contracts. `Reviewer` means FolderVisible plus ReadItems; it grants no item
+creation, editing, or deletion.
+
+Set and inspect the exact targets before any write:
+
+```powershell
+$taskTenantId = '858cf5b3-aa0a-47a6-9b40-4851fd0afa94'
+$taskSubscriptionId = 'e6076573-23a5-46a8-acef-7e22d264e5db'
+$taskResourceGroup = 'rg-pegasus-prod'
+$taskSqlServer = 'pegasus-prod-sql-252ow37gij.database.windows.net'
+$taskSqlDatabase = 'pegasus'
+$taskStorageAccount = 'pegcustody252ow37gij'
+$taskMailbox = 'instructions@collisionengineers.co.uk'
+$taskNonTargetMailbox = '<separately-approved-existing-non-target-mailbox>'
+$taskOperatorUpn = 'digital@collisionengineers.co.uk'
+$taskStorageScope = "/subscriptions/$taskSubscriptionId/resourceGroups/$taskResourceGroup/providers/Microsoft.Storage/storageAccounts/$taskStorageAccount"
+
+az login --tenant $taskTenantId
+az account set --subscription $taskSubscriptionId
+az account show --query '{tenantId:tenantId,subscriptionId:id,name:name}' --output json
+$taskOperatorObjectId = az ad user show --id $taskOperatorUpn --query id --output tsv
+```
+
+After exact mutation approval, create the dedicated public client and add only
+the three delegated permissions. Resolve permission IDs from the tenant rather
+than copying mutable IDs into the procedure:
+
+```powershell
+$taskApplication = az ad app create `
+  --display-name 'Pegasus production intake maintenance' `
+  --sign-in-audience AzureADMyOrg `
+  --is-fallback-public-client true `
+  --public-client-redirect-uris 'http://localhost' | ConvertFrom-Json
+$taskPublicClientId = $taskApplication.appId
+az ad sp create --id $taskPublicClientId | Out-Null
+
+$taskPermissions = @(
+  @{ Resource = '00000003-0000-0000-c000-000000000000'; Value = 'Mail.Read.Shared' },
+  @{ Resource = '022907d3-0f1b-48f7-badc-1ba6abab6d66'; Value = 'user_impersonation' },
+  @{ Resource = 'e406a681-f3d4-42a8-90b6-c2b029497af1'; Value = 'user_impersonation' }
+)
+foreach ($taskPermission in $taskPermissions) {
+  $taskResourceSp = az ad sp show --id $taskPermission.Resource | ConvertFrom-Json
+  $taskScopeId = ($taskResourceSp.oauth2PermissionScopes |
+      Where-Object value -eq $taskPermission.Value).id
+  if (@($taskScopeId).Count -ne 1) { throw "Delegated scope resolution was not unique." }
+  az ad app permission add --id $taskPublicClientId `
+    --api $taskPermission.Resource --api-permissions "$taskScopeId=Scope"
+}
+az ad app permission admin-consent --id $taskPublicClientId
+```
+
+Apply only the exact Exchange folder, SQL database, and storage-account data
+roles. Never add a client credential or control-plane Reader merely to make
+the operator self-census:
+
+```powershell
+Connect-ExchangeOnline
+Add-MailboxFolderPermission `
+  -Identity "${taskMailbox}:\Inbox" `
+  -User $taskOperatorUpn `
+  -AccessRights Reviewer
+
+$taskSqlAdminToken = (az account get-access-token `
+  --resource 'https://database.windows.net/' | ConvertFrom-Json).accessToken
+$taskSqlGrant = @'
+IF DATABASE_NAME() <> N'pegasus' THROW 50001, 'Wrong database', 1;
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'digital@collisionengineers.co.uk')
+    CREATE USER [digital@collisionengineers.co.uk] FROM EXTERNAL PROVIDER;
+ALTER ROLE db_datareader ADD MEMBER [digital@collisionengineers.co.uk];
+ALTER ROLE db_datawriter ADD MEMBER [digital@collisionengineers.co.uk];
+'@
+Invoke-Sqlcmd -ServerInstance $taskSqlServer -Database $taskSqlDatabase `
+  -AccessToken $taskSqlAdminToken -Query $taskSqlGrant
+Remove-Variable taskSqlAdminToken
+
+az role assignment create --assignee-object-id $taskOperatorObjectId `
+  --assignee-principal-type User --role 'Storage Blob Data Contributor' `
+  --scope $taskStorageScope
+az role assignment create --assignee-object-id $taskOperatorObjectId `
+  --assignee-principal-type User --role 'Storage Queue Data Contributor' `
+  --scope $taskStorageScope
+```
+
+The administrator must then create one fresh content-safe role-evidence file.
+It is a complete census, not a statement that the grants were attempted. The
+commands below must stop if any query is incomplete or paginated; do not omit
+an unexpected result to make validation pass.
+
+```powershell
+$taskApplication = az ad app show --id $taskPublicClientId | ConvertFrom-Json
+$taskDelegated = foreach ($taskResource in $taskApplication.requiredResourceAccess) {
+  $taskResourceSp = az ad sp show --id $taskResource.resourceAppId | ConvertFrom-Json
+  foreach ($taskAccess in $taskResource.resourceAccess) {
+    if ($taskAccess.type -ne 'Scope') { throw 'Application permission found.' }
+    $taskResolved = @($taskResourceSp.oauth2PermissionScopes |
+      Where-Object id -eq $taskAccess.id)
+    if ($taskResolved.Count -ne 1) { throw 'Unknown delegated permission found.' }
+    [pscustomobject]@{
+      resourceApplicationId = $taskResource.resourceAppId
+      permission = $taskResolved[0].value
+    }
+  }
+}
+
+$taskDirectoryResponse = az rest --method get --url `
+  "https://graph.microsoft.com/v1.0/users/$taskOperatorObjectId/transitiveMemberOf/microsoft.graph.directoryRole?`$select=displayName,roleTemplateId" |
+  ConvertFrom-Json
+if ($taskDirectoryResponse.'@odata.nextLink') { throw 'Directory-role census was paginated.' }
+$taskDirectoryRoles = @($taskDirectoryResponse.value | ForEach-Object {
+  [pscustomobject]@{ roleTemplateId = $_.roleTemplateId; roleName = $_.displayName }
+})
+
+$taskFolder = Get-MailboxFolderPermission `
+  -Identity "${taskMailbox}:\Inbox" -User $taskOperatorUpn
+$taskSendAs = @(Get-RecipientPermission -Identity $taskMailbox `
+  -Trustee $taskOperatorUpn -ErrorAction SilentlyContinue |
+  Where-Object AccessRights -contains 'SendAs')
+$taskFullAccess = @(Get-MailboxPermission -Identity $taskMailbox `
+  -User $taskOperatorUpn -ErrorAction SilentlyContinue |
+  Where-Object { -not $_.Deny -and $_.AccessRights -contains 'FullAccess' })
+$taskMailboxObject = Get-Mailbox -Identity $taskMailbox
+$taskNonTargetMailboxObject = Get-Mailbox -Identity $taskNonTargetMailbox -ErrorAction Stop
+if ($taskNonTargetMailboxObject.PrimarySmtpAddress.ToString() -ine $taskNonTargetMailbox) {
+  throw 'The approved non-target mailbox identity did not resolve exactly.'
+}
+$taskSendOnBehalf = @($taskMailboxObject.GrantSendOnBehalfTo | ForEach-Object {
+  Get-Recipient -Identity $_ -ErrorAction Stop
+} | Where-Object PrimarySmtpAddress -eq $taskOperatorUpn)
+
+$taskAssignments = @(az role assignment list --assignee $taskOperatorObjectId `
+  --scope $taskStorageScope --all --include-groups --include-inherited |
+  ConvertFrom-Json)
+$taskRoleDefinitions = @($taskAssignments | ForEach-Object {
+  $taskRoleId = [guid]($_.roleDefinitionId.TrimEnd('/').Split('/')[-1])
+  $taskDefinition = @(az role definition list --name $taskRoleId --scope $taskStorageScope |
+    ConvertFrom-Json)
+  if ($taskDefinition.Count -ne 1) { throw 'Role definition readback was not unique.' }
+  [pscustomobject]@{
+    roleDefinitionId = $taskRoleId
+    roleName = $taskDefinition[0].roleName
+    actions = @($taskDefinition[0].permissions.actions)
+    dataActions = @($taskDefinition[0].permissions.dataActions)
+  }
+})
+
+$taskSqlAdminToken = (az account get-access-token `
+  --resource 'https://database.windows.net/' | ConvertFrom-Json).accessToken
+$taskSqlCensus = @'
+SELECT r.name
+FROM sys.database_role_members drm
+JOIN sys.database_principals r ON r.principal_id = drm.role_principal_id
+JOIN sys.database_principals m ON m.principal_id = drm.member_principal_id
+WHERE m.name = N'digital@collisionengineers.co.uk'
+UNION ALL SELECT N'public'
+ORDER BY name;
+'@
+$taskSqlRoles = @(Invoke-Sqlcmd -ServerInstance $taskSqlServer `
+  -Database $taskSqlDatabase -AccessToken $taskSqlAdminToken `
+  -Query $taskSqlCensus | Select-Object -ExpandProperty name)
+Remove-Variable taskSqlAdminToken
+
+$taskEvidenceDirectory = 'artifacts/operations/intake-clean-baseline'
+New-Item -ItemType Directory -Force -Path $taskEvidenceDirectory | Out-Null
+$taskEvidencePath = Join-Path $taskEvidenceDirectory 'role-evidence.json'
+$taskEvidence = [ordered]@{
+  schemaVersion = 1
+  tenantId = $taskTenantId
+  subscriptionId = $taskSubscriptionId
+  operatorObjectId = $taskOperatorObjectId
+  operatorUpn = $taskOperatorUpn
+  publicClientId = $taskPublicClientId
+  resourceGroup = $taskResourceGroup
+  sqlServer = $taskSqlServer
+  sqlDatabase = $taskSqlDatabase
+  storageAccount = $taskStorageAccount
+  capturedAtUtc = [datetimeoffset]::UtcNow.ToString('O')
+  publicClient = [ordered]@{
+    isPublicClient = [bool]$taskApplication.isFallbackPublicClient
+    passwordCredentialCount = @($taskApplication.passwordCredentials).Count
+    keyCredentialCount = @($taskApplication.keyCredentials).Count
+    delegatedPermissions = @($taskDelegated)
+  }
+  mailbox = [ordered]@{
+    mailboxIdentity = $taskMailbox
+    inboxFolderIdentity = 'inbox'
+    nonTargetMailboxIdentity = $taskNonTargetMailbox
+    accessRights = (@($taskFolder.AccessRights) -join ',')
+    canSendAs = $taskSendAs.Count -ne 0
+    canSendOnBehalf = $taskSendOnBehalf.Count -ne 0
+    canDeleteItems = $taskFullAccess.Count -ne 0 -or
+      (@($taskFolder.AccessRights) -join ',') -match 'Delete|Editor|Owner|Author'
+  }
+  directoryRoles = @($taskDirectoryRoles)
+  sqlRoles = @($taskSqlRoles)
+  roleAssignments = @($taskAssignments | ForEach-Object {
+    [ordered]@{
+      principalId = $_.principalId
+      roleName = $_.roleDefinitionName
+      roleDefinitionId = $_.roleDefinitionId
+      scope = $_.scope
+      inherited = -not $_.scope.Equals($taskStorageScope, [StringComparison]::OrdinalIgnoreCase)
+      principalKind = $_.principalType
+    }
+  })
+  roleDefinitions = @($taskRoleDefinitions)
+}
+$taskEvidence | ConvertTo-Json -Depth 12 |
+  Set-Content -LiteralPath $taskEvidencePath -Encoding utf8NoBOM
+$taskEvidenceSha256 = (Get-FileHash -LiteralPath $taskEvidencePath -Algorithm SHA256).Hash.ToLowerInvariant()
+[pscustomobject]@{ path = $taskEvidencePath; sha256 = $taskEvidenceSha256 }
+```
+
+The artifact must remain ignored and local. It contains identities, scopes,
+role names/IDs, counts, and booleans only—never tokens, keys, credential
+values, message content, SQL row content, or Graph delta links. It expires
+after four hours. The validator rejects a hash mismatch; a wrong identity or
+target; any missing, duplicate, inherited, unknown, stale, or renamed role;
+any directory role; anything beyond the exact three delegated permissions;
+application credentials; mailbox send/delete capability; SQL `db_owner`; and
+any role definition able to list storage keys.
+
+### Gate 2: named-operator access validation
+
+Close the administrator session. From a fresh terminal, the named operator
+must run `ValidateAccess`; the tool itself opens interactive MFA for the exact
+public client. It first validates the local evidence and hash before external
+client construction. It then independently proves the live SQL roles, Blob
+container read, all exact queue reads, exact Inbox read, and denial of a
+separately approved non-target mailbox. It never calls ARM and never requests
+a storage key.
+
+```powershell
+$taskCommon = @{
+  TenantId = '858cf5b3-aa0a-47a6-9b40-4851fd0afa94'
+  SubscriptionId = 'e6076573-23a5-46a8-acef-7e22d264e5db'
+  ResourceGroup = 'rg-pegasus-prod'
+  SqlServer = 'pegasus-prod-sql-252ow37gij.database.windows.net'
+  SqlDatabase = 'pegasus'
+  StorageAccount = 'pegcustody252ow37gij'
+  BlobContainer = 'transient-intake'
+  MailboxIdentity = 'instructions@collisionengineers.co.uk'
+  InboxFolderIdentity = 'inbox'
+  NonTargetMailboxIdentity = '<separately-approved-non-target-mailbox>'
+  OperatorUpn = 'digital@collisionengineers.co.uk'
+  PublicClientId = '<dedicated-public-client-application-id>'
+  AccessEvidencePath = 'artifacts/operations/intake-clean-baseline/role-evidence.json'
+  AccessEvidenceSha256 = '<administrator-readback-sha256>'
+}
+./scripts/Invoke-ProductionIntakeCleanBaseline.ps1 `
+  -Operation ValidateAccess @taskCommon
+```
+
+Stop on every non-`validated` result. The output is a content-safe census and
+capability result, not authorization to clean data. Validation requires the
+approved existing non-target mailbox to return 403, and sends conditional
+delete requests only to deliberately absent Blob/message identities. Those
+non-mutating probes distinguish delete authorization from read-only access.
+
+### Gate 3: read-only Plan and exact-manifest approval
+
+Record a UTC cutoff strictly before any intended post-activation intake. `Plan`
+reads SQL metadata/rows, exact Blob properties, bounded queue peeks, and the
+current poll-cursor hash. It does not call Graph baseline acquisition and does
+not mutate production.
+
+```powershell
+$taskManifestPath = 'artifacts/operations/intake-clean-baseline/manifest.json'
+$taskReceiptPath = 'artifacts/operations/intake-clean-baseline/execution.json'
+./scripts/Invoke-ProductionIntakeCleanBaseline.ps1 -Operation Plan @taskCommon `
+  -PreTestCutoffUtc '<approved-utc-cutoff>' `
+  -ManifestPath $taskManifestPath
+```
+
+Review the manifest outside the execution terminal. It contains only exact row
+table/key/version hashes, exact Blob name/ETag/length/content hash and reference
+counts, exact queue/message/body hashes, retained-record fingerprints,
+poll-cursor hash, stop conditions, snapshot hash, and the access-census hash.
+It never contains row contents, message bodies, tokens, or delta links. Stop
+for any Case/PO, Triage, custody, Box identity, non-target channel, shared Blob,
+unknown or non-target queue message, unknown foreign-key dependent, or
+incomplete queue enumeration. Both queues must be quiescent and contain only
+exact target staged-receipt GUIDs. Obtain a new approval that names the exact
+manifest SHA-256; ticket or PR approval is insufficient.
+
+### Gate 4: Execute
+
+Paste the approved hash as a literal; do not recalculate and silently accept a
+changed manifest. `Execute` revalidates access, hash, target scope, every row
+hash, Blob ETag, queue identity/body hash, retained fingerprint, and the prior
+poll-cursor hash before any deletion. It holds one serializable SQL transaction
+with exclusive locks on every user table so no Case/Triage/dependent row or
+shared Blob reference can appear during the decision/delete window. It obtains
+the fresh Graph baseline using GET only, leases every exact Blob with its
+approved ETag, and receives and validates the complete quiescent queue census
+before deleting anything. Blob leases are fixed 60-second leases, renewed
+immediately before each exact conditional delete, and therefore expire after a
+process or workstation loss. Cleanup ignores caller cancellation, gives every
+remaining lease its own bounded release attempt, and reports aggregate release
+faults only after attempting them all. SQL rows are deleted but not committed,
+then leased Blobs and prepared queue messages are deleted, the exact Inbox
+cursor is compare-and-set, and SQL commits last. It never performs a
+prefix/table/container clear or receives an approved non-target queue message.
+
+```powershell
+$taskApprovedManifestSha256 = '<separately-approved-manifest-sha256>'
+./scripts/Invoke-ProductionIntakeCleanBaseline.ps1 -Operation Execute @taskCommon `
+  -ManifestPath $taskManifestPath `
+  -ManifestSha256 $taskApprovedManifestSha256 `
+  -ExecutionReceiptPath $taskReceiptPath
+```
+
+The cross-service operation cannot be atomic against a transport failure after
+the locked/leased/prepared destructive phase begins. SQL rolls back until the
+final commit and unremoved queue messages are released, but an already deleted
+Blob or queue message cannot be restored by the CLI. Preserve the manifest,
+evidence, console result, and telemetry; do not edit the manifest or infer
+remaining targets. Obtain fresh read-only inventory and explicit recovery
+authority.
+Repeated `Execute` is idempotent only after a complete execution receipt exists
+and all exact targets and cursor already match it.
+
+If execution exits while preparing or holding Blob leases, use the manifest as
+the only Blob-name/ETag scope. From the named operator identity, wait at least 65
+seconds so every fixed lease can expire, then perform this read-only lease
+readback. Do not use an account key or enumerate the container.
+
+```powershell
+$taskManifest = Get-Content -LiteralPath $taskManifestPath -Raw | ConvertFrom-Json
+$taskManifest.blobs | ForEach-Object {
+  az storage blob show --auth-mode login `
+    --account-name $taskStorageAccount `
+    --container-name $taskBlobContainer `
+    --name $_.name `
+    --query '{name:name,etag:properties.etag,lease:properties.lease}'
+}
+```
+
+An available/unlocked lease readback needs no mutation. If an exact
+manifest-name Blob with the manifest ETag remains leased after the expiry wait,
+stop and obtain separate recovery authority naming that Blob name, ETag,
+account, and container. Only then may the named operator break that one lease:
+
+```powershell
+$taskBlob = $taskManifest.blobs |
+  Where-Object name -EQ '<separately-approved-exact-blob-name>'
+az storage blob lease break --auth-mode login `
+  --account-name $taskStorageAccount `
+  --container-name $taskBlobContainer `
+  --blob-name $taskBlob.name `
+  --if-match $taskBlob.etag `
+  --lease-break-period 0
+az storage blob show --auth-mode login `
+  --account-name $taskStorageAccount `
+  --container-name $taskBlobContainer `
+  --name $taskBlob.name `
+  --query '{name:name,etag:properties.etag,lease:properties.lease}'
+```
+
+Stop if the ETag differs, the Blob is absent, the lease is already available,
+or the readback targets anything outside the exact manifest. Lease recovery is
+not cleanup approval and must not delete or overwrite the Blob.
+
+### Gate 5: independent Verify
+
+Run `Verify` with the same role-evidence hash, manifest hash, and receipt, then
+perform an independently authorised readback. `Verify` requires zero exact
+manifest rows and Blobs, zero queue messages carrying any manifest target
+staged-receipt GUID rather than merely the old message IDs, an unchanged
+retained-record fingerprint, and an Inbox poll cursor whose hash equals the
+fresh baseline receipt. It does not expose the cursor.
+
+```powershell
+./scripts/Invoke-ProductionIntakeCleanBaseline.ps1 -Operation Verify @taskCommon `
+  -ManifestPath $taskManifestPath `
+  -ManifestSha256 $taskApprovedManifestSha256 `
+  -ExecutionReceiptPath $taskReceiptPath
+```
+
+Record the result as live-verified only after the independent readback. This
+proves the clean baseline, not Worker activation, new email intake, Case/PO
+allocation, or Box custody.
+
+### Permanent-access revocation
+
+Revocation is a new production mutation requiring exact authority. From the
+administrator identity, remove only the two recorded assignment IDs, the exact
+SQL user/roles, the exact Inbox folder permission, and the dedicated app; then
+rerun the same readbacks and prove absence. Never use broad group deletion.
+
+```powershell
+az role assignment delete --ids '<exact-blob-assignment-resource-id>'
+az role assignment delete --ids '<exact-queue-assignment-resource-id>'
+Remove-MailboxFolderPermission -Identity "${taskMailbox}:\Inbox" `
+  -User $taskOperatorUpn -Confirm:$false
+
+$taskSqlAdminToken = (az account get-access-token `
+  --resource 'https://database.windows.net/' | ConvertFrom-Json).accessToken
+Invoke-Sqlcmd -ServerInstance $taskSqlServer -Database $taskSqlDatabase `
+  -AccessToken $taskSqlAdminToken `
+  -Query 'DROP USER [digital@collisionengineers.co.uk];'
+Remove-Variable taskSqlAdminToken
+az ad app delete --id '<dedicated-public-client-application-id>'
+```
 
 ## Corpus safety and evaluation
 

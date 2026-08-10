@@ -1520,11 +1520,13 @@
         "dependencies": {
           "Azure.Identity": "[1.21.0, )",
           "Azure.Storage.Blobs": "[12.26.0, )",
+          "Azure.Storage.Queues": "[12.27.1, )",
           "Box.Sdk.Gen": "[1.12.0, )",
           "DocumentFormat.OpenXml": "[3.5.1, )",
           "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.0.10, )",
           "Microsoft.EntityFrameworkCore.SqlServer": "[10.0.10, )",
           "Microsoft.Graph": "[6.2.0, )",
+          "Microsoft.Identity.Client": "[4.83.1, )",
           "Microsoft.ML.OnnxRuntime": "[1.20.1, )",
           "MimeKit": "[4.17.0, )",
           "OpenIddict.EntityFrameworkCore": "[7.6.0, )",
