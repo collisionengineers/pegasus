@@ -546,11 +546,12 @@ Still open:
    projection candidate.
 6. **Tier-5 evidence run** (already queued in `NOW.md`): one run covering
    the full toolset — existing nine plus this tranche — so the external-client
-   evidence is recorded once, per operations.md, before any activation claim.
+   evidence is classified once under engineering.md and its current result is
+   recorded in operations.md before any activation claim.
 
 ## Evidence-tier claims
 
-Per operations.md § Required evidence tiers, and stated in advance so no
+Per engineering.md § Required evidence tiers, and stated in advance so no
 stronger claim is inferred: a tool registration or schema is not proof of
 anything; a green build with the unit suites is tier 1–2; the SQL
 persistence tests are tier 4-adjacent local evidence; the ingress HTTP tests

@@ -20,9 +20,10 @@ authority.
 - `workproviders-and-repairers/` — raw historical provider, repairer, contact,
   and job spreadsheets; no automatic import.
 - `rendererref1/` — supplied report samples, design notes, logo, and signature
-  sources. Its logo/signature bytes intentionally differ from the governed
-  runtime assets under `design/brand/`: reference preserves evidence while
-  design owns runtime use, so neither copy replaces the other.
+  sources. Its logo and three signature files are byte-identical to the four
+  same-named governed assets under `design/brand/`. Both placements remain:
+  `reference/` preserves the supplied evidence grouping while `design/` owns
+  runtime use, so byte equality does not make either role or path redundant.
 
 ## Retained reviewed reports
 

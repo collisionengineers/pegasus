@@ -306,7 +306,7 @@ the register that names *both* an AI proposal and a letterhead document.
 | 11 | `CASE-23` post-report query and dispute lifecycle — AI-08 responds to a *query*, so the query must have a state | Core | Open decision (`Next / 0.4.0`) |
 | 12 | `UI-15` Engineer workbench re-entering the full design approval route | `docs/design.md` | Routeless review markup only |
 | 13 | `MAIL-17` idempotent report/fee-note send | Core + adapter | Allocation only (`Later / 1.2.0`) |
-| 14 | Evidence tiers 5, 7, 9 and 12 plus operator acceptance | Operations | None |
+| 14 | Evidence tiers 5, 7, 9 and 12 plus operator acceptance | Engineering classification; operator acceptance remains operator-owned | None |
 
 Fourteen prerequisites, of which two are operator decisions that no plan can
 take, three are unbuilt Core data capabilities, and one is an entire deployment
@@ -663,7 +663,7 @@ requires, and it is not this task's route.
 
 ## 8. Verification
 
-Mapped to the required evidence tiers in `docs/operations.md`.
+Mapped to the required evidence tiers in `docs/engineering.md`.
 
 | Check | Tier | Stage | What it proves |
 | --- | --- | --- | --- |

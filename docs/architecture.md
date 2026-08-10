@@ -269,9 +269,11 @@ The immutable package has these qualifications:
 | Schema version | `1` |
 | Providers | `11` |
 | Provider/intermediary domain-suffix associations | `16` |
-| SHA-256 | `67c5b9959b3546f75aabd89511d8568ed7f594a8d905bfba47e3a23b828905c0` |
+| SHA-256 | `f6b5ad8ecdd428db4316b23e16aa7e0ffc93562aec33374c03ea68cd4f0370a3` |
 | Current logical resource | `Pegasus.Infrastructure.Persistence.ReferenceData.provider-domains.v1.json` |
 | Pre-cutover logical resource | `CollisionSpike.Infrastructure.Persistence.ReferenceData.provider-domains.v1.json` |
+| Immutable source provenance | `docs/reference/workproviders-and-repairers/initial.xlsx` |
+| Current physical authoring source | `reference/workproviders-and-repairers/initial.xlsx` (mapped only by authoring and test resolution) |
 
 Core validates exact package tuples and defines deterministic results:
 

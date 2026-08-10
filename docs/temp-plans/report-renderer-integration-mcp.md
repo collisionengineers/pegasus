@@ -415,7 +415,7 @@ rewriting:**
 
 ## 7. Verification plan
 
-Mapped to the evidence tiers in `docs/operations.md`. The integration coverage
+Mapped to the evidence tiers in `docs/engineering.md`. The integration coverage
 mirrors `AutomationMcpIngressTests` exactly — same facts, extended, same
 `[Trait("Category", "SqlServer")]`, same `IntakeWebApplicationFactory` +
 `WithAutomationMcp` composition.
