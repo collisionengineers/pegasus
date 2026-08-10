@@ -1,4 +1,4 @@
-# NOW — updated 2026-08-06
+# NOW — updated 2026-08-10
 
 (Anything here older than 14 days is stale: delete it, don't investigate it.)
 
@@ -9,46 +9,21 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 
 ## Merged, not deployed
 
-The estate serves **release 7** (2026-08-05, revision `32feefa…`). It no longer
-carries every source change in `dev`: PRs 342 (CASE-27 edit authority), 356 (a
-real instruction email gets in) and 357 (manual upload creates a case, and the
-Inbox shows mail) each merged functional changes that have never been deployed.
-PR 340 also merged but is `workspaces/` source no application build compiles, so
-it changes no deployed artifact. The deployed-evidence record is owned by
+The estate serves **release 8** (2026-08-07, revision `ded44fd7…`, image
+`sha256:c993eb0e…`, Web revision `pegasus-prod-web-252ow37gij--ded44fd7be0a`),
+which carries every source change in `dev` and `main`. PRs 342, 356 and 357 are
+deployed; PR 340 is `workspaces/` source no application build compiles. Its
+three migrations were applied explicitly before activation and verified against
+`__EFMigrationsHistory`. Smoke passed: health, exact version and source-SHA, and
+the anonymous `/Cases` redirect to the https sign-in route. The
+deployed-evidence record is owned by
 [operations § Production environment](docs/operations.md#production-environment).
 
-Awaiting a release:
-
-- **Manual upload creates a case, and the Inbox shows mail** (PR 357). The
-  Upload page reads the file inline and lands on a new `/Cases/Create` screen;
-  the QDOS-only principal gate is gone; approved mailboxes carry their own
-  Graph identity and enabled state and drive the intake poll; `/Inbox` is a
-  viewer over a new retained-message read model and the receipt list moved to
-  `/Received`. Three migrations ship with it —
-  `20260805210236_ApprovedMailboxGraphIdentity`,
-  `20260805223036_RetainedMailboxMessages` and
-  `20260806090000_ApprovedInboxPollStateIdentityAdoption`, the last recreating
-  two foreign keys as `ON UPDATE CASCADE` — so a release must run `efbundle`
-  before activation. Evidence is local-caller tier only: a clean
-  Release build and green Core, architecture and CI-filtered integration
-  suites. Nothing here is live-verified, and UI-10 is not claimed as accepted.
-- **Report renderer workspace uplift** closes both the
-  `report-renderer-integration` planning claim (PR 331, closed as superseded —
-  its plan set lands here unmodified) and the `report-renderer-workspace-uplift`
-  claim. Inside `workspaces/report-renderer/` only: the WinUI 3 desktop host and
-  its 12 `design/assets/report-renderer/gui/` package assets are gone; Scriban is
-  7.2.6 and the `NU1901`–`NU1904` suppression is retired, taking the workspace
-  from 14 advisories (one Critical, `GHSA-5wr9-m6jw-xx44`, CVSS 9.1) to none
-  under `net10.0`'s full transitive audit; the six remaining projects are
-  `net10.0`; the Dockerfile's non-existent `v1.61.0-jammy` base tag is corrected
-  to `v1.61.0-noble`; and `Format.Today` takes a `TimeProvider` converted to
-  Europe/London instead of reading machine-local `DateTime.Now`. Workspace ADRs
-  0012–0014 record the three decisions. Evidence is **tier 1 only** — 236 tests
-  passing (216 before), clean build, composed-HTML parity across 12 template
-  identifiers × 3 densities. **Nothing is deployed and no capability advanced.**
-  There is still no Pegasus caller, no `Pegasus.slnx` entry and no Core render
-  port. The container was **not** built (no Docker on the workstation) and the
-  `.mcpb` bundle was not launched under .NET 10.
+**Nothing here is live-verified beyond smoke.** No browser journey has exercised
+the upload-to-case path, the Inbox, or CASE-27 edit authority against the
+deployed estate, and UI-10 is not claimed as accepted. Release 6 is the standing
+warning: live verification found six defects local testing could not, because a
+count query and a rendered time cannot be proved locally.
 
 Two things are deployed as code without being active, and neither is a
 release claim:
@@ -69,6 +44,32 @@ release claim:
   start.
 
 ## Next (ordered queue — take from the top)
+
+- **`Invoke-AzureDatabaseBootstrap.ps1` cannot pass after release 6, so the
+  runtime-role effective-permission check did not complete for release 8.** Its
+  expected matrix is built from `20260729199000_RuntimeRoleReconciliation`
+  alone, so every grant a later migration adds reads as unapproved drift. At
+  release 8 all 24 differences were `=>` — extra in the database, none missing
+  — and each traces to a reviewed migration (release 6's `AiWorkRequests`,
+  `SendToAiControl`, `CaseAssessmentFields`, `CaseEstimateLines`; release 8's
+  `RetainedMailboxMessages` and `RetainedMailboxAttachments`, granted at
+  `20260805223036_RetainedMailboxMessages:136-145`). The principal creation and
+  effective-permission guards ran before the assertion, so the estate is not
+  unverified in that respect, but the matrix comparison and everything after it
+  were skipped. Build the expected matrix from the full migration set, then run
+  the script against production to close the gap this release left open
+  (release 8, 2026-08-07).
+- Reconcile the local `azd` environment with the estate, or stop trusting it.
+  Release 8's provision failed because `.azure/pegasus-prod/.env` still pointed
+  the Box secret references at `cespkboxkvv76a47`, a vault soft-deleted on
+  2026-08-03 during consolidation — two days before release 7 deployed
+  successfully from the same environment. Its recorded image digest and revision
+  suffix were still release 3's. The running Container App held the truth: the
+  secret versions were unchanged and only the vault host had moved to
+  `pegasusprodkv252ow37g`. Either the release route reads the deployed resource
+  rather than the local environment, or the environment is refreshed and checked
+  as a release step. Also note `cespkboxkvv76a47` and `cespkenrichkvgi62sd` are
+  scheduled to purge 2026-08-10 (release 8, 2026-08-07).
 
 - Reduce contention in the intake write path, or decide it does not matter.
   Operator decision 2026-08-07: the `qdos-pressure` write budget was
@@ -237,7 +238,8 @@ release claim:
   tests before any matcher is accepted; the manual staff Triage origin
   (`requirements.md:264`) has no Core command; decide the `/Triage`
   route/folder/namespace overload — the Queues screen kept them while
-  `design/README.md:352` claims the route was renamed; and rename the
+  `docs/design.md#operations-first-shell` claims the route was renamed;
+  and rename the
   three general-sense Audit identifiers (`EfIdentityAuditStore`,
   `AutomationMcpAuditor`, migration `MailboxRouteAudit`) (repository
   audit, 2026-08-06).
@@ -305,7 +307,7 @@ release claim:
   still carry corpus-derived names/references in GitHub PR refs — decide
   whether to request a history purge; and decide handling of the real staff
   addresses and case data in the operator-supplied
-  docs/reference/workproviders-and-repairers files
+  `reference/workproviders-and-repairers/` files
   (task/qdos-email-classification review, 2026-08-03).
 - UI polish follow-ups from the design-pass review: Send-confirm focus drop,
   focus-trap escape edge case, sparkle glyph clipping, and the freshness
@@ -324,7 +326,8 @@ release claim:
   (task/repository-check-speed review, 2026-08-03).
 - Record the MCP Automation Actor tier-5 evidence: a real external client
   (Claude Code over a bearer token) against the locally enabled `/mcp`
-  surface, evidence recorded per operations.md, before any activation claim
+  surface, evidence classified per engineering.md and recorded in operations.md,
+  before any activation claim
   (task/mcp-automation-actor review, 2026-08-03).
 - Promote the settled Automation Actor identity/authentication/tool-inventory
   contract to an ADR — with the temp plan deleted it is owned only by
@@ -382,10 +385,11 @@ release claim:
   19-31 (all thirteen administration sub-screens) were never built and
   have no successor claim — queue, re-scope, or descope each explicitly.
   Includes the banned-terms sweep: seventeen shipped `.cshtml` files
-  violate `design/README.md:309-316`, led by `Intake/Details.cshtml`
+  violate `docs/design.md#voice-labels-and-necessary-copy`, led by
+  `Intake/Details.cshtml`
   (51 hits) (repository audit, 2026-08-06).
 - Absorb the approved UI divergences into the design authority (operator
-  decision 2026-08-05: absorb, not revert): `design/README.md` still
+  decision 2026-08-05: absorb, not revert): `docs/design.md` still
   asserts pre-divergence values — 2px radius against the shipped 6px/5px,
   stale colour, spacing and token claims, "no ledes" while nine pages set
   one — and `site.css:1-12` cites the deleted `docs/ui-work` standards.
@@ -407,49 +411,15 @@ release claim:
   deployed" though its merge is inside release 7 (`32feefa`), and INT-01
   says "accepted" while upload creates no case (repository audit,
   2026-08-06).
-- Restructure ADR and reorg execution (operator decisions 2026-08-06;
-  **gated on PRs 340, 342 and 356 merging first** — they edit
-  docs/architecture.md and temp-plans): record the settled target
-  structure as an accepted ADR, then execute it — `docs/operations.md`
-  splits into a current-state record plus a new `docs/runbook.md`;
-  `design/README.md` and the surviving `design/product/` content become
-  one `docs/design.md` (design/ keeps assets only); `docs/reference/`
-  moves to top-level `reference/` with `.gitattributes` and link updates
-  in the same commit; rule dedupe to single owners happens during the
-  move (the evidence-tier ladder lands in engineering.md and every
-  referrer updates; the ADR index collapses to its blanket qualifier);
-  `docs/index.md`'s router updates to the new file set. `CLAUDE.md`
-  stays a symlink to `AGENTS.md` — Claude does not read AGENTS.md by
-  default. Absorbs the rule-dedupe line below and the
-  PerformanceTests/Python-split/git-hygiene/duplicated-asset parts of
-  the hygiene line below.
-- Deduplicate the process rules to single owners: at least twelve rules
-  are stated in two or more files (~30 sites) — collapse the ADR index's
-  twelve per-row "proves no…" repeats to its own blanket rule, the
-  git-safety allow/ban list to one owner, the evidence ladder to
-  `operations.md#required-evidence-tiers` (three tables carry it today),
-  and the 34-line CI prose duplicate in `engineering.md:25-62`; ownership
-  pointers stop restating what they point to (repository audit,
-  2026-08-06). **Absorbed into the restructure reorg task above — do not
-  claim separately.**
-- Repository hygiene sweep: `tests/Pegasus.PerformanceTests/` has no
-  `.csproj` — two test files that have never compiled; adopt or delete.
-  `scripts/reference_data` and `tests/reference_data` split one Python
-  component across two trees with no CI. Stale `.gitattributes` rule for
-  the absent `docs/reference/imp-docs/**`; `.gitignore` carries
-  predecessor paths (`CollisionSpike`, `/p17/`), a stray `l` line and
-  contradictory `.obsidian` rules. Brand logo and three signature PNGs
-  are duplicated between `design/brand/` and
-  `docs/reference/rendererref1/` with differing bytes. Decide
-  `.obsidian/` and `.infisical.json` keep or drop. Add an `infra/`
-  validation lane or record why not. `scripts/email-eval-desktop/` stays
-  — it is the operator's own tool — but note it references
-  Core/Infrastructure while nothing builds it (repository audit,
-  2026-08-06). **The PerformanceTests, Python-split, `.gitattributes`/
-  `.gitignore` and duplicated-asset items execute inside the restructure
-  reorg task above; still claimable here: the `.obsidian` keep, the
-  `.infisical.json` confirm-then-delete, and the `infra/` validation-lane
-  decision.**
+- Repository hygiene residue after the restructure: keep `.obsidian/`;
+  confirm `.infisical.json` is unused before deleting it; add an `infra/`
+  validation lane or record why not; and record the build boundary for
+  `scripts/email-eval-desktop/`, which stays as the operator's own tool but
+  references Core/Infrastructure while no tracked command builds it
+  (repository audit, 2026-08-06). The PerformanceTests caller, Python test
+  placement/CI, stale attributes/ignores, and four byte-identical
+  evidence/runtime logo-signature pairs are resolved by PR 361 and are no
+  longer independently claimable.
 - CI wall-clock second pass: PR 321's reduction (sharded lanes, per-run
   template database, caches) under-delivered on the operator's intent —
   measure what still dominates (five of six jobs are Windows-pinned, the
@@ -457,7 +427,7 @@ release claim:
   structure) and cut further, building on PR 321 rather than repeating it
   (operator, 2026-08-06).
 - Complete the canonical-docs accuracy audit: the 2026-08-06 audit
-  claim-checked `architecture.md`, `design/README.md` and the roadmap
+  claim-checked `architecture.md`, `docs/design.md` and the roadmap
   forms only; `requirements.md`, `operations.md`, `operator-notes.md`,
   `open-decisions.md` and `engineering.md` have had no claim-level
   verification against code (artifact critique, 2026-08-06).
@@ -563,7 +533,7 @@ Explicitly NOT on the path (allocated but non-blocking): MCP-01–04, INT-17 VRM
 
 ---
 
-Roadmap: [docs/capabilities.md](docs/capabilities.md) · Questions: [docs/open-decisions.md](docs/open-decisions.md) · How-to: [docs/operations.md](docs/operations.md)
+Roadmap: [docs/capabilities.md](docs/capabilities.md) · Questions: [docs/open-decisions.md](docs/open-decisions.md) · How-to: [docs/runbook.md](docs/runbook.md)
 
 Rules: the claimable unit is a task line — goal text first, capability IDs
 when they apply, several small features may share one line; one task = one

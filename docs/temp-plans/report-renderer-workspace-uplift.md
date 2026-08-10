@@ -24,12 +24,12 @@ capability.
 
 | # | Work | Authority |
 | --- | --- | --- |
-| 1 | Remove the WinUI 3 desktop host and its `design/assets/report-renderer/gui/` package assets | Operator 2026-08-03; pre-authorised by `design/README.md`'s renderer boundary table |
+| 1 | Remove the WinUI 3 desktop host and its `design/assets/report-renderer/gui/` package assets | Operator 2026-08-03; pre-authorised by `docs/design.md`'s renderer boundary table |
 | 2 | Upgrade Scriban 5.12.1 → 7.2.6; retire the `NU1901`–`NU1904` suppression | Operator decision B4 |
 | 3 | Uplift the six remaining projects `net8.0` → `net10.0`, with the SDK pin, package bumps and script paths | Runtime-uplift plan, enabled by 1 |
 | 4 | Repair the Dockerfile's non-existent `v1.61.0-jammy` base tag | Runtime-uplift plan, open question M3 |
 | 5 | Replace `Format.Today()`'s machine-local `DateTime.Now` with a `TimeProvider`/Europe-London seam, with golden `en-GB` formatting tests | Runtime-uplift plan, step 8 |
-| 6 | Correct `docs/operations.md`'s wrong Windows-only TFM row and the workspace's stale documentation | Same-commit authority rule |
+| 6 | Correct the historical pre-restructure `docs/operations.md` Windows-only TFM row and the workspace's stale documentation; surviving build procedure belongs in `docs/runbook.md` | Same-commit authority rule |
 
 `PreviewComposer`, `IPreviewComposer`, `PreviewResult`, the factory method and
 all their tests are **retained** (operator decision 2026-08-03: the HTML preview

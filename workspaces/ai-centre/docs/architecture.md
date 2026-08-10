@@ -20,7 +20,7 @@ It must not become a second product, policy, case-data, audit or document-render
 
 | Owner | Responsibility | Boundary |
 |---|---|---|
-| Pegasus Web application and the root [design contract](../../../design/README.md) | Product interaction and approval | A future desktop composition must reuse this contract rather than create an independent product owner. |
+| Pegasus Web application and the root [design contract](../../../docs/design.md) | Product interaction and approval | A future desktop composition must reuse this contract rather than create an independent product owner. |
 | `Pegasus.Core` | Business policy, immutable case identities, accepted structured facts, versions and business mutations | Agents and other AI Centre components may act only through accepted Core ports. |
 | Agent runtime, if activated | Orchestration and proposals | It does not own case policy, and its existence is not currently caller-proved. |
 | Skills | Bounded reusable AI operations and validation | They do not own case policy. |
@@ -104,7 +104,7 @@ The long-term direction permits a Windows-installed shell, local integration and
 A future desktop composition must reuse:
 
 - `Pegasus.Core` policy and immutable case identities;
-- the root [design contract](../../../design/README.md);
+- the root [design contract](../../../docs/design.md);
 - accepted Pegasus application and service APIs;
 - `workspaces/report-renderer`; and
 - Collision Brain only through an accepted, caller-backed retrieval port.

@@ -1,6 +1,6 @@
 # Development guide
 
-> **Design authority:** [`../../../design/README.md`](../../../design/README.md) governs the linked design assets. Build and test changes must preserve that single source rather than adding workspace-local copies.
+> **Design authority:** [`../../../docs/design.md`](../../../docs/design.md) governs the linked design assets. Build and test changes must preserve that single source rather than adding workspace-local copies.
 
 This guide covers the independent source workspace only. The commands build and exercise its standalone projects; they do not imply an external integration, caller or deployment.
 
