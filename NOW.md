@@ -7,6 +7,24 @@
 Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 <agent>)`. Nothing is in flight unless it is claimed here on `origin/dev`.
 
+- Restructure ADR and reorg execution (operator decisions 2026-08-06;
+  **gated on PRs 340, 342 and 356 merging first** — they edit
+  docs/architecture.md and temp-plans): record the settled target
+  structure as an accepted ADR, then execute it — `docs/operations.md`
+  splits into a current-state record plus a new `docs/runbook.md`;
+  `design/README.md` and the surviving `design/product/` content become
+  one `docs/design.md` (design/ keeps assets only); `docs/reference/`
+  moves to top-level `reference/` with `.gitattributes` and link updates
+  in the same commit; rule dedupe to single owners happens during the
+  move (the evidence-tier ladder lands in engineering.md and every
+  referrer updates; the ADR index collapses to its blanket qualifier);
+  `docs/index.md`'s router updates to the new file set. `CLAUDE.md`
+  stays a symlink to `AGENTS.md` — Claude does not read AGENTS.md by
+  default. Absorbs the rule-dedupe line below and the
+  PerformanceTests/Python-split/git-hygiene/duplicated-asset parts of
+  the hygiene line below (branch task/repository-restructure, taken
+  2026-08-10, by restructure-builder).
+
 ## Merged, not deployed
 
 The estate serves **release 8** (2026-08-07, revision `ded44fd7…`, image
@@ -408,22 +426,6 @@ release claim:
   deployed" though its merge is inside release 7 (`32feefa`), and INT-01
   says "accepted" while upload creates no case (repository audit,
   2026-08-06).
-- Restructure ADR and reorg execution (operator decisions 2026-08-06;
-  **gated on PRs 340, 342 and 356 merging first** — they edit
-  docs/architecture.md and temp-plans): record the settled target
-  structure as an accepted ADR, then execute it — `docs/operations.md`
-  splits into a current-state record plus a new `docs/runbook.md`;
-  `design/README.md` and the surviving `design/product/` content become
-  one `docs/design.md` (design/ keeps assets only); `docs/reference/`
-  moves to top-level `reference/` with `.gitattributes` and link updates
-  in the same commit; rule dedupe to single owners happens during the
-  move (the evidence-tier ladder lands in engineering.md and every
-  referrer updates; the ADR index collapses to its blanket qualifier);
-  `docs/index.md`'s router updates to the new file set. `CLAUDE.md`
-  stays a symlink to `AGENTS.md` — Claude does not read AGENTS.md by
-  default. Absorbs the rule-dedupe line below and the
-  PerformanceTests/Python-split/git-hygiene/duplicated-asset parts of
-  the hygiene line below.
 - Deduplicate the process rules to single owners: at least twelve rules
   are stated in two or more files (~30 sites) — collapse the ADR index's
   twelve per-row "proves no…" repeats to its own blanket rule, the
