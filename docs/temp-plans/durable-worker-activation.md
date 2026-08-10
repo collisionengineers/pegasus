@@ -65,6 +65,25 @@ Web smoke.
 This task does not run either live mode. Local verification exercises only the
 static and compiled-template paths.
 
+### Independent-review remediation
+
+PR #362 review found two release-gate defects. The implementation will be
+hardened before merge:
+
+- every setting returned by the secret-safe `AzureWebJobs.` query participates
+  in one ordinal, case-sensitive exact census; duplicate, extra, malformed,
+  case-variant, missing, and mixed-value results all fail closed;
+- behavioral mocked tests execute the Worker-only smoke for the two valid
+  states and each named failure class, rather than proving only source text;
+- the Azure CLI read receives the literal approved subscription
+  `e6076573-23a5-46a8-acef-7e22d264e5db`; and
+- the read target is the non-overridable production Worker identity
+  `pegasus-prod-worker-252ow37gij`. Pre-provision separately rejects an azd
+  environment whose recorded Worker output differs from that identity.
+
+The errors remain secret-safe: they identify the failed contract class, never
+the returned setting names or values.
+
 ## Operator procedure
 
 `docs/runbook.md` gains one Worker activation and rollback section. It records:

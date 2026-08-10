@@ -16,8 +16,8 @@ param(
     [string] $ResourceGroupName,
 
     [Parameter(Mandatory)]
-    [ValidatePattern('^pegasus-prod-worker-[a-z0-9]{10}$')]
-    [string] $WorkerAppName,
+    [ValidateSet('e6076573-23a5-46a8-acef-7e22d264e5db')]
+    [string] $SubscriptionId,
 
     [Parameter(Mandatory)]
     [ValidateSet('disabled', 'approved-live-worker')]
@@ -41,27 +41,47 @@ $expectedWorkerSettings = @(
     'AzureWebJobs.ExternalWorkFunction.Disabled',
     'AzureWebJobs.ExternalPoisonFunction.Disabled'
 )
+$workerAppName = 'pegasus-prod-worker-252ow37gij'
 
 $settingsJson = (& az functionapp config appsettings list `
+    --subscription $SubscriptionId `
     --resource-group $ResourceGroupName `
-    --name $WorkerAppName `
+    --name $workerAppName `
     --query "[?starts_with(name, 'AzureWebJobs.')].{name:name,value:value}" `
     --output json) -join "`n"
 if ($LASTEXITCODE -ne 0) {
-    throw "Unable to read Worker app settings from $ResourceGroupName/$WorkerAppName."
+    throw "Unable to read Worker app settings from $ResourceGroupName/$workerAppName."
 }
 
-$allSettings = @($settingsJson | ConvertFrom-Json)
-$workerSettings = @(
-    $allSettings | Where-Object {
-        $_.name -match '^AzureWebJobs\.[A-Za-z0-9]+\.Disabled$'
+$workerSettings = @($settingsJson | ConvertFrom-Json)
+$expectedNames = [Collections.Generic.HashSet[string]]::new(
+    [StringComparer]::Ordinal
+)
+foreach ($expectedName in $expectedWorkerSettings) {
+    [void]$expectedNames.Add($expectedName)
+}
+$actualNames = [Collections.Generic.HashSet[string]]::new(
+    [StringComparer]::Ordinal
+)
+$censusIsExact = $workerSettings.Count -eq $expectedWorkerSettings.Count
+foreach ($setting in $workerSettings) {
+    $nameProperty = $setting.PSObject.Properties['name']
+    if ($null -eq $nameProperty) {
+        $censusIsExact = $false
+        continue
     }
-)
-$actualNames = @($workerSettings | ForEach-Object { [string]$_.name })
-$censusDifference = @(
-    Compare-Object -ReferenceObject $expectedWorkerSettings -DifferenceObject $actualNames
-)
-if ($workerSettings.Count -ne $expectedWorkerSettings.Count -or $censusDifference.Count -ne 0) {
+
+    $name = [string]$nameProperty.Value
+    if (-not $expectedNames.Contains($name) -or -not $actualNames.Add($name)) {
+        $censusIsExact = $false
+    }
+}
+foreach ($expectedName in $expectedWorkerSettings) {
+    if (-not $actualNames.Contains($expectedName)) {
+        $censusIsExact = $false
+    }
+}
+if (-not $censusIsExact) {
     throw 'The live Worker disabled-setting census differs from the exact nine-function release contract.'
 }
 
@@ -71,10 +91,18 @@ $expectedDisabledValue = if ($ExpectedWorkerActivation -eq 'approved-live-worker
 else {
     'true'
 }
-$unexpectedValues = @(
-    $workerSettings | Where-Object { [string]$_.value -cne $expectedDisabledValue }
-)
-if ($unexpectedValues.Count -ne 0) {
+$valuesAreExact = $true
+foreach ($setting in $workerSettings) {
+    $valueProperty = $setting.PSObject.Properties['value']
+    if ($null -eq $valueProperty -or
+        -not [StringComparer]::Ordinal.Equals(
+            [string]$valueProperty.Value,
+            $expectedDisabledValue
+        )) {
+        $valuesAreExact = $false
+    }
+}
+if (-not $valuesAreExact) {
     throw "The live Worker settings do not match the intended '$ExpectedWorkerActivation' activation value."
 }
 

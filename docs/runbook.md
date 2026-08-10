@@ -873,6 +873,12 @@ infrastructure input with a default of `disabled`; only the exact value
 `AzureWebJobs.<function>.Disabled` settings as `false`. Omission, an empty or
 misspelled value, and every other value render them as `true`.
 
+Every Worker readback passes subscription
+`e6076573-23a5-46a8-acef-7e22d264e5db` explicitly and targets the
+non-overridable Worker `pegasus-prod-worker-252ow37gij`. Pre-provision also
+requires the selected azd environment to record those exact identities; the
+active Azure CLI default is never trusted as the target.
+
 The default is a safety boundary, not a normal enabled-estate release input.
 After production activation, every infrastructure release explicitly retains
 `approved-live-worker`. An absent value or a fallback to `disabled` is a stop
@@ -887,7 +893,7 @@ provision:
 
 ```powershell
 $pegasusAzdEnvironment = 'pegasus-prod'
-$pegasusWorkerApp = 'pegasus-prod-worker-252ow37gij'
+$pegasusSubscription = 'e6076573-23a5-46a8-acef-7e22d264e5db'
 
 azd env set PEGASUS_WORKER_ACTIVATION approved-live-worker `
   -e $pegasusAzdEnvironment
@@ -895,8 +901,7 @@ azd env set PEGASUS_WORKER_ACTIVATION approved-live-worker `
   -Mode PreProvision `
   -Environment $pegasusAzdEnvironment `
   -WorkerActivation approved-live-worker `
-  -ExpectedLiveWorkerActivation disabled `
-  -WorkerAppName $pegasusWorkerApp
+  -ExpectedLiveWorkerActivation disabled
 ```
 
 `PreProvision` is read-only. It binds the selected azd environment to the exact
@@ -912,8 +917,8 @@ the already reviewed release inputs, then read back the Worker state:
 azd provision -e $pegasusAzdEnvironment --no-prompt
 ./scripts/Invoke-ProductionSmoke.ps1 `
   -WorkerOnly `
+  -SubscriptionId $pegasusSubscription `
   -ResourceGroupName rg-pegasus-prod `
-  -WorkerAppName $pegasusWorkerApp `
   -ExpectedWorkerActivation approved-live-worker
 ```
 
@@ -927,8 +932,7 @@ azd env set PEGASUS_WORKER_ACTIVATION approved-live-worker `
   -Mode PreProvision `
   -Environment $pegasusAzdEnvironment `
   -WorkerActivation approved-live-worker `
-  -ExpectedLiveWorkerActivation approved-live-worker `
-  -WorkerAppName $pegasusWorkerApp
+  -ExpectedLiveWorkerActivation approved-live-worker
 ```
 
 The full post-release smoke adds the same readback to the existing Web gates:
@@ -938,8 +942,8 @@ The full post-release smoke adds the same readback to the existing Web gates:
   -BaseUri $pegasusApprovedBaseUri `
   -ExpectedSourceRevision $pegasusReleaseSourceRevision `
   -ExpectedVersion $pegasusReleaseVersion `
+  -SubscriptionId $pegasusSubscription `
   -ResourceGroupName rg-pegasus-prod `
-  -WorkerAppName $pegasusWorkerApp `
   -ExpectedWorkerActivation approved-live-worker
 ```
 
@@ -961,13 +965,12 @@ azd env set PEGASUS_WORKER_ACTIVATION disabled -e $pegasusAzdEnvironment
   -Environment $pegasusAzdEnvironment `
   -WorkerActivation disabled `
   -ExpectedLiveWorkerActivation approved-live-worker `
-  -WorkerAppName $pegasusWorkerApp `
   -AllowWorkerDisable
 azd provision -e $pegasusAzdEnvironment --no-prompt
 ./scripts/Invoke-ProductionSmoke.ps1 `
   -WorkerOnly `
+  -SubscriptionId $pegasusSubscription `
   -ResourceGroupName rg-pegasus-prod `
-  -WorkerAppName $pegasusWorkerApp `
   -ExpectedWorkerActivation disabled
 ```
 

@@ -15,8 +15,6 @@ param(
     [ValidateSet('disabled', 'approved-live-worker')]
     [string] $ExpectedLiveWorkerActivation,
 
-    [string] $WorkerAppName,
-
     [switch] $AllowWorkerDisable
 )
 
@@ -29,16 +27,16 @@ $platformBicepPath = Join-Path $repositoryRoot 'infra/modules/platform.bicep'
 $parametersPath = Join-Path $repositoryRoot 'infra/main.parameters.json'
 $azureYamlPath = Join-Path $repositoryRoot 'azure.yaml'
 $productionSmokePath = Join-Path $repositoryRoot 'scripts/Invoke-ProductionSmoke.ps1'
-$expectedWorkerFunctions = @(
-    'PendingWorkDispatchFunction',
-    'IntakeWorkFunction',
-    'IntakePoisonFunction',
-    'StagedArtifactReconciliationFunction',
-    'InboxPollFunction',
-    'SentEvidencePollFunction',
-    'DueWorkSweepFunction',
-    'ExternalWorkFunction',
-    'ExternalPoisonFunction'
+$expectedWorkerSettings = @(
+    'AzureWebJobs.PendingWorkDispatchFunction.Disabled',
+    'AzureWebJobs.IntakeWorkFunction.Disabled',
+    'AzureWebJobs.IntakePoisonFunction.Disabled',
+    'AzureWebJobs.StagedArtifactReconciliationFunction.Disabled',
+    'AzureWebJobs.InboxPollFunction.Disabled',
+    'AzureWebJobs.SentEvidencePollFunction.Disabled',
+    'AzureWebJobs.DueWorkSweepFunction.Disabled',
+    'AzureWebJobs.ExternalWorkFunction.Disabled',
+    'AzureWebJobs.ExternalPoisonFunction.Disabled'
 )
 # The executed production runbook (azure-production-replacement-plan.md) and
 # the one-off predecessor archive/retirement scripts were retired after the
@@ -64,6 +62,39 @@ function Assert-TextAbsent {
     )
 
     if ($Text -match $Pattern) {
+        throw $Failure
+    }
+}
+
+function Assert-ExactOrdinalCensus {
+    param(
+        [Parameter(Mandatory)][string[]] $Expected,
+        [Parameter(Mandatory)][string[]] $Actual,
+        [Parameter(Mandatory)][string] $Failure
+    )
+
+    $expectedNames = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::Ordinal
+    )
+    foreach ($name in $Expected) {
+        [void]$expectedNames.Add($name)
+    }
+    $actualNames = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::Ordinal
+    )
+    $isExact = $Actual.Count -eq $Expected.Count
+    foreach ($name in $Actual) {
+        if (-not $expectedNames.Contains($name) -or -not $actualNames.Add($name)) {
+            $isExact = $false
+        }
+    }
+    foreach ($name in $Expected) {
+        if (-not $actualNames.Contains($name)) {
+            $isExact = $false
+        }
+    }
+
+    if (-not $isExact) {
         throw $Failure
     }
 }
@@ -176,15 +207,13 @@ Assert-Text $platformBicep "name:\s*'Runtime__Profile'[\s\S]*?value:\s*'Producti
 Assert-Text $platformBicep "name:\s*'APPLICATIONINSIGHTS_AUTHENTICATION_STRING'" 'Application Insights local authentication must be disabled through managed-identity configuration.'
 $workerSettingMatches = [regex]::Matches(
     $platformBicep,
-    "name:\s*'AzureWebJobs\.([A-Za-z0-9]+)\.Disabled'\s*,\s*value:\s*workerActivationApproved\s*\?\s*'false'\s*:\s*'true'"
+    "name:\s*'(AzureWebJobs\.[^']+)'\s*,\s*value:\s*workerActivationApproved\s*\?\s*'false'\s*:\s*'true'"
 )
-$sourceWorkerFunctions = @($workerSettingMatches | ForEach-Object { $_.Groups[1].Value })
-$sourceCensusDifference = @(
-    Compare-Object -ReferenceObject $expectedWorkerFunctions -DifferenceObject $sourceWorkerFunctions
-)
-if ($workerSettingMatches.Count -ne 9 -or $sourceCensusDifference.Count -ne 0) {
-    throw 'The Worker template must contain the exact nine-function disabled-setting census behind one fail-closed conditional.'
-}
+$sourceWorkerSettings = @($workerSettingMatches | ForEach-Object { $_.Groups[1].Value })
+Assert-ExactOrdinalCensus `
+    -Expected $expectedWorkerSettings `
+    -Actual $sourceWorkerSettings `
+    -Failure 'The Worker template must contain the exact nine-function disabled-setting census behind one fail-closed conditional.'
 
 function Get-AzdEnvironmentMap {
     param([Parameter(Mandatory)][string] $Name)
@@ -249,18 +278,18 @@ Assert-Text $databaseBootstrapScript 'HAS_PERMS_BY_NAME' 'Database bootstrap mus
 
 $smokeWorkerMatches = [regex]::Matches(
     $productionSmoke,
-    "'AzureWebJobs\.([A-Za-z0-9]+)\.Disabled'"
+    "'(AzureWebJobs\.[^']+\.Disabled)'"
 )
-$smokeWorkerFunctions = @($smokeWorkerMatches | ForEach-Object { $_.Groups[1].Value })
-$smokeCensusDifference = @(
-    Compare-Object -ReferenceObject $expectedWorkerFunctions -DifferenceObject $smokeWorkerFunctions
-)
-if ($smokeWorkerMatches.Count -ne 9 -or $smokeCensusDifference.Count -ne 0) {
-    throw 'Production smoke must inspect the exact nine-function disabled-setting census.'
-}
+$smokeWorkerSettings = @($smokeWorkerMatches | ForEach-Object { $_.Groups[1].Value })
+Assert-ExactOrdinalCensus `
+    -Expected $expectedWorkerSettings `
+    -Actual $smokeWorkerSettings `
+    -Failure 'Production smoke must inspect the exact nine-function disabled-setting census.'
 Assert-Text $productionSmoke 'az\s+functionapp\s+config\s+appsettings\s+list' 'Production smoke must read the live Worker app settings.'
 Assert-Text $productionSmoke "ExpectedWorkerActivation\s*-eq\s*'approved-live-worker'[\s\S]*?'false'[\s\S]*?'true'" 'Production smoke must map approved-live-worker to enabled settings and disabled to disabled settings.'
-Assert-Text $productionSmoke 'Compare-Object[\s\S]*expectedWorkerSettings[\s\S]*actualNames' 'Production smoke must fail on a missing or unexpected Worker setting.'
+Assert-Text $productionSmoke 'HashSet\[string\][\s\S]*StringComparer\]::Ordinal' 'Production smoke must compare every Worker setting name with ordinal semantics.'
+Assert-Text $productionSmoke '--subscription\s+\$SubscriptionId' 'Production smoke must pass the approved subscription explicitly to Azure CLI.'
+Assert-Text $productionSmoke "workerAppName\s*=\s*'pegasus-prod-worker-252ow37gij'" 'Production smoke must bind readback to the exact reviewed Worker identity.'
 Assert-Text $productionSmoke 'WorkerOnly' 'Production smoke must expose its read-only Worker assertion for pre-provision validation.'
 
 $compiledTemplateJson = (& az bicep build --file $mainBicepPath --stdout) -join "`n"
@@ -269,15 +298,13 @@ if ($LASTEXITCODE -ne 0) {
 }
 $compiledWorkerMatches = [regex]::Matches(
     $compiledTemplateJson,
-    '"name"\s*:\s*"AzureWebJobs\.([A-Za-z0-9]+)\.Disabled"\s*,\s*"value"\s*:\s*"\[if\(variables\(''workerActivationApproved''\), ''false'', ''true''\)\]"'
+    '"name"\s*:\s*"(AzureWebJobs\.[^"]+)"\s*,\s*"value"\s*:\s*"\[if\(variables\(''workerActivationApproved''\), ''false'', ''true''\)\]"'
 )
-$compiledWorkerFunctions = @($compiledWorkerMatches | ForEach-Object { $_.Groups[1].Value })
-$compiledCensusDifference = @(
-    Compare-Object -ReferenceObject $expectedWorkerFunctions -DifferenceObject $compiledWorkerFunctions
-)
-if ($compiledWorkerMatches.Count -ne 9 -or $compiledCensusDifference.Count -ne 0) {
-    throw 'The compiled template must contain the exact nine-function fail-closed Worker setting expressions.'
-}
+$compiledWorkerSettings = @($compiledWorkerMatches | ForEach-Object { $_.Groups[1].Value })
+Assert-ExactOrdinalCensus `
+    -Expected $expectedWorkerSettings `
+    -Actual $compiledWorkerSettings `
+    -Failure 'The compiled template must contain the exact nine-function fail-closed Worker setting expressions.'
 Assert-Text $compiledTemplateJson '"workerActivationApproved"\s*:\s*"\[equals\(parameters\(''workerActivation''\), ''approved-live-worker''\)\]"' 'The compiled template must enable the Worker only for the exact approved-live-worker input.'
 Assert-Text $compiledTemplateJson '"workerActivation"\s*:\s*\{\s*"type"\s*:\s*"string"\s*,\s*"defaultValue"\s*:\s*"disabled"' 'The compiled template must retain the fail-closed Worker activation default.'
 
@@ -331,9 +358,6 @@ if ($Mode -eq 'PreProvision') {
     if ([string]::IsNullOrWhiteSpace($Environment)) {
         throw '-Environment is required in PreProvision mode.'
     }
-    if ([string]::IsNullOrWhiteSpace($WorkerAppName)) {
-        throw '-WorkerAppName is required in PreProvision mode.'
-    }
     if ([string]::IsNullOrWhiteSpace($ExpectedLiveWorkerActivation)) {
         throw '-ExpectedLiveWorkerActivation is required in PreProvision mode.'
     }
@@ -359,7 +383,7 @@ if ($Mode -eq 'PreProvision') {
         $environmentValues['AZURE_SUBSCRIPTION_ID'] -ne 'e6076573-23a5-46a8-acef-7e22d264e5db' -or
         $environmentValues['AZURE_TENANT_ID'] -ne '858cf5b3-aa0a-47a6-9b40-4851fd0afa94' -or
         $environmentValues['AZURE_RESOURCE_GROUP'] -ne 'rg-pegasus-prod' -or
-        $environmentValues['WORKER_APP_NAME'] -ne $WorkerAppName
+        $environmentValues['WORKER_APP_NAME'] -ne 'pegasus-prod-worker-252ow37gij'
     ) {
         throw 'Pre-provision validation refuses an environment outside the exact approved production Worker target.'
     }
@@ -379,8 +403,8 @@ if ($Mode -eq 'PreProvision') {
 
     & $productionSmokePath `
         -WorkerOnly `
+        -SubscriptionId 'e6076573-23a5-46a8-acef-7e22d264e5db' `
         -ResourceGroupName 'rg-pegasus-prod' `
-        -WorkerAppName $WorkerAppName `
         -ExpectedWorkerActivation $ExpectedLiveWorkerActivation
 }
 
