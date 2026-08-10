@@ -13,7 +13,7 @@ hardening that closes out `pegasus-claude-channel` development, the
 Pegasus-side wiring that gives the Engineers assessment surface a real
 send/return round trip behind composition gates, and the PAV slider the
 operator has directed into channels scope. This plan is a specification
-artifact: `design/README.md` § Deferred casework requires every deferred UI
+artifact: `docs/design.md` § Deferred casework requires every deferred UI
 capability to re-enter specification and review before implementation, and
 nothing below is implemented until the operator approves the decisions in
 § Open decisions and product authority records the allocation change.
@@ -319,9 +319,9 @@ the assessment markup. Repository evidence, gathered rather than invented:
   "The pre-accident value comes from the engineer's instruction or from
   `vehicle-valuation` … never invented"), EVA's salvage screen (`% of
   PAV`, `Equity in repair`, and the `PAMV From`/`PAMV To` pre-accident
-  market value range, `docs/reference/eva_information/eva_information.md`),
+  market value range, `reference/eva_information/eva_information.md`),
   and the renderer spec ("Recommended Settlement (PAV − salvage)",
-  `docs/reference/rendererref1/DESIGN_SPEC.md`).
+  `reference/rendererref1/DESIGN_SPEC.md`).
 - **Figure source, per operator direction 2026-08-03:** external API calls
   to valuation services will be added to obtain valuation figures, and
   those figures are what the slider is based upon. That is EXT-10
@@ -466,7 +466,7 @@ Connector side (vitest): § Channel server close-out item 7.
 | `docs/architecture.md` | Send to AI boundary: Core owner, adapter, the external connector as a non-owned client |
 | `docs/operations.md` | Evidence-boundary row for the channel connector; setup runbook; evidence-tier record for stage G |
 | `docs/open-decisions.md` | The § Open decisions items that stay open after review |
-| `design/README.md` | `completed` panel state and PAV slider component contract; § Tokens divergence record untouched unless the contrast decision changes it |
+| `docs/design.md` | `completed` panel state and PAV slider component contract; § Tokens divergence record untouched unless the contrast decision changes it |
 | `pegasus-claude-channel/README.md` | Schema, evidence log, idempotency, Pegasus configuration cross-reference, version pinning |
 
 ## Non-goals

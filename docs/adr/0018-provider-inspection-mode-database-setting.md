@@ -19,7 +19,7 @@ The product owner clarified on 2026-08-03 that instruction documents never
 contain the literal text. The mode is a property of the work provider: some
 providers always use `Image Based Assessment`; others require the vehicle's
 physical location on the report. The historical evidence workbook
-`docs/reference/workproviders-and-repairers/providers-worked-on.xlsx`
+`reference/workproviders-and-repairers/providers-worked-on.xlsx`
 (sheet `Final`, "Principal Inspection Address Frequency") records QDOS at
 7,408 of 7,415 cases image-based, with PCH and AX similarly image-based and
 QCL predominantly physical. Under the document-derived assumption, a genuine

@@ -2,7 +2,7 @@
 
 ## Authority and evidence boundaries
 
-This document is the sole workspace architecture owner for CollisionDocNetExtractor. Product obligations are owned by [requirements](../../../docs/requirements.md), capability boundaries by [capabilities](../../../docs/capabilities.md), unresolved choices by [open decisions](../../../docs/open-decisions.md), accepted architectural decisions by the [decision index](../../../docs/adr/README.md), and operational procedures by [operations](../../../docs/operations.md); repository-development practice is governed by [engineering](../../../docs/engineering.md). See the [documentation index](../../../docs/index.md) for canonical navigation and the [workspace index](../../README.md) for repository boundaries.
+This document is the sole workspace architecture owner for CollisionDocNetExtractor. Product obligations are owned by [requirements](../../../docs/requirements.md), capability boundaries by [capabilities](../../../docs/capabilities.md), unresolved choices by [open decisions](../../../docs/open-decisions.md), accepted architectural decisions by the [decision index](../../../docs/adr/README.md), operational procedures by the [runbook](../../../docs/runbook.md), and current operational evidence by [operations](../../../docs/operations.md); repository-development practice is governed by [engineering](../../../docs/engineering.md). See the [documentation index](../../../docs/index.md) for canonical navigation and the [workspace index](../../README.md) for repository boundaries.
 
 Architecture statements use these evidence states distinctly:
 

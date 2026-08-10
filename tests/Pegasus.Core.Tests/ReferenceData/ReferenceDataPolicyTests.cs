@@ -40,7 +40,7 @@ public sealed class ProviderDomainPolicyTests
         node["unexpected"] = true;
         var unknownBytes = JsonSerializer.SerializeToUtf8Bytes(node);
         var duplicateBytes = """
-            {"schemaVersion":1,"schemaVersion":1,"version":"provider-domains-v1","source":{"path":"docs/reference/source.xlsx","contentSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","sheet":"Sheet1","rowCount":1},"providers":[{"code":"QDOS","sourceRow":1,"domainSuffixes":["@qdosassist.co.uk"]}]}
+            {"schemaVersion":1,"schemaVersion":1,"version":"provider-domains-v1","source":{"path":"reference/source.xlsx","contentSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","sheet":"Sheet1","rowCount":1},"providers":[{"code":"QDOS","sourceRow":1,"domainSuffixes":["@qdosassist.co.uk"]}]}
             """u8.ToArray();
 
         var unknown = ReferenceDataPolicy.Validate(Requested(package, unknownBytes), unknownBytes);
@@ -52,8 +52,8 @@ public sealed class ProviderDomainPolicyTests
 
     [Theory]
     [InlineData("{\"schemaVersion\":1,\"version\":\"provider-domains-v1\",\"source\":null,\"providers\":[]}")]
-    [InlineData("{\"schemaVersion\":1,\"version\":\"provider-domains-v1\",\"source\":{\"path\":\"docs/reference/source.xlsx\",\"contentSha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sheet\":\"Sheet1\",\"rowCount\":1},\"providers\":null}")]
-    [InlineData("{\"schemaVersion\":1,\"version\":\"provider-domains-v1\",\"source\":{\"path\":\"docs/reference/source.xlsx\",\"contentSha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sheet\":\"Sheet1\",\"rowCount\":1}}")]
+    [InlineData("{\"schemaVersion\":1,\"version\":\"provider-domains-v1\",\"source\":{\"path\":\"reference/source.xlsx\",\"contentSha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sheet\":\"Sheet1\",\"rowCount\":1},\"providers\":null}")]
+    [InlineData("{\"schemaVersion\":1,\"version\":\"provider-domains-v1\",\"source\":{\"path\":\"reference/source.xlsx\",\"contentSha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sheet\":\"Sheet1\",\"rowCount\":1}}")]
     public void ProviderDomainValidationRejectsNullOrMissingRequiredValues(string json)
     {
         var bytes = JsonSerializer.SerializeToUtf8Bytes(JsonNode.Parse(json));
@@ -220,7 +220,7 @@ public sealed class ProviderDomainPolicyTests
             ReferenceDataPolicy.SupportedSchemaVersion,
             "provider-domains-v1",
             new ProviderDomainSource(
-                "docs/reference/workproviders-and-repairers/initial.xlsx",
+                "reference/workproviders-and-repairers/initial.xlsx",
                 new string('a', 64),
                 "Sheet1",
                 1),

@@ -8,7 +8,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
     /// Adds the per-principal inspection-mode setting (ADR-0018, 2026-08-03
     /// product-owner decision) and widens the case-data source kinds with
     /// 'provider_setting'. QDOS is seeded 'image_based_assessment' from the
-    /// evidence workbook docs/reference/workproviders-and-repairers/
+    /// evidence workbook reference/workproviders-and-repairers/
     /// providers-worked-on.xlsx, sheet "Final" ("Principal Inspection Address
     /// Frequency"): 7,408 of 7,415 QDOS cases were Image Based Assessment.
     /// The seed targets one row by its unique code and does not bump the

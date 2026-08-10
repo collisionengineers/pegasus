@@ -39,7 +39,7 @@ Consequences carried through this plan:
   staff-facing surface here. Two constraints stand in the way of one, and
   neither is resolved by the decision to keep the composer:
   1. **No capability ID allocates a report preview surface.** A staff-visible
-     preview is a UI capability, and `design/README.md:48` requires every
+     preview is a UI capability, and `docs/design.md:48` requires every
      deferred UI capability to re-enter specification, alternatives,
      independent review, explicit approval, visual generation and manual
      visual review before implementation. `0.1.0-alpha.1` admits no control,
@@ -266,7 +266,7 @@ rather than relocated.
 | `CollisionRenderer.Cli` | **Deleted** | `install-browser` becomes a repository script/CI step modelled on the existing `browser` lane. `list`/`forms`/`render` authoring commands are not a Pegasus capability and are not recreated |
 | `CollisionRenderer.Api` | **Deleted** | Nothing carried forward as HTTP. Pegasus's caller is an in-process Core port. Its security invariants are preserved structurally: no caller-supplied paths, and its batch cap is superseded by the fact that Pegasus renders one issued report per authorised action. Its bearer-token scheme is explicitly **not** adopted |
 | `CollisionRenderer.Mcp` | **Deleted** | Handled by the parallel MCP-consolidation plan. The `Valuation/` subtree is not carried forward: Pegasus payloads originate from accepted case data |
-| `CollisionRenderer.Gui` | **Deleted by the parallel desktop-removal plan** | This plan takes a dependency on that removal. It owns the consequence: the `design/README.md` GUI-asset row must be deleted in the same documentation change. Note the preview composer the GUI hosted is **retained** per the operator decision above |
+| `CollisionRenderer.Gui` | **Deleted by the parallel desktop-removal plan** | This plan takes a dependency on that removal. It owns the consequence: the `docs/design.md` GUI-asset row must be deleted in the same documentation change. Note the preview composer the GUI hosted is **retained** per the operator decision above |
 | `.sln`, `Directory.Build.props`, `global.json`, `Dockerfile`, `scripts/`, `tests/`, `docs/`, `NOTICE.md`, `README.md` | **Deleted with the directory** | `Dockerfile` content becomes Stage-3 input for the browser-provisioning decision. `NOTICE.md`'s licence conclusions **must be carried into the Pegasus notice surface** — a licence-evidence activation condition. Workspace ADRs are handled by the parallel documentation-migration plan |
 
 ## The Core contract
@@ -697,7 +697,7 @@ composer as internal adapters and embedded assets; adds three packages and
 regenerates the Infrastructure lock file; registers
 `UnavailableReportRenderer`, `HtmlReportPreviewComposer` and
 `ReportWordingAcceptance.Unaccepted`; edits the architecture tests and CI
-patterns; rewrites `design/README.md`'s renderer boundary table and the
+patterns; rewrites `docs/design.md`'s renderer boundary table and the
 `workspaces/README.md` register row; files the ADR.
 
 **Advances:** nothing in the capability register. It is a structural change.
@@ -914,7 +914,7 @@ contains neither Chromium nor Liberation fonts and cannot install them.
 11. A staff-facing report preview surface is **not** created by this decision.
     The preview port and its implementation exist with no caller; any staff
     surface requires an allocated capability identifier and the full design
-    route in `design/README.md`.
+    route in `docs/design.md`.
 
 #### Consequences
 
@@ -942,7 +942,7 @@ contains neither Chromium nor Liberation fonts and cannot install them.
   by the repository's own corpus and secret-material rules.
 - `Pegasus.Infrastructure`'s published output grows by the Playwright node
   driver, and the EF migration bundle built from that project grows with it.
-- `design/README.md`'s renderer boundary table is rewritten: the templates and
+- `docs/design.md`'s renderer boundary table is rewritten: the templates and
   stylesheet row names `Pegasus.Infrastructure` instead of the workspace path,
   the temporary-GUI row is deleted, and the signature row continues to state
   that signatures are embedded document evidence and never Web decorative
@@ -969,7 +969,7 @@ contains neither Chromium nor Liberation fonts and cannot install them.
 - Creating any staff-facing preview surface.
 - Deciding the deployed hosting, base image or sizing for rendering.
 - Removing the WinUI GUI, uplifting the workspace to .NET 10, consolidating
-  MCP, intaking `docs/reference/rendererref1`, or migrating the workspace ADR
+  MCP, intaking `reference/rendererref1`, or migrating the workspace ADR
   files — each is a parallel plan.
 - Preserving the renderer's authoring, starter-payload, CLI, HTTP API or
   standalone MCP surfaces.
@@ -1027,5 +1027,5 @@ contains neither Chromium nor Liberation fonts and cannot install them.
 | Desktop/WinUI GUI removal | `CollisionRenderer.Gui` references `CollisionRenderer.Core`; this plan deletes both. The preview composer the GUI hosted is retained | **GUI removal first**, or both in one change set |
 | .NET 8 → .NET 10 uplift | Relocated code compiles under `net10.0` with `TreatWarningsAsErrors=true` regardless of whether the workspace was uplifted first | Independent; uplifting the workspace first is wasted work if this plan lands |
 | MCP consolidation onto Pegasus `/mcp` | This plan deletes `CollisionRenderer.Mcp` outright and creates no render tool | Either order; state the deletion so the MCP plan does not port the four render tools |
-| `docs/reference/rendererref1` template intake | That work may change `design/assets/report-renderer/templates/**`, which this plan turns into product-embedded resources under a new `LogicalName` scheme | **This plan first**, or the intake must be re-pathed |
+| `reference/rendererref1` template intake | That work may change `design/assets/report-renderer/templates/**`, which this plan turns into product-embedded resources under a new `LogicalName` scheme | **This plan first**, or the intake must be re-pathed |
 | Documentation/ADR migration | Owns moving or retiring workspace ADRs 0001–0011; this plan's ADR states the supersession | This plan's ADR supplies the supersession text |

@@ -23,6 +23,9 @@ $ErrorActionPreference = 'Stop'
 $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $integrationProject = Join-Path $repositoryRoot 'tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj'
 $acceptanceSourceRoot = Split-Path $integrationProject -Parent
+# These two source-only pressure files deliberately have no project. This
+# orchestrator stages them into the compiled integration-test project below,
+# so their sole build and caller owner remains this revision-bound gate.
 $pressureSourceRoot = Join-Path $repositoryRoot 'tests/Pegasus.PerformanceTests'
 $stagingRoot = Join-Path $repositoryRoot 'tests/Pegasus.IntegrationTests/QdosPressure.Generated'
 $evidenceRoot = Join-Path $repositoryRoot "artifacts/qdos-alpha-acceptance/$RunId"

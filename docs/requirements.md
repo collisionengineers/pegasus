@@ -4,7 +4,7 @@
 
 This document is the sole owner of Pegasus intended product requirements. The [capability inventory](capabilities.md) owns stable capability IDs, allocations and activation boundaries; it does not prove implementation.
 
-The [operator notes](operator-notes.md) are the binding source for Collision Engineers’ business process and current-system knowledge. [Architecture](architecture.md) owns what is currently implemented and called. [Operations](operations.md) owns procedures and evidence profiles. [Open decisions](open-decisions.md) owns unresolved material questions. [Design](../design/README.md) owns the durable UI contract.
+The [operator notes](operator-notes.md) are the binding source for Collision Engineers’ business process and current-system knowledge. [Architecture](architecture.md) owns what is currently implemented and called. [Operations](operations.md) owns current operational evidence, the [runbook](runbook.md) owns procedures, and [engineering](engineering.md#required-evidence-tiers) owns evidence tiers. [Open decisions](open-decisions.md) owns unresolved material questions. [Design](design.md) owns the durable UI contract.
 
 The accepted [QDOS alpha implementation contract](adr/0013-qdos-alpha-implementation-contract.md) fixes checkpoint 1's clause-specific implementation and Razor/Worker/MCP caller boundary. It does not change capability allocation or promotes an intended caller to implementation, caller, deployment, or acceptance evidence.
 
@@ -611,7 +611,7 @@ present. The Experian adverse-history check remains an EVA-owned downstream
 step; Pegasus preserves its source-labelled result if later received but does
 not claim that manual package generation performed the check.
 
-The focused alpha exports every custody-confirmed Case-vehicle image except an image that authorised staff have confirmed as third-party vehicle evidence. Pegasus does not select, duplicate, or presentation-order EVA images and exposes no `Use for EVA`/`Exclude` controls. EVA owns image selection, ordering, and report eligibility after import. When EVA is replaced, those Engineering decisions move to the accepted `1.0.0` Engineers screen and remain under Engineer authority. Video-derived screenshots are exported only when retained as distinct Case-vehicle image occurrences with source-video and capture-position provenance. The source observations and their scope are retained in the [Collision Engineers administration overview](reference/reports/collision_engineers_admin_overview.md).
+The focused alpha exports every custody-confirmed Case-vehicle image except an image that authorised staff have confirmed as third-party vehicle evidence. Pegasus does not select, duplicate, or presentation-order EVA images and exposes no `Use for EVA`/`Exclude` controls. EVA owns image selection, ordering, and report eligibility after import. When EVA is replaced, those Engineering decisions move to the accepted `1.0.0` Engineers screen and remain under Engineer authority. Video-derived screenshots are exported only when retained as distinct Case-vehicle image occurrences with source-video and capture-position provenance. The source observations and their scope are retained in the [Collision Engineers administration overview](../reference/reports/collision_engineers_admin_overview.md).
 
 ### External boundary
 
@@ -643,7 +643,7 @@ establishes a proxy-only case/vehicle/inspection fetch, a
 create-with-children operation or its validation/atomicity, separate picture
 upload, report-with-PDF handoff, response model, or case/reference correlation
 semantics. Those details remain unresolved in [EVA API
-activation](open-decisions.md#eva-api-activation-070-ext-04); none may be inferred from
+activation](open-decisions.md#eva-api-activation-070--ext-04); none may be inferred from
 the manual export or used to authorize an EVA call.
 
 Audatex remains a separate estimating-system role unless an accepted capability
@@ -1034,7 +1034,7 @@ unlabeled controls, and never presents draft, queued, attempted, allocated, or
 configured work as completed, delivered, deployed, or accepted.
 
 The durable interaction, visual, component, and source/runtime rules are owned
-by [design](../design/README.md).
+by [design](design.md).
 
 ## Quality, capacity, security, and evidence
 
@@ -1050,7 +1050,7 @@ Required qualities:
 - no secrets in source, logs, proof artifacts, URLs, or client-rendered configuration;
 - immutable source and action provenance;
 - structured diagnostics without source-content leakage;
-- a 15-minute database recovery-point objective and four-hour restoration objective, proved through the operator-run [production recovery procedure](operations.md#production-recovery) (OPS-09 — deferred; gates no release);
+- a 15-minute database recovery-point objective and four-hour restoration objective, proved through the operator-run [production recovery procedure](runbook.md#production-recovery) (OPS-09 — deferred; gates no release);
 - reasoned recovery, restore, and replay proof without duplicate case/reference allocation;
 - local development on a supported platform, and supported-browser accessibility proof on Windows with Microsoft Edge Stable and Narrator;
 - independently buildable source workspaces with no application reference, dynamic load, dependency hoist, or deployment inclusion;
@@ -1092,7 +1092,7 @@ No irreversible choice is made merely to reserve a seam. New top-level projects,
 This section owns release precedence. The complete source-labelled dependency
 graph, including `Next` parallel branches and `Later` independent gates, is
 retained in the dependency-ordered delivery roadmap (git history); the operator execution route is
-[Release dependency order](operations.md#release-dependency-order). Those
+[Release dependency order](runbook.md#release-dependency-order). Those
 routes preserve detail and procedure without becoming requirements, allocation,
 implementation-status, or acceptance owners.
 

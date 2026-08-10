@@ -2,8 +2,9 @@
 
 How repository work is done. Product behavior lives in
 [requirements](requirements.md), the roadmap in [capabilities](capabilities.md),
-procedures and evidence in [operations](operations.md), and current work in
-[`NOW.md`](../NOW.md). Authority order is defined once in the
+procedures in the [runbook](runbook.md), operational evidence in
+[operations](operations.md), and current work in [`NOW.md`](../NOW.md).
+Authority order is defined once in the
 [documentation index](index.md).
 
 ## Branches and delivery
@@ -23,43 +24,11 @@ procedures and evidence in [operations](operations.md), and current work in
 - A durable decision that constrains future architecture gets an ADR under
   [docs/adr/](adr/README.md). Everything else is a commit message.
 - Green means every `repository-check` job for the PR's head revision
-  succeeded or was path-skipped. The workflow (`.github/workflows/ci.yml`)
-  runs seven jobs. `changes` is a path-detection job on a Linux runner that
-  inspects only the diff, exercises no application code, and provides no
-  Linux-development evidence. `documentation` (`windows-latest`, 10 minutes)
-  runs the documentation link check for every change set, so
-  `scripts/Test-DocumentationLinks.ps1` is deliberately not a build-relevant
-  path. The remaining lanes run in parallel and only when a build-relevant
-  path changed; the unit, sql-integration, and browser lanes each do their
-  own locked restore and Release build through the shared
-  `.github/actions/dotnet-build` composite action (`qdos-pressure` sets up
-  the SDK directly).
-  `unit` runs `Pegasus.Core.Tests` and `Pegasus.ArchitectureTests` whole and
-  unfiltered (20 minutes). `sql-integration` is a three-shard matrix running
-  `Invoke-TestShard.ps1` over `Category!=Corpus&Category!=Browser`, each shard
-  taking whole test classes and failing if it runs fewer tests than it was
-  assigned (20 minutes); `sql-integration-coverage` then proves on a Linux
-  runner that the shards enumerated one set and covered it exactly once, which
-  matters because `dotnet test` exits zero when a filter matches nothing.
-  `browser` runs `Category=Browser&Category!=Corpus` after the pinned
-  Playwright Chromium install, at half the thread cap (25 minutes), and
-  `qdos-pressure` runs `Invoke-QdosAlphaAcceptance.ps1 -Profile CiPressure`
-  with evidence upload (15 minutes). `Category=Browser` and
-  `Category!=Browser` are a complement
-  pair, so the two integration lanes together select exactly the non-corpus
-  suite; the unit projects carry no traits, so nothing filters them. The
-  lanes run named projects, not the solution: a new test project is in no
-  lane until `ci.yml` names it, so adding one without amending `ci.yml`
-  ships tests that CI never runs. Every
-  test project runs its classes in parallel; the integration project caps
-  concurrency in `tests/Pegasus.IntegrationTests/xunit.runner.json`. A
-  build-relevant path is `src/`, `tests/`, `Pegasus.slnx`,
-  project/props/targets/lock/`global.json`/`nuget.config` files,
-  `scripts/Invoke-QdosAlphaAcceptance.ps1` or `scripts/Invoke-TestShard.ps1`,
-  `ci.yml` itself, or `.github/actions/`; every other
-  change set runs only the documentation link check.
-  `.github/workflows/workspaces.yml` separately gates `workspaces/**`
-  changes.
+  succeeded or was path-skipped. The executable CI behavior, path filters,
+  lane selection, timeouts, and runner choices are defined and explained in
+  [`.github/workflows/ci.yml`](../.github/workflows/ci.yml);
+  [`.github/workflows/workspaces.yml`](../.github/workflows/workspaces.yml)
+  separately gates imported workspace changes.
 
 ## Task workflow
 
@@ -128,19 +97,36 @@ work, and broadening staging beyond your task.
 - Tables use the compact delimiter row `| --- |` without padded alignment.
 - Prose in root and `docs/` guidance files is hard-wrapped near 78 columns;
   table rows and link-dense lines may run long.
-- New Markdown files are created only as ADRs or transient
-  `docs/temp-plans/<task-slug>.md` plans; everything else edits an existing
-  canonical file.
+- The [documentation index](index.md#new-markdown-files) owns where new
+  Markdown files may be created.
 
 ## Evidence
 
 Prove the actual caller — a registration, a file, a green build, a deployment,
-and an accepted feature are different claims. The evidence tiers are defined
-once in [operations](operations.md#required-evidence-tiers). Never collapse
-them into "done": name what was traversed and what remains unproved. A green
-test written from the same mistaken interpretation as the implementation proves
-only self-consistency — material business rules get an independent literal
-comparison against the authoritative rule.
+and an accepted feature are different claims. Never collapse them into
+"done": name what was traversed and what remains unproved. A green test written
+from the same mistaken interpretation as the implementation proves only
+self-consistency; material business rules get an independent literal comparison
+against the authoritative rule.
+
+### Required evidence tiers
+
+For each delivered capability, identify the authoritative rule, Core policy owner, real production entry point, persisted result, adapter or side effect, operator-visible result, and applicable tier.
+
+1. **Static/build/architecture** — compile the four approved projects, enforce dependency direction and one policy owner, compile Bicep, inspect dependencies, and prevent tracked corpus or secret material. This proves consistency only.
+2. **Core/domain** — positive, contradictory, ambiguous, and failure cases for intake, references, matching, lifecycle, roles, completeness, and case invariants.
+3. **Parser/adapter contracts** — EML/PDF/DOCX and later approved DOC/MSG handling; corruption, encryption, expansion/resource limits, cancellation, path/integrity safety, stable contract codes, and deterministic external failures.
+4. **LocalDB persistence** — fresh and incompatible schemas, committed SQL Server migrations, rollback, state/action-history/outbox atomicity, reference allocation, constraints, pagination, leases, stale versions, concurrency, and backup/restore.
+5. **Web/API/MCP caller** — actual routes reach Core; authentication, antiforgery, validation, scope, idempotency, exception translation, and action-history actor are observable.
+6. **Functions/Azurite caller** — actual timer/queue trigger, Blob staging, identifier-only messages, duplicate/retry/poison/restart behavior, and delete-after-Box-confirmation.
+7. **Browser/accessibility** — authenticated workflows, dashboard/queue agreement, two-session editing, keyboard, focus and error behavior, semantic labels, text-plus-colour states, 200% zoom, and supported-browser coverage. Automated axe results do not replace manual keyboard or assistive-technology review.
+8. **Genuine corpus** — immutable reviewed cohort and untouched holdout through the real caller, including field-level accuracy, conflicts, unreadable pages, and false case/reference outcomes. Detailed evidence remains ignored and local.
+9. **Security/observability** — role matrix, secure cookies, transient authentication throttling, request forgery, denial before client construction/call, dependency and dynamic scanning, correlation, health, redaction, and bounded failure metrics.
+10. **Performance/concurrency** — eight concurrent operators, 2,000 cases per month, 2–20+ files per case, the one-file 10 MiB limit and 10 MiB-plus-64-KiB multipart envelope, burst/soak behavior, and 48,000–480,000+ annual asset-metadata shapes. Do not invent a release latency threshold without an explicit decision.
+11. **Migration/recovery** — every supported prior schema, idempotent migration scripts, previous-artifact compatibility, restore into a new database, and reconciliation by stable Outlook/Box identities.
+12. **Integrated workflow** — authenticated source receipt through Core, SQL/outbox, actual Worker trigger, adapter outcome, persisted operator view, telemetry, and safe replay. Registration or mock-only paths do not satisfy this tier.
+
+Run policy tests first, adapter contracts second, persistence/transaction tests third, actual HTTP/Functions caller tests fourth, genuine cohort/holdout evidence where relevant, then separately approved live-service and operator-acceptance gates.
 
 ## Engineering invariants
 

@@ -39,7 +39,7 @@ Two consequences that are easy to get wrong and are therefore stated explicitly:
   equivalent. **These are not defects to fix.** They are source provenance and
   they stay exactly as imported.
 - The packages contain colour values, wording and layout claims that conflict
-  with `design/README.md`. **The conflict is resolved by documenting the losing
+  with `docs/design.md`. **The conflict is resolved by documenting the losing
   source in a canonical file, not by correcting the package.**
 
 `workspaces/ai-centre/skills/README.md` is the Pegasus-authored package index,
@@ -304,7 +304,7 @@ the register that names *both* an AI proposal and a letterhead document.
 | 9 | `AI-09` Core work-request, lease, proposal-version and human-disposition contract | Core | Allocation only (`Later / 1.3.0`) |
 | 10 | The "Send-to-AI transport experiment" resolved for a Foundry model and transport | Operator | Open |
 | 11 | `CASE-23` post-report query and dispute lifecycle — AI-08 responds to a *query*, so the query must have a state | Core | Open decision (`Next / 0.4.0`) |
-| 12 | `UI-15` Engineer workbench re-entering the full design approval route | `design/README.md` | Routeless review markup only |
+| 12 | `UI-15` Engineer workbench re-entering the full design approval route | `docs/design.md` | Routeless review markup only |
 | 13 | `MAIL-17` idempotent report/fee-note send | Core + adapter | Allocation only (`Later / 1.2.0`) |
 | 14 | Evidence tiers 5, 7, 9 and 12 plus operator acceptance | Operations | None |
 
@@ -378,7 +378,7 @@ currency conversion; a model-originated number can only enter as a proposal that
 a human accepts, and its acceptance is recorded.
 
 **F4 — The house-style package becomes the design authority in place of
-`design/README.md`.** *Mechanism:* `collision-engineers-design/SKILL.md:43-46`
+`docs/design.md`.** *Mechanism:* `collision-engineers-design/SKILL.md:43-46`
 asserts *"These are the single source of truth — callers must not re-define their
 own font or colour stack."* That sentence is true inside the package's own world
 and false inside Pegasus. *Guard:* section 5 below.
@@ -441,7 +441,7 @@ disagree on the most basic fact — the red.
 
 | Source | Nature | Document/print red | Status claim it makes |
 | --- | --- | --- | --- |
-| `design/README.md` | Canonical Pegasus design authority | Not listed; *"Excluded marketing tokens include […] document red and brand-font declarations"* | *"This file is the durable authority for Pegasus visual design […] approved assets, component and pattern boundaries, and source-to-runtime mappings"* |
+| `docs/design.md` | Canonical Pegasus design authority | Not listed; *"Excluded marketing tokens include […] document red and brand-font declarations"* | *"This file is the durable authority for Pegasus visual design […] approved assets, component and pattern boundaries, and source-to-runtime mappings"* |
 | `design/assets/report-renderer/templates/report.css` | Tracked implementation, embedded by the renderer | `#c80a32` | Header comment: *"COLLISION ENGINEERS — canonical print stylesheet (A4)"* |
 | `collision-engineers-design` (protected) | Imported design-system package | `#C80A32` (`colors_and_type.css:91`, `references/document-letterhead.md:13`) | *"Canonical tokens to hand back […] These are the single source of truth — callers must not re-define their own font or colour stack"* |
 | `ce-cost-defence` (protected) | Imported document generator | `#C8102E` (`references/brand.md:17`) | *"Fixed details — never vary between reports"*; *"Never edit the generator to change styling"* |
@@ -457,7 +457,7 @@ Three observations sharpen the picture:
   aligned.
 - `ce-cost-defence` is the genuine outlier at `#C8102E`, and it is outside the
   renderer entirely. The two protected packages disagree with each other.
-- `design/README.md` is authoritative but **silent** on the document register. It
+- `docs/design.md` is authoritative but **silent** on the document register. It
   excludes document red from the *application* token table — correctly, since the
   internal command centre must not use it — and its "Web and renderer boundary"
   table delegates report templates and the document stylesheet to the renderer.
@@ -465,7 +465,7 @@ Three observations sharpen the picture:
 
 ### Which is authoritative
 
-**`design/README.md` is the root design authority.** This is already settled and
+**`docs/design.md` is the root design authority.** This is already settled and
 does not need re-deciding here; it is asserted by the file itself and already
 accepted by `workspaces/ai-centre/README.md`, whose authority table reads *"UI and
 application state | [Root design] is the durable visual authority […] Do not
@@ -479,7 +479,7 @@ What follows for the other three:
   authority, not a second authority.** Its "canonical print stylesheet" header
   comment is an inherited upstream claim. It stays byte-unchanged in the move
   (operator decision 2 makes the C# renderer the authoritative design), but
-  `design/README.md` should record the document register it implements so the
+  `docs/design.md` should record the document register it implements so the
   file is governed rather than merely tolerated.
 - **`collision-engineers-design` is source evidence for the document register and
   is not authority.** It is protected; it stays exactly as imported; its "single
@@ -493,9 +493,9 @@ What follows for the other three:
 
 Three canonical-file edits, none of which touches a protected package. All are
 documentation and all belong with the seam plan's Stage 1, which already rewrites
-`design/README.md`'s renderer boundary table when the renderer moves into `src/`.
+`docs/design.md`'s renderer boundary table when the renderer moves into `src/`.
 
-1. **`design/README.md` — add a "Document and print register" subsection under
+1. **`docs/design.md` — add a "Document and print register" subsection under
    "Tokens".** It records `#C80A32` as an approved **document-only** token, names
    `design/assets/report-renderer/templates/report.css` as its sole runtime
    consumer, states that it is deliberately absent from `:root` and from every
@@ -503,7 +503,7 @@ documentation and all belong with the seam plan's Stage 1, which already rewrite
    The file already carries exactly this pattern for the `Send to Claude` control
    ("Reviewed divergence"), so the shape is established and needs no new
    convention.
-2. **`design/README.md` — extend the "Web and renderer boundary" table.** Its
+2. **`docs/design.md` — extend the "Web and renderer boundary" table.** Its
    final row today reads *"Imported renderer, prompt, model, skill and AI material
    | Source evidence only unless a separate accepted contract provides a real
    Pegasus caller."* Split it so `collision-engineers-design` and `ce-house-style`
@@ -515,7 +515,7 @@ documentation and all belong with the seam plan's Stage 1, which already rewrite
    package-status table.** The table's "Authority boundary" column already says
    *"Never Pegasus product policy, case mutation, approval, legal/engineering
    authority, caller, or deployment"* for every row. Add one line recording that
-   `design/README.md` is the durable visual and letterhead authority and
+   `docs/design.md` is the durable visual and letterhead authority and
    `Pegasus.Core` the wording authority, so a reader who arrives at the packages
    first is routed correctly. The README is Pegasus-authored and already carries
    Pegasus-authored notes; see open question S12.
@@ -538,7 +538,7 @@ must be updated to point at the Core contract, not simply deleted.
 | `diminution-report` | **Yes** — `expert-report` | `RPT-04` | Claimant-side opinion |
 | `vehicle-history-check` | **Yes**, conditionally — `expert-report` | `EXT-01`, `EXT-02`, plus the mandatory vehicle-history/risk global check | Normally chat output; the document is optional |
 | `ce-house-style` | **No**, but keyed to eight template names | `AI-08` names "approved house style/letterhead" | A lint and a wording source; the wording overlap is F2 |
-| `collision-engineers-design` | **No**, but names the renderer as the only production path | **None** — `design/README.md` owns this | The design half |
+| `collision-engineers-design` | **No**, but names the renderer as the only production path | **None** — `docs/design.md` owns this | The design half |
 | `ce-cost-defence` | **No** — its own Node/`docx` generator | `EXT-09` covers the *data* (original-versus-assessed comparison, savings), not the document | A second, complete document toolchain |
 | `salvage-categorisation` | **No** — decision support, no document | `ENG-02` (salvage category/value) | Would inform accepted data, never issue it |
 | `manufacturer-methods-evidence` | **No** — pointers only | `ENG-01` (repair specification route provenance) | Explicitly refuses to reproduce OEM procedure text |
@@ -670,7 +670,7 @@ Mapped to the required evidence tiers in `docs/operations.md`.
 | Every capability ID cited here resolves to a row in `docs/capabilities.md` with the stated band and target | Documentary | S0 | No invented capability |
 | No relative link in this plan points at a file that does not exist | Documentary | S0 | The temp-plan contract |
 | `git diff --stat` for the S0 commit touches zero paths under the eleven protected package directories | Documentary | S0 | The protected-source constraint held |
-| `design/README.md`, `workspaces/ai-centre/README.md` and `workspaces/ai-centre/skills/README.md` each name the authoritative source and the non-authoritative ones, by package name | Documentary | S0 | F4 and F6 are findable by search |
+| `docs/design.md`, `workspaces/ai-centre/README.md` and `workspaces/ai-centre/skills/README.md` each name the authoritative source and the non-authoritative ones, by package name | Documentary | S0 | F4 and F6 are findable by search |
 | No `src/Pegasus.*` project file, embedded resource, content item or source file references a path under `workspaces/ai-centre/skills/` | 1 | S1 | The skills are not a dependency |
 | `ReportKind` is a closed enum; `ReportArtifactSchema.TemplateKey` is exhaustive; adding a member breaks the build | 1 | S1 | F5 — Core names its own report taxonomy |
 | Exactly one `IReportRenderer` production implementation plus the fail-closed one; exactly one preview composer; no other document generator in `src/` | 1 | S1 | F6 — no second render path |
@@ -680,7 +680,7 @@ Mapped to the required evidence tiers in `docs/operations.md`.
 | Composing a payload from a proposal without an acceptance record naming an `ActionActor` fails; an amendment produces a new proposal version, never an edit | 2 | S4 | The human disposition is structural, not procedural |
 | The preview composer refuses a proposal type and remains browser-free | 1 + 2 | S4 | F1 via the preview surface |
 | The authorised staff accept/amend/reject action reaches Core through a real route; the actor, caller, time, proposal version and disposition appear in permanent action history | 5 | S4 | Proposals remain proposals |
-| Operator review of a proposal, its provenance and its rejection, without any surface implying the proposal was issued, delivered or accepted | 7 | S5 | The evidence-state discipline in `design/README.md` |
+| Operator review of a proposal, its provenance and its rejection, without any surface implying the proposal was issued, delivered or accepted | 7 | S5 | The evidence-state discipline in `docs/design.md` |
 | Prompt-injection and untrusted-content handling on any path where case evidence becomes model input; redaction and bounded failure metrics | 9 | S5 | The proposal path is a security boundary |
 | Full path — case evidence, work request, lease, proposal, human acceptance, payload composition, render, custody, send — through real callers with safe replay | 12 | S5 | Registration or mock-only paths do not satisfy this tier |
 
@@ -799,7 +799,7 @@ human-approval evidence" but does not fix the direction, and the direction
 determines whether ADR-0011's Automation Actor boundary or the `AI-09`
 work-request contract applies.
 
-**S11.** `design/README.md` currently excludes document red from its token table
+**S11.** `docs/design.md` currently excludes document red from its token table
 while the tracked `report.css` uses `#c80a32`. Adding a document-register
 subsection records the divergence, but is the document register **approved**
 design, or is it inherited implementation awaiting review like the `.scriban`

@@ -18,7 +18,7 @@ from xml.etree import ElementTree
 
 SCHEMA_VERSION = 1
 SHEET_NAME = "Sheet1"
-BOOTSTRAP_SOURCE = Path("docs/reference/workproviders-and-repairers/initial.xlsx")
+BOOTSTRAP_SOURCE = Path("reference/workproviders-and-repairers/initial.xlsx")
 BOOTSTRAP_SOURCE_SHA256 = "e4bf89b0aeef3f1106bf34ed50f74dffc44c5ed748e0ad0811b66ee099b6cd29"
 BOOTSTRAP_VERSION = "provider-domains-v1"
 BOOTSTRAP_OUTPUT = Path(
@@ -146,7 +146,7 @@ def ensure_safe_paths(
     if previous_package_path is not None:
         repository_relative(previous_package_path, repository_root)
 
-    immutable_root = (repository_root / "docs/reference").resolve()
+    immutable_root = (repository_root / "reference").resolve()
     if is_within(package_path, immutable_root) or is_within(staging_root, immutable_root):
         raise AuthoringError("output-collision", "output-under-reference", source=source_name)
 

@@ -8,8 +8,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
     public partial class ProviderDomainReferenceSnapshotV1 : Migration
     {
         private const string Version = "provider-domains-v1";
-        private const string PackageSha256 = "f6b5ad8ecdd428db4316b23e16aa7e0ffc93562aec33374c03ea68cd4f0370a3";
-        private const string SourcePath = "docs/reference/workproviders-and-repairers/initial.xlsx";
+        private const string PackageSha256 = "67c5b9959b3546f75aabd89511d8568ed7f594a8d905bfba47e3a23b828905c0";
+        private const string SourcePath = "reference/workproviders-and-repairers/initial.xlsx";
         private const string SourceSha256 = "e4bf89b0aeef3f1106bf34ed50f74dffc44c5ed748e0ad0811b66ee099b6cd29";
         private static readonly string[] PackageColumns =
             ["Version", "SchemaVersion", "PackageSha256", "SourcePath", "SourceContentSha256", "SourceSheet", "SourceRowCount"];
