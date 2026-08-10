@@ -12,6 +12,8 @@ using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Pegasus.IntegrationTests;
@@ -23,6 +25,12 @@ public sealed class ProviderDomainReferenceIntegrationTests
         "Pegasus.Infrastructure.Persistence.ReferenceData.provider-domains.v1.json";
     private const string PackageVersion = "provider-domains-v1";
     private const string PackageSha256 = "f6b5ad8ecdd428db4316b23e16aa7e0ffc93562aec33374c03ea68cd4f0370a3";
+    private const string HistoricalWorkbookPath =
+        "docs/reference/workproviders-and-repairers/initial.xlsx";
+    private const string PhysicalWorkbookPath =
+        "reference/workproviders-and-repairers/initial.xlsx";
+    private const string PreInspectionModeMigration =
+        "20260801220500_GrantWebMigrationHistoryRead";
 
     [Fact]
     public void EmbeddedPackageMatchesApprovedWorkbookDomainEvidence()
@@ -34,6 +42,7 @@ public sealed class ProviderDomainReferenceIntegrationTests
         Assert.Equal(PackageSha256, Convert.ToHexStringLower(SHA256.HashData(packageBytes)));
 
         var package = DeserializePackage(packageBytes);
+        Assert.Equal(HistoricalWorkbookPath, package.Source.Path);
         var workbook = ReadApprovedWorkbook(package.Source.Path, package.Source.Sheet);
 
         Assert.Equal(package.Source.RowCount, workbook.HighestContractRow);
@@ -68,7 +77,7 @@ public sealed class ProviderDomainReferenceIntegrationTests
     }
 
     [Fact]
-    public async Task MigrationSeedsExactPackageAndCatalogUsesOneBoundedQuery()
+    public async Task FreshSchemaMigrationSeedsExactPackageAndCatalogUsesOneBoundedQuery()
     {
         var commandCounter = new ReaderCommandCounter();
         await using var database = await LocalDbTestDatabase.CreateAsync(
@@ -187,6 +196,36 @@ public sealed class ProviderDomainReferenceIntegrationTests
                 ExactPackageVersion(), "@qdosassist.co.uk", cancellation.Token));
     }
 
+    [Fact]
+    public async Task ExistingProviderSnapshotMigratesForwardWithoutRepublishingV1()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var connection = database.CreateConnection();
+        await connection.OpenAsync();
+        var package = DeserializePackage(LoadEmbeddedPackageBytes());
+
+        await using var context = await database.CreateContextAsync();
+        var migrator = context.GetService<IMigrator>();
+        await migrator.MigrateAsync(PreInspectionModeMigration);
+
+        var priorSchemaPackage = await ProviderPackageRowAsync(connection);
+        Assert.Equal(ExpectedPackageRow(package), priorSchemaPackage);
+        Assert.Equal(1, await ScalarAsync<long>(
+            connection,
+            "SELECT COUNT(*) FROM ProviderDomainPackages WHERE Version = 'provider-domains-v1'"));
+
+        await migrator.MigrateAsync();
+
+        Assert.Empty(await context.Database.GetPendingMigrationsAsync());
+        Assert.Equal(priorSchemaPackage, await ProviderPackageRowAsync(connection));
+        Assert.Equal(1, await ScalarAsync<long>(
+            connection,
+            "SELECT COUNT(*) FROM ProviderDomainPackages WHERE Version = 'provider-domains-v1'"));
+        Assert.Contains(
+            "20260803014608_ProviderInspectionModeSetting",
+            await context.Database.GetAppliedMigrationsAsync());
+    }
+
     private static ProviderDomainPackageVersion ExactPackageVersion() =>
         new(ReferenceDataPolicy.SupportedSchemaVersion, PackageVersion, PackageSha256);
 
@@ -205,9 +244,12 @@ public sealed class ProviderDomainReferenceIntegrationTests
 
     private static WorkbookEvidence ReadApprovedWorkbook(string repositoryPath, string sheetName)
     {
+        var physicalRepositoryPath = repositoryPath == HistoricalWorkbookPath
+            ? PhysicalWorkbookPath
+            : repositoryPath;
         var sourcePath = Path.Combine(
             FindRepositoryRoot(),
-            repositoryPath.Replace('/', Path.DirectorySeparatorChar));
+            physicalRepositoryPath.Replace('/', Path.DirectorySeparatorChar));
         var sourceBytes = File.ReadAllBytes(sourcePath);
         using var document = SpreadsheetDocument.Open(sourcePath, false);
         var workbookPart = document.WorkbookPart
@@ -342,6 +384,16 @@ public sealed class ProviderDomainReferenceIntegrationTests
         }
         return package;
     }
+
+    private static ProviderPackageRow ExpectedPackageRow(ProviderDomainPackage package) =>
+        new(
+            package.Version,
+            package.SchemaVersion,
+            PackageSha256,
+            package.Source.Path,
+            package.Source.ContentSha256,
+            package.Source.Sheet,
+            package.Source.RowCount);
 
     private static async Task<ImmutableArray<ProviderEvidence>> ProviderEvidenceRowsAsync(
         SqlConnection connection)

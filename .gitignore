@@ -16,6 +16,7 @@ appsettings.*.local.json
 # .NET build and test output
 **/bin/
 **/obj/
+**/__pycache__/
 **/TestResults/
 **/coverage/
 **/artifacts/
@@ -62,13 +63,9 @@ Thumbs.db
 .obsidian/plugins/realclaudian/main.js
 .obsidian/plugins/realclaudian/manifest.json
 .obsidian/plugins/realclaudian/styles.css
-l
 
 # Generated workspace outputs and imported review bundle
-/p17/
 /workspaces/ai-centre/services/collision-brain/bin/
 /workspaces/ai-centre/services/collision-brain/obj/
 /workspaces/ai-centre/services/collision-brain/publish/
 /workspaces/ai-centre/skills/tools/__pycache__/
-/.obsidian
-src/CollisionSpike.Web/wwwroot/lib/jquery-validation/LICENSE.md

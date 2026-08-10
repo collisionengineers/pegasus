@@ -2,7 +2,7 @@
 
 This is the sole register of material unresolved decisions. Most product decisions reviewed through 2026-07-25 are not reopened here. The [requirements](requirements.md) and [capability inventory](capabilities.md) own scope context; deliberately deferred, conditional, and `Unclear` capabilities are not current-scope questions merely because their activation evidence is recorded here.
 
-Evidence tiers are defined once in [operations](operations.md#required-evidence-tiers); no stronger state is inferred below.
+Evidence tiers are defined once in [engineering](engineering.md#required-evidence-tiers); no stronger state is inferred below.
 
 Accepted decisions move to an [ADR](adr/README.md) or their canonical owner. Delivery status does not belong in this register.
 
@@ -275,7 +275,7 @@ Operations-first is selected for the QDOS-alpha shell. Worklist-first and Case-f
 
 | Evidence needed | Impact | Recommended default | Decision question |
 |---|---|---|---|
-| Completion of the full design route for each later UI capability, using the canonical [design process](../design/README.md) rather than inheriting raster details. | Treating comparison material or raster details as requirements could constrain later capabilities to an unaccepted interaction model. | Keep the operations-first alpha shell. Require later UI capabilities to re-enter complete design before activation. | Has the later UI capability completed the full design route without treating comparison evidence or raster details as accepted requirements? |
+| Completion of the full design route for each later UI capability, using the canonical [design process](design.md) rather than inheriting raster details. | Treating comparison material or raster details as requirements could constrain later capabilities to an unaccepted interaction model. | Keep the operations-first alpha shell. Require later UI capabilities to re-enter complete design before activation. | Has the later UI capability completed the full design route without treating comparison evidence or raster details as accepted requirements? |
 
 ## Mail workspace freshness threshold and retention start
 

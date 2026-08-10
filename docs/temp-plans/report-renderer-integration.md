@@ -26,7 +26,7 @@ describe*, not something this task performs.
 Stated plainly, because the routing rules make the distinction load-bearing:
 relocating source is not integration, integration is not activation, and
 activation is not acceptance
-([evidence tiers](../operations.md#required-evidence-tiers)).
+([evidence tiers](../engineering.md#required-evidence-tiers)).
 
 ## Deviation from the temp-plan contract
 
@@ -209,7 +209,7 @@ land in, and the reason for each edge.
 ## Verification
 
 Each supporting plan carries its own verification section mapped to the
-[evidence tiers](../operations.md#required-evidence-tiers). For this master
+[evidence tiers](../engineering.md#required-evidence-tiers). For this master
 plan the verification is documentary only:
 
 - every capability ID named here resolves to a row in

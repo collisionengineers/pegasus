@@ -1,6 +1,6 @@
 # Architecture
 
-> **Design authority:** [`../../../design/README.md`](../../../design/README.md) is the root authority for shared design assets and governance. This workspace links or embeds governed assets; it does not create a competing design source.
+> **Design authority:** [`../../../docs/design.md`](../../../docs/design.md) is the root authority for shared design assets and governance. This workspace links or embeds governed assets; it does not create a competing design source.
 
 Collision Renderer follows one principle: **one shared engine, thin hosts**. `CollisionRenderer.Core` owns document models, catalogues, form definitions, attachment policy, validation, HTML composition, density fitting and PDF production. Hosts translate their transport or UI into Core contracts and do not maintain separate render pipelines.
 

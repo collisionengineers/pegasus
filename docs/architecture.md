@@ -272,6 +272,8 @@ The immutable package has these qualifications:
 | SHA-256 | `f6b5ad8ecdd428db4316b23e16aa7e0ffc93562aec33374c03ea68cd4f0370a3` |
 | Current logical resource | `Pegasus.Infrastructure.Persistence.ReferenceData.provider-domains.v1.json` |
 | Pre-cutover logical resource | `CollisionSpike.Infrastructure.Persistence.ReferenceData.provider-domains.v1.json` |
+| Immutable source provenance | `docs/reference/workproviders-and-repairers/initial.xlsx` |
+| Current physical authoring source | `reference/workproviders-and-repairers/initial.xlsx` (mapped only by authoring and test resolution) |
 
 Core validates exact package tuples and defines deterministic results:
 
@@ -521,14 +523,16 @@ Bicep compilation proves syntax and type consistency only.
 
 Any Azure resource creation, deployment, role or credential change, setting change, or retirement requires explicit user approval for the exact target. Ownership of shared Foundry, ACR/ValuationBot, capture, or default-workspace assets must not be inferred from the predecessor resource group.
 
-The release design, live-inventory qualifications, and deployment procedures are owned by [operations](operations.md#production-environment).
+The release design and live-inventory qualifications are owned by
+[operations](operations.md#production-environment); deployment procedures are
+owned by the [runbook](runbook.md#deployment-and-release).
 
 ## Local development procedure
 
 The local development procedure, its platform differences, and its evidence
-limits are owned by [operations](operations.md#supported-platform); the
-platform-specific database is owned by
-[local database](operations.md#local-database). This section describes only what
+limits are owned by the [runbook](runbook.md#supported-platform); the
+platform-specific database is owned by the
+[local database](runbook.md#local-database). This section describes only what
 the resulting configuration selects.
 
 Development configuration selects:
@@ -580,16 +584,16 @@ Relevant architectural decisions include ADR-0003 for PdfPig, ADR-0005 for multi
 | Path | Role | Qualification |
 | --- | --- | --- |
 | `src/Pegasus.Infrastructure/Persistence/Migrations/` | Live migration source | Generated from the reviewed EF model and migrations; consumed only by explicit schema-apply procedures. |
-| `docs/reference/workproviders-and-repairers/initial.xlsx` | Immutable `0.1.0-alpha.1` provider-domain source evidence | Owner-supplied workbook used only by the offline authoring process. |
+| `reference/workproviders-and-repairers/initial.xlsx` | Immutable `0.1.0-alpha.1` provider-domain source evidence | Owner-supplied workbook used only by the offline authoring process. |
 | `scripts/Build-ProviderReferenceData.ps1` | Offline authoring command | Never an application-runtime parser. |
 | `scripts/reference_data/build_provider_reference_data.py` | Reviewed standard-library authoring implementation | Generates and verifies immutable package output from the source contract. |
 | `src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json` | Canonical immutable provider-domain package | Embedded build resource and reviewed migration seed. |
 | `artifacts/bicep/main.json` | Ignored generated Bicep output | Produced by `az bicep build --file infra/main.bicep`; compile evidence only. |
 | `artifacts/test-results/` | Ignored generated evidence | Used for local review and diagnosis. |
 | `artifacts/local-development/` and LocalDB databases | Ignored Development state | Produced by explicit migration and real local callers; not production custody. |
-| `docs/reference/` | Preserved supplied evidence | Used for planning and evaluation only after authority reconciliation; see the [reference index](reference/README.md). |
+| `reference/` | Preserved supplied evidence | Used for planning and evaluation only after authority reconciliation; see the [reference index](../reference/README.md). |
 | `workspaces/` | Independently validated non-caller source imports | Workspace-specific build and test only until separately accepted integration. |
-| `design/references/mockups/` | Approved comparison rasters | Direction-selection evidence, not runtime behavior or requirements; see the [design index](../design/README.md). |
+| `design/references/mockups/` | Approved comparison rasters | Direction-selection evidence, not runtime behavior or requirements; see the [design index](design.md). |
 
 Infrastructure and release definitions under `infra/` describe target infrastructure; they do not prove a live deployment.
 
@@ -642,4 +646,4 @@ These results do not prove:
 - Do not treat local artifacts or transient Blob storage as Box custody.
 - Do not treat accepted design as implementation, implementation as caller proof, caller proof as deployment, or deployment as operator acceptance.
 
-Product behavior is governed by [requirements](requirements.md), capability scope by [capabilities](capabilities.md), unresolved gates by [open decisions](open-decisions.md), operational procedures by [operations](operations.md), repository-development workflow by [engineering](engineering.md), and business authority by [operator notes](operator-notes.md). Repository navigation is maintained by the [documentation index](index.md), and durable change history by git history.
+Product behavior is governed by [requirements](requirements.md), capability scope by [capabilities](capabilities.md), unresolved gates by [open decisions](open-decisions.md), operational procedures by the [runbook](runbook.md), current operational evidence by [operations](operations.md), repository-development workflow by [engineering](engineering.md), and business authority by [operator notes](operator-notes.md). Repository navigation is maintained by the [documentation index](index.md), and durable change history by git history.
