@@ -57,18 +57,122 @@ public sealed class WorkerActivationReleaseContractTests
             "infra",
             "modules",
             "platform.bicep"));
-        var matches = Regex.Matches(
+        var nameMatches = Regex.Matches(
+            platformBicep,
+            "name:\\s*'AzureWebJobs\\.([A-Za-z0-9]+)\\.Disabled'",
+            RegexOptions.CultureInvariant);
+        var conditionalMatches = Regex.Matches(
             platformBicep,
             "name:\\s*'AzureWebJobs\\.([A-Za-z0-9]+)\\.Disabled'\\s*,\\s*" +
             "value:\\s*workerActivationApproved\\s*\\?\\s*'false'\\s*:\\s*'true'",
             RegexOptions.CultureInvariant);
-        var actualFunctions = matches
+        var actualFunctions = nameMatches
+            .Select(match => match.Groups[1].Value)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        var conditionalFunctions = conditionalMatches
             .Select(match => match.Groups[1].Value)
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(9, matches.Count);
+        Assert.Equal(9, nameMatches.Count);
         Assert.Equal(ExpectedFunctions, actualFunctions);
+        Assert.Equal(9, conditionalMatches.Count);
+        Assert.Equal(ExpectedFunctions, conditionalFunctions);
+    }
+
+    [Fact]
+    public async Task LocalDeploymentPlanRejectsAppendedRogueHardCodedWorkerSetting()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var testRoot = Path.Combine(
+            Path.GetTempPath(),
+            $"pegasus-worker-plan-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(testRoot);
+        try
+        {
+            CopyValidationFixtureFile(repositoryRoot, testRoot, "azure.yaml");
+            CopyValidationFixtureFile(repositoryRoot, testRoot, "infra/main.bicep");
+            CopyValidationFixtureFile(repositoryRoot, testRoot, "infra/main.parameters.json");
+            CopyValidationFixtureFile(
+                repositoryRoot,
+                testRoot,
+                "infra/modules/platform.bicep");
+            CopyValidationFixtureFile(
+                repositoryRoot,
+                testRoot,
+                "scripts/Invoke-ProductionSmoke.ps1");
+            CopyValidationFixtureFile(
+                repositoryRoot,
+                testRoot,
+                "scripts/Test-AzureDeploymentPlan.ps1");
+
+            var platformBicepPath = Path.Combine(
+                testRoot,
+                "infra",
+                "modules",
+                "platform.bicep");
+            var platformBicep = File.ReadAllText(platformBicepPath);
+            const string marker =
+                "        { name: 'AzureWebJobs.PendingWorkDispatchFunction.Disabled'";
+            var mutatedPlatformBicep = platformBicep.Replace(
+                marker,
+                "        { name: 'AzureWebJobs.Rogue-Function.Disabled', value: 'false' }" +
+                Environment.NewLine + marker,
+                StringComparison.Ordinal);
+            Assert.NotEqual(platformBicep, mutatedPlatformBicep);
+            File.WriteAllText(platformBicepPath, mutatedPlatformBicep);
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "pwsh",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                WorkingDirectory = testRoot
+            };
+            startInfo.ArgumentList.Add("-NoLogo");
+            startInfo.ArgumentList.Add("-NoProfile");
+            startInfo.ArgumentList.Add("-File");
+            startInfo.ArgumentList.Add(Path.Combine(
+                testRoot,
+                "scripts",
+                "Test-AzureDeploymentPlan.ps1"));
+            startInfo.ArgumentList.Add("-Mode");
+            startInfo.ArgumentList.Add("Local");
+            startInfo.ArgumentList.Add("-WorkerActivation");
+            startInfo.ArgumentList.Add("disabled");
+
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException(
+                    "Failed to start isolated Local deployment-plan validation.");
+            var standardOutputTask = process.StandardOutput.ReadToEndAsync();
+            var standardErrorTask = process.StandardError.ReadToEndAsync();
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                process.Kill(entireProcessTree: true);
+                await process.WaitForExitAsync();
+                throw new TimeoutException(
+                    "Isolated Local deployment-plan validation did not finish within 30 seconds.");
+            }
+            var output = await standardOutputTask + await standardErrorTask;
+
+            Assert.NotEqual(0, process.ExitCode);
+            Assert.Contains(
+                "exact nine-function disabled-setting name census",
+                output,
+                StringComparison.Ordinal);
+            Assert.DoesNotContain("Rogue-Function", output, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(testRoot, recursive: true);
+        }
     }
 
     [Fact]
@@ -104,6 +208,10 @@ public sealed class WorkerActivationReleaseContractTests
             "-AllowWorkerDisable is valid only for an explicit enabled-to-disabled rollback.",
             deploymentPlan);
         Assert.Contains("PEGASUS_WORKER_ACTIVATION=disabled", deploymentPlan);
+        Assert.Contains("$sourceWorkerNameMatches", deploymentPlan);
+        Assert.Contains("$sourceWorkerConditionalMatches", deploymentPlan);
+        Assert.Contains("$compiledWorkerNameMatches", deploymentPlan);
+        Assert.Contains("$compiledWorkerConditionalMatches", deploymentPlan);
     }
 
     [Fact]
@@ -338,6 +446,17 @@ public sealed class WorkerActivationReleaseContractTests
             UnixFileMode.UserRead |
             UnixFileMode.UserWrite |
             UnixFileMode.UserExecute);
+    }
+
+    private static void CopyValidationFixtureFile(
+        string repositoryRoot,
+        string testRoot,
+        string relativePath)
+    {
+        var sourcePath = Path.Combine(repositoryRoot, relativePath);
+        var destinationPath = Path.Combine(testRoot, relativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+        File.Copy(sourcePath, destinationPath);
     }
 
     private sealed record WorkerSetting(

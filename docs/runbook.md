@@ -885,6 +885,10 @@ After production activation, every infrastructure release explicitly retains
 condition before provision, because continuing would recreate the 10 August
 2026 incident.
 
+Run each procedure below from a fresh authorised terminal. Execute the exact
+environment and subscription assignments at the start of that procedure;
+never rely on variables or azd selection inherited from an earlier terminal.
+
 First activation remains blocked until the approved clean-baseline operation
 has completed and the operator has separately approved the exact production
 provision. With a fresh inventory confirming the current Worker, set the
@@ -926,6 +930,9 @@ For every later release of an enabled estate, preflight requires both the
 desired and live states to remain enabled:
 
 ```powershell
+$pegasusAzdEnvironment = 'pegasus-prod'
+$pegasusSubscription = 'e6076573-23a5-46a8-acef-7e22d264e5db'
+
 azd env set PEGASUS_WORKER_ACTIVATION approved-live-worker `
   -e $pegasusAzdEnvironment
 ./scripts/Test-AzureDeploymentPlan.ps1 `
@@ -935,7 +942,8 @@ azd env set PEGASUS_WORKER_ACTIVATION approved-live-worker `
   -ExpectedLiveWorkerActivation approved-live-worker
 ```
 
-The full post-release smoke adds the same readback to the existing Web gates:
+In the same later-release terminal, the full post-release smoke adds the same
+readback to the existing Web gates:
 
 ```powershell
 ./scripts/Invoke-ProductionSmoke.ps1 `
@@ -959,6 +967,9 @@ intended outcome. The `-AllowWorkerDisable` switch is valid only for this
 reviewed enabled-to-disabled transition:
 
 ```powershell
+$pegasusAzdEnvironment = 'pegasus-prod'
+$pegasusSubscription = 'e6076573-23a5-46a8-acef-7e22d264e5db'
+
 azd env set PEGASUS_WORKER_ACTIVATION disabled -e $pegasusAzdEnvironment
 ./scripts/Test-AzureDeploymentPlan.ps1 `
   -Mode PreProvision `
