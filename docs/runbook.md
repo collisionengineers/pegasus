@@ -230,6 +230,8 @@ mechanism, and current deployed custody state are recorded in
 [operations](operations.md#approved-box-custody-root). Before any invocation,
 apply the exact scope, approval, and evidence checks in this runbook's
 [live-operation approval matrix](#live-operation-approval-matrix).
+Before every Box invocation, verify target ancestry and the target/action
+allowlist, and retain the stable source identity, target identity, and outcome.
 
 ### Azure SQL runtime-role bootstrap
 
