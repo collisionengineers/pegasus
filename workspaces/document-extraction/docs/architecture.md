@@ -2,7 +2,7 @@
 
 ## Authority and evidence boundaries
 
-This document is the sole workspace architecture owner for CollisionDocNetExtractor. Product obligations are owned by [requirements](../../../docs/requirements.md), capability boundaries by [capabilities](../../../docs/capabilities.md), unresolved choices by [open decisions](../../../docs/open-decisions.md), accepted architectural decisions by the [decision index](../../../docs/adr/README.md), and operational procedures by [operations](../../../docs/operations.md); repository-development practice is governed by [engineering](../../../docs/engineering.md). See the [documentation index](../../../docs/index.md) for canonical navigation and the [workspace index](../../README.md) for repository boundaries.
+This document is the sole workspace architecture owner for CollisionDocNetExtractor. Product obligations are owned by [requirements](../../../docs/requirements.md), capability boundaries by [capabilities](../../../docs/capabilities.md), unresolved choices by [open decisions](../../../docs/open-decisions.md), accepted architectural decisions by the [decision index](../../../docs/adr/README.md), operational procedures by the [runbook](../../../docs/runbook.md), and current operational evidence by [operations](../../../docs/operations.md); repository-development practice is governed by [engineering](../../../docs/engineering.md). See the [documentation index](../../../docs/index.md) for canonical navigation and the [workspace index](../../README.md) for repository boundaries.
 
 Architecture statements use these evidence states distinctly:
 
@@ -859,4 +859,4 @@ Generated row tests may consume the committed catalogue, but expected framing an
 
 The target library and CLI are headless and cross-platform. No component may reference WindowsDesktop, ASP.NET hosting, Office or Outlook automation, an external office-suite runtime, a UI toolkit, browser engine, or mailbox client.
 
-Specification mapping, implementation, caller proof, deployment, packaging, and accepted support remain separate gates. Release and operational evidence are governed by [operations](../../../docs/operations.md), repository-development practice by [engineering](../../../docs/engineering.md), and operator-facing cautions by [operator notes](../../../docs/operator-notes.md).
+Specification mapping, implementation, caller proof, deployment, packaging, and accepted support remain separate gates. Current release and operational evidence is recorded in [operations](../../../docs/operations.md), evidence classification and repository-development practice are governed by [engineering](../../../docs/engineering.md), and operator-facing cautions by [operator notes](../../../docs/operator-notes.md).

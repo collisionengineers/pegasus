@@ -41,7 +41,7 @@ Tw Cen MT Std, Futura and the unused white reverse logo do not ship as renderer 
 
 ## Design and source provenance
 
-The root design authority is the repository `design/README.md`. Renderer templates, stylesheet, logo and signatures are linked or embedded from governed design sources at build time rather than maintained as divergent workspace copies.
+The root design authority is the repository `docs/design.md`. Renderer templates, stylesheet, logo and signatures are linked or embedded from governed design sources at build time rather than maintained as divergent workspace copies.
 
 The visual and behavioural design was informed by:
 

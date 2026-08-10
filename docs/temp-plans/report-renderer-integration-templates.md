@@ -24,7 +24,7 @@ What that means for this document:
   `AssessmentReportDocument`, no `assessment_report.scriban`, no four-preset
   family, no composed-narrative engine, no computed-once figure engine derived
   from `DESIGN_SPEC`, no new design tokens. Nothing is imported from
-  `docs/reference/rendererref1/`, which keeps its registered role as evidence.
+  `reference/rendererref1/`, which keeps its registered role as evidence.
 - **The RPT capability outcomes are unchanged, and the C# renderer does not
   satisfy them.** It performs no arithmetic beyond a fee-note sum in
   `HtmlComposer`; two template IDs cover three or four outcomes; there is no
@@ -62,9 +62,9 @@ current descriptors already do.
 
 ## Source material and its standing
 
-`docs/reference/rendererref1/` is registered in `docs/reference/README.md:22`
+`reference/rendererref1/` is registered in `reference/README.md:22`
 with an eight-word description and is referenced nowhere else in the
-repository. Under `docs/reference/README.md:3-14` it is **evidence, not a
+repository. Under `reference/README.md:3-14` it is **evidence, not a
 requirement, implementation proof, current directory, or authorization**, and
 "any future import or directory use requires operator review, an accepted data
 contract, and separately authorized target operations."
@@ -80,7 +80,7 @@ The directory contains:
 | `logo_no_margin.png`, `andy_patterson.png`, `ed_mawdsley.png`, `neil_oreilly.png` | Duplicates of assets already governed under `design/brand/` |
 
 The four sample jobs contain a personal name and a named principal's postal
-address. `docs/reference/README.md:11-13` forbids copying personal names,
+address. `reference/README.md:11-13` forbids copying personal names,
 addresses, or contact rows into canonical prose, and the renderer workspace's
 own `docs/adr/0009-reference-material-handling.md` git-ignores customer
 reference material entirely. This plan therefore never lifts sample values into
@@ -448,7 +448,7 @@ already owns a concept, the spec item defers to it.
 | "Open item: DVLA lookup on registration to auto-fill make/model/year/engine/fuel" | `EXT-01` | **Defer.** Already an accepted Pegasus capability; not a renderer concern |
 | Valuation guide boxes; "Glass's code REMOVED from all reports" | `EXT-13` and `ENG-02` | **Defer to EXT-13/ENG-02.** Adopt only the *report-side* consequence: exactly three figures reach the report and no guide identity or Glass's code appears. The renderer never names a valuation source |
 | Repair specification imported from an estimating system | `ENG-01` and `EXT-12` | **Defer.** Adopt only the report-side consequence: three named lists, names only, no part numbers and no per-line prices, paint merged into operations |
-| "Include/exclude toggle, resize, crop and rotate are DASHBOARD features — the generator never manipulates images" | `design/product/ui-spec.md:44`; `design/product/requirements.md:47` | **Adopt the renderer half, defer the UI half.** The renderer never manipulates images. Selection and ordering belong to the future Engineers screen, not Case evidence and not the renderer |
+| "Include/exclude toggle, resize, crop and rotate are DASHBOARD features — the generator never manipulates images" | `docs/design.md#ui-specification:44`; `docs/design.md#operator-experience-requirements:47` | **Adopt the renderer half, defer the UI half.** The renderer never manipulates images. Selection and ordering belong to the future Engineers screen, not Case evidence and not the renderer |
 | Statement of truth "keep current wording for now… to be revised at finalisation" | `docs/open-decisions.md` "Report wording" | **Blocked.** Model the field; ship no default text |
 | Engineer list with signature images | `design/brand/signatures/**`; `docs/requirements.md:949`; `BrandAssets.AvailableSignatures` | **Adopt as-is, add nothing.** Exactly three engineers. Qualifications for two are blocked. Do not invent an engineer, a qualification, or a signature key |
 | Impact diagram generated from a location code | none | **Not planned.** Keep the per-case image field |
@@ -482,14 +482,14 @@ not an automated gate. Reasons, in order:
    hash-comparison form cannot gate on them.
 2. Their input data contains a personal name, a principal's address, a
    registration, and a VIN. Committing rasters of them would put case-like
-   material into tracked history, against `docs/reference/README.md:11-13` and
+   material into tracked history, against `reference/README.md:11-13` and
    the renderer workspace's own reference-material ADR.
 
 Recommended use: run `-ReferenceMap` once, manually, pointing at a synthetic
 payload and the corresponding sample PDF, to produce side-by-side rasters under
 the ignored `artifacts/` tree for an operator to review page by page. Record the
 review outcome as a decision, not as a committed image. The four PDFs remain
-untouched bytes in `docs/reference/rendererref1/`.
+untouched bytes in `reference/rendererref1/`.
 
 ### Recommended committed baseline
 
@@ -538,15 +538,15 @@ synthetic fixture, re-rendered on every template change:
 
 ## 8. Design-authority route
 
-`design/README.md:48` requires that "every deferred UI capability must re-enter
+`docs/design.md:48` requires that "every deferred UI capability must re-enter
 specification, alternatives, independent review, explicit approval, visual
 generation and manual visual review before implementation."
 
 Do report templates fall under it? The rule says *UI capability*, and a PDF is
-not a Web surface. But `design/README.md:230-240` explicitly owns the renderer
+not a Web surface. But `docs/design.md:230-240` explicitly owns the renderer
 asset boundary and names "Report templates and document stylesheet" as an
 approved asset class, alongside the master logo and the supplied engineer
-signatures. `design/README.md` is the durable authority for "approved assets,
+signatures. `docs/design.md` is the durable authority for "approved assets,
 component and pattern boundaries, and source-to-runtime mappings", and it is
 where the excluded-token list lives.
 
@@ -576,16 +576,16 @@ ADR-shaped; wording and provider selections are operator decisions recorded in
 
 Checked against `design/assets/report-renderer/templates/report.css` (note: the
 stylesheet is under `templates/`, not at the `report-renderer/` root) and
-against `design/README.md`.
+against `docs/design.md`.
 
-| Spec token | Spec value | In `report.css`? | In `design/README.md`? | Conflict? |
+| Spec token | Spec value | In `report.css`? | In `docs/design.md`? | Conflict? |
 | --- | --- | --- | --- | --- |
-| Doc red | `#C80A32` | **Yes**, lowercase `#c80a32` throughout | **No.** `design/README.md:72` sets Collision red `#DB0816`, and the excluded-token line explicitly lists "document red" among excluded marketing tokens | **No conflict, but no owner.** Document red is deliberately outside the Web palette, yet its exact hex is recorded nowhere in the design authority. Recommend recording it under the Web/renderer boundary section |
+| Doc red | `#C80A32` | **Yes**, lowercase `#c80a32` throughout | **No.** `docs/design.md:72` sets Collision red `#DB0816`, and the excluded-token line explicitly lists "document red" among excluded marketing tokens | **No conflict, but no owner.** Document red is deliberately outside the Web palette, yet its exact hex is recorded nowhere in the design authority. Recommend recording it under the Web/renderer boundary section |
 | Charcoal | `#2C2A27` | Yes, once | **Yes** — "Warm charcoal `#2C2A27`", exact match | None |
 | Label grey | `#F2F2F2` | Yes | No | Consistent; unrecorded |
 | Total-row grey | `#EFEFEF` | **No.** Absent. Nearest existing values are `#f5f5f5`, `#f2f2f2`, `#f4f4f3` | No | **Gap.** A new token is required, and `#EFEFEF` is close enough to the three existing greys to be mistaken for them. Needs explicit approval, not silent addition |
 | Grid grey | `#BEBEBE` | Yes | No | Consistent; unrecorded |
-| Body face | Arial / Liberation Sans | Partly — `report.css` declares `Arial, Helvetica, sans-serif`; **Liberation Sans is not named in the stylesheet**, it is supplied by the container | `design/README.md:88-96` mandates the system stack for *application* text and separates document faces | **No conflict** — document faces are separately owned. But the document body face is not recorded as an approved token, and the Arial→Liberation substitution is a cross-platform determinism risk for §7 |
+| Body face | Arial / Liberation Sans | Partly — `report.css` declares `Arial, Helvetica, sans-serif`; **Liberation Sans is not named in the stylesheet**, it is supplied by the container | `docs/design.md:88-96` mandates the system stack for *application* text and separates document faces | **No conflict** — document faces are separately owned. But the document body face is not recorded as an approved token, and the Arial→Liberation substitution is a cross-platform determinism risk for §7 |
 
 Two further additions the spec requires that `report.css` has no rule for at
 all: the **status badges** and the **four figure tiles** with a red settlement
@@ -615,7 +615,7 @@ register row and with `docs/adr/0009`.
 
 ## 11. Verification plan
 
-Mapped to the evidence tiers in `docs/operations.md`. Only tiers genuinely
+Mapped to the evidence tiers in `docs/engineering.md`. Only tiers genuinely
 reachable at each stage are claimed.
 
 | Tier | Applies? | Evidence |
@@ -633,9 +633,11 @@ reachable at each stage are claimed.
 | 11 Migration/recovery | **No** at these stages | Template/payload versioning is designed here but has no persisted artifact to migrate |
 | 12 Integrated workflow | **No** | Explicitly out of scope; this plan does not activate a capability |
 
-Order, per `docs/operations.md`: policy tests first (tier 2), contract tests
-second (tier 3), then build/architecture (tier 1), then the visual regression
-sweep (§7) as a change-detection gate rather than an acceptance gate.
+Order, under [engineering's evidence tiers](../engineering.md#required-evidence-tiers)
+and the [runbook's build/test procedure](../runbook.md#locked-restore-build-and-test):
+policy tests first (tier 2), contract tests second (tier 3), then
+build/architecture (tier 1), then the visual regression sweep (§7) as a
+change-detection gate rather than an acceptance gate.
 
 ## 12. Non-goals, stop conditions, and open questions
 
@@ -650,7 +652,7 @@ sweep (§7) as a change-detection gate rather than an acceptance gate.
 - Adding, renaming, or removing an engineer or a signature key.
 - Building `RPT-03` audit, `RPT-04` diminution, or `RPT-05` addendum rendering —
   the reference material contains nothing for them.
-- Importing any file from `docs/reference/rendererref1/` into product source,
+- Importing any file from `reference/rendererref1/` into product source,
   fixtures, starters, or baselines.
 - Changing the shared footer, letterhead, or `report.css` in a way that alters
   the other eleven templates.
@@ -702,11 +704,11 @@ Stop and return to the operator if any of these is reached:
    family. Are they retired, repointed, or kept alongside the new presets?
 9. **Sample-data handling.** The four sample jobs carry a claimant name, a
    principal address, a registration, and a VIN, and are committed under
-   `docs/reference/`. Confirm that these files are retained as-is and that no
+   `reference/`. Confirm that these files are retained as-is and that no
    derivative (fixture, starter, baseline raster) may carry their values.
 10. **Token additions.** Approve or reject the new `#EFEFEF` total-row grey, the
     recording of document red `#C80A32` and the document body face in
-    `design/README.md`, and the two new visual components.
+    `docs/design.md`, and the two new visual components.
 11. **The four wording placeholders**, per `docs/open-decisions.md` "Report
     wording". Note additionally that the Category S salvage wording is described
     as "confirmed" but is not reproduced in this repository, so no salvage

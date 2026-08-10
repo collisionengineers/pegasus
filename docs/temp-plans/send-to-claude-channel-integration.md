@@ -13,7 +13,7 @@ hardening that closes out `pegasus-claude-channel` development, the
 Pegasus-side wiring that gives the Engineers assessment surface a real
 send/return round trip behind composition gates, and the PAV slider the
 operator has directed into channels scope. This plan is a specification
-artifact: `design/README.md` § Deferred casework requires every deferred UI
+artifact: `docs/design.md` § Deferred casework requires every deferred UI
 capability to re-enter specification and review before implementation, and
 nothing below is implemented until the operator approves the decisions in
 § Open decisions and product authority records the allocation change.
@@ -319,9 +319,9 @@ the assessment markup. Repository evidence, gathered rather than invented:
   "The pre-accident value comes from the engineer's instruction or from
   `vehicle-valuation` … never invented"), EVA's salvage screen (`% of
   PAV`, `Equity in repair`, and the `PAMV From`/`PAMV To` pre-accident
-  market value range, `docs/reference/eva_information/eva_information.md`),
+  market value range, `reference/eva_information/eva_information.md`),
   and the renderer spec ("Recommended Settlement (PAV − salvage)",
-  `docs/reference/rendererref1/DESIGN_SPEC.md`).
+  `reference/rendererref1/DESIGN_SPEC.md`).
 - **Figure source, per operator direction 2026-08-03:** external API calls
   to valuation services will be added to obtain valuation figures, and
   those figures are what the slider is based upon. That is EXT-10
@@ -410,7 +410,8 @@ Stages, each independently reviewable; A is independent, B gates C–G:
   real Claude Code session with `--dangerously-load-development-channels`,
   both `Features:SendToAi` and `Features:AutomationMcp` enabled, send →
   channel event → Actor case read → attributed assessment write →
-  channel reply → `Completed` on reconcile — recorded per
+  channel reply → `Completed` on reconcile — classified per
+  `docs/engineering.md` and recorded as current evidence in
   `docs/operations.md`, folding into the queued tier-5 MCP
   external-client evidence item in `NOW.md`.
 
@@ -464,9 +465,11 @@ Connector side (vitest): § Channel server close-out item 7.
 | `docs/adr/` | New ADR (stage B): transport slice, channel boundary, direct-write model and logging parity, Actor tool inventory widening, AI-09 contract rewording, gate |
 | `docs/capabilities.md` | AI-09 activation-note update recording the gated implementation, on product authority only |
 | `docs/architecture.md` | Send to AI boundary: Core owner, adapter, the external connector as a non-owned client |
-| `docs/operations.md` | Evidence-boundary row for the channel connector; setup runbook; evidence-tier record for stage G |
+| `docs/operations.md` | Current evidence-boundary row for the channel connector |
+| `docs/runbook.md` | Connector setup procedure |
+| `docs/engineering.md` | Evidence-tier classification for stage G |
 | `docs/open-decisions.md` | The § Open decisions items that stay open after review |
-| `design/README.md` | `completed` panel state and PAV slider component contract; § Tokens divergence record untouched unless the contrast decision changes it |
+| `docs/design.md` | `completed` panel state and PAV slider component contract; § Tokens divergence record untouched unless the contrast decision changes it |
 | `pegasus-claude-channel/README.md` | Schema, evidence log, idempotency, Pegasus configuration cross-reference, version pinning |
 
 ## Non-goals
@@ -488,7 +491,7 @@ Connector side (vitest): § Channel server close-out item 7.
 
 ## Evidence-tier claims
 
-Per `docs/operations.md` § Required evidence tiers: stage A yields
+Per `docs/engineering.md` § Required evidence tiers: stage A yields
 connector-repo test evidence (outside Pegasus tiers); C–E yield tier 2
 (Core), tier 4 (LocalDB persistence/migration), and tier 5 (real HTTP
 Web/MCP caller) local evidence; G yields one recorded

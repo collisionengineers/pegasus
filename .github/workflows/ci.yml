@@ -11,7 +11,7 @@ permissions:
 jobs:
   changes:
     # Path detection only: no application code runs here, so this job is not
-    # Linux-development evidence (docs/operations.md "Supported platform").
+    # Linux-development evidence (docs/runbook.md "Supported platform").
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -59,6 +59,21 @@ jobs:
       - name: Documentation links
         shell: pwsh
         run: ./scripts/Test-DocumentationLinks.ps1
+
+  reference-data:
+    # The provider-reference generator and tests share one scripts-owned
+    # component. This job is their executable gate; no application caller or
+    # production import is implied.
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Provider-reference generator tests
+        shell: pwsh
+        run: python -m unittest discover -s scripts/reference_data/tests -p 'test_*.py'
 
   unit:
     # Both projects run whole and unfiltered: neither declares a single test

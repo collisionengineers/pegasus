@@ -15,7 +15,7 @@ framework-agnostic `net8.0`.
 
 The operator directed on 2026-08-03 that the renderer's desktop/UI elements be
 removed. That direction is not a new design decision — the root design
-authority already scheduled it. `design/README.md`, in the *Web and renderer
+authority already scheduled it. `docs/design.md`, in the *Web and renderer
 boundary* table, recorded the GUI package assets as:
 
 > Temporary renderer GUI package assets | Linked by

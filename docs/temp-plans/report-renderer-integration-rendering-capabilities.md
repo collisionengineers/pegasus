@@ -25,7 +25,7 @@ amendment; every such amendment is marked and justified.
 `report-renderer-integration-templates.md` is superseded as a work plan by
 operator decision. Its sections 1 and 6 are cited here as **analysis of the
 existing C# renderer**, never as specification. Nothing in this plan derives a
-requirement from `docs/reference/rendererref1/DESIGN_SPEC.md`, and nothing is
+requirement from `reference/rendererref1/DESIGN_SPEC.md`, and nothing is
 imported from that directory.
 
 ## Durable outcomes this plan is written against
@@ -766,7 +766,7 @@ its own acceptance. Nothing in Stages 2A–3E depends on this stage.
 
 ## Verification
 
-Mapped to [required evidence tiers](../operations.md#required-evidence-tiers).
+Mapped to [required evidence tiers](../engineering.md#required-evidence-tiers).
 
 | Check | Tier | Stage | What it proves |
 | --- | --- | --- | --- |
@@ -800,7 +800,7 @@ Two honest limits:
 ## Non-goals
 
 - Writing, defaulting, paraphrasing or reconstructing any report wording.
-- Deriving any requirement from `docs/reference/rendererref1/`, or importing
+- Deriving any requirement from `reference/rendererref1/`, or importing
   anything from it.
 - Building a second owner of repair specifications (ENG-01), estimate comparison
   and savings (EXT-09), valuation acceptance (EXT-10), valuation sources
