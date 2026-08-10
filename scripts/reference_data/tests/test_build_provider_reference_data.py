@@ -14,7 +14,7 @@ import zipfile
 from xml.sax.saxutils import escape
 
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 GENERATOR_PATH = REPOSITORY_ROOT / "scripts/reference_data/build_provider_reference_data.py"
 WRAPPER_PATH = REPOSITORY_ROOT / "scripts/Build-ProviderReferenceData.ps1"
 SPEC = importlib.util.spec_from_file_location("provider_reference_generator", GENERATOR_PATH)

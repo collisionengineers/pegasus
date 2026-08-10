@@ -22,7 +22,7 @@ public sealed class ProviderDomainReferenceIntegrationTests
     private const string PackageResourceName =
         "Pegasus.Infrastructure.Persistence.ReferenceData.provider-domains.v1.json";
     private const string PackageVersion = "provider-domains-v1";
-    private const string PackageSha256 = "f6b5ad8ecdd428db4316b23e16aa7e0ffc93562aec33374c03ea68cd4f0370a3";
+    private const string PackageSha256 = "67c5b9959b3546f75aabd89511d8568ed7f594a8d905bfba47e3a23b828905c0";
 
     [Fact]
     public void EmbeddedPackageMatchesApprovedWorkbookDomainEvidence()

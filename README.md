@@ -52,7 +52,7 @@ dotnet run --project ./src/Pegasus.Web --configuration Release --launch-profile 
 ```
 
 The `SqlServer` test lane runs on Linux too once the tests are pointed at that
-container; [operations](docs/operations.md#locked-restore-build-and-test) owns
+container; [the runbook](docs/runbook.md#locked-restore-build-and-test) owns
 the exact variables. Prefer
 `pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start` (after
 `Initialize-LocalDevelopment.ps1` has run once), which manages the container,
@@ -63,7 +63,8 @@ the second starts Web against the migrated database. Normal Web startup never
 applies migrations.
 
 Exact prerequisites, initialization, migration, test profiles, and evidence
-limits are in [operations](docs/operations.md). Current work is tracked in
+limits are in the [runbook](docs/runbook.md); deployed state and dated evidence
+are in [operations](docs/operations.md). Current work is tracked in
 [`NOW.md`](NOW.md); start with the [documentation map](docs/index.md),
 [requirements](docs/requirements.md), [capabilities](docs/capabilities.md),
 [architecture](docs/architecture.md), and the

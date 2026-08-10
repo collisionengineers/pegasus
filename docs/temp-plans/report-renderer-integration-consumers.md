@@ -33,8 +33,8 @@ Everything below is arranged so that sentence cannot be violated by accident.
 | Box failure after allocation retains the Case as `Not ready` with staff-initiated retry | `docs/requirements.md:401` |
 | A finding correction must not create, alter, credit or void an invoice | `docs/requirements.md:539-543` |
 | "Graph Sent-item evidence does not prove recipient delivery or automatic case matching." | `docs/operations.md:708` |
-| Every deferred UI capability re-enters the full design route | `design/README.md:48` |
-| UI-15 exists as routeless design markup | `design/README.md:663-670` |
+| Every deferred UI capability re-enters the full design route | `docs/design.md:48` |
+| UI-15 exists as routeless design markup | `docs/design.md:663-670` |
 | UI-15 markup already carries a `Report content` section and no render/issue/send control | `src/Pegasus.Web/Pages/Cases/Assessment/Index.cshtml:32`, `:715-772` |
 | Lifecycle states, including `PostReport` and the four terminal outcomes | `src/Pegasus.Core/Workflow/CaseWorkflowContracts.cs:11-38` |
 | `ReportApprovalEvidence` takes a caller-supplied `ArtifactIdentity` and `ArtifactSha256` | `src/Pegasus.Core/Workflow/CaseWorkflowContracts.cs:60-77` |
@@ -484,7 +484,7 @@ the reshaped contract.** Nothing here depends on the current signature.
 **This section is a design-route input only.** It specifies nothing, approves
 nothing, and creates no control.
 
-`design/README.md:663-670` records the 2026-08-03 widening: UI-15 and AI-09 exist
+`docs/design.md:663-670` records the 2026-08-03 widening: UI-15 and AI-09 exist
 as routeless design markup with no `@page`, no PageModel, no form, every field
 empty, and no navigation link. `Index.cshtml` already carries a `Report content`
 section with narrative fields, Engineer name, qualifications, signatory

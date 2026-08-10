@@ -55,7 +55,7 @@ to them.
 | CASE-23 | Next 0.4.0 | **Partial** | consumers — bounded by its own open decision; no states or transitions are invented |
 | CASE-24 | Now 0.1.0-alpha.1 | **Adjacent** | consumers states the boundary |
 | MAIL-12 | Later 0.5.0 | **Route only** | consumers |
-| UI-15 | Later 1.0.0 | **Route only** | consumers, deferring to the in-flight `task/ui-alpha-design-pass` and the `design/README.md` design route |
+| UI-15 | Later 1.0.0 | **Route only** | consumers, deferring to the in-flight `task/ui-alpha-design-pass` and the `docs/design.md` design route |
 | CASE-22 | Later 1.0.0 | **Route only** | consumers — replacing EVA report-preparation is the renderer's eventual purpose |
 
 ## 4. Report-sent evidence and the EVA handoff
