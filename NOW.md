@@ -1,4 +1,4 @@
-# NOW — updated 2026-08-07
+# NOW — updated 2026-08-10
 
 (Anything here older than 14 days is stale: delete it, don't investigate it.)
 

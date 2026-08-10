@@ -227,8 +227,9 @@ Install-Module ExchangeOnlineManagement -Scope CurrentUser -RequiredVersion 3.10
 
 The approved production and controlled integration-test roots, authentication
 mechanism, and current deployed custody state are recorded in
-[operations](operations.md#approved-box-custody-root). Any invocation still
-requires the exact approval and target checks recorded there.
+[operations](operations.md#approved-box-custody-root). Before any invocation,
+apply the exact scope, approval, and evidence checks in this runbook's
+[live-operation approval matrix](#live-operation-approval-matrix).
 
 ### Azure SQL runtime-role bootstrap
 
@@ -643,6 +644,42 @@ Tool availability does not authorize external action.
 Use managed identity and scoped RBAC. Store unavoidable third-party secrets in Infisical or Key Vault. Never commit secret values, connection strings, readable passwords, generated credentials, or data not approved for public source control.
 
 ## Testing model
+
+### QDOS pressure profiles
+
+`scripts/Invoke-QdosAlphaAcceptance.ps1` is the Checkpoint 12 pressure
+orchestrator. `CiPressure` temporarily stages
+`tests/Pegasus.PerformanceTests/CapacitySoakTests.cs` and
+`FailureInjectionTests.cs` into the existing `Pegasus.IntegrationTests`
+compilation, runs only `Category=QdosPressure`, removes that owned staging
+directory unconditionally, and writes content-safe evidence beneath
+`artifacts/qdos-alpha-acceptance/<run-id>/`. Supply the exact 40-character
+checked-out source revision:
+
+```powershell
+./scripts/Invoke-QdosAlphaAcceptance.ps1 `
+  -Profile CiPressure `
+  -SourceRevision $env:GITHUB_SHA
+```
+
+The runner requires Git metadata and a clean working tree, resolves the
+supplied revision to the exact checked-out `HEAD`, and rejects a mismatch
+before creating the run evidence directory or compiling tests.
+`OfflineCandidate` also requires the caller manifest and any inherited
+`PEGASUS_QDOS_ACCEPTANCE_SOURCE_REVISION` value to identify that exact
+revision; its Web-host gate compares the environment revision with the source
+SHA exposed by the compiled `/diagnostics/version` endpoint.
+
+`-Profile OfflineCandidate` is deliberately fail closed. It requires the
+operator-approved immutable 2,000-case dataset and hash, the complete
+QDOS-owned caller-evidence manifest, and the exact run-owned
+`artifacts/local-development/<run-id>/run-manifest.json`. That local manifest
+must identify the same clean source revision and acceptance run ID, remain
+`Running`, record completed fixed local identity initialization, and contain
+`Passed` readiness and smoke observations from the current start attempt in
+timestamp order. The runner also re-hashes the exact Web and Worker runtime
+paths recorded at initialization, so missing or altered local binaries fail
+before any acceptance tests execute.
 
 ### Stable invariants
 

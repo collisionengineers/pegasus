@@ -18,12 +18,6 @@ authenticated `/Upload` POST through `ProcessIntakeSubmission` is the manual
 HTTP intake caller; `/Received` and `/Inbox` are read-only views. Worker
 trigger registration is not proof of deployed or live traffic.
 
-Every external read, mutation, billed call, data transfer, credential change,
-deployment, recovery exercise, or resource retirement requires explicit
-approval after the exact target, scope, operation, data class, cost exposure,
-and rollback path are shown. Installed tools, repository configuration,
-credentials, and authentication never grant authority by themselves.
-
 <a id="approved-box-integration-test-target"></a>
 
 ## Approved Box custody root
@@ -31,17 +25,13 @@ credentials, and authentication never grant authority by themselves.
 Box folder `405543781910` ("pegasus") is the production custody root: all case
 folders are created only under it, and the deployed configuration carries it.
 Folder `392761581105` is the only eligible controlled integration-test
-boundary, confined to an approved disposable test subtree; neither folder
-grants standing write authority. Before any non-production invocation, obtain
-explicit approval naming the exact target folder/object and operation. The
-activated production caller remains confined to case-scoped objects under the
-configured root. No caller may delete, move, copy, or share Box content,
-operate outside that folder, or expose credentials in source, configuration,
-command lines, prompts, output, telemetry, or business history. Every invocation
-must verify ancestry and the target/action allowlist and retain stable source and
-target identities plus outcome. A failed attempt remains visible for authorised
-staff retry; there is no automatic business retry. Box CLI authentication and
-root membership do not expand approval.
+boundary, confined to an approved disposable test subtree; neither folder is
+standing write authority. The exact-target approval and invocation checks are
+owned by the [runbook's live-operation approval matrix](runbook.md#live-operation-approval-matrix).
+The activated production caller is confined to case-scoped objects under the
+configured root and has no delete, move, copy, or share operation. Failed
+attempts remain visible for authorised staff retry; there is no automatic
+business retry.
 
 Production server authentication uses the retained `box-config-json` JWT
 configuration and `box-client-secret` Key Vault secrets. The Box SDK obtains and
@@ -74,19 +64,17 @@ Storage Explorer, SSMS, and Postman are optional conveniences.
 
 Do not add Service Bus, Event Hubs, Cosmos DB, Redis, PostgreSQL, Azure Files, ADLS, local SMTP infrastructure, Testcontainers, or related emulators without a later accepted architectural need.
 
-`scripts/Invoke-QdosAlphaAcceptance.ps1` is the current narrow Checkpoint 12 pressure orchestrator. `CiPressure` temporarily stages `tests/Pegasus.PerformanceTests/CapacitySoakTests.cs` and `FailureInjectionTests.cs` into the existing `Pegasus.IntegrationTests` compilation, runs only `Category=QdosPressure`, removes that owned staging directory unconditionally, and writes content-safe evidence beneath `artifacts/qdos-alpha-acceptance/<run-id>/`. Supply the exact 40-character checked-out source revision:
-
-```powershell
-./scripts/Invoke-QdosAlphaAcceptance.ps1 `
-  -Profile CiPressure `
-  -SourceRevision $env:GITHUB_SHA
-```
-
-The runner requires Git metadata and a clean working tree, resolves the supplied revision to the exact checked-out `HEAD`, and rejects a mismatch before creating the run evidence directory or compiling tests. `OfflineCandidate` also requires the caller manifest and any inherited `PEGASUS_QDOS_ACCEPTANCE_SOURCE_REVISION` value to identify that exact revision; its Web-host gate compares the environment revision with the source SHA exposed by the compiled `/diagnostics/version` endpoint.
+`CiPressure` is the current narrow Checkpoint 12 pressure profile. The
+[QDOS pressure procedure](runbook.md#qdos-pressure-profiles) owns its invocation,
+source-revision checks, prerequisites, staging, cleanup, and evidence path.
 
 This lane proves bounded in-process Web-caller concurrency, latency, antiforgery denial, cancellation recovery, and idempotent replay against controlled fixtures. It does **not** prove the approved 30-minute workload, 2,000-case/source distribution, Worker/Azurite queue recovery, LocalDB restore, full case/EVA/report journeys, deployment, or acceptance.
 
-`-Profile OfflineCandidate` is deliberately fail closed. It requires the operator-approved immutable 2,000-case dataset and hash, the complete QDOS-owned caller-evidence manifest, and the exact run-owned `artifacts/local-development/<run-id>/run-manifest.json`. That local manifest must identify the same clean source revision and acceptance run ID, remain `Running`, record completed fixed local identity initialization, and contain `Passed` readiness and smoke observations from the current start attempt in timestamp order. The runner also re-hashes the exact Web and Worker runtime paths recorded at initialization, so missing or altered local binaries fail before any acceptance tests execute. The script never promotes this offline evidence to deployed, live-verified, release-accepted, QDOS operator-accepted, or Collision Engineers management-accepted evidence.
+`OfflineCandidate` is the current fail-closed profile and remains unavailable
+without the approved immutable dataset, caller manifest, and run-owned local
+evidence required by the runbook. It never promotes offline evidence to
+deployed, live-verified, release-accepted, QDOS operator-accepted, or Collision
+Engineers management-accepted evidence.
 
 Traits currently in use are `SqlServer`, `Browser`, `Corpus`, `QdosPressure`,
 and `QdosAlphaAcceptance`. Additional stable planned traits (unused until their

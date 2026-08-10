@@ -633,9 +633,11 @@ reachable at each stage are claimed.
 | 11 Migration/recovery | **No** at these stages | Template/payload versioning is designed here but has no persisted artifact to migrate |
 | 12 Integrated workflow | **No** | Explicitly out of scope; this plan does not activate a capability |
 
-Order, per `docs/operations.md`: policy tests first (tier 2), contract tests
-second (tier 3), then build/architecture (tier 1), then the visual regression
-sweep (§7) as a change-detection gate rather than an acceptance gate.
+Order, under [engineering's evidence tiers](../engineering.md#required-evidence-tiers)
+and the [runbook's build/test procedure](../runbook.md#locked-restore-build-and-test):
+policy tests first (tier 2), contract tests second (tier 3), then
+build/architecture (tier 1), then the visual regression sweep (§7) as a
+change-detection gate rather than an acceptance gate.
 
 ## 12. Non-goals, stop conditions, and open questions
 
