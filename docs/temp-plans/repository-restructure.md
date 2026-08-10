@@ -14,9 +14,15 @@ reference evidence byte-for-byte at the repository root.
    top-level `reference/` directory; add it to the ADR index while replacing
    repeated per-row evidence disclaimers with one blanket qualification.
 2. Move `docs/reference/` to `reference/` with Git renames, update
-   `.gitattributes`, authoring scripts, persisted source-path literals, comments,
+   `.gitattributes`, authoring scripts, live source-path literals, comments,
    tests, documentation, temp plans, CI comments, and workspace outbound links
    in the same branch. Preserve reference bytes and renderer staging assets.
+   Published package bytes and applied migrations are immutable historical
+   identities: do not rewrite `provider-domains-v1`, its recorded
+   `docs/reference/...` source path, or either migration that carries it. Map
+   that historical source identity to the moved physical workbook only at the
+   authoring/test resolution boundary, without publishing the same package
+   version under new bytes.
 3. Split `docs/operations.md`: current production/release/evidence/monitoring/
    recovery records remain in operations; setup, local development, database,
    testing, release, approval, and recovery procedures move to a new
@@ -38,12 +44,24 @@ reference evidence byte-for-byte at the repository root.
    orphaned performance tests into an existing compiled project or delete them
    when their assertions are already covered; consolidate the split Python
    reference-data component under one tested owner; remove stale/contradictory
-   `.gitignore` and `.gitattributes` entries; and preserve differently-byte-valued
-   brand/reference assets with their distinct runtime-versus-evidence roles made
-   explicit. Do not decide the separately claimable `.obsidian`, Infisical, or
-   infrastructure-lane items.
-7. Remove this branch's own `NOW.md` claim from the PR diff after merging fresh
-   `origin/dev` as required. No merge to `dev` is part of this task.
+   `.gitignore` and `.gitattributes` entries; and preserve byte-identical
+   brand/reference logo and signature placements with their distinct
+   runtime-versus-evidence roles made explicit. Hash all four cross-placement
+   pairs rather than inferring equality from names. Do not decide the separately
+   claimable `.obsidian`, Infisical, or infrastructure-lane items.
+7. Complete the queue migration in `NOW.md`: remove this branch's own Doing
+   claim, retire the now-completed restructure and rule-dedupe premises, and
+   rewrite the absorbed hygiene line so only independently claimable residue
+   remains (`.obsidian` keep, Infisical confirm/delete, infrastructure lane, and
+   any other item proved unabsorbed). Repair every other current queue path while
+   preserving all other agents' claims and work.
+8. Run a repository-wide live-referrer inventory, not only a changed-file scan.
+   Repair every live `docs/reference`, `design/README.md`, `design/product`, and
+   `operations.md#required-evidence-tiers` route, including temp plans and
+   workspace/current-queue references. Retain an old literal only where it is
+   immutable historical provenance or a description of the pre-move state, not
+   a live owner or path.
+9. No merge to `dev` is part of this task.
 
 ## Boundaries
 
@@ -55,6 +73,9 @@ reference evidence byte-for-byte at the repository root.
 - Preserve all supplied reference evidence and report-renderer staging assets;
   moves and link/literal updates do not assert caller, deployment, or acceptance
   evidence.
+- Preserve every pre-existing accepted ADR body, already-applied migration, and
+  published versioned package byte-for-byte. Record current routing only in
+  ADR-0023, indexes, current documentation, or explicit authoring/test mapping.
 - Preserve other agents' worktrees, branches, claims, and temp plans.
 
 ## Verification
@@ -62,19 +83,28 @@ reference evidence byte-for-byte at the repository root.
 1. Run `git diff --check` and the repository documentation-link checker, then a
    separate repository-wide Markdown fragment/anchor sweep covering moved and
    newly split documents.
-2. Search for stale `docs/reference`, `design/README.md`, `design/product`, and
-   `operations.md#required-evidence-tiers` paths, allowing only deliberate
-   historical literals in immutable ADR bodies where a live link is not implied.
-3. Compare reference-tree file hashes before/after the move, run `git check-attr
+2. Search repository-wide for stale `docs/reference`, `design/README.md`,
+   `design/product`, and `operations.md#required-evidence-tiers` paths and for
+   claims that operations owns evidence classification/gates. Classify every
+   remaining hit; allow only deliberate historical provenance or descriptions
+   of the pre-move state where no live link/owner is implied.
+3. Compare reference-tree file hashes before/after the move; hash the four
+   evidence/runtime logo and signature pairs across their two placements; run `git check-attr
    -a` on representative moved PDF/PNG/XLS/XLSX/JSON/Markdown paths, and confirm
    Git reports renames rather than content rewrites.
 4. Confirm `CLAUDE.md` remains mode `120000` with target `AGENTS.md`, and confirm
    `git diff` reports no paths under `.codex/`, `corpus/`, or
    `workspaces/ai-centre/skills/`.
-5. Run the reference-data Python tests/authoring verification, the canonical
+5. Compare `provider-domains.v1.json`, both applied provider migrations, and
+   ADR-0018 byte-for-byte with the PR base. Add focused provider-package tests
+   proving that the historical package identity resolves to the moved authoring
+   workbook without same-version republication, and prove both an existing/prior
+   schema and a fresh schema converge on the same immutable package/history.
+6. Run the reference-data Python tests/authoring verification, the canonical
    `dotnet restore`, `dotnet build --configuration Release`, focused tests for
    any adopted performance-test or reference-data changes, and the full test
    projects required by current repository guidance. Treat a timeout or skipped
    lane as unverified, not passed.
-6. Inspect the final base/head diff, file modes, branch claim removal, and
+7. Inspect the final base/head diff, file modes, branch claim removal, absorbed
+   queue-line retirement/rescoping, every remaining stale-path classification, and
    protected-tree path list before opening a PR to `dev`.
