@@ -7,8 +7,6 @@
 Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 <agent>)`. Nothing is in flight unless it is claimed here on `origin/dev`.
 
-- Manifest-bound intake cleanup and fresh mailbox-baseline tooling (branch task/manifest-intake-cleanup, taken 2026-08-10, by agent 93025227-f309-44e1-9f08-7add468e52d6)
-
 ## Merged, not deployed
 
 The estate serves **release 8** (2026-08-07, revision `ded44fd7…`, image
