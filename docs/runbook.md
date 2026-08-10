@@ -474,45 +474,69 @@ must be retried from a reloaded intake receipt.
 The approved-mailbox allowlist is the authority for which mailboxes inbound
 Intake polls, under
 [ADR-0022](adr/0022-approved-mailbox-identity-and-enablement-database-setting.md).
-Each row carries the exact tenant identity a poll needs — a mailbox identity,
-an Inbox folder identity, and a Sent folder identity — alongside the address,
-route scopes, and `Approved`/`Disabled` state it already carried. All three are
-nullable so an administrator can save a row `Disabled` while the tenant grant
-is still outstanding; a row saved `Approved` must carry the identities its
-route scopes need, and Pegasus refuses the save otherwise.
+Each row already has a stable Pegasus `ApprovedMailbox.Id` (`Guid`) plus its
+address, route scopes, `Approved`/`Disabled` state, and nullable Graph mailbox,
+Inbox-folder, and Sent-folder coordinates. A row saved `Approved` must carry the
+coordinates required by its route scopes.
 
-An identity is immutable once saved, and the address is immutable once a
-mailbox identity is bound: the mailbox identity is the primary key of that
-mailbox's `ApprovedInboxPollStates` cursor row. Moving a mailbox is
-disable-and-add, never edit.
+The current inbound implementation does **not** yet use that stable `Guid` for
+polling. It keys `ApprovedInboxPollStates`, poison rows, retained messages, and
+the receipt token on the Graph mailbox identity. The seeded production row has
+no saved Graph identities and uses the `Graph:MailboxId` and
+`Graph:InboxFolderId` deployment fallback. Saving a real identity causes the
+current adoption path to re-key the state while carrying the old delta cursor;
+Graph then rejects that cursor against the new scope. Clearing the cursor can
+re-receive the same message under another token. A folder-only scope change is
+also undetectable in current poll state.
 
-The seeded production row keeps its identities `NULL` after the upgrade. Its
-real Graph identities are deployment configuration, read from azd environment
-variables into `Graph:MailboxId` and `Graph:InboxFolderId`, and are not in this
-repository. A polling host therefore carries a read-only fallback: an Approved
-inbound row with no saved identities whose address matches the configured
-mailbox is polled under exactly the identities the deployment already uses. A
-saved identity always wins; configuration never overrides one. A row with no
-identities and no configuration match is skipped and logged by address. No
-manual step is needed to keep the existing mailbox polling across this upgrade.
+Production is contained with all nine Worker functions disabled. Until the
+stable-ID and baseline implementation is accepted, migrated, deployed, and
+verified, do not bind or replace production inbound Graph coordinates, clear a
+cursor, treat Graph 410 as permission to restart enumeration, or re-enable the
+Worker. The current fallback is evidence of deployed configuration, not a safe
+transition mechanism.
+
+Proposed
+[ADR-0024](adr/0024-stable-approved-mailbox-identity-and-explicit-baseline.md)
+settles the target procedure for later implementation:
+
+- `ApprovedMailbox.Id` is the durable source identity;
+- Graph mailbox and Inbox-folder values are replaceable coordinates whose exact
+  versioned fingerprint scopes a cursor;
+- a coordinate change, fingerprint mismatch, or Graph 410 records
+  `baseline_required` and makes no initial-delta fallback;
+- one deployment-bound generation and UTC cutoff establishes a resumable
+  fresh-only candidate cursor before atomic promotion;
+- pre-cutoff messages advance that candidate only; messages at or after the
+  cutoff follow normal exactly-once intake; and
+- old receipt tokens remain immutable, while new sources use the stable
+  `mail:v2:` algorithm.
+
+That ADR is proposed and has no operational effect until explicit product-owner
+acceptance and implementation evidence exist.
 
 ### Disabling a mailbox
 
 Disabling stops polling at the next tick, for both the Inbox and Sent routes.
 It deletes nothing: retained receipts, assets, staged artifacts, quarantined
-messages, and case associations all stay, and the cursor row is preserved so
-re-enabling resumes rather than restarts. Note honestly that a Graph delta
-token expires after roughly a week of disuse; on resume Graph answers 410 Gone
-and the folder is re-enumerated. That is a re-read, not a re-ingest — intake
-deduplicates on the operation key and the source identity — so no second
-receipt, case, or reference appears. A poll already inside a page finishes that
-page; disabling is effective within one poll page, never mid-message.
+messages, case associations, or cursor state. A poll already inside a page may
+finish that page; mailbox disablement is effective within one page, never
+mid-message.
+
+Do not rely on the current cursor-preservation behavior to re-enable an inbound
+mailbox. A Graph delta token may return 410 after disuse, and automatic initial
+enumeration is unsafe with the current mutable-identity receipt token. Under
+the proposed ADR-0024 contract, re-enablement after invalid or changed scope
+requires the complete `Disabled → Baseline → Active` route; there is no direct
+resume or manual cursor-clear operation.
 
 ### Runbook: admitting a new mailbox to the tenant
 
 Approving a mailbox in Pegasus grants no Exchange access, and Pegasus cannot
 request or grant it. These steps are for a human with Microsoft 365 tenant
-rights and are not executed from this repository:
+rights and are not executed from this repository. They remain blocked for
+production until ADR-0024 is explicitly accepted and its stable-ID, scope,
+baseline, and mode contracts are implemented and deployed:
 
 1. Confirm the Pegasus application registration holds the `Mail.Read`
    application permission with tenant admin consent.
@@ -521,12 +545,18 @@ rights and are not executed from this repository:
 3. Record, as the evidence for this action: the tenant, the application object
    id, the mailbox address, the policy scope group, who approved it, and when.
 4. In Pegasus, add the approved-mailbox row with its mailbox and folder
-   identities and a reason, saving it `Disabled` until step 2 is confirmed,
-   then set it `Approved`.
-5. Confirm on `/Administration/Mailboxes` that the mailbox reports a completed
-   poll. Until the tenant admits the application, polling that mailbox alone
-   fails with `mailbox_access_denied`, which the page reports as the tenant not
-   having granted access.
+   coordinates and a reason. Keep the row `Disabled` until the tenant grant is
+   confirmed; then set the row `Approved` while the global Worker mode remains
+   `Disabled`. Do not treat tenant admission or row approval as Worker
+   activation.
+5. From repository-owned `Disabled`, approve a new baseline generation and UTC
+   cutoff under the implemented release gate. `Baseline` enables only
+   `InboxPollFunction`; wait until every approved inbound mailbox reports the
+   exact generation complete with a matching scope.
+6. Only then approve `Active`, read back the exact-nine function state, and
+   require a real post-activation poll completion within the release's liveness
+   window. Until the tenant admits the application, that mailbox fails with
+   `mailbox_access_denied`; it is not silently skipped.
 
 Per-tick Graph cost grows linearly with the estate: the message bound is per
 mailbox, so an estate of *n* mailboxes may read *n* × 50 messages a minute.
@@ -867,11 +897,26 @@ evidence.
 
 ### Durable Worker activation and rollback
 
-The production Worker is fail-closed. `PEGASUS_WORKER_ACTIVATION` maps to the
-infrastructure input with a default of `disabled`; only the exact value
-`approved-live-worker` renders the nine
+The currently implemented production Worker gate is fail-closed and two-state.
+`PEGASUS_WORKER_ACTIVATION` maps to the infrastructure input with a default of
+`disabled`; only the exact value `approved-live-worker` renders the nine
 `AzureWebJobs.<function>.Disabled` settings as `false`. Omission, an empty or
 misspelled value, and every other value render them as `true`.
+
+The exact production Worker is currently contained: all nine settings read
+`true`, all nine function definitions remain discoverable, and the ignored azd
+input reads `disabled`. The dated evidence and its limits are owned by
+[operations § Production environment](operations.md#production-environment).
+
+Proposed
+[ADR-0024](adr/0024-stable-approved-mailbox-identity-and-explicit-baseline.md)
+requires the current Boolean to be replaced by three repository-owned modes:
+`Disabled` (all nine disabled), `Baseline` (only `InboxPollFunction` enabled),
+and `Active` (all nine enabled). `Baseline` also requires one immutable
+generation ID and UTC cutoff, and `Active` requires every approved inbound
+mailbox to have completed that exact generation with matching cursor scope.
+That mode contract is not implemented or accepted yet. Arbitrary partial
+function combinations remain prohibited.
 
 Every Worker readback passes subscription
 `e6076573-23a5-46a8-acef-7e22d264e5db` explicitly and targets the
@@ -880,20 +925,24 @@ requires the selected azd environment to record those exact identities; the
 active Azure CLI default is never trusted as the target.
 
 The default is a safety boundary, not a normal enabled-estate release input.
-After production activation, every infrastructure release explicitly retains
-`approved-live-worker`. An absent value or a fallback to `disabled` is a stop
-condition before provision, because continuing would recreate the 10 August
-2026 incident.
+Under the current two-state implementation, an intentionally enabled estate
+must explicitly retain `approved-live-worker` on every infrastructure release.
+An absent or unexpected value is a stop condition before provision. While the
+current containment is intentional, `disabled` is the required value and must
+not be interpreted as a release regression.
 
 Run each procedure below from a fresh authorised terminal. Execute the exact
 environment and subscription assignments at the start of that procedure;
 never rely on variables or azd selection inherited from an earlier terminal.
 
-First activation remains blocked until the approved clean-baseline operation
-has completed and the operator has separately approved the exact production
-provision. With a fresh inventory confirming the current Worker, set the
-intended value and prove the known disabled baseline before that first
-provision:
+First activation remains blocked until ADR-0024 is explicitly accepted, later
+tickets implement and deploy its stable identity and three-mode contract, and
+the approved fresh-only baseline has completed. The current two-state commands
+below document the existing gate and cannot perform that required baseline;
+they must not be used to activate production as a substitute. After the later
+implementation updates this section, the operator must separately approve the
+exact production provision and start from a fresh inventory proving the known
+disabled baseline.
 
 ```powershell
 $pegasusAzdEnvironment = 'pegasus-prod'
