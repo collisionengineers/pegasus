@@ -402,7 +402,8 @@ tiers 2, 3 and 7.
 `scripts/visual-regression.ps1` renders every catalogue template from its starter
 payload, rasterises with Poppler `pdftoppm`, and compares page PNGs by SHA-256.
 It needs `pdftoppm` on `PATH` — packaged on Linux, a manual Poppler install on
-Windows (`docs/operations.md:52` already records this).
+Windows. The historical pre-restructure `docs/operations.md:52` recorded this;
+any surviving prerequisite and install procedure belongs in `docs/runbook.md`.
 
 Two things the implementer must get right:
 
@@ -445,7 +446,7 @@ Recommended commit sequence within this task:
 
 ## Documentation edits required
 
-### `docs/operations.md:66` — a factual error
+### Historical pre-restructure `docs/operations.md:66` — a factual error
 
 The current row in "What Windows gives this project that Linux does not" says
 `scripts/email-eval-desktop` and `CollisionRenderer.Gui` both target

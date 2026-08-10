@@ -542,11 +542,14 @@ it.
 *Raised by: docs-migration, uplift, desktop removal.*
 
 - Does `visual-regression.ps1` migrate to `scripts/`, or die with the workspace?
-  Determines whether `docs/operations.md:52`'s `poppler-utils` row is repointed or
-  deleted.
+  Determines whether the historical pre-restructure `docs/operations.md:52`
+  `poppler-utils` row is deleted or its surviving procedure is repointed into
+  `docs/runbook.md`.
 - Does any Pegasus image install `fonts-liberation` and `fonts-dejavu-core`?
-  `docs/operations.md:53`'s current justification disappears with the workspace,
-  and the row must not name an image that does not install them.
+  The historical pre-restructure `docs/operations.md:53` justification
+  disappears with the workspace. Any surviving prerequisite belongs in
+  `docs/runbook.md`, while `docs/operations.md` may record only deployed image
+  state; neither file may name an image that does not install the fonts.
 - MSIX identity `71B58B04-E006-42EA-9C51-D1DB853DDB3A` is deleted from source. Any
   external registration — Store, MDM, package feed, code-signing binding,
   installed machines — needing separate retirement outside this repository?

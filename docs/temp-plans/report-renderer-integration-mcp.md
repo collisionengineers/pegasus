@@ -442,10 +442,11 @@ against the composed application.
 **Explicitly not reached, and stated as outstanding:**
 
 - **Tier-5 evidence from a real external client.** `WebApplicationFactory` is
-  not an external caller. `docs/operations.md:734-741` already records the
-  current state as tier 2–4 with real-external-client evidence outstanding. This
-  work does not change that; it enlarges what the eventual external run must
-  cover.
+  not an external caller.
+  `docs/operations.md#automation-mcp-is-implemented-but-gated-off` records the
+  current state as tier 2–4 with real-external-client evidence outstanding.
+  This work does not change that; it enlarges what the eventual external run
+  must cover.
 - Tier 7 and tier 10. Adding a Chromium-driven surface materially raises the
   tier-10 debt and nothing here pays it.
 - `docs/requirements.md:887-889` requires per-tool "an exercised real caller,

@@ -45,6 +45,13 @@ consolidated questions document is answered. Commits 1, 2, 3 and 5 are unaffecte
 
 Confirmed by reading the files:
 
+Line-numbered `docs/operations.md` observations in this plan record the
+pre-ADR-0023 repository and are retained as historical audit evidence. Live
+setup, test, safety, approval, and operational-handling procedures are owned by
+`docs/runbook.md`; `docs/engineering.md` owns repository verification and
+evidence gates; `docs/operations.md` owns only current operational state and
+evidence.
+
 | Assumption | Verified? | Note |
 | --- | --- | --- |
 | Workspace `README.md` is 79 lines, 12 template IDs | Yes | 6 relative links inside it |
@@ -110,9 +117,9 @@ Classes: **PT** product truth, **DEC** durable decision, **BP** build procedure,
 | L19 "Core converts typed JSON to HTML with Scriban and the shared design assets, then renders A4 PDF through Chromium; PDFsharp only appends existing PDF evidence, it is not the layout engine" | PT + DEC | `docs/architecture.md` renderer subsection; engine choice is a clause of the new root ADR | Fold verbatim in meaning. The single most load-bearing sentence in the workspace |
 | L21-37 the exact 12 template IDs | PT | `docs/architecture.md` renderer subsection | Fold as a list. Not `capabilities.md` — the roadmap owns capability IDs, not template IDs |
 | L38 "Core also owns blank drafts, starter drafts, form definitions and attachment policies. Hosts must not invent template-specific rendering or validation rules" | DEC | New root ADR clause; restated as current state in `docs/architecture.md` | Promote |
-| L40-56 quick start | BP | none | Retire. `docs/operations.md` already owns build and test commands |
+| L40-56 quick start | BP | none | Retire. `docs/runbook.md` owns build/test procedure and `docs/engineering.md` owns verification gates |
 | L58-64 documentation link list | OBS | none | Retire |
-| L66 "Generated PDFs, screenshots, extracted reference text and test artefacts belong under ignored `artifacts/`. Do not commit customer or case data" | PT policy | already owned by root `AGENTS.md` and `docs/operations.md` corpus safety | Verify the owners say this; retire the copy. If a gap is found, fix the owner in the same commit |
+| L66 "Generated PDFs, screenshots, extracted reference text and test artefacts belong under ignored `artifacts/`. Do not commit customer or case data" | PT policy | already owned by root `AGENTS.md` and `docs/runbook.md` corpus safety | Verify the owners say this; retire the copy. If a gap is found, fix the owner in the same commit |
 
 ### `NOTICE.md` (100 lines)
 
@@ -123,8 +130,8 @@ Classes: **PT** product truth, **DEC** durable decision, **BP** build procedure,
 | L21-31 runtime/test/container component licences (Chromium BSD-3-Clause, .NET MIT, xUnit Apache-2.0, Liberation OFL, DejaVu GPL-with-exception) | PT, licence evidence | same | Fold rows that remain true |
 | L33-42 brand assets: master logo path, signatures, "never redraw", "payload-supplied signatures are case data", "build-time embedding transfers no ownership", Tw Cen MT/Futura not shipped, Arial or metric substitute | PT + DEC, design authority | `docs/design.md` logo section and the Web/renderer boundary table | Fold. `docs/design.md` already states most of this; add only the genuinely additional statements |
 | L44-54 design and source provenance | DEC | `docs/design.md` Web and renderer boundary | Fold; mostly a confirmation of an existing rule |
-| L56-67 private reference material and personal data: the four local folders, "real customer reports … names, vehicle registrations, claim details", git-ignored, never committed, inventories under `artifacts/`, "documentation may describe reference families but must not reproduce sensitive filenames or case facts" | **Operator/business statement** | `docs/operations.md` corpus safety → safety rules, plus `reference/README.md` handling rules | Preserve **verbatim in meaning**. Note carefully: the fourth folder in that list, `report-renderer/`, is the *prior Python renderer* source folder named in workspace ADR-0009, **not** this workspace. Do not let the retirement delete a rule about a different thing |
-| L69-77 generated documents and attachments; do not commit; do not use customer payloads as tests or starters; synthetic fixtures only | **Operator/business statement** | `docs/operations.md` safety rules | Preserve verbatim in meaning |
+| L56-67 private reference material and personal data: the four local folders, "real customer reports … names, vehicle registrations, claim details", git-ignored, never committed, inventories under `artifacts/`, "documentation may describe reference families but must not reproduce sensitive filenames or case facts" | **Operator/business statement** | `docs/runbook.md` corpus safety → safety rules, plus `reference/README.md` handling rules | Preserve **verbatim in meaning**. Note carefully: the fourth folder in that list, `report-renderer/`, is the *prior Python renderer* source folder named in workspace ADR-0009, **not** this workspace. Do not let the retirement delete a rule about a different thing |
+| L69-77 generated documents and attachments; do not commit; do not use customer payloads as tests or starters; synthetic fixtures only | **Operator/business statement** | `docs/runbook.md` safety rules | Preserve verbatim in meaning |
 | L76-77 `%LOCALAPPDATA%` MCP artefacts; API multipart temporary files | PT, host-specific | none unless those hosts survive | Retire with the hosts |
 | L79-87 Scriban advisory acceptance, its three conditions, and "must be revisited if runtime template authoring, unencoded values, dynamic compilation or a new trust boundary is introduced" | **DEC, security** | new root ADR | Promote. The highest-risk statement in the whole migration |
 | L89-96 `CR_API_TOKEN*` bearer authentication | DEC, contradicted | none | Retire with the `.Api` host. Pegasus authentication is owned by root ADR-0004 and ADR-0011 |
@@ -146,21 +153,21 @@ Classes: **PT** product truth, **DEC** durable decision, **BP** build procedure,
 | L97-114 exact catalogue table and the seven block types | PT | `docs/architecture.md` renderer subsection, one canonical copy shared with the README's 12 IDs | Fold once, not twice |
 | L116-151 host surfaces and parity, the API route table, the JSON render shape, the stricter API attachment policy, the seven MCP tools | PT, host-specific | only for surviving hosts | Retire with the hosts. The one statement that survives is "parity means capabilities come from Core, not that every medium has identical controls" → `docs/architecture.md` |
 | L153-164 API authentication variables | DEC, contradicted | none | Retire |
-| L166-168 container topology | BP + PT | `docs/operations.md` only if a Pegasus image actually gains Chromium and fonts | Conditional; the seam plan owns it |
+| L166-168 container topology | BP + PT | `docs/runbook.md` only if a Pegasus image actually gains Chromium and fonts; deployed image state belongs in `docs/operations.md` | Conditional; the seam plan owns it |
 | L170-180 current limits: Chromium required, no runtime user templates, auto-fit is a ladder, dense content may exceed target, page counting is not a forensic parser, PDFsharp does not replace layout, local-path capability is not remote filesystem access, **no tagged-PDF / PDF-UA claim**, reference folders are not build inputs | PT, honest-limit statements | `docs/architecture.md` evidence qualifications or the renderer subsection | Fold all of them. These are anti-overclaim statements and are exactly the kind this repository preserves |
 
 ### `docs/DEVELOPMENT.md` (312 lines)
 
 | Source section | Class | Target | Verdict |
 | --- | --- | --- | --- |
-| L7-16 prerequisites table | BP | `docs/operations.md` already owns the equivalents | Retire, except: confirm `docs/operations.md` records that a real render needs the pinned Chromium |
+| L7-16 prerequisites table | BP | `docs/runbook.md` already owns the equivalents | Retire, except: confirm `docs/runbook.md` records that a real render needs the pinned Chromium |
 | L11 "use the pinned SDK rather than documenting an evergreen version" | BP rule | already the repository habit | Retire |
 | L18 package versions that matter to browser/runtime matching | PT | third-party table | Fold the Playwright-version/image-tag pairing rule only |
 | L20-35 restore, `dotnet --info` diagnosis | BP | none | Retire |
 | L38-66 build sections including the six-project cross-platform list and the GUI RID build | BP | none | Retire. The per-project list exists only because the workspace has a Windows-only project in its own solution |
 | L68 "Scriban advisory warnings NU1901–NU1904 are intentionally handled by repository policy. Do not remove or broaden the suppression without reviewing ADR-0010" | **DEC, security** | new root ADR + the project file that carries the suppression | Promote |
-| L70-78 install Chromium; do not run the installer inside the container image | BP | `docs/operations.md` if a Pegasus lane needs a browser install beyond the existing step | Fold only the non-duplicate rule |
-| L80-95 test commands; "tests and documentation must not record evergreen test totals" | BP + repo rule | second half already matches `docs/operations.md` | Retire commands; verify the rule exists |
+| L70-78 install Chromium; do not run the installer inside the container image | BP | `docs/runbook.md` if a Pegasus lane needs a browser install beyond the existing step | Fold only the non-duplicate rule |
+| L80-95 test commands; "tests and documentation must not record evergreen test totals" | BP + repo rule | commands belong in `docs/runbook.md`; the repository rule belongs in `docs/engineering.md` | Retire commands; verify the rule exists |
 | L97-126 CLI command table, density values, `SuggestedFileName` default | PT (contract) + BP | only if a CLI surface survives | Conditional on the seam plan. If no CLI survives, retire |
 | L128-186 run the API, render JSON shape, four `CR_API_TOKEN*` configurations, bearer header | BP + DEC, contradicted | none | Retire with the `.Api` host. `CR_API_TOKEN*` must appear nowhere after retirement |
 | L188-201 multipart check and caveats | PT, host-specific | none | Retire with the host |
@@ -168,10 +175,10 @@ Classes: **PT** product truth, **DEC** durable decision, **BP** build procedure,
 | L221-231 run the MCP host, seven tools, `%LOCALAPPDATA%` artefacts, "keep stdout reserved for the MCP protocol" | PT, host-specific | none | Retire. Pegasus MCP is `/mcp` in `Pegasus.Web` and is a different thing |
 | L233-256 container build/run; repository-root build context "required by linked design assets" | BP | the build-context fact matters if any Pegasus image embeds the design assets | Retire the commands; carry the constraint only if an image needs it |
 | L258-268 host-parity checks and "byte identity should not be promised across differing Chromium/font environments; contract and visual parity are the portable guarantees" | **PT, determinism boundary** | `docs/architecture.md` evidence qualifications | Fold. A real anti-overclaim rule about PDF determinism that must not be lost |
-| L270-290 troubleshooting: missing/mismatched Chromium; "do not copy a random system Chromium into the expected revision directory"; Linux font widths; `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false` | BP, operationally real | `docs/operations.md` failure/observability rules and the Linux capability table | Fold the two genuine operational facts |
+| L270-290 troubleshooting: missing/mismatched Chromium; "do not copy a random system Chromium into the expected revision directory"; Linux font widths; `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false` | BP, operationally real | `docs/runbook.md` failure/observability rules and the Linux capability table | Fold the two genuine operational facts |
 | L292-294 GUI build fails on non-Windows | BP | none | Retire |
 | L296-309 401 diagnosis; multipart rejection checklist | BP, host-specific | none | Retire with the hosts |
-| L311-312 keep generated and private material under ignored `artifacts/`; never commit customer reports | operator/business | `docs/operations.md` safety rules | Preserve in meaning (duplicate of `NOTICE.md`; fold once) |
+| L311-312 keep generated and private material under ignored `artifacts/`; never commit customer reports | operator/business | `docs/runbook.md` safety rules | Preserve in meaning (duplicate of `NOTICE.md`; fold once) |
 
 ### `docs/TEMPLATES.md` (529 lines)
 
@@ -225,7 +232,7 @@ decision that changes repository-wide build policy.
 | 0006 | Page furniture via Chromium header/footer + paged-media CSS | None | **Split** | Design invariants (footer composition, strapline, page numbering, repeating headers, unbreakable blocks) → `docs/design.md`. The mechanism choice → new root ADR clause 4 |
 | 0007 | Density auto-fit | None | **Promote** | New root ADR clause 5. Current behaviour → `docs/architecture.md`. Note the seam plan proposes that issued artifacts render at a fixed density, so the clause must say auto-fit is engine behaviour, not issued-artifact contract |
 | 0008 | Cloud portability: ASP.NET Core API + Playwright Docker image | **Yes** — if the `.Api` host is retired the decision has no subject; its bearer access control is already superseded by WS-0011 | **Retire as obsolete for the host and container; keep one clause** | The surviving statement is "the engine carries no Windows-only dependency, so it runs on the Linux runtime" → new root ADR clause 2. Pegasus hosting is owned by root ADR-0015 and ADR-0002 |
-| 0009 | Local reference material is git-ignored, never committed | None; already this repository's rule | **Fold into prose** | `docs/operations.md` safety rules and `reference/README.md` handling rules. Verify both carry the substance; add only genuine gaps. No root ADR |
+| 0009 | Local reference material is git-ignored, never committed | None; already this repository's rule | **Fold into prose** | `docs/runbook.md` safety rules and `reference/README.md` handling rules. Verify both carry the substance; add only genuine gaps. No root ADR |
 | 0010 | Accept/suppress Scriban advisories NU1901–NU1904 | **Yes** — collides with root `TreatWarningsAsErrors=true` | **Promote as its own clause, with an explicit build-policy consequence, and stop for the operator** | See below |
 | 0011 | Multi-token and SHA-256 API authentication | **Yes** — contradicted by Pegasus's OpenIddict `/mcp` model, root ADR-0004 and root ADR-0011. Environment-variable bearer tokens are not a Pegasus authentication mechanism | **Retire as obsolete** | Record in the retired-decisions clause that renderer bearer-token authentication does not enter Pegasus and that `CR_API_TOKEN`, `CR_API_TOKENS`, `CR_API_TOKEN_SHA256` and `CR_API_TOKEN_SHA256S` must appear nowhere in the repository after retirement |
 
@@ -292,13 +299,13 @@ remain, so `workspaces/README.md`, `workspaces/AGENTS.md`,
 | `docs/architecture.md` implementation map (L496-512) | responsibility → current source | **Add rows** for the moved render engine, in the same commit as the code move, naming real post-move paths only |
 | `docs/architecture.md` source-and-generated-material roles (L518-530) | path/role/qualification table | **Add** a `design/assets/report-renderer/` row and, if the GUI is retired, resolve what happens to `design/assets/report-renderer/gui/**` |
 | `docs/architecture.md` integration boundaries (L351-417) | existing `###` subsections | **Add one `###` subsection** as the canonical home for the folded render contract: engine, pipeline, contracts by name, the 12 template IDs, the seven block types, density behaviour, and the limits list |
-| `docs/operations.md:52` | `poppler-utils` row citing `workspaces/report-renderer/scripts/visual-regression.ps1` | The cited script dies with the workspace. Either repoint to the new path if the script is migrated to `scripts/`, or **delete the row** — with no consumer, `poppler-utils` is not a Linux capability advantage for this repository |
-| `docs/operations.md:53` | `fonts-liberation`/`fonts-dejavu-core` row justified by "the renderer's container image" | After retirement there is no renderer container image. Repoint to whichever image actually installs them **only if that is true**; otherwise restate as a local-render font-metric prerequisite with no container claim. Do not name an image that does not install the fonts |
-| `docs/operations.md:66` | "`scripts/email-eval-desktop` and `CollisionRenderer.Gui` — These target `net10.0-windows` with Windows Forms and WinUI 3 respectively." | **Factual error — fix required.** Per `docs/index.md:30-32` this must be fixed in the same commit it is noticed, i.e. the first commit of this work, independently of whether the migration proceeds. When the GUI is retired the row narrows to `scripts/email-eval-desktop` alone |
-| `docs/operations.md:378` | the renderer validation command line | **Delete the line.** Three lanes remain. The absent `--locked-mode` was correct: the workspace has no lock files. When the projects join `src/` they must gain them, because every `src/` and `tests/` project has one and the build action and browser cache key depend on them |
-| `docs/operations.md:374,383` | "Source workspaces validate independently…"; "These checks prove only the imported source snapshots." | Unchanged; still true for three remaining lanes |
-| `docs/operations.md:1052` | deferred-seams row "PDF-engine replacement" | Keep the row; its subject shifts from "choosing an engine" to "replacing the accepted engine". Add one qualification naming headless Chromium via Playwright as the accepted engine. Do not delete the row — the "no parallel permanent engines" rule is still operative |
-| `docs/operations.md` safety rules (L756-793) | existing rules | **Add** the preserved `NOTICE.md` operator statements: customer reports and extracted text are never committed; generated PDFs, rasters, screenshots and inventories live under ignored `artifacts/`; customer payloads are never used as tests, starters or examples; synthetic non-identifying fixtures only; documentation may describe reference families but never reproduces sensitive filenames or case facts. Verify each against the existing text first and add only what is genuinely absent |
+| Historical pre-restructure `docs/operations.md:52` | `poppler-utils` row citing `workspaces/report-renderer/scripts/visual-regression.ps1` | The cited script dies with the workspace. Either repoint the procedure in `docs/runbook.md` if the script is migrated to `scripts/`, or **delete the row** — with no consumer, `poppler-utils` is not a Linux capability advantage for this repository |
+| Historical pre-restructure `docs/operations.md:53` | `fonts-liberation`/`fonts-dejavu-core` row justified by "the renderer's container image" | After retirement there is no renderer container image. Repoint the prerequisite in `docs/runbook.md` to whichever image actually installs them **only if that is true**; otherwise restate it as a local-render font-metric prerequisite with no container claim. Record deployed image state in `docs/operations.md`; do not name an image that does not install the fonts |
+| Historical pre-restructure `docs/operations.md:66` | "`scripts/email-eval-desktop` and `CollisionRenderer.Gui` — These target `net10.0-windows` with Windows Forms and WinUI 3 respectively." | **Factual error — fix required.** Per `docs/index.md:30-32` this must be fixed in the same commit it is noticed, i.e. the first commit of this work, independently of whether the migration proceeds. When the GUI is retired the row narrows to `scripts/email-eval-desktop` alone |
+| Historical pre-restructure `docs/operations.md:378` | the renderer validation command line | **Delete the line and retain any surviving validation procedure only in `docs/runbook.md`.** Three lanes remain. The absent `--locked-mode` was correct: the workspace has no lock files. When the projects join `src/` they must gain them, because every `src/` and `tests/` project has one and the build action and browser cache key depend on them |
+| Historical pre-restructure `docs/operations.md:374,383` | "Source workspaces validate independently…"; "These checks prove only the imported source snapshots." | Preserve the current-evidence statement in `docs/operations.md`; the commands and verification gates belong in `docs/runbook.md` and `docs/engineering.md` |
+| Historical pre-restructure `docs/operations.md:1052` | deferred-seams row "PDF-engine replacement" | Keep the current-state seam record, but its subject shifts from "choosing an engine" to "replacing the accepted engine". Add one qualification naming headless Chromium via Playwright as the accepted engine. Do not delete the row — the "no parallel permanent engines" rule is still operative |
+| Historical pre-restructure `docs/operations.md` safety rules (L756-793) | existing rules | **Add** the preserved `NOTICE.md` operator statements to `docs/runbook.md`: customer reports and extracted text are never committed; generated PDFs, rasters, screenshots and inventories live under ignored `artifacts/`; customer payloads are never used as tests, starters or examples; synthetic non-identifying fixtures only; documentation may describe reference families but never reproduces sensitive filenames or case facts. Verify the runbook first and add only what is genuinely absent |
 | `docs/design.md:160-164` | logo consumers naming the workspace Core and Gui | Repoint the first bullet to the post-move engine path; **delete** the GUI bullet. The checksummed Web copy bullet is unaffected |
 | `docs/design.md:230-240` | the Web and renderer boundary five-row table | Rewrite all five rows: master-logo consumer becomes the in-application engine; templates/stylesheet consumer path updated with "not Web shell assets" retained; signatures row retained with the updated consumer; **the GUI package-assets row resolves** — its own text says "remove when that GUI is decommissioned during Pegasus integration"; the "Imported renderer, prompt, model, skill and AI material" row narrows to prompt/model/skill/AI material only. Also update L240 so relocation still does not prove the capability, without the word "imported" |
 | `docs/design.md:665-669` | source-and-runtime map rows | Same treatment: repoint paths, delete the GUI-assets row, narrow the imported-source row |
@@ -443,7 +450,8 @@ Keeping the job green:
 
 ## 7. Ordering
 
-**Commit 1 — independent, land first.** The `docs/operations.md:66` factual
+**Commit 1 — independent, land first.** The historical pre-restructure
+`docs/operations.md:66` factual
 correction. The authority rule requires fixing a losing document in the commit
 that notices the conflict, and this plan notices it. It must not be bundled with
 the migration, because it is true whether or not the migration proceeds.
@@ -463,7 +471,8 @@ components rows. Code and its architecture rows land together or
 **Commit 4 — the deletion.** `git rm -r workspaces/report-renderer` together
 with, in the same commit and no other: `workspaces/README.md` rows 16 and 25 plus
 the two added sentences; the workspaces workflow step deletion;
-`docs/operations.md:378`; `docs/architecture.md:391,394`;
+the historical pre-restructure `docs/operations.md:378` command;
+`docs/architecture.md:391,394`;
 `docs/design.md:162-163,230-240,665-669`; `reference/README.md:22`; the
 six `ai-centre` document repoints. Splitting any of these from the deletion
 leaves either a dangling link (CI red) or a document asserting a tree that is
@@ -471,7 +480,7 @@ gone (authority-rule violation).
 
 **Commit 5 — the folds.** The renderer subsection in `docs/architecture.md`, the
 design invariants in `docs/design.md`, the preserved operator statements in
-`docs/operations.md` safety rules, the third-party component table, the
+`docs/runbook.md` safety rules, the third-party component table, the
 `docs/requirements.md:893-896` rewrite, and the Stage A capability notes.
 Requirements outranks architecture, so if the rewrite and the folded prose
 disagree, the requirements sentence wins and the architecture prose is corrected
@@ -592,13 +601,14 @@ acceptance.
    separate ADRs per promoted decision? Blocks Commit 2.
 4. **`visual-regression.ps1` and `poppler-utils`.** Does the visual-regression
    script migrate to `scripts/`, or die with the workspace? Determines whether
-   `docs/operations.md:52` is repointed or deleted.
+   the historical `docs/operations.md:52` row is deleted or its surviving
+   procedure is repointed into `docs/runbook.md`.
 5. **GUI assets.** If `CollisionRenderer.Gui` is retired, do the files under
    `design/assets/report-renderer/gui/**` get deleted, or retained as brand
    source? `docs/design.md:237` says "remove when that GUI is decommissioned
    during Pegasus integration", which reads as a decision already taken — confirm.
 6. **Fonts.** Does any Pegasus image install `fonts-liberation` and
-   `fonts-dejavu-core`? `docs/operations.md:53`'s current justification
+   `fonts-dejavu-core`? The historical `docs/operations.md:53` justification
    disappears with the workspace, and the row must not name an image that does
    not install them.
 7. **Provenance home.** Confirm that freezing the renderer's import provenance in

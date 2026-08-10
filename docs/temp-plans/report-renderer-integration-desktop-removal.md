@@ -193,7 +193,7 @@ grep does not surface as separate locations.
 After these edits, `rg -n "CollisionRenderer\.Gui|renderer GUI" design/` must
 return nothing.
 
-### 3. `docs/operations.md`
+### 3. Historical pre-restructure `docs/operations.md`
 
 Line 66, the *What Windows gives this project that Linux does not* table.
 Two defects are fixed by one edit:
@@ -209,8 +209,10 @@ Replace the row with a `scripts/email-eval-desktop`-only row that states
 `net10.0-windows` and Windows Forms. Do not add a WinUI clause; after this
 change the repository contains no WinUI code.
 
-No other line in `docs/operations.md` mentions the GUI. Lines 52-53, 378 and
-383 reference the renderer workspace generally and stay unchanged.
+No other line in that pre-restructure file mentions the GUI. Its lines 52-53,
+378 and 383 reference the renderer workspace generally. On migration, surviving
+prerequisite and validation procedure belongs in `docs/runbook.md`; only current
+operational state and evidence remains in `docs/operations.md`.
 
 ### 4. `workspaces/report-renderer/docs/ARCHITECTURE.md`
 
