@@ -6,7 +6,7 @@ namespace Pegasus.Core.Assessment;
 /// <summary>
 /// The closed wire vocabulary of the assessment surface. Field paths are the
 /// exact <c>name</c> attributes of the Engineers assessment screen (which
-/// follow docs/reference/rendererref1/report_data_schema.json); an unknown
+/// follow reference/rendererref1/report_data_schema.json); an unknown
 /// path fails closed. Fields owned by the accepted case record (registration,
 /// make, model, mileage, incident and instruction dates, inspection mode and
 /// address) are readable through the assessment projection but are written

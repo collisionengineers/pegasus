@@ -147,7 +147,7 @@ still-current successor experiment.
 
 ## External experiment approval and cleanup
 
-Collision Brain provider experiments also use the provider-specific [evaluation and activation gates](../services/collision-brain/docs/provider-evaluation.md#evaluation-activation-pass-and-stop-gates) and [hosted cleanup procedure](../services/collision-brain/docs/operations.md#hosted-experiment-cleanup). Those evidence and procedure owners instantiate this workspace-wide experiment contract; they do not replace it.
+Collision Brain provider experiments also use the provider-specific [evaluation pass and stop rules](../services/collision-brain/docs/provider-evaluation.md#pass--stop-rules) and [hosted cleanup procedure](../services/collision-brain/docs/operations.md#hosted-experiment-cleanup). Those evidence and procedure owners instantiate this workspace-wide experiment contract; they do not replace it.
 
 An experiment manifest's `approval_ids`, purpose, output boundary, stop conditions, code/environment identity, artifact hashes, and decision record must remain sufficient to identify the exact authorised run. Before a run uses a hosted model, provider, account, project, subscription, external storage, or billed service, the approval must additionally name the exact target, region, service/model/SKU, operations, input class, duration and expiry, spending ceiling and stop behavior, identities, retained outputs, rollback source, and cleanup targets. Dataset or experiment approval alone does not authorize provisioning, external transfer, paid use, deployment, or deletion.
 

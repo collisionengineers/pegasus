@@ -33,7 +33,7 @@ In scope:
 - the write model for Automation Actor assessment access (decided below);
 - the Core assessment/estimate domain model the screens imply, mapped from
   the authoritative field inventory
-  (`docs/reference/rendererref1/report_data_schema.json` plus the markup);
+  (`reference/rendererref1/report_data_schema.json` plus the markup);
 - the proposed MCP tool inventory extension, scopes, idempotency, lease
   interaction, and activity attribution;
 - store/migration impact, test plan, docs impact, and sequencing with honest
@@ -86,7 +86,7 @@ none of them.
 - **Allocations.** UI-15 (Engineer workbench) is `Later / 1.0.0`; AI-09
   (`Send to AI` work transport) is `Later / 1.3.0`; ENG-01/ENG-02, EXT-09,
   EXT-10, EXT-12, EXT-13 (`Later / 1.0.0`), EXT-11 (`1.2.0`), RPT-01/EXT-08
-  (`1.1.0`). `design/README.md` § Deferred casework requires every deferred
+  (`1.1.0`). `docs/design.md` § Deferred casework requires every deferred
   UI capability to re-enter specification and review before implementation.
   The assessment screens exist only as unlinked design markup under the
   operator's 2026-08-03 widening; this plan does not treat that as
@@ -103,7 +103,7 @@ none of them.
   and the re-entry review happens against its output. AI-09 implementation
   is assigned to the channels task (companion plan).
 - **task/report-renderer-integration** (live) is planning the renderer seam
-  (RPT-01–05, EXT-08), the `docs/reference/rendererref1` blueprint and
+  (RPT-01–05, EXT-08), the `reference/rendererref1` blueprint and
   report-template intake, and "promotion of the renderer's pre-existing MCP
   server as the replacement for the current `.mcpb` packaging (MCP-01–04
   follow-ups)". Two touch points: the report-data projection candidate tool
@@ -118,7 +118,7 @@ none of them.
 ## Assessment field inventory
 
 Extracted from `Index.cshtml` (962 lines; field `name` attributes follow the
-report job definition in `docs/reference/rendererref1/report_data_schema.json`)
+report job definition in `reference/rendererref1/report_data_schema.json`)
 and reconciled against `Pegasus.Core` as merged. "Exists" means the field is
 already owned by `CaseDataProjection` (`Cases/CaseDataContracts.cs`) with
 Fact/Suggestion/Confirmed provenance.
@@ -462,13 +462,13 @@ Architecture (`tests/Pegasus.ArchitectureTests`): no change expected —
   direct-writing worker reviewed at assignment). This plan's decisions feed
   that ADR; they are not authoritative until it is accepted.
 - `docs/open-decisions.md`: entries for whatever remains open after review.
-- No change to `design/README.md` or any screen — the screens stay unlinked.
+- No change to `docs/design.md` or any screen — the screens stay unlinked.
 
 ## Non-goals
 
 - Wiring the Assessment or Suggestions screens, linking them from
   navigation, or any UI-15 activation (separate task; requires the
-  design/README.md re-entry review).
+  docs/design.md re-entry review).
 - Any `Send to AI` transport, worker, or durable work-request lifecycle
   beyond the minimal send-binding record if D3 accepts it (AI-09 remains
   `Later / 1.3.0`).
@@ -546,11 +546,12 @@ Still open:
    projection candidate.
 6. **Tier-5 evidence run** (already queued in `NOW.md`): one run covering
    the full toolset — existing nine plus this tranche — so the external-client
-   evidence is recorded once, per operations.md, before any activation claim.
+   evidence is classified once under engineering.md and its current result is
+   recorded in operations.md before any activation claim.
 
 ## Evidence-tier claims
 
-Per operations.md § Required evidence tiers, and stated in advance so no
+Per engineering.md § Required evidence tiers, and stated in advance so no
 stronger claim is inferred: a tool registration or schema is not proof of
 anything; a green build with the unit suites is tier 1–2; the SQL
 persistence tests are tier 4-adjacent local evidence; the ingress HTTP tests

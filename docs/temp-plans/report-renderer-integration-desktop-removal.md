@@ -11,14 +11,14 @@ decisions that the parent task owns.
 
 The operator has directed removal of the imported renderer's desktop/UI
 elements. The design authority already anticipated this and pre-authorised
-it. `design/README.md:237`, in the *Web and renderer boundary* table, reads:
+it. `docs/design.md:237`, in the *Web and renderer boundary* table, reads:
 
 > Temporary renderer GUI package assets | Linked by
 > `workspaces/report-renderer/src/CollisionRenderer.Gui`; remove when that
 > GUI is decommissioned during Pegasus integration
 
 Two further design locations name the GUI as a temporary consumer:
-`design/README.md:163` (logo consumers) and `design/README.md:668`
+`docs/design.md:163` (logo consumers) and `docs/design.md:668`
 (source-and-runtime map). This plan is therefore a scheduled removal under
 existing design authority, not a new design decision.
 
@@ -71,7 +71,7 @@ context).
 > Signatures embedded in governed renderer documents are
 > provenance-sensitive document assets, not Web decorative imagery.
 
-`design/README.md:235-236` governs the templates and signatures on the same
+`docs/design.md:235-236` governs the templates and signatures on the same
 boundary table row set that authorises the GUI-asset removal. The removal
 authority is scoped to the GUI row only.
 
@@ -175,7 +175,7 @@ entries at lines 26-31 become vestigial but remain internally consistent.
 Recommendation: **leave lines 26-31 unchanged** to keep the diff reviewable.
 See open question 3.
 
-### 2. `design/README.md`
+### 2. `docs/design.md`
 
 Five lines across three named locations.
 
@@ -193,7 +193,7 @@ grep does not surface as separate locations.
 After these edits, `rg -n "CollisionRenderer\.Gui|renderer GUI" design/` must
 return nothing.
 
-### 3. `docs/operations.md`
+### 3. Historical pre-restructure `docs/operations.md`
 
 Line 66, the *What Windows gives this project that Linux does not* table.
 Two defects are fixed by one edit:
@@ -209,8 +209,10 @@ Replace the row with a `scripts/email-eval-desktop`-only row that states
 `net10.0-windows` and Windows Forms. Do not add a WinUI clause; after this
 change the repository contains no WinUI code.
 
-No other line in `docs/operations.md` mentions the GUI. Lines 52-53, 378 and
-383 reference the renderer workspace generally and stay unchanged.
+No other line in that pre-restructure file mentions the GUI. Its lines 52-53,
+378 and 383 reference the renderer workspace generally. On migration, surviving
+prerequisite and validation procedure belongs in `docs/runbook.md`; only current
+operational state and evidence remains in `docs/operations.md`.
 
 ### 4. `workspaces/report-renderer/docs/ARCHITECTURE.md`
 
@@ -289,7 +291,7 @@ Two accepted ADRs are contradicted by this removal:
 
 **Do not edit either body.** Add a workspace ADR recording that the WinUI 3
 desktop host is decommissioned on operator direction under the pre-existing
-`design/README.md:237` authority, and stating precisely which details it
+`docs/design.md:237` authority, and stating precisely which details it
 supersedes:
 
 - ADR-0002: only the enumeration of the GUI as a host and the offline
@@ -377,7 +379,7 @@ itself resolves:
 
 1. **No capability ID exists for a report preview surface.** Nothing in
    `docs/capabilities.md` allocates one. A staff-visible preview is a UI
-   capability, and `design/README.md:48` requires every deferred UI
+   capability, and `docs/design.md:48` requires every deferred UI
    capability to re-enter specification, alternatives, independent review,
    explicit approval, visual generation and manual visual review before
    implementation. `0.1.0-alpha.1` admits no control, navigation, workflow
@@ -436,7 +438,7 @@ solution.
 
 ## Verification plan
 
-Mapped to the evidence tiers in `docs/operations.md`.
+Mapped to the evidence tiers in `docs/engineering.md`.
 
 **Applicable tier: 1 — Static/build/architecture.** No other tier applies.
 The renderer workspace has no Pegasus caller, no route, no persisted result,
