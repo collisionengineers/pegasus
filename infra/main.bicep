@@ -19,6 +19,9 @@ param deploymentMode string
 @description('Fail-closed Web activation. Base provisioning leaves the public Container App absent.')
 param webActivation string = 'disabled'
 
+@description('Fail-closed Worker activation. Only approved-live-worker enables the nine production functions.')
+param workerActivation string = 'disabled'
+
 @description('Exact sha256 OCI manifest digest. Required only when Web activation is approved; the registry and repository are template-owned.')
 param webImageDigest string = ''
 
@@ -85,6 +88,7 @@ module platform 'modules/platform.bicep' = if (activationAllowed) {
     sqlAdministratorLogin: sqlAdministratorLogin
     alertEmailAddress: alertEmailAddress
     webActivation: webActivation
+    workerActivation: workerActivation
     webImageDigest: webImageDigest
     webRevisionSuffix: webRevisionSuffix
     graphMailboxId: graphMailboxId

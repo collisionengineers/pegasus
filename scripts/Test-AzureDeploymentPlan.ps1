@@ -1,14 +1,23 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
-    [ValidateSet('Local', 'Artifact', 'PreUpload', 'PreMigration')]
+    [ValidateSet('Local', 'Artifact', 'PreUpload', 'PreMigration', 'PreProvision')]
     [string] $Mode,
 
     [string] $ManifestPath,
 
     [string] $Environment,
 
-    [string] $ManifestSha256
+    [string] $ManifestSha256,
+
+    [string] $WorkerActivation = 'disabled',
+
+    [ValidateSet('disabled', 'approved-live-worker')]
+    [string] $ExpectedLiveWorkerActivation,
+
+    [string] $WorkerAppName,
+
+    [switch] $AllowWorkerDisable
 )
 
 Set-StrictMode -Version Latest
@@ -19,6 +28,18 @@ $mainBicepPath = Join-Path $repositoryRoot 'infra/main.bicep'
 $platformBicepPath = Join-Path $repositoryRoot 'infra/modules/platform.bicep'
 $parametersPath = Join-Path $repositoryRoot 'infra/main.parameters.json'
 $azureYamlPath = Join-Path $repositoryRoot 'azure.yaml'
+$productionSmokePath = Join-Path $repositoryRoot 'scripts/Invoke-ProductionSmoke.ps1'
+$expectedWorkerFunctions = @(
+    'PendingWorkDispatchFunction',
+    'IntakeWorkFunction',
+    'IntakePoisonFunction',
+    'StagedArtifactReconciliationFunction',
+    'InboxPollFunction',
+    'SentEvidencePollFunction',
+    'DueWorkSweepFunction',
+    'ExternalWorkFunction',
+    'ExternalPoisonFunction'
+)
 # The executed production runbook (azure-production-replacement-plan.md) and
 # the one-off predecessor archive/retirement scripts were retired after the
 # 2026-08-02 release; their content assertions retired with them (git history).
@@ -119,13 +140,18 @@ $mainBicep = Get-Content -LiteralPath $mainBicepPath -Raw
 $platformBicep = Get-Content -LiteralPath $platformBicepPath -Raw
 $parameters = Get-Content -LiteralPath $parametersPath -Raw
 $azureYaml = Get-Content -LiteralPath $azureYamlPath -Raw
+$productionSmoke = Get-Content -LiteralPath $productionSmokePath -Raw
 $combined = "$mainBicep`n$platformBicep`n$parameters`n$azureYaml"
 
 Assert-Text $mainBicep "@allowed\(\[\s*'prod'\s*\]\)" 'infra/main.bicep must accept production only.'
 Assert-Text $mainBicep "deploymentMode\s*==\s*'approved-live-deployment'" 'Bicep must fail closed unless approved-live-deployment is supplied.'
 Assert-Text $mainBicep "param\s+webActivation\s+string\s*=\s*'disabled'" 'Base provisioning must leave Web activation disabled by default.'
+Assert-Text $mainBicep "param\s+workerActivation\s+string\s*=\s*'disabled'" 'Base provisioning must leave Worker activation disabled by default.'
+Assert-Text $mainBicep 'workerActivation:\s*workerActivation' 'The main template must pass the Worker activation input to the platform module.'
+Assert-Text $parameters '"workerActivation"\s*:\s*\{\s*"value"\s*:\s*"\$\{PEGASUS_WORKER_ACTIVATION=disabled\}"\s*\}' 'The azd parameter map must default PEGASUS_WORKER_ACTIVATION to disabled.'
 Assert-Text $platformBicep "webImageReference\s*=\s*'\$\{containerRegistryName\}\.azurecr\.io/pegasus/web@\$\{webImageDigest\}'" 'The template must own the exact ACR and repository image prefix.'
 Assert-Text $platformBicep "webActivation\s*==\s*'approved'[\s\S]*?startsWith\(webImageDigest,\s*'sha256:'\)[\s\S]*?length\(webImageDigest\)\s*==\s*71[\s\S]*?length\(webRevisionSuffix\)\s*==\s*12" 'Approved Web activation must require a sha256 digest and exact revision suffix.'
+Assert-Text $platformBicep "workerActivationApproved\s*=\s*workerActivation\s*==\s*'approved-live-worker'" 'Only the exact approved-live-worker value may enable the production Worker.'
 Assert-Text $platformBicep "resource\s+webContainerApp[\s\S]*?if\s*\(webActivationApproved\)" 'The Web Container App must be conditional on approved activation.'
 Assert-Text $platformBicep "image:\s*webImageReference" 'The Container App must use the exact supplied digest reference.'
 Assert-Text $platformBicep "activeRevisionsMode:\s*'Single'" 'The Container App must use one active revision.'
@@ -148,7 +174,42 @@ Assert-Text $platformBicep 'custodyStorageName' 'The custody/protection storage 
 Assert-Text $platformBicep "name:\s*'ASPNETCORE_ENVIRONMENT'[\s\S]*?value:\s*'Production'" 'Web must use ASPNETCORE_ENVIRONMENT=Production.'
 Assert-Text $platformBicep "name:\s*'Runtime__Profile'[\s\S]*?value:\s*'Production'" 'Worker must use Runtime__Profile=Production.'
 Assert-Text $platformBicep "name:\s*'APPLICATIONINSIGHTS_AUTHENTICATION_STRING'" 'Application Insights local authentication must be disabled through managed-identity configuration.'
-Assert-Text $platformBicep "AzureWebJobs\.[A-Za-z0-9]+\.Disabled'[\s\S]*?value:\s*'true'" 'Worker triggers must start disabled.'
+$workerSettingMatches = [regex]::Matches(
+    $platformBicep,
+    "name:\s*'AzureWebJobs\.([A-Za-z0-9]+)\.Disabled'\s*,\s*value:\s*workerActivationApproved\s*\?\s*'false'\s*:\s*'true'"
+)
+$sourceWorkerFunctions = @($workerSettingMatches | ForEach-Object { $_.Groups[1].Value })
+$sourceCensusDifference = @(
+    Compare-Object -ReferenceObject $expectedWorkerFunctions -DifferenceObject $sourceWorkerFunctions
+)
+if ($workerSettingMatches.Count -ne 9 -or $sourceCensusDifference.Count -ne 0) {
+    throw 'The Worker template must contain the exact nine-function disabled-setting census behind one fail-closed conditional.'
+}
+
+function Get-AzdEnvironmentMap {
+    param([Parameter(Mandatory)][string] $Name)
+
+    $lines = @(& azd env get-values -e $Name --no-prompt)
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unable to read azd environment $Name."
+    }
+
+    $values = @{}
+    foreach ($line in $lines) {
+        if ($line -notmatch '^([^=]+)=(.*)$') {
+            continue
+        }
+
+        $key = $Matches[1]
+        $value = $Matches[2]
+        if ($value.Length -ge 2 -and $value[0] -eq '"' -and $value[-1] -eq '"') {
+            $value = $value.Substring(1, $value.Length - 2).Replace('\"', '"')
+        }
+        $values[$key] = $value
+    }
+
+    return $values
+}
 Assert-Text $platformBicep 'retentionInDays:\s*31' 'Log Analytics retention must be exactly 31 days.'
 Assert-Text $mainBicep 'LOG_ANALYTICS_WORKSPACE_NAME' 'The Log Analytics workspace name must be exported for exact post-provision configuration.'
 Assert-Text $platformBicep "APPLICATIONINSIGHTS_ENABLEADAPTIVESAMPLING'[\s\S]*?value:\s*'true'" 'Adaptive sampling must be enabled for production telemetry.'
@@ -186,9 +247,45 @@ Assert-Text $databaseBootstrapScript 'status --porcelain' 'Database bootstrap mu
 Assert-Text $databaseBootstrapScript 'sys\.schemas[\s\S]*sys\.objects[\s\S]*owning_principal_id[\s\S]*owner_sid' 'Database bootstrap must reject schema, object, principal, and database ownership authority.'
 Assert-Text $databaseBootstrapScript 'HAS_PERMS_BY_NAME' 'Database bootstrap must compare effective per-table runtime DML with the migration-defined matrix.'
 
-& az bicep build --file $mainBicepPath --stdout | Out-Null
+$smokeWorkerMatches = [regex]::Matches(
+    $productionSmoke,
+    "'AzureWebJobs\.([A-Za-z0-9]+)\.Disabled'"
+)
+$smokeWorkerFunctions = @($smokeWorkerMatches | ForEach-Object { $_.Groups[1].Value })
+$smokeCensusDifference = @(
+    Compare-Object -ReferenceObject $expectedWorkerFunctions -DifferenceObject $smokeWorkerFunctions
+)
+if ($smokeWorkerMatches.Count -ne 9 -or $smokeCensusDifference.Count -ne 0) {
+    throw 'Production smoke must inspect the exact nine-function disabled-setting census.'
+}
+Assert-Text $productionSmoke 'az\s+functionapp\s+config\s+appsettings\s+list' 'Production smoke must read the live Worker app settings.'
+Assert-Text $productionSmoke "ExpectedWorkerActivation\s*-eq\s*'approved-live-worker'[\s\S]*?'false'[\s\S]*?'true'" 'Production smoke must map approved-live-worker to enabled settings and disabled to disabled settings.'
+Assert-Text $productionSmoke 'Compare-Object[\s\S]*expectedWorkerSettings[\s\S]*actualNames' 'Production smoke must fail on a missing or unexpected Worker setting.'
+Assert-Text $productionSmoke 'WorkerOnly' 'Production smoke must expose its read-only Worker assertion for pre-provision validation.'
+
+$compiledTemplateJson = (& az bicep build --file $mainBicepPath --stdout) -join "`n"
 if ($LASTEXITCODE -ne 0) {
     throw 'Bicep compilation failed.'
+}
+$compiledWorkerMatches = [regex]::Matches(
+    $compiledTemplateJson,
+    '"name"\s*:\s*"AzureWebJobs\.([A-Za-z0-9]+)\.Disabled"\s*,\s*"value"\s*:\s*"\[if\(variables\(''workerActivationApproved''\), ''false'', ''true''\)\]"'
+)
+$compiledWorkerFunctions = @($compiledWorkerMatches | ForEach-Object { $_.Groups[1].Value })
+$compiledCensusDifference = @(
+    Compare-Object -ReferenceObject $expectedWorkerFunctions -DifferenceObject $compiledWorkerFunctions
+)
+if ($compiledWorkerMatches.Count -ne 9 -or $compiledCensusDifference.Count -ne 0) {
+    throw 'The compiled template must contain the exact nine-function fail-closed Worker setting expressions.'
+}
+Assert-Text $compiledTemplateJson '"workerActivationApproved"\s*:\s*"\[equals\(parameters\(''workerActivation''\), ''approved-live-worker''\)\]"' 'The compiled template must enable the Worker only for the exact approved-live-worker input.'
+Assert-Text $compiledTemplateJson '"workerActivation"\s*:\s*\{\s*"type"\s*:\s*"string"\s*,\s*"defaultValue"\s*:\s*"disabled"' 'The compiled template must retain the fail-closed Worker activation default.'
+
+$expectedRenderedValue = if ($WorkerActivation -eq 'approved-live-worker') {
+    'false'
+}
+else {
+    'true'
 }
 
 if ($Mode -in @('Artifact', 'PreUpload', 'PreMigration')) {
@@ -230,4 +327,61 @@ if ($Mode -eq 'PreMigration') {
     }
 }
 
-Write-Output "Azure deployment plan validation passed ($Mode)."
+if ($Mode -eq 'PreProvision') {
+    if ([string]::IsNullOrWhiteSpace($Environment)) {
+        throw '-Environment is required in PreProvision mode.'
+    }
+    if ([string]::IsNullOrWhiteSpace($WorkerAppName)) {
+        throw '-WorkerAppName is required in PreProvision mode.'
+    }
+    if ([string]::IsNullOrWhiteSpace($ExpectedLiveWorkerActivation)) {
+        throw '-ExpectedLiveWorkerActivation is required in PreProvision mode.'
+    }
+    if ($WorkerActivation -notin @('disabled', 'approved-live-worker')) {
+        throw 'Pre-provision validation accepts only disabled or the exact approved-live-worker desired value.'
+    }
+
+    $environmentValues = Get-AzdEnvironmentMap -Name $Environment
+    $required = @(
+        'AZURE_SUBSCRIPTION_ID',
+        'AZURE_TENANT_ID',
+        'AZURE_RESOURCE_GROUP',
+        'WORKER_APP_NAME',
+        'PEGASUS_WORKER_ACTIVATION'
+    )
+    foreach ($key in $required) {
+        if (-not $environmentValues.ContainsKey($key) -or
+            [string]::IsNullOrWhiteSpace([string]$environmentValues[$key])) {
+            throw "azd environment $Environment is missing $key."
+        }
+    }
+    if (
+        $environmentValues['AZURE_SUBSCRIPTION_ID'] -ne 'e6076573-23a5-46a8-acef-7e22d264e5db' -or
+        $environmentValues['AZURE_TENANT_ID'] -ne '858cf5b3-aa0a-47a6-9b40-4851fd0afa94' -or
+        $environmentValues['AZURE_RESOURCE_GROUP'] -ne 'rg-pegasus-prod' -or
+        $environmentValues['WORKER_APP_NAME'] -ne $WorkerAppName
+    ) {
+        throw 'Pre-provision validation refuses an environment outside the exact approved production Worker target.'
+    }
+    if ($environmentValues['PEGASUS_WORKER_ACTIVATION'] -cne $WorkerActivation) {
+        throw 'The desired Worker activation differs from the explicit PEGASUS_WORKER_ACTIVATION azd environment value.'
+    }
+    if ($AllowWorkerDisable -and
+        ($ExpectedLiveWorkerActivation -ne 'approved-live-worker' -or
+            $WorkerActivation -ne 'disabled')) {
+        throw '-AllowWorkerDisable is valid only for an explicit enabled-to-disabled rollback.'
+    }
+    if ($ExpectedLiveWorkerActivation -eq 'approved-live-worker' -and
+        $WorkerActivation -ne 'approved-live-worker' -and
+        -not $AllowWorkerDisable) {
+        throw 'An enabled production Worker may not be redeployed with an omitted or disabled desired activation.'
+    }
+
+    & $productionSmokePath `
+        -WorkerOnly `
+        -ResourceGroupName 'rg-pegasus-prod' `
+        -WorkerAppName $WorkerAppName `
+        -ExpectedWorkerActivation $ExpectedLiveWorkerActivation
+}
+
+Write-Output "Azure deployment plan validation passed ($Mode; Worker Disabled settings render '$expectedRenderedValue')."
