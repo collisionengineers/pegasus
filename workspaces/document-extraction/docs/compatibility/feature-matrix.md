@@ -21,7 +21,7 @@ The authorised output contract is text and images only ([ADR-0004](../decisions/
 
 ## PDF 1.0–2.0 family
 
-Intended surface (current support remains this row): [PDF extraction plan](../formats.md#pdf-10–20).
+Intended surface (current support remains this row): [PDF extraction plan](../formats.md#pdf-1020).
 
 | Capability | Port unit | Status | Evidence or next gate |
 |---|---|---|---|

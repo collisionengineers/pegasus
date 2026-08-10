@@ -20,6 +20,9 @@
     "webActivation": {
       "value": "${PEGASUS_WEB_ACTIVATION=disabled}"
     },
+    "workerActivation": {
+      "value": "${PEGASUS_WORKER_ACTIVATION=disabled}"
+    },
     "webImageDigest": {
       "value": "${PEGASUS_WEB_IMAGE_DIGEST=}"
     },

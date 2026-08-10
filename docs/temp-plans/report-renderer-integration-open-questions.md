@@ -30,8 +30,8 @@ decision and the consequences that follow. The consequences are the live work.
 >
 > Consequences, stated plainly because they are not all comfortable:
 >
-> - `docs/reference/rendererref1/` keeps exactly the role
->   `docs/reference/README.md:3-14` already assigns it — supplied evidence, not
+> - `reference/rendererref1/` keeps exactly the role
+>   `reference/README.md:3-14` already assigns it — supplied evidence, not
 >   a requirement, implementation proof or authorization. Nothing is imported
 >   from it. The four sample PDFs remain immutable visual reference.
 > - The templates plan's gap analysis stops being a work list and becomes a
@@ -61,7 +61,7 @@ decision and the consequences that follow. The consequences are the live work.
 *Raised by: templates. Blocks: every template decision, and the value of the
 `rendererref1` reference set.*
 
-`docs/reference/rendererref1/DESIGN_SPEC.md` is an operator-approved template
+`reference/rendererref1/DESIGN_SPEC.md` is an operator-approved template
 lock ("Approved by Andrew, 21/07/2026") describing a **Python** generator,
 `ce_report_generator.py`, which is not in this repository. Its
 `report_data_schema.json` is a domain model with computed figures and negative
@@ -365,7 +365,7 @@ You directed that the HTML preview be kept and separated from the GUI. The plans
 now retain `PreviewComposer` and give it a Core port. But:
 
 - **no capability ID allocates a report preview surface**, and
-- `design/README.md:48` requires every deferred UI capability to re-enter
+- `docs/design.md:48` requires every deferred UI capability to re-enter
   specification, alternatives, independent review, explicit approval, visual
   generation and manual visual review before implementation, with no
   `0.1.0-alpha.1` control, navigation, workflow or placeholder.
@@ -487,7 +487,7 @@ be a claim you do not want the data model to make.
 *Raised by: templates.* `#EFEFEF` total-row grey is **absent** from `report.css`
 and is close enough to three existing greys (`#f5f5f5`, `#f2f2f2`, `#f4f4f3`) to
 be mistaken for them. Document red `#C80A32` is used throughout `report.css` but
-is recorded nowhere in `design/README.md` — which lists "document red" among
+is recorded nowhere in `docs/design.md` — which lists "document red" among
 tokens explicitly excluded from the Web palette. Status badges and the four figure
 tiles are new visual components with no CSS at all.
 
@@ -518,7 +518,7 @@ Approve the additions, or reject?
 
 *Raised by: templates.* The four `sample_job_*.json` files carry a claimant name,
 a principal's postal address, a registration and a VIN, and are committed under
-`docs/reference/`. Confirm they are retained as-is and that no derivative —
+`reference/`. Confirm they are retained as-is and that no derivative —
 fixture, starter, or baseline raster — may carry their values.
 
 ### M11. Provenance home after retirement
@@ -542,11 +542,14 @@ it.
 *Raised by: docs-migration, uplift, desktop removal.*
 
 - Does `visual-regression.ps1` migrate to `scripts/`, or die with the workspace?
-  Determines whether `docs/operations.md:52`'s `poppler-utils` row is repointed or
-  deleted.
+  Determines whether the historical pre-restructure `docs/operations.md:52`
+  `poppler-utils` row is deleted or its surviving procedure is repointed into
+  `docs/runbook.md`.
 - Does any Pegasus image install `fonts-liberation` and `fonts-dejavu-core`?
-  `docs/operations.md:53`'s current justification disappears with the workspace,
-  and the row must not name an image that does not install them.
+  The historical pre-restructure `docs/operations.md:53` justification
+  disappears with the workspace. Any surviving prerequisite belongs in
+  `docs/runbook.md`, while `docs/operations.md` may record only deployed image
+  state; neither file may name an image that does not install the fonts.
 - MSIX identity `71B58B04-E006-42EA-9C51-D1DB853DDB3A` is deleted from source. Any
   external registration — Store, MDM, package feed, code-signing binding,
   installed machines — needing separate retirement outside this repository?
@@ -567,10 +570,10 @@ Recorded so these are not re-asked.
 | Stage 1 proceeds now, advancing no capability (B3) | 2026-08-03 | Operator, this task |
 | Scriban is upgraded rather than suppressed; 7.2.6 is clean, 5.12.1 carries 14 advisories including one Critical (B4) | 2026-08-03 | Operator decision plus measured evidence, this task |
 | The HTML preview is wanted. `PreviewComposer` is retained and separated from the GUI, not deleted with it | 2026-08-03 | Operator, this task |
-| The desktop/UI elements of the renderer are removed | 2026-08-03 | Operator, this task; pre-authorised by `design/README.md:237` |
+| The desktop/UI elements of the renderer are removed | 2026-08-03 | Operator, this task; pre-authorised by `docs/design.md:237` |
 | The renderer workspace is retired and its documents integrated into the main repository | 2026-08-03 | Operator, this task |
 | Report policy stays in `Pegasus.Core`; it does not move into Infrastructure or the renderer | 2026-07-27 | `docs/adr/0009` |
 | A local MCPB/stdio bridge is rejected for Pegasus | — | `docs/adr/0004:105` |
 | MCP is one named vendor-neutral Automation Actor with no configuration, credential, cloud, release or deletion authority | — | `docs/adr/0011` |
 | Inspection mode is a provider-determined database setting; the exact literal is `Image Based Assessment`; "IBA" is not staff-facing | 2026-08-03 | `docs/adr/0018` |
-| Renderer GUI package assets are removed when the GUI is decommissioned during Pegasus integration | — | `design/README.md:237` |
+| Renderer GUI package assets are removed when the GUI is decommissioned during Pegasus integration | — | `docs/design.md:237` |

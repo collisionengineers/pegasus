@@ -32,9 +32,9 @@ Everything below is arranged so that sentence cannot be violated by accident.
 | Closed case and its files are read-only until reasoned reopen | `docs/requirements.md:403`, `:309` |
 | Box failure after allocation retains the Case as `Not ready` with staff-initiated retry | `docs/requirements.md:401` |
 | A finding correction must not create, alter, credit or void an invoice | `docs/requirements.md:539-543` |
-| "Graph Sent-item evidence does not prove recipient delivery or automatic case matching." | `docs/operations.md:708` |
-| Every deferred UI capability re-enters the full design route | `design/README.md:48` |
-| UI-15 exists as routeless design markup | `design/README.md:663-670` |
+| "Graph Sent-item evidence does not prove recipient delivery or automatic case matching." | `docs/operations.md#local-and-live-evidence-boundaries` |
+| Every deferred UI capability re-enters the full design route | `docs/design.md:48` |
+| UI-15 exists as routeless design markup | `docs/design.md:663-670` |
 | UI-15 markup already carries a `Report content` section and no render/issue/send control | `src/Pegasus.Web/Pages/Cases/Assessment/Index.cshtml:32`, `:715-772` |
 | Lifecycle states, including `PostReport` and the four terminal outcomes | `src/Pegasus.Core/Workflow/CaseWorkflowContracts.cs:11-38` |
 | `ReportApprovalEvidence` takes a caller-supplied `ArtifactIdentity` and `ArtifactSha256` | `src/Pegasus.Core/Workflow/CaseWorkflowContracts.cs:60-77` |
@@ -135,7 +135,7 @@ CASE-22 would eventually collapse part of that distinction. Until it is accepted
 | 1 | **An artifact was generated** | A `RenderedReportArtifact` whose `ArtifactSha256`, `ContentLength`, template binding, payload hash and figures-policy version were observed by Core at render time | A template existing; a preview composing; a payload validating; a queue result |
 | 2 | **The artifact is in Box custody** | A `DocumentVersion` at `Confirmed` under the case's custody root, with a remote id, content hash and ETag | The artifact existing; a `Pending` status; a staff upload; a local content-store write |
 | 3 | **A report was sent** | Exactly one retained approved-mailbox Sent item, linked to exactly one case, with mailbox and Sent-folder scope, immutable item, conversation and reply-chain identities, and Outlook `sentDateTime` as the business time | Claims 1 and 2 in any combination; a send request; a provider `202`; a staff assertion; a Box file |
-| 4 | **The principal received it** | **Nothing in Pegasus.** `docs/operations.md:708`; `docs/requirements.md:813` | Everything above |
+| 4 | **The principal received it** | **Nothing in Pegasus.** `docs/operations.md#local-and-live-evidence-boundaries`; `docs/requirements.md:813` | Everything above |
 
 Claim 4 has no evidence route at any tier and this plan does not invent one. A
 reply arriving on the same chain is evidence of a reply — a separate retained
@@ -484,7 +484,7 @@ the reshaped contract.** Nothing here depends on the current signature.
 **This section is a design-route input only.** It specifies nothing, approves
 nothing, and creates no control.
 
-`design/README.md:663-670` records the 2026-08-03 widening: UI-15 and AI-09 exist
+`docs/design.md:663-670` records the 2026-08-03 widening: UI-15 and AI-09 exist
 as routeless design markup with no `@page`, no PageModel, no form, every field
 empty, and no navigation link. `Index.cshtml` already carries a `Report content`
 section with narrative fields, Engineer name, qualifications, signatory

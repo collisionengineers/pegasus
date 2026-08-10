@@ -10,12 +10,13 @@ Canonical ownership is split as follows:
 - [Capabilities](../../../docs/capabilities.md) are the only current support and evidence-state matrix.
 - [Open decisions](../../../docs/open-decisions.md) own unresolved choices.
 - [Architecture](architecture.md) owns technical contracts and design rationale.
-- [Operations](../../../docs/operations.md) owns executable operational procedures.
+- [Runbook](../../../docs/runbook.md) owns executable operational procedures;
+  [Operations](../../../docs/operations.md) owns current operational evidence.
 - [Engineering](../../../docs/engineering.md) owns repository-development and test practice.
 - [Operator notes](../../../docs/operator-notes.md) own approved local-data handling.
 - [Decision index](../../../docs/adr/README.md) owns ADRs and supersession.
 - Git history owns accepted change records.
-- [Design index](../../../design/README.md), [reference index](../../../docs/reference/README.md), [workspace index](../../README.md) and [documentation index](../../../docs/index.md) provide canonical navigation.
+- [Design index](../../../docs/design.md), [reference index](../../../reference/README.md), [workspace index](../../README.md) and [documentation index](../../../docs/index.md) provide canonical navigation.
 
 This document does not maintain a competing status ledger. Historical source-tree, test or research records below are evidence qualifications only. Intended, mapped, specified, source-present, locally verified, conformant, differentially verified, caller-proved, deployed and accepted are distinct states.
 

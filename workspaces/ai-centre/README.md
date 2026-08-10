@@ -31,13 +31,14 @@ The imported delivery plan was last marked **21 July 2026** and remains sequenci
 | Bounded capabilities and evidence | [Capabilities](../../docs/capabilities.md) |
 | Unresolved allocations and choices | [Open decisions](../../docs/open-decisions.md) |
 | System, runtime, and desktop boundaries | [Architecture](docs/architecture.md) |
-| Data, security, release, and service procedures | [Operations](../../docs/operations.md) |
+| Current production, release, monitoring, and recovery evidence | [Operations](../../docs/operations.md) |
+| Data, security, release, and service procedures | [Runbook](../../docs/runbook.md) |
 | Development and evaluation practice | [Engineering workflow](../../docs/engineering.md) |
 | Human operation and approval | [Operator notes](../../docs/operator-notes.md) |
 | Architecture and policy rationale | [Decision records](../../docs/adr/README.md) |
 | Historical change evidence | Git history |
-| Durable visual authority | [Root design](../../design/README.md) |
-| Qualified reference material | [Reference index](../../docs/reference/README.md) |
+| Durable visual authority | [Root design](../../docs/design.md) |
+| Qualified reference material | [Reference index](../../reference/README.md) |
 | Azure-specific guidance | [Operations](../../docs/operations.md#production-environment) |
 | Repository workspace allocation | [Workspace map](../README.md) |
 | ML research, governance, and sequencing | [ML operations](ml-ops/README.md) |
@@ -54,7 +55,7 @@ Contributors and coding agents must read and follow the applicable workspace ins
 | Case domain | `Pegasus.Core` solely owns case, party, vehicle, instruction, artifact, evidence, fact, finding, calculation, decision, report-version, and cutoff contracts. Do not create or consume a parallel case domain here. |
 | Mutation and workflow | Future AI adapters must consume Core-owned work-request, proposal, review, approval, and action-history identities. They cannot mutate Pegasus or an external system without an accepted caller, exact authority, and applicable policy. |
 | Audit | Pegasus action history remains owned by `Pegasus.Core` and its persistence adapter. AI evaluation records may reference immutable action identities but cannot create a parallel case-audit model. |
-| UI and application state | [Root design](../../design/README.md) is the durable visual authority, with the Web application as its runtime mapping. Do not duplicate tokens, components, accessibility rules, layouts, UI policy, or application state here. |
+| UI and application state | [Root design](../../docs/design.md) is the durable visual authority, with the Web application as its runtime mapping. Do not duplicate tokens, components, accessibility rules, layouts, UI policy, or application state here. |
 | Documents | Deterministic assembly belongs to `workspaces/report-renderer`; durable visual and letterhead authority belongs to root `design/`. Do not create a duplicate renderer or a model-calling report path here. |
 | Connectors | External-system and provider SDK ownership stays behind narrow accepted ports. A connector cannot make a vendor payload the Pegasus domain model. |
 | Professional decisions | The operator reviews evidence, confidence, changes, and limitations and remains responsible for approval, issue, signing, or sending. |
