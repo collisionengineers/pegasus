@@ -8,6 +8,7 @@ param alertEmailAddress string
   'approved'
 ])
 param webActivation string
+param workerActivation string
 param webImageDigest string
 param webRevisionSuffix string
 param graphMailboxId string
@@ -30,6 +31,7 @@ var keyVaultName = 'pegasusprodkv${take(suffix, 8)}'
 var containerRegistryName = 'pegasusprodacr${suffix}'
 var webImageReference = '${containerRegistryName}.azurecr.io/pegasus/web@${webImageDigest}'
 var webActivationApproved = webActivation == 'approved' && startsWith(webImageDigest, 'sha256:') && length(webImageDigest) == 71 && length(webRevisionSuffix) == 12
+var workerActivationApproved = workerActivation == 'approved-live-worker'
 var blobDataOwnerRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b')
 var blobDataContributorRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
 var queueDataContributorRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '974c5e8b-45b9-4653-ba55-5f855dd0fb88')
@@ -507,15 +509,15 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'ApprovedInboxPollSchedule', value: '45 * * * * *' }
         { name: 'SentEvidencePollSchedule', value: '15 * * * * *' }
         { name: 'DueWorkSweepSchedule', value: '0 */5 * * * *' }
-        { name: 'AzureWebJobs.PendingWorkDispatchFunction.Disabled', value: 'true' }
-        { name: 'AzureWebJobs.IntakeWorkFunction.Disabled', value: 'true' }
-        { name: 'AzureWebJobs.IntakePoisonFunction.Disabled', value: 'true' }
-        { name: 'AzureWebJobs.StagedArtifactReconciliationFunction.Disabled', value: 'true' }
-        { name: 'AzureWebJobs.InboxPollFunction.Disabled', value: 'true' }
-        { name: 'AzureWebJobs.SentEvidencePollFunction.Disabled', value: 'true' }
-        { name: 'AzureWebJobs.DueWorkSweepFunction.Disabled', value: 'true' }
-        { name: 'AzureWebJobs.ExternalWorkFunction.Disabled', value: 'true' }
-        { name: 'AzureWebJobs.ExternalPoisonFunction.Disabled', value: 'true' }
+        { name: 'AzureWebJobs.PendingWorkDispatchFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
+        { name: 'AzureWebJobs.IntakeWorkFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
+        { name: 'AzureWebJobs.IntakePoisonFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
+        { name: 'AzureWebJobs.StagedArtifactReconciliationFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
+        { name: 'AzureWebJobs.InboxPollFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
+        { name: 'AzureWebJobs.SentEvidencePollFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
+        { name: 'AzureWebJobs.DueWorkSweepFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
+        { name: 'AzureWebJobs.ExternalWorkFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
+        { name: 'AzureWebJobs.ExternalPoisonFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: applicationInsights.properties.ConnectionString }
         { name: 'APPLICATIONINSIGHTS_AUTHENTICATION_STRING', value: 'Authorization=AAD;ClientId=${workerIdentity.properties.clientId}' }
         { name: 'APPLICATIONINSIGHTS_ENABLEADAPTIVESAMPLING', value: 'true' }
