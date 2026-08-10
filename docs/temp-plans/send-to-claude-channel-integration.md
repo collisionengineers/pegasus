@@ -410,7 +410,8 @@ Stages, each independently reviewable; A is independent, B gates C–G:
   real Claude Code session with `--dangerously-load-development-channels`,
   both `Features:SendToAi` and `Features:AutomationMcp` enabled, send →
   channel event → Actor case read → attributed assessment write →
-  channel reply → `Completed` on reconcile — recorded per
+  channel reply → `Completed` on reconcile — classified per
+  `docs/engineering.md` and recorded as current evidence in
   `docs/operations.md`, folding into the queued tier-5 MCP
   external-client evidence item in `NOW.md`.
 
@@ -464,7 +465,9 @@ Connector side (vitest): § Channel server close-out item 7.
 | `docs/adr/` | New ADR (stage B): transport slice, channel boundary, direct-write model and logging parity, Actor tool inventory widening, AI-09 contract rewording, gate |
 | `docs/capabilities.md` | AI-09 activation-note update recording the gated implementation, on product authority only |
 | `docs/architecture.md` | Send to AI boundary: Core owner, adapter, the external connector as a non-owned client |
-| `docs/operations.md` | Evidence-boundary row for the channel connector; setup runbook; evidence-tier record for stage G |
+| `docs/operations.md` | Current evidence-boundary row for the channel connector |
+| `docs/runbook.md` | Connector setup procedure |
+| `docs/engineering.md` | Evidence-tier classification for stage G |
 | `docs/open-decisions.md` | The § Open decisions items that stay open after review |
 | `docs/design.md` | `completed` panel state and PAV slider component contract; § Tokens divergence record untouched unless the contrast decision changes it |
 | `pegasus-claude-channel/README.md` | Schema, evidence log, idempotency, Pegasus configuration cross-reference, version pinning |
@@ -488,7 +491,7 @@ Connector side (vitest): § Channel server close-out item 7.
 
 ## Evidence-tier claims
 
-Per `docs/operations.md` § Required evidence tiers: stage A yields
+Per `docs/engineering.md` § Required evidence tiers: stage A yields
 connector-repo test evidence (outside Pegasus tiers); C–E yield tier 2
 (Core), tier 4 (LocalDB persistence/migration), and tier 5 (real HTTP
 Web/MCP caller) local evidence; G yields one recorded

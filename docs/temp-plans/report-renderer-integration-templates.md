@@ -615,7 +615,7 @@ register row and with `docs/adr/0009`.
 
 ## 11. Verification plan
 
-Mapped to the evidence tiers in `docs/operations.md`. Only tiers genuinely
+Mapped to the evidence tiers in `docs/engineering.md`. Only tiers genuinely
 reachable at each stage are claimed.
 
 | Tier | Applies? | Evidence |

@@ -796,9 +796,11 @@ A supported desktop reflow does not alter the permanent mobile-product boundary.
 The original `collision-engineers-design-dev` bundle supplied the shared logo, colour, type and icon foundation but explicitly did not define this internal command-centre application. The repository imports only approved shared essentials and renderer assets. Marketing layouts, imagery, fonts, WhatsApp styling, scroll reveals and mobile navigation are excluded. The source bundle is not retained as a second design system.
 
 The similarly named logo and signature files under `reference/rendererref1/`
-are retained supplied evidence with different bytes. They are not deduplicated
-into the governed runtime assets under `design/brand/` and do not replace this
-design authority.
+are retained supplied evidence. The logo and all three signature pairs are
+byte-identical to the governed assets under `design/brand/`, but are not
+deduplicated: `reference/` preserves the supplied evidence grouping while
+`design/` owns runtime use. Equal bytes do not transfer either role and the
+evidence copies do not replace this design authority.
 
 ## Change and verification rule
 

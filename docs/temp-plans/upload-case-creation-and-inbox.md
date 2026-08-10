@@ -180,7 +180,7 @@ Automated, added with the work:
 - The existing suites that assert the QDOS-only refusal are updated to assert
   the principal-existence rule instead of being deleted.
 
-Manual, recorded per `docs/operations.md` required evidence tiers: run the Web
+Manual, classified under [engineering's evidence tiers](../engineering.md#required-evidence-tiers): run the Web
 app locally, upload a QDOS instruction PDF and a non-QDOS document, and show
 the create screen prefilled from extraction in one case and the case reached
 directly in the other. Evidence claimed at the tier actually proven — a local

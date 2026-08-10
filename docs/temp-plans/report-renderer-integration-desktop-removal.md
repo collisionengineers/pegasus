@@ -436,7 +436,7 @@ solution.
 
 ## Verification plan
 
-Mapped to the evidence tiers in `docs/operations.md`.
+Mapped to the evidence tiers in `docs/engineering.md`.
 
 **Applicable tier: 1 — Static/build/architecture.** No other tier applies.
 The renderer workspace has no Pegasus caller, no route, no persisted result,

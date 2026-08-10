@@ -365,7 +365,7 @@ verification of the moved files.
 
 ## 5. Capability-note updates
 
-The governing rule is the evidence tiers in `docs/operations.md`. Relocating
+The governing rule is the evidence tiers in `docs/engineering.md`. Relocating
 source is at best tier 1, which that section says "proves consistency only". It
 is not tier 5. Nothing in this migration changes any status column or release
 target: `EXT-08` stays `Later / 1.1.0`, `RPT-01`..`RPT-05` stay `Later / 1.1.0`.

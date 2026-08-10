@@ -238,7 +238,8 @@ release claim:
   tests before any matcher is accepted; the manual staff Triage origin
   (`requirements.md:264`) has no Core command; decide the `/Triage`
   route/folder/namespace overload — the Queues screen kept them while
-  `design/README.md:352` claims the route was renamed; and rename the
+  `docs/design.md#operations-first-shell` claims the route was renamed;
+  and rename the
   three general-sense Audit identifiers (`EfIdentityAuditStore`,
   `AutomationMcpAuditor`, migration `MailboxRouteAudit`) (repository
   audit, 2026-08-06).
@@ -306,7 +307,7 @@ release claim:
   still carry corpus-derived names/references in GitHub PR refs — decide
   whether to request a history purge; and decide handling of the real staff
   addresses and case data in the operator-supplied
-  docs/reference/workproviders-and-repairers files
+  `reference/workproviders-and-repairers/` files
   (task/qdos-email-classification review, 2026-08-03).
 - UI polish follow-ups from the design-pass review: Send-confirm focus drop,
   focus-trap escape edge case, sparkle glyph clipping, and the freshness
@@ -325,7 +326,8 @@ release claim:
   (task/repository-check-speed review, 2026-08-03).
 - Record the MCP Automation Actor tier-5 evidence: a real external client
   (Claude Code over a bearer token) against the locally enabled `/mcp`
-  surface, evidence recorded per operations.md, before any activation claim
+  surface, evidence classified per engineering.md and recorded in operations.md,
+  before any activation claim
   (task/mcp-automation-actor review, 2026-08-03).
 - Promote the settled Automation Actor identity/authentication/tool-inventory
   contract to an ADR — with the temp plan deleted it is owned only by
@@ -383,10 +385,11 @@ release claim:
   19-31 (all thirteen administration sub-screens) were never built and
   have no successor claim — queue, re-scope, or descope each explicitly.
   Includes the banned-terms sweep: seventeen shipped `.cshtml` files
-  violate `design/README.md:309-316`, led by `Intake/Details.cshtml`
+  violate `docs/design.md#voice-labels-and-necessary-copy`, led by
+  `Intake/Details.cshtml`
   (51 hits) (repository audit, 2026-08-06).
 - Absorb the approved UI divergences into the design authority (operator
-  decision 2026-08-05: absorb, not revert): `design/README.md` still
+  decision 2026-08-05: absorb, not revert): `docs/design.md` still
   asserts pre-divergence values — 2px radius against the shipped 6px/5px,
   stale colour, spacing and token claims, "no ledes" while nine pages set
   one — and `site.css:1-12` cites the deleted `docs/ui-work` standards.
@@ -408,33 +411,15 @@ release claim:
   deployed" though its merge is inside release 7 (`32feefa`), and INT-01
   says "accepted" while upload creates no case (repository audit,
   2026-08-06).
-- Deduplicate the process rules to single owners: at least twelve rules
-  are stated in two or more files (~30 sites) — collapse the ADR index's
-  twelve per-row "proves no…" repeats to its own blanket rule, the
-  git-safety allow/ban list to one owner, the evidence ladder to
-  `operations.md#required-evidence-tiers` (three tables carry it today),
-  and the 34-line CI prose duplicate in `engineering.md:25-62`; ownership
-  pointers stop restating what they point to (repository audit,
-  2026-08-06). **Absorbed into the restructure reorg task above — do not
-  claim separately.**
-- Repository hygiene sweep: `tests/Pegasus.PerformanceTests/` has no
-  `.csproj` — two test files that have never compiled; adopt or delete.
-  `scripts/reference_data` and `tests/reference_data` split one Python
-  component across two trees with no CI. Stale `.gitattributes` rule for
-  the absent `docs/reference/imp-docs/**`; `.gitignore` carries
-  predecessor paths (`CollisionSpike`, `/p17/`), a stray `l` line and
-  contradictory `.obsidian` rules. Brand logo and three signature PNGs
-  are duplicated between `design/brand/` and
-  `docs/reference/rendererref1/` with differing bytes. Decide
-  `.obsidian/` and `.infisical.json` keep or drop. Add an `infra/`
-  validation lane or record why not. `scripts/email-eval-desktop/` stays
-  — it is the operator's own tool — but note it references
-  Core/Infrastructure while nothing builds it (repository audit,
-  2026-08-06). **The PerformanceTests, Python-split, `.gitattributes`/
-  `.gitignore` and duplicated-asset items execute inside the restructure
-  reorg task above; still claimable here: the `.obsidian` keep, the
-  `.infisical.json` confirm-then-delete, and the `infra/` validation-lane
-  decision.**
+- Repository hygiene residue after the restructure: keep `.obsidian/`;
+  confirm `.infisical.json` is unused before deleting it; add an `infra/`
+  validation lane or record why not; and record the build boundary for
+  `scripts/email-eval-desktop/`, which stays as the operator's own tool but
+  references Core/Infrastructure while no tracked command builds it
+  (repository audit, 2026-08-06). The PerformanceTests caller, Python test
+  placement/CI, stale attributes/ignores, and four byte-identical
+  evidence/runtime logo-signature pairs are resolved by PR 361 and are no
+  longer independently claimable.
 - CI wall-clock second pass: PR 321's reduction (sharded lanes, per-run
   template database, caches) under-delivered on the operator's intent —
   measure what still dominates (five of six jobs are Windows-pinned, the
@@ -442,7 +427,7 @@ release claim:
   structure) and cut further, building on PR 321 rather than repeating it
   (operator, 2026-08-06).
 - Complete the canonical-docs accuracy audit: the 2026-08-06 audit
-  claim-checked `architecture.md`, `design/README.md` and the roadmap
+  claim-checked `architecture.md`, `docs/design.md` and the roadmap
   forms only; `requirements.md`, `operations.md`, `operator-notes.md`,
   `open-decisions.md` and `engineering.md` have had no claim-level
   verification against code (artifact critique, 2026-08-06).

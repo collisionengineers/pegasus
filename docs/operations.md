@@ -53,7 +53,7 @@ The intended application staff accounts are Pegasus Identity accounts. The Devel
 
 ## Evidence profiles
 
-The current operational baseline is the offline profile above. The following
+The current operational baseline is the [offline development profile](runbook.md#offline-development-profile). The following
 caller-scoped profile model distinguishes implemented local gates from planned
 activation; installing a tool never establishes a caller.
 

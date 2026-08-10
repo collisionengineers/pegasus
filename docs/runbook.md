@@ -377,6 +377,12 @@ Provider-domain authoring is an offline operation over one immutable package. Th
 reference/workproviders-and-repairers/initial.xlsx
 ```
 
+The published package retains its original
+`docs/reference/workproviders-and-repairers/initial.xlsx` source identity as
+immutable provenance. The authoring helper maps that identity to the physical
+path above only while regenerating or verifying the same bytes; it never
+republishes `provider-domains-v1` with a new path or hash.
+
 It retains:
 
 - the provider code from column A; and
@@ -650,7 +656,7 @@ Use managed identity and scoped RBAC. Store unavoidable third-party secrets in I
 - Cleanup operates only on resources owned by that run.
 - Local emulators and mocks do not prove managed identity, RBAC, vendor behavior, cloud durability, scaling, alert delivery, recovery objectives, or operator acceptance.
 - Tests must not invent normative behavior for a rule withheld in [open decisions](open-decisions.md).
-- Product behavior remains owned by the relevant Core use case; operations owns only tools, process lifecycle, isolation, evidence classification, and gates.
+- Product behavior remains owned by the relevant Core use case; [engineering](engineering.md#required-evidence-tiers) owns evidence classification and gates, [operations](operations.md) records current operational evidence, and this runbook owns tools, process lifecycle, and isolation.
 
 ### Common failure and observability rules
 

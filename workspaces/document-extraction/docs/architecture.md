@@ -859,4 +859,4 @@ Generated row tests may consume the committed catalogue, but expected framing an
 
 The target library and CLI are headless and cross-platform. No component may reference WindowsDesktop, ASP.NET hosting, Office or Outlook automation, an external office-suite runtime, a UI toolkit, browser engine, or mailbox client.
 
-Specification mapping, implementation, caller proof, deployment, packaging, and accepted support remain separate gates. Release and operational evidence are governed by [operations](../../../docs/operations.md), repository-development practice by [engineering](../../../docs/engineering.md), and operator-facing cautions by [operator notes](../../../docs/operator-notes.md).
+Specification mapping, implementation, caller proof, deployment, packaging, and accepted support remain separate gates. Current release and operational evidence is recorded in [operations](../../../docs/operations.md), evidence classification and repository-development practice are governed by [engineering](../../../docs/engineering.md), and operator-facing cautions by [operator notes](../../../docs/operator-notes.md).
