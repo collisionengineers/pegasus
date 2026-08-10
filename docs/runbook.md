@@ -851,8 +851,8 @@ The release scripts are `Build-ReleaseArtifacts.ps1` (immutable packages from
 a clean tree at an exact HEAD), `Test-AzureDeploymentPlan.ps1` (local, artifact,
 pre-upload, and pre-migration validation), `Invoke-AzureDatabaseBootstrap.ps1`
 and `Invoke-ProductionAdministratorBootstrap.ps1` (manifest-SHA-gated), and
-`Invoke-ProductionSmoke.ps1` (health, exact version/SHA, anonymous-denial, and
-https-redirect assertions). The
+`Invoke-ProductionSmoke.ps1` (health, exact version/SHA, anonymous-denial,
+https-redirect, and exact Worker activation assertions). The
 executed 2026-08-02 sequence and its evidence gates are recorded in the retired
 runbook (git history, `azure-production-replacement-plan.md`). The one-off
 predecessor archive/retirement scripts completed their purpose in that run and
@@ -864,6 +864,131 @@ Runtime and SkiaSharp binaries on the deployed Linux runtimes
 asset, models embedded in the Infrastructure assembly). Until a deployed
 vision path is exercised, native load on the deployed runtime is unverified
 evidence.
+
+### Durable Worker activation and rollback
+
+The production Worker is fail-closed. `PEGASUS_WORKER_ACTIVATION` maps to the
+infrastructure input with a default of `disabled`; only the exact value
+`approved-live-worker` renders the nine
+`AzureWebJobs.<function>.Disabled` settings as `false`. Omission, an empty or
+misspelled value, and every other value render them as `true`.
+
+Every Worker readback passes subscription
+`e6076573-23a5-46a8-acef-7e22d264e5db` explicitly and targets the
+non-overridable Worker `pegasus-prod-worker-252ow37gij`. Pre-provision also
+requires the selected azd environment to record those exact identities; the
+active Azure CLI default is never trusted as the target.
+
+The default is a safety boundary, not a normal enabled-estate release input.
+After production activation, every infrastructure release explicitly retains
+`approved-live-worker`. An absent value or a fallback to `disabled` is a stop
+condition before provision, because continuing would recreate the 10 August
+2026 incident.
+
+Run each procedure below from a fresh authorised terminal. Execute the exact
+environment and subscription assignments at the start of that procedure;
+never rely on variables or azd selection inherited from an earlier terminal.
+
+First activation remains blocked until the approved clean-baseline operation
+has completed and the operator has separately approved the exact production
+provision. With a fresh inventory confirming the current Worker, set the
+intended value and prove the known disabled baseline before that first
+provision:
+
+```powershell
+$pegasusAzdEnvironment = 'pegasus-prod'
+$pegasusSubscription = 'e6076573-23a5-46a8-acef-7e22d264e5db'
+
+azd env set PEGASUS_WORKER_ACTIVATION approved-live-worker `
+  -e $pegasusAzdEnvironment
+./scripts/Test-AzureDeploymentPlan.ps1 `
+  -Mode PreProvision `
+  -Environment $pegasusAzdEnvironment `
+  -WorkerActivation approved-live-worker `
+  -ExpectedLiveWorkerActivation disabled
+```
+
+`PreProvision` is read-only. It binds the selected azd environment to the exact
+production subscription, tenant, resource group, and Worker; compares its
+explicit desired activation with the live exact nine-setting census; and stops
+on missing, extra, mixed, or unexpected settings. Do not provision if the
+fresh inventory or baseline differs.
+
+Only after the separately approved exact-target gate passes, provision with
+the already reviewed release inputs, then read back the Worker state:
+
+```powershell
+azd provision -e $pegasusAzdEnvironment --no-prompt
+./scripts/Invoke-ProductionSmoke.ps1 `
+  -WorkerOnly `
+  -SubscriptionId $pegasusSubscription `
+  -ResourceGroupName rg-pegasus-prod `
+  -ExpectedWorkerActivation approved-live-worker
+```
+
+For every later release of an enabled estate, preflight requires both the
+desired and live states to remain enabled:
+
+```powershell
+$pegasusAzdEnvironment = 'pegasus-prod'
+$pegasusSubscription = 'e6076573-23a5-46a8-acef-7e22d264e5db'
+
+azd env set PEGASUS_WORKER_ACTIVATION approved-live-worker `
+  -e $pegasusAzdEnvironment
+./scripts/Test-AzureDeploymentPlan.ps1 `
+  -Mode PreProvision `
+  -Environment $pegasusAzdEnvironment `
+  -WorkerActivation approved-live-worker `
+  -ExpectedLiveWorkerActivation approved-live-worker
+```
+
+In the same later-release terminal, the full post-release smoke adds the same
+readback to the existing Web gates:
+
+```powershell
+./scripts/Invoke-ProductionSmoke.ps1 `
+  -BaseUri $pegasusApprovedBaseUri `
+  -ExpectedSourceRevision $pegasusReleaseSourceRevision `
+  -ExpectedVersion $pegasusReleaseVersion `
+  -SubscriptionId $pegasusSubscription `
+  -ResourceGroupName rg-pegasus-prod `
+  -ExpectedWorkerActivation approved-live-worker
+```
+
+Populate the three release variables from the approved immutable manifest and
+fresh exact Web inventory; do not trust stale local azd outputs as deployed
+evidence.
+
+Rollback is an explicit production mutation that disables all nine functions.
+It requires fresh inventory, exact-target approval, an accepted reason and
+recovery path, and confirmation that stopping polling, dispatch, poison,
+reconciliation, sent-evidence, due-work, and external-work triggers is the
+intended outcome. The `-AllowWorkerDisable` switch is valid only for this
+reviewed enabled-to-disabled transition:
+
+```powershell
+$pegasusAzdEnvironment = 'pegasus-prod'
+$pegasusSubscription = 'e6076573-23a5-46a8-acef-7e22d264e5db'
+
+azd env set PEGASUS_WORKER_ACTIVATION disabled -e $pegasusAzdEnvironment
+./scripts/Test-AzureDeploymentPlan.ps1 `
+  -Mode PreProvision `
+  -Environment $pegasusAzdEnvironment `
+  -WorkerActivation disabled `
+  -ExpectedLiveWorkerActivation approved-live-worker `
+  -AllowWorkerDisable
+azd provision -e $pegasusAzdEnvironment --no-prompt
+./scripts/Invoke-ProductionSmoke.ps1 `
+  -WorkerOnly `
+  -SubscriptionId $pegasusSubscription `
+  -ResourceGroupName rg-pegasus-prod `
+  -ExpectedWorkerActivation disabled
+```
+
+A setting readback proves intended live configuration only. Activation does
+not prove that a trigger ran, mailbox mail was received, intake persisted, a
+Case/PO was allocated, or Box custody completed. Those require separately
+approved live caller and operator acceptance evidence.
 
 ## Recovery
 
