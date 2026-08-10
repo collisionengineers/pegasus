@@ -84,6 +84,22 @@ hardened before merge:
 The errors remain secret-safe: they identify the failed contract class, never
 the returned setting names or values.
 
+The second independent review accepted those live-readback remediations and
+identified two remaining local release-gate defects. Before merge:
+
+- source validation will enumerate every
+  `AzureWebJobs.*.Disabled` name independently of its value, require the exact
+  ordinal nine-name census, and only then prove that each exact name uses the
+  approved fail-closed conditional;
+- compiled-template validation will perform the same two independent checks,
+  so an extra hard-coded setting cannot disappear from the conditional match;
+- a focused regression will append a rogue hard-coded disabled setting to an
+  isolated template copy and execute Local validation to prove that ten names
+  fail closed; and
+- the first-activation, later enabled-estate release, and rollback procedures
+  will each bind the exact azd environment and production subscription in
+  their own fresh-terminal command sequence.
+
 ## Operator procedure
 
 `docs/runbook.md` gains one Worker activation and rollback section. It records:

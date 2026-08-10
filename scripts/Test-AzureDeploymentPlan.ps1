@@ -205,15 +205,26 @@ Assert-Text $platformBicep 'custodyStorageName' 'The custody/protection storage 
 Assert-Text $platformBicep "name:\s*'ASPNETCORE_ENVIRONMENT'[\s\S]*?value:\s*'Production'" 'Web must use ASPNETCORE_ENVIRONMENT=Production.'
 Assert-Text $platformBicep "name:\s*'Runtime__Profile'[\s\S]*?value:\s*'Production'" 'Worker must use Runtime__Profile=Production.'
 Assert-Text $platformBicep "name:\s*'APPLICATIONINSIGHTS_AUTHENTICATION_STRING'" 'Application Insights local authentication must be disabled through managed-identity configuration.'
-$workerSettingMatches = [regex]::Matches(
+$sourceWorkerNameMatches = [regex]::Matches(
     $platformBicep,
-    "name:\s*'(AzureWebJobs\.[^']+)'\s*,\s*value:\s*workerActivationApproved\s*\?\s*'false'\s*:\s*'true'"
+    "name:\s*'(AzureWebJobs\.[^']+\.Disabled)'"
 )
-$sourceWorkerSettings = @($workerSettingMatches | ForEach-Object { $_.Groups[1].Value })
+$sourceWorkerNames = @($sourceWorkerNameMatches | ForEach-Object { $_.Groups[1].Value })
 Assert-ExactOrdinalCensus `
     -Expected $expectedWorkerSettings `
-    -Actual $sourceWorkerSettings `
-    -Failure 'The Worker template must contain the exact nine-function disabled-setting census behind one fail-closed conditional.'
+    -Actual $sourceWorkerNames `
+    -Failure 'The Worker template must contain the exact nine-function disabled-setting name census.'
+$sourceWorkerConditionalMatches = [regex]::Matches(
+    $platformBicep,
+    "name:\s*'(AzureWebJobs\.[^']+\.Disabled)'\s*,\s*value:\s*workerActivationApproved\s*\?\s*'false'\s*:\s*'true'"
+)
+$sourceConditionalWorkerNames = @(
+    $sourceWorkerConditionalMatches | ForEach-Object { $_.Groups[1].Value }
+)
+Assert-ExactOrdinalCensus `
+    -Expected $expectedWorkerSettings `
+    -Actual $sourceConditionalWorkerNames `
+    -Failure 'Every exact Worker disabled setting must use the approved fail-closed conditional.'
 
 function Get-AzdEnvironmentMap {
     param([Parameter(Mandatory)][string] $Name)
@@ -296,14 +307,25 @@ $compiledTemplateJson = (& az bicep build --file $mainBicepPath --stdout) -join 
 if ($LASTEXITCODE -ne 0) {
     throw 'Bicep compilation failed.'
 }
-$compiledWorkerMatches = [regex]::Matches(
+$compiledWorkerNameMatches = [regex]::Matches(
     $compiledTemplateJson,
-    '"name"\s*:\s*"(AzureWebJobs\.[^"]+)"\s*,\s*"value"\s*:\s*"\[if\(variables\(''workerActivationApproved''\), ''false'', ''true''\)\]"'
+    '"name"\s*:\s*"(AzureWebJobs\.[^"]+\.Disabled)"'
 )
-$compiledWorkerSettings = @($compiledWorkerMatches | ForEach-Object { $_.Groups[1].Value })
+$compiledWorkerNames = @($compiledWorkerNameMatches | ForEach-Object { $_.Groups[1].Value })
 Assert-ExactOrdinalCensus `
     -Expected $expectedWorkerSettings `
-    -Actual $compiledWorkerSettings `
+    -Actual $compiledWorkerNames `
+    -Failure 'The compiled template must contain the exact nine-function disabled-setting name census.'
+$compiledWorkerConditionalMatches = [regex]::Matches(
+    $compiledTemplateJson,
+    '"name"\s*:\s*"(AzureWebJobs\.[^"]+\.Disabled)"\s*,\s*"value"\s*:\s*"\[if\(variables\(''workerActivationApproved''\), ''false'', ''true''\)\]"'
+)
+$compiledConditionalWorkerNames = @(
+    $compiledWorkerConditionalMatches | ForEach-Object { $_.Groups[1].Value }
+)
+Assert-ExactOrdinalCensus `
+    -Expected $expectedWorkerSettings `
+    -Actual $compiledConditionalWorkerNames `
     -Failure 'The compiled template must contain the exact nine-function fail-closed Worker setting expressions.'
 Assert-Text $compiledTemplateJson '"workerActivationApproved"\s*:\s*"\[equals\(parameters\(''workerActivation''\), ''approved-live-worker''\)\]"' 'The compiled template must enable the Worker only for the exact approved-live-worker input.'
 Assert-Text $compiledTemplateJson '"workerActivation"\s*:\s*\{\s*"type"\s*:\s*"string"\s*,\s*"defaultValue"\s*:\s*"disabled"' 'The compiled template must retain the fail-closed Worker activation default.'
