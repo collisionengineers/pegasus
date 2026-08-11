@@ -7,10 +7,13 @@ using Pegasus.Core.Intake;
 using Pegasus.Core.Custody;
 using Pegasus.Worker.Functions;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Eva;
 using Pegasus.Web.Pages.Cases;
 using Pegasus.Web.Pages.Uploads;
 using Pegasus.Core.ReferenceData;
 using Pegasus.Infrastructure;
+using Pegasus.Infrastructure.Custody;
+using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.ArchitectureTests;
 
@@ -293,6 +296,12 @@ public sealed class DependencyDirectionTests
             return Task.CompletedTask;
         }
 
+        public Task<bool> HoldsProcessingLeaseAsync(
+            Guid workItemId,
+            string leaseToken,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(true);
+
         public Task FailProcessingAsync(
             Guid workItemId,
             string leaseToken,
@@ -321,6 +330,53 @@ public sealed class DependencyDirectionTests
         Assert.Contains(typeof(IRevokeRequestUploadLink), casePageDependencies);
         Assert.Contains(typeof(IGetRequestUpload), requestPageDependencies);
         Assert.Contains(typeof(IUploadToRequest), requestPageDependencies);
+    }
+
+    [Fact]
+    public void CustodyAndEvaPoliciesHaveOneCoreOwnerAndAdaptersRemainAtBoundaries()
+    {
+        Assert.Equal(typeof(IGenerateEvaHandoff).Assembly, typeof(GenerateEvaHandoff).Assembly);
+        Assert.Equal(typeof(IRetryCaseCustody).Assembly, typeof(RetryCaseCustody).Assembly);
+        Assert.Equal(typeof(EvaHandoffPolicy).Assembly, typeof(GenerateEvaHandoff).Assembly);
+
+        Assert.Equal(typeof(DependencyInjection).Assembly, typeof(EvaHandoffStore).Assembly);
+        var boxAdapter = Assert.Single(
+            typeof(DependencyInjection).Assembly.GetTypes(),
+            type => type.FullName == "Pegasus.Infrastructure.Custody.BoxCaseCustody");
+        Assert.Equal(typeof(DependencyInjection).Assembly, boxAdapter.Assembly);
+        Assert.Contains(typeof(IEvaHandoffPersistence), typeof(EvaHandoffStore).GetInterfaces());
+        Assert.Contains(typeof(ICaseCustody), boxAdapter.GetInterfaces());
+        Assert.All(
+            typeof(IEvaHandoffPersistence).GetMethods(),
+            method => Assert.Contains(
+                method.GetParameters(),
+                parameter => parameter.ParameterType == typeof(EvaHandoffPolicyAuthority)));
+        Assert.Contains(
+            typeof(ICustodyRecoveryPersistence).GetMethod("RetryAsync")!.GetParameters(),
+            parameter => parameter.ParameterType == typeof(CustodyRetryPolicyAuthority));
+        Assert.Empty(typeof(EvaHandoffPolicyAuthority).GetConstructors());
+        Assert.Empty(typeof(CustodyRetryPolicyAuthority).GetConstructors());
+
+        var repositoryRoot = FindRepositoryRoot();
+        var evaPersistence = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "src",
+            "Pegasus.Infrastructure",
+            "Persistence",
+            "EvaHandoffStore.cs"));
+        var custodyPersistence = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "src",
+            "Pegasus.Infrastructure",
+            "Persistence",
+            "EfExternalWorkStore.cs"));
+        Assert.Contains("policy.Evaluate", evaPersistence, StringComparison.Ordinal);
+        Assert.Contains("policy.SelectEligibleImages", evaPersistence, StringComparison.Ordinal);
+        Assert.Contains("policy.DecideRevision", evaPersistence, StringComparison.Ordinal);
+        Assert.Contains("policy.Decide", custodyPersistence, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            typeof(EvaHandoffStore).Assembly.GetReferencedAssemblies(),
+            reference => reference.Name is "Pegasus.Web" or "Pegasus.Worker");
     }
 
     [Fact]

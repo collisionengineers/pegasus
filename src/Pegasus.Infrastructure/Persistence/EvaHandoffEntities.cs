@@ -43,3 +43,17 @@ internal sealed class EvaFirstHandoffProxyEntity
     public bool ClaimsExternalDelivery { get; set; }
     public bool ClaimsEngineerAssignment { get; set; }
 }
+
+internal sealed class EvaHandoffDownloadOperationEntity
+{
+    public Guid Id { get; set; }
+    public Guid CaseId { get; set; }
+    public Guid RevisionId { get; set; }
+    public string OperationKey { get; set; } = string.Empty;
+    public string RequestHash { get; set; } = string.Empty;
+    public string Reason { get; set; } = string.Empty;
+    public string ActorKind { get; set; } = string.Empty;
+    public string ActorSubjectId { get; set; } = string.Empty;
+    public string ActorRolesJson { get; set; } = string.Empty;
+    public DateTimeOffset PreparedAtUtc { get; set; }
+}

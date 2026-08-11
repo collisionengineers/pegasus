@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Pegasus.Core.Cases;
 
 namespace Pegasus.Core.Intake;
 
@@ -14,7 +15,7 @@ namespace Pegasus.Core.Intake;
 public sealed partial class QdosMailClassificationPolicy : IMailClassificationPolicy
 {
     public const string Key = "qdos_mail_classification";
-    public const int Version = 1;
+    public const int Version = 2;
 
     private const string TriagePhrase = "Triage Only Request";
     private const string AuditNotificationTitle = "AUDIT REPORT NOTIFICATION";
@@ -51,8 +52,9 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
             text.Contains(AuditNotificationTitle, StringComparison.Ordinal));
         var hasEngineerTitle = documentTexts.Any(text =>
             text.Contains(EngineerNotificationTitle, StringComparison.Ordinal));
-        var hasReportPlusAudit = hasEngineerTitle && documentTexts.Any(text =>
-            text.Contains(ReportPlusAuditMarker, StringComparison.Ordinal));
+        var hasReportPlusAudit = documentTexts.Any(text =>
+            text.Contains(EngineerNotificationTitle, StringComparison.Ordinal)
+            && text.Contains(ReportPlusAuditMarker, StringComparison.Ordinal));
 
         MailClassificationPredicateResult[] predicates =
         [
@@ -142,12 +144,32 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
                 Version);
         }
 
+        var category = candidates[0];
+        CaseType? caseType = category is
+        {
+            Direction: MailDirection.Received,
+            ReceivedFamily: ReceivedMailFamily.NewInstructionReceived,
+            Subtype: "audit"
+        }
+            ? CaseType.Audit
+            : category is
+            {
+                Direction: MailDirection.Received,
+                ReceivedFamily: ReceivedMailFamily.NewInstructionReceived,
+                Subtype: "inspection"
+            }
+                ? hasReportPlusAudit
+                    ? CaseType.InspectionAndAudit
+                    : CaseType.Inspection
+                : null;
+
         return MailClassificationResult.Classified(
-            candidates[0],
+            category,
             predicates,
             "Exactly one accepted classification predicate family matched.",
             Key,
-            Version);
+            Version,
+            caseType);
     }
 
     private static string[] Texts(

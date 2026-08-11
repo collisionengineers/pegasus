@@ -109,11 +109,13 @@ A Worker `local.settings.json` is unnecessary at this baseline. Copy `src/Pegasu
 
 Worker production composition registers bounded Graph Inbox/Sent, Box
 custody, and DVLA/DVSA adapters plus Azure Blob/queue transport. These are
-**Deployed**: the production Worker runs with its functions enabled, and
-Graph Inbox/Sent processing has been live-verified; the current production
-state is owned by
-[operations § Production environment](operations.md#production-environment).
-Operator acceptance remains outstanding.
+**Deployed**, but deployment is not current execution evidence: production
+containment on 2026-08-10 disabled all nine functions after the enabled estate
+executed zero times. Graph Inbox/Sent processing was live-verified for release
+1; that historical proof does not establish the current retained-mail or
+administrator-estate path. Exact current state is owned by
+[operations § Production environment](operations.md#production-environment),
+and operator acceptance remains outstanding.
 
 Web production composition registers Box-backed case custody and managed
 document content, the staff document and EVA handoff surface, and Azure Blob
@@ -217,9 +219,9 @@ QDOS is the sole concrete extraction policy until another principal has approved
 
 Suggestions and typed drafts are neither editable nor approved case records. Receipt and extraction create no case, counter, year-based reference, or external categorisation.
 
-**Definitive authorised intake allocates its case at processing time.** The durable processing path calls `IAcceptIntake` itself for a receipt whose decision is `CaseCreated`: route accepted, extraction policy `Applicable`, case match not ambiguous, and a principal on the extracted draft. The case enters `Not ready` with nothing confirmed by a person, because thin ordinary detail is never a reason to withhold the reference. Allocation is replay-safe through the evaluation-scoped operation key and non-blocking — a failed allocation leaves material a person can still act on rather than failing a completed receipt.
+**Definitive authorised intake attempts typed case allocation at processing time.** QDOS classification persists `Inspection`, `Audit`, or `Inspection + Audit` beside its policy version. With no definitive existing-case match, the durable processing path calls the Core `IAllocateIntake` owner for a `CaseCreated` processing decision and consumes only that persisted type and the extracted principal. The case enters `Not ready` with nothing confirmed by a person, because thin ordinary detail is never a reason to withhold the reference. The evaluation-scoped automatic attempt and its outcome are durable and replay-safe. A failed attempt leaves the completed receipt and a bounded operator-safe failure; completed-work replay cannot call acceptance again. Only an authenticated, reasoned staff retry can reuse the frozen failed command.
 
-Two outcomes are deliberately withheld from the automatic path and wait for a person, which is the fail-closed boundary rather than a gate: an **ambiguous** case match or an unresolvable principal (`Needs sorting`), and **standalone Audit** work, whose case cannot be justified until its original-report evidence is confirmed. Both are resolved on the create screen (`INT-26`), which is the application's only staff caller of `IAcceptIntake`: it records the confirmed detail, settles the inspection address, confirms standalone Audit evidence and allocates the reference in one ordered sequence, each step taking the version the previous step returned. `EfCaseAcceptanceStore` applies `IntakeDecisionPolicy.CanBecomeCase` inside the transaction, so the boundary does not depend on which caller asks.
+Two outcomes are deliberately withheld from automatic allocation and wait for a person: an **ambiguous** case match, and **standalone Audit** work, whose case cannot be justified until its retained original-report evidence is confirmed. A missing or disabled Principal is instead a visible recoverable allocation failure on the completed receipt. The create screen (`INT-26`) records confirmed detail, settles the inspection address, confirms standalone Audit evidence when required, and begins its final acceptance through the same Core allocation owner. `EfCaseAcceptanceStore` still applies `IntakeDecisionPolicy.CanBecomeCase` inside the transaction, so eligibility does not depend on which caller asks, while actual success is projected only from the Case intake link.
 
 ### Idempotency and persisted semantics
 
@@ -227,7 +229,7 @@ Two outcomes are deliberately withheld from the automatic path and wait for a pe
 - Equal source bytes under a different occurrence identity remain separate evidence.
 - Stable decision, channel, evidence, and asset codes plus versioned JSON envelopes are persisted instead of CLR enum names.
 - Unknown persisted codes and inconsistent policy results fail rather than being silently reinterpreted.
-- `Needs sorting` and `Blocked intake` counts and filtered queues are persisted and queryable, and both exclude receipts that have produced a case, so they measure what is still waiting for a person rather than everything ever received. The `case_created` decision code supersedes `draft_ready`, which stays readable so receipts written before the acceptance gate was removed still resolve to the same processing outcome.
+- `Needs sorting` and `Blocked intake` counts and filtered queues are persisted and queryable, and both exclude receipts that have produced a case, so they measure what is still waiting for a person rather than everything ever received. The `case_created` decision code supersedes `draft_ready`, which stays readable as the same processing outcome; neither code is case-existence authority. Received items, retained Mail, Upload, MCP, and retry surfaces join the current allocation state and actual Case link.
 
 ## Business-rule ownership
 
@@ -242,7 +244,13 @@ Core owns:
 - shared business actions later exposed through Web, Worker, provider API, or MCP;
 - exact provider/domain package validation and deterministic catalog outcomes.
 
-Shared intake code may normalize transport, reconstruct an original sender where staff forwarding is proved, extract subject, body, attachments, and assets, invoke exactly one applicable route policy, and record that policy’s evidence and version. It does not impose a universal case-matching precedence.
+Shared intake code may normalize transport, reconstruct one original sender
+where a staff forward is proved (from an attached email or the strict ordered
+Outlook `From:`, `Sent:`, `To:`, `Subject:` header quartet), extract subject,
+body, attachments, and assets, invoke exactly one applicable route policy, and
+record that policy’s evidence and version. It does not impose a universal
+case-matching precedence. Partial, conflicting, or malformed forwarding
+evidence remains reviewable rather than becoming route identity.
 
 Direct-provider and intermediary policies are separate, code-versioned owners. They may identify the same provider, but each policy applies only to its own message shape and evidence.
 
@@ -384,6 +392,19 @@ released alone and the rest of the tick continues
 ([ADR-0022](adr/0022-approved-mailbox-identity-and-enablement-database-setting.md)).
 Sent-evidence polling remains configuration-driven for one mailbox.
 
+The current implementation still uses the Graph mailbox identity as the
+inbound poll-state key, carries a cursor when the configured fallback identity
+is adopted, and builds the receipt token from that mutable identity. That is a
+known unsafe coupling, not the target architecture. Accepted
+[ADR-0024](adr/0024-stable-approved-mailbox-identity-and-explicit-baseline.md)
+would narrowly replace it with `ApprovedMailbox.Id` as the durable source
+identity, a versioned Graph cursor-scope fingerprint, immutable receipt-token
+identity, and one explicit fresh-start activation time per mailbox. It would
+also separate global Worker containment, individual Function settings, and
+per-mailbox enablement; Sent-evidence polling would remain separately enabled.
+It remains unimplemented; no current caller or deployment claim follows from
+the accepted decision.
+
 The poll also writes a retained-message read model — mailbox, folder scope,
 immutable and conversation identities, sender, recipients, subject, received
 time, excerpt, attachment names, media types and decoded sizes, and read state
@@ -405,11 +426,11 @@ nothing backfills earlier mail, and the list surfaces that gap rather than
 presenting an empty scope as "nothing was received"
 ([open decisions](open-decisions.md#mail-workspace-freshness-threshold-and-retention-start)).
 
-The Graph mailbox intake route's production triggers are enabled and
-live-verified under exact Exchange Application RBAC; the current production
-state is owned by
+The Graph mailbox intake route was live-verified under exact Exchange
+Application RBAC for release 1. Its current production trigger is disabled by
+the 2026-08-10 containment operation; exact current state is owned by
 [operations § Production environment](operations.md#production-environment).
-That verification predates the administrator-managed estate and the
+The historical verification predates the administrator-managed estate and the
 retained-message read model described above, and does not extend to them: both
 are proven at local-caller tier only, and neither has run against a deployed
 environment.
@@ -439,7 +460,9 @@ The Send to AI hand-off (AI-09, ADR-0021) is a second gated boundary beside it: 
 
 ### EVA and case lifecycle
 
-EVA remains authoritative for named Engineer assignment and downstream engineering until an accepted replacement. Export, lifecycle management, and replacement authority are not implemented.
+EVA remains authoritative for named Engineer assignment and downstream engineering until an accepted replacement. Pegasus now implements the focused manual handoff locally: `Pegasus.Core` owns Review-only generation, required-custody and current-evidence eligibility, deterministic bundle composition, frozen revisions, reasoned download, and the once-per-Case `First sent to Engineer` proxy. The authenticated Case surface and composition-gated Automation ingress call those Core use cases; EF persists revision/download truth, and no EVA network client exists. Custody retry is a separate human-only Core use case reached by the Case surface, while the Worker processes the same persisted custody work through Infrastructure adapters.
+
+The Box adapters use the immutable Case/PO and Audit references for final folder names. A predeclared creation-owner token is used only in a transient staging folder so a lost create response can be reconciled without adopting an unrelated same-name folder; exact binding verification and an ETag-guarded same-parent promotion precede acceptance. Managed source, document, version, and nested Audit paths remain business-readable. Local in-memory-adapter and SQL caller proof does not establish production Box migration, deployment, external receipt, named-Engineer assignment, or operator drag-and-drop acceptance.
 
 ### Workspaces
 
@@ -555,7 +578,7 @@ The staff `/Received` and `/Inbox` routes are served wherever intake is composed
 | Core intake receipt/query/command use cases | `src/Pegasus.Core/Intake/` |
 | Core source-download contract and policy | `src/Pegasus.Core/Intake/DownloadIntakeSource.cs`, `src/Pegasus.Core/Intake/IntakeContracts.cs` |
 | QDOS extraction policy | `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs` |
-| QDOS mail route (`qdos_mail_route` v3), classification, and case-match policies | `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailRoutePolicy.cs`, `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailClassificationPolicy.cs`, `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosCaseMatchPolicy.cs` |
+| QDOS mail route (`qdos_mail_route` v4), classification, and case-match policies | `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailRoutePolicy.cs`, `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailClassificationPolicy.cs`, `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosCaseMatchPolicy.cs` |
 | Core case-match evaluator and `CaseMatchIndex` read model | `src/Pegasus.Core/Intake/CaseMatching/`, `src/Pegasus.Infrastructure/Persistence/CaseMatchEntities.cs` |
 | Core image-intake registration, pairing, and lifecycle use cases | `src/Pegasus.Core/ImageIntake/` |
 | In-process ONNX VRM recognition engine (ADR-0019) | `src/Pegasus.Infrastructure/Vision/` |

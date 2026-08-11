@@ -74,6 +74,50 @@ public sealed class CaseWorkflowMigrationTests
         Assert.Equal(2, CountOccurrences(script, "NEWID()"));
     }
 
+    [Fact]
+    public async Task CustodyEvidenceOrdinalsAndOperationsMigrateFromPreviousSchemaWithoutIdentityLoss()
+    {
+        const string previous = "20260811063940_QdosAllocationRecovery";
+        const string documentId = "70000000-0000-0000-0000-000000000001";
+        const string versionId = "71000000-0000-0000-0000-000000000001";
+        const string occurrenceId = "72000000-0000-0000-0000-000000000001";
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+        await context.Database.MigrateAsync(previous);
+        await database.ExecuteAsync(ExistingCasesSql);
+        await database.ExecuteAsync(
+            $"""
+            INSERT INTO CaseDocuments (Id, CaseId, SourceOccurrenceIdentity)
+            VALUES ('{documentId}', '{ReviewCaseId}', 'migration:evidence');
+            INSERT INTO DocumentVersions
+                (Id, DocumentId, Version, FileName, MediaType, ContentLength, Sha256,
+                 CustodyStatus, CreatedAtUtc, CreatedBy, IsCurrent, IsLogicallyRemoved)
+            VALUES
+                ('{versionId}', '{documentId}', 1, 'evidence.jpg', 'image/jpeg', 1,
+                 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+                 'Confirmed', '2031-05-06T10:30:00+00:00', 'migration', 1, 0);
+            INSERT INTO DocumentOccurrences
+                (Id, CaseId, DocumentId, VersionId, SemanticRole, Source,
+                 SourceOccurrenceIdentity, RecordedAtUtc, OperationKey)
+            VALUES
+                ('{occurrenceId}', '{ReviewCaseId}', '{documentId}', '{versionId}',
+                 'Image', 'StaffUpload', 'migration:evidence',
+                 '2031-05-06T10:30:00+00:00', 'migration:evidence');
+            """);
+
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(documentId, await database.ScalarAsync<string>(
+            $"SELECT CONVERT(varchar(36), Id) FROM CaseDocuments WHERE Id = '{documentId}'"));
+        Assert.Equal(2, await database.ScalarAsync<int>(
+            $"SELECT Ordinal FROM CaseDocuments WHERE Id = '{documentId}'"));
+        Assert.Equal(2, await database.ScalarAsync<int>(
+            $"SELECT Ordinal FROM DocumentOccurrences WHERE Id = '{occurrenceId}'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = 'EvaHandoffDownloadOperations'"));
+        Assert.Empty(await context.Database.GetPendingMigrationsAsync());
+    }
+
     private const string ExistingCasesSql =
         """
         INSERT INTO IntakeReceipts

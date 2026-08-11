@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Primitives;
@@ -14,14 +15,16 @@ namespace Pegasus.IntegrationTests.Browser;
 
 internal sealed class BrowserTestSupport : IAsyncDisposable
 {
-    private readonly IntakeWebApplicationFactory factory;
+    private readonly IntakeWebApplicationFactory baseFactory;
+    private readonly WebApplicationFactory<Program> factory;
     private readonly HttpClient applicationClient;
     private readonly WebApplication loopbackHost;
     private readonly IPlaywright playwright;
     private readonly IBrowser browser;
 
     private BrowserTestSupport(
-        IntakeWebApplicationFactory factory,
+        IntakeWebApplicationFactory baseFactory,
+        WebApplicationFactory<Program> factory,
         HttpClient applicationClient,
         WebApplication loopbackHost,
         IPlaywright playwright,
@@ -30,6 +33,7 @@ internal sealed class BrowserTestSupport : IAsyncDisposable
         IPage page,
         Uri baseAddress)
     {
+        this.baseFactory = baseFactory;
         this.factory = factory;
         this.applicationClient = applicationClient;
         this.loopbackHost = loopbackHost;
@@ -46,14 +50,29 @@ internal sealed class BrowserTestSupport : IAsyncDisposable
 
     public IPage Page { get; }
 
+    public IServiceProvider Services => factory.Services;
+
     public static async Task<BrowserTestSupport> StartAsync(
         int width = 1280,
         int height = 720,
         ForcedColors forcedColors = ForcedColors.None,
+        bool javaScriptEnabled = true,
+        bool useIntegrationTestAuthentication = false,
+        Action<IWebHostBuilder>? configureWebHost = null,
         CancellationToken cancellationToken = default)
     {
-        var factory = new IntakeWebApplicationFactory();
-        var applicationClient = IntakeWebDriver.CreateClient(factory);
+        var baseFactory = new IntakeWebApplicationFactory(
+            useIntegrationTestAuthentication,
+            initializeDevelopmentOffline: true);
+        WebApplicationFactory<Program> factory = configureWebHost is null
+            ? baseFactory
+            : baseFactory.WithWebHostBuilder(configureWebHost);
+        var applicationClient = factory.CreateClient(
+            new WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://localhost:7139")
+            });
         var builder = WebApplication.CreateSlimBuilder(
             new WebApplicationOptions
             {
@@ -84,6 +103,7 @@ internal sealed class BrowserTestSupport : IAsyncDisposable
                 ColorScheme = ColorScheme.Light,
                 ForcedColors = forcedColors,
                 ReducedMotion = ReducedMotion.Reduce,
+                JavaScriptEnabled = javaScriptEnabled,
                 ViewportSize = new ViewportSize
                 {
                     Width = width,
@@ -93,6 +113,7 @@ internal sealed class BrowserTestSupport : IAsyncDisposable
         var page = await context.NewPageAsync();
 
         return new BrowserTestSupport(
+            baseFactory,
             factory,
             applicationClient,
             loopbackHost,
@@ -132,7 +153,11 @@ internal sealed class BrowserTestSupport : IAsyncDisposable
         await loopbackHost.StopAsync();
         await loopbackHost.DisposeAsync();
         applicationClient.Dispose();
-        factory.Dispose();
+        if (!ReferenceEquals(factory, baseFactory))
+        {
+            factory.Dispose();
+        }
+        baseFactory.Dispose();
     }
 
     private static async Task ForwardAsync(HttpClient applicationClient, HttpContext context)

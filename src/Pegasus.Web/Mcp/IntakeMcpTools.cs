@@ -9,8 +9,12 @@ internal sealed record IntakeQueueToolItem(
     Guid ReceiptId,
     string SourceFileName,
     DateTimeOffset ReceivedAtUtc,
-    string Decision,
-    string? FailureReason);
+    string ProcessingDecision,
+    string AllocationStatus,
+    string? FailureReason,
+    string? AllocationSafeReason,
+    Guid? CaseId,
+    string? CaseReference);
 
 internal sealed record IntakeQueueToolResult(
     IReadOnlyList<IntakeQueueToolItem> Items,
@@ -55,7 +59,7 @@ internal sealed class IntakeMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Lists intake receipts with the same decision filters as the staff intake queue: draft_ready, needs_sorting, blocked_intake, unsupported, ocr_required, technical_failure, or no filter for all. Page size is capped at 50.")]
+    [Description("Lists intake receipts with processing decision and allocation state kept separate. Filters are case_created, needs_sorting, blocked_intake, unsupported, ocr_required, technical_failure, or no filter for all. Page size is capped at 50.")]
     public async Task<IntakeQueueToolResult> ListAsync(
         [Description("Optional decision filter code; omit for every decision.")] string? decision = null,
         [Description("1-based page number.")] int page = 1,
@@ -103,7 +107,11 @@ internal sealed class IntakeMcpTools(
                             item.SourceFileName,
                             item.ReceivedAtUtc,
                             DecisionCode(item.Decision),
-                            item.FailureReason))
+                            AllocationCode(item),
+                            item.FailureReason,
+                            item.AllocationState?.SafeReason,
+                            item.CaseId,
+                            item.CaseReference))
                         .ToArray(),
                     decisionFilter is { } filter ? DecisionCode(filter) : null,
                     result.Page,
@@ -187,5 +195,15 @@ internal sealed class IntakeMcpTools(
         IntakeDecision.TechnicalFailure => "technical_failure",
         _ => throw new InvalidOperationException(
             $"Unknown intake decision '{(int)decision}'.")
+    };
+
+    internal static string AllocationCode(IntakeReceiptSummary item) => item switch
+    {
+        { CaseId: not null } => "case_created",
+        { AllocationState.Status: IntakeAllocationProjectionStatus.Pending } => "pending",
+        { AllocationState.Status: IntakeAllocationProjectionStatus.FailedRecoverable } => "failed_recoverable",
+        { AllocationState.Status: IntakeAllocationProjectionStatus.FailedBlocked } => "failed_blocked",
+        { Decision: IntakeDecision.CaseCreated } => "ready_for_allocation",
+        _ => "not_applicable"
     };
 }

@@ -80,34 +80,40 @@ public sealed class FailureInjectionTests
 
             var results = await Task.WhenAll(requests);
 
-            // Every request answers, and answers the same thing. The upload is
-            // processed while the operator waits now, so the landing is the case
-            // the instruction became rather than a queued receipt — but one
-            // upload replayed eight times is still one piece of work, and eight
-            // identical landings is what says so. Losing the processing race is
-            // not a failure: a request that lost it waits for the winner.
+            // Every request answers the same durable receipt. This is a manual
+            // upload, so it has no persisted mailbox classification and must
+            // fail closed with case_type_unavailable rather than inventing a
+            // case type or reference. Replaying it eight times is still one
+            // piece of work, and every landing must remain on that receipt.
             Assert.All(
                 results,
                 result => Assert.True(
                     result.StatusCode == HttpStatusCode.Redirect,
                     $"A replayed upload answered {(int)result.StatusCode} {result.StatusCode} "
                         + $"instead of redirecting. Body: {result.ResponseBody}"));
-            // Not "every landing is identical": requests that read the receipt
-            // before the case allocation committed land on the create screen for
-            // that same receipt, which then sends them to the case. Both are
-            // right about the same work. What must not vary is what was written.
             Assert.All(
                 results,
                 result => Assert.True(
                     result.Location is not null
-                        && result.Location.ToString().StartsWith("/Cases", StringComparison.Ordinal),
+                        && result.Location.ToString().StartsWith("/Received", StringComparison.Ordinal),
                     $"A replayed upload landed on '{result.Location}'."));
 
-            // The claim the name makes, counted from the tables: one receipt,
-            // and — because a definitive instruction now allocates while the
-            // operator waits — exactly one case, not eight.
+            await using (var scope = factory.Services.CreateAsyncScope())
+            {
+                var receipt = Assert.IsType<IntakeReceipt>(
+                    await scope.ServiceProvider
+                        .GetRequiredService<IIntakeReceiptQueries>()
+                        .GetAsync(
+                            await ReadReceiptIdAsync(factory),
+                            CancellationToken.None));
+                var allocation = Assert.IsType<IntakeAllocationState>(receipt.AllocationState);
+                Assert.Equal(IntakeAllocationFailureKind.CaseTypeUnavailable, allocation.FailureKind);
+            }
+
+            // The claim the name makes, counted from the tables: one receipt
+            // and no case/reference invented by a manual unclassified upload.
             Assert.Equal(1, await CountReceiptsAsync(factory));
-            Assert.Equal(1, await CountCasesAsync(factory));
+            Assert.Equal(0, await CountCasesAsync(factory));
         }
         finally
         {
@@ -139,6 +145,20 @@ public sealed class FailureInjectionTests
     /// </summary>
     private static Task<int> CountCasesAsync(IntakeWebApplicationFactory factory) =>
         CountAsync(factory, "SELECT COUNT(*) FROM Cases");
+
+    private static async Task<Guid> ReadReceiptIdAsync(IntakeWebApplicationFactory factory)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var connection = context.Database.GetDbConnection();
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT TOP 1 Id FROM IntakeReceipts";
+        return (Guid)(await command.ExecuteScalarAsync()
+            ?? throw new InvalidOperationException("The pressure upload did not persist a receipt."));
+    }
 
     private static async Task<int> CountAsync(IntakeWebApplicationFactory factory, string sql)
     {

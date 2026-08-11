@@ -1,3 +1,8 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using Pegasus.Core.Identity;
+
 namespace Pegasus.Core.Custody;
 
 public enum CustodyWorkKind
@@ -23,13 +28,34 @@ public sealed record IntakeSourceCustodyReference(
     string SourceFileName,
     string MediaType,
     string SourceHash,
-    string SourceObjectKey);
+    string SourceObjectKey,
+    long SourceLength = -1);
 
 public sealed record CustodyDocumentVersion(
     Guid CaseId,
     string RemoteId,
     string ContentHash,
     string ETag);
+
+/// <summary>
+/// Fail-closed authority carried through a multi-effect custody adapter call.
+/// The adapter invokes it immediately before each remote mutation.
+/// </summary>
+public sealed class CustodyEffectLeaseGuard(
+    Func<CancellationToken, Task<bool>> holdsLease)
+{
+    public async Task RequireCurrentAsync(CancellationToken cancellationToken)
+    {
+        if (!await holdsLease(cancellationToken))
+        {
+            throw new CustodyProcessingLeaseLostException();
+        }
+    }
+}
+
+public sealed class CustodyProcessingLeaseLostException()
+    : InvalidOperationException(
+        "This custody processing attempt no longer owns an unexpired lease.");
 
 /// <summary>
 /// A case-scoped port. Implementations must guard the configured custody root and never accept an
@@ -41,7 +67,32 @@ public interface ICaseCustody
         Guid caseId,
         string caseReference,
         string operationKey,
+        CancellationToken cancellationToken) => CreateCaseRootAsync(
+            caseId,
+            caseReference,
+            CustodyCreationOwner.Create(),
+            operationKey,
+            cancellationToken);
+
+    Task<CaseCustodyRoot> CreateCaseRootAsync(
+        Guid caseId,
+        string caseReference,
+        string creationOwnerToken,
+        string operationKey,
         CancellationToken cancellationToken);
+
+    async Task<CaseCustodyRoot> CreateCaseRootAsync(
+        Guid caseId,
+        string caseReference,
+        string creationOwnerToken,
+        string operationKey,
+        CustodyEffectLeaseGuard leaseGuard,
+        CancellationToken cancellationToken)
+    {
+        await leaseGuard.RequireCurrentAsync(cancellationToken);
+        return await CreateCaseRootAsync(
+            caseId, caseReference, creationOwnerToken, operationKey, cancellationToken);
+    }
 
     /// <summary>
     /// Resolves the immutable custody root already allocated for the case. This read does not
@@ -58,11 +109,288 @@ public interface ICaseCustody
         string operationKey,
         CancellationToken cancellationToken);
 
+    async Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
+        CaseCustodyRoot root,
+        IntakeSourceCustodyReference source,
+        string operationKey,
+        CustodyEffectLeaseGuard leaseGuard,
+        CancellationToken cancellationToken)
+    {
+        await leaseGuard.RequireCurrentAsync(cancellationToken);
+        return await RetainAcceptedIntakeSourceAsync(root, source, operationKey, cancellationToken);
+    }
+
     Task<string> CreateAuditReferenceFolderAsync(
         CaseCustodyRoot root,
         string auditReference,
         string operationKey,
+        CancellationToken cancellationToken) => CreateAuditReferenceFolderAsync(
+            root,
+            auditReference,
+            CustodyCreationOwner.Create(),
+            operationKey,
+            cancellationToken);
+
+    Task<string> CreateAuditReferenceFolderAsync(
+        CaseCustodyRoot root,
+        string auditReference,
+        string creationOwnerToken,
+        string operationKey,
         CancellationToken cancellationToken);
+
+    async Task<string> CreateAuditReferenceFolderAsync(
+        CaseCustodyRoot root,
+        string auditReference,
+        string creationOwnerToken,
+        string operationKey,
+        CustodyEffectLeaseGuard leaseGuard,
+        CancellationToken cancellationToken)
+    {
+        await leaseGuard.RequireCurrentAsync(cancellationToken);
+        return await CreateAuditReferenceFolderAsync(
+            root, auditReference, creationOwnerToken, operationKey, cancellationToken);
+    }
+}
+
+public enum CustodyTargetKind
+{
+    CaseSource,
+    AuditReference
+}
+
+public static class CustodyCreationOwner
+{
+    private const string Alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+    public static string Create()
+    {
+        Span<byte> bytes = stackalloc byte[16];
+        RandomNumberGenerator.Fill(bytes);
+        Span<char> result = stackalloc char[26];
+        var buffer = 0;
+        var bits = 0;
+        var output = 0;
+        foreach (var value in bytes)
+        {
+            buffer = (buffer << 8) | value;
+            bits += 8;
+            while (bits >= 5)
+            {
+                bits -= 5;
+                result[output++] = Alphabet[(buffer >> bits) & 31];
+            }
+        }
+        if (bits > 0)
+        {
+            result[output++] = Alphabet[(buffer << (5 - bits)) & 31];
+        }
+        if (output != result.Length)
+        {
+            throw new InvalidOperationException("The custody creation owner could not be encoded.");
+        }
+        return new string(result);
+    }
+}
+
+public sealed record CaseCustodyPreparation(
+    Guid CaseId,
+    long CaseVersion,
+    CustodyTargetKind TargetKind,
+    string State,
+    string? SafeFailureReason,
+    int AttemptCount,
+    bool CanRetry);
+
+public sealed record RetryCaseCustodyRequest(
+    Guid CaseId,
+    long ExpectedCaseVersion,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason,
+    string EditLeaseToken,
+    CustodyTargetKind TargetKind);
+
+public enum RetryCaseCustodyOutcome
+{
+    Pending,
+    Replay,
+    Conflict,
+    Refused,
+    NotFound
+}
+
+public sealed record RetryCaseCustodyResult(
+    RetryCaseCustodyOutcome Outcome,
+    long? CaseVersion,
+    string Message);
+
+public sealed record CustodyRetryDecisionState(
+    bool OperationExists,
+    bool OperationMatches,
+    long? OperationAfterVersion,
+    bool CaseExists,
+    long? CaseVersion,
+    bool WorkExists,
+    string? WorkState,
+    bool AnotherRetryWon,
+    long? WinningRetryVersion,
+    bool CustodyAlreadyConfirmed,
+    bool AuditReferenceExists);
+
+/// <summary>
+/// The sole owner of custody-retry replay, conflict, and eligibility decisions.
+/// Persistence supplies a snapshot and applies only a Pending transition under CAS.
+/// </summary>
+public static class CustodyRetryPolicy
+{
+    public static RetryCaseCustodyResult Decide(CustodyRetryDecisionState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        if (state.OperationExists)
+        {
+            return state.OperationMatches
+                ? new(RetryCaseCustodyOutcome.Replay, state.OperationAfterVersion,
+                    "The original custody retry request is already pending.")
+                : new(RetryCaseCustodyOutcome.Conflict, null,
+                    "The custody retry operation key was already used for another request.");
+        }
+        if (!state.CaseExists)
+        {
+            return new(RetryCaseCustodyOutcome.NotFound, null, "The case was not found.");
+        }
+        if (!state.WorkExists)
+        {
+            return new(RetryCaseCustodyOutcome.Refused, state.CaseVersion,
+                "No matching custody work exists.");
+        }
+        if (!string.Equals(state.WorkState, "failed", StringComparison.Ordinal))
+        {
+            return state.AnotherRetryWon
+                ? new(RetryCaseCustodyOutcome.Conflict, state.WinningRetryVersion,
+                    "Another authorized retry already re-armed this custody work with a different operation key.")
+                : new(RetryCaseCustodyOutcome.Refused, state.CaseVersion,
+                    "Only failed custody work can be retried.");
+        }
+        if (state.CustodyAlreadyConfirmed)
+        {
+            return new(RetryCaseCustodyOutcome.Refused, state.CaseVersion,
+                "Confirmed custody cannot be retried.");
+        }
+        if (!state.AuditReferenceExists)
+        {
+            return new(RetryCaseCustodyOutcome.Refused, state.CaseVersion,
+                "The case has no immutable Audit reference to store.");
+        }
+        return new(RetryCaseCustodyOutcome.Pending, state.CaseVersion,
+            "Custody retry queued.");
+    }
+}
+
+public sealed class CustodyRetryPolicyAuthority
+{
+    private readonly Func<CustodyRetryDecisionState, RetryCaseCustodyResult> decide;
+
+    private CustodyRetryPolicyAuthority() => decide = CustodyRetryPolicy.Decide;
+
+    public static CustodyRetryPolicyAuthority Core { get; } = new();
+
+    public RetryCaseCustodyResult Decide(CustodyRetryDecisionState state) =>
+        decide(state);
+}
+
+public interface ICaseCustodyQueries
+{
+    Task<IReadOnlyList<CaseCustodyPreparation>> GetPreparationsAsync(
+        Guid caseId,
+        CancellationToken cancellationToken = default);
+}
+
+public interface ICustodyRecoveryPersistence
+{
+    Task<RetryCaseCustodyResult> RetryAsync(
+        RetryCaseCustodyRequest request,
+        string normalizedReason,
+        string requestHash,
+        CustodyRetryPolicyAuthority policy,
+        CancellationToken cancellationToken);
+}
+
+public interface IRetryCaseCustody
+{
+    Task<RetryCaseCustodyResult> ExecuteAsync(
+        RetryCaseCustodyRequest request,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// The one business boundary that permits a persisted custody failure to be
+/// re-armed. Queue redelivery and source replay never enter this use case.
+/// </summary>
+public sealed class RetryCaseCustody(ICustodyRecoveryPersistence persistence) : IRetryCaseCustody
+{
+    public async Task<RetryCaseCustodyResult> ExecuteAsync(
+        RetryCaseCustodyRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.Actor.Kind != ActorKind.Staff)
+        {
+            throw new StaffAuthorizationException(StaffAccessRight.PerformCasework);
+        }
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        if (request.CaseId == Guid.Empty || request.ExpectedCaseVersion < 0)
+        {
+            throw new ArgumentException("A current Case and rendered workflow version are required.", nameof(request));
+        }
+        if (!Enum.IsDefined(request.TargetKind))
+        {
+            throw new ArgumentOutOfRangeException(nameof(request));
+        }
+
+        var reason = RequireText(request.Reason, 500, nameof(request.Reason));
+        var operationKey = RequireText(request.OperationKey, 100, nameof(request.OperationKey));
+        var leaseToken = RequireText(request.EditLeaseToken, 200, nameof(request.EditLeaseToken));
+        var material = JsonSerializer.Serialize(new
+        {
+            schemaVersion = 1,
+            request.CaseId,
+            request.ExpectedCaseVersion,
+            targetKind = request.TargetKind.ToString(),
+            actorKind = request.Actor.Kind.ToString(),
+            request.Actor.SubjectId,
+            roles = request.Actor.Roles.OrderBy(value => value).Select(value => value.ToString()).ToArray(),
+            operationKey,
+            reason,
+            leaseToken
+        });
+        var requestHash = Convert.ToHexString(
+            SHA256.HashData(Encoding.UTF8.GetBytes(material))).ToLowerInvariant();
+        return await persistence.RetryAsync(
+            request with
+            {
+                OperationKey = operationKey,
+                Reason = reason,
+                EditLeaseToken = leaseToken
+            },
+            reason,
+            requestHash,
+            CustodyRetryPolicyAuthority.Core,
+            cancellationToken);
+    }
+
+    private static string RequireText(string? value, int maximumLength, string parameterName)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new ArgumentException("A value is required.", parameterName);
+        }
+        var normalized = value.Trim();
+        if (normalized.Length > maximumLength || normalized.Any(char.IsControl))
+        {
+            throw new ArgumentException("The value is invalid.", parameterName);
+        }
+        return normalized;
+    }
 }
 
 public sealed class CaseCustodyUnavailableException()
@@ -101,6 +429,11 @@ public interface IExternalWorkStore
     Task MarkPoisonedAsync(
         Guid workItemId,
         DateTimeOffset failedAtUtc,
+        CancellationToken cancellationToken);
+
+    Task<bool> HoldsProcessingLeaseAsync(
+        Guid workItemId,
+        string leaseToken,
         CancellationToken cancellationToken);
 
     Task FailProcessingAsync(

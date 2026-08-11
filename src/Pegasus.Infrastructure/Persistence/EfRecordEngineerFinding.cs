@@ -2,8 +2,10 @@ using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 
@@ -87,7 +89,8 @@ internal sealed class EfRecordEngineerFinding(
             OperationKey = $"audit-custody:{workflow.CaseId:N}",
             State = "pending",
             AttemptCount = 0,
-            DueAtUtc = recordedAtUtc
+            DueAtUtc = recordedAtUtc,
+            AuditFolderCreationToken = CustodyCreationOwner.Create()
         };
         workflow.Case.AuditReference = auditReference;
         workflow.Version = checked(workflow.Version + 1);
@@ -153,9 +156,46 @@ internal sealed class EfRecordEngineerFinding(
             PolicyVersion = "engineer-finding-v1"
         });
 
-        await context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return MapIdentity(workflow.Case);
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return MapIdentity(workflow.Case);
+        }
+        catch (Exception exception) when (IsConcurrencyConflict(exception))
+        {
+            for (var attempt = 0; attempt < 50; attempt++)
+            {
+                await using var verification = await contextFactory.CreateDbContextAsync(cancellationToken);
+                var winner = await verification.Set<CaseEngineerFindingEntity>()
+                    .AsNoTracking()
+                    .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken);
+                if (winner is not null)
+                {
+                    if (string.Equals(winner.OperationKey, operationKey, StringComparison.Ordinal)
+                        && FixedTimeHashEquals(winner.RequestHash, requestHash))
+                    {
+                        return await LoadIdentityAsync(verification, request.CaseId, cancellationToken);
+                    }
+                    throw new CaseOperationConflictException(request.CaseId, request.OperationKey);
+                }
+                await Task.Delay(TimeSpan.FromMilliseconds(50), cancellationToken);
+            }
+            throw new CaseOperationConflictException(request.CaseId, request.OperationKey);
+        }
+    }
+
+    private static bool IsConcurrencyConflict(Exception exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is DbUpdateConcurrencyException
+                || current is SqlException { Number: 1205 or 2601 or 2627 })
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static async Task<CaseIdentity> LoadIdentityAsync(
