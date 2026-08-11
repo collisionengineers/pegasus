@@ -38,6 +38,26 @@ public sealed record CustodyDocumentVersion(
     string ETag);
 
 /// <summary>
+/// Fail-closed authority carried through a multi-effect custody adapter call.
+/// The adapter invokes it immediately before each remote mutation.
+/// </summary>
+public sealed class CustodyEffectLeaseGuard(
+    Func<CancellationToken, Task<bool>> holdsLease)
+{
+    public async Task RequireCurrentAsync(CancellationToken cancellationToken)
+    {
+        if (!await holdsLease(cancellationToken))
+        {
+            throw new CustodyProcessingLeaseLostException();
+        }
+    }
+}
+
+public sealed class CustodyProcessingLeaseLostException()
+    : InvalidOperationException(
+        "This custody processing attempt no longer owns an unexpired lease.");
+
+/// <summary>
 /// A case-scoped port. Implementations must guard the configured custody root and never accept an
 /// arbitrary remote identifier from a caller.
 /// </summary>
@@ -61,6 +81,19 @@ public interface ICaseCustody
         string operationKey,
         CancellationToken cancellationToken);
 
+    async Task<CaseCustodyRoot> CreateCaseRootAsync(
+        Guid caseId,
+        string caseReference,
+        string creationOwnerToken,
+        string operationKey,
+        CustodyEffectLeaseGuard leaseGuard,
+        CancellationToken cancellationToken)
+    {
+        await leaseGuard.RequireCurrentAsync(cancellationToken);
+        return await CreateCaseRootAsync(
+            caseId, caseReference, creationOwnerToken, operationKey, cancellationToken);
+    }
+
     /// <summary>
     /// Resolves the immutable custody root already allocated for the case. This read does not
     /// create or relabel a root and must validate the retained case identity.
@@ -75,6 +108,17 @@ public interface ICaseCustody
         IntakeSourceCustodyReference source,
         string operationKey,
         CancellationToken cancellationToken);
+
+    async Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
+        CaseCustodyRoot root,
+        IntakeSourceCustodyReference source,
+        string operationKey,
+        CustodyEffectLeaseGuard leaseGuard,
+        CancellationToken cancellationToken)
+    {
+        await leaseGuard.RequireCurrentAsync(cancellationToken);
+        return await RetainAcceptedIntakeSourceAsync(root, source, operationKey, cancellationToken);
+    }
 
     Task<string> CreateAuditReferenceFolderAsync(
         CaseCustodyRoot root,
@@ -93,6 +137,19 @@ public interface ICaseCustody
         string creationOwnerToken,
         string operationKey,
         CancellationToken cancellationToken);
+
+    async Task<string> CreateAuditReferenceFolderAsync(
+        CaseCustodyRoot root,
+        string auditReference,
+        string creationOwnerToken,
+        string operationKey,
+        CustodyEffectLeaseGuard leaseGuard,
+        CancellationToken cancellationToken)
+    {
+        await leaseGuard.RequireCurrentAsync(cancellationToken);
+        return await CreateAuditReferenceFolderAsync(
+            root, auditReference, creationOwnerToken, operationKey, cancellationToken);
+    }
 }
 
 public enum CustodyTargetKind
@@ -167,6 +224,80 @@ public sealed record RetryCaseCustodyResult(
     long? CaseVersion,
     string Message);
 
+public sealed record CustodyRetryDecisionState(
+    bool OperationExists,
+    bool OperationMatches,
+    long? OperationAfterVersion,
+    bool CaseExists,
+    long? CaseVersion,
+    bool WorkExists,
+    string? WorkState,
+    bool AnotherRetryWon,
+    long? WinningRetryVersion,
+    bool CustodyAlreadyConfirmed,
+    bool AuditReferenceExists);
+
+/// <summary>
+/// The sole owner of custody-retry replay, conflict, and eligibility decisions.
+/// Persistence supplies a snapshot and applies only a Pending transition under CAS.
+/// </summary>
+public static class CustodyRetryPolicy
+{
+    public static RetryCaseCustodyResult Decide(CustodyRetryDecisionState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        if (state.OperationExists)
+        {
+            return state.OperationMatches
+                ? new(RetryCaseCustodyOutcome.Replay, state.OperationAfterVersion,
+                    "The original custody retry request is already pending.")
+                : new(RetryCaseCustodyOutcome.Conflict, null,
+                    "The custody retry operation key was already used for another request.");
+        }
+        if (!state.CaseExists)
+        {
+            return new(RetryCaseCustodyOutcome.NotFound, null, "The case was not found.");
+        }
+        if (!state.WorkExists)
+        {
+            return new(RetryCaseCustodyOutcome.Refused, state.CaseVersion,
+                "No matching custody work exists.");
+        }
+        if (!string.Equals(state.WorkState, "failed", StringComparison.Ordinal))
+        {
+            return state.AnotherRetryWon
+                ? new(RetryCaseCustodyOutcome.Conflict, state.WinningRetryVersion,
+                    "Another authorized retry already re-armed this custody work with a different operation key.")
+                : new(RetryCaseCustodyOutcome.Refused, state.CaseVersion,
+                    "Only failed custody work can be retried.");
+        }
+        if (state.CustodyAlreadyConfirmed)
+        {
+            return new(RetryCaseCustodyOutcome.Refused, state.CaseVersion,
+                "Confirmed custody cannot be retried.");
+        }
+        if (!state.AuditReferenceExists)
+        {
+            return new(RetryCaseCustodyOutcome.Refused, state.CaseVersion,
+                "The case has no immutable Audit reference to store.");
+        }
+        return new(RetryCaseCustodyOutcome.Pending, state.CaseVersion,
+            "Custody retry queued.");
+    }
+}
+
+public sealed class CustodyRetryPolicyAuthority
+{
+    private readonly Func<CustodyRetryDecisionState, RetryCaseCustodyResult> decide;
+
+    private CustodyRetryPolicyAuthority() => decide = CustodyRetryPolicy.Decide;
+
+    public static CustodyRetryPolicyAuthority Core { get; } = new();
+
+    public RetryCaseCustodyResult Decide(CustodyRetryDecisionState state) =>
+        decide(state);
+}
+
 public interface ICaseCustodyQueries
 {
     Task<IReadOnlyList<CaseCustodyPreparation>> GetPreparationsAsync(
@@ -174,12 +305,13 @@ public interface ICaseCustodyQueries
         CancellationToken cancellationToken = default);
 }
 
-public interface ICustodyRecoveryStore
+public interface ICustodyRecoveryPersistence
 {
     Task<RetryCaseCustodyResult> RetryAsync(
         RetryCaseCustodyRequest request,
         string normalizedReason,
         string requestHash,
+        CustodyRetryPolicyAuthority policy,
         CancellationToken cancellationToken);
 }
 
@@ -194,7 +326,7 @@ public interface IRetryCaseCustody
 /// The one business boundary that permits a persisted custody failure to be
 /// re-armed. Queue redelivery and source replay never enter this use case.
 /// </summary>
-public sealed class RetryCaseCustody(ICustodyRecoveryStore store) : IRetryCaseCustody
+public sealed class RetryCaseCustody(ICustodyRecoveryPersistence persistence) : IRetryCaseCustody
 {
     public async Task<RetryCaseCustodyResult> ExecuteAsync(
         RetryCaseCustodyRequest request,
@@ -233,7 +365,7 @@ public sealed class RetryCaseCustody(ICustodyRecoveryStore store) : IRetryCaseCu
         });
         var requestHash = Convert.ToHexString(
             SHA256.HashData(Encoding.UTF8.GetBytes(material))).ToLowerInvariant();
-        return await store.RetryAsync(
+        return await persistence.RetryAsync(
             request with
             {
                 OperationKey = operationKey,
@@ -242,6 +374,7 @@ public sealed class RetryCaseCustody(ICustodyRecoveryStore store) : IRetryCaseCu
             },
             reason,
             requestHash,
+            CustodyRetryPolicyAuthority.Core,
             cancellationToken);
     }
 

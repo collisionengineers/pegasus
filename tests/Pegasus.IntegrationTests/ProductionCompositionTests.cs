@@ -80,7 +80,7 @@ public sealed class ProductionCompositionTests
         Assert.IsType<GenerateEvaHandoff>(services.GetRequiredService<IGenerateEvaHandoff>());
         Assert.IsType<DownloadEvaHandoff>(services.GetRequiredService<IDownloadEvaHandoff>());
         Assert.IsType<EvaHandoffStore>(services.GetRequiredService<IEvaHandoffQueries>());
-        Assert.IsType<EvaHandoffStore>(services.GetRequiredService<IEvaHandoffCommandStore>());
+        Assert.IsType<EvaHandoffStore>(services.GetRequiredService<IEvaHandoffPersistence>());
     }
 
     [Fact]

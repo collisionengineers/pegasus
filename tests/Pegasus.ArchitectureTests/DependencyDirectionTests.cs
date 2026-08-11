@@ -344,8 +344,36 @@ public sealed class DependencyDirectionTests
             typeof(DependencyInjection).Assembly.GetTypes(),
             type => type.FullName == "Pegasus.Infrastructure.Custody.BoxCaseCustody");
         Assert.Equal(typeof(DependencyInjection).Assembly, boxAdapter.Assembly);
-        Assert.Contains(typeof(IEvaHandoffCommandStore), typeof(EvaHandoffStore).GetInterfaces());
+        Assert.Contains(typeof(IEvaHandoffPersistence), typeof(EvaHandoffStore).GetInterfaces());
         Assert.Contains(typeof(ICaseCustody), boxAdapter.GetInterfaces());
+        Assert.All(
+            typeof(IEvaHandoffPersistence).GetMethods(),
+            method => Assert.Contains(
+                method.GetParameters(),
+                parameter => parameter.ParameterType == typeof(EvaHandoffPolicyAuthority)));
+        Assert.Contains(
+            typeof(ICustodyRecoveryPersistence).GetMethod("RetryAsync")!.GetParameters(),
+            parameter => parameter.ParameterType == typeof(CustodyRetryPolicyAuthority));
+        Assert.Empty(typeof(EvaHandoffPolicyAuthority).GetConstructors());
+        Assert.Empty(typeof(CustodyRetryPolicyAuthority).GetConstructors());
+
+        var repositoryRoot = FindRepositoryRoot();
+        var evaPersistence = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "src",
+            "Pegasus.Infrastructure",
+            "Persistence",
+            "EvaHandoffStore.cs"));
+        var custodyPersistence = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "src",
+            "Pegasus.Infrastructure",
+            "Persistence",
+            "EfExternalWorkStore.cs"));
+        Assert.Contains("policy.Evaluate", evaPersistence, StringComparison.Ordinal);
+        Assert.Contains("policy.SelectEligibleImages", evaPersistence, StringComparison.Ordinal);
+        Assert.Contains("policy.DecideRevision", evaPersistence, StringComparison.Ordinal);
+        Assert.Contains("policy.Decide", custodyPersistence, StringComparison.Ordinal);
         Assert.DoesNotContain(
             typeof(EvaHandoffStore).Assembly.GetReferencedAssemblies(),
             reference => reference.Name is "Pegasus.Web" or "Pegasus.Worker");
