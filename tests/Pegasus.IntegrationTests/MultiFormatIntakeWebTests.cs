@@ -37,7 +37,7 @@ public sealed partial class MultiFormatIntakeWebTests
             Assert.Single(receipt.Fields, field => field.Name == "Vehicle registration").SuggestedValue);
         Assert.Equal("AB12CDE", Assert.IsType<InstructionDraft>(receipt.InstructionDraft).VehicleRegistration);
         Assert.Contains("synthetic-instruction.docx", reviewHtml, StringComparison.Ordinal);
-        Assert.Contains("Case created", reviewHtml, StringComparison.Ordinal);
+        Assert.Contains("Case not created", reviewHtml, StringComparison.Ordinal);
     }
 
     [Fact]

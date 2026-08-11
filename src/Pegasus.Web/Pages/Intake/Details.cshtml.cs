@@ -15,6 +15,7 @@ namespace Pegasus.Web.Pages.Intake;
 public sealed partial class DetailsModel(
     IGetIntake getIntake,
     IResolveIntake resolveIntake,
+    IAllocateIntake allocateIntake,
     IReevaluateIntake reevaluateIntake,
     ILinkIntake linkIntake,
     IReverseIntakeLink reverseIntakeLink,
@@ -65,7 +66,10 @@ public sealed partial class DetailsModel(
     /// </summary>
     public bool CanCreateCase =>
         Receipt.AcceptedCaseId is null
+        && Receipt.AllocationState is null
         && IntakeDecisionPolicy.CanBecomeCase(Receipt.Decision);
+
+    public bool CanRetryAllocation => Receipt.AllocationState?.CanRetry == true;
 
     /// <summary>
     /// The inspection-address state in words. The enum name was printed here
@@ -104,6 +108,55 @@ public sealed partial class DetailsModel(
         IsDuplicate = duplicate;
         RestoreCaseLease();
         return Page();
+    }
+
+    public async Task<IActionResult> OnPostRetryAllocationAsync(
+        Guid id,
+        long expectedVersion,
+        Guid expectedAttemptId,
+        string operationKey,
+        string reason,
+        CancellationToken cancellationToken = default)
+    {
+        if (!StaffActorFactory.TryCreate(
+                User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
+                out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            var result = await allocateIntake.RetryAsync(
+                new(id, expectedVersion, expectedAttemptId, actor, operationKey, reason),
+                cancellationToken);
+            if (result.State.Status == IntakeAllocationProjectionStatus.Succeeded
+                && result.State.CaseId is { } caseId)
+            {
+                TempData["CaseDetailsStatus"] =
+                    $"Case {result.State.AuditReference ?? result.State.CaseReference} was created.";
+                return RedirectToPage("/Cases/Details", new { id = caseId });
+            }
+
+            TempData["IntakeDetailsError"] = result.State.SafeReason
+                ?? "The case could not be created. No reference was allocated.";
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (
+            exception is ArgumentException
+                or IntakeAllocationConcurrencyException
+                or IntakeAllocationOperationConflictException)
+        {
+            LogIntakeCommandFailed(logger, id, exception);
+            TempData["IntakeDetailsError"] =
+                "The receipt or allocation state changed. Reload it before retrying.";
+        }
+
+        return RedirectToPage("/Intake/Details", new { id });
     }
 
     public async Task<IActionResult> OnPostBlockAsync(
@@ -304,7 +357,7 @@ public sealed partial class DetailsModel(
 
     public static string DecisionLabel(IntakeDecision decision) => decision switch
     {
-        IntakeDecision.CaseCreated => "Case created",
+        IntakeDecision.CaseCreated => "Ready for case allocation",
         IntakeDecision.NeedsSorting => "Needs sorting",
         // Kept identical to the list label: one decision, one name.
         IntakeDecision.BlockedIntake => "Blocked",
@@ -321,6 +374,14 @@ public sealed partial class DetailsModel(
         IntakeSourceChannel.Mailbox => "Approved inbox",
         IntakeSourceChannel.Automation => "Automation",
         _ => throw new InvalidOperationException($"Unknown intake source channel value '{(int)channel}'.")
+    };
+
+    public static string CaseTypeLabel(CaseType? caseType) => caseType switch
+    {
+        CaseType.Inspection => "Inspection",
+        CaseType.Audit => "Standalone Audit",
+        CaseType.InspectionAndAudit => "Inspection and Audit",
+        _ => "Not available"
     };
 
     private async Task<IActionResult> ExecuteCommandAsync(

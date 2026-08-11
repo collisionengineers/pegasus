@@ -77,6 +77,13 @@ public sealed class AcceptIntake(
                 "Standalone Audit evidence can be linked only to a standalone Audit case.",
                 nameof(request));
         }
+        if (request.AllocationAttemptId.HasValue != request.AllocationCompletedAtUtc.HasValue
+            || request.AllocationAttemptId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "Allocation outcome identity and completion time must be supplied together.",
+                nameof(request));
+        }
 
         var completenessEvaluation = CaseCompletenessPolicy.EvaluateAcceptanceCommand(
             request.Completeness,
@@ -98,7 +105,9 @@ public sealed class AcceptIntake(
             completenessEvaluation,
             providerInspectionMode,
             request.StandaloneAuditEvidenceId,
-            request.AcceptedInspectionDeadline);
+            request.AcceptedInspectionDeadline,
+            request.AllocationAttemptId,
+            request.AllocationCompletedAtUtc);
 
         var outcome = await acceptanceStore.AcceptAsync(acceptance, cancellationToken);
         _ = CaseInitialWorkflowState.From(outcome.InitialState);

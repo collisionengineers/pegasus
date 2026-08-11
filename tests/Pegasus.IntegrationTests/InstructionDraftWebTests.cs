@@ -42,7 +42,9 @@ public sealed class InstructionDraftWebTests
         Assert.Equal(1, await CountRowsAsync(factory, "IntakeReceipts"));
         Assert.Equal(1, await CountRowsAsync(factory, "InstructionDrafts"));
         Assert.Equal(receipt.AssetRecords.Count, await CountRowsAsync(factory, "IntakeAssets"));
-        Assert.Equal(1, await CountRowsAsync(factory, "IntakeReceiptEvents"));
+        // Receipt recording and the durable automatic-allocation outcome are
+        // separate events for a definitive instruction.
+        Assert.Equal(2, await CountRowsAsync(factory, "IntakeReceiptEvents"));
     }
 
     [Fact]
@@ -77,7 +79,7 @@ public sealed class InstructionDraftWebTests
         Assert.Equal(1, await CountRowsAsync(factory, "IntakeReceipts"));
         Assert.Equal(1, await CountRowsAsync(factory, "InstructionDrafts"));
         Assert.Equal(firstReceipt.AssetRecords.Count, await CountRowsAsync(factory, "IntakeAssets"));
-        Assert.Equal(1, await CountRowsAsync(factory, "IntakeReceiptEvents"));
+        Assert.Equal(2, await CountRowsAsync(factory, "IntakeReceiptEvents"));
         await using var scope = factory.Services.CreateAsyncScope();
         var artifactStore = scope.ServiceProvider.GetRequiredService<IIntakeArtifactStore>();
         Assert.NotNull(await artifactStore.ReadAsync(StorageKey(firstHash), CancellationToken.None));
@@ -113,11 +115,11 @@ public sealed class InstructionDraftWebTests
         Assert.Equal(2, await CountRowsAsync(factory, "IntakeReceipts"));
         Assert.Equal(2, await CountRowsAsync(factory, "InstructionDrafts"));
         Assert.Equal(2 * firstReceipt.AssetRecords.Count, await CountRowsAsync(factory, "IntakeAssets"));
-        Assert.Equal(2, await CountRowsAsync(factory, "IntakeReceiptEvents"));
+        Assert.Equal(4, await CountRowsAsync(factory, "IntakeReceiptEvents"));
     }
 
     [Fact]
-    public async Task UploadAndReviewPersistAllTypedFieldsAndAllocateTheCaseWithoutAStaffAction()
+    public async Task UploadAndReviewPersistsTypedFieldsAndRecordsMissingCaseTypeWithoutAutomaticAllocation()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -131,6 +133,9 @@ public sealed class InstructionDraftWebTests
         var receipt = await GetReceiptAsync(factory, IntakeWebDriver.ReceiptId(upload));
 
         Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
+        var allocation = Assert.IsType<IntakeAllocationState>(receipt.AllocationState);
+        Assert.Equal(IntakeAllocationFailureKind.CaseTypeUnavailable, allocation.FailureKind);
+        Assert.Equal(IntakeAllocationProjectionStatus.FailedBlocked, allocation.Status);
         var typed = Assert.IsType<InstructionDraft>(receipt.InstructionDraft);
         Assert.Equal("QDOS", typed.SuggestedPrincipalCode);
         Assert.Equal("Controlled Claimant", typed.ClaimantName);
@@ -158,24 +163,12 @@ public sealed class InstructionDraftWebTests
             Assert.Contains(value, html, StringComparison.Ordinal);
         }
 
-        // A definitive authorised instruction creates exactly one case, at
-        // processing time, with its reference allocated. This assertion used to
-        // read zero and one, which was the manual acceptance gate the
-        // requirements forbid: the allocation decision adds no universal manual
-        // acceptance gate, and thin ordinary detail is answered by Not ready
-        // rather than by withholding the reference.
-        Assert.Equal(1, await CountRowsAsync(factory, "Cases"));
-        Assert.Equal(1, await CountRowsAsync(factory, "CaseSequences"));
-
-        // The case enters Not ready. That is the requirement's own answer to
-        // thin ordinary detail — the reference is allocated, and completeness
-        // is confirmed later, on the case, by a person looking at the evidence.
-        Assert.Equal(
-            nameof(CaseLifecycleState.NotReady),
-            await ScalarAsync<string>(factory, "SELECT TOP 1 State FROM CaseWorkflows"));
-
-        // And the receipt that produced it says so, permanently.
-        Assert.Equal(1, await ScalarAsync<int>(factory, "SELECT COUNT(*) FROM CaseIntakeLinks"));
+        // Manual uploads have no persisted mailbox classification. The
+        // definitive processing decision is durable, but allocation fails
+        // closed rather than inventing a case type or reference.
+        Assert.Equal(0, await CountRowsAsync(factory, "Cases"));
+        Assert.Equal(0, await CountRowsAsync(factory, "CaseSequences"));
+        Assert.Equal(0, await ScalarAsync<int>(factory, "SELECT COUNT(*) FROM CaseIntakeLinks"));
     }
 
     [Fact]
