@@ -178,7 +178,7 @@ public sealed class IndexModel(
 
     public static string DecisionLabel(IntakeDecision decision) => decision switch
     {
-        IntakeDecision.CaseCreated => "Case created",
+        IntakeDecision.CaseCreated => "Ready for case allocation",
         IntakeDecision.NeedsSorting => "Needs sorting",
         // "Blocked intake" was the internal decision code read out loud.
         IntakeDecision.BlockedIntake => "Blocked",
@@ -195,7 +195,16 @@ public sealed class IndexModel(
     /// derived live from the receipt's single association.
     /// </summary>
     public string RowOutcomeLabel(IntakeReceiptSummary item) =>
-        item.Decision == IntakeDecision.ImageIntakeRegistered
+        item.CaseId is not null
+            ? "Case created"
+        : item.AllocationState?.Status == IntakeAllocationProjectionStatus.Pending
+            ? "Creating case"
+        : item.AllocationState?.Status is IntakeAllocationProjectionStatus.FailedRecoverable
+            or IntakeAllocationProjectionStatus.FailedBlocked
+            ? "Case not created"
+        : item.Decision == IntakeDecision.CaseCreated
+            ? "Ready for case allocation"
+        : item.Decision == IntakeDecision.ImageIntakeRegistered
             && _imageIntakesByReceipt.TryGetValue(item.Id, out var imageIntake)
             && imageIntake.AssociatedCaseId is not null
             ? "Associated with Case"

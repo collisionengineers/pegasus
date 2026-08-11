@@ -46,10 +46,13 @@ internal sealed class BrowserTestSupport : IAsyncDisposable
 
     public IPage Page { get; }
 
+    public IServiceProvider Services => factory.Services;
+
     public static async Task<BrowserTestSupport> StartAsync(
         int width = 1280,
         int height = 720,
         ForcedColors forcedColors = ForcedColors.None,
+        bool javaScriptEnabled = true,
         CancellationToken cancellationToken = default)
     {
         var factory = new IntakeWebApplicationFactory();
@@ -84,6 +87,7 @@ internal sealed class BrowserTestSupport : IAsyncDisposable
                 ColorScheme = ColorScheme.Light,
                 ForcedColors = forcedColors,
                 ReducedMotion = ReducedMotion.Reduce,
+                JavaScriptEnabled = javaScriptEnabled,
                 ViewportSize = new ViewportSize
                 {
                     Width = width,

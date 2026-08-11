@@ -257,6 +257,30 @@ public sealed partial class CaseCreateWebTests
     }
 
     [Fact]
+    public async Task FinalCreateFailurePersistsAttemptAndOpensReasonedRecovery()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var receipt = await CreateBareReceiptAsync(factory.Services);
+        var form = await OpenCreateScreenAsync(client, receipt.Id);
+
+        using var response = await PostCreateAsync(client, form, KeyedFields());
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal($"/Received/{receipt.Id:D}", response.Headers.Location?.OriginalString);
+        Assert.Equal(0, await CountAsync(factory.Services, "Cases"));
+        Assert.Equal(0, await CountAsync(factory.Services, "CaseSequences"));
+        Assert.Equal(0, await CountAsync(factory.Services, "CaseIntakeLinks"));
+        Assert.Equal(1, await CountAsync(factory.Services, "IntakeAllocationAttempts"));
+        await using var scope = factory.Services.CreateAsyncScope();
+        var updated = Assert.IsType<IntakeReceipt>(
+            await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+                .GetAsync(receipt.Id, CancellationToken.None));
+        Assert.Equal(IntakeAllocationFailureKind.PrincipalUnavailable, updated.AllocationState?.FailureKind);
+        Assert.True(updated.AllocationState?.CanRetry == true);
+    }
+
+    [Fact]
     public async Task RepeatedCreateSubmissionWithTheSameOperationIdAllocatesOneReference()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -943,7 +967,8 @@ public sealed partial class CaseCreateWebTests
     {
         var allowed = tableName switch
         {
-            "Cases" or "CaseIntakeLinks" or "CaseSequences" or "IntakeMutationHistory" => tableName,
+            "Cases" or "CaseIntakeLinks" or "CaseSequences" or "IntakeMutationHistory"
+                or "IntakeAllocationAttempts" => tableName,
             _ => throw new ArgumentOutOfRangeException(nameof(tableName))
         };
         return ScalarAsync<int>(services, $"SELECT COUNT(*) FROM [{allowed}]");

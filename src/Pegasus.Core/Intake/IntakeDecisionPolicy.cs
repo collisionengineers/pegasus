@@ -1,3 +1,5 @@
+using Pegasus.Core.Cases;
+
 namespace Pegasus.Core.Intake;
 
 /// <summary>
@@ -17,8 +19,8 @@ public static class IntakeDecisionPolicy
     /// Whether an item with this decision can still be turned into a case.
     /// </summary>
     /// <remarks>
-    /// A definitive instruction has already allocated its own reference in the
-    /// ordinary path, but the decision alone does not prove it did; the
+    /// A definitive instruction is eligible for typed allocation in the
+    /// ordinary path, but the decision alone does not prove it succeeded; the
     /// acceptance transaction is the thing that refuses a second reference for
     /// an item that already has a case. A reasoned refusal, an unreadable
     /// source, an unsupported format, a technical failure and a registered
@@ -36,4 +38,7 @@ public static class IntakeDecisionPolicy
         _ => throw new InvalidOperationException(
             $"Unknown intake decision value '{(int)decision}'.")
     };
+
+    public static bool RequiresStandaloneAuditEvidence(CaseType? caseType) =>
+        caseType == CaseType.Audit;
 }
