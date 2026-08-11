@@ -116,7 +116,7 @@ public sealed partial class CaseAcceptanceReplayTests
         await using var scope = factory.Services.CreateAsyncScope();
         var acceptIntake = scope.ServiceProvider.GetRequiredService<IAcceptIntake>();
 
-        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => acceptIntake.ExecuteAsync(
+        await Assert.ThrowsAsync<IntakeVersionConflictException>(() => acceptIntake.ExecuteAsync(
             new(
                 receipt.Id,
                 reviewedVersion,
