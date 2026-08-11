@@ -302,6 +302,24 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
     Case/PO fail-closed gate is satisfied.
   - **Release 1** live-verified Graph Inbox/Sent processing through the
     production Worker: 83 successful executions, zero exceptions.
+  - **Current Worker containment (2026-08-10):** release/package history is
+    unchanged, but the exact production Worker
+    `pegasus-prod-worker-252ow37gij` is intentionally not active. One scoped
+    app-settings write completed at `2026-08-10T21:34:34Z` and changed exactly
+    the nine `AzureWebJobs.<function>.Disabled` values from `false` to `true`.
+    Immediate and final readback found the exact nine values `true`, all nine
+    function definitions still discoverable, 47 total settings, and unchanged
+    non-target setting names and values. The ignored azd environment continued
+    to resolve `PEGASUS_WORKER_ACTIVATION=disabled`.
+
+    Two complete one-minute schedule intervals through `21:38:00Z`, plus the
+    `DueWorkSweepSchedule` boundary at `21:40:00Z`, recorded zero platform
+    executions and zero Application Insights Function requests. SQL readback at
+    `21:41:13Z` found no lease and no movement in poll completion, retained
+    messages, staged receipts, intake receipts, work items, Cases, or Principals.
+    This proves the scoped disabled containment state only. It is not a package
+    repair, baseline, activation, mail receipt, Case/PO, Box-custody, or
+    product-acceptance claim.
 - **Temporary verification account:** `claudeuiverification` exists on the
   production estate as an enabled Administrator, seeded by release 6 from the
   `Bootstrap:VerificationAccount` block committed to `appsettings.json`. It

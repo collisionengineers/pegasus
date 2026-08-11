@@ -109,11 +109,13 @@ A Worker `local.settings.json` is unnecessary at this baseline. Copy `src/Pegasu
 
 Worker production composition registers bounded Graph Inbox/Sent, Box
 custody, and DVLA/DVSA adapters plus Azure Blob/queue transport. These are
-**Deployed**: the production Worker runs with its functions enabled, and
-Graph Inbox/Sent processing has been live-verified; the current production
-state is owned by
-[operations § Production environment](operations.md#production-environment).
-Operator acceptance remains outstanding.
+**Deployed**, but deployment is not current execution evidence: production
+containment on 2026-08-10 disabled all nine functions after the enabled estate
+executed zero times. Graph Inbox/Sent processing was live-verified for release
+1; that historical proof does not establish the current retained-mail or
+administrator-estate path. Exact current state is owned by
+[operations § Production environment](operations.md#production-environment),
+and operator acceptance remains outstanding.
 
 Web production composition registers Box-backed case custody and managed
 document content, the staff document and EVA handoff surface, and Azure Blob
@@ -384,6 +386,19 @@ released alone and the rest of the tick continues
 ([ADR-0022](adr/0022-approved-mailbox-identity-and-enablement-database-setting.md)).
 Sent-evidence polling remains configuration-driven for one mailbox.
 
+The current implementation still uses the Graph mailbox identity as the
+inbound poll-state key, carries a cursor when the configured fallback identity
+is adopted, and builds the receipt token from that mutable identity. That is a
+known unsafe coupling, not the target architecture. Accepted
+[ADR-0024](adr/0024-stable-approved-mailbox-identity-and-explicit-baseline.md)
+would narrowly replace it with `ApprovedMailbox.Id` as the durable source
+identity, a versioned Graph cursor-scope fingerprint, immutable receipt-token
+identity, and one explicit fresh-start activation time per mailbox. It would
+also separate global Worker containment, individual Function settings, and
+per-mailbox enablement; Sent-evidence polling would remain separately enabled.
+It remains unimplemented; no current caller or deployment claim follows from
+the accepted decision.
+
 The poll also writes a retained-message read model — mailbox, folder scope,
 immutable and conversation identities, sender, recipients, subject, received
 time, excerpt, attachment names, media types and decoded sizes, and read state
@@ -405,11 +420,11 @@ nothing backfills earlier mail, and the list surfaces that gap rather than
 presenting an empty scope as "nothing was received"
 ([open decisions](open-decisions.md#mail-workspace-freshness-threshold-and-retention-start)).
 
-The Graph mailbox intake route's production triggers are enabled and
-live-verified under exact Exchange Application RBAC; the current production
-state is owned by
+The Graph mailbox intake route was live-verified under exact Exchange
+Application RBAC for release 1. Its current production trigger is disabled by
+the 2026-08-10 containment operation; exact current state is owned by
 [operations § Production environment](operations.md#production-environment).
-That verification predates the administrator-managed estate and the
+The historical verification predates the administrator-managed estate and the
 retained-message read model described above, and does not extend to them: both
 are proven at local-caller tier only, and neither has run against a deployed
 environment.
