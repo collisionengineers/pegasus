@@ -1,4 +1,5 @@
 using Pegasus.Core.Intake;
+using Pegasus.Core.Cases;
 
 namespace Pegasus.Core.Tests.Intake.Qdos;
 
@@ -8,7 +9,7 @@ public sealed class QdosMailClassificationPolicyTests
     public void PolicyKeyAndVersionAreStable()
     {
         Assert.Equal("qdos_mail_classification", QdosMailClassificationPolicy.Key);
-        Assert.Equal(1, QdosMailClassificationPolicy.Version);
+        Assert.Equal(2, QdosMailClassificationPolicy.Version);
     }
 
     [Fact]
@@ -33,6 +34,7 @@ public sealed class QdosMailClassificationPolicyTests
         var category = Assert.IsType<MailCategory>(result.Category);
         Assert.Equal(ReceivedMailFamily.NewInstructionReceived, category.ReceivedFamily);
         Assert.Equal("audit", category.Subtype);
+        Assert.Equal(CaseType.Audit, result.CaseType);
     }
 
     [Theory]
@@ -46,6 +48,11 @@ public sealed class QdosMailClassificationPolicyTests
         var category = Assert.IsType<MailCategory>(result.Category);
         Assert.Equal(ReceivedMailFamily.NewInstructionReceived, category.ReceivedFamily);
         Assert.Equal("inspection", category.Subtype);
+        Assert.Equal(
+            document.Contains("REPORT + AUDIT REPORT", StringComparison.Ordinal)
+                ? CaseType.InspectionAndAudit
+                : CaseType.Inspection,
+            result.CaseType);
     }
 
     [Fact]
@@ -104,6 +111,7 @@ public sealed class QdosMailClassificationPolicyTests
         Assert.Equal(MailClassificationOutcome.Ambiguous, result.Outcome);
         Assert.Null(result.Category);
         Assert.Equal(2, result.AmbiguousCandidates.Count);
+        Assert.Null(result.CaseType);
         Assert.Contains("pre-instruction-emails", result.AmbiguousCandidates);
         Assert.Contains("new-instruction-received/audit", result.AmbiguousCandidates);
     }
@@ -157,6 +165,67 @@ public sealed class QdosMailClassificationPolicyTests
 
         Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
         Assert.Null(result.Category);
+        Assert.Null(result.CaseType);
+    }
+
+    [Fact]
+    public void CombinedMarkerInADifferentDocumentDoesNotUpgradeInspection()
+    {
+        var result = new QdosMailClassificationPolicy().Classify(new(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(IntakeEvidenceSource.DocumentContent, "instruction letter", "ENGINEER NOTIFICATION\nOur Ref: 23456/1"),
+                new(IntakeEvidenceSource.DocumentContent, "unrelated attachment", "REPORT + AUDIT REPORT")
+            ],
+            [],
+            [],
+            false));
+
+        Assert.Equal(CaseType.Inspection, result.CaseType);
+    }
+
+    [Fact]
+    public void CombinedMarkerInsideNestedEmailDoesNotUpgradeInspection()
+    {
+        var result = new QdosMailClassificationPolicy().Classify(new(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(IntakeEvidenceSource.DocumentContent, "instruction letter", "ENGINEER NOTIFICATION\nOur Ref: 23456/1"),
+                new(IntakeEvidenceSource.DocumentContent, "message body, attached email 1, attached letter", "ENGINEER NOTIFICATION (REPORT + AUDIT REPORT)")
+            ],
+            [],
+            [],
+            false));
+
+        Assert.Equal(CaseType.Inspection, result.CaseType);
+    }
+
+    [Fact]
+    public void CombinedMarkerWithoutEngineerTitleDoesNotCreateACaseType()
+    {
+        var result = Classify(document: "REPORT + AUDIT REPORT");
+
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
+        Assert.Null(result.CaseType);
+    }
+
+    [Fact]
+    public void SimultaneousAuditAndEngineerTitlesAreAmbiguousWithoutACaseType()
+    {
+        var result = new QdosMailClassificationPolicy().Classify(new(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(IntakeEvidenceSource.DocumentContent, "audit instruction", "AUDIT REPORT NOTIFICATION"),
+                new(IntakeEvidenceSource.DocumentContent, "engineer instruction", "ENGINEER NOTIFICATION")
+            ],
+            [],
+            [],
+            false));
+
+        Assert.Equal(MailClassificationOutcome.Ambiguous, result.Outcome);
+        Assert.Null(result.CaseType);
+        Assert.Contains("new-instruction-received/audit", result.AmbiguousCandidates);
+        Assert.Contains("new-instruction-received/inspection", result.AmbiguousCandidates);
     }
 
     [Fact]

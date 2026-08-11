@@ -1,4 +1,4 @@
-# NOW — updated 2026-08-10
+# NOW — updated 2026-08-11
 
 (Anything here older than 14 days is stale: delete it, don't investigate it.)
 
@@ -7,6 +7,7 @@
 Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 <agent>)`. Nothing is in flight unless it is claimed here on `origin/dev`.
 
+- Accept stable ApprovedMailbox identity and fresh-baseline ADR (branch task/stable-mailbox-identity-adr, taken 2026-08-10, by agent e7e61e75-9ffa-41a1-869a-8b3fb1e55f13)
 ## Merged, not deployed
 
 The estate serves **release 8** (2026-08-07, revision `ded44fd7…`, image

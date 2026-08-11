@@ -30,6 +30,7 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     private readonly TimeProvider timeProvider;
     private readonly IIntakeArtifactStore? artifactStore;
     private readonly IInstructionExtractionPolicy? extractionPolicy;
+    private readonly IMailClassificationPolicy? mailClassificationPolicy;
     private readonly IVrmRecognitionEngine? recognitionEngine;
     private readonly bool useIntegrationTestAuthentication;
     private readonly bool initializeDevelopmentOffline;
@@ -66,7 +67,8 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         IInstructionExtractionPolicy? extractionPolicy = null,
         bool useIntegrationTestAuthentication = false,
         bool initializeDevelopmentOffline = true,
-        IVrmRecognitionEngine? recognitionEngine = null)
+        IVrmRecognitionEngine? recognitionEngine = null,
+        IMailClassificationPolicy? mailClassificationPolicy = null)
     {
         this.environment = environment;
         this.localIntakeEnabled = localIntakeEnabled;
@@ -74,6 +76,7 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         this.artifactStore = artifactStore;
         this.extractionPolicy = extractionPolicy;
         this.recognitionEngine = recognitionEngine;
+        this.mailClassificationPolicy = mailClassificationPolicy;
         this.useIntegrationTestAuthentication = useIntegrationTestAuthentication;
         this.initializeDevelopmentOffline = initializeDevelopmentOffline;
         // Restored from the per-run template rather than migrated here: this
@@ -167,6 +170,11 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
                 services.RemoveAll<IVrmRecognitionEngine>();
                 services.AddSingleton(recognitionEngine);
             }
+            if (mailClassificationPolicy is not null)
+            {
+                services.RemoveAll<IMailClassificationPolicy>();
+                services.AddSingleton(mailClassificationPolicy);
+            }
         });
     }
 
@@ -233,15 +241,18 @@ internal sealed class IntegrationTestAuthenticationHandler(
             return Task.FromResult(AuthenticateResult.NoResult());
         }
 
-        var claims = new[]
+        var claims = new List<Claim>
         {
             new Claim(
                 ClaimTypes.NameIdentifier,
                 DevelopmentOfflineIdentity.AdministratorId.ToString("D")),
             new Claim(ClaimTypes.Name, "integration-user"),
-            new Claim("display_name", "Integration User"),
-            new Claim(ClaimTypes.Role, "Administrator")
+            new Claim("display_name", "Integration User")
         };
+        if (!Request.Headers.ContainsKey("X-Test-Roleless"))
+        {
+            claims.Add(new Claim(ClaimTypes.Role, "Administrator"));
+        }
         var identity = new ClaimsIdentity(claims, Scheme.Name);
         return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme.Name)));
     }

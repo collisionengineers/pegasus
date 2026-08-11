@@ -132,6 +132,7 @@ internal sealed class IntakeMailClassificationDecisionEntity
     public string? Direction { get; set; }
     public string? Family { get; set; }
     public string? Subtype { get; set; }
+    public string? CaseType { get; set; }
     public bool IsReplyContext { get; set; }
     public string? OtherName { get; set; }
     public string? OtherReasoning { get; set; }

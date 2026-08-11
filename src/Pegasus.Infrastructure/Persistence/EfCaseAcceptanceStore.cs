@@ -110,7 +110,7 @@ public sealed class EfCaseAcceptanceStore(
             {
                 return await AcceptOnceAsync(request, principalCode, command, cancellationToken);
             }
-            catch (Exception exception) when (attempt < 3 && IsRetryableConcurrencyFailure(exception))
+            catch (Exception exception) when (IsRetryableConcurrencyFailure(exception))
             {
                 var duplicate = await FindAcceptedAsync(request, principalCode, command, cancellationToken);
                 if (duplicate is not null)
@@ -118,7 +118,13 @@ public sealed class EfCaseAcceptanceStore(
                     return duplicate with { IsDuplicate = true };
                 }
 
-                await Task.Delay(TimeSpan.FromMilliseconds(25 * attempt), cancellationToken);
+                if (attempt < 3)
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(25 * attempt), cancellationToken);
+                    continue;
+                }
+
+                throw new IntakeVersionConflictException();
             }
         }
 
@@ -144,7 +150,25 @@ public sealed class EfCaseAcceptanceStore(
         if (existingLink is not null)
         {
             EnsureExactReplay(existingLink, request, principalCode, command);
-            return Map(existingLink.Case, existingLink.CustodyWorkId, true);
+            var duplicateOutcome = Map(existingLink.Case, existingLink.CustodyWorkId, true);
+            if (request.AllocationAttemptId is { } replayAttemptId)
+            {
+                await EfIntakeAllocationStore.CompleteSuccessInTransactionAsync(
+                    context,
+                    replayAttemptId,
+                    request.IntakeReceiptId,
+                    request.OperationKey,
+                    request.ExpectedIntakeVersion,
+                    ToCode(request.CaseType),
+                    principalCode,
+                    request.StandaloneAuditEvidenceId,
+                    duplicateOutcome,
+                    request.AllocationCompletedAtUtc!.Value,
+                    cancellationToken);
+                await context.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            }
+            return duplicateOutcome;
         }
         CaseDataPolicy.ValidateCompleteness(request.Completeness);
 
@@ -157,7 +181,7 @@ public sealed class EfCaseAcceptanceStore(
             ?? throw new InvalidOperationException("The intake receipt does not exist.");
         if (receipt.Version != request.ExpectedIntakeVersion)
         {
-            throw new DbUpdateConcurrencyException("The intake receipt changed before it could be accepted.");
+            throw new IntakeVersionConflictException();
         }
 
         // Two decisions can produce a case, and they are the two the business
@@ -188,14 +212,13 @@ public sealed class EfCaseAcceptanceStore(
             .SingleOrDefaultAsync(
                 item => item.Code == principalCode && item.IsActive,
                 cancellationToken)
-            ?? throw new InvalidOperationException($"The active principal '{principalCode}' does not exist.");
+            ?? throw new PrincipalUnavailableException(principalCode);
         if (!string.Equals(
                 principal.InspectionMode,
                 ProviderInspectionModePolicy.ToCode(request.ProviderInspectionMode),
                 StringComparison.Ordinal))
         {
-            throw new InvalidOperationException(
-                "The provider inspection-mode setting changed while the intake was being accepted. Reload and retry.");
+            throw new IntakeVersionConflictException();
         }
 
         var acceptedAtUtc = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
@@ -383,9 +406,25 @@ public sealed class EfCaseAcceptanceStore(
             AfterCaseVersion = 0
         });
 
+        var outcome = Map(caseEntity, custodyWorkId, false);
+        if (request.AllocationAttemptId is { } allocationAttemptId)
+        {
+            await EfIntakeAllocationStore.CompleteSuccessInTransactionAsync(
+                context,
+                allocationAttemptId,
+                request.IntakeReceiptId,
+                request.OperationKey,
+                request.ExpectedIntakeVersion,
+                ToCode(request.CaseType),
+                principalCode,
+                request.StandaloneAuditEvidenceId,
+                outcome,
+                request.AllocationCompletedAtUtc!.Value,
+                cancellationToken);
+        }
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return Map(caseEntity, custodyWorkId, false);
+        return outcome;
     }
 
     private static async Task<StandaloneAuditEvidenceEntity?> ResolveStandaloneAuditEvidenceAsync(
