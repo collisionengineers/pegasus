@@ -21,7 +21,7 @@ namespace Pegasus.Web.Pages.Cases;
 /// screen, reached by finding the row in a list, and it refused anything but
 /// an item that needed sorting. An upload now lands here directly with what
 /// extraction found already in the boxes, and this is the only place in the
-/// application that calls <see cref="IAcceptIntake"/>.
+/// application that begins a staff allocation through <see cref="IAllocateIntake"/>.
 ///
 /// <para><strong>One button.</strong> Creating a case takes up to four writes
 /// — the corrected draft, the inspection address, standalone Audit evidence,
@@ -49,7 +49,7 @@ namespace Pegasus.Web.Pages.Cases;
 public sealed partial class CreateModel(
     IGetIntake getIntake,
     IResolveIntake resolveIntake,
-    IAcceptIntake acceptIntake,
+    IAllocateIntake allocateIntake,
     IInspectionAddressResolutionStore addressResolutionStore,
     IConfirmStandaloneAuditEvidence confirmStandaloneAuditEvidence,
     IStandaloneAuditEvidenceQueries standaloneAuditEvidenceQueries,
@@ -259,6 +259,7 @@ public sealed partial class CreateModel(
         DateOfIncident = draft?.DateOfIncident;
         InstructionDate = draft?.InstructionDate;
         InspectionDate = draft?.InspectionDate;
+        CaseType = Receipt.MailClassificationDecision?.CaseType ?? CaseType.Inspection;
         AddressChoice = AddressSuggestion is null
             ? AddressChoiceKind.UseEnteredAddress
             : AddressChoiceKind.UseFoundAddress;
@@ -408,7 +409,7 @@ public sealed partial class CreateModel(
             }
 
             // 4. The acceptance itself, at the version the last write returned.
-            var outcome = await acceptIntake.ExecuteAsync(
+            var allocation = await allocateIntake.AttemptStaffCreateAsync(
                 new(
                     Receipt.Id,
                     version,
@@ -426,9 +427,17 @@ public sealed partial class CreateModel(
                     corrected.InstructionDraft?.InspectionDate),
                 cancellationToken);
 
+            if (allocation.State.Status != IntakeAllocationProjectionStatus.Succeeded
+                || allocation.State.CaseId is not { } caseId)
+            {
+                TempData["IntakeDetailsError"] = allocation.State.SafeReason
+                    ?? "The case could not be created. No reference was allocated.";
+                return RedirectToPage("/Intake/Details", new { id = Receipt.Id });
+            }
+
             TempData["CaseDetailsStatus"] =
-                $"Case {outcome.Identity.AuditReference ?? outcome.Identity.Reference} was created.";
-            return RedirectToPage("/Cases/Details", new { id = outcome.Identity.CaseId });
+                $"Case {allocation.State.AuditReference ?? allocation.State.CaseReference} was created.";
+            return RedirectToPage("/Cases/Details", new { id = caseId });
         }
         catch (StaffAuthorizationException)
         {

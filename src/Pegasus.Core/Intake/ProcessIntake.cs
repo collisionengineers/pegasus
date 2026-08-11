@@ -298,7 +298,7 @@ public sealed class ProcessIntake(
         {
             InstructionPolicyApplicability.Applicable => (
                 IntakeDecision.CaseCreated,
-                "A definitive instruction was identified and a case was created.",
+                "A definitive instruction was identified and is eligible for case allocation.",
                 null,
                 null),
             InstructionPolicyApplicability.Indeterminate when readResult.RequiresOcr => (
@@ -326,7 +326,8 @@ public sealed class ProcessIntake(
         // processing can supply that, so an audit instruction waits for a
         // person rather than being allocated a reference it cannot justify.
         if (decision == IntakeDecision.CaseCreated
-            && IsStandaloneAuditInstruction(mailClassificationDecision))
+            && IntakeDecisionPolicy.RequiresStandaloneAuditEvidence(
+                mailClassificationDecision?.CaseType))
         {
             decision = IntakeDecision.NeedsSorting;
             reason = "This is audit work; a case is created once the original report is confirmed.";
@@ -599,17 +600,6 @@ public sealed class ProcessIntake(
         IntakeSourceReadStatus.TechnicalFailure => "technical_failure",
         _ => throw new InvalidOperationException($"Unknown intake reader result value '{(int)status}'.")
     };
-
-    /// <summary>
-    /// Whether the recorded classification says this is standalone Audit work.
-    /// </summary>
-    private static bool IsStandaloneAuditInstruction(MailClassificationResult? classification) =>
-        classification?.Category is
-        {
-            Direction: MailDirection.Received,
-            ReceivedFamily: ReceivedMailFamily.NewInstructionReceived,
-            Subtype: "audit"
-        };
 
     private static string DecisionCode(IntakeDecision decision) => decision switch
     {

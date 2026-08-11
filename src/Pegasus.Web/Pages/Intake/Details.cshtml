@@ -13,12 +13,18 @@
        their own they claim a case that may not exist. Say what is true. *@
     var allocationIncomplete = Model.Receipt.Decision == IntakeDecision.CaseCreated
         && Model.Receipt.CurrentCaseId is null;
+    var allocationSucceeded = Model.Receipt.CurrentCaseId is not null;
 }
 
 <header class="page-heading">
     <div>
         <p class="eyebrow">Intake review</p>
-        @if (allocationIncomplete)
+        @if (allocationSucceeded)
+        {
+            <h1>Case created</h1>
+            <p class="lede">This received item is linked to its immutable Case/PO.</p>
+        }
+        else if (allocationIncomplete)
         {
             @* The create-case form renders for Needs sorting only (below), and
                the handler refuses anything else, so this copy describes what
@@ -63,6 +69,35 @@ else if (Model.IsDuplicate)
 @if (TempData["IntakeDetailsError"] is string intakeDetailsError)
 {
     <div class="validation-summary" role="alert">@intakeDetailsError</div>
+}
+
+@if (Model.Receipt.AllocationState is { } allocation
+    && allocation.Status is IntakeAllocationProjectionStatus.FailedRecoverable
+        or IntakeAllocationProjectionStatus.FailedBlocked)
+{
+    <section class="panel form-panel section-gap" aria-labelledby="allocation-failure-title">
+        <h2 id="allocation-failure-title" class="section-label">Case not created</h2>
+        <p class="failure-detail">@(allocation.SafeReason ?? "No case reference was allocated.")</p>
+        <dl class="detail-list">
+            <div><dt>Attempted case type</dt><dd>@DetailsModel.CaseTypeLabel(allocation.AttemptedCaseType)</dd></div>
+            <div><dt>Recorded</dt><dd>@OperatorLabels.OfficeTime(allocation.OccurredAtUtc)</dd></div>
+        </dl>
+        @if (allocation.FailureKind == IntakeAllocationFailureKind.PrincipalUnavailable)
+        {
+            <p><a asp-page="/Administration/Principals/Index">Open Principal administration</a> to correct the Principal before retrying.</p>
+        }
+        @if (Model.CanRetryAllocation)
+        {
+            <form method="post" asp-page-handler="RetryAllocation" asp-route-id="@Model.Receipt.Id">
+                <input type="hidden" name="expectedVersion" value="@Model.Receipt.Version" />
+                <input type="hidden" name="expectedAttemptId" value="@allocation.AttemptId" />
+                <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+                <label for="allocation-retry-reason">Reason for retrying case creation</label>
+                <textarea id="allocation-retry-reason" name="reason" maxlength="500" rows="3" required></textarea>
+                <button type="submit" class="primary-action">Retry case creation</button>
+            </form>
+        }
+    </section>
 }
 
 
@@ -229,7 +264,7 @@ else if (Model.IsDuplicate)
     <h2 id="case-association-title" class="section-label">Current case association</h2>
     @if (Model.Receipt.CurrentCaseId is { } currentCaseId)
     {
-        <p>Currently linked to case <a asp-page="/Cases/Details" asp-route-id="@currentCaseId">@currentCaseId</a>.</p>
+        <p>Currently linked to Case/PO <a asp-page="/Cases/Details" asp-route-id="@currentCaseId">@Model.Receipt.CurrentCaseReference</a>.</p>
     }
     else
     {
@@ -253,7 +288,7 @@ else if (Model.IsDuplicate)
             @if (Model.Receipt.CurrentCaseId is { } associatedCaseId)
             {
                 <input type="hidden" name="caseId" value="@associatedCaseId" />
-                <p>Enter the current version of case @associatedCaseId to enter case edit mode.</p>
+                <p>Enter the current version of Case/PO @Model.Receipt.CurrentCaseReference to enter case edit mode.</p>
             }
             else
             {

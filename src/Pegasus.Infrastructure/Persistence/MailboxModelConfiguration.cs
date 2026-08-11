@@ -145,6 +145,7 @@ internal static class MailboxModelConfiguration
             entity.Property(item => item.Direction).HasMaxLength(20);
             entity.Property(item => item.Family).HasMaxLength(100);
             entity.Property(item => item.Subtype).HasMaxLength(100);
+            entity.Property(item => item.CaseType).HasMaxLength(40);
             entity.Property(item => item.OtherName).HasMaxLength(200);
             entity.Property(item => item.OtherReasoning).HasMaxLength(1000);
             entity.Property(item => item.AmbiguousCandidatesJson).IsRequired();

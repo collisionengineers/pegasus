@@ -1,5 +1,7 @@
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Cases;
+using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
@@ -90,11 +92,10 @@ public sealed class ImageIntakeWebTests
             caseEmail.Content);
         var caseOriginReceiptId = IntakeWebDriver.ReceiptId(caseUpload);
 
-        // The instruction creates its own case now, at processing time. Seeding
-        // a second one for the same receipt would make the registration match
-        // ambiguous, which is a fixture artefact rather than anything the
-        // product does. The case is moved to Review because that is the state
-        // this test is about — an image joining an eligible case.
+        // Manual uploads have no persisted mailbox classification, so automatic
+        // allocation records a truthful case-type-unavailable failure. The
+        // image scenario then supplies the explicit staff acceptance that
+        // makes the instruction an eligible case before moving it to Review.
         var caseId = await ImageIntakeTestData.PromoteAllocatedCaseAsync(
             factory.Services,
             caseOriginReceiptId,
@@ -176,14 +177,35 @@ internal static class ImageIntakeTestData
         parameter.ParameterName = "@receiptId";
         parameter.Value = originReceiptId;
         command.Parameters.Add(parameter);
-        var caseId = (Guid)(await command.ExecuteScalarAsync()
-            ?? throw new InvalidOperationException(
-                "Processing did not allocate a case for the instruction receipt."));
+        var caseId = await command.ExecuteScalarAsync();
+        if (caseId is null || caseId is DBNull)
+        {
+            var receipt = Assert.IsType<IntakeReceipt>(
+                await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+                    .GetAsync(originReceiptId, CancellationToken.None));
+            var failure = Assert.IsType<IntakeAllocationState>(receipt.AllocationState);
+            Assert.Equal(IntakeAllocationFailureKind.CaseTypeUnavailable, failure.FailureKind);
+            var accepted = await scope.ServiceProvider
+                .GetRequiredService<IAcceptIntake>()
+                .ExecuteAsync(
+                    new(
+                        receipt.Id,
+                        receipt.Version,
+                        ActionActor.SystemWorker("image-intake-integration"),
+                        $"image-case-accept:{Guid.NewGuid():N}",
+                        "Staff confirmed the manually uploaded instruction before image association.",
+                        CaseType.Inspection,
+                        QdosPrincipal.Code,
+                        new(true, true, true, true)),
+                    CancellationToken.None);
+            caseId = accepted.Identity.CaseId;
+        }
+        var caseIdValue = (Guid)caseId;
 
         await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlInterpolatedAsync(
             context.Database,
-            $"UPDATE CaseWorkflows SET State = {workflowState} WHERE CaseId = {caseId}");
-        return caseId;
+            $"UPDATE CaseWorkflows SET State = {workflowState} WHERE CaseId = {caseIdValue}");
+        return caseIdValue;
     }
 
     public static async Task<Guid> SeedCaseAsync(

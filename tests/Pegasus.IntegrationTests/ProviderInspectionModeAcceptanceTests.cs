@@ -192,11 +192,11 @@ public sealed class ProviderInspectionModeAcceptanceTests
             CaseInspectionMode.PhysicalAddress,
             AcceptedInspectionDeadline: FixtureInspectionDate);
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+        var exception = await Assert.ThrowsAsync<IntakeVersionConflictException>(
             () => harness.AcceptanceStore.AcceptAsync(
                 staleModeAcceptance,
                 CancellationToken.None));
-        Assert.Contains("inspection-mode setting changed", exception.Message);
+        Assert.Contains("intake or case changed", exception.Message);
     }
 
     private sealed class Harness : IAsyncDisposable
