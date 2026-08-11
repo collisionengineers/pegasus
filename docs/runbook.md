@@ -793,6 +793,8 @@ The following contracts must be proved through the owning Core policy and actual
 - no-registration Triage remains `Needs sorting` without case/reference creation;
 - reply-chain evidence uses the exact allowlist and does not fall back to subject, registration, or manual selection;
 - the in-house upload caller proves authenticated staff creation, isolated request-local upload/result presentation, expiry, revocation, bounded retry/abuse behavior, durable custody, and cross-request/non-disclosing failures without a Box File Request route;
+- Case and later-Audit custody use the immutable business reference hierarchy, reject unrelated or wrongly bound same-name folders, and recover a lost folder-create response only through the predeclared transient creation-owner marker; a persisted custody failure is re-entered only by an authenticated, reasoned, lease- and version-guarded human staff command;
+- manual EVA generation is refused outside `Review` or without applicable confirmed custody, accepted mapping, current evidence and all eligible Case-vehicle images; download is an authenticated, reasoned, idempotent command over the rendered business revision and records permanent history;
 - the first successful EVA export generation records one `First sent to Engineer` proxy event, not receipt;
 - repeated EVA export proves byte-identical ordered UTF-8 JSON and image order for the same accepted inputs, the SHA-256 manifest, the image eligibility/duplication/video-screenshot rules, no EVA network call, and no duplicate `First sent to Engineer` event;
 - absent or ambiguous automatic report evidence requires an exact manual link and reason;

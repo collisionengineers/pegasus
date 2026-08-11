@@ -1,5 +1,6 @@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using Pegasus.Core.Cases
+@using Pegasus.Core.Custody
 @using Pegasus.Core.Lifecycle
 @using Pegasus.Core.Tasks
 @using Pegasus.Core.Workflow
@@ -457,7 +458,7 @@ else if (Model.ProposedValues.Count > 0)
         @if (vehicleEvidence.Confirmed is { } confirmed)
         {
             <dl>
-                <dt>Confirmed registration</dt><dd>@confirmed.Registration.Value — @confirmed.Registration.SourceLabel / @confirmed.Registration.PolicyKey v@confirmed.Registration.PolicyVersion</dd>
+                <dt>Confirmed registration</dt><dd>@confirmed.Registration.Value — @confirmed.Registration.SourceLabel</dd>
                 <dt>Confirmed make</dt><dd>@(confirmed.Make?.Value ?? "Not confirmed")</dd>
                 <dt>Confirmed model</dt><dd>@(confirmed.Model?.Value ?? "Not confirmed")</dd>
                 <dt>Confirmed mileage</dt><dd>@(confirmed.Mileage is null ? "Not confirmed" : $"{confirmed.Mileage.Value} {confirmed.MileageUnit?.Value}")</dd>
@@ -497,6 +498,42 @@ else if (Model.ProposedValues.Count > 0)
     }
 </section>
 
+<section class="panel form-panel" aria-labelledby="case-custody-title">
+    <h2 id="case-custody-title" class="section-label">Case custody</h2>
+    @if (details.Custody.Count == 0)
+    {
+        <p class="empty-state">No custody preparation is recorded for this case.</p>
+    }
+    else
+    {
+        <ul class="action-list">
+        @foreach (var custody in details.Custody)
+        {
+            <li>
+                <strong>@(custody.TargetKind == CustodyTargetKind.CaseSource ? "Case evidence" : "Audit reference")</strong>
+                — @custody.State
+                @if (!string.IsNullOrWhiteSpace(custody.SafeFailureReason))
+                {
+                    <span>— @custody.SafeFailureReason</span>
+                }
+                @if (mayEdit && custody.CanRetry)
+                {
+                    <form method="post" asp-page-handler="RetryCustody" class="form-grid">
+                        <input type="hidden" name="id" value="@workflow.CaseId" />
+                        <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                        <input type="hidden" name="targetKind" value="@custody.TargetKind" />
+                        <input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" />
+                        <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                        <label>Reason<input name="reason" required maxlength="500" /></label>
+                        <button type="submit" class="secondary-action">Retry custody</button>
+                    </form>
+                }
+            </li>
+        }
+        </ul>
+    }
+</section>
+
 <section class="panel form-panel" aria-labelledby="case-eva-title">
     <h2 id="case-eva-title" class="section-label">EVA handoff</h2>
     @if (details.EvaHandoff is not { } eva)
@@ -517,11 +554,20 @@ else if (Model.ProposedValues.Count > 0)
             @foreach (var revision in eva.Revisions)
             {
                 <li>
-                    <a asp-page="/Cases/Details"
-                       asp-page-handler="EvaDownload"
-                       asp-route-id="@workflow.CaseId"
-                       asp-route-revision="@revision.Revision">Download @revision.FileName</a>
-                    <small>Revision @revision.Revision · generated @OperatorLabels.OfficeTime(revision.GeneratedAtUtc) · SHA-256 <code>@revision.BundleSha256</code></small>
+                    <strong>@revision.FileName</strong>
+                    <small>Business revision @revision.Revision · generated @OperatorLabels.OfficeTime(revision.GeneratedAtUtc) · integrity verified</small>
+                    @if (mayEdit)
+                    {
+                        <form method="post" asp-page-handler="EvaDownload" class="form-grid">
+                            <input type="hidden" name="id" value="@workflow.CaseId" />
+                            <input type="hidden" name="revision" value="@revision.Revision" />
+                            <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                            <input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" />
+                            <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                            <label>Reason<input name="reason" required maxlength="500" /></label>
+                            <button type="submit" class="secondary-action">Download handoff</button>
+                        </form>
+                    }
                 </li>
             }
             </ul>

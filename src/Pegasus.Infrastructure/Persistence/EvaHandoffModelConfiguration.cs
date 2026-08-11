@@ -76,5 +76,27 @@ internal static class EvaHandoffModelConfiguration
                 .HasForeignKey<EvaFirstHandoffProxyEntity>(item => item.RevisionId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
+
+        builder.Entity<EvaHandoffDownloadOperationEntity>(entity =>
+        {
+            entity.ToTable("EvaHandoffDownloadOperations");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.OperationKey).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.RequestHash).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.ActorKind).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.ActorSubjectId).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.ActorRolesJson).HasMaxLength(500).IsRequired();
+            entity.HasIndex(item => item.OperationKey).IsUnique();
+            entity.HasIndex(item => new { item.CaseId, item.PreparedAtUtc });
+            entity.HasOne<CaseEntity>()
+                .WithMany()
+                .HasForeignKey(item => item.CaseId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<EvaHandoffRevisionEntity>()
+                .WithMany()
+                .HasForeignKey(item => item.RevisionId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
     }
 }

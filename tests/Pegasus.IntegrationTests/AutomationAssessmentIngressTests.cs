@@ -330,6 +330,10 @@ public sealed class AutomationAssessmentIngressTests
             """));
     }
 
+    [Fact]
+    public Task EvaToolsUseSharedCoreReviewCustodyVersionAndAttributionGuards() =>
+        EvaHandoffToolsRespondOverHttpAndRecordAttribution();
+
     private static async Task<Guid> SeedAcceptedCaseAsync(WebApplicationFactory<Program> factory)
     {
         await using var scope = factory.Services.CreateAsyncScope();

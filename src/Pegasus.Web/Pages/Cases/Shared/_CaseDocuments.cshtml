@@ -21,7 +21,7 @@
             <input type="hidden" name="editLeaseToken" value="@leaseToken" />
             <div class="table-wrap">
                 <table>
-                    <thead><tr><th>Export</th><th>Role / source</th><th>Version</th><th>File</th><th>Custody</th><th>EVA eligibility</th><th>Hash</th><th>Action</th></tr></thead>
+                    <thead><tr><th>Export</th><th>Role / source</th><th>Revision state</th><th>File</th><th>Custody</th><th>EVA eligibility</th><th>Action</th></tr></thead>
                     <tbody>
                     @foreach (var document in details.Documents)
                     {
@@ -30,9 +30,9 @@
                             @foreach (var version in document.Versions)
                             {
                                 <tr>
-                                    <td><input type="checkbox" name="selection" value="@occurrence.Id:@version.Id" disabled="@(!mayEdit)" aria-label="Select @version.FileName version @version.Version" /></td>
+                                    <td><input type="checkbox" name="selection" value="@occurrence.Id:@version.Id" disabled="@(!mayEdit)" aria-label="Select @version.FileName @(version.IsCurrent ? "current revision" : "historical revision")" /></td>
                                     <td>@occurrence.SemanticRole / @occurrence.Source</td>
-                                    <td>@version.Version @(version.IsCurrent ? "(current)" : "(historical)") @(version.IsLogicallyRemoved ? "— logically removed" : null)</td>
+                                    <td>@(version.IsCurrent ? "Current" : "Historical") @(version.IsLogicallyRemoved ? "— logically removed" : null)</td>
                                     <td><a asp-page="/Cases/Documents/Download" asp-route-caseId="@workflow.CaseId" asp-route-documentId="@occurrence.Id" asp-route-versionId="@version.Id">@version.FileName</a></td>
                                     <td>@OperatorLabels.CustodyState(version.CustodyStatus) — @OperatorLabels.FileSize(version.ContentLength)</td>
                                     <td>
@@ -49,7 +49,6 @@
                                             <span>Not an image</span>
                                         }
                                     </td>
-                                    <td><code>@version.Sha256</code></td>
                                     <td>
                                         @if (mayEdit && !version.IsLogicallyRemoved && version.IsCurrent)
                                         {

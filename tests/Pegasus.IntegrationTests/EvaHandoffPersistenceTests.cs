@@ -49,7 +49,7 @@ public sealed class EvaHandoffPersistenceTests
                 CancellationToken.None);
 
             Assert.Equal(GenerateEvaHandoffOutcome.Blocked, result.Outcome);
-            Assert.Contains(result.Reasons, reason => reason.Contains("Terminal cases", StringComparison.Ordinal));
+            Assert.Contains(result.Reasons, reason => reason.Contains("only while the case is in Review", StringComparison.Ordinal));
         }
 
         await using var verification = await factory.CreateDbContextAsync();
@@ -272,6 +272,122 @@ public sealed class EvaHandoffPersistenceTests
         }
     }
 
+    [Fact]
+    public async Task ReviewOnlyGenerationUsesRenderedWorkflowVersionAndConfirmedApplicableCustody()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var factory = Factory(database.ConnectionString);
+        var caseId = await SeedCaseAsync(factory, "Review", workflowVersion: 7, hiddenCaseVersion: 7);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        const string lease = "eva-review-only-generation-lease";
+        await SetLeaseAsync(factory, caseId, actor, lease);
+        var custodyRoot = Path.Combine(Path.GetTempPath(), "pegasus-eva-review", Guid.NewGuid().ToString("N"));
+        var contentStore = new LocalDocumentContentStore(custodyRoot);
+        try
+        {
+            await SeedImageAsync(factory, contentStore, caseId, "review.jpg", Now, false);
+            var store = AcceptedStore(factory, contentStore, caseId, dataVersion: 7);
+
+            var generated = await store.ExecuteAsync(new(
+                caseId, 7, actor, "eva:review-only", "Prepare Review handoff.", lease));
+
+            Assert.Equal(GenerateEvaHandoffOutcome.Generated, generated.Outcome);
+            Assert.Equal(1, generated.Revision);
+            await using var context = await factory.CreateDbContextAsync();
+            var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId);
+            Assert.Equal(8, workflow.Version);
+            Assert.Equal("Review", workflow.State);
+            Assert.Single(await context.EvaHandoffRevisions.Where(item => item.CaseId == caseId).ToArrayAsync());
+        }
+        finally
+        {
+            if (Directory.Exists(custodyRoot)) Directory.Delete(custodyRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task BundleRevisionProxyAndDownloadCommandAreAtomicReplaySafeAndIntegrityChecked()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var factory = Factory(database.ConnectionString);
+        var caseId = await SeedCaseAsync(factory, "Review", workflowVersion: 7, hiddenCaseVersion: 7);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        const string generationLease = "eva-bundle-generation-lease";
+        await SetLeaseAsync(factory, caseId, actor, generationLease);
+        var custodyRoot = Path.Combine(Path.GetTempPath(), "pegasus-eva-revision", Guid.NewGuid().ToString("N"));
+        var contentStore = new LocalDocumentContentStore(custodyRoot);
+        try
+        {
+            await SeedImageAsync(factory, contentStore, caseId, "damage.jpg", Now, false);
+            var store = AcceptedStore(factory, contentStore, caseId, dataVersion: 7);
+            var request = new GenerateEvaHandoffRequest(
+                caseId, 7, actor, "eva:bundle:1", "Prepare immutable Review handoff.", generationLease);
+
+            var generated = await store.ExecuteAsync(request);
+            var replay = await store.ExecuteAsync(request);
+
+            Assert.Equal(GenerateEvaHandoffOutcome.Generated, generated.Outcome);
+            Assert.Equal(generated.Bundle!.Content, replay.Bundle!.Content);
+            Assert.Equal(generated.Revision, replay.Revision);
+
+            const string downloadLease = "eva-bundle-download-lease";
+            await SetLeaseAsync(factory, caseId, actor, downloadLease);
+            var download = new DownloadEvaHandoff(store);
+            var downloadRequest = new DownloadEvaHandoffRequest(
+                caseId, 1, 8, actor, "eva:download:1", "Download for authorised review.", downloadLease);
+            var prepared = await download.ExecuteAsync(downloadRequest);
+            var downloadReplay = await download.ExecuteAsync(downloadRequest);
+            var changed = await download.ExecuteAsync(downloadRequest with { Reason = "Changed reason." });
+
+            Assert.Equal(DownloadEvaHandoffOutcome.Prepared, prepared.Outcome);
+            Assert.Equal(DownloadEvaHandoffOutcome.Replay, downloadReplay.Outcome);
+            Assert.Equal(DownloadEvaHandoffOutcome.Conflict, changed.Outcome);
+            Assert.Equal(generated.Bundle.Content, prepared.Artifact!.Content);
+            Assert.Equal("EVA-QDOS001-Revision-001.zip", prepared.Artifact.FileName);
+            Assert.Equal(Sha256(prepared.Artifact.Content), prepared.Artifact.BundleSha256);
+
+            await using var context = await factory.CreateDbContextAsync();
+            Assert.Single(await context.EvaHandoffRevisions.Where(item => item.CaseId == caseId).ToArrayAsync());
+            Assert.Single(await context.EvaFirstHandoffProxies.Where(item => item.CaseId == caseId).ToArrayAsync());
+            Assert.Single(await context.EvaHandoffOperations.Where(item => item.CaseId == caseId).ToArrayAsync());
+            Assert.Single(await context.EvaHandoffDownloadOperations.Where(item => item.CaseId == caseId).ToArrayAsync());
+            Assert.Single(await context.CaseWorkflowEvents.Where(item => item.CaseId == caseId
+                && item.EventType == "eva_handoff_download_prepared").ToArrayAsync());
+        }
+        finally
+        {
+            if (Directory.Exists(custodyRoot)) Directory.Delete(custodyRoot, recursive: true);
+        }
+    }
+
+    private static EvaHandoffStore AcceptedStore(
+        IDbContextFactory<PegasusDbContext> factory,
+        IDocumentContentStore contentStore,
+        Guid caseId,
+        long dataVersion) => new(
+        factory,
+        new FixedCaseDataQueries(AcceptedCaseData(caseId, dataVersion)),
+        new FixedVehicleEvidenceQueries(ConfirmedVehicle(caseId)),
+        contentStore,
+        new RecordingEvaHandoffProxy(),
+        new(CaseEvaMapping.MappingKey, CaseEvaMapping.MappingVersion, "test-accepted-eva-mapping"),
+        TimeProvider.System);
+
+    private static async Task SetLeaseAsync(
+        IDbContextFactory<PegasusDbContext> factory,
+        Guid caseId,
+        ActionActor actor,
+        string token)
+    {
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token))).ToLowerInvariant();
+        await using var context = await factory.CreateDbContextAsync();
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE CaseWorkflows SET EditLeaseToken = {token}, EditLeaseTokenHash = {hash}, EditLeaseRequestHash = {hash}, EditLeaseHolder = {actor.SubjectId}, EditLeaseOperationKey = {$"lease:{token}"}, EditLeaseExpiresAtUtc = {DateTimeOffset.UtcNow.AddMinutes(5)} WHERE CaseId = {caseId}");
+    }
+
+    private static string Sha256(ReadOnlySpan<byte> bytes) =>
+        Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+
     private static EvaHandoffStore Store(IDbContextFactory<PegasusDbContext> factory) => new(
         factory,
         null!,
@@ -318,12 +434,13 @@ public sealed class EvaHandoffPersistenceTests
         var sha256 = Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
 
         await using var context = await factory.CreateDbContextAsync();
+        var ordinal = await context.Set<CaseDocumentEntity>().CountAsync(item => item.CaseId == caseId) + 2;
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO CaseDocuments (Id, CaseId, SourceOccurrenceIdentity) VALUES ({documentId}, {caseId}, {$"fixture:{fileName}"})");
+            $"INSERT INTO CaseDocuments (Id, CaseId, Ordinal, SourceOccurrenceIdentity) VALUES ({documentId}, {caseId}, {ordinal}, {$"fixture:{fileName}"})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO DocumentVersions (Id, DocumentId, Version, FileName, MediaType, ContentLength, Sha256, CustodyStatus, CreatedAtUtc, CreatedBy, IsCurrent, IsLogicallyRemoved) VALUES ({versionId}, {documentId}, {1}, {fileName}, {"image/jpeg"}, {(long)content.Length}, {sha256}, {"Confirmed"}, {recordedAtUtc}, {"staff:fixture"}, {true}, {false})");
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO DocumentOccurrences (Id, CaseId, DocumentId, VersionId, SemanticRole, Source, SourceOccurrenceIdentity, RecordedAtUtc, OperationKey, ThirdPartyVehicleConfirmedAtUtc, ThirdPartyVehicleConfirmationReason, ThirdPartyVehicleConfirmationOperationKey) VALUES ({occurrenceId}, {caseId}, {documentId}, {versionId}, {"Image"}, {"StaffUpload"}, {$"fixture:{fileName}"}, {recordedAtUtc}, {$"fixture:{fileName}"}, {(thirdPartyVehicleConfirmed ? recordedAtUtc : null)}, {(thirdPartyVehicleConfirmed ? "Staff confirmed this is third-party vehicle evidence." : null)}, {(thirdPartyVehicleConfirmed ? "fixture:third-party-vehicle" : null)})");
+            $"INSERT INTO DocumentOccurrences (Id, CaseId, DocumentId, VersionId, Ordinal, SemanticRole, Source, SourceOccurrenceIdentity, RecordedAtUtc, OperationKey, ThirdPartyVehicleConfirmedAtUtc, ThirdPartyVehicleConfirmationReason, ThirdPartyVehicleConfirmationOperationKey) VALUES ({occurrenceId}, {caseId}, {documentId}, {versionId}, {ordinal}, {"Image"}, {"StaffUpload"}, {$"fixture:{fileName}"}, {recordedAtUtc}, {$"fixture:{fileName}"}, {(thirdPartyVehicleConfirmed ? recordedAtUtc : null)}, {(thirdPartyVehicleConfirmed ? "Staff confirmed this is third-party vehicle evidence." : null)}, {(thirdPartyVehicleConfirmed ? "fixture:third-party-vehicle" : null)})");
         if (!thirdPartyVehicleConfirmed)
         {
             await contentStore.StoreAsync(caseId, "QDOS001", versionId, content, sha256, CancellationToken.None);

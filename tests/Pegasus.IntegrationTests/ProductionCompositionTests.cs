@@ -68,6 +68,22 @@ public sealed class ProductionCompositionTests
     }
 
     [Fact]
+    public void ProductionCustodyAndEvaPortsResolveOnlyApprovedAdaptersAndCoreUseCases()
+    {
+        using var provider = BuildProduction();
+        using var scope = provider.CreateScope();
+        var services = scope.ServiceProvider;
+
+        Assert.IsType<BoxCaseCustody>(services.GetRequiredService<ICaseCustody>());
+        Assert.IsType<BoxDocumentContentStore>(services.GetRequiredService<IDocumentContentStore>());
+        Assert.IsType<RetryCaseCustody>(services.GetRequiredService<IRetryCaseCustody>());
+        Assert.IsType<GenerateEvaHandoff>(services.GetRequiredService<IGenerateEvaHandoff>());
+        Assert.IsType<DownloadEvaHandoff>(services.GetRequiredService<IDownloadEvaHandoff>());
+        Assert.IsType<EvaHandoffStore>(services.GetRequiredService<IEvaHandoffQueries>());
+        Assert.IsType<EvaHandoffStore>(services.GetRequiredService<IEvaHandoffCommandStore>());
+    }
+
+    [Fact]
     public void ProductionProfileComposesExactlyOneCustodyAndContentImplementation()
     {
         using var provider = BuildProduction();

@@ -427,6 +427,12 @@ The current and intended workflows use several different evidence transfers:
   manual drag-and-drop. Its first successful generation is only Pegasus's
   once-per-case `First sent to Engineer` proxy; EVA still owns receipt and
   named-Engineer assignment;
+- the local Pegasus caller now enforces Review stage, applicable confirmed
+  custody, current accepted evidence and all eligible Case-vehicle images,
+  then retains a business revision for authenticated, reasoned download. It
+  makes no EVA network call; production Box migration, deployment, external
+  receipt, named-Engineer assignment and operator drag-and-drop acceptance
+  remain separate evidence states;
 - EVA currently generates the final provider report, while Box stores produced
   Engineer Reports; a PDF's existence or custody does not prove that the report
   was sent or received; and
